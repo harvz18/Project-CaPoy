@@ -67,7 +67,7 @@ export default function TaskDetailsScreen() {
     if (!taskId) {
       return;
     }
-    await updateTaskStatus(taskId, "Accepted", interestedWorker.id);
+    await updateTaskStatus(taskId, "Accepted", task.workerId ?? interestedWorker.id);
     router.push(`/task-status/${taskId}`);
   }
 
@@ -94,14 +94,14 @@ export default function TaskDetailsScreen() {
           <DetailBox label="Location" value={task.location} />
           <DetailBox label="Duration" value={task.estimatedDuration} />
           <DetailBox label="Payment" value={task.paymentMethod} />
-          <DetailBox label="Applicants" value={hasWorker ? "1 accepted" : "1 interested"} />
+          <DetailBox label="Applicants" value={hasWorker ? (task.status === "Accepted" ? "1 accepted" : "1 applied") : "0 applied"} />
         </View>
 
         {isClient ? (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>{hasWorker ? "Assigned Worker" : "Interested Workers"}</Text>
-              <Text style={styles.sectionMeta}>{hasWorker ? "Ready to start" : "Review before accepting"}</Text>
+              <Text style={styles.sectionTitle}>{task.status === "Accepted" ? "Assigned Worker" : "Worker Applications"}</Text>
+              <Text style={styles.sectionMeta}>{task.status === "Accepted" ? "Ready to start" : "Review before accepting"}</Text>
             </View>
             <View style={styles.workerCard}>
               <Pressable
@@ -141,11 +141,11 @@ export default function TaskDetailsScreen() {
                   <Text style={styles.secondaryButtonText}>View Profile</Text>
                 </Pressable>
                 <Pressable
-                  disabled={hasWorker}
+                  disabled={task.status !== "Applied"}
                   onPress={handleClientAcceptWorker}
-                  style={[styles.primaryButton, hasWorker && styles.disabledButton]}
+                  style={[styles.primaryButton, task.status !== "Applied" && styles.disabledButton]}
                 >
-                  <Text style={styles.primaryButtonText}>{hasWorker ? "Worker Accepted" : "Accept Worker"}</Text>
+                  <Text style={styles.primaryButtonText}>{task.status === "Accepted" ? "Worker Accepted" : "Accept Application"}</Text>
                 </Pressable>
               </View>
             </View>
@@ -153,9 +153,9 @@ export default function TaskDetailsScreen() {
         ) : (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Ready to take this job?</Text>
-            {task.status === "Posted" ? (
+            {task.status === "Finding Workers" ? (
               <Pressable style={styles.primaryButtonLarge} onPress={handleWorkerAccept}>
-                <Text style={styles.primaryButtonText}>Accept Task</Text>
+                <Text style={styles.primaryButtonText}>Apply</Text>
               </Pressable>
             ) : (
               <Pressable style={styles.primaryButtonLarge} onPress={() => router.push(`/task-status/${task.id}`)}>

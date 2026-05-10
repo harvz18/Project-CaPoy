@@ -1,15 +1,6 @@
-import React, { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, PropsWithChildren, useContext, useMemo, useState } from "react";
 import { AppNotification, ChatMessage, PaymentMethod, Rating, Role, Task, TaskStatus, UserProfile } from "../types";
 import { mockMessages, mockNotifications, mockRatings, mockTasks, mockUsers } from "../data/mockData";
-import { hasFirebaseConfig } from "../services/firebase";
-import {
-  addMessageToFirestore,
-  addRatingToFirestore,
-  createTaskInFirestore,
-  fetchMessagesFromFirestore,
-  fetchTasksFromFirestore,
-  updateTaskStatusInFirestore
-} from "../services/taskRepository";
 
 type RegisterInput = {
   fullName: string;
@@ -50,6 +41,7 @@ type AppContextValue = {
 };
 
 const AppContext = createContext<AppContextValue | undefined>(undefined);
+const usingFirebase = false;
 
 export function AppProvider({ children }: PropsWithChildren) {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
@@ -57,21 +49,6 @@ export function AppProvider({ children }: PropsWithChildren) {
   const [messages, setMessages] = useState<ChatMessage[]>(mockMessages);
   const [ratings, setRatings] = useState<Rating[]>(mockRatings);
   const [notifications, setNotifications] = useState<AppNotification[]>(mockNotifications);
-
-  useEffect(() => {
-    async function loadFirebaseTasks() {
-      if (!hasFirebaseConfig) {
-        return;
-      }
-
-      const remoteTasks = await fetchTasksFromFirestore();
-      if (remoteTasks.length > 0) {
-        setTasks(remoteTasks);
-      }
-    }
-
-    loadFirebaseTasks().catch(() => undefined);
-  }, []);
 
   function login(role: Role) {
     const user = mockUsers.find((item) => item.role === role) ?? mockUsers[0];
@@ -115,13 +92,12 @@ export function AppProvider({ children }: PropsWithChildren) {
       ...input,
       clientId: currentUser?.id ?? "client-1",
       location: input.location.includes("Bacolod") ? input.location : `${input.location}, Bacolod City`,
-      status: "Posted",
+      status: "Finding Workers",
       createdAt: new Date().toISOString()
     };
 
-    const firestoreId = hasFirebaseConfig ? await createTaskInFirestore(task) : undefined;
     const newTask: Task = {
-      id: firestoreId ?? `task-${Date.now()}`,
+      id: `task-${Date.now()}`,
       ...task
     };
     setTasks((items) => [newTask, ...items]);
@@ -141,22 +117,17 @@ export function AppProvider({ children }: PropsWithChildren) {
 
   async function acceptTask(taskId: string) {
     const workerId = currentUser?.id ?? "worker-1";
-    await updateTaskStatus(taskId, "Accepted", workerId);
+    await updateTaskStatus(taskId, "Applied", workerId);
   }
 
   async function updateTaskStatus(taskId: string, status: TaskStatus, workerId?: string) {
-    const activeWorkerId = workerId ?? currentUser?.id;
-    if (hasFirebaseConfig) {
-      await updateTaskStatusInFirestore(taskId, status, activeWorkerId);
-    }
-
     setTasks((items) =>
       items.map((task) =>
         task.id === taskId
           ? {
               ...task,
               status,
-              workerId: activeWorkerId ?? task.workerId
+              workerId: workerId ?? task.workerId
             }
           : task
       )
@@ -179,10 +150,6 @@ export function AppProvider({ children }: PropsWithChildren) {
       timestamp: new Date().toISOString()
     };
 
-    if (hasFirebaseConfig) {
-      await addMessageToFirestore(newMessage);
-    }
-
     setMessages((items) => [
       ...items,
       {
@@ -204,10 +171,6 @@ export function AppProvider({ children }: PropsWithChildren) {
       feedback
     };
 
-    if (hasFirebaseConfig) {
-      await addRatingToFirestore(rating);
-    }
-
     setRatings((items) => [
       {
         id: `rating-${Date.now()}`,
@@ -221,23 +184,6 @@ export function AppProvider({ children }: PropsWithChildren) {
     return messages.filter((message) => message.taskId === taskId);
   }
 
-  useEffect(() => {
-    async function loadMessagesForAcceptedTasks() {
-      if (!hasFirebaseConfig) {
-        return;
-      }
-
-      const taskIds = tasks.map((task) => task.id);
-      const remoteMessages = await Promise.all(taskIds.map((taskId) => fetchMessagesFromFirestore(taskId)));
-      const flatMessages = remoteMessages.flat();
-      if (flatMessages.length > 0) {
-        setMessages(flatMessages);
-      }
-    }
-
-    loadMessagesForAcceptedTasks().catch(() => undefined);
-  }, [tasks]);
-
   const value = useMemo<AppContextValue>(
     () => ({
       currentUser,
@@ -245,7 +191,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       messages,
       ratings,
       notifications,
-      usingFirebase: hasFirebaseConfig,
+      usingFirebase,
       login,
       register,
       setRole,

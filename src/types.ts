@@ -1,9 +1,11 @@
 export type Role = "worker" | "client";
 
 export type TaskStatus =
-  | "Posted"
+  | "Finding Workers"
+  | "Applied"
   | "Accepted"
   | "In Progress"
+  | "Pending Approval"
   | "Finished"
   | "Archived";
 

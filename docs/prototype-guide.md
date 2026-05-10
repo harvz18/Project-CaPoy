@@ -1,0 +1,153 @@
+## What Is TASKLINK?
+
+TASKLINK is a mobile app for connecting people who need help with local workers.
+
+The example setting is Bacolod City. A client can post a task, and a worker can apply for that task. The client can accept the worker, both users can chat, and both sides must confirm before a job becomes finished.
+
+This version is a prototype. It uses local mock data inside the app instead of a real backend database.
+
+## Main User Roles
+
+The app has two roles:
+
+- `Worker`: Looks for jobs, applies to tasks, chats with clients, starts work, and marks work as finished.
+- `Client`: Posts tasks, reviews worker applications, accepts a worker, chats with workers, confirms completion, and archives finished tasks.
+
+## Tools And Technologies Used
+
+- `Expo`: Runs the React Native mobile app.
+- `Expo Router`: Handles screen routing using files inside the `app/` folder.
+- `React Native`: Builds the mobile UI.
+- `TypeScript`: Adds type checking for safer code.
+- `React Context`: Stores prototype app state in `src/context/AppContext.tsx`.
+- `Mock Data`: Provides sample users, tasks, messages, ratings, and notifications in `src/data/mockData.ts`.
+- `Firebase files`: Firebase service files exist, but the prototype currently runs in mock-data mode only.
+
+## Important Project Folders
+
+- `app/`: All app screens and routes.
+- `src/context/AppContext.tsx`: Main prototype state and actions.
+- `src/data/mockData.ts`: Starting sample data.
+- `src/types.ts`: Shared TypeScript types.
+- `src/components/`: Reusable UI pieces.
+- `docs/`: Documentation files.
+
+## Screen Flow
+
+The app starts at:
+
+- `app/index.tsx`: Splash screen.
+
+Then it goes to:
+
+- `app/login.tsx`: Login and registration prototype screen.
+- `app/role-selection.tsx`: Choose worker or client mode.
+
+After role selection:
+
+- Worker goes to `app/worker-dashboard.tsx`.
+- Client goes to `app/client-dashboard.tsx`.
+
+## Worker Flow
+
+The worker can:
+
+1. View available jobs on the worker dashboard or jobs screen.
+2. Tap `Quick Apply` or open details and tap `Apply`.
+3. See applied jobs under `Accepted Applications`.
+4. Wait until the client accepts the application.
+5. Start the task after the status becomes `Accepted`.
+6. Mark the task as finished after work is done.
+7. Wait for the client to confirm completion.
+8. See finished jobs under `Finished Jobs`.
+
+## Client Flow
+
+The client can:
+
+1. View posted and active tasks on the client dashboard.
+2. Post a new task.
+3. Open a task and review worker applications.
+4. Accept an application.
+5. Wait for the worker to start and complete the task.
+6. Confirm the task as finished.
+7. Archive the task.
+8. See archived tasks under `Archived Tasks`.
+
+## Task Status Flow
+
+The prototype uses these task statuses:
+
+- `Finding Workers`: The task is open and workers can apply.
+- `Applied`: A worker applied and is waiting for client approval.
+- `Accepted`: The client accepted the worker application.
+- `In Progress`: The worker started the task.
+- `Pending Approval`: The worker marked the task as finished, but the client has not confirmed yet.
+- `Finished`: Both sides confirmed completion.
+- `Archived`: The client archived the finished task.
+
+The important rule is this:
+
+Both sides must participate before the task becomes fully finished. The worker marks it finished first, then the client confirms it.
+
+## Chat Flow
+
+The app has a chat inbox:
+
+- `app/chat/index.tsx`: Shows the conversation list.
+- `app/chat/[id].tsx`: Shows one task conversation.
+
+The Chat tab opens the inbox first, so the user chooses who or what task to chat about. This is closer to a Messenger-style flow.
+
+## Rating Flow
+
+The rating screen is:
+
+- `app/rating/[id].tsx`
+
+Users can choose a score from 1 to 5 and submit feedback for a task. Ratings are stored in local prototype state.
+
+## Data Storage In This Prototype
+
+This prototype stores data in React state. The state lives in:
+
+```text
+src/context/AppContext.tsx
+```
+
+When the app reloads, the data resets to the mock data in:
+
+```text
+src/data/mockData.ts
+```
+
+This is normal for the prototype. It is not production storage.
+
+## What Is Not Production Ready Yet?
+
+This prototype does not yet include:
+
+- Real user authentication.
+- Real SMS OTP verification.
+- Real payment processing.
+- Real push notifications.
+- Persistent database storage.
+- Real worker-client matching.
+- Security rules.
+- Admin tools.
+
+Those can be added later after the prototype flow is approved.
+
+## Summary
+
+TASKLINK is currently a working mobile prototype that demonstrates the main app idea:
+
+- Clients post tasks.
+- Workers apply.
+- Clients accept applications.
+- Workers start and complete work.
+- Clients confirm completion.
+- Finished and archived tasks are separated from active work.
+- Users can chat and submit ratings.
+
+The purpose of this version is to show and test the user flow before connecting a real backend.

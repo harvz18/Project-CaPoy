@@ -12,9 +12,9 @@ export function StatusBadge({ status }: StatusBadgeProps) {
       ? styles.badgeSuccess
       : status === "Archived" || status === "Busy"
         ? styles.badgeMuted
-        : status === "In Progress"
+        : status === "In Progress" || status === "Pending Approval"
           ? styles.badgeWarning
-          : status === "Accepted"
+          : status === "Accepted" || status === "Applied"
             ? styles.badgeInfo
             : status === "Unread"
               ? styles.badgeDanger

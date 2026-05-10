@@ -1,7 +1,6 @@
 import { useRouter } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { BottomNavIcon } from "../src/components/BottomNavIcon";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useApp } from "../src/context/AppContext";
 import { Role } from "../src/types";
 
@@ -69,7 +68,6 @@ export default function RoleSelectionScreen() {
           </View>
         </View>
       </ScrollView>
-      <BottomNav active="profile" />
     </SafeAreaView>
   );
 }
@@ -122,31 +120,6 @@ function RoleCard({ accent, icon, title, description, buttonText, onPress }: Rol
         <Text style={styles.roleButtonText}>{buttonText}</Text>
       </View>
     </Pressable>
-  );
-}
-
-function BottomNav({ active }: { active: "home" | "jobs" | "chat" | "profile" }) {
-  const insets = useSafeAreaInsets();
-  const items = [
-    { key: "home", label: "Home" },
-    { key: "jobs", label: "Jobs" },
-    { key: "chat", label: "Chat" },
-    { key: "profile", label: "Profile" }
-  ] as const;
-
-  return (
-    <View style={[styles.bottomNav, { paddingBottom: Math.max(insets.bottom, 10) }]}>
-      {items.map((item) => {
-        const selected = item.key === active;
-        const color = selected ? "#684000" : palette.muted;
-        return (
-          <View key={item.key} style={[styles.navItem, selected && styles.navItemActive]}>
-            <BottomNavIcon name={item.key} color={color} />
-            <Text style={[styles.navLabel, selected && styles.navTextActive]}>{item.label}</Text>
-          </View>
-        );
-      })}
-    </View>
   );
 }
 
@@ -206,7 +179,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 16,
     paddingTop: 48,
-    paddingBottom: 116,
+    paddingBottom: 36,
     alignItems: "center"
   },
   intro: {
@@ -319,47 +292,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontWeight: "800",
     textDecorationLine: "underline"
-  },
-  bottomNav: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    minHeight: 72,
-    paddingHorizontal: 8,
-    paddingTop: 8,
-    paddingBottom: 10,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-    borderTopWidth: 1,
-    borderColor: palette.outlineVariant,
-    backgroundColor: palette.surface,
-    flexDirection: "row",
-    justifyContent: "space-around",
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    elevation: 10
-  },
-  navItem: {
-    minWidth: 66,
-    borderRadius: 24,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 4
-  },
-  navItemActive: {
-    backgroundColor: palette.secondaryContainer
-  },
-  navLabel: {
-    color: palette.muted,
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: "600"
-  },
-  navTextActive: {
-    color: "#684000"
   },
   pressed: {
     opacity: 0.78,

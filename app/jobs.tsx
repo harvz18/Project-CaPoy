@@ -2,6 +2,7 @@ import { useRouter } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomNavIcon } from "../src/components/BottomNavIcon";
+import { StatusBadge } from "../src/components/StatusBadge";
 import { useApp } from "../src/context/AppContext";
 import { Task } from "../src/types";
 
@@ -26,10 +27,16 @@ export default function JobsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { tasks, acceptTask, currentUser } = useApp();
-  const postedTasks = tasks.filter((task) => task.status === "Posted");
+  const postedTasks = tasks.filter((task) => task.status === "Finding Workers");
+  const appliedTasks = tasks.filter(
+    (task) =>
+      (task.workerId === currentUser?.id || task.workerId === "worker-1") &&
+      task.status !== "Finished" &&
+      task.status !== "Archived"
+  );
   const jobs = postedTasks.length ? postedTasks : fallbackJobs;
 
-  async function handleQuickAccept(task: Task) {
+  async function handleQuickApply(task: Task) {
     await acceptTask(task.id);
     router.push(`/task-status/${task.id}`);
   }
@@ -74,6 +81,20 @@ export default function JobsScreen() {
           ))}
         </ScrollView>
 
+        {appliedTasks.length ? (
+          <View style={styles.applicationSection}>
+            <View style={styles.applicationHeader}>
+              <Text style={styles.applicationSectionTitle}>Accepted Applications</Text>
+              <Text style={styles.applicationSectionMeta}>{appliedTasks.length} active</Text>
+            </View>
+            <View style={styles.applicationGrid}>
+              {appliedTasks.map((task) => (
+                <ApplicationCard key={task.id} task={task} onOpen={() => router.push(`/task-status/${task.id}`)} />
+              ))}
+            </View>
+          </View>
+        ) : null}
+
         <View style={styles.boardHeader}>
           <View>
             <Text style={styles.screenTitle}>Job Board</Text>
@@ -93,13 +114,13 @@ export default function JobsScreen() {
                 urgent={index === 0 || Number(task.wage) >= 800}
                 detail={jobDetails[index % jobDetails.length]}
                 onOpen={() => router.push(`/task/${task.id}`)}
-                onQuickAccept={() => handleQuickAccept(task)}
+                onQuickAccept={() => handleQuickApply(task)}
               />
             ))
           ) : (
             <View style={styles.emptyCard}>
               <Text style={styles.emptyTitle}>No nearby jobs</Text>
-              <Text style={styles.emptyText}>Posted tasks in Bacolod City will appear here.</Text>
+              <Text style={styles.emptyText}>Open tasks in Bacolod City will appear here.</Text>
             </View>
           )}
         </View>
@@ -120,7 +141,7 @@ const fallbackJobs: Task[] = [
     location: "Lacson St., Bacolod City",
     wage: "450",
     estimatedDuration: "45 mins",
-    status: "Posted",
+    status: "Finding Workers",
     paymentMethod: "COD",
     createdAt: new Date().toISOString()
   },
@@ -133,7 +154,7 @@ const fallbackJobs: Task[] = [
     location: "Mansilingan, Bacolod City",
     wage: "850",
     estimatedDuration: "1.5 hours",
-    status: "Posted",
+    status: "Finding Workers",
     paymentMethod: "GCash link",
     createdAt: new Date().toISOString()
   }
@@ -181,18 +202,49 @@ function JobCard({
           <Text style={styles.detailsButtonText}>Details</Text>
         </Pressable>
         <Pressable accessibilityRole="button" onPress={onQuickAccept} style={styles.quickButton}>
-          <Text style={styles.quickButtonText}>Quick Accept</Text>
+          <Text style={styles.quickButtonText}>Quick Apply</Text>
         </Pressable>
       </View>
     </Pressable>
   );
 }
 
+function ApplicationCard({ task, onOpen }: { task: Task; onOpen: () => void }) {
+  return (
+    <Pressable accessibilityRole="button" onPress={onOpen} style={({ pressed }) => [styles.applicationCard, pressed && styles.pressed]}>
+      <View style={styles.applicationCopy}>
+        <Text style={styles.applicationTitle}>{task.title}</Text>
+        <Text style={styles.applicationMeta}>{getApplicationMessage(task.status)}</Text>
+      </View>
+      <View style={styles.applicationFooter}>
+        <StatusBadge status={task.status} />
+        <Text style={styles.applicationAction}>Open</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+function getApplicationMessage(status: Task["status"]) {
+  if (status === "Applied") {
+    return "Waiting for the client to accept your application.";
+  }
+
+  if (status === "Accepted") {
+    return "Application accepted. You can start this task.";
+  }
+
+  if (status === "Pending Approval") {
+    return "Waiting for client completion approval.";
+  }
+
+  return "Track this task status.";
+}
+
 function BottomNav({ active, router, bottom }: { active: string; router: ReturnType<typeof useRouter>; bottom: number }) {
   const items = [
     { key: "home", label: "Home", route: "/worker-dashboard" },
     { key: "jobs", label: "Jobs", route: "/jobs" },
-    { key: "chat", label: "Chat", route: "/chat/task-1" },
+    { key: "chat", label: "Chat", route: "/chat" },
     { key: "profile", label: "Profile", route: "/profile" }
   ] as const;
 
@@ -241,6 +293,17 @@ const styles = StyleSheet.create({
   filterText: { color: palette.muted, fontSize: 14, fontWeight: "800" },
   filterTextActive: { color: palette.white },
   boardHeader: { paddingHorizontal: 16, paddingBottom: 12, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  applicationSection: { paddingHorizontal: 16, paddingBottom: 16, gap: 10 },
+  applicationHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  applicationSectionTitle: { color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "900" },
+  applicationSectionMeta: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "800" },
+  applicationGrid: { gap: 10 },
+  applicationCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "rgba(189,201,198,0.45)", backgroundColor: palette.surface, gap: 12 },
+  applicationCopy: { gap: 4 },
+  applicationTitle: { color: palette.textStrong, fontSize: 16, lineHeight: 22, fontWeight: "900" },
+  applicationMeta: { color: palette.muted, fontSize: 12, lineHeight: 16 },
+  applicationFooter: { paddingTop: 10, borderTopWidth: 1, borderTopColor: "rgba(189,201,198,0.45)", flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  applicationAction: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
   screenTitle: { color: palette.textStrong, fontSize: 24, lineHeight: 32, fontWeight: "900" },
   screenSubtitle: { color: palette.muted, fontSize: 14, lineHeight: 20 },
   liveBadge: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: "#EAF8F1" },

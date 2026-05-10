@@ -32,7 +32,7 @@ export const mockTasks: Task[] = [
     location: "Downtown Bacolod City",
     wage: "500",
     estimatedDuration: "2 hours",
-    status: "Posted",
+    status: "Finding Workers",
     paymentMethod: "COD",
     createdAt: new Date().toISOString()
   },
@@ -45,7 +45,7 @@ export const mockTasks: Task[] = [
     location: "Mandalagan, Bacolod City",
     wage: "350",
     estimatedDuration: "3 hours",
-    status: "Posted",
+    status: "Finding Workers",
     paymentMethod: "GCash link",
     createdAt: new Date().toISOString()
   }

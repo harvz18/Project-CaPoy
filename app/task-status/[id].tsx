@@ -52,7 +52,11 @@ export default function TaskStatusScreen() {
       return;
     }
 
-    await updateTaskStatus(task.id, action.nextStatus);
+    await updateTaskStatus(
+      task.id,
+      action.nextStatus,
+      action.nextStatus === "Applied" && currentUser?.role === "worker" ? currentUser.id : undefined
+    );
   }
 
   return (
@@ -67,7 +71,7 @@ export default function TaskStatusScreen() {
             <View style={styles.mapPin} />
           </View>
           <View style={styles.urgentBadge}>
-            <Text style={styles.urgentBadgeText}>{task.status === "Posted" ? "Urgent" : task.status}</Text>
+            <Text style={styles.urgentBadgeText}>{task.status === "Finding Workers" ? "Open" : task.status}</Text>
           </View>
           <View style={styles.locationBadge}>
             <Text style={styles.locationDot}>•</Text>
@@ -151,7 +155,6 @@ export default function TaskStatusScreen() {
           ]}
         >
           <Text style={styles.primaryActionText}>{action.label}</Text>
-          {action.enabled ? <Text style={styles.primaryActionText}>-&gt;</Text> : null}
         </Pressable>
         <Text style={styles.guidelineText}>By clicking, you agree to the TaskLink Community Guidelines.</Text>
       </View>
@@ -160,12 +163,28 @@ export default function TaskStatusScreen() {
 }
 
 function getPrimaryAction(status: TaskStatus, role?: string) {
-  if (role === "client" && (status === "Accepted" || status === "In Progress")) {
-    return { label: "Task Finished", nextStatus: "Finished" as TaskStatus, enabled: true };
+  if (role === "client" && status === "Applied") {
+    return { label: "Accept Application", nextStatus: "Accepted" as TaskStatus, enabled: true };
+  }
+
+  if (role === "client" && status === "Pending Approval") {
+    return { label: "Confirm Finished", nextStatus: "Finished" as TaskStatus, enabled: true };
   }
 
   if (role === "client" && status === "Finished") {
     return { label: "Archive Task", nextStatus: "Archived" as TaskStatus, enabled: true };
+  }
+
+  if (role === "client" && (status === "Accepted" || status === "In Progress")) {
+    return { label: "Waiting for Worker", enabled: false };
+  }
+
+  if (role === "worker" && status === "Finding Workers") {
+    return { label: "Apply", nextStatus: "Applied" as TaskStatus, enabled: true };
+  }
+
+  if (role === "worker" && status === "Applied") {
+    return { label: "Waiting for Client", enabled: false };
   }
 
   if (role === "worker" && status === "Accepted") {
@@ -173,11 +192,15 @@ function getPrimaryAction(status: TaskStatus, role?: string) {
   }
 
   if (role === "worker" && status === "In Progress") {
-    return { label: "Mark as Finished", nextStatus: "Finished" as TaskStatus, enabled: true };
+    return { label: "Mark as Finished", nextStatus: "Pending Approval" as TaskStatus, enabled: true };
   }
 
-  if (status === "Posted") {
-    return { label: "Task Accepted", enabled: false };
+  if (role === "worker" && status === "Pending Approval") {
+    return { label: "Waiting for Client", enabled: false };
+  }
+
+  if (status === "Finding Workers") {
+    return { label: "Finding Workers", enabled: false };
   }
 
   if (status === "Finished") {

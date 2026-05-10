@@ -144,7 +144,6 @@ export default function LoginScreen() {
                 style={({ pressed }) => [screenStyles.primaryButton, pressed && screenStyles.pressed]}
               >
                 <Text style={screenStyles.primaryButtonText}>Send OTP</Text>
-                <Text style={screenStyles.primaryButtonText}>-&gt;</Text>
               </Pressable>
 
               {otpVisible ? (

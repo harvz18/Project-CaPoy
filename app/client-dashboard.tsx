@@ -31,7 +31,9 @@ export default function ClientDashboardScreen() {
   const router = useRouter();
   const { currentUser, tasks } = useApp();
   const clientTasks = tasks.filter((task) => task.clientId === currentUser?.id || task.clientId === "client-1");
+  const activeClientTasks = clientTasks.filter((task) => task.status !== "Finished" && task.status !== "Archived");
   const finishedCount = clientTasks.filter((task) => task.status === "Finished").length;
+  const archivedTasks = clientTasks.filter((task) => task.status === "Archived");
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
@@ -74,7 +76,7 @@ export default function ClientDashboardScreen() {
         </View>
 
         <View style={styles.statsGrid}>
-          <StatCard label="Ongoing Jobs" value={String(clientTasks.filter((task) => task.status !== "Finished").length).padStart(2, "0")} tone="primary" />
+          <StatCard label="Ongoing Jobs" value={String(activeClientTasks.length).padStart(2, "0")} tone="primary" />
           <StatCard label="Active Workers" value="12" tone="secondary" />
           <StatCard label="Completed" value={String(finishedCount || 142)} tone="success" />
           <StatCard label="Total Spend" value="P12.4k" tone="primary" />
@@ -86,7 +88,7 @@ export default function ClientDashboardScreen() {
         </View>
 
         <View style={styles.jobGrid}>
-          {(clientTasks.length ? clientTasks : fallbackClientTasks).slice(0, 2).map((task, index) => (
+          {(activeClientTasks.length ? activeClientTasks : fallbackClientTasks).slice(0, 2).map((task, index) => (
             <ClientJobCard key={task.id} task={task} urgent={index === 0} onPress={() => router.push(`/task/${task.id}`)} />
           ))}
         </View>
@@ -95,6 +97,22 @@ export default function ClientDashboardScreen() {
           <Text style={styles.panelTitle}>Recently Completed</Text>
           <HistoryRow icon="D" title="Morning Delivery Run" subtitle="Completed by Juan D." amount="P350" />
           <HistoryRow icon="S" title="Shelf Restocking" subtitle="Completed by Anna L." amount="P600" />
+        </View>
+
+        <View style={styles.archivedPanel}>
+          <View style={styles.archivedHeader}>
+            <Text style={styles.panelTitle}>Archived Tasks</Text>
+            <Text style={styles.smallMuted}>{archivedTasks.length} archived</Text>
+          </View>
+          {archivedTasks.length ? (
+            archivedTasks.map((task) => (
+              <ArchivedTaskRow key={task.id} task={task} onPress={() => router.push(`/task-status/${task.id}`)} />
+            ))
+          ) : (
+            <View style={styles.archiveEmptyRow}>
+              <Text style={styles.smallMuted}>Archived tasks will appear here after completed work is closed.</Text>
+            </View>
+          )}
         </View>
 
         <Text style={styles.sectionTitle}>Active Workers</Text>
@@ -131,7 +149,7 @@ const fallbackClientTasks: Task[] = [
     location: "SM Bacolod Branch",
     wage: "850",
     estimatedDuration: "2 hours",
-    status: "Posted",
+    status: "Finding Workers",
     paymentMethod: "COD",
     createdAt: new Date().toISOString()
   },
@@ -218,6 +236,21 @@ function HistoryRow({ icon, title, subtitle, amount }: { icon: string; title: st
   );
 }
 
+function ArchivedTaskRow({ task, onPress }: { task: Task; onPress: () => void }) {
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.historyRow, pressed && styles.pressed]}>
+      <View style={styles.historyLeft}>
+        <View style={styles.historyIcon}><Text style={styles.historyIconText}>A</Text></View>
+        <View>
+          <Text style={styles.historyTitle}>{task.title}</Text>
+          <Text style={styles.smallMuted}>{task.location}</Text>
+        </View>
+      </View>
+      <Text style={styles.successText}>P{task.wage}</Text>
+    </Pressable>
+  );
+}
+
 function WorkerRow({ name, rating, online }: { name: string; rating: string; online?: boolean }) {
   return (
     <View style={styles.workerRow}>
@@ -241,7 +274,7 @@ function BottomNav({ active, router }: { active: string; router: ReturnType<type
   const items = [
     { key: "home", label: "Home", route: "/client-dashboard" },
     { key: "jobs", label: "Jobs", route: "/post-task" },
-    { key: "chat", label: "Chat", route: "/chat/task-1" },
+    { key: "chat", label: "Chat", route: "/chat" },
     { key: "profile", label: "Profile", route: "/profile" }
   ];
 
@@ -346,6 +379,9 @@ const styles = StyleSheet.create({
   detailButton: { minHeight: 38, borderRadius: 8, paddingHorizontal: 16, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
   detailButtonText: { color: palette.white, fontSize: 14, fontWeight: "800" },
   completedPanel: { padding: 20, borderRadius: 12, backgroundColor: palette.surfaceLow, gap: 12 },
+  archivedPanel: { padding: 20, borderRadius: 12, backgroundColor: palette.surfaceLow, gap: 12 },
+  archivedHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  archiveEmptyRow: { padding: 12, borderRadius: 8, backgroundColor: palette.surface },
   panelTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   historyRow: { padding: 12, borderRadius: 8, backgroundColor: palette.surface, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   historyLeft: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1 },

@@ -110,7 +110,7 @@ export default function ChatScreen() {
           </Pressable>
         </View>
       </View>
-      <BottomNav active="chat" router={router} bottom={insets.bottom} />
+      <BottomNav active="chat" router={router} bottom={insets.bottom} role={currentUser?.role} />
     </SafeAreaView>
   );
 }
@@ -152,11 +152,22 @@ function formatTime(timestamp: string) {
   return new Date(timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-function BottomNav({ active, router, bottom }: { active: string; router: ReturnType<typeof useRouter>; bottom: number }) {
+function BottomNav({
+  active,
+  router,
+  bottom,
+  role
+}: {
+  active: string;
+  router: ReturnType<typeof useRouter>;
+  bottom: number;
+  role?: string;
+}) {
+  const homeRoute = role === "client" ? "/client-dashboard" : "/worker-dashboard";
   const items = [
-    { key: "home", label: "Home", route: "/worker-dashboard" },
+    { key: "home", label: "Home", route: homeRoute },
     { key: "jobs", label: "Jobs", route: "/jobs" },
-    { key: "chat", label: "Chat", route: "/chat/task-1" },
+    { key: "chat", label: "Chat", route: "/chat" },
     { key: "profile", label: "Profile", route: "/profile" }
   ] as const;
 

@@ -2,6 +2,7 @@ import { useRouter } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomNavIcon } from "../src/components/BottomNavIcon";
+import { StatusBadge } from "../src/components/StatusBadge";
 import { useApp } from "../src/context/AppContext";
 import { Task } from "../src/types";
 
@@ -18,17 +19,26 @@ const palette = {
   muted: "#3E4947",
   outline: "#6E7977",
   outlineVariant: "#BDC9C6",
+  success: "#10B981",
   white: "#FFFFFF"
 };
 
 export default function WorkerDashboardScreen() {
   const router = useRouter();
   const { currentUser, tasks, acceptTask } = useApp();
-  const postedTasks = tasks.filter((task) => task.status === "Posted");
-  const acceptedTasks = tasks.filter((task) => task.workerId === currentUser?.id || task.workerId === "worker-1");
+  const postedTasks = tasks.filter((task) => task.status === "Finding Workers");
+  const acceptedTasks = tasks.filter(
+    (task) =>
+      (task.workerId === currentUser?.id || task.workerId === "worker-1") &&
+      task.status !== "Finished" &&
+      task.status !== "Archived"
+  );
+  const finishedTasks = tasks.filter(
+    (task) => (task.workerId === currentUser?.id || task.workerId === "worker-1") && task.status === "Finished"
+  );
   const featuredJobs = (postedTasks.length ? postedTasks : fallbackWorkerTasks).slice(0, 2);
 
-  async function handleQuickAccept(task: Task) {
+  async function handleQuickApply(task: Task) {
     await acceptTask(task.id);
     router.push(`/task-status/${task.id}`);
   }
@@ -50,7 +60,27 @@ export default function WorkerDashboardScreen() {
 
         <View style={styles.statsGrid}>
           <StatCard label="Available Jobs" value={String(postedTasks.length || fallbackWorkerTasks.length).padStart(2, "0")} />
-          <StatCard label="Accepted" value={String(acceptedTasks.length).padStart(2, "0")} />
+          <StatCard label="Applications" value={String(acceptedTasks.length).padStart(2, "0")} />
+        </View>
+
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionCopy}>
+            <Text style={styles.sectionTitle}>Accepted Applications</Text>
+            <Text style={styles.sectionSubtitle}>Track applied jobs and start once the client accepts.</Text>
+          </View>
+        </View>
+
+        <View style={styles.applicationGrid}>
+          {acceptedTasks.length ? (
+            acceptedTasks.map((task) => (
+              <ApplicationCard key={task.id} task={task} onOpen={() => router.push(`/task-status/${task.id}`)} />
+            ))
+          ) : (
+            <View style={styles.emptyApplicationCard}>
+              <Text style={styles.emptyApplicationTitle}>No accepted applications yet</Text>
+              <Text style={styles.emptyApplicationText}>Apply to a job and it will stay here while the client reviews it.</Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.mapPanel}>
@@ -84,7 +114,7 @@ export default function WorkerDashboardScreen() {
               urgent={index === 0 || task.wage === "1200"}
               detail={workerDetails[index % workerDetails.length]}
               onOpen={() => router.push(`/task/${task.id}`)}
-              onQuickAccept={() => handleQuickAccept(task)}
+              onQuickAccept={() => handleQuickApply(task)}
             />
           ))}
         </View>
@@ -92,6 +122,22 @@ export default function WorkerDashboardScreen() {
         <Pressable onPress={() => router.push("/jobs")} style={styles.fullBoardButton}>
           <Text style={styles.fullBoardText}>Open Full Job Board</Text>
         </Pressable>
+
+        <View style={styles.historyPanel}>
+          <View style={styles.historyHeader}>
+            <Text style={styles.historyTitle}>Finished Jobs</Text>
+            <Text style={styles.historyMeta}>{finishedTasks.length} completed</Text>
+          </View>
+          {finishedTasks.length ? (
+            finishedTasks.map((task) => (
+              <HistoryRow key={task.id} task={task} onOpen={() => router.push(`/task-status/${task.id}`)} />
+            ))
+          ) : (
+            <View style={styles.emptyHistoryRow}>
+              <Text style={styles.emptyApplicationText}>Finished jobs will appear here after both sides confirm completion.</Text>
+            </View>
+          )}
+        </View>
       </ScrollView>
       <BottomNav active="home" router={router} />
     </SafeAreaView>
@@ -108,7 +154,7 @@ const fallbackWorkerTasks: Task[] = [
     location: "Lacson St., Bacolod City",
     wage: "450",
     estimatedDuration: "45 mins",
-    status: "Posted",
+    status: "Finding Workers",
     paymentMethod: "COD",
     createdAt: new Date().toISOString()
   },
@@ -121,7 +167,7 @@ const fallbackWorkerTasks: Task[] = [
     location: "Mansilingan, Bacolod City",
     wage: "850",
     estimatedDuration: "1.5 hours",
-    status: "Posted",
+    status: "Finding Workers",
     paymentMethod: "GCash link",
     createdAt: new Date().toISOString()
   }
@@ -180,11 +226,65 @@ function WorkerJobCard({
           <Text style={styles.detailsButtonText}>Details</Text>
         </Pressable>
         <Pressable accessibilityRole="button" onPress={onQuickAccept} style={({ pressed }) => [styles.quickButton, pressed && styles.pressed]}>
-          <Text style={styles.quickButtonText}>Quick Accept</Text>
+          <Text style={styles.quickButtonText}>Quick Apply</Text>
         </Pressable>
       </View>
     </View>
   );
+}
+
+function ApplicationCard({ task, onOpen }: { task: Task; onOpen: () => void }) {
+  return (
+    <Pressable accessibilityRole="button" onPress={onOpen} style={({ pressed }) => [styles.applicationCard, pressed && styles.pressed]}>
+      <View style={styles.applicationTop}>
+        <View style={styles.applicationCopy}>
+          <Text style={styles.applicationTitle}>{task.title}</Text>
+          <Text style={styles.applicationMeta}>{getApplicationMessage(task.status)}</Text>
+        </View>
+        <Text style={styles.applicationPrice}>P{task.wage}</Text>
+      </View>
+      <View style={styles.applicationFooter}>
+        <StatusBadge status={task.status} />
+        <Text style={styles.applicationAction}>{getApplicationAction(task.status)}</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+function getApplicationMessage(status: Task["status"]) {
+  if (status === "Applied") {
+    return "Waiting for the client to accept your application.";
+  }
+
+  if (status === "Accepted") {
+    return "Application accepted. You can start this task.";
+  }
+
+  if (status === "In Progress") {
+    return "Task is in progress.";
+  }
+
+  if (status === "Pending Approval") {
+    return "Waiting for client completion approval.";
+  }
+
+  return "Open this task for details.";
+}
+
+function getApplicationAction(status: Task["status"]) {
+  if (status === "Accepted") {
+    return "Start Task";
+  }
+
+  if (status === "In Progress") {
+    return "Mark Finished";
+  }
+
+  if (status === "Pending Approval") {
+    return "Pending Approval";
+  }
+
+  return "View Status";
 }
 
 function StatCard({ label, value }: { label: string; value: string }) {
@@ -196,12 +296,27 @@ function StatCard({ label, value }: { label: string; value: string }) {
   );
 }
 
+function HistoryRow({ task, onOpen }: { task: Task; onOpen: () => void }) {
+  return (
+    <Pressable accessibilityRole="button" onPress={onOpen} style={({ pressed }) => [styles.historyRow, pressed && styles.pressed]}>
+      <View style={styles.historyIcon}>
+        <Text style={styles.historyIconText}>OK</Text>
+      </View>
+      <View style={styles.historyCopy}>
+        <Text style={styles.historyJobTitle}>{task.title}</Text>
+        <Text style={styles.historyJobMeta}>{task.location}</Text>
+      </View>
+      <Text style={styles.historyAmount}>P{task.wage}</Text>
+    </Pressable>
+  );
+}
+
 function BottomNav({ active, router }: { active: string; router: ReturnType<typeof useRouter> }) {
   const insets = useSafeAreaInsets();
   const items = [
     { key: "home", label: "Home", route: "/worker-dashboard" },
     { key: "jobs", label: "Jobs", route: "/jobs" },
-    { key: "chat", label: "Chat", route: "/chat/task-1" },
+    { key: "chat", label: "Chat", route: "/chat" },
     { key: "profile", label: "Profile", route: "/profile" }
   ] as const;
 
@@ -267,6 +382,41 @@ const styles = StyleSheet.create({
   viewAllButton: { minHeight: 38, borderRadius: 19, paddingHorizontal: 14, alignItems: "center", justifyContent: "center", backgroundColor: palette.surfaceContainer },
   viewAllText: { color: palette.primary, fontSize: 12, fontWeight: "900" },
   jobGrid: { gap: 12 },
+  applicationGrid: { gap: 10 },
+  applicationCard: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(189,201,198,0.45)",
+    backgroundColor: palette.surface,
+    gap: 14,
+    elevation: 2
+  },
+  applicationTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
+  applicationCopy: { flex: 1, gap: 4 },
+  applicationTitle: { color: palette.textStrong, fontSize: 16, lineHeight: 22, fontWeight: "900" },
+  applicationMeta: { color: palette.muted, fontSize: 12, lineHeight: 16 },
+  applicationPrice: { color: palette.primary, fontSize: 18, lineHeight: 24, fontWeight: "900" },
+  applicationFooter: {
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(189,201,198,0.45)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12
+  },
+  applicationAction: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
+  emptyApplicationCard: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: palette.outlineVariant,
+    backgroundColor: palette.surfaceLow,
+    gap: 4
+  },
+  emptyApplicationTitle: { color: palette.textStrong, fontSize: 16, lineHeight: 22, fontWeight: "900" },
+  emptyApplicationText: { color: palette.muted, fontSize: 12, lineHeight: 16 },
   jobCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, elevation: 2, gap: 12 },
   urgentBadge: { position: "absolute", left: 16, top: 16, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: palette.secondaryContainer },
   urgentText: { color: "#684000", fontSize: 12, lineHeight: 16, fontWeight: "900" },
@@ -283,6 +433,32 @@ const styles = StyleSheet.create({
   quickButtonText: { color: palette.white, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   fullBoardButton: { minHeight: 48, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: palette.secondaryContainer },
   fullBoardText: { color: "#684000", fontSize: 14, fontWeight: "900" },
+  historyPanel: { padding: 16, borderRadius: 12, backgroundColor: palette.surfaceLow, gap: 12 },
+  historyHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  historyTitle: { color: palette.textStrong, fontSize: 18, lineHeight: 26, fontWeight: "900" },
+  historyMeta: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "800" },
+  historyRow: {
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: palette.surface,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12
+  },
+  historyIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#EAF8F1"
+  },
+  historyIconText: { color: palette.success, fontSize: 10, fontWeight: "900" },
+  historyCopy: { flex: 1 },
+  historyJobTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "900" },
+  historyJobMeta: { color: palette.muted, fontSize: 12, lineHeight: 16 },
+  historyAmount: { color: palette.primary, fontSize: 14, fontWeight: "900" },
+  emptyHistoryRow: { padding: 12, borderRadius: 8, backgroundColor: palette.surface },
   bottomNav: { position: "absolute", left: 0, right: 0, bottom: 0, minHeight: 72, paddingHorizontal: 8, paddingTop: 8, borderTopLeftRadius: 12, borderTopRightRadius: 12, borderTopWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, flexDirection: "row", justifyContent: "space-around", elevation: 10 },
   navItem: { minWidth: 66, borderRadius: 24, alignItems: "center", justifyContent: "center", paddingVertical: 4 },
   navItemActive: { backgroundColor: palette.secondaryContainer },

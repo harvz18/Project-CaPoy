@@ -126,7 +126,7 @@ export default function WorkerPublicProfileScreen() {
           <Text style={styles.messageButtonText}>Message</Text>
         </Pressable>
         <Pressable disabled={!taskId} style={[styles.hireButton, !taskId && styles.hireButtonDisabled]} onPress={handleAcceptWorker}>
-          <Text style={styles.hireButtonText}>{taskId ? "Accept Worker" : "No Task Selected"}</Text>
+          <Text style={styles.hireButtonText}>{taskId ? "Accept Application" : "No Task Selected"}</Text>
         </Pressable>
       </View>
     </SafeAreaView>
