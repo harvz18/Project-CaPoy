@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "TASKLINK",
+    "slug": "tasklink",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "tasklink",
+    "userInterfaceStyle": "light",
+    "platforms": [
+      "android"
+    ],
+    "android": {
+      "package": "com.tasklink.app"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-notifications",
+      "expo-asset"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "7a7d5f05-f8f2-45cb-a820-31bdff543ef0"
+      }
+    },
+    "owner": "shaolin18"
+  }
+}
