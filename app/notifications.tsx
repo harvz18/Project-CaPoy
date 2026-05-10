@@ -8,9 +8,7 @@ import { styles } from "../src/styles";
 
 export default function NotificationsScreen() {
   const { currentUser, notifications } = useApp();
-  const userNotifications = notifications.filter(
-    (item) => item.userId === currentUser?.id || item.userId === "worker-1"
-  );
+  const userNotifications = notifications.filter((item) => item.userId === currentUser?.id);
 
   return (
     <ScreenContainer>

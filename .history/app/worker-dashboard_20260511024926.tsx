@@ -87,7 +87,7 @@ export default function WorkerDashboardScreen() {
           <>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionCopy}>
-                <Text style={styles.sectionTitle}>Applications</Text>
+                <Text style={styles.sectionTitle}>Accepted Applications</Text>
                 <Text style={styles.sectionSubtitle}>Track applied jobs and start once the client accepts.</Text>
               </View>
             </View>
@@ -160,12 +160,12 @@ export default function WorkerDashboardScreen() {
         <View style={styles.jobGrid}>
           {featuredJobs.length ? (
             featuredJobs.map((task, index) => (
-                <WorkerJobCard
+              <WorkerJobCard
                 key={task.id}
                 task={task}
                 urgent={index === 0 || task.wage === "1200"}
                 detail={workerDetails[index % workerDetails.length]}
-                onOpen={() => router.push(`/task-status/${task.id}`)}
+                onOpen={() => router.push(`/task/${task.id}`)}
                 onQuickAccept={() => handleQuickApply(task)}
               />
             ))

@@ -28,7 +28,7 @@ export default function TaskStatusScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { currentUser, ratings, tasks, updateTaskStatus } = useApp();
+  const { currentUser, tasks, updateTaskStatus } = useApp();
   const task = tasks.find((item) => item.id === id);
 
   if (!task) {
@@ -46,9 +46,6 @@ export default function TaskStatusScreen() {
   }
 
   const action = getPrimaryAction(task.status, currentUser?.role);
-  const clientHasRated = Boolean(
-    currentUser?.role === "client" && task.workerId && ratings.some((rating) => rating.taskId === task.id && rating.reviewerId === currentUser.id)
-  );
 
   async function handlePrimaryAction() {
     if (!task || !action.nextStatus) {
@@ -134,29 +131,6 @@ export default function TaskStatusScreen() {
               <StatusBadge status={task.status} />
             </View>
 
-            {currentUser?.role === "client" && (task.status === "Finished" || task.status === "Archived") && task.workerId ? (
-              <View style={styles.clientRatingPanel}>
-                <View style={styles.clientRatingCopy}>
-                  <Text style={styles.clientRatingTitle}>Rate Worker</Text>
-                  <Text style={styles.clientRatingText}>Leave a review for the worker who completed this task.</Text>
-                </View>
-                <Pressable
-                  accessibilityRole="button"
-                  disabled={clientHasRated}
-                  onPress={() => router.push(`/rating/${task.id}`)}
-                  style={({ pressed }) => [
-                    styles.clientRatingButton,
-                    clientHasRated && styles.clientRatingButtonDisabled,
-                    pressed && !clientHasRated && styles.pressed
-                  ]}
-                >
-                  <Text style={[styles.clientRatingButtonText, clientHasRated && styles.clientRatingButtonTextDisabled]}>
-                    {clientHasRated ? "User Rated" : "Rate User"}
-                  </Text>
-                </Pressable>
-              </View>
-            ) : null}
-
             {currentUser?.role !== "client" ? (
               <View style={styles.secondaryRow}>
                 <Pressable style={styles.secondaryAction} onPress={() => router.push(`/chat/${task.id}`)}>
@@ -182,9 +156,7 @@ export default function TaskStatusScreen() {
             pressed && action.enabled && styles.pressed
           ]}
         >
-          <Text allowFontScaling={false} adjustsFontSizeToFit minimumFontScale={0.85} numberOfLines={1} style={styles.primaryActionText}>
-            {action.label}
-          </Text>
+          <Text style={styles.primaryActionText}>{action.label}</Text>
         </Pressable>
         <Text style={styles.guidelineText}>By clicking, you agree to the TaskLink Community Guidelines.</Text>
       </View>
@@ -459,14 +431,6 @@ const styles = StyleSheet.create({
   trustCheck: { color: palette.success, fontSize: 12, fontWeight: "900" },
   trustText: { color: palette.muted, fontSize: 11, lineHeight: 14, fontWeight: "600" },
   statusPanel: { gap: 8 },
-  clientRatingPanel: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, gap: 12, elevation: 2 },
-  clientRatingCopy: { gap: 4 },
-  clientRatingTitle: { color: palette.textStrong, fontSize: 16, lineHeight: 22, fontWeight: "900" },
-  clientRatingText: { color: palette.muted, fontSize: 12, lineHeight: 16 },
-  clientRatingButton: { minHeight: 46, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
-  clientRatingButtonDisabled: { backgroundColor: palette.surfaceContainer, borderWidth: 1, borderColor: palette.outlineVariant },
-  clientRatingButtonText: { color: palette.white, fontSize: 14, lineHeight: 20, fontWeight: "900" },
-  clientRatingButtonTextDisabled: { color: palette.textStrong },
   secondaryRow: { flexDirection: "row", gap: 12 },
   secondaryAction: {
     flex: 1,
@@ -503,7 +467,7 @@ const styles = StyleSheet.create({
     gap: 8
   },
   primaryActionDisabled: { backgroundColor: palette.surfaceHigh },
-  primaryActionText: { color: palette.white, fontSize: 18, lineHeight: 22, fontWeight: "800", textAlign: "center" },
+  primaryActionText: { color: palette.white, fontSize: 20, lineHeight: 28, fontWeight: "800" },
   guidelineText: {
     color: palette.muted,
     fontSize: 12,

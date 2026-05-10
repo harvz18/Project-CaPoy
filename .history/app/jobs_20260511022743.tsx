@@ -30,8 +30,7 @@ export default function JobsScreen() {
   const postedTasks = tasks.filter((task) => task.status === "Finding Workers" || task.status === "Applied");
   const appliedTasks = tasks.filter(
     (task) =>
-      task.applicantIds?.includes(currentUser?.id ?? "") &&
-      (task.status === "Applied" || task.workerId === currentUser?.id) &&
+      task.workerId === currentUser?.id &&
       task.status !== "Finished" &&
       task.status !== "Archived"
   );
@@ -85,7 +84,7 @@ export default function JobsScreen() {
         {appliedTasks.length ? (
           <View style={styles.applicationSection}>
             <View style={styles.applicationHeader}>
-              <Text style={styles.applicationSectionTitle}>Your Applications</Text>
+              <Text style={styles.applicationSectionTitle}>Accepted Applications</Text>
               <Text style={styles.applicationSectionMeta}>{appliedTasks.length} active</Text>
             </View>
             <View style={styles.applicationGrid}>

@@ -24,11 +24,15 @@ const palette = {
 
 export default function RoleSelectionScreen() {
   const router = useRouter();
-  const { setRole } = useApp();
+  const { actionLoading, error, setRole } = useApp();
 
-  function chooseRole(role: Role) {
-    setRole(role);
-    router.replace(role === "worker" ? "/worker-dashboard" : "/client-dashboard");
+  async function chooseRole(role: Role) {
+    try {
+      await setRole(role);
+      router.replace(role === "worker" ? "/worker-dashboard" : "/client-dashboard");
+    } catch {
+      // AppContext exposes the readable error message.
+    }
   }
 
   return (
@@ -38,6 +42,7 @@ export default function RoleSelectionScreen() {
         <View style={styles.intro}>
           <Text style={styles.title}>Welcome to TaskLink</Text>
           <Text style={styles.subtitle}>Choose how you want to use the platform today. You can always switch later.</Text>
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
         </View>
 
         <View style={styles.optionStack}>
@@ -46,7 +51,7 @@ export default function RoleSelectionScreen() {
             icon="W"
             title="Find Work"
             description="Browse local jobs, offer your skills, and earn money on your own schedule."
-            buttonText="I want to work"
+            buttonText={actionLoading ? "Saving..." : "I want to work"}
             onPress={() => chooseRole("worker")}
           />
           <RoleCard
@@ -54,7 +59,7 @@ export default function RoleSelectionScreen() {
             icon="H"
             title="Hire Workers"
             description="Post a task and find reliable help for home, office, or personal errands quickly."
-            buttonText="I want to hire"
+            buttonText={actionLoading ? "Saving..." : "I want to hire"}
             onPress={() => chooseRole("client")}
           />
         </View>
@@ -201,6 +206,14 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     textAlign: "center",
     marginTop: 8
+  },
+  errorText: {
+    color: "#BA1A1A",
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "700",
+    textAlign: "center",
+    marginTop: 12
   },
   optionStack: {
     width: "100%",

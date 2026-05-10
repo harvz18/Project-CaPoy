@@ -27,7 +27,7 @@ const palette = {
 export default function WorkerDashboardScreen() {
   const router = useRouter();
   const [selectedTab, setSelectedTab] = useState<"active" | "finished">("active");
-  const { currentUser, tasks, ratings, acceptTask } = useApp();
+  const { currentUser, tasks, acceptTask } = useApp();
   const postedTasks = tasks.filter((task) => task.status === "Finding Workers" || task.status === "Applied");
   const acceptedTasks = tasks.filter(
     (task) =>
@@ -87,7 +87,7 @@ export default function WorkerDashboardScreen() {
           <>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionCopy}>
-                <Text style={styles.sectionTitle}>Applications</Text>
+                <Text style={styles.sectionTitle}>Accepted Applications</Text>
                 <Text style={styles.sectionSubtitle}>Track applied jobs and start once the client accepts.</Text>
               </View>
             </View>
@@ -116,14 +116,13 @@ export default function WorkerDashboardScreen() {
             {finishedTasks.length ? (
               <View style={styles.historyList}>
                 {finishedTasks.map((task) => (
-                    <HistoryRow
-                      key={task.id}
-                      task={task}
-                      rated={ratings.some((rating) => rating.taskId === task.id && rating.reviewerId === currentUser?.id)}
-                      onOpen={() => router.push(`/task-status/${task.id}`)}
-                      onChat={() => router.push(`/chat/${task.id}`)}
-                      onRate={() => router.push(`/rating/${task.id}`)}
-                    />
+                  <HistoryRow
+                    key={task.id}
+                    task={task}
+                    onOpen={() => router.push(`/task-status/${task.id}`)}
+                    onChat={() => router.push(`/chat/${task.id}`)}
+                    onRate={() => router.push(`/rating/${task.id}`)}
+                  />
                 ))}
               </View>
             ) : (
@@ -160,12 +159,12 @@ export default function WorkerDashboardScreen() {
         <View style={styles.jobGrid}>
           {featuredJobs.length ? (
             featuredJobs.map((task, index) => (
-                <WorkerJobCard
+              <WorkerJobCard
                 key={task.id}
                 task={task}
                 urgent={index === 0 || task.wage === "1200"}
                 detail={workerDetails[index % workerDetails.length]}
-                onOpen={() => router.push(`/task-status/${task.id}`)}
+                onOpen={() => router.push(`/task/${task.id}`)}
                 onQuickAccept={() => handleQuickApply(task)}
               />
             ))
@@ -312,13 +311,11 @@ function StatCard({ label, value }: { label: string; value: string }) {
 
 function HistoryRow({
   task,
-  rated,
   onOpen,
   onChat,
   onRate
 }: {
   task: Task;
-  rated?: boolean;
   onOpen: () => void;
   onChat?: () => void;
   onRate?: () => void;
@@ -344,19 +341,8 @@ function HistoryRow({
             </Pressable>
           ) : null}
           {onRate ? (
-            <Pressable
-              accessibilityRole="button"
-              disabled={rated}
-              onPress={onRate}
-              style={({ pressed }) => [
-                styles.historyActionButtonPrimary,
-                rated && styles.historyActionButtonDisabled,
-                pressed && !rated && styles.pressed
-              ]}
-            >
-              <Text style={[styles.historyActionButtonPrimaryText, rated && styles.historyActionButtonPrimaryTextDisabled]}>
-                {rated ? "Client Rated" : "Rate Client"}
-              </Text>
+            <Pressable accessibilityRole="button" onPress={onRate} style={styles.historyActionButtonPrimary}>
+              <Text style={styles.historyActionButtonPrimaryText}>Rate Client</Text>
             </Pressable>
           ) : null}
         </View>
@@ -525,12 +511,10 @@ const styles = StyleSheet.create({
   historyAmount: { color: palette.primary, fontSize: 14, fontWeight: "900" },
   historyDivider: { height: 1, backgroundColor: "rgba(189,201,198,0.65)" },
   historyActions: { flexDirection: "row", gap: 10 },
-  historyActionButton: { flex: 1, minHeight: 40, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: palette.surfaceLow, borderWidth: 1, borderColor: palette.outlineVariant },
+  historyActionButton: { flex: 1, minHeight: 40, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: palette.surface },
   historyActionButtonText: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
   historyActionButtonPrimary: { flex: 1, minHeight: 40, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
   historyActionButtonPrimaryText: { color: palette.white, fontSize: 12, lineHeight: 16, fontWeight: "900" },
-  historyActionButtonPrimaryTextDisabled: { color: palette.textStrong },
-  historyActionButtonDisabled: { backgroundColor: palette.surfaceContainer, borderWidth: 1, borderColor: palette.outlineVariant },
   emptyHistoryRow: { padding: 12, borderRadius: 8, backgroundColor: palette.surface },
   bottomNav: { position: "absolute", left: 0, right: 0, bottom: 0, minHeight: 72, paddingHorizontal: 8, paddingTop: 8, borderTopLeftRadius: 12, borderTopRightRadius: 12, borderTopWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, flexDirection: "row", justifyContent: "space-around", elevation: 10 },
   navItem: { minWidth: 66, borderRadius: 24, alignItems: "center", justifyContent: "center", paddingVertical: 4 },

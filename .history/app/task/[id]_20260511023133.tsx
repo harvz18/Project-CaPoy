@@ -44,9 +44,8 @@ export default function TaskDetailsScreen() {
   const isClient = currentUser?.role === "client";
   const applicants = users.filter((user) => task.applicantIds?.includes(user.id));
   const applicantCount = task.applicantIds?.length ?? 0;
-  const hasAcceptedWorker = task.status === "Accepted" && Boolean(task.workerId);
+  const hasWorker = Boolean(task.workerId);
   const worker = getUserById(task.workerId);
-  const hasApplied = Boolean(currentUser?.id && task.applicantIds?.includes(currentUser.id));
 
   async function handleWorkerAccept() {
     const taskId = task?.id;
@@ -89,7 +88,7 @@ export default function TaskDetailsScreen() {
           <DetailBox label="Location" value={task.location} />
           <DetailBox label="Duration" value={task.estimatedDuration} />
           <DetailBox label="Payment" value={task.paymentMethod} />
-          <DetailBox label="Applicants" value={hasAcceptedWorker ? "1 accepted" : `${applicantCount} applied`} />
+          <DetailBox label="Applicants" value={hasWorker ? "1 accepted" : `${applicantCount} applied`} />
         </View>
 
         {isClient ? (
@@ -98,7 +97,7 @@ export default function TaskDetailsScreen() {
               <Text style={styles.sectionTitle}>{task.status === "Accepted" ? "Assigned Worker" : "Worker Applications"}</Text>
               <Text style={styles.sectionMeta}>{task.status === "Accepted" ? "Ready to start" : "Review before accepting"}</Text>
             </View>
-            {hasAcceptedWorker ? (
+            {hasWorker ? (
               <View style={styles.workerCard}>
                 <Pressable
                   accessibilityRole="button"
@@ -202,16 +201,10 @@ export default function TaskDetailsScreen() {
         ) : (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Ready to take this job?</Text>
-            {task.status === "Finding Workers" || task.status === "Applied" ? (
-              hasApplied ? (
-                <Pressable style={styles.primaryButtonLarge} onPress={() => router.push(`/task-status/${task.id}`)}>
-                  <Text style={styles.primaryButtonText}>Open Task Status</Text>
-                </Pressable>
-              ) : (
-                <Pressable style={styles.primaryButtonLarge} onPress={handleWorkerAccept}>
-                  <Text style={styles.primaryButtonText}>Apply</Text>
-                </Pressable>
-              )
+            {task.status === "Finding Workers" ? (
+              <Pressable style={styles.primaryButtonLarge} onPress={handleWorkerAccept}>
+                <Text style={styles.primaryButtonText}>Apply</Text>
+              </Pressable>
             ) : (
               <Pressable style={styles.primaryButtonLarge} onPress={() => router.push(`/task-status/${task.id}`)}>
                 <Text style={styles.primaryButtonText}>Open Task Status</Text>

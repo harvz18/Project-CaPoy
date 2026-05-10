@@ -1,5 +1,4 @@
 import { useRouter } from "expo-router";
-import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomNavIcon } from "../src/components/BottomNavIcon";
@@ -26,8 +25,7 @@ const palette = {
 
 export default function WorkerDashboardScreen() {
   const router = useRouter();
-  const [selectedTab, setSelectedTab] = useState<"active" | "finished">("active");
-  const { currentUser, tasks, ratings, acceptTask } = useApp();
+  const { currentUser, tasks, acceptTask } = useApp();
   const postedTasks = tasks.filter((task) => task.status === "Finding Workers" || task.status === "Applied");
   const acceptedTasks = tasks.filter(
     (task) =>
@@ -37,7 +35,7 @@ export default function WorkerDashboardScreen() {
       task.status !== "Archived"
   );
   const finishedTasks = tasks.filter(
-    (task) => task.workerId === currentUser?.id && (task.status === "Finished" || task.status === "Archived")
+    (task) => task.workerId === currentUser?.id && task.status === "Finished"
   );
   const featuredJobs = postedTasks.slice(0, 2);
 
@@ -66,73 +64,25 @@ export default function WorkerDashboardScreen() {
           <StatCard label="Applications" value={String(acceptedTasks.length).padStart(2, "0")} />
         </View>
 
-        <View style={styles.tabRow}>
-          <Pressable
-            accessibilityRole="tab"
-            onPress={() => setSelectedTab("active")}
-            style={[styles.tabButton, selectedTab === "active" && styles.tabButtonActive]}
-          >
-            <Text style={[styles.tabButtonText, selectedTab === "active" && styles.tabButtonTextActive]}>Active</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="tab"
-            onPress={() => setSelectedTab("finished")}
-            style={[styles.tabButton, selectedTab === "finished" && styles.tabButtonActive]}
-          >
-            <Text style={[styles.tabButtonText, selectedTab === "finished" && styles.tabButtonTextActive]}>Finished</Text>
-          </Pressable>
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionCopy}>
+            <Text style={styles.sectionTitle}>Accepted Applications</Text>
+            <Text style={styles.sectionSubtitle}>Track applied jobs and start once the client accepts.</Text>
+          </View>
         </View>
 
-        {selectedTab === "active" ? (
-          <>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionCopy}>
-                <Text style={styles.sectionTitle}>Applications</Text>
-                <Text style={styles.sectionSubtitle}>Track applied jobs and start once the client accepts.</Text>
-              </View>
+        <View style={styles.applicationGrid}>
+          {acceptedTasks.length ? (
+            acceptedTasks.map((task) => (
+              <ApplicationCard key={task.id} task={task} onOpen={() => router.push(`/task-status/${task.id}`)} />
+            ))
+          ) : (
+            <View style={styles.emptyApplicationCard}>
+              <Text style={styles.emptyApplicationTitle}>No applications yet</Text>
+              <Text style={styles.emptyApplicationText}>Apply to a job and it will stay here while the client reviews it.</Text>
             </View>
-
-            <View style={styles.applicationGrid}>
-              {acceptedTasks.length ? (
-                acceptedTasks.map((task) => (
-                  <ApplicationCard key={task.id} task={task} onOpen={() => router.push(`/task-status/${task.id}`)} />
-                ))
-              ) : (
-                <View style={styles.emptyApplicationCard}>
-                  <Text style={styles.emptyApplicationTitle}>No applications yet</Text>
-                  <Text style={styles.emptyApplicationText}>Apply to a job and it will stay here while the client reviews it.</Text>
-                </View>
-              )}
-            </View>
-          </>
-        ) : (
-          <View style={styles.historyPanel}>
-            <View style={styles.historyHeader}>
-              <View>
-                <Text style={styles.historyTitle}>Finished Jobs</Text>
-                <Text style={styles.historyMeta}>{finishedTasks.length} completed</Text>
-              </View>
-            </View>
-            {finishedTasks.length ? (
-              <View style={styles.historyList}>
-                {finishedTasks.map((task) => (
-                    <HistoryRow
-                      key={task.id}
-                      task={task}
-                      rated={ratings.some((rating) => rating.taskId === task.id && rating.reviewerId === currentUser?.id)}
-                      onOpen={() => router.push(`/task-status/${task.id}`)}
-                      onChat={() => router.push(`/chat/${task.id}`)}
-                      onRate={() => router.push(`/rating/${task.id}`)}
-                    />
-                ))}
-              </View>
-            ) : (
-              <View style={styles.emptyHistoryRow}>
-                <Text style={styles.emptyApplicationText}>Finished jobs will appear here after both sides confirm completion.</Text>
-              </View>
-            )}
-          </View>
-        )}
+          )}
+        </View>
 
         <View style={styles.mapPanel}>
           <View style={styles.mapGrid}>
@@ -160,12 +110,12 @@ export default function WorkerDashboardScreen() {
         <View style={styles.jobGrid}>
           {featuredJobs.length ? (
             featuredJobs.map((task, index) => (
-                <WorkerJobCard
+              <WorkerJobCard
                 key={task.id}
                 task={task}
                 urgent={index === 0 || task.wage === "1200"}
                 detail={workerDetails[index % workerDetails.length]}
-                onOpen={() => router.push(`/task-status/${task.id}`)}
+                onOpen={() => router.push(`/task/${task.id}`)}
                 onQuickAccept={() => handleQuickApply(task)}
               />
             ))
@@ -181,6 +131,21 @@ export default function WorkerDashboardScreen() {
           <Text style={styles.fullBoardText}>Open Full Job Board</Text>
         </Pressable>
 
+        <View style={styles.historyPanel}>
+          <View style={styles.historyHeader}>
+            <Text style={styles.historyTitle}>Finished Jobs</Text>
+            <Text style={styles.historyMeta}>{finishedTasks.length} completed</Text>
+          </View>
+          {finishedTasks.length ? (
+            finishedTasks.map((task) => (
+              <HistoryRow key={task.id} task={task} onOpen={() => router.push(`/task-status/${task.id}`)} />
+            ))
+          ) : (
+            <View style={styles.emptyHistoryRow}>
+              <Text style={styles.emptyApplicationText}>Finished jobs will appear here after both sides confirm completion.</Text>
+            </View>
+          )}
+        </View>
       </ScrollView>
       <BottomNav active="home" router={router} />
     </SafeAreaView>
@@ -310,58 +275,18 @@ function StatCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-function HistoryRow({
-  task,
-  rated,
-  onOpen,
-  onChat,
-  onRate
-}: {
-  task: Task;
-  rated?: boolean;
-  onOpen: () => void;
-  onChat?: () => void;
-  onRate?: () => void;
-}) {
+function HistoryRow({ task, onOpen }: { task: Task; onOpen: () => void }) {
   return (
-    <View style={styles.historyCard}>
-      <Pressable accessibilityRole="button" onPress={onOpen} style={({ pressed }) => [styles.historyRow, pressed && styles.pressed]}>
-        <View style={styles.historyIcon}>
-          <Text style={styles.historyIconText}>OK</Text>
-        </View>
-        <View style={styles.historyCopy}>
-          <Text style={styles.historyJobTitle}>{task.title}</Text>
-          <Text style={styles.historyJobMeta}>{task.location}</Text>
-        </View>
-        <Text style={styles.historyAmount}>P{task.wage}</Text>
-      </Pressable>
-      <View style={styles.historyDivider} />
-      {onChat || onRate ? (
-        <View style={styles.historyActions}>
-          {onChat ? (
-            <Pressable accessibilityRole="button" onPress={onChat} style={styles.historyActionButton}>
-              <Text style={styles.historyActionButtonText}>Chat</Text>
-            </Pressable>
-          ) : null}
-          {onRate ? (
-            <Pressable
-              accessibilityRole="button"
-              disabled={rated}
-              onPress={onRate}
-              style={({ pressed }) => [
-                styles.historyActionButtonPrimary,
-                rated && styles.historyActionButtonDisabled,
-                pressed && !rated && styles.pressed
-              ]}
-            >
-              <Text style={[styles.historyActionButtonPrimaryText, rated && styles.historyActionButtonPrimaryTextDisabled]}>
-                {rated ? "Client Rated" : "Rate Client"}
-              </Text>
-            </Pressable>
-          ) : null}
-        </View>
-      ) : null}
-    </View>
+    <Pressable accessibilityRole="button" onPress={onOpen} style={({ pressed }) => [styles.historyRow, pressed && styles.pressed]}>
+      <View style={styles.historyIcon}>
+        <Text style={styles.historyIconText}>OK</Text>
+      </View>
+      <View style={styles.historyCopy}>
+        <Text style={styles.historyJobTitle}>{task.title}</Text>
+        <Text style={styles.historyJobMeta}>{task.location}</Text>
+      </View>
+      <Text style={styles.historyAmount}>P{task.wage}</Text>
+    </Pressable>
   );
 }
 
@@ -433,11 +358,6 @@ const styles = StyleSheet.create({
   sectionCopy: { flex: 1 },
   sectionTitle: { color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "900" },
   sectionSubtitle: { color: palette.muted, fontSize: 12, lineHeight: 16 },
-  tabRow: { flexDirection: "row", gap: 8, padding: 4, borderRadius: 12, backgroundColor: palette.surfaceLow },
-  tabButton: { flex: 1, minHeight: 42, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  tabButtonActive: { backgroundColor: palette.primary },
-  tabButtonText: { color: palette.muted, fontSize: 13, lineHeight: 18, fontWeight: "900" },
-  tabButtonTextActive: { color: palette.white },
   viewAllButton: { minHeight: 38, borderRadius: 19, paddingHorizontal: 14, alignItems: "center", justifyContent: "center", backgroundColor: palette.surfaceContainer },
   viewAllText: { color: palette.primary, fontSize: 12, fontWeight: "900" },
   jobGrid: { gap: 12 },
@@ -494,18 +414,12 @@ const styles = StyleSheet.create({
   fullBoardText: { color: "#684000", fontSize: 14, fontWeight: "900" },
   historyPanel: { padding: 16, borderRadius: 12, backgroundColor: palette.surfaceLow, gap: 12 },
   historyHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  historyList: { gap: 10 },
-  historyCard: {
-    gap: 10,
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: palette.surface,
-    borderWidth: 1,
-    borderColor: palette.outlineVariant
-  },
   historyTitle: { color: palette.textStrong, fontSize: 18, lineHeight: 26, fontWeight: "900" },
   historyMeta: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "800" },
   historyRow: {
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: palette.surface,
     flexDirection: "row",
     alignItems: "center",
     gap: 12
@@ -523,14 +437,6 @@ const styles = StyleSheet.create({
   historyJobTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   historyJobMeta: { color: palette.muted, fontSize: 12, lineHeight: 16 },
   historyAmount: { color: palette.primary, fontSize: 14, fontWeight: "900" },
-  historyDivider: { height: 1, backgroundColor: "rgba(189,201,198,0.65)" },
-  historyActions: { flexDirection: "row", gap: 10 },
-  historyActionButton: { flex: 1, minHeight: 40, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: palette.surfaceLow, borderWidth: 1, borderColor: palette.outlineVariant },
-  historyActionButtonText: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
-  historyActionButtonPrimary: { flex: 1, minHeight: 40, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
-  historyActionButtonPrimaryText: { color: palette.white, fontSize: 12, lineHeight: 16, fontWeight: "900" },
-  historyActionButtonPrimaryTextDisabled: { color: palette.textStrong },
-  historyActionButtonDisabled: { backgroundColor: palette.surfaceContainer, borderWidth: 1, borderColor: palette.outlineVariant },
   emptyHistoryRow: { padding: 12, borderRadius: 8, backgroundColor: palette.surface },
   bottomNav: { position: "absolute", left: 0, right: 0, bottom: 0, minHeight: 72, paddingHorizontal: 8, paddingTop: 8, borderTopLeftRadius: 12, borderTopRightRadius: 12, borderTopWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, flexDirection: "row", justifyContent: "space-around", elevation: 10 },
   navItem: { minWidth: 66, borderRadius: 24, alignItems: "center", justifyContent: "center", paddingVertical: 4 },

@@ -27,7 +27,7 @@ const durations = ["1 Hour", "2 Hours", "Half Day", "Whole Day"];
 export default function PostTaskScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { createTask } = useApp();
+  const { actionLoading, createTask, error } = useApp();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("Delivery");
@@ -37,16 +37,20 @@ export default function PostTaskScreen() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("COD");
 
   async function handlePostTask() {
-    const task = await createTask({
-      title: title || "Manual labor task",
-      description: description || "Short-term task in Bacolod City.",
-      category,
-      location,
-      wage: wage || "300",
-      estimatedDuration,
-      paymentMethod
-    });
-    router.replace(`/task/${task.id}`);
+    try {
+      const task = await createTask({
+        title: title || "Manual labor task",
+        description: description || "Short-term task in Bacolod City.",
+        category,
+        location,
+        wage: wage || "300",
+        estimatedDuration,
+        paymentMethod
+      });
+      router.replace(`/task/${task.id}`);
+    } catch {
+      // AppContext exposes the readable error message.
+    }
   }
 
   return (
@@ -181,6 +185,7 @@ export default function PostTaskScreen() {
             <Text style={styles.tipText}>Providing clear details and a fair wage helps you find a helper faster.</Text>
           </View>
         </View>
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
       </ScrollView>
 
       <View style={[styles.bottomAction, { paddingBottom: Math.max(insets.bottom, 16) }]}>
@@ -189,7 +194,7 @@ export default function PostTaskScreen() {
           onPress={handlePostTask}
           style={({ pressed }) => [styles.postButton, pressed && styles.pressed]}
         >
-          <Text style={styles.postButtonText}>Post Job Now</Text>
+          <Text style={styles.postButtonText}>{actionLoading ? "Posting..." : "Post Job Now"}</Text>
           <Text style={styles.postButtonText}>Send</Text>
         </Pressable>
       </View>
@@ -314,6 +319,7 @@ const styles = StyleSheet.create({
   tipIcon: { color: palette.secondary, fontSize: 18, fontWeight: "900" },
   tipTitle: { color: "#2A1700", fontSize: 14, fontWeight: "900" },
   tipText: { color: "#653E00", fontSize: 12, lineHeight: 16 },
+  errorText: { color: "#BA1A1A", fontSize: 12, lineHeight: 16, fontWeight: "700" },
   bottomAction: {
     position: "absolute",
     left: 0,

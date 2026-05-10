@@ -10,20 +10,25 @@ import { styles } from "../src/styles";
 
 export default function RegistrationScreen() {
   const router = useRouter();
-  const { register } = useApp();
+  const { actionLoading, error, register } = useApp();
   const [fullName, setFullName] = useState("");
   const [mobileNumber, setMobileNumber] = useState("");
   const [address, setAddress] = useState("Bacolod City");
   const [password, setPassword] = useState("");
 
-  function handleRegister() {
-    register({
-      role: "worker",
-      fullName: fullName || "Prototype User",
-      mobileNumber: mobileNumber || "09170000000",
-      address
-    });
-    router.replace("/role-selection");
+  async function handleRegister() {
+    try {
+      await register({
+        role: "worker",
+        fullName: fullName || "Prototype User",
+        mobileNumber: mobileNumber || "09170000000",
+        password,
+        address
+      });
+      router.replace("/role-selection");
+    } catch {
+      // AppContext exposes the readable error message.
+    }
   }
 
   return (
@@ -48,7 +53,8 @@ export default function RegistrationScreen() {
           placeholder="Create password"
         />
         <AppInput label="Mobile verification code" value="123456" editable={false} placeholder="Mobile verification code" />
-        <AppButton title="Register" onPress={handleRegister} />
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        <AppButton title={actionLoading ? "Registering..." : "Register"} onPress={handleRegister} disabled={actionLoading} />
       </AppCard>
     </ScreenContainer>
   );

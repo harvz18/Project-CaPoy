@@ -31,7 +31,6 @@ export default function JobsScreen() {
   const appliedTasks = tasks.filter(
     (task) =>
       task.applicantIds?.includes(currentUser?.id ?? "") &&
-      (task.status === "Applied" || task.workerId === currentUser?.id) &&
       task.status !== "Finished" &&
       task.status !== "Archived"
   );

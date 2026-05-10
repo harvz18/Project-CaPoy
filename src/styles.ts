@@ -75,6 +75,13 @@ export const styles = StyleSheet.create({
     color: colors.muted,
     marginBottom: spacing.sm
   },
+  errorText: {
+    fontSize: typography.small,
+    lineHeight: 20,
+    color: colors.danger,
+    marginBottom: spacing.sm,
+    fontWeight: "700"
+  },
   statNumber: {
     fontSize: 24,
     fontWeight: "800",

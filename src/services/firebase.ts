@@ -1,5 +1,4 @@
 import { initializeApp, getApps } from "firebase/app";
-import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
@@ -25,6 +24,6 @@ const app = hasFirebaseConfig
   ? getApps()[0] ?? initializeApp(firebaseConfig)
   : undefined;
 
-export const auth = app ? getAuth(app) : undefined;
+export const firebaseApiKey = firebaseConfig.apiKey;
 export const db = app ? getFirestore(app) : undefined;
 export const storage = app ? getStorage(app) : undefined;

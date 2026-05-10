@@ -366,11 +366,7 @@ type PhoneInputProps = {
 function PhoneInput({ mobileNumber, onChange }: PhoneInputProps) {
   return (
     <View style={screenStyles.phoneInputWrap}>
-      <View style={screenStyles.prefixWrap}>
-        <Text allowFontScaling={false} style={screenStyles.prefix}>
-          +63
-        </Text>
-      </View>
+      <Text style={screenStyles.prefix}>+63</Text>
       <TextInput
         keyboardType="phone-pad"
         maxLength={10}
@@ -530,18 +526,12 @@ const screenStyles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "transparent"
   },
-  prefixWrap: {
-    width: 56,
-    minHeight: 52,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0
-  },
   prefix: {
     color: palette.muted,
-    fontSize: 15,
-    fontWeight: "700",
-    includeFontPadding: false,
+    fontSize: 16,
+    minWidth: 44,
+    paddingLeft: 16,
+    paddingRight: 8,
     textAlign: "center"
   },
   phoneInput: {

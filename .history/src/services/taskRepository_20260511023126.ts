@@ -145,9 +145,6 @@ export async function updateTaskStatusInFirestore(taskId: string, status: TaskSt
       updates.acceptedAt = now;
 
       if (nextWorkerId) {
-        transaction.update(doc(firestore, "payments", taskId), {
-          workerId: nextWorkerId
-        });
         transaction.set(
           doc(firestore, "taskMatches", `${taskId}_${nextWorkerId}`),
           {

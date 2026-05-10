@@ -29,11 +29,11 @@ export default function ChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { currentUser, getTaskMessages, sendMessage, tasks } = useApp();
+  const { currentUser, getTaskMessages, getUserById, sendMessage, tasks } = useApp();
   const [message, setMessage] = useState("");
   const messages = getTaskMessages(id);
   const task = tasks.find((item) => item.id === id);
-  const listData = messages.length ? messages : fallbackMessages(currentUser?.id ?? "worker-1", id);
+  const participant = getUserById(currentUser?.role === "worker" ? task?.clientId : task?.workerId);
 
   async function handleSend(text = message) {
     if (!text.trim()) {
@@ -64,11 +64,11 @@ export default function ChatScreen() {
 
       <View style={styles.contextBar}>
         <View style={styles.contactAvatar}>
-          <Text style={styles.avatarText}>{currentUser?.role === "worker" ? "M" : "J"}</Text>
+          <Text style={styles.avatarText}>{participant?.fullName?.[0] ?? "U"}</Text>
           <View style={styles.onlineDot} />
         </View>
         <View style={styles.contextCopy}>
-          <Text style={styles.contactName}>{currentUser?.role === "worker" ? "Maria Santos" : "Juan Dela Cruz"}</Text>
+          <Text style={styles.contactName}>{participant?.fullName ?? "Task Chat"}</Text>
           <Text style={styles.contactMeta}>Active now • {task?.title ?? "Task conversation"}</Text>
         </View>
         <Pressable accessibilityRole="button" style={styles.locationButton}>
@@ -77,7 +77,7 @@ export default function ChatScreen() {
       </View>
 
       <FlatList
-        data={listData}
+        data={messages}
         keyExtractor={(item) => item.id}
         contentContainerStyle={[styles.messageList, { paddingBottom: 174 + insets.bottom }]}
         ListHeaderComponent={<Text style={styles.datePill}>Today</Text>}
@@ -113,27 +113,6 @@ export default function ChatScreen() {
       <BottomNav active="chat" router={router} bottom={insets.bottom} role={currentUser?.role} />
     </SafeAreaView>
   );
-}
-
-function fallbackMessages(currentUserId: string, taskId: string): ChatMessage[] {
-  return [
-    {
-      id: "fallback-1",
-      taskId,
-      senderId: "client-1",
-      receiverId: currentUserId,
-      message: "Good morning! Are you still coming over for the task today at 2 PM?",
-      timestamp: new Date().toISOString()
-    },
-    {
-      id: "fallback-2",
-      taskId,
-      senderId: currentUserId,
-      receiverId: "client-1",
-      message: "Yes! I'm just finishing up my current task. I'll be there on time.",
-      timestamp: new Date().toISOString()
-    }
-  ];
 }
 
 function MessageBubble({ message, mine }: { message: ChatMessage; mine: boolean }) {

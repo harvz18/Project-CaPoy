@@ -9,6 +9,7 @@ import {
   applyToTask,
   createTaskInFirestore,
   subscribeToTasks,
+  updateTaskPaymentWorker,
   updateTaskStatusInFirestore
 } from "../services/taskRepository";
 import { getUserProfile, saveUserProfile, subscribeToUsers, updateUserProfile } from "../services/userService";
@@ -237,6 +238,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       }
 
       await applyToTask(taskId, currentUser.id);
+      await updateTaskPaymentWorker(taskId, currentUser.id);
       const task = tasks.find((item) => item.id === taskId);
 
       if (task) {

@@ -51,6 +51,7 @@ export default function ChatInboxScreen() {
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
+          <Text style={styles.menuText}>Menu</Text>
           <Text style={styles.brand}>TASKLINK</Text>
         </View>
         <View style={styles.avatar}>
