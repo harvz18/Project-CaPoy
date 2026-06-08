@@ -20,7 +20,7 @@ export default function RegistrationScreen() {
     try {
       await register({
         role: "worker",
-        fullName: fullName || "Prototype User",
+        fullName: fullName || "TaskLink User",
         mobileNumber: mobileNumber || "09170000000",
         password,
         address

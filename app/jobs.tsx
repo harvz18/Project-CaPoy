@@ -4,7 +4,8 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { BottomNavIcon } from "../src/components/BottomNavIcon";
 import { StatusBadge } from "../src/components/StatusBadge";
 import { useApp } from "../src/context/AppContext";
-import { Task } from "../src/types";
+import { Task, UserProfile } from "../src/types";
+import { formatDistance, getTaskDistanceKm, isTaskWithinPreferredRadius } from "../src/utils/location";
 
 const palette = {
   background: "#F7FAF8",
@@ -27,7 +28,9 @@ export default function JobsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { tasks, acceptTask, currentUser } = useApp();
-  const postedTasks = tasks.filter((task) => task.status === "Finding Workers" || task.status === "Applied");
+  const postedTasks = tasks
+    .filter((task) => task.status === "Finding Workers" || task.status === "Applied")
+    .sort((a, b) => Number(isTaskWithinPreferredRadius(currentUser, b)) - Number(isTaskWithinPreferredRadius(currentUser, a)));
   const appliedTasks = tasks.filter(
     (task) =>
       task.applicantIds?.includes(currentUser?.id ?? "") &&
@@ -114,6 +117,7 @@ export default function JobsScreen() {
                 task={task}
                 urgent={index === 0 || Number(task.wage) >= 800}
                 detail={jobDetails[index % jobDetails.length]}
+                currentUser={currentUser}
                 onOpen={() => router.push(`/task/${task.id}`)}
                 onQuickAccept={() => handleQuickApply(task)}
               />
@@ -143,15 +147,22 @@ function JobCard({
   task,
   urgent,
   detail,
+  currentUser,
   onOpen,
   onQuickAccept
 }: {
   task: Task;
   urgent?: boolean;
   detail: { distance: string; area: string; load: string };
+  currentUser: UserProfile | null;
   onOpen: () => void;
   onQuickAccept: () => void;
 }) {
+  const distance = getTaskDistanceKm(currentUser, task);
+  const withinRadius = isTaskWithinPreferredRadius(currentUser, task);
+  const capabilities = currentUser?.capabilities ?? currentUser?.skills ?? [];
+  const capabilityMatch = !task.requiredCapability || capabilities.includes(task.requiredCapability);
+
   return (
     <Pressable accessibilityRole="button" onPress={onOpen} style={({ pressed }) => [styles.jobCard, pressed && styles.pressed]}>
       {urgent ? (
@@ -165,6 +176,15 @@ function JobCard({
       <Text style={styles.jobTitle}>{task.title}</Text>
       <Text style={styles.jobMeta}>{detail.distance} • {detail.area}</Text>
       <Text style={styles.jobDescription} numberOfLines={2}>{task.description}</Text>
+      <View style={styles.matchRow}>
+        <Text style={styles.matchChip}>{formatDistance(distance)}</Text>
+        <Text style={[styles.matchChip, withinRadius ? styles.matchChipGood : styles.matchChipWarn]}>
+          {withinRadius ? "Within service area" : "Outside preferred radius"}
+        </Text>
+        <Text style={[styles.matchChip, capabilityMatch ? styles.matchChipGood : styles.matchChipWarn]}>
+          {capabilityMatch ? "Capability match" : `Needs ${task.requiredCapability ?? "capability"}`}
+        </Text>
+      </View>
       <View style={styles.jobInfoRow}>
         <Text style={styles.jobInfo}>{task.estimatedDuration}</Text>
         <Text style={styles.jobInfo}>{detail.load}</Text>
@@ -289,6 +309,10 @@ const styles = StyleSheet.create({
   jobTitle: { color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "800" },
   jobMeta: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "800" },
   jobDescription: { color: palette.muted, fontSize: 14, lineHeight: 20 },
+  matchRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  matchChip: { overflow: "hidden", borderRadius: 999, paddingHorizontal: 9, paddingVertical: 5, backgroundColor: palette.surfaceHigh, color: palette.muted, fontSize: 11, lineHeight: 14, fontWeight: "900" },
+  matchChipGood: { backgroundColor: "#EAF8F1", color: "#0B7A52" },
+  matchChipWarn: { backgroundColor: "#FFF8EE", color: "#684000" },
   jobInfoRow: { paddingVertical: 10, borderTopWidth: 1, borderBottomWidth: 1, borderColor: "rgba(189,201,198,0.45)", flexDirection: "row", gap: 16 },
   jobInfo: { color: palette.outline, fontSize: 12, lineHeight: 16, fontWeight: "800" },
   actionRow: { flexDirection: "row", gap: 10 },

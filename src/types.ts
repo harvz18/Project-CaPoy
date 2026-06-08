@@ -10,6 +10,8 @@ export type TaskStatus =
   | "Archived";
 
 export type PaymentMethod = "COD" | "GCash link";
+export type PaymentStatus = "Pending" | "Submitted" | "Verified" | "Rejected";
+export type VerificationStatus = "Pending Verification" | "Verified" | "Rejected" | "Needs Resubmission";
 
 export type UserProfile = {
   id: string;
@@ -19,9 +21,23 @@ export type UserProfile = {
   address: string;
   rating: number;
   skills?: string[];
+  capabilities?: string[];
   availabilityStatus?: "Available" | "Busy";
+  availability?: "Available" | "Busy" | "Unavailable";
   businessName?: string;
   profilePhoto?: string;
+  profilePhotoUrl?: string;
+  experienceDescription?: string;
+  yearsOfExperience?: string;
+  validIdType?: string;
+  validIdUrl?: string;
+  medicalCertificateUrl?: string;
+  verificationStatus?: VerificationStatus;
+  phoneVerified?: boolean;
+  thirdPartyProvider?: "none" | "google";
+  currentLatitude?: number;
+  currentLongitude?: number;
+  preferredRadiusKm?: number;
   completedTasks?: number;
   createdAt?: string;
   updatedAt?: string;
@@ -36,10 +52,18 @@ export type Task = {
   description: string;
   category: string;
   location: string;
+  locationAddress?: string;
+  latitude?: number;
+  longitude?: number;
+  geofenceRadius?: number;
+  requiredCapability?: string;
   wage: string;
   estimatedDuration: string;
   status: TaskStatus;
   paymentMethod: PaymentMethod;
+  paymentStatus?: PaymentStatus;
+  proofOfPaymentUrl?: string;
+  proofOfPaymentText?: string;
   createdAt: string;
   acceptedAt?: string;
   startedAt?: string;
@@ -91,6 +115,9 @@ export type Payment = {
   clientId: string;
   workerId?: string;
   paymentMethod: PaymentMethod;
-  paymentStatus: "Selected" | "Pending" | "Paid";
+  paymentStatus: PaymentStatus;
+  proofOfPaymentUrl?: string;
+  proofOfPaymentText?: string;
   createdAt: string;
+  updatedAt?: string;
 };

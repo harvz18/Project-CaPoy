@@ -108,57 +108,23 @@ function buildConversations(
 ): Conversation[] {
   const visibleTasks = tasks.length ? tasks : [];
 
-  return visibleTasks.flatMap((task, index) => {
+  return visibleTasks.map((task, index) => {
     const taskMessages = messages
       .filter((message) => message.taskId === task.id)
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    const userMessages = taskMessages.filter(
-      (message) => message.senderId === currentUserId || message.receiverId === currentUserId
-    );
     const latest = taskMessages[0];
-    const latestUserMessage = userMessages[0];
-    const messageParticipantId =
-      latestUserMessage?.senderId === currentUserId ? latestUserMessage.receiverId : latestUserMessage?.senderId;
-    const singleApplicantId = task.applicantIds?.length === 1 ? task.applicantIds[0] : undefined;
-    const participantId = role === "client" ? messageParticipantId ?? task.workerId ?? singleApplicantId : task.clientId;
-
-    if (!shouldShowConversation(task, role, currentUserId, participantId, userMessages.length > 0)) {
-      return [];
-    }
-
+    const participantId = role === "client" ? task.workerId : task.clientId;
     const participantName = users.find((user) => user.id === participantId)?.fullName ?? getFallbackName(role, index);
 
-    return [{
+    return {
       task,
       participantName,
       initials: getInitials(participantName),
-      preview: latestUserMessage?.message ?? `${task.title} conversation is ready.`,
-      timestamp: latestUserMessage?.timestamp ?? latest?.timestamp ?? task.createdAt,
-      unread: Boolean(latestUserMessage && latestUserMessage.receiverId === currentUserId)
-    }];
+      preview: latest?.message ?? `${task.title} conversation is ready.`,
+      timestamp: latest?.timestamp ?? task.createdAt,
+      unread: Boolean(latest && latest.receiverId === currentUserId)
+    };
   });
-}
-
-function shouldShowConversation(
-  task: Task,
-  role?: string,
-  currentUserId?: string,
-  participantId?: string,
-  hasUserMessages?: boolean
-) {
-  if (!currentUserId) {
-    return false;
-  }
-
-  if (hasUserMessages) {
-    return true;
-  }
-
-  if (role === "client") {
-    return task.clientId === currentUserId && Boolean(participantId);
-  }
-
-  return task.workerId === currentUserId && Boolean(participantId);
 }
 
 function ConversationRow({ conversation, onPress }: { conversation: Conversation; onPress: () => void }) {
@@ -319,6 +285,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.success
   },
   conversationCopy: { flex: 1, gap: 2 },
+  rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
   rowBetween: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 8 },
   contactName: { color: palette.textStrong, fontSize: 16, lineHeight: 22, fontWeight: "900", flex: 1 },
   timeText: { color: palette.outline, fontSize: 11, lineHeight: 14, fontWeight: "700", marginTop: 1 },

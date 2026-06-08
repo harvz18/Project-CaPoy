@@ -13,6 +13,7 @@ import {
   View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { workerCapabilities } from "../src/constants/capabilities";
 import { useApp } from "../src/context/AppContext";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -55,7 +56,7 @@ export default function LoginScreen() {
   const router = useRouter();
   const { actionLoading, error, login, register, usingFirebase } = useApp();
   const [loginMethod, setLoginMethod] = useState<LoginMethod>("otp");
-  const [mobileNumber, setMobileNumber] = useState("9170000001");
+  const [mobileNumber, setMobileNumber] = useState("");
   const [verificationCode, setVerificationCode] = useState("123456");
   const [password, setPassword] = useState("");
   const [otpVisible, setOtpVisible] = useState(false);
@@ -63,6 +64,7 @@ export default function LoginScreen() {
   const [fullName, setFullName] = useState("Juana Dela Cruz");
   const [registerMobileNumber, setRegisterMobileNumber] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
+  const [registerCapabilities, setRegisterCapabilities] = useState(["Cleaning"]);
   const [selectedBarangay, setSelectedBarangay] = useState(barangays[0]);
   const [barangayOpen, setBarangayOpen] = useState(false);
 
@@ -93,7 +95,7 @@ export default function LoginScreen() {
   async function handleLogin() {
     try {
       const user = await login("worker", {
-        mobileNumber,
+        mobileNumber: mobileNumber.trim(),
         password
       });
       router.replace(getRoleRoute(user.role));
@@ -106,10 +108,12 @@ export default function LoginScreen() {
     try {
       await register({
         role: "worker",
-        fullName: fullName || "Prototype User",
-        mobileNumber: registerMobileNumber || mobileNumber || "9170000001",
+        fullName: fullName || "TaskLink User",
+        mobileNumber: registerMobileNumber || mobileNumber,
         password: registerPassword,
-        address: selectedBarangay
+        address: selectedBarangay,
+        skills: registerCapabilities,
+        capabilities: registerCapabilities
       });
       router.replace("/role-selection");
     } catch {
@@ -128,6 +132,12 @@ export default function LoginScreen() {
     if (method === "password") {
       setOtpVisible(false);
     }
+  }
+
+  function toggleCapability(capability: string) {
+    setRegisterCapabilities((items) =>
+      items.includes(capability) ? items.filter((item) => item !== capability) : [...items, capability]
+    );
   }
 
   return (
@@ -169,14 +179,14 @@ export default function LoginScreen() {
                 onPress={handleSendOtp}
                 style={({ pressed }) => [screenStyles.primaryButton, pressed && screenStyles.pressed]}
               >
-                <Text style={screenStyles.primaryButtonText}>Send OTP</Text>
+                <Text style={screenStyles.primaryButtonText}>Send Code</Text>
               </Pressable>
 
               {otpVisible ? (
                 <>
                   <View style={screenStyles.dividerRow}>
                     <View style={screenStyles.divider} />
-                    <Text style={screenStyles.dividerText}>ENTER CODE</Text>
+                    <Text style={screenStyles.dividerText}>PROTOTYPE 2FA CODE</Text>
                     <View style={screenStyles.divider} />
                   </View>
 
@@ -185,7 +195,7 @@ export default function LoginScreen() {
                       <Text style={screenStyles.label}>Verification Code</Text>
                       <View style={screenStyles.sentRow}>
                         <Text style={screenStyles.sentIcon}>OK</Text>
-                        <Text style={screenStyles.sentText}>SMS Sent</Text>
+                        <Text style={screenStyles.sentText}>Code Sent</Text>
                       </View>
                     </View>
                     <View style={screenStyles.otpRow}>
@@ -252,6 +262,10 @@ export default function LoginScreen() {
             <Text style={screenStyles.createAccountText}>{registerVisible ? "Hide Registration" : "Create Account"}</Text>
           </Pressable>
 
+          <Pressable accessibilityRole="button" style={screenStyles.googleButton}>
+            <Text style={screenStyles.googleButtonText}>Continue with Google</Text>
+          </Pressable>
+
           {registerVisible ? (
             <View style={screenStyles.registerPanel}>
               <View style={screenStyles.profileRow}>
@@ -292,6 +306,24 @@ export default function LoginScreen() {
                 style={screenStyles.textInput}
                 value={registerPassword}
               />
+
+              <Text style={screenStyles.label}>Worker Capabilities</Text>
+              <View style={screenStyles.capabilityGrid}>
+                {workerCapabilities.map((capability) => {
+                  const selected = registerCapabilities.includes(capability);
+                  return (
+                    <Pressable
+                      key={capability}
+                      onPress={() => toggleCapability(capability)}
+                      style={[screenStyles.capabilityChip, selected && screenStyles.capabilityChipSelected]}
+                    >
+                      <Text style={[screenStyles.capabilityText, selected && screenStyles.capabilityTextSelected]}>
+                        {capability}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
 
               <Pressable
                 accessibilityRole="button"
@@ -375,7 +407,7 @@ function PhoneInput({ mobileNumber, onChange }: PhoneInputProps) {
         keyboardType="phone-pad"
         maxLength={10}
         onChangeText={(value) => onChange(value.replace(/\D/g, ""))}
-        placeholder="9XX XXX XXXX"
+        placeholder="917 000 0001"
         placeholderTextColor={palette.outline}
         style={screenStyles.phoneInput}
         value={mobileNumber}
@@ -714,6 +746,50 @@ const screenStyles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     fontWeight: "800"
+  },
+  googleButton: {
+    minHeight: 48,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: palette.outlineVariant,
+    backgroundColor: palette.surface,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  googleButtonText: {
+    color: palette.text,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "800",
+    textAlign: "center"
+  },
+  capabilityGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8
+  },
+  capabilityChip: {
+    minHeight: 34,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: palette.outlineVariant,
+    backgroundColor: palette.surface,
+    paddingHorizontal: 10,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  capabilityChipSelected: {
+    backgroundColor: palette.primary,
+    borderColor: palette.primary
+  },
+  capabilityText: {
+    color: palette.muted,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "800"
+  },
+  capabilityTextSelected: {
+    color: palette.white
   },
   pressed: {
     opacity: 0.78,

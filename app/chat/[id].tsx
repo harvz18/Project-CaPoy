@@ -26,21 +26,29 @@ const palette = {
 const quickReplies = ["I'm on my way", "I've arrived", "Stuck in traffic"];
 
 export default function ChatScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, recipientId } = useLocalSearchParams<{ id: string; recipientId?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { currentUser, getTaskMessages, getUserById, sendMessage, tasks } = useApp();
   const [message, setMessage] = useState("");
+  const [sendError, setSendError] = useState("");
   const messages = getTaskMessages(id);
   const task = tasks.find((item) => item.id === id);
-  const participant = getUserById(currentUser?.role === "worker" ? task?.clientId : task?.workerId);
+  const singleApplicantId = task?.applicantIds?.length === 1 ? task.applicantIds[0] : undefined;
+  const participantId = currentUser?.role === "worker" ? task?.clientId : recipientId ?? task?.workerId ?? singleApplicantId;
+  const participant = getUserById(participantId);
 
   async function handleSend(text = message) {
     if (!text.trim()) {
       return;
     }
-    await sendMessage(id, text.trim());
-    setMessage("");
+    try {
+      await sendMessage(id, text.trim(), participantId);
+      setMessage("");
+      setSendError("");
+    } catch (error) {
+      setSendError(error instanceof Error ? error.message : "Unable to send this message.");
+    }
   }
 
   return (
@@ -87,6 +95,7 @@ export default function ChatScreen() {
       />
 
       <View style={[styles.composerWrap, { bottom: 72 + insets.bottom, paddingBottom: 12 }]}>
+        {sendError ? <Text style={styles.sendError}>{sendError}</Text> : null}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickReplyRow}>
           {quickReplies.map((reply) => (
             <Pressable key={reply} onPress={() => handleSend(reply)} style={styles.quickReply}>
@@ -217,6 +226,7 @@ const styles = StyleSheet.create({
   input: { flex: 1, minHeight: 44, borderRadius: 22, backgroundColor: palette.surfaceLow, color: palette.text, paddingHorizontal: 16, fontSize: 16 },
   sendButton: { width: 52, height: 44, borderRadius: 22, backgroundColor: palette.primary, alignItems: "center", justifyContent: "center" },
   sendButtonText: { color: palette.white, fontSize: 12, fontWeight: "900" },
+  sendError: { color: "#BA1A1A", fontSize: 12, lineHeight: 16, fontWeight: "700", paddingHorizontal: 16, paddingBottom: 8 },
   bottomNav: { position: "absolute", left: 0, right: 0, bottom: 0, minHeight: 72, paddingHorizontal: 8, paddingTop: 8, borderTopLeftRadius: 12, borderTopRightRadius: 12, borderTopWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, flexDirection: "row", justifyContent: "space-around", elevation: 10 },
   navItem: { minWidth: 66, borderRadius: 24, alignItems: "center", justifyContent: "center", paddingVertical: 4 },
   navItemActive: { backgroundColor: palette.secondaryContainer },

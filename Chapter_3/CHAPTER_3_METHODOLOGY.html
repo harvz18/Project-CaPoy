@@ -1,0 +1,259 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Chapter III - Methodology</title><style>
+@page { size: Letter; margin: 1in; }
+body { font-family: "Times New Roman", serif; font-size: 12pt; line-height: 1.5; color: #111; max-width: 8.5in; margin: 0 auto; }
+h1 { text-align: center; font-size: 16pt; margin: 0 0 8px; font-weight: bold; }
+h2 { font-size: 14pt; margin: 22px 0 8px; font-weight: bold; }
+h3 { font-size: 13pt; margin: 18px 0 8px; font-weight: bold; }
+p { text-align: justify; margin: 0 0 10px; }
+table { width: 100%; border-collapse: collapse; margin: 10px 0 16px; font-size: 10.5pt; page-break-inside: auto; }
+th, td { border: 1px solid #333; padding: 6px; vertical-align: top; }
+th { font-weight: bold; text-align: center; background: #f2f2f2; }
+ul { margin: 0 0 12px 24px; padding: 0; }
+li { margin: 0 0 4px; }
+pre { border: 1px solid #999; padding: 10px; white-space: pre-wrap; font-family: "Courier New", monospace; font-size: 10pt; line-height: 1.25; margin: 10px 0 16px; }
+code { font-family: "Courier New", monospace; }
+.step { text-align: left; margin: 0 0 3px; }
+</style></head><body><h1>CHAPTER III</h1>
+<h1>METHODOLOGY</h1>
+<p>This chapter presents the technical background, requirements analysis and documentation, design of software, system technicalities, and development method used for TASKLINK.</p>
+<h2>Technical Background</h2>
+<p>TASKLINK is a mobile job matching system designed to connect clients who need short-term local assistance with informal workers who are available to perform nearby tasks in Bacolod City. The system focuses on mobile-based task posting, worker application, client approval, task status monitoring, in-app communication, payment proof recording, and rating or feedback after task completion.</p>
+<p>The application was developed as an Expo React Native project for Android devices. Its routing structure is implemented through Expo Router, while shared application data and actions are managed through the React Context API. The system uses Firebase services for its backend operations. Firebase Identity Toolkit REST calls are used for registration and login, Cloud Firestore is used for real-time application data, and Firebase Storage is initialized for possible file storage requirements such as profile and verification document references. The project also includes EAS Build configuration for Android development, preview, and production builds.</p>
+<p>Based on the project files, the system supports two active user roles: worker and client. Workers can register, maintain a profile, set capabilities and service area information, browse available jobs, apply to tasks, track task progress, chat with clients, mark work as finished, and rate clients. Clients can register, post tasks, review applicants, accept workers, track ongoing tasks, submit payment proof, confirm completion, archive tasks, chat with workers, and rate workers. An admin role is mentioned as unclear in the documentation, but no admin module, route, dashboard, or permission system was found in the project files.</p>
+<h3>Technologies to be Used</h3>
+<p>The technologies used in the development of TASKLINK were selected to support rapid mobile application development, real-time database updates, and cloud-backed authentication. Expo and React Native serve as the main application framework, while Firebase provides the backend services needed by the system.</p>
+<table><thead><tr><th>Technology</th><th>Purpose in the System</th></tr></thead><tbody><tr><td>Expo</td><td>Provides the mobile application runtime and development platform.</td></tr><tr><td>React Native</td><td>Used to build the Android mobile user interface.</td></tr><tr><td>React</td><td>Provides the component-based UI foundation of the application.</td></tr><tr><td>TypeScript</td><td>Adds static typing and improves code reliability.</td></tr><tr><td>Expo Router</td><td>Handles file-based navigation through the application screens.</td></tr><tr><td>React Context API</td><td>Manages shared application state, user session, tasks, notifications, messages, ratings, and actions.</td></tr><tr><td>Firebase JS SDK</td><td>Initializes Firebase app, Firestore, and Storage services.</td></tr><tr><td>Firebase Identity Toolkit REST API</td><td>Handles registration and login using mobile-number-based email accounts.</td></tr><tr><td>Cloud Firestore</td><td>Stores users, worker profiles, client profiles, tasks, task matches, payments, chats, messages, ratings, and notifications.</td></tr><tr><td>Firebase Storage</td><td>Initialized for storage support; actual upload handling is not fully implemented in the current project files.</td></tr><tr><td>Expo Notifications</td><td>Installed as a dependency; current implementation stores in-app notifications in Firestore rather than sending real push notifications.</td></tr><tr><td>EAS Build</td><td>Provides Android build profiles for development, preview, and production.</td></tr><tr><td>React Native Safe Area Context</td><td>Helps the interface adapt to safe screen areas on mobile devices.</td></tr></tbody></table>
+<p>The application is configured with the name TASKLINK, portrait orientation, light user interface style, and Android package com.tasklink.app. For capstone deployment, the system is treated as an Android mobile application for Android device users.</p>
+<h3>Calendar of Activities</h3>
+<p>The actual project files do not contain an official development calendar, Gantt chart, or exact activity completion dates. Therefore, the following tables present a proposed calendar of activities aligned with the project scope and with the academic semesters required in the capstone format.</p>
+<p>Table 1</p>
+<table><thead><tr><th>Activity</th><th>Purpose/Objectives</th><th>Persons Involved</th><th>Resources Used</th></tr></thead><tbody><tr><td>Problem Identification and Initial Proposal</td><td>Identified the problem of unreliable word-of-mouth hiring for informal/manual labor in Bacolod City and proposed TASKLINK as a mobile job matching solution.</td><td>Researchers, adviser, target user representatives</td><td>Capstone guide, project documentation, preliminary requirements</td></tr><tr><td>Requirements Gathering</td><td>Identified the target users, including workers and clients, and defined the major system needs such as task posting, worker application, communication, and rating.</td><td>Researchers, potential workers, potential clients</td><td>Requirements notes, documentation files, project source review</td></tr><tr><td>System Analysis</td><td>Analyzed task data, user roles, payment method requirements, notification needs, task lifecycle, and trust-related features.</td><td>Researchers, system analyst/developer</td><td>src/types.ts, src/context/AppContext.tsx, service modules</td></tr><tr><td>Prototype Planning</td><td>Selected Expo, React Native, TypeScript, Firebase, and mobile-first architecture as the development foundation.</td><td>Researchers, mobile developer</td><td>package.json, app.json, Firebase configuration module</td></tr><tr><td>UI/UX Wireframing and Prototype Design</td><td>Planned the required screens such as splash, login, dashboards, job board, task details, task status, chat, rating, and profile screens.</td><td>Researchers, UI/UX designer, developer</td><td>app/ route structure, reusable component plan</td></tr></tbody></table>
+<p>Table 2</p>
+<table><thead><tr><th>Activity</th><th>Purpose/Objectives</th><th>Persons Involved</th><th>Resources Used</th></tr></thead><tbody><tr><td>System Development</td><td>Implemented the Expo Router screens, reusable components, and mobile user interface.</td><td>Mobile developer, UI/UX designer, researchers</td><td>Expo, React Native, TypeScript, app/, src/components/</td></tr><tr><td>Backend Integration</td><td>Integrated Firebase configuration, Firebase Authentication REST calls, and Firestore service modules.</td><td>Backend/Firebase developer, mobile developer</td><td>Firebase, Firestore, src/services/</td></tr><tr><td>Feature Implementation</td><td>Developed registration, login, role selection, task posting, worker application, task tracking, chat, rating, payment proof, notifications, and profile management.</td><td>Developers, researchers</td><td>src/context/AppContext.tsx, route files, service modules</td></tr><tr><td>Testing and Refinement</td><td>Conducted TypeScript checking and manual workflow validation. Automated test files were not found in the current project.</td><td>QA tester, developers, researchers</td><td>npm run typecheck, Android device/emulator, manual test scenarios</td></tr><tr><td>Documentation and Deployment Preparation</td><td>Prepared project documentation and configured EAS Build profiles for Android development, preview, and production builds.</td><td>Documentation writer, developer, researchers</td><td>docs/, eas.json, project source files</td></tr></tbody></table>
+<h2>Resources</h2>
+<p>The development and operation of TASKLINK require hardware, software, and human resources suitable for mobile application development and Firebase-backed cloud services.</p>
+<h3>Hardware Recommendation</h3>
+<p>The project files do not contain formal hardware specifications. The following recommendations are based on the actual technology stack and user workflows found in the application.</p>
+<p>Table 3</p>
+<p>Hardware Requirements</p>
+<table><thead><tr><th>User/Role</th><th>Recommended Hardware</th><th>Purpose</th></tr></thead><tbody><tr><td>Developer</td><td>Laptop or desktop computer capable of running Node.js, Expo tooling, TypeScript, and Android development tools</td><td>Used for coding, running the app, type checking, and preparing builds.</td></tr><tr><td>Worker User</td><td>Android smartphone with reliable internet connection</td><td>Used to register, browse jobs, apply, chat, track tasks, and submit ratings.</td></tr><tr><td>Client User</td><td>Android smartphone with reliable internet connection</td><td>Used to post tasks, review applicants, chat, submit payment proof, confirm completion, and rate workers.</td></tr><tr><td>Network Resource</td><td>Stable internet connection</td><td>Required for Firebase Authentication REST calls and Firestore real-time data synchronization.</td></tr><tr><td>Server Side</td><td>Firebase cloud infrastructure</td><td>Custom server hardware is not specified because the current system uses Firebase cloud services.</td></tr></tbody></table>
+<p>Server hardware is not specified because the current system relies on Firebase cloud services rather than a custom local or dedicated backend server.</p>
+<h3>Software Recommendation</h3>
+<p>The software resources required for TASKLINK include development tools, build tools, and cloud service configuration.</p>
+<p>Table 4</p>
+<p>Software Requirements</p>
+<table><thead><tr><th>Software</th><th>Purpose</th></tr></thead><tbody><tr><td>Node.js and npm</td><td>Used to install dependencies and run project scripts.</td></tr><tr><td>Expo CLI / Expo Tooling</td><td>Used to start and test the Expo React Native application.</td></tr><tr><td>EAS CLI</td><td>Used to create Android development, preview, and production builds.</td></tr><tr><td>TypeScript</td><td>Used for type checking and code safety.</td></tr><tr><td>Firebase Project</td><td>Provides authentication, Firestore database, and initialized storage services.</td></tr><tr><td>Android Device or Emulator</td><td>Used for mobile testing and deployment validation.</td></tr><tr><td>Visual Studio Code or Equivalent IDE</td><td>Used as the development environment.</td></tr></tbody></table>
+<p>The Firebase configuration requires public Expo environment variables for API key, authentication domain, project ID, storage bucket, messaging sender ID, and app ID. These values are expected by the Firebase configuration module and must be provided for the application to use Firebase-backed data.</p>
+<h3>Human Resources Recommendation</h3>
+<p>The project files do not define an official team roster. The following human resource recommendations are based on the system scope and the technical work required to develop and document TASKLINK.</p>
+<p>Table 5</p>
+<p>Human Resources</p>
+<table><thead><tr><th>Role</th><th>Responsibility</th></tr></thead><tbody><tr><td>Project Manager/Researcher</td><td>Coordinates the capstone schedule, requirements analysis, documentation, and evaluation activities.</td></tr><tr><td>Mobile Developer</td><td>Develops the Expo React Native screens, navigation, UI logic, and shared components.</td></tr><tr><td>Backend/Firebase Developer</td><td>Configures Firebase Authentication, Firestore collections, Firebase Storage initialization, and service modules.</td></tr><tr><td>UI/UX Designer</td><td>Designs mobile workflows suitable for informal workers and clients.</td></tr><tr><td>Quality Assurance Tester</td><td>Tests registration, login, task posting, job application, task status, chat, payment proof, rating, and profile workflows.</td></tr><tr><td>Documentation Writer</td><td>Prepares capstone documents, system diagrams, methodology discussion, and supporting technical descriptions.</td></tr></tbody></table>
+<h2>Requirements Analysis</h2>
+<p>The PIECES Framework was used to analyze the system requirements of TASKLINK. This framework examines the system in terms of performance, information and data, economics, control and security, efficiency, and service.</p>
+<p>Table 5</p>
+<p>PIECES Framework</p>
+<table><thead><tr><th>PIECES Area</th><th>Current Problem or Need</th><th>TASKLINK Response</th></tr></thead><tbody><tr><td>Performance</td><td>Manual hiring through word-of-mouth is slow and unreliable. Workers need fast access to available jobs, while clients need to review applicants quickly.</td><td>The system uses Firestore subscriptions to load updated users, tasks, messages, ratings, and notifications. Dashboards display current jobs and applications for faster decision-making.</td></tr><tr><td>Information and Data</td><td>Workers and clients need structured information about tasks, profiles, ratings, status, payment, and messages.</td><td>TASKLINK defines structured data models for users, tasks, matches, messages, ratings, notifications, and payments. Screens display task category, location, wage, duration, status, applicants, capabilities, and ratings.</td></tr><tr><td>Economics</td><td>Informal workers need access to earning opportunities, while clients need a simple way to offer wages for local help.</td><td>Clients can enter wage offers and select either COD or GCash link as payment method. The app records payment status and proof text, although real payment gateway integration is not implemented.</td></tr><tr><td>Control and Security</td><td>The system must protect user actions, prevent duplicate applications, separate user roles, and validate important inputs.</td><td>Firebase Authentication REST calls support account access. AppContext validates logged-in users and role-based actions. Firestore transactions prevent duplicate applications and conflicting assignment updates.</td></tr><tr><td>Efficiency</td><td>Users need fewer steps to post, find, apply for, monitor, and complete tasks.</td><td>Worker and client dashboards, quick apply, task status buttons, bottom navigation, and reusable UI components support a more efficient workflow.</td></tr><tr><td>Service</td><td>The system must support communication, updates, trust, and confirmation between workers and clients.</td><td>TASKLINK includes in-app chat, notification records, ratings, worker verification fields, payment proof, and two-sided task completion flow.</td></tr></tbody></table>
+<h2>Ethical Considerations</h2>
+<p>The development of TASKLINK involves ethical concerns related to personal data, fair access, user trust, and privacy. The system stores user-related information such as full name, mobile number, address or location, role, skills or capabilities, ratings, profile photo reference, valid ID reference, medical certificate reference, and worker coordinates. Since these data may identify users, the system should be handled with confidentiality and should be used only for legitimate task matching and profile verification purposes.</p>
+<p>The application is intended for informal workers and clients in Bacolod City. Therefore, the language and design of the system should respect the dignity of informal workers and avoid discriminatory or stigmatizing descriptions. The worker and client roles must be presented as legitimate participants in a local service marketplace. Workers should be given clear information about tasks, wage offers, client communication, and task expectations before accepting or performing work.</p>
+<p>The project includes worker verification fields such as valid ID type, valid ID reference, medical certificate reference, profile photo reference, and experience description. However, an actual admin review or verification workflow was not found in the current project files. For ethical implementation, these fields should not be treated as fully verified unless a proper review process is implemented. The application also shows terms and privacy references in the user interface, but formal legal terms and privacy policy documents were not found in the project files. These documents should be prepared before production deployment.</p>
+<p>Payment in the current system is represented through COD or GCash link options and payment proof text. The system does not process real payments through a payment gateway. For ethical use, the system should clearly inform users that payment arrangements are external or manually verified. The location and geofence features should also be treated carefully because location-related data can affect user privacy. The current project uses coordinate and radius checks for task status actions, but live GPS tracking was not found in the project files.</p>
+<h2>Requirements Documentation</h2>
+<p>The current project files show the following system features:</p>
+<ul>
+<li>Feature 1: Splash Screen — Displays TASKLINK branding, tagline, illustration, loading animation, and redirects users to the login screen.</li>
+<li>Feature 2: Login by Mobile Number — Allows users to enter a mobile number and authenticate through Firebase Identity Toolkit using a normalized mobile-number email format.</li>
+<li>Feature 3: Prototype OTP-Style Login UI — Provides an OTP-style interface with send-code and verification-code fields, but real SMS OTP verification is not implemented.</li>
+<li>Feature 4: Password Login — Allows users to log in with mobile number and password.</li>
+<li>Feature 5: Mobile Registration — Allows account creation using full name, mobile number, password, address or barangay, and worker capabilities.</li>
+<li>Feature 6: Role Selection — Allows users to choose between worker and client roles and routes them to the appropriate dashboard.</li>
+<li>Feature 7: Worker Dashboard — Displays worker availability, available jobs, applications, finished jobs, job highlights, and navigation options.</li>
+<li>Feature 8: Client Dashboard — Displays client task statistics, ongoing jobs, completed jobs, archived tasks, active workers, total spend, and post-task entry points.</li>
+<li>Feature 9: Worker Job Board — Displays available jobs, applied tasks, filters, distance indicators, service radius indicators, capability match indicators, and quick apply actions.</li>
+<li>Feature 10: Post Task — Allows clients to enter task category, title, location, service area, coordinates, geofence radius, required capability, wage, estimated duration, payment method, and notes.</li>
+<li>Feature 11: Task Creation in Firestore — Saves task documents with a default Finding Workers status and creates linked payment records.</li>
+<li>Feature 12: Worker Application — Allows workers to apply to open tasks, stores task match records, updates applicant IDs, and changes task status to Applied.</li>
+<li>Feature 13: Applicant Review — Allows clients to view worker applications and accept a worker from the task details screen.</li>
+<li>Feature 14: Worker Public Profile — Displays worker capabilities, ratings, verification fields, document completion indicators, service coverage, and accept or message actions when connected to a task.</li>
+<li>Feature 15: Task Status Tracking — Displays task status, location context, task details, employer/client information, location check, payment verification, and primary status actions.</li>
+<li>Feature 16: Task Lifecycle Management — Supports Finding Workers, Applied, Accepted, In Progress, Pending Approval, Finished, and Archived statuses.</li>
+<li>Feature 17: Worker Start and Finish Controls — Allows accepted workers to start a task and mark it as finished, subject to location/geofence checks.</li>
+<li>Feature 18: Client Completion Approval — Allows the client to confirm a worker-finished task and archive a finished task.</li>
+<li>Feature 19: Location and Geofence Check — Calculates the distance between worker and task coordinates and checks whether the worker is inside the allowed task radius before selected status actions.</li>
+<li>Feature 20: Worker Service Area Preferences — Allows workers to set availability, location area, coordinates, and preferred service radius.</li>
+<li>Feature 21: Capability Matching — Stores worker capabilities and task-required capability, then displays capability match indicators on the job board.</li>
+<li>Feature 22: In-App Chat Inbox — Lists task conversations with search, participant names, previews, timestamps, and unread indicators.</li>
+<li>Feature 23: Task Chat — Allows task participants to send messages, use quick replies, and view message bubbles in a task-based conversation.</li>
+<li>Feature 24: Notification Records — Stores and displays in-app notifications for nearby tasks, worker applications, accepted applications, completion approval, and payment proof submission.</li>
+<li>Feature 25: Rating and Feedback — Allows users to rate the other party after a task, stores ratings, and updates the target user's aggregate rating.</li>
+<li>Feature 26: Profile Management — Allows users to edit full name, mobile number, address, bio or business name, worker skills, verification fields, availability, coordinates, service radius, and logout.</li>
+<li>Feature 27: Worker Verification Fields — Stores worker verification status, profile photo reference, experience, years of experience, valid ID type/reference, and medical certificate reference.</li>
+<li>Feature 28: Payment Method Selection — Allows clients to select COD or GCash link when posting a task.</li>
+<li>Feature 29: Payment Proof Submission — Allows clients to submit payment proof text or reference and notifies the assigned worker.</li>
+<li>Feature 30: Firestore Real-Time Subscriptions — Subscribes to users, tasks, messages, ratings, and notifications.</li>
+<li>Feature 31: Reusable UI Components — Provides buttons, cards, inputs, bottom navigation icons, empty states, screen container, and status badges.</li>
+<li>Feature 32: Android Build Profiles — Provides EAS build profiles for development, preview, and production Android builds.</li>
+</ul>
+<p>Admin functionality, real SMS OTP provider integration, real device push notifications, real payment gateway integration, live GPS tracking, account recovery, account deletion, and automated tests were not found in the current project files.</p>
+<h2>Design of Software, System, Product, and/or Processes</h2>
+<h3>Project Framework</h3>
+<p>TASKLINK follows an input-process-output framework. The inputs include user registration details, login credentials, role selection, worker profile information, worker capabilities, service area details, task details, location and radius values, payment method, chat messages, rating scores, feedback, and payment proof. These inputs are processed through the mobile application, AppContext action layer, Firebase Authentication REST calls, Firestore service modules, task lifecycle logic, notification creation, chat handling, payment proof updates, and rating aggregation.</p>
+<p>The expected outputs are role-based dashboards, available job listings, posted task records, applicant lists, task status updates, in-app notifications, chat conversations, payment status displays, rating records, updated user ratings, and archived task records.</p>
+<p>Figure 3</p>
+<p>Project Framework of TASKLINK</p>
+<pre><code>Inputs
+User details, role, worker profile, capabilities, task details,
+location/radius, payment method, messages, ratings, payment proof
+
+        ↓
+
+Processes
+Authentication, Firestore data storage, task posting, worker application,
+client acceptance, status tracking, notification creation, chat,
+payment proof update, rating aggregation
+
+        ↓
+
+Outputs
+Dashboards, job board, task status, applicant list, notifications,
+chat records, ratings, payment status, archived tasks</code></pre>
+<h3>On the Design of Software</h3>
+<p>The software design of TASKLINK is organized around mobile screens and reusable components. The route files under the app/ folder define the major screens, while shared interface components are stored in src/components/. The root layout wraps the application with the AppProvider, SafeAreaProvider, status bar, and stack navigation.</p>
+<table><thead><tr><th>Figure</th><th>Screen or Component</th><th>Expected Output</th></tr></thead><tbody><tr><td>Figure 4</td><td>Login and Registration Forms</td><td>Provides OTP-style login UI, password login, inline registration, and account creation inputs.</td></tr><tr><td>Figure 5</td><td>Role-Based Dashboard Forms</td><td>Shows the worker dashboard and client dashboard outputs based on selected role.</td></tr><tr><td>Figure 6</td><td>Task Posting and Job Board Forms</td><td>Allows clients to post tasks and workers to view available jobs with matching indicators.</td></tr><tr><td>Figure 7</td><td>Task Details and Task Status Forms</td><td>Shows task information, applicants, lifecycle controls, location checks, payment proof, chat link, and rating link.</td></tr><tr><td>Figure 8</td><td>Communication, Rating, Profile, and Notification Forms</td><td>Displays chat, ratings, profile management, worker public profile, and notifications.</td></tr></tbody></table>
+<p>Figure 4</p>
+<p>Login and Registration Forms</p>
+<p>The login and registration forms allow users to access the system through a mobile number and password. The login screen also provides an OTP-style prototype interface, while the registration inputs gather full name, mobile number, address or barangay, password, and worker capabilities.</p>
+<p>Figure 5</p>
+<p>Role-Based Dashboard Forms</p>
+<p>The worker dashboard presents available jobs, active applications, finished jobs, and quick navigation. The client dashboard presents task statistics, ongoing jobs, completed tasks, archived tasks, active workers, and post-task access.</p>
+<p>Figure 6</p>
+<p>Task Posting and Job Board Forms</p>
+<p>The post-task form allows clients to enter task details, location, radius, wage, duration, required capability, and payment method. The job board displays available tasks, matching details, worker service radius information, and quick apply actions.</p>
+<p>Figure 7</p>
+<p>Task Details and Task Status Forms</p>
+<p>The task details form displays the job information, applicants, worker profile access, apply action, and accept action. The task status form displays the task lifecycle, location check, payment proof, chat link, rating link, and status control buttons.</p>
+<p>Figure 8</p>
+<p>Communication, Rating, Profile, and Notification Forms</p>
+<p>The communication and support forms include the chat inbox, task chat, rating and feedback screen, user profile screen, worker public profile screen, and notification list.</p>
+<h3>System Functionalities</h3>
+<p>The system functionalities of TASKLINK are represented through the context diagram, data flow diagrams, and user interaction flowcharts. These diagrams describe the movement of information between users, system processes, and data stores. They also show how worker and client actions are transformed into expected system outputs.</p>
+<p>Figure 9</p>
+<p>Context Diagram</p>
+<p>The context diagram should show TASKLINK as the central system. The external entities are Worker, Client, and Firebase Services. Workers send registration data, login data, profile updates, applications, messages, task status updates, and ratings to the system. Clients send registration data, login data, task posts, applicant decisions, payment proof, messages, completion confirmations, archive actions, and ratings. Firebase Services provide authentication, Firestore data storage, real-time synchronization, and storage initialization.</p>
+<p>Figure 10</p>
+<p>Level 1 Data Flow Diagram of TASKLINK</p>
+<p>The Level 1 DFD should contain the following major processes: User Authentication and Role Management, Profile and Verification Management, Task Posting and Job Discovery, Worker Application and Client Acceptance, Task Status and Completion Management, Chat and Notifications, Payment Proof Management, and Rating and Feedback Management. The data stores should include Users/Profile Store, Task Store, Match Store, Payment Store, Message Store, Rating Store, and Notification Store.</p>
+<p>Figure 11</p>
+<p>Level 2 Data Flow Diagram of User Authentication and Role Management</p>
+<p>For authentication and role management, the system receives mobile number, password, full name, address, and role. It normalizes the mobile number, uses Firebase Identity Toolkit for sign-up or sign-in, stores or reads the user profile from Firestore, updates the role when needed, and routes the user to the correct dashboard.</p>
+<p>Figure 12</p>
+<p>Level 2 Data Flow Diagram of Task Posting and Matching</p>
+<p>For task posting, the system receives title, description, category, location, coordinates, geofence radius, required capability, wage, duration, and payment method. It validates required fields, creates a Firestore task record, creates a payment record, and sends worker notification records.</p>
+<p>For job application and matching, the worker applies to an open task. The system checks task existence, duplicate application, assignment status, and open status through a Firestore transaction. It then creates a task match record, updates applicant IDs, changes the task status to Applied, and notifies the client.</p>
+<p>For task progress, the system receives status actions from the assigned worker or client. It updates the task status and timestamps, enforces geofence checks for worker start and finish actions, updates worker availability after completion, and displays the new status on dashboards and task status screens.</p>
+<p>For chat, the system receives message text, sender ID, receiver ID, and task ID. It updates chat metadata, stores the message document, and displays messages in the chat inbox and task chat screen.</p>
+<p>For notifications, the system receives trigger events such as task posting, worker application, accepted application, completion approval, and payment proof submission. It creates notification records and displays them to the affected user.</p>
+<p>For payment proof, the system receives the payment method and proof/reference text. It updates the task and payment records, changes the payment status, and notifies the worker when proof is submitted.</p>
+<p>For rating, the system receives score and feedback. It creates a rating record and updates the target user's rating count, rating total, and average rating.</p>
+<p>Figure 13</p>
+<p>User Interaction Flowchart for Worker</p>
+<p>Worker flow:</p>
+<p class="step">1. Open TASKLINK.</p>
+<p class="step">2. View splash screen.</p>
+<p class="step">3. Log in or register.</p>
+<p class="step">4. Select Worker role if needed.</p>
+<p class="step">5. Open Worker Dashboard.</p>
+<p class="step">6. Open Jobs or view available job cards.</p>
+<p class="step">7. View job details.</p>
+<p class="step">8. Apply or Quick Apply.</p>
+<p class="step">9. Wait for client acceptance.</p>
+<p class="step">10. Open Task Status.</p>
+<p class="step">11. Start Task after acceptance and location check.</p>
+<p class="step">12. Mark task as finished.</p>
+<p class="step">13. Wait for client completion approval.</p>
+<p class="step">14. Chat with the client as needed.</p>
+<p class="step">15. Rate the client after completion.</p>
+<p class="step">16. View finished jobs or update profile.</p>
+<p>Figure 14</p>
+<p>User Interaction Flowchart for Client</p>
+<p>Client flow:</p>
+<p class="step">1. Open TASKLINK.</p>
+<p class="step">2. View splash screen.</p>
+<p class="step">3. Log in or register.</p>
+<p class="step">4. Select Client role if needed.</p>
+<p class="step">5. Open Client Dashboard.</p>
+<p class="step">6. Post a task.</p>
+<p class="step">7. Review applicants in Task Details.</p>
+<p class="step">8. View worker profile.</p>
+<p class="step">9. Accept worker.</p>
+<p class="step">10. Chat with the worker as needed.</p>
+<p class="step">11. Monitor Task Status.</p>
+<p class="step">12. Submit payment proof.</p>
+<p class="step">13. Confirm task as finished after worker completion.</p>
+<p class="step">14. Rate the worker.</p>
+<p class="step">15. Archive the completed task.</p>
+<p>Figure 15</p>
+<p>User Interaction Flowchart for Admin</p>
+<p>Admin flow was not found in the project files because the source code only implements worker and client roles. If an admin module is required by the final capstone scope, its dashboard, permissions, moderation processes, and database controls must be specified separately before Figure 15 can be completed.</p>
+<h2>System Technicalities</h2>
+<h3>On Network Architecture</h3>
+<p>TASKLINK uses a cloud-backed mobile network architecture. The mobile client is an Expo React Native application running mainly on Android devices. The application communicates with Firebase services over the internet. Firebase Identity Toolkit handles account registration and login, while Firestore stores and synchronizes application data such as users, tasks, task matches, payments, chats, messages, ratings, and notifications. Firebase Storage is initialized for file storage readiness, although complete file upload handling was not found in the current implementation.</p>
+<p>The application code is organized into presentation, context, and service layers. Screens under the app/ directory provide the user interface and navigation. The AppContext layer manages session state, data arrays, loading and error states, and system actions. The service layer under src/services/ communicates with Firebase and Firestore.</p>
+<p>Figure 16</p>
+<p>Network Architecture of TASKLINK</p>
+<pre><code>Worker Android Device           Client Android Device
+        |                                |
+        | HTTPS / Internet              | HTTPS / Internet
+        v                                v
+              Expo React Native TASKLINK App
+              - Expo Router screens
+              - AppContext action layer
+              - Firebase service modules
+                         |
+                         | Firebase SDK / REST calls
+                         v
+              Firebase Cloud Services
+              - Identity Toolkit Authentication
+              - Cloud Firestore Database
+              - Firebase Storage initialization</code></pre>
+<p>No custom backend server, local server hardware, Cloud Functions, REST API routes, or Firestore security rules file was found in the current repository.</p>
+<h3>On Access Control</h3>
+<p>The access control design of TASKLINK is based on role-specific workflows. The implemented front-end roles are worker and client. Workers are directed to worker-specific screens and actions, while clients are directed to client-specific task management workflows. Protected actions check the current user session before continuing. Some actions also check the user's role, such as payment proof submission, which is limited to clients.</p>
+<p>Table 6</p>
+<p>Access Profile for Back-end User</p>
+<table><thead><tr><th>Back-end/User Type</th><th>Access or Permission</th></tr></thead><tbody><tr><td>Firebase-configured App Service Layer</td><td>Reads and writes Firestore data through service modules when Firebase environment variables are configured.</td></tr><tr><td>Authenticated Worker/Client through AppContext</td><td>Performs Firestore actions through context functions after login and profile loading.</td></tr><tr><td>Admin</td><td>Not found in project files.</td></tr><tr><td>Manual Database Administrator</td><td>Not represented in application code. Possible Firebase console operation is outside the current project files.</td></tr></tbody></table>
+<p>Table 7</p>
+<p>Access Profile for Front-end User</p>
+<table><thead><tr><th>Front-end User</th><th>Allowed Access or Permission</th></tr></thead><tbody><tr><td>Worker</td><td>Register, log in, choose worker role, update profile, set capabilities and service area, browse jobs, apply to tasks, track accepted tasks, start task, mark task as finished, chat with client, rate client, and view notifications.</td></tr><tr><td>Client</td><td>Register, log in, choose client role, update profile or business bio, post tasks, review applicants, view worker profiles, accept worker, track tasks, submit payment proof, confirm completion, archive task, chat with worker, rate worker, and view notifications.</td></tr><tr><td>Guest/Unauthenticated User</td><td>Can access splash and login screens. Protected actions require login and show errors if the user is not authenticated.</td></tr><tr><td>Admin</td><td>Not found in project files.</td></tr></tbody></table>
+<h3>On Data Security and Controls</h3>
+<p>TASKLINK uses Firebase configuration values loaded from Expo public environment variables. The Firebase app initializes only when all required values are available. Authentication is handled using Firebase Identity Toolkit REST endpoints. Registration uses the signUp endpoint, and login uses the signInWithPassword endpoint. Mobile numbers are normalized into local email-style accounts using the format 639XXXXXXXXX@tasklink.local.</p>
+<p>The system includes validation and control logic in its shared context and service modules. Registration checks that the full name is present and that the mobile number contains enough digits. Task creation checks that the title and location are provided and that the wage is valid. Coordinate parsing returns undefined for invalid coordinate values. Firestore transactions are used to prevent duplicate applications, prevent application to assigned or closed tasks, update task status safely, and recalculate rating averages.</p>
+<p>Role-based controls are applied through the AppContext action layer. Actions that require a logged-in user throw readable errors when no current user exists. Client-specific actions, such as submitting payment proof, require a client role. Worker start and finish actions use location and geofence checks. Chat receiver selection is based on task participants, applicant IDs, worker ID, and client ID.</p>
+<p>The system also includes basic error handling. AppContext stores error, app loading, and action loading states. Screens use try/catch blocks and display readable errors to users. Firestore listener errors are passed to a listener error handler. If Firebase is not configured, service modules return empty data for subscriptions or throw readable Firebase configuration errors for actions requiring Firestore.</p>
+<p>Despite these controls, several security-related items were not found in the current project files. These include Firestore security rules, real SMS OTP enforcement, account recovery, account deletion, rate limiting, anti-spam controls, audit logs, real legal privacy policy pages, and admin moderation controls.</p>
+<h2>Development</h2>
+<h3>Research Method</h3>
+<p>The most suitable research method for TASKLINK is the descriptive-developmental research method. The descriptive part applies because the study identifies and describes an existing problem in the local hiring process for informal/manual labor in Bacolod City. The developmental part applies because the project produces a mobile application as a proposed solution to that problem.</p>
+<p>This method is appropriate because TASKLINK is not only a study of a problem but also a system development project. The application demonstrates how clients can post tasks, how workers can apply, how both users can communicate, how task status can be tracked, and how ratings can support trust after a completed transaction. Survey results, interview results, or formal user evaluation data were not found in the project files; therefore, these should not be claimed unless provided separately.</p>
+<h3>System Development Method</h3>
+<p>The most suitable system development method for TASKLINK is an Agile or iterative prototype development method. The project files show an evolving mobile prototype that began with earlier prototype documentation and now includes Firebase-backed services, route-based screens, task workflows, chat, ratings, notifications, payment proof recording, and profile management. This indicates that the system is suited to iterative development, where screens and features can be built, tested, refined, and integrated in stages.</p>
+<p>Phase 1. Planning, Requirements Analysis, and Prototype Design</p>
+<p>The first phase involves identifying the target users and defining the major system requirements. For TASKLINK, the main target users are workers and clients. The major workflows include registration, login, role selection, profile management, task posting, job application, applicant review, task status tracking, chat, payment proof, rating, and notifications. During this phase, the system data model and route structure are also prepared.</p>
+<p>Phase 2. System Development and Integration</p>
+<p>The second phase involves building the mobile screens, reusable components, context actions, and Firebase service modules. This includes implementing the worker dashboard, client dashboard, job board, task posting screen, task details screen, task status screen, chat screens, rating screen, profile screen, notifications screen, and worker public profile screen. Firebase Authentication REST calls and Firestore service modules are integrated to support real-time data and user workflows.</p>
+<p>Phase 3. Testing, Refinement, and Deployment Preparation</p>
+<p>The third phase involves checking the TypeScript project, manually validating user workflows, refining screens and validation, and preparing deployment builds. The project includes an npm run typecheck script and EAS Build profiles for development, preview, and production Android builds. Automated unit tests, integration tests, end-to-end tests, formal usability results, and user acceptance testing documents were not found in the current project files.</p>
+<p>Figure 17</p>
+<p>System Development Method</p>
+<pre><code>Phase 1
+Planning, Requirements Analysis, and Prototype Design
+        ↓
+Phase 2
+System Development and Firebase Integration
+        ↓
+Phase 3
+Testing, Refinement, and Deployment Preparation
+        ↓
+TASKLINK Mobile Job Matching System</code></pre>
+</body></html>

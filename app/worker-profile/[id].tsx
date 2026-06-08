@@ -30,8 +30,17 @@ export default function WorkerPublicProfileScreen() {
   const { id, taskId } = useLocalSearchParams<{ id: string; taskId?: string }>();
   const { getUserById, ratings, updateTaskStatus, users } = useApp();
   const worker = getUserById(id);
-  const skills = worker?.skills?.length ? worker.skills : ["Aircon Cleaning", "Plumbing", "Electrical", "Handyman"];
+  const skills = worker?.capabilities?.length ? worker.capabilities : worker?.skills?.length ? worker.skills : ["Cleaning", "Delivery assistance"];
   const name = worker?.fullName ?? "Juan Dela Cruz";
+  const verificationStatus = worker?.verificationStatus ?? "Pending Verification";
+  const experienceText =
+    worker?.experienceDescription ||
+    (worker?.yearsOfExperience ? `${worker.yearsOfExperience} of local task experience.` : "Experience details not provided yet.");
+  const documentChecks = [
+    { label: "Profile photo", complete: Boolean(worker?.profilePhotoUrl || worker?.profilePhoto) },
+    { label: worker?.validIdType ? `Valid ID: ${worker.validIdType}` : "Valid ID", complete: Boolean(worker?.validIdUrl) },
+    { label: "Medical certificate", complete: Boolean(worker?.medicalCertificateUrl) }
+  ];
   const workerRatings = ratings
     .filter((rating) => rating.targetUserId === id)
     .slice(0, 2)
@@ -74,7 +83,7 @@ export default function WorkerPublicProfileScreen() {
                 <Text style={styles.profilePhotoText}>{name[0]}</Text>
               </View>
               <View style={styles.verifiedPill}>
-                <Text style={styles.verifiedText}>Verified</Text>
+                <Text style={styles.verifiedText}>{verificationStatus}</Text>
               </View>
             </View>
             <View style={styles.profileCopy}>
@@ -84,9 +93,7 @@ export default function WorkerPublicProfileScreen() {
                 <Text style={styles.ratingValue}>{averageRating}</Text>
                 <Text style={styles.reviewCount}>({reviewCountLabel})</Text>
               </View>
-              <Text style={styles.bio}>
-                Professional multi-skilled worker with strong experience in local maintenance and service tasks.
-              </Text>
+              <Text style={styles.bio}>{experienceText}</Text>
               <StatusBadge status={worker?.availabilityStatus ?? "Available"} />
               <View style={styles.statsGrid}>
                 <StatBox label="Jobs Completed" value="124" />
@@ -97,11 +104,31 @@ export default function WorkerPublicProfileScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Skills & Specialties</Text>
+          <Text style={styles.sectionTitle}>Capabilities</Text>
           <View style={styles.skillRow}>
             {skills.map((skill, index) => (
               <View key={`${skill}-${index}`} style={[styles.skillChip, index > 2 && styles.skillChipMuted]}>
                 <Text style={[styles.skillText, index > 2 && styles.skillTextMuted]}>{skill}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.verificationCard}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Verification</Text>
+            <View style={styles.verificationStatusBadge}>
+              <Text style={styles.verificationStatusText}>{verificationStatus}</Text>
+            </View>
+          </View>
+          <View style={styles.documentGrid}>
+            {documentChecks.map((item) => (
+              <View key={item.label} style={styles.documentRow}>
+                <View style={[styles.documentDot, item.complete && styles.documentDotComplete]} />
+                <Text style={styles.documentText}>{item.label}</Text>
+                <Text style={[styles.documentStatus, item.complete && styles.documentStatusComplete]}>
+                  {item.complete ? "Provided" : "Missing"}
+                </Text>
               </View>
             ))}
           </View>
@@ -149,7 +176,16 @@ export default function WorkerPublicProfileScreen() {
       </ScrollView>
 
       <View style={[styles.bottomAction, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-        <Pressable style={styles.messageButton} onPress={() => router.push(`/chat/${taskId ?? "task-1"}`)}>
+        <Pressable
+          disabled={!taskId || !worker}
+          style={[styles.messageButton, (!taskId || !worker) && styles.messageButtonDisabled]}
+          onPress={() =>
+            router.push({
+              pathname: "/chat/[id]",
+              params: { id: taskId as string, recipientId: worker?.id as string }
+            })
+          }
+        >
           <Text style={styles.messageButtonText}>Message</Text>
         </Pressable>
         <Pressable disabled={!taskId} style={[styles.hireButton, !taskId && styles.hireButtonDisabled]} onPress={handleAcceptWorker}>
@@ -228,6 +264,16 @@ const styles = StyleSheet.create({
   skillChipMuted: { backgroundColor: palette.surfaceHigh, borderColor: palette.surfaceHigh },
   skillText: { color: "#A3FAEF", fontSize: 14, lineHeight: 20, fontWeight: "900" },
   skillTextMuted: { color: palette.muted },
+  verificationCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "rgba(189,201,198,0.35)", backgroundColor: palette.surface, gap: 12 },
+  verificationStatusBadge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: "#EAF8F1" },
+  verificationStatusText: { color: palette.success, fontSize: 11, lineHeight: 14, fontWeight: "900" },
+  documentGrid: { gap: 8 },
+  documentRow: { minHeight: 42, borderRadius: 8, backgroundColor: palette.surfaceLow, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 8 },
+  documentDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: palette.outlineVariant },
+  documentDotComplete: { backgroundColor: palette.success },
+  documentText: { color: palette.text, fontSize: 12, lineHeight: 16, fontWeight: "800", flex: 1 },
+  documentStatus: { color: palette.muted, fontSize: 11, lineHeight: 14, fontWeight: "900" },
+  documentStatusComplete: { color: palette.success },
   reviewCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "rgba(189,201,198,0.35)", backgroundColor: palette.surface, gap: 10 },
   reviewEmptyCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow },
   reviewEmptyText: { color: palette.muted, fontSize: 14, lineHeight: 20, fontWeight: "700" },
@@ -250,6 +296,7 @@ const styles = StyleSheet.create({
   coverageBadgeText: { color: palette.primary, fontSize: 14, fontWeight: "900" },
   bottomAction: { position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: palette.outlineVariant, backgroundColor: palette.surface, flexDirection: "row", gap: 12, elevation: 12 },
   messageButton: { flex: 1, minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, alignItems: "center", justifyContent: "center", backgroundColor: palette.surfaceHigh },
+  messageButtonDisabled: { opacity: 0.5 },
   messageButtonText: { color: palette.text, fontSize: 14, fontWeight: "900" },
   hireButton: { flex: 2, minHeight: 48, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
   hireButtonDisabled: { backgroundColor: palette.surfaceHigh },

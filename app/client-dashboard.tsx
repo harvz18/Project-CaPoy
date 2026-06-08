@@ -92,7 +92,7 @@ export default function ClientDashboardScreen() {
         <View style={styles.jobGrid}>
           {activeClientTasks.length ? (
             activeClientTasks.slice(0, 2).map((task, index) => (
-              <ClientJobCard key={task.id} task={task} urgent={index === 0} onPress={() => router.push(`/task-status/${task.id}`)} />
+              <ClientJobCard key={task.id} task={task} urgent={index === 0} onPress={() => router.push(`/task/${task.id}`)} />
             ))
           ) : (
             <View style={styles.archiveEmptyRow}>

@@ -165,7 +165,7 @@ export default function WorkerDashboardScreen() {
                 task={task}
                 urgent={index === 0 || task.wage === "1200"}
                 detail={workerDetails[index % workerDetails.length]}
-                onOpen={() => router.push(`/task-status/${task.id}`)}
+                onOpen={() => router.push(`/task/${task.id}`)}
                 onQuickAccept={() => handleQuickApply(task)}
               />
             ))

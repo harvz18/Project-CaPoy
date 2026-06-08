@@ -7,8 +7,7 @@
     "scheme": "tasklink",
     "userInterfaceStyle": "light",
     "platforms": [
-      "android",
-      "web"
+      "android"
     ],
     "android": {
       "package": "com.tasklink.app"

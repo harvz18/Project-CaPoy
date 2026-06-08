@@ -42,8 +42,12 @@ export default function TaskDetailsScreen() {
   }
 
   const isClient = currentUser?.role === "client";
-  const applicants = users.filter((user) => task.applicantIds?.includes(user.id));
-  const applicantCount = task.applicantIds?.length ?? 0;
+  const applicantIds = [...(task.applicantIds ?? [])];
+  if (task.status === "Applied" && task.workerId && !applicantIds.includes(task.workerId)) {
+    applicantIds.push(task.workerId);
+  }
+  const applicants = users.filter((user) => applicantIds.includes(user.id));
+  const applicantCount = applicantIds.length;
   const hasAcceptedWorker = task.status === "Accepted" && Boolean(task.workerId);
   const worker = getUserById(task.workerId);
   const hasApplied = Boolean(currentUser?.id && task.applicantIds?.includes(currentUser.id));
@@ -90,6 +94,8 @@ export default function TaskDetailsScreen() {
           <DetailBox label="Duration" value={task.estimatedDuration} />
           <DetailBox label="Payment" value={task.paymentMethod} />
           <DetailBox label="Applicants" value={hasAcceptedWorker ? "1 accepted" : `${applicantCount} applied`} />
+          <DetailBox label="Capability" value={task.requiredCapability ?? task.category} />
+          <DetailBox label="Task Radius" value={`${task.geofenceRadius ?? 500} meters`} />
         </View>
 
         {isClient ? (
@@ -120,7 +126,7 @@ export default function TaskDetailsScreen() {
                   </View>
                 </Pressable>
                 <View style={styles.skillRow}>
-                  {(worker?.skills ?? []).map((skill) => (
+                  {(worker?.capabilities ?? worker?.skills ?? []).map((skill) => (
                     <Text key={skill} style={styles.skillChip}>{skill}</Text>
                   ))}
                 </View>
@@ -138,7 +144,7 @@ export default function TaskDetailsScreen() {
                   </Pressable>
                   <Pressable
                     disabled={task.status !== "Applied" || !task.workerId}
-                    onPress={handleClientAcceptWorker}
+                    onPress={() => task.workerId && handleClientAcceptWorker(task.workerId)}
                     style={[styles.primaryButton, (task.status !== "Applied" || !task.workerId) && styles.disabledButton]}
                   >
                     <Text style={styles.primaryButtonText}>{task.status === "Accepted" ? "Worker Accepted" : "Accept Application"}</Text>
@@ -168,7 +174,7 @@ export default function TaskDetailsScreen() {
                     </View>
                   </Pressable>
                   <View style={styles.skillRow}>
-                    {(applicant.skills ?? []).map((skill) => (
+                    {(applicant.capabilities ?? applicant.skills ?? []).map((skill) => (
                       <Text key={skill} style={styles.skillChip}>{skill}</Text>
                     ))}
                   </View>
@@ -302,6 +308,9 @@ const styles = StyleSheet.create({
   skillRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   skillChip: { overflow: "hidden", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: palette.surfaceContainer, color: palette.muted, fontSize: 12, fontWeight: "800" },
   workerActions: { flexDirection: "row", gap: 10 },
+  emptyWorkerState: { padding: 16, borderRadius: 12, backgroundColor: palette.surfaceLow, borderWidth: 1, borderColor: palette.outlineVariant, gap: 4 },
+  emptyWorkerTitle: { color: palette.textStrong, fontSize: 16, lineHeight: 22, fontWeight: "900" },
+  emptyWorkerText: { color: palette.muted, fontSize: 12, lineHeight: 16 },
   actionRow: { flexDirection: "row", gap: 10 },
   primaryButton: { flex: 1, minHeight: 46, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
   primaryButtonLarge: { minHeight: 52, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },

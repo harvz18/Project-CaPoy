@@ -21,6 +21,7 @@ export type SaveUserInput = {
   mobileNumber: string;
   address: string;
   skills?: string[];
+  capabilities?: string[];
   businessName?: string;
 };
 
@@ -34,9 +35,17 @@ export async function saveUserProfile(input: SaveUserInput) {
     mobileNumber: input.mobileNumber,
     address: input.address || "Bacolod City",
     rating: 0,
-    skills: input.role === "worker" ? input.skills ?? [] : undefined,
+    skills: input.role === "worker" ? input.skills ?? input.capabilities ?? [] : undefined,
+    capabilities: input.role === "worker" ? input.capabilities ?? input.skills ?? [] : undefined,
     availabilityStatus: input.role === "worker" ? "Available" : undefined,
+    availability: input.role === "worker" ? "Available" : undefined,
     businessName: input.role === "client" ? input.businessName : undefined,
+    verificationStatus: input.role === "worker" ? "Pending Verification" : undefined,
+    phoneVerified: false,
+    thirdPartyProvider: "none",
+    currentLatitude: input.role === "worker" ? 10.6765 : undefined,
+    currentLongitude: input.role === "worker" ? 122.9509 : undefined,
+    preferredRadiusKm: input.role === "worker" ? 5 : undefined,
     completedTasks: 0,
     createdAt: now,
     updatedAt: now
@@ -48,8 +57,14 @@ export async function saveUserProfile(input: SaveUserInput) {
     await setDoc(doc(firestore, "workerProfiles", input.id), {
       userId: input.id,
       skills: user.skills ?? [],
+      capabilities: user.capabilities ?? [],
       availabilityStatus: "Available",
+      availability: "Available",
       completedTasks: 0,
+      verificationStatus: "Pending Verification",
+      currentLatitude: user.currentLatitude,
+      currentLongitude: user.currentLongitude,
+      preferredRadiusKm: user.preferredRadiusKm,
       createdAt: now,
       updatedAt: now
     });
@@ -93,13 +108,43 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
 
   await updateDoc(doc(firestore, "users", userId), withoutUndefined(nextUpdates));
 
-  if (updates.role === "worker" || updates.skills || updates.availabilityStatus) {
+  if (
+    updates.role === "worker" ||
+    updates.skills ||
+    updates.capabilities ||
+    updates.availabilityStatus ||
+    updates.availability ||
+    updates.profilePhotoUrl ||
+    updates.experienceDescription ||
+    updates.yearsOfExperience ||
+    updates.validIdType ||
+    updates.validIdUrl ||
+    updates.medicalCertificateUrl ||
+    updates.verificationStatus ||
+    updates.currentLatitude !== undefined ||
+    updates.currentLongitude !== undefined ||
+    updates.preferredRadiusKm !== undefined
+  ) {
     await setDoc(
       doc(firestore, "workerProfiles", userId),
       {
         userId,
-        skills: updates.skills ?? [],
-        availabilityStatus: updates.availabilityStatus ?? "Available",
+        ...withoutUndefined({
+          skills: updates.skills,
+          capabilities: updates.capabilities,
+          availabilityStatus: updates.availabilityStatus,
+          availability: updates.availability,
+          profilePhotoUrl: updates.profilePhotoUrl,
+          experienceDescription: updates.experienceDescription,
+          yearsOfExperience: updates.yearsOfExperience,
+          validIdType: updates.validIdType,
+          validIdUrl: updates.validIdUrl,
+          medicalCertificateUrl: updates.medicalCertificateUrl,
+          verificationStatus: updates.verificationStatus,
+          currentLatitude: updates.currentLatitude,
+          currentLongitude: updates.currentLongitude,
+          preferredRadiusKm: updates.preferredRadiusKm
+        }),
         updatedAt: nextUpdates.updatedAt
       },
       { merge: true }

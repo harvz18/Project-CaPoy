@@ -1,9 +1,11 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBadge } from "../../src/components/StatusBadge";
 import { useApp } from "../../src/context/AppContext";
 import { Task, TaskStatus } from "../../src/types";
+import { formatDistance, getTaskCheckDistanceKm, isWorkerInsideTaskGeofence } from "../../src/utils/location";
 
 const palette = {
   background: "#F7FAF8",
@@ -28,8 +30,10 @@ export default function TaskStatusScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { currentUser, ratings, tasks, updateTaskStatus } = useApp();
+  const { acceptTask, actionLoading, currentUser, ratings, tasks, submitPaymentProof, updateTaskStatus } = useApp();
   const task = tasks.find((item) => item.id === id);
+  const [actionWarning, setActionWarning] = useState("");
+  const [proofOfPaymentText, setProofOfPaymentText] = useState(task?.proofOfPaymentText ?? "");
 
   if (!task) {
     return (
@@ -45,21 +49,77 @@ export default function TaskStatusScreen() {
     );
   }
 
-  const action = getPrimaryAction(task.status, currentUser?.role);
+  const workerHasApplied = Boolean(currentUser?.id && task.applicantIds?.includes(currentUser.id));
+  const taskIsOpenForApplications = !task.workerId && (task.status === "Finding Workers" || task.status === "Applied");
+  const workerCanTrackTask =
+    currentUser?.role !== "worker" ||
+    task.workerId === currentUser?.id ||
+    workerHasApplied ||
+    taskIsOpenForApplications;
+  const action = getPrimaryAction(task.status, currentUser?.role, workerHasApplied);
+  const distanceKm = getTaskCheckDistanceKm(currentUser, task);
+  const insideGeofence = isWorkerInsideTaskGeofence(currentUser, task);
   const clientHasRated = Boolean(
     currentUser?.role === "client" && task.workerId && ratings.some((rating) => rating.taskId === task.id && rating.reviewerId === currentUser.id)
   );
 
   async function handlePrimaryAction() {
-    if (!task || !action.nextStatus) {
+    if (!task) {
       return;
     }
 
-    await updateTaskStatus(
-      task.id,
-      action.nextStatus,
-      action.nextStatus === "Applied" && currentUser?.role === "worker" ? currentUser.id : undefined
+    if (currentUser?.role === "client" && task.status === "Applied" && !action.nextStatus) {
+      router.push(`/task/${task.id}`);
+      return;
+    }
+
+    if (!action.nextStatus) {
+      return;
+    }
+
+    try {
+      setActionWarning("");
+      if (action.nextStatus === "Applied" && currentUser?.role === "worker") {
+        await acceptTask(task.id);
+        return;
+      }
+
+      await updateTaskStatus(
+        task.id,
+        action.nextStatus,
+        undefined
+      );
+    } catch (error) {
+      setActionWarning(error instanceof Error ? error.message : "Unable to continue. Please try again.");
+    }
+  }
+
+  if (!workerCanTrackTask) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
+        <TopBar onBack={() => router.back()} />
+        <View style={styles.notFound}>
+          <Text style={styles.title}>Apply before tracking this task</Text>
+          <Text style={styles.emptyText}>This status screen is only for workers who applied to the task or were accepted by the client.</Text>
+          <Pressable style={styles.secondaryAction} onPress={() => router.replace(`/task/${task.id}`)}>
+            <Text style={styles.secondaryActionText}>Open Job Details</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
     );
+  }
+
+  async function handleSubmitPaymentProof() {
+    if (!task) {
+      return;
+    }
+
+    try {
+      setActionWarning("");
+      await submitPaymentProof(task.id, proofOfPaymentText || "Client marked payment as submitted.");
+    } catch (error) {
+      setActionWarning(error instanceof Error ? error.message : "Unable to submit payment proof.");
+    }
   }
 
   return (
@@ -123,6 +183,49 @@ export default function TaskStatusScreen() {
               <DetailBox label="Tools Required" value={task.category.toLowerCase().includes("clean") ? "Provided" : "As needed"} icon="T" />
             </View>
 
+            <View style={styles.geoPanel}>
+              <View style={styles.geoHeader}>
+                <Text style={styles.sectionTitle}>Location Check</Text>
+                <Text style={[styles.geoBadge, insideGeofence ? styles.geoBadgeGood : styles.geoBadgeWarn]}>
+                  {insideGeofence ? "Inside task radius" : "Outside task radius"}
+                </Text>
+              </View>
+              <Text style={styles.geoText}>Task area: {task.locationAddress ?? task.location}</Text>
+              <Text style={styles.geoText}>Distance: {formatDistance(distanceKm)}</Text>
+              <Text style={styles.geoText}>Allowed radius: {task.geofenceRadius ?? 500} meters</Text>
+              <Text style={styles.geoHint}>Start Task and Mark as Finished use this simulated location check.</Text>
+            </View>
+
+            <View style={styles.paymentPanel}>
+              <View style={styles.geoHeader}>
+                <Text style={styles.sectionTitle}>Payment Verification</Text>
+                <Text style={styles.paymentBadge}>{task.paymentStatus ?? "Pending"}</Text>
+              </View>
+              <Text style={styles.geoText}>Method: {task.paymentMethod}</Text>
+              {currentUser?.role === "client" ? (
+                <>
+                  <TextInput
+                    multiline
+                    onChangeText={setProofOfPaymentText}
+                    placeholder="Reference number, GCash note, or COD confirmation"
+                    placeholderTextColor={palette.outline}
+                    style={styles.paymentInput}
+                    textAlignVertical="top"
+                    value={proofOfPaymentText}
+                  />
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={handleSubmitPaymentProof}
+                    style={({ pressed }) => [styles.paymentButton, pressed && styles.pressed]}
+                  >
+                    <Text style={styles.paymentButtonText}>{actionLoading ? "Submitting..." : "Submit Payment Proof"}</Text>
+                  </Pressable>
+                </>
+              ) : (
+                <Text style={styles.geoHint}>{task.proofOfPaymentText || "Waiting for client payment proof."}</Text>
+              )}
+            </View>
+
             <View style={styles.trustRow}>
               <TrustItem text="Payment Secured" />
               <TrustItem text="Accident Insurance" />
@@ -167,6 +270,8 @@ export default function TaskStatusScreen() {
                 </Pressable>
               </View>
             ) : null}
+
+            {actionWarning ? <Text style={styles.warningText}>{actionWarning}</Text> : null}
           </View>
         </View>
       </ScrollView>
@@ -192,9 +297,9 @@ export default function TaskStatusScreen() {
   );
 }
 
-function getPrimaryAction(status: TaskStatus, role?: string) {
+function getPrimaryAction(status: TaskStatus, role?: string, workerHasApplied = false) {
   if (role === "client" && status === "Applied") {
-    return { label: "Accept Application", nextStatus: "Accepted" as TaskStatus, enabled: true };
+    return { label: "Review Applicants", enabled: true };
   }
 
   if (role === "client" && status === "Pending Approval") {
@@ -214,6 +319,10 @@ function getPrimaryAction(status: TaskStatus, role?: string) {
   }
 
   if (role === "worker" && status === "Applied") {
+    if (!workerHasApplied) {
+      return { label: "Apply", nextStatus: "Applied" as TaskStatus, enabled: true };
+    }
+
     return { label: "Waiting for Client", enabled: false };
   }
 
@@ -313,6 +422,7 @@ const styles = StyleSheet.create({
   avatarText: { color: "#684000", fontWeight: "900" },
   content: { paddingBottom: 132 },
   notFound: { flex: 1, padding: 24, alignItems: "center", justifyContent: "center", gap: 16 },
+  emptyText: { color: palette.muted, fontSize: 14, lineHeight: 20, textAlign: "center" },
   mapHero: {
     height: 192,
     backgroundColor: palette.surfaceContainer,
@@ -459,6 +569,19 @@ const styles = StyleSheet.create({
   trustCheck: { color: palette.success, fontSize: 12, fontWeight: "900" },
   trustText: { color: palette.muted, fontSize: 11, lineHeight: 14, fontWeight: "600" },
   statusPanel: { gap: 8 },
+  geoPanel: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow, gap: 6 },
+  geoHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  geoBadge: { overflow: "hidden", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, fontSize: 11, lineHeight: 14, fontWeight: "900" },
+  geoBadgeGood: { backgroundColor: "#EAF8F1", color: "#0B7A52" },
+  geoBadgeWarn: { backgroundColor: "#FFF8EE", color: "#684000" },
+  geoText: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "700" },
+  geoHint: { color: palette.outline, fontSize: 12, lineHeight: 16 },
+  paymentPanel: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "rgba(189,201,198,0.45)", backgroundColor: palette.surface, gap: 8 },
+  paymentBadge: { overflow: "hidden", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: "#FFF8EE", color: "#684000", fontSize: 11, lineHeight: 14, fontWeight: "900" },
+  paymentInput: { minHeight: 82, borderRadius: 8, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow, color: palette.text, fontSize: 14, lineHeight: 20, padding: 12 },
+  paymentButton: { minHeight: 42, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
+  paymentButtonText: { color: palette.white, fontSize: 14, lineHeight: 20, fontWeight: "900" },
+  warningText: { color: "#684000", fontSize: 12, lineHeight: 16, fontWeight: "800" },
   clientRatingPanel: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, gap: 12, elevation: 2 },
   clientRatingCopy: { gap: 4 },
   clientRatingTitle: { color: palette.textStrong, fontSize: 16, lineHeight: 22, fontWeight: "900" },

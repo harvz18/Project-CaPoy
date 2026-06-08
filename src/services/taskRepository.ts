@@ -9,7 +9,7 @@ import {
   setDoc,
   updateDoc
 } from "firebase/firestore";
-import { PaymentMethod, Task, TaskStatus } from "../types";
+import { PaymentMethod, PaymentStatus, Task, TaskStatus } from "../types";
 import { db } from "./firebase";
 
 function requireDb() {
@@ -26,6 +26,11 @@ export type TaskInput = {
   description: string;
   category: string;
   location: string;
+  locationAddress?: string;
+  latitude?: number;
+  longitude?: number;
+  geofenceRadius?: number;
+  requiredCapability?: string;
   wage: string;
   estimatedDuration: string;
   paymentMethod: PaymentMethod;
@@ -56,10 +61,16 @@ export async function createTaskInFirestore(input: TaskInput) {
     description: input.description,
     category: input.category,
     location: input.location.includes("Bacolod") ? input.location : `${input.location}, Bacolod City`,
+    locationAddress: input.locationAddress ?? input.location,
+    latitude: input.latitude,
+    longitude: input.longitude,
+    geofenceRadius: input.geofenceRadius ?? 500,
+    requiredCapability: input.requiredCapability ?? input.category,
     wage: input.wage,
     estimatedDuration: input.estimatedDuration,
     status: "Finding Workers",
     paymentMethod: input.paymentMethod,
+    paymentStatus: "Pending",
     createdAt: now
   };
   const taskRef = await addDoc(collection(firestore, "tasks"), task);
@@ -69,7 +80,7 @@ export async function createTaskInFirestore(input: TaskInput) {
     taskId: taskRef.id,
     clientId: input.clientId,
     paymentMethod: input.paymentMethod,
-    paymentStatus: "Selected",
+    paymentStatus: "Pending",
     createdAt: now
   });
 
@@ -206,4 +217,34 @@ export async function updateTaskPaymentWorker(taskId: string, workerId: string) 
   await updateDoc(doc(firestore, "payments", taskId), {
     workerId
   });
+}
+
+export async function updateTaskPaymentVerification(
+  taskId: string,
+  paymentStatus: PaymentStatus,
+  proofOfPaymentText?: string,
+  proofOfPaymentUrl?: string
+) {
+  const firestore = requireDb();
+  const now = new Date().toISOString();
+  const updates: Partial<Task> = {
+    paymentStatus,
+    proofOfPaymentText,
+    proofOfPaymentUrl
+  };
+
+  await updateDoc(doc(firestore, "tasks", taskId), {
+    ...updates,
+    updatedAt: now
+  });
+  await setDoc(
+    doc(firestore, "payments", taskId),
+    {
+      id: taskId,
+      taskId,
+      ...updates,
+      updatedAt: now
+    },
+    { merge: true }
+  );
 }

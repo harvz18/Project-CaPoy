@@ -1,5 +1,5 @@
 import { doc, setDoc } from "firebase/firestore";
-import { PaymentMethod } from "../types";
+import { PaymentMethod, PaymentStatus } from "../types";
 import { db } from "./firebase";
 
 function requireDb() {
@@ -25,7 +25,28 @@ export async function savePaymentMethod(taskId: string, clientId: string, paymen
       clientId,
       ...withoutUndefined({ workerId }),
       paymentMethod,
-      paymentStatus: "Selected",
+      paymentStatus: "Pending",
+      updatedAt: new Date().toISOString()
+    },
+    { merge: true }
+  );
+}
+
+export async function savePaymentVerification(
+  taskId: string,
+  paymentStatus: PaymentStatus,
+  proofOfPaymentText?: string,
+  proofOfPaymentUrl?: string
+) {
+  const firestore = requireDb();
+
+  await setDoc(
+    doc(firestore, "payments", taskId),
+    {
+      id: taskId,
+      taskId,
+      paymentStatus,
+      ...withoutUndefined({ proofOfPaymentText, proofOfPaymentUrl }),
       updatedAt: new Date().toISOString()
     },
     { merge: true }
