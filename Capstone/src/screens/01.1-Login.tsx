@@ -10,6 +10,7 @@ import {
 } from 'react-native'
 import { Button } from '../components/Button'
 import { TextInput } from '../components/TextInput'
+import { signInWithEmail } from '../lib/auth'
 import { colors, radius, spacing } from '../theme/tokens'
 import { typography } from '../theme/typography'
 
@@ -30,18 +31,32 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const [password, setPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [authError, setAuthError] = useState('')
 
   const normalizedEmail = email.trim()
   const emailIsValid = /^\S+@\S+\.\S+$/.test(normalizedEmail)
   const passwordIsValid = password.length > 0
   const canSubmit = emailIsValid && passwordIsValid
 
-  const handleLogIn = () => {
+  const handleLogIn = async () => {
     setSubmitted(true)
+    setAuthError('')
 
-    if (canSubmit) {
-      onLogIn()
+    if (!canSubmit || isLoading) {
+      return
     }
+
+    setIsLoading(true)
+    const result = await signInWithEmail(normalizedEmail, password)
+    setIsLoading(false)
+
+    if (result.ok) {
+      onLogIn()
+      return
+    }
+
+    setAuthError(result.message ?? 'Unable to log in. Please try again.')
   }
 
   return (
@@ -140,9 +155,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               </Text>
             )}
 
+            {authError.length > 0 && (
+              <Text accessibilityRole="alert" style={styles.formError}>
+                {authError}
+              </Text>
+            )}
+
             <Button
               accessibilityLabel="Log in"
+              disabled={!canSubmit}
               isFullWidth
+              isLoading={isLoading}
               onPress={handleLogIn}
               size="lg"
               style={styles.loginButton}

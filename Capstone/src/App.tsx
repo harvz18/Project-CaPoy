@@ -1,7 +1,9 @@
 import React from 'react'
-import { SafeAreaView, StyleSheet } from 'react-native'
+import { StyleSheet } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
 import { colors } from './theme/tokens'
+import { supabase } from './lib/supabase'
 import { HomeScreen } from './screens/03-Home'
 import { OnboardingScreen } from './screens/01-Onboarding'
 import { LoginScreen } from './screens/01.1-Login'
@@ -33,6 +35,7 @@ type VerificationNextScreen = 'home' | 'pendingApproval'
 
 export const App: React.FC = () => {
   const [screen, setScreen] = React.useState<AppScreen>('onboarding')
+  const [userName, setUserName] = React.useState('Planner')
   const [loginReturnScreen, setLoginReturnScreen] =
     React.useState<LoginReturnScreen>('roleSelection')
   const [verificationEmail, setVerificationEmail] = React.useState('')
@@ -41,6 +44,57 @@ export const App: React.FC = () => {
   const [verificationNextScreen, setVerificationNextScreen] =
     React.useState<VerificationNextScreen>('home')
   const [recoveryContact, setRecoveryContact] = React.useState('')
+
+  const loadProfile = React.useCallback(async (userId: string) => {
+    if (!supabase) {
+      return
+    }
+
+    const { data } = await supabase
+      .from('profiles')
+      .select('full_name')
+      .eq('id', userId)
+      .maybeSingle()
+
+    if (data?.full_name) {
+      setUserName(data.full_name)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    if (!supabase) {
+      return undefined
+    }
+
+    let isMounted = true
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (!isMounted || !data.session?.user) {
+        return
+      }
+
+      setScreen('home')
+      loadProfile(data.session.user.id)
+    })
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!session?.user) {
+        return
+      }
+
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        setScreen('home')
+        loadProfile(session.user.id)
+      }
+    })
+
+    return () => {
+      isMounted = false
+      subscription.unsubscribe()
+    }
+  }, [loadProfile])
 
   const openLogin = (returnScreen: LoginReturnScreen) => {
     setLoginReturnScreen(returnScreen)
@@ -138,7 +192,7 @@ export const App: React.FC = () => {
           />
         )
       case 'home':
-        return <HomeScreen />
+        return <HomeScreen userName={userName} />
     }
   }
 

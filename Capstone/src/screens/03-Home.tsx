@@ -1,5 +1,6 @@
 import React from 'react'
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { checkSupabaseConnection, SupabaseHealthResult } from '../lib/supabaseHealth'
 import { radius, spacing } from '../theme/tokens'
 import { typography } from '../theme/typography'
 
@@ -56,6 +57,26 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onSelectAction,
   onSelectTab,
 }) => {
+  const [databaseStatus, setDatabaseStatus] = React.useState<SupabaseHealthResult>({
+    ok: false,
+    message: 'Checking Supabase connection...',
+    categoryCount: 0,
+  })
+
+  React.useEffect(() => {
+    let isMounted = true
+
+    checkSupabaseConnection().then((result) => {
+      if (isMounted) {
+        setDatabaseStatus(result)
+      }
+    })
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
   return (
     <View style={styles.screen}>
       <ScrollView
@@ -126,6 +147,31 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               <Text style={styles.actionDescription}>{action.description}</Text>
             </Pressable>
           ))}
+        </View>
+
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Database</Text>
+          <Text style={styles.sectionCaption}>SUPABASE STATUS</Text>
+        </View>
+
+        <View style={styles.databaseCard}>
+          <View
+            style={[
+              styles.statusDot,
+              databaseStatus.ok ? styles.statusDotReady : styles.statusDotNeedsSetup,
+            ]}
+          />
+          <View style={styles.databaseCopy}>
+            <Text style={styles.databaseTitle}>
+              {databaseStatus.ok ? 'Connected' : 'Needs Setup'}
+            </Text>
+            <Text style={styles.databaseText}>{databaseStatus.message}</Text>
+            {databaseStatus.ok && (
+              <Text style={styles.databaseText}>
+                Service categories found: {databaseStatus.categoryCount}
+              </Text>
+            )}
+          </View>
         </View>
 
         <View style={styles.sectionHeader}>
@@ -415,6 +461,43 @@ const styles = StyleSheet.create({
     backgroundColor: homeColors.surface,
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing['3xl'],
+  },
+  databaseCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+    borderWidth: 1,
+    borderColor: homeColors.border,
+    borderRadius: radius.large,
+    backgroundColor: homeColors.surface,
+    padding: spacing.lg,
+    marginBottom: spacing['3xl'],
+  },
+  statusDot: {
+    width: 12,
+    height: 12,
+    borderRadius: radius.pill,
+    marginTop: 4,
+  },
+  statusDotReady: {
+    backgroundColor: '#4CAF50',
+  },
+  statusDotNeedsSetup: {
+    backgroundColor: homeColors.gold,
+  },
+  databaseCopy: {
+    flex: 1,
+  },
+  databaseTitle: {
+    color: homeColors.text,
+    fontSize: typography.body,
+    fontWeight: '700',
+    marginBottom: spacing.xs,
+  },
+  databaseText: {
+    color: homeColors.textSecondary,
+    fontSize: typography.body,
+    lineHeight: 22,
   },
   emptyIconContainer: {
     width: 52,

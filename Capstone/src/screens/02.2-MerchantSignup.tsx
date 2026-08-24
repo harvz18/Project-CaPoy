@@ -10,6 +10,7 @@ import {
 } from 'react-native'
 import { Button } from '../components/Button'
 import { TextInput } from '../components/TextInput'
+import { signUpMerchant } from '../lib/auth'
 import { colors, radius, spacing } from '../theme/tokens'
 import { typography } from '../theme/typography'
 
@@ -33,24 +34,47 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
   const [confirmPassword, setConfirmPassword] = useState('')
   const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [authError, setAuthError] = useState('')
 
+  const normalizedEmail = email.trim()
+  const emailIsValid = /^\S+@\S+\.\S+$/.test(normalizedEmail)
   const passwordsMatch = password === confirmPassword
   const hasRequiredFields =
     businessName.trim().length > 0 &&
     contactName.trim().length > 0 &&
     serviceCategory.trim().length > 0 &&
-    email.trim().length > 0 &&
+    emailIsValid &&
     phoneNumber.trim().length > 0 &&
     password.length >= 8 &&
     confirmPassword.length > 0
   const canSubmit = hasRequiredFields && passwordsMatch && acceptedTerms
 
-  const handleSignUp = () => {
+  const handleSignUp = async () => {
     setSubmitted(true)
+    setAuthError('')
 
-    if (canSubmit) {
-      onSignUp(email.trim())
+    if (!canSubmit || isLoading) {
+      return
     }
+
+    setIsLoading(true)
+    const result = await signUpMerchant({
+      businessName,
+      contactName,
+      serviceCategory,
+      email: normalizedEmail,
+      phoneNumber,
+      password,
+    })
+    setIsLoading(false)
+
+    if (result.ok) {
+      onSignUp(normalizedEmail)
+      return
+    }
+
+    setAuthError(result.message ?? 'Unable to create your merchant account. Please try again.')
   }
 
   return (
@@ -117,6 +141,10 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
           <TextInput
             autoCapitalize="none"
             autoComplete="email"
+            error={submitted && !emailIsValid}
+            helperText={
+              submitted && !emailIsValid ? 'Enter a valid business email.' : undefined
+            }
             inputMode="email"
             keyboardType="email-address"
             label="Business email"
@@ -183,14 +211,22 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
 
           {submitted && !canSubmit && (
             <Text accessibilityRole="alert" style={styles.formError}>
-              Please complete every field, use at least 8 password characters, and accept the
-              terms.
+              Please complete every field, use a valid email, use at least 8 password
+              characters, and accept the terms.
+            </Text>
+          )}
+
+          {authError.length > 0 && (
+            <Text accessibilityRole="alert" style={styles.formError}>
+              {authError}
             </Text>
           )}
 
           <Button
             accessibilityLabel="Create service provider account"
+            disabled={!canSubmit}
             isFullWidth
+            isLoading={isLoading}
             onPress={handleSignUp}
             size="lg"
             style={styles.submitButton}

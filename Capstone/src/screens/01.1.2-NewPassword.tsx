@@ -10,6 +10,7 @@ import {
 } from 'react-native'
 import { Button } from '../components/Button'
 import { TextInput } from '../components/TextInput'
+import { resetPasswordWithCode } from '../lib/auth'
 import { colors, radius, spacing } from '../theme/tokens'
 import { typography } from '../theme/typography'
 
@@ -29,18 +30,36 @@ export const NewPasswordScreen: React.FC<NewPasswordScreenProps> = ({
   const [confirmPassword, setConfirmPassword] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [passwordUpdated, setPasswordUpdated] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [authError, setAuthError] = useState('')
 
   const codeIsValid = /^\d{6}$/.test(resetCode)
   const passwordIsValid = newPassword.length >= 8
   const passwordsMatch = newPassword === confirmPassword && confirmPassword.length > 0
   const canSubmit = codeIsValid && passwordIsValid && passwordsMatch
 
-  const handleResetPassword = () => {
+  const handleResetPassword = async () => {
     setSubmitted(true)
+    setAuthError('')
 
-    if (canSubmit) {
-      setPasswordUpdated(true)
+    if (!canSubmit || isLoading) {
+      return
     }
+
+    setIsLoading(true)
+    const result = await resetPasswordWithCode({
+      email: recoveryContact,
+      token: resetCode,
+      password: newPassword,
+    })
+    setIsLoading(false)
+
+    if (result.ok) {
+      setPasswordUpdated(true)
+      return
+    }
+
+    setAuthError(result.message ?? 'Unable to update your password. Please try again.')
   }
 
   return (
@@ -159,9 +178,17 @@ export const NewPasswordScreen: React.FC<NewPasswordScreenProps> = ({
                 </Text>
               )}
 
+              {authError.length > 0 && (
+                <Text accessibilityRole="alert" style={styles.formError}>
+                  {authError}
+                </Text>
+              )}
+
               <Button
                 accessibilityLabel="Reset password"
+                disabled={!canSubmit}
                 isFullWidth
+                isLoading={isLoading}
                 onPress={handleResetPassword}
                 size="lg"
                 style={styles.primaryButton}
