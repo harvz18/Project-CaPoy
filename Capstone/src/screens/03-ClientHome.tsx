@@ -3,15 +3,15 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { radius, spacing } from '../theme/tokens'
 import { typography } from '../theme/typography'
 
-export type HomeAction = 'budget' | 'merchants' | 'bookings' | 'ledger'
-export type HomeTab = 'home' | 'explore' | 'events' | 'bookings' | 'profile'
+export type ClientHomeAction = 'budget' | 'merchants' | 'bookings' | 'ledger'
+export type ClientHomeTab = 'home' | 'explore' | 'events' | 'bookings' | 'profile'
 
-interface HomeScreenProps {
+interface ClientHomeScreenProps {
   userName?: string
   onCreateEvent?: () => void
   onOpenNotifications?: () => void
-  onSelectAction?: (action: HomeAction) => void
-  onSelectTab?: (tab: HomeTab) => void
+  onSelectAction?: (action: ClientHomeAction) => void
+  onSelectTab?: (tab: ClientHomeTab) => void
 }
 
 const quickActions = [
@@ -49,7 +49,7 @@ const navigationTabs = [
   { id: 'profile' as const, icon: 'P', label: 'Profile' },
 ] as const
 
-export const HomeScreen: React.FC<HomeScreenProps> = ({
+export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   userName = 'Planner',
   onCreateEvent,
   onOpenNotifications,

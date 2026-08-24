@@ -2,7 +2,7 @@ import React from 'react'
 import { SafeAreaView, StyleSheet } from 'react-native'
 import { StatusBar } from 'expo-status-bar'
 import { colors } from './theme/tokens'
-import { HomeScreen } from './screens/03-Home'
+import { ClientHomeScreen } from './screens/03-ClientHome'
 import { OnboardingScreen } from './screens/01-Onboarding'
 import { LoginScreen } from './screens/01.1-Login'
 import { ForgotPasswordScreen } from './screens/01.1.1-ForgotPassword'
@@ -25,11 +25,11 @@ type AppScreen =
   | 'verification'
   | 'pendingApproval'
   | 'rejectedApplication'
-  | 'home'
+  | 'clientHome'
 
 type LoginReturnScreen = 'roleSelection' | 'clientSignup' | 'merchantSignup'
 type VerificationReturnScreen = 'clientSignup' | 'merchantSignup'
-type VerificationNextScreen = 'home' | 'pendingApproval'
+type VerificationNextScreen = 'clientHome' | 'pendingApproval'
 
 export const App: React.FC = () => {
   const [screen, setScreen] = React.useState<AppScreen>('onboarding')
@@ -39,7 +39,7 @@ export const App: React.FC = () => {
   const [verificationReturnScreen, setVerificationReturnScreen] =
     React.useState<VerificationReturnScreen>('clientSignup')
   const [verificationNextScreen, setVerificationNextScreen] =
-    React.useState<VerificationNextScreen>('home')
+    React.useState<VerificationNextScreen>('clientHome')
   const [recoveryContact, setRecoveryContact] = React.useState('')
 
   const openLogin = (returnScreen: LoginReturnScreen) => {
@@ -72,7 +72,7 @@ export const App: React.FC = () => {
             onBack={() => setScreen(loginReturnScreen)}
             onCreateAccount={() => setScreen('roleSelection')}
             onForgotPassword={() => setScreen('forgotPassword')}
-            onLogIn={() => setScreen('home')}
+            onLogIn={() => setScreen('clientHome')}
           />
         )
       case 'forgotPassword':
@@ -105,7 +105,7 @@ export const App: React.FC = () => {
           <SignupScreen
             onBack={() => setScreen('roleSelection')}
             onLogIn={() => openLogin('clientSignup')}
-            onSignUp={(email) => openVerification(email, 'clientSignup', 'home')}
+            onSignUp={(email) => openVerification(email, 'clientSignup', 'clientHome')}
           />
         )
       case 'merchantSignup':
@@ -137,15 +137,17 @@ export const App: React.FC = () => {
             onUpdateApplication={() => setScreen('merchantSignup')}
           />
         )
-      case 'home':
-        return <HomeScreen />
+      case 'clientHome':
+        return <ClientHomeScreen />
     }
   }
 
   return (
     <>
-      <StatusBar style={screen === 'home' ? 'light' : 'dark'} />
-      <SafeAreaView style={[styles.container, screen === 'home' && styles.homeContainer]}>
+      <StatusBar style={screen === 'clientHome' ? 'light' : 'dark'} />
+      <SafeAreaView
+        style={[styles.container, screen === 'clientHome' && styles.homeContainer]}
+      >
         {renderScreen()}
       </SafeAreaView>
     </>
