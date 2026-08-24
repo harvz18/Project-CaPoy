@@ -15,9 +15,6 @@ export { MerchantSignupScreen } from './02.2-MerchantSignup'
 export { PendingApprovalScreen } from './02.2.1-PendingApproval'
 export { RejectedApplicationScreen } from './02.2.2-RejectedApplication'
 export { VerificationScreen } from './02.3-Verification'
-<<<<<<< HEAD
-export { RoleHomePlaceholderScreen } from './RoleHomePlaceholder'
-=======
 export { BudgetAllocationScreen } from './04-BudgetAllocation'
 export type { BudgetAllocationValue, BudgetPriority } from './04-BudgetAllocation'
 export { BudgetTrackerScreen } from './04.1-BudgetTracker'
@@ -33,4 +30,4 @@ export type { MealType, ServiceSelectionValue } from './06-ServiceDetails'
 export { CoordinatorDetailsScreen } from './06.1-CoordinatorDetails'
 export { SelectedSummaryScreen } from './07-SelectedSummary'
 export type { SelectedServiceId, SelectedSummaryTab } from './07-SelectedSummary'
->>>>>>> 620a92dd6cfaa56b7cc8f22c5fe3554667d71c5f
+export { RoleHomePlaceholderScreen } from './RoleHomePlaceholder'

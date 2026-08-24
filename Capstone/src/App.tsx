@@ -15,15 +15,12 @@ import { MerchantSignupScreen } from './screens/02.2-MerchantSignup'
 import { PendingApprovalScreen } from './screens/02.2.1-PendingApproval'
 import { RejectedApplicationScreen } from './screens/02.2.2-RejectedApplication'
 import { VerificationScreen } from './screens/02.3-Verification'
-<<<<<<< HEAD
-import { RoleHomePlaceholderScreen } from './screens/RoleHomePlaceholder'
-=======
 import { BudgetAllocationScreen } from './screens/04-BudgetAllocation'
 import { BudgetTrackerScreen } from './screens/04.1-BudgetTracker'
 import { CategoryBrowseScreen } from './screens/05-CategoryBrowse'
 import { ServiceDetailsScreen } from './screens/06-ServiceDetails'
 import { SelectedSummaryScreen } from './screens/07-SelectedSummary'
->>>>>>> 620a92dd6cfaa56b7cc8f22c5fe3554667d71c5f
+import { RoleHomePlaceholderScreen } from './screens/RoleHomePlaceholder'
 
 type AppScreen =
   | 'onboarding'
@@ -37,18 +34,15 @@ type AppScreen =
   | 'pendingApproval'
   | 'rejectedApplication'
   | 'clientHome'
-<<<<<<< HEAD
   | 'providerHome'
   | 'coordinatorHome'
   | 'adminHome'
   | 'superadminHome'
-=======
   | 'budgetAllocation'
   | 'budgetTracker'
   | 'categoryBrowse'
   | 'serviceDetails'
   | 'selectedSummary'
->>>>>>> 620a92dd6cfaa56b7cc8f22c5fe3554667d71c5f
 
 type LoginReturnScreen = 'roleSelection' | 'clientSignup' | 'merchantSignup'
 type VerificationReturnScreen = 'clientSignup' | 'merchantSignup'
@@ -66,6 +60,8 @@ type UserMetadata = {
   full_name?: unknown
   name?: unknown
 }
+
+const DEFAULT_BUDGET = 45000
 
 const getMetadataName = (metadata: UserMetadata) => {
   const possibleName =
@@ -97,7 +93,11 @@ export const App: React.FC = () => {
   const [verificationNextScreen, setVerificationNextScreen] =
     React.useState<VerificationNextScreen>('clientHome')
   const [recoveryContact, setRecoveryContact] = React.useState('')
-  const [remainingBudget, setRemainingBudget] = React.useState(45000)
+  const [totalBudget, setTotalBudget] = React.useState(DEFAULT_BUDGET)
+  const [remainingBudget, setRemainingBudget] = React.useState(DEFAULT_BUDGET)
+  const [selectedEstimatedTotal, setSelectedEstimatedTotal] = React.useState(0)
+
+  const openPlanningHub = () => setScreen('budgetTracker')
 
   const routeForRole = React.useCallback((role?: AccountRole | string | null) => {
     switch (role) {
@@ -157,13 +157,10 @@ export const App: React.FC = () => {
         return
       }
 
-      loadProfileAndRoute(
-        data.session.user.id,
-        {
-          ...data.session.user.user_metadata,
-          email: data.session.user.email,
-        }
-      )
+      loadProfileAndRoute(data.session.user.id, {
+        ...data.session.user.user_metadata,
+        email: data.session.user.email,
+      })
     })
 
     const {
@@ -224,6 +221,19 @@ export const App: React.FC = () => {
 
   const handleRoleSelection = (role: UserRole) => {
     setScreen(role === 'client' ? 'clientSignup' : 'merchantSignup')
+  }
+
+  const handleBudgetContinue = (budget: number) => {
+    if (budget <= 0) {
+      openPlanningHub()
+      return
+    }
+
+    const selectedCost = totalBudget - remainingBudget
+
+    setTotalBudget(budget)
+    setRemainingBudget(Math.max(0, budget - selectedCost))
+    openPlanningHub()
   }
 
   const renderScreen = () => {
@@ -314,8 +324,25 @@ export const App: React.FC = () => {
           />
         )
       case 'clientHome':
-<<<<<<< HEAD
-        return <ClientHomeScreen userName={userName} />
+        return (
+          <ClientHomeScreen
+            userName={userName}
+            onOpenActiveEvent={() => setScreen('selectedSummary')}
+            onOpenProfile={() => setScreen('selectedSummary')}
+            onSeeAllVenues={openPlanningHub}
+            onSelectAction={(action) => {
+              if (action === 'newEvent' || action === 'budget') setScreen('budgetAllocation')
+              if (action === 'vendors') openPlanningHub()
+              if (action === 'ledger' || action === 'tasks') setScreen('selectedSummary')
+            }}
+            onSelectRecommendation={() => setScreen('serviceDetails')}
+            onSelectTab={(tab) => {
+              if (tab === 'home') setScreen('clientHome')
+              if (tab === 'explore' || tab === 'bookings') openPlanningHub()
+              if (tab === 'profile') setScreen('selectedSummary')
+            }}
+          />
+        )
       case 'providerHome':
         return (
           <RoleHomePlaceholderScreen
@@ -354,24 +381,16 @@ export const App: React.FC = () => {
             roleLabel="Superadmin"
             title="Your superadmin workspace is being prepared."
             userName={userName}
-=======
-        return (
-          <ClientHomeScreen
-            onSelectAction={(action) => {
-              if (action === 'budget') setScreen('budgetAllocation')
-              if (action === 'vendors') setScreen('budgetTracker')
-            }}
           />
         )
       case 'budgetAllocation':
         return (
           <BudgetAllocationScreen
+            initialBudget={totalBudget}
             onBack={() => setScreen('clientHome')}
-            onContinue={(value) => {
-              if (value.budget > 0) setRemainingBudget(value.budget)
-              setScreen('budgetTracker')
-            }}
-            onSkip={() => setScreen('budgetTracker')}
+            onBudgetChange={setTotalBudget}
+            onContinue={(value) => handleBudgetContinue(value.budget)}
+            onSkip={openPlanningHub}
           />
         )
       case 'budgetTracker':
@@ -379,9 +398,8 @@ export const App: React.FC = () => {
           <BudgetTrackerScreen
             remainingBudget={remainingBudget}
             onOpenBudget={() => setScreen('budgetAllocation')}
-            onSelectCategory={(category) => {
-              if (category === 'catering') setScreen('categoryBrowse')
-            }}
+            onOpenProfile={() => setScreen('selectedSummary')}
+            onSelectCategory={() => setScreen('categoryBrowse')}
             onSelectTab={(tab) => {
               if (tab === 'home') setScreen('clientHome')
               if (tab === 'planner') setScreen('budgetAllocation')
@@ -392,12 +410,13 @@ export const App: React.FC = () => {
         return (
           <CategoryBrowseScreen
             remainingBudget={remainingBudget}
-            onBack={() => setScreen('budgetTracker')}
+            onBack={openPlanningHub}
             onOpenBudget={() => setScreen('budgetAllocation')}
             onSelectVendor={() => setScreen('serviceDetails')}
             onSelectTab={(tab) => {
-              if (tab === 'explore' || tab === 'vendors') setScreen('budgetTracker')
+              if (tab === 'explore' || tab === 'vendors') openPlanningHub()
               if (tab === 'budget') setScreen('budgetAllocation')
+              if (tab === 'profile') setScreen('selectedSummary')
             }}
           />
         )
@@ -406,34 +425,40 @@ export const App: React.FC = () => {
           <ServiceDetailsScreen
             remainingBudget={remainingBudget}
             onAddSelection={(value) => {
+              setSelectedEstimatedTotal((current) => current + value.estimatedTotal)
               setRemainingBudget((current) => Math.max(0, current - value.estimatedTotal))
               setScreen('selectedSummary')
             }}
             onBack={() => setScreen('categoryBrowse')}
+            onBrowseMenus={() => setScreen('categoryBrowse')}
           />
         )
       case 'selectedSummary':
         return (
           <SelectedSummaryScreen
-            onAddService={() => setScreen('budgetTracker')}
+            budget={totalBudget}
+            totalEstimatedCost={selectedEstimatedTotal || totalBudget - remainingBudget}
+            onAddService={openPlanningHub}
+            onOpenProfile={() => setScreen('clientHome')}
             onSelectService={(service) => {
               if (service === 'catering') setScreen('serviceDetails')
             }}
             onSelectTab={(tab) => {
+              if (tab === 'plan') setScreen('selectedSummary')
               if (tab === 'budget') setScreen('budgetAllocation')
+              if (tab === 'settings') setScreen('clientHome')
             }}
->>>>>>> 620a92dd6cfaa56b7cc8f22c5fe3554667d71c5f
           />
         )
     }
   }
 
+  const isClientHome = screen === 'clientHome'
+
   return (
     <>
-      <StatusBar style={screen === 'clientHome' ? 'light' : 'dark'} />
-      <SafeAreaView
-        style={[styles.container, screen === 'clientHome' && styles.homeContainer]}
-      >
+      <StatusBar style={isClientHome ? 'light' : 'dark'} />
+      <SafeAreaView style={[styles.container, isClientHome && styles.homeContainer]}>
         {renderScreen()}
       </SafeAreaView>
     </>
