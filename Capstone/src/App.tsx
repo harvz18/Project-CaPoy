@@ -15,7 +15,15 @@ import { MerchantSignupScreen } from './screens/02.2-MerchantSignup'
 import { PendingApprovalScreen } from './screens/02.2.1-PendingApproval'
 import { RejectedApplicationScreen } from './screens/02.2.2-RejectedApplication'
 import { VerificationScreen } from './screens/02.3-Verification'
+<<<<<<< HEAD
 import { RoleHomePlaceholderScreen } from './screens/RoleHomePlaceholder'
+=======
+import { BudgetAllocationScreen } from './screens/04-BudgetAllocation'
+import { BudgetTrackerScreen } from './screens/04.1-BudgetTracker'
+import { CategoryBrowseScreen } from './screens/05-CategoryBrowse'
+import { ServiceDetailsScreen } from './screens/06-ServiceDetails'
+import { SelectedSummaryScreen } from './screens/07-SelectedSummary'
+>>>>>>> 620a92dd6cfaa56b7cc8f22c5fe3554667d71c5f
 
 type AppScreen =
   | 'onboarding'
@@ -29,10 +37,18 @@ type AppScreen =
   | 'pendingApproval'
   | 'rejectedApplication'
   | 'clientHome'
+<<<<<<< HEAD
   | 'providerHome'
   | 'coordinatorHome'
   | 'adminHome'
   | 'superadminHome'
+=======
+  | 'budgetAllocation'
+  | 'budgetTracker'
+  | 'categoryBrowse'
+  | 'serviceDetails'
+  | 'selectedSummary'
+>>>>>>> 620a92dd6cfaa56b7cc8f22c5fe3554667d71c5f
 
 type LoginReturnScreen = 'roleSelection' | 'clientSignup' | 'merchantSignup'
 type VerificationReturnScreen = 'clientSignup' | 'merchantSignup'
@@ -81,6 +97,7 @@ export const App: React.FC = () => {
   const [verificationNextScreen, setVerificationNextScreen] =
     React.useState<VerificationNextScreen>('clientHome')
   const [recoveryContact, setRecoveryContact] = React.useState('')
+  const [remainingBudget, setRemainingBudget] = React.useState(45000)
 
   const routeForRole = React.useCallback((role?: AccountRole | string | null) => {
     switch (role) {
@@ -297,6 +314,7 @@ export const App: React.FC = () => {
           />
         )
       case 'clientHome':
+<<<<<<< HEAD
         return <ClientHomeScreen userName={userName} />
       case 'providerHome':
         return (
@@ -336,6 +354,75 @@ export const App: React.FC = () => {
             roleLabel="Superadmin"
             title="Your superadmin workspace is being prepared."
             userName={userName}
+=======
+        return (
+          <ClientHomeScreen
+            onSelectAction={(action) => {
+              if (action === 'budget') setScreen('budgetAllocation')
+              if (action === 'vendors') setScreen('budgetTracker')
+            }}
+          />
+        )
+      case 'budgetAllocation':
+        return (
+          <BudgetAllocationScreen
+            onBack={() => setScreen('clientHome')}
+            onContinue={(value) => {
+              if (value.budget > 0) setRemainingBudget(value.budget)
+              setScreen('budgetTracker')
+            }}
+            onSkip={() => setScreen('budgetTracker')}
+          />
+        )
+      case 'budgetTracker':
+        return (
+          <BudgetTrackerScreen
+            remainingBudget={remainingBudget}
+            onOpenBudget={() => setScreen('budgetAllocation')}
+            onSelectCategory={(category) => {
+              if (category === 'catering') setScreen('categoryBrowse')
+            }}
+            onSelectTab={(tab) => {
+              if (tab === 'home') setScreen('clientHome')
+              if (tab === 'planner') setScreen('budgetAllocation')
+            }}
+          />
+        )
+      case 'categoryBrowse':
+        return (
+          <CategoryBrowseScreen
+            remainingBudget={remainingBudget}
+            onBack={() => setScreen('budgetTracker')}
+            onOpenBudget={() => setScreen('budgetAllocation')}
+            onSelectVendor={() => setScreen('serviceDetails')}
+            onSelectTab={(tab) => {
+              if (tab === 'explore' || tab === 'vendors') setScreen('budgetTracker')
+              if (tab === 'budget') setScreen('budgetAllocation')
+            }}
+          />
+        )
+      case 'serviceDetails':
+        return (
+          <ServiceDetailsScreen
+            remainingBudget={remainingBudget}
+            onAddSelection={(value) => {
+              setRemainingBudget((current) => Math.max(0, current - value.estimatedTotal))
+              setScreen('selectedSummary')
+            }}
+            onBack={() => setScreen('categoryBrowse')}
+          />
+        )
+      case 'selectedSummary':
+        return (
+          <SelectedSummaryScreen
+            onAddService={() => setScreen('budgetTracker')}
+            onSelectService={(service) => {
+              if (service === 'catering') setScreen('serviceDetails')
+            }}
+            onSelectTab={(tab) => {
+              if (tab === 'budget') setScreen('budgetAllocation')
+            }}
+>>>>>>> 620a92dd6cfaa56b7cc8f22c5fe3554667d71c5f
           />
         )
     }
