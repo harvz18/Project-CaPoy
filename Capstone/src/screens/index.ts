@@ -2,6 +2,7 @@ export { ClientHomeScreen } from './03-ClientHome'
 export type {
   ClientHomeAction,
   ClientHomeMilestone,
+  ClientHomeRecommendation,
   ClientHomeTab,
 } from './03-ClientHome'
 export { OnboardingScreen } from './01-Onboarding'
