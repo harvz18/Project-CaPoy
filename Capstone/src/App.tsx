@@ -2,13 +2,9 @@ import React from 'react'
 import { StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
-import { colors } from './theme/tokens'
-<<<<<<< HEAD
 import { supabase } from './lib/supabase'
-import { HomeScreen } from './screens/03-Home'
-=======
+import { colors } from './theme/tokens'
 import { ClientHomeScreen } from './screens/03-ClientHome'
->>>>>>> 382719ce3155f4980d10d0fc91a41ed5a39c2805
 import { OnboardingScreen } from './screens/01-Onboarding'
 import { LoginScreen } from './screens/01.1-Login'
 import { ForgotPasswordScreen } from './screens/01.1.1-ForgotPassword'
@@ -36,6 +32,38 @@ type AppScreen =
 type LoginReturnScreen = 'roleSelection' | 'clientSignup' | 'merchantSignup'
 type VerificationReturnScreen = 'clientSignup' | 'merchantSignup'
 type VerificationNextScreen = 'clientHome' | 'pendingApproval'
+type AccountRole =
+  | 'client'
+  | 'service_provider'
+  | 'event_coordinator'
+  | 'admin'
+  | 'superadmin'
+
+type UserMetadata = {
+  default_role?: unknown
+  email?: unknown
+  full_name?: unknown
+  name?: unknown
+}
+
+const getMetadataName = (metadata: UserMetadata) => {
+  const possibleName =
+    typeof metadata.full_name === 'string' && metadata.full_name.trim().length > 0
+      ? metadata.full_name
+      : typeof metadata.name === 'string' && metadata.name.trim().length > 0
+        ? metadata.name
+        : ''
+
+  if (possibleName.length > 0) {
+    return possibleName.trim()
+  }
+
+  if (typeof metadata.email === 'string' && metadata.email.includes('@')) {
+    return metadata.email.split('@')[0]
+  }
+
+  return ''
+}
 
 export const App: React.FC = () => {
   const [screen, setScreen] = React.useState<AppScreen>('onboarding')
@@ -49,21 +77,43 @@ export const App: React.FC = () => {
     React.useState<VerificationNextScreen>('clientHome')
   const [recoveryContact, setRecoveryContact] = React.useState('')
 
-  const loadProfile = React.useCallback(async (userId: string) => {
-    if (!supabase) {
+  const routeForRole = React.useCallback((role?: AccountRole | string | null) => {
+    if (role === 'client') {
+      setScreen('clientHome')
       return
     }
 
-    const { data } = await supabase
-      .from('profiles')
-      .select('full_name')
-      .eq('id', userId)
-      .maybeSingle()
-
-    if (data?.full_name) {
-      setUserName(data.full_name)
+    if (role === 'service_provider') {
+      setScreen('pendingApproval')
+      return
     }
+
+    setScreen('roleSelection')
   }, [])
+
+  const loadProfileAndRoute = React.useCallback(
+    async (userId: string, metadata: UserMetadata = {}) => {
+      if (!supabase) {
+        return
+      }
+
+      const { data } = await supabase
+        .from('profiles')
+        .select('full_name, default_role')
+        .eq('id', userId)
+        .maybeSingle()
+
+      const profileName = data?.full_name?.trim()
+      const metadataName = getMetadataName(metadata)
+
+      if (profileName || metadataName) {
+        setUserName(profileName || metadataName)
+      }
+
+      routeForRole(data?.default_role ?? String(metadata.default_role ?? ''))
+    },
+    [routeForRole]
+  )
 
   React.useEffect(() => {
     if (!supabase) {
@@ -77,8 +127,13 @@ export const App: React.FC = () => {
         return
       }
 
-      setScreen('home')
-      loadProfile(data.session.user.id)
+      loadProfileAndRoute(
+        data.session.user.id,
+        {
+          ...data.session.user.user_metadata,
+          email: data.session.user.email,
+        }
+      )
     })
 
     const {
@@ -89,8 +144,10 @@ export const App: React.FC = () => {
       }
 
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        setScreen('home')
-        loadProfile(session.user.id)
+        loadProfileAndRoute(session.user.id, {
+          ...session.user.user_metadata,
+          email: session.user.email,
+        })
       }
     })
 
@@ -98,7 +155,26 @@ export const App: React.FC = () => {
       isMounted = false
       subscription.unsubscribe()
     }
-  }, [loadProfile])
+  }, [loadProfileAndRoute])
+
+  const handleAuthenticatedUser = React.useCallback(async () => {
+    if (!supabase) {
+      setScreen('roleSelection')
+      return
+    }
+
+    const { data } = await supabase.auth.getUser()
+
+    if (!data.user) {
+      setScreen('login')
+      return
+    }
+
+    loadProfileAndRoute(data.user.id, {
+      ...data.user.user_metadata,
+      email: data.user.email,
+    })
+  }, [loadProfileAndRoute])
 
   const openLogin = (returnScreen: LoginReturnScreen) => {
     setLoginReturnScreen(returnScreen)
@@ -130,7 +206,7 @@ export const App: React.FC = () => {
             onBack={() => setScreen(loginReturnScreen)}
             onCreateAccount={() => setScreen('roleSelection')}
             onForgotPassword={() => setScreen('forgotPassword')}
-            onLogIn={() => setScreen('clientHome')}
+            onLogIn={handleAuthenticatedUser}
           />
         )
       case 'forgotPassword':
@@ -195,13 +271,8 @@ export const App: React.FC = () => {
             onUpdateApplication={() => setScreen('merchantSignup')}
           />
         )
-<<<<<<< HEAD
-      case 'home':
-        return <HomeScreen userName={userName} />
-=======
       case 'clientHome':
-        return <ClientHomeScreen />
->>>>>>> 382719ce3155f4980d10d0fc91a41ed5a39c2805
+        return <ClientHomeScreen userName={userName} />
     }
   }
 
@@ -223,6 +294,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   homeContainer: {
-    backgroundColor: '#160D11',
+    backgroundColor: '#F9F9F9',
   },
 })
