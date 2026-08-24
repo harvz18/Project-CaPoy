@@ -15,6 +15,7 @@ import { MerchantSignupScreen } from './screens/02.2-MerchantSignup'
 import { PendingApprovalScreen } from './screens/02.2.1-PendingApproval'
 import { RejectedApplicationScreen } from './screens/02.2.2-RejectedApplication'
 import { VerificationScreen } from './screens/02.3-Verification'
+import { RoleHomePlaceholderScreen } from './screens/RoleHomePlaceholder'
 
 type AppScreen =
   | 'onboarding'
@@ -28,6 +29,10 @@ type AppScreen =
   | 'pendingApproval'
   | 'rejectedApplication'
   | 'clientHome'
+  | 'providerHome'
+  | 'coordinatorHome'
+  | 'adminHome'
+  | 'superadminHome'
 
 type LoginReturnScreen = 'roleSelection' | 'clientSignup' | 'merchantSignup'
 type VerificationReturnScreen = 'clientSignup' | 'merchantSignup'
@@ -78,17 +83,25 @@ export const App: React.FC = () => {
   const [recoveryContact, setRecoveryContact] = React.useState('')
 
   const routeForRole = React.useCallback((role?: AccountRole | string | null) => {
-    if (role === 'client') {
-      setScreen('clientHome')
-      return
+    switch (role) {
+      case 'client':
+        setScreen('clientHome')
+        return
+      case 'service_provider':
+        setScreen('providerHome')
+        return
+      case 'event_coordinator':
+        setScreen('coordinatorHome')
+        return
+      case 'admin':
+        setScreen('adminHome')
+        return
+      case 'superadmin':
+        setScreen('superadminHome')
+        return
+      default:
+        setScreen('roleSelection')
     }
-
-    if (role === 'service_provider') {
-      setScreen('pendingApproval')
-      return
-    }
-
-    setScreen('roleSelection')
   }, [])
 
   const loadProfileAndRoute = React.useCallback(
@@ -273,6 +286,46 @@ export const App: React.FC = () => {
         )
       case 'clientHome':
         return <ClientHomeScreen userName={userName} />
+      case 'providerHome':
+        return (
+          <RoleHomePlaceholderScreen
+            description="The service provider dashboard will live here once 03.1-MerchantHome is rebuilt as 03.1-ProviderHome."
+            onBackToRoleSelection={() => setScreen('roleSelection')}
+            roleLabel="Service Provider"
+            title="Your provider workspace is being prepared."
+            userName={userName}
+          />
+        )
+      case 'coordinatorHome':
+        return (
+          <RoleHomePlaceholderScreen
+            description="The event coordinator dashboard will show assigned events, task queues, schedules, and client updates."
+            onBackToRoleSelection={() => setScreen('roleSelection')}
+            roleLabel="Event Coordinator"
+            title="Your coordinator workspace is being prepared."
+            userName={userName}
+          />
+        )
+      case 'adminHome':
+        return (
+          <RoleHomePlaceholderScreen
+            description="The admin dashboard will support user management, provider reviews, platform activity, and operations tools."
+            onBackToRoleSelection={() => setScreen('roleSelection')}
+            roleLabel="Admin"
+            title="Your admin workspace is being prepared."
+            userName={userName}
+          />
+        )
+      case 'superadminHome':
+        return (
+          <RoleHomePlaceholderScreen
+            description="The superadmin dashboard will support system settings, permissions, governance, and high-level controls."
+            onBackToRoleSelection={() => setScreen('roleSelection')}
+            roleLabel="Superadmin"
+            title="Your superadmin workspace is being prepared."
+            userName={userName}
+          />
+        )
     }
   }
 

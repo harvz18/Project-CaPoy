@@ -1,7 +1,7 @@
 export { ClientHomeScreen } from './03-ClientHome'
 export type {
   ClientHomeAction,
-  ClientHomeMilestone,
+  ClientHomeRecommendation,
   ClientHomeTab,
 } from './03-ClientHome'
 export { OnboardingScreen } from './01-Onboarding'
@@ -15,3 +15,4 @@ export { MerchantSignupScreen } from './02.2-MerchantSignup'
 export { PendingApprovalScreen } from './02.2.1-PendingApproval'
 export { RejectedApplicationScreen } from './02.2.2-RejectedApplication'
 export { VerificationScreen } from './02.3-Verification'
+export { RoleHomePlaceholderScreen } from './RoleHomePlaceholder'

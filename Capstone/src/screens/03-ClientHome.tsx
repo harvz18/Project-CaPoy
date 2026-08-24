@@ -5,48 +5,64 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   useWindowDimensions,
   View,
-  type ViewStyle,
 } from 'react-native'
 
-export type ClientHomeAction = 'tasks' | 'budget' | 'vendors' | 'addItem'
+export type ClientHomeAction = 'newEvent' | 'budget' | 'vendors' | 'ledger' | 'tasks'
 export type ClientHomeTab = 'home' | 'explore' | 'bookings' | 'messages' | 'profile'
-export type ClientHomeMilestone = 'catering' | 'saveTheDates'
+export type ClientHomeRecommendation = 'glasshouse' | 'aesthete'
 
 interface ClientHomeScreenProps {
-  eventName?: string
   userName?: string
-  onAddItem?: () => void
+  searchValue?: string
+  onChangeSearch?: (value: string) => void
+  onOpenActiveEvent?: () => void
   onOpenNotifications?: () => void
+  onOpenProfile?: () => void
+  onSeeAllVenues?: () => void
   onSelectAction?: (action: ClientHomeAction) => void
-  onSelectMilestone?: (milestone: ClientHomeMilestone) => void
+  onSelectRecommendation?: (recommendation: ClientHomeRecommendation) => void
   onSelectTab?: (tab: ClientHomeTab) => void
 }
 
-const PROFILE_IMAGE =
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuAwjmCk4HvDrjJoFW3czfCUDBxxBFFu9wmoSKXzpj0G3M0cWA9eVLFbpHR5zIUBk90zAGF9R6Fv0cDqQrBj8fZCy5gXN-grKY98cw9EfPnR6GNvOmZ3swQ0vhTNctev2d9UzHeJsWECHAl6lr71ZWMEo3_GaZrKwgNcKQALrCB4DiXuaKSe4vxd81JWyuOaxgGBN5Zp9lFMKN1NJTTFUMBE8knLXM0Zy3gePik9LycX_fsH5u_AF6GOLg'
-
-const stats = [
-  { id: 'tasks' as const, icon: 'T', label: 'TASKS PENDING', value: '12', suffix: '' },
-  { id: 'budget' as const, icon: 'P', label: 'BUDGET USED', value: '45%', suffix: '' },
-  { id: 'vendors' as const, icon: 'V', label: 'VENDORS SECURED', value: '4', suffix: '/10' },
+const planStats = [
+  { label: 'TASKS', value: '18', detail: '/ 45 done' },
+  { label: 'BUDGET', value: 'PHP 42k', detail: '/ PHP 85k', accent: true },
+  { label: 'VENDORS', value: '5', detail: 'booked' },
+  { label: 'NEXT DUE', value: 'Caterer Deposit' },
 ] as const
 
-const milestones = [
+const quickTools = [
+  { id: 'budget' as const, icon: 'P', label: 'Budget' },
+  { id: 'vendors' as const, icon: 'V', label: 'Vendors' },
+  { id: 'ledger' as const, icon: 'L', label: 'Ledger' },
+  { id: 'tasks' as const, icon: 'T', label: 'Tasks' },
+] as const
+
+const recommendations = [
   {
-    id: 'catering' as const,
-    month: 'NOV',
-    day: '15',
-    title: 'Finalize Catering Menu',
-    description: 'Tasting scheduled at The Grand Hotel',
+    id: 'glasshouse' as const,
+    image:
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuACgPKY6101R5Tt8wM3MANys6BhdJIdq1lEXymw2shJq516w4JybVe1vBAbZ7aeMfuHHry13Yy3fmt7tA6qoTOtxueyxdpuKDui18IO8ECZIIJDVrFCmgAc0gpyyGkCBLHu2IolGWZWlWnprUVbJSXFDDyy2ef5ck9w5VW_KXkT9bKfW_UN8lPym799buuDLFhshrnkD-PLqLFWvxmrVNLyb15lTaySHkXVDvJJMrTu9lb-ianLsojffw',
+    imageLabel: 'The Glasshouse Botanical venue',
+    category: 'VENUE / MINIMALIST',
+    title: 'The Glasshouse Botanical',
+    description:
+      'An ethereal space blending modern architecture with lush, curated gardens.',
+    price: 'From PHP 480k',
   },
   {
-    id: 'saveTheDates' as const,
-    month: 'DEC',
-    day: '02',
-    title: 'Send Save the Dates',
-    description: 'Design approved, waiting on print delivery',
+    id: 'aesthete' as const,
+    image:
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuAM9W82WCl23k2o4k6YTzPQls2wvdD5QmVEV_CNbUrqcJN4hkSXgAaCe4WCwIpAQWsAEAcnYo_3XZqHY4KmnU4HEbf2ELXoKRPaDFooeL4Cu4IuaHk4_0DAwCh-yii_8j1GIsF9mQV3maGJ6oIdsX3RrOaUPLRUlP-TINybREUbIvO0p_ZeORHdxqvqVYFgC7_Ix2SIVeNwvzxTtpldCsOocgG6cLLjPsJv6o81qzwIUOG1i5OqrDs0aQ',
+    imageLabel: 'Studio Aesthete editorial photography',
+    category: 'PHOTOGRAPHY / EDITORIAL',
+    title: 'Studio Aesthete',
+    description:
+      'Capturing raw emotion through a refined, cinematic lens for wedding storytelling.',
+    price: 'From PHP 235k',
   },
 ] as const
 
@@ -58,17 +74,6 @@ const navigationTabs = [
   { id: 'profile' as const, icon: 'P', label: 'Profile' },
 ] as const
 
-const progressSegments: ViewStyle[] = Array.from({ length: 40 }, (_, index) => {
-  const angle = (index / 40) * Math.PI * 2
-  const radius = 58
-
-  return {
-    left: 64 + radius * Math.sin(angle) - 2,
-    top: 64 - radius * Math.cos(angle) - 4,
-    transform: [{ rotate: `${index * 9}deg` }],
-  }
-})
-
 const getFirstName = (name: string) => {
   const trimmedName = name.trim()
 
@@ -79,40 +84,47 @@ const getFirstName = (name: string) => {
   return trimmedName.split(/\s+/)[0]
 }
 
+const getAvatarInitial = (name: string) => getFirstName(name).charAt(0).toUpperCase()
+
 export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
-  eventName = "L'Alliance",
   userName = 'Planner',
-  onAddItem,
+  searchValue,
+  onChangeSearch,
+  onOpenActiveEvent,
   onOpenNotifications,
+  onOpenProfile,
+  onSeeAllVenues,
   onSelectAction,
-  onSelectMilestone,
+  onSelectRecommendation,
   onSelectTab,
 }) => {
   const { width } = useWindowDimensions()
   const isWide = width >= 768
   const firstName = getFirstName(userName)
-
-  const handleAddItem = () => {
-    onAddItem?.()
-    onSelectAction?.('addItem')
-  }
+  const avatarInitial = getAvatarInitial(userName)
 
   return (
     <View style={styles.screen}>
       <View style={styles.topAppBar}>
         <View style={[styles.topAppBarContent, isWide && styles.topAppBarContentWide]}>
-          <Image
-            accessibilityLabel="User profile photo"
-            source={{ uri: PROFILE_IMAGE }}
-            style={styles.avatar}
-          />
+          <Pressable
+            accessibilityLabel="Open profile"
+            accessibilityRole="button"
+            hitSlop={8}
+            onPress={onOpenProfile}
+            style={({ pressed }) => pressed && styles.pressed}
+          >
+            <View style={styles.avatar}>
+              <Text style={styles.avatarInitial}>{avatarInitial}</Text>
+            </View>
+          </Pressable>
 
-          <Text style={[styles.brand, isWide && styles.brandWide]}>MULTIVENT</Text>
+          <Text style={styles.brand}>MULTIVENT</Text>
 
           <Pressable
             accessibilityLabel="Open notifications"
             accessibilityRole="button"
-            hitSlop={10}
+            hitSlop={8}
             onPress={onOpenNotifications}
             style={({ pressed }) => [styles.notificationButton, pressed && styles.pressed]}
           >
@@ -127,119 +139,174 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
           styles.content,
           isWide ? styles.contentWide : styles.contentMobile,
         ]}
+        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.welcomeSection}>
-          <Text style={[styles.greeting, isWide && styles.greetingWide]}>
-            Welcome, {firstName}
-          </Text>
-          <Text style={[styles.eventName, isWide && styles.eventNameWide]}>{eventName}</Text>
-          <Text style={styles.welcomeDescription}>
-            Your curated digital concierge for an unforgettable celebration.
-          </Text>
+        <View style={[styles.greeting, isWide && styles.greetingWide]}>
+          <Text style={styles.greetingTitle}>Hi, {firstName}</Text>
+          <Text style={styles.greetingSubtitle}>Dashboard and Overview</Text>
         </View>
 
-        <View style={[styles.dashboard, isWide && styles.dashboardWide]}>
-          <View style={[styles.progressCard, isWide && styles.progressCardWide]}>
-            <Text style={styles.cardHeading}>Planning Progress</Text>
-
-            <View
-              accessibilityLabel="Planning progress: 65 percent complete"
-              accessibilityRole="progressbar"
-              accessibilityValue={{ min: 0, max: 100, now: 65 }}
-              style={styles.progressRing}
-            >
-              {progressSegments.map((segment, index) => (
-                <View
-                  key={index}
-                  style={[
-                    styles.progressSegment,
-                    segment,
-                    index < 26 && styles.progressSegmentComplete,
-                  ]}
-                />
-              ))}
-              <Text style={styles.progressValue}>65%</Text>
-              <Text style={styles.progressLabel}>COMPLETE</Text>
-            </View>
-
-            <Text style={styles.progressCopy}>You are on track for your big day.</Text>
+        <View style={styles.searchSection}>
+          <View style={styles.searchField}>
+            <Text style={styles.searchIcon}>S</Text>
+            <TextInput
+              accessibilityLabel="Search services"
+              onChangeText={onChangeSearch}
+              placeholder="Search services..."
+              placeholderTextColor={palette.secondary}
+              returnKeyType="search"
+              style={styles.searchInput}
+              value={searchValue}
+            />
           </View>
 
-          <View style={[styles.statsPanel, isWide && styles.statsPanelWide]}>
-            <View style={styles.statsGrid}>
-              {stats.map((stat, index) => (
-                <Pressable
-                  key={stat.id}
-                  accessibilityLabel={`${stat.label}: ${stat.value}${stat.suffix}`}
-                  accessibilityRole="button"
-                  onPress={() => onSelectAction?.(stat.id)}
-                  style={({ pressed }) => [
-                    styles.statCard,
-                    isWide ? styles.statCardWide : index === 2 && styles.statCardFull,
-                    pressed && styles.cardPressed,
-                  ]}
-                >
-                  <View style={styles.statIconCircle}>
-                    <Text style={styles.statIcon}>{stat.icon}</Text>
-                  </View>
-                  <View>
-                    <Text style={styles.statLabel}>{stat.label}</Text>
-                    <Text style={styles.statValue}>
-                      {stat.value}
-                      {stat.suffix ? <Text style={styles.statSuffix}>{stat.suffix}</Text> : null}
-                    </Text>
-                  </View>
-                </Pressable>
-              ))}
+          <Pressable
+            accessibilityLabel="Create a new event"
+            accessibilityRole="button"
+            onPress={() => onSelectAction?.('newEvent')}
+            style={({ pressed }) => [styles.newEventButton, pressed && styles.primaryPressed]}
+          >
+            <Text style={styles.newEventIcon}>+</Text>
+            <Text style={styles.newEventText}>{isWide ? 'New Event' : 'New'}</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.planningSection}>
+          <View style={styles.sectionTitleRow}>
+            <View style={styles.liveDot} />
+            <Text style={styles.sectionTitle}>Planning in Progress</Text>
+          </View>
+
+          <Pressable
+            accessibilityLabel="Open current event plan"
+            accessibilityRole="button"
+            onPress={onOpenActiveEvent}
+            style={({ pressed }) => [styles.eventCard, pressed && styles.cardPressed]}
+          >
+            <View style={styles.eventHeader}>
+              <View style={styles.eventHeadingCopy}>
+                <Text style={styles.eventTitle}>The Smith-Doe Wedding</Text>
+                <View style={styles.eventMetaRow}>
+                  <Text style={styles.calendarIcon}>D</Text>
+                  <Text style={styles.eventMeta}>Oct 12, 2024 / Estate Solitude</Text>
+                </View>
+              </View>
+              <View style={styles.moreButton}>
+                <Text style={styles.moreText}>...</Text>
+              </View>
             </View>
 
+            <View style={styles.progressBlock}>
+              <View style={styles.progressLabels}>
+                <Text style={styles.overline}>OVERALL PROGRESS</Text>
+                <Text style={styles.progressValue}>65%</Text>
+              </View>
+              <View
+                accessibilityLabel="Overall progress: 65 percent"
+                accessibilityRole="progressbar"
+                accessibilityValue={{ min: 0, max: 100, now: 65 }}
+                style={styles.progressTrack}
+              >
+                <View style={styles.progressFill} />
+              </View>
+            </View>
+
+            <View style={styles.planStatsGrid}>
+              {planStats.map((stat) => (
+                <View key={stat.label} style={[styles.planStat, isWide && styles.planStatWide]}>
+                  <Text style={styles.planStatLabel}>{stat.label}</Text>
+                  <Text
+                    numberOfLines={2}
+                    style={[
+                      styles.planStatValue,
+                      'accent' in stat && stat.accent && styles.accentText,
+                      stat.label === 'NEXT DUE' && styles.nextDueValue,
+                    ]}
+                  >
+                    {stat.value}{' '}
+                    {'detail' in stat && stat.detail ? (
+                      <Text style={styles.planStatDetail}>{stat.detail}</Text>
+                    ) : null}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </Pressable>
+        </View>
+
+        <View style={styles.quickToolsSection}>
+          <Text style={styles.quickToolsHeading}>Quick Tools</Text>
+          <View style={styles.quickToolsGrid}>
+            {quickTools.map((tool) => (
+              <Pressable
+                key={tool.id}
+                accessibilityLabel={`Open ${tool.label}`}
+                accessibilityRole="button"
+                onPress={() => onSelectAction?.(tool.id)}
+                style={({ pressed }) => [styles.quickTool, pressed && styles.toolPressed]}
+              >
+                <View style={styles.quickToolIconCircle}>
+                  <Text style={styles.quickToolIcon}>{tool.icon}</Text>
+                </View>
+                <Text numberOfLines={1} style={styles.quickToolLabel}>
+                  {tool.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.recommendedSection}>
+          <View style={styles.recommendedHeader}>
+            <Text style={styles.recommendedHeading}>Recommended Venues</Text>
             <Pressable
-              accessibilityLabel="Add new item"
+              accessibilityLabel="See all recommended venues"
               accessibilityRole="button"
-              onPress={handleAddItem}
-              style={({ pressed }) => [styles.addButton, pressed && styles.addButtonPressed]}
+              hitSlop={8}
+              onPress={onSeeAllVenues}
+              style={({ pressed }) => pressed && styles.pressed}
             >
-              <Text style={styles.addIcon}>+</Text>
-              <Text style={styles.addButtonText}>Add New Item</Text>
+              <Text style={styles.seeAll}>SEE ALL</Text>
             </Pressable>
           </View>
-        </View>
 
-        <View style={styles.milestonesSection}>
-          <Text style={styles.milestonesHeading}>Upcoming Milestones</Text>
-
-          <View style={styles.milestoneList}>
-            {milestones.map((milestone, index) => (
+          <View style={styles.recommendationsList}>
+            {recommendations.map((recommendation) => (
               <Pressable
-                key={milestone.id}
-                accessibilityLabel={`${milestone.month} ${milestone.day}: ${milestone.title}`}
+                key={recommendation.id}
+                accessibilityLabel={`Open ${recommendation.title}`}
                 accessibilityRole="button"
-                onPress={() => onSelectMilestone?.(milestone.id)}
+                onPress={() => onSelectRecommendation?.(recommendation.id)}
                 style={({ pressed }) => [
-                  styles.milestoneCard,
-                  index === 1 && styles.milestoneCardMuted,
+                  styles.recommendationCard,
+                  isWide && styles.recommendationCardWide,
                   pressed && styles.cardPressed,
                 ]}
               >
-                <View style={styles.dateBlock}>
-                  <Text style={[styles.month, index === 1 && styles.secondaryText]}>
-                    {milestone.month}
-                  </Text>
-                  <Text style={[styles.day, index === 1 && styles.secondaryText]}>
-                    {milestone.day}
-                  </Text>
+                <View style={[styles.imagePanel, isWide && styles.imagePanelWide]}>
+                  <Image
+                    accessibilityLabel={recommendation.imageLabel}
+                    resizeMode="cover"
+                    source={{ uri: recommendation.image }}
+                    style={styles.recommendationImage}
+                  />
+                  <View style={styles.imageTint} />
+                  <View style={styles.bookmarkButton}>
+                    <View style={styles.bookmarkOutline} />
+                  </View>
                 </View>
 
-                <View style={styles.dateDivider} />
-
-                <View style={styles.milestoneCopy}>
-                  <Text style={styles.milestoneTitle}>{milestone.title}</Text>
-                  <Text style={styles.milestoneDescription}>{milestone.description}</Text>
-                </View>
-
-                <View style={styles.chevronButton}>
-                  <Text style={styles.chevron}>{'>'}</Text>
+                <View style={[styles.recommendationCopy, isWide && styles.recommendationCopyWide]}>
+                  <Text style={styles.category}>{recommendation.category}</Text>
+                  <Text style={styles.recommendationTitle}>{recommendation.title}</Text>
+                  <Text numberOfLines={2} style={styles.recommendationDescription}>
+                    {recommendation.description}
+                  </Text>
+                  <View style={styles.priceRow}>
+                    <Text style={styles.price}>{recommendation.price}</Text>
+                    <Text style={styles.arrow}>{'>'}</Text>
+                  </View>
                 </View>
               </Pressable>
             ))}
@@ -247,45 +314,35 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
         </View>
       </ScrollView>
 
-      {isWide ? (
-        <View style={styles.sideNavigation}>
-          {navigationTabs.slice(0, 4).map((tab) => (
-            <NavigationItem key={tab.id} onPress={() => onSelectTab?.(tab.id)} tab={tab} />
-          ))}
-        </View>
-      ) : (
+      {!isWide ? (
         <View style={styles.bottomNavigation}>
-          {navigationTabs.map((tab) => (
-            <NavigationItem key={tab.id} onPress={() => onSelectTab?.(tab.id)} tab={tab} />
-          ))}
+          <View style={styles.bottomNavigationContent}>
+            {navigationTabs.map((tab) => {
+              const isActive = tab.id === 'home'
+
+              return (
+                <Pressable
+                  key={tab.id}
+                  accessibilityLabel={`Open ${tab.label}`}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isActive }}
+                  onPress={() => onSelectTab?.(tab.id)}
+                  style={({ pressed }) => [styles.navItem, pressed && styles.pressed]}
+                >
+                  <View style={[styles.navIconContainer, isActive && styles.navIconContainerActive]}>
+                    {'hasBadge' in tab && tab.hasBadge ? <View style={styles.messageBadge} /> : null}
+                    <Text style={[styles.navIcon, isActive && styles.navIconActive]}>{tab.icon}</Text>
+                  </View>
+                  <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>
+                    {tab.label}
+                  </Text>
+                </Pressable>
+              )
+            })}
+          </View>
         </View>
-      )}
+      ) : null}
     </View>
-  )
-}
-
-interface NavigationItemProps {
-  onPress: () => void
-  tab: (typeof navigationTabs)[number]
-}
-
-const NavigationItem: React.FC<NavigationItemProps> = ({ onPress, tab }) => {
-  const isActive = tab.id === 'home'
-
-  return (
-    <Pressable
-      accessibilityLabel={`Open ${tab.label}`}
-      accessibilityRole="button"
-      accessibilityState={{ selected: isActive }}
-      onPress={onPress}
-      style={({ pressed }) => [styles.navItem, pressed && styles.pressed]}
-    >
-      <View>
-        {'hasBadge' in tab && tab.hasBadge ? <View style={styles.messageBadge} /> : null}
-        <Text style={[styles.navIcon, isActive && styles.navIconActive]}>{tab.icon}</Text>
-      </View>
-      <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>{tab.label}</Text>
-    </Pressable>
   )
 }
 
@@ -293,12 +350,14 @@ const palette = {
   background: '#F9F9F9',
   surface: '#FFFFFF',
   surfaceLow: '#F3F3F4',
+  surfaceContainer: '#EEEEEE',
   surfaceVariant: '#E2E2E2',
   primary: '#4E061A',
   primaryContainer: '#6B1E2E',
+  primaryFixedDim: '#FFB2BB',
   secondary: '#5E5E5E',
   text: '#1A1C1C',
-  outline: '#DAC0C2',
+  outlineVariant: '#DAC0C2',
 } as const
 
 const styles = StyleSheet.create({
@@ -307,51 +366,51 @@ const styles = StyleSheet.create({
     backgroundColor: palette.background,
   },
   topAppBar: {
-    zIndex: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#F1E8E9',
+    zIndex: 20,
+    height: 64,
+    justifyContent: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: palette.outlineVariant,
     backgroundColor: palette.background,
-    shadowColor: palette.primaryContainer,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.08,
-    shadowRadius: 15,
-    elevation: 5,
   },
   topAppBarContent: {
     width: '100%',
     maxWidth: 1280,
-    minHeight: 72,
     alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 12,
   },
   topAppBarContentWide: {
     paddingHorizontal: 64,
   },
   avatar: {
-    width: 40,
-    height: 40,
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
-    borderColor: palette.surfaceVariant,
-    borderRadius: 20,
-    backgroundColor: palette.surfaceLow,
+    borderColor: palette.outlineVariant,
+    borderRadius: 16,
+    backgroundColor: palette.primaryContainer,
+  },
+  avatarInitial: {
+    color: palette.surface,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: '700',
   },
   brand: {
     color: palette.primary,
-    fontSize: 22,
-    lineHeight: 30,
-    fontWeight: '600',
-  },
-  brandWide: {
-    fontSize: 24,
-    lineHeight: 32,
+    fontSize: 21,
+    lineHeight: 28,
+    fontWeight: '700',
+    letterSpacing: 2.4,
   },
   notificationButton: {
-    width: 40,
-    height: 40,
+    width: 32,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -359,18 +418,19 @@ const styles = StyleSheet.create({
     width: 16,
     height: 17,
     borderWidth: 2,
-    borderColor: palette.secondary,
+    borderColor: palette.primary,
     borderTopLeftRadius: 9,
     borderTopRightRadius: 9,
     borderBottomLeftRadius: 3,
     borderBottomRightRadius: 3,
+    backgroundColor: palette.primary,
   },
   bellClapper: {
     width: 5,
     height: 3,
-    marginTop: 2,
     borderRadius: 3,
-    backgroundColor: palette.secondary,
+    backgroundColor: palette.primary,
+    marginTop: 2,
   },
   content: {
     width: '100%',
@@ -379,349 +439,479 @@ const styles = StyleSheet.create({
   },
   contentMobile: {
     paddingHorizontal: 20,
-    paddingTop: 32,
-    paddingBottom: 120,
+    paddingBottom: 108,
   },
   contentWide: {
-    paddingLeft: 112,
-    paddingRight: 64,
-    paddingTop: 40,
+    paddingHorizontal: 64,
     paddingBottom: 64,
   },
-  welcomeSection: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
   greeting: {
-    color: palette.secondary,
-    fontSize: 16,
-    lineHeight: 24,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginBottom: 4,
+    alignItems: 'flex-start',
+    paddingTop: 24,
+    paddingBottom: 24,
   },
   greetingWide: {
-    fontSize: 18,
+    paddingTop: 40,
+    paddingBottom: 32,
+  },
+  greetingTitle: {
+    color: palette.text,
+    fontSize: 28,
+    lineHeight: 36,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  greetingSubtitle: {
+    color: palette.secondary,
+    fontSize: 16,
     lineHeight: 26,
   },
-  eventName: {
-    color: palette.primaryContainer,
-    fontSize: 32,
-    lineHeight: 40,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  eventNameWide: {
-    fontSize: 48,
-    lineHeight: 56,
-  },
-  welcomeDescription: {
-    maxWidth: 640,
-    color: palette.secondary,
-    fontSize: 18,
-    lineHeight: 30,
-    textAlign: 'center',
-  },
-  dashboard: {
-    gap: 16,
-  },
-  dashboardWide: {
+  searchSection: {
+    width: '100%',
+    maxWidth: 672,
     flexDirection: 'row',
-    alignItems: 'stretch',
-    gap: 24,
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 32,
   },
-  progressCard: {
+  searchField: {
+    height: 48,
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: palette.outlineVariant,
+    borderRadius: 8,
+    backgroundColor: palette.surfaceLow,
+    paddingHorizontal: 16,
+  },
+  searchIcon: {
+    color: palette.secondary,
+    fontSize: 20,
+    lineHeight: 24,
+    marginRight: 8,
+  },
+  searchInput: {
+    height: '100%',
+    flex: 1,
+    color: palette.text,
+    fontSize: 16,
+    lineHeight: 24,
+    paddingVertical: 0,
+  },
+  newEventButton: {
+    height: 48,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: palette.surfaceVariant,
+    gap: 6,
     borderRadius: 8,
-    backgroundColor: palette.surface,
-    padding: 32,
+    backgroundColor: palette.primaryContainer,
+    paddingHorizontal: 18,
     shadowColor: palette.primaryContainer,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.08,
-    shadowRadius: 15,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
   },
-  progressCardWide: {
-    flexBasis: '32%',
+  newEventIcon: {
+    color: palette.surface,
+    fontSize: 22,
+    lineHeight: 24,
   },
-  cardHeading: {
-    width: '100%',
+  newEventText: {
+    color: palette.surface,
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: '600',
+  },
+  planningSection: {
+    marginBottom: 40,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 24,
+  },
+  liveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: palette.primaryContainer,
+  },
+  sectionTitle: {
     color: palette.text,
     fontSize: 24,
     lineHeight: 32,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  progressRing: {
-    width: 128,
-    height: 128,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  progressSegment: {
-    position: 'absolute',
-    width: 4,
-    height: 8,
-    borderRadius: 2,
-    backgroundColor: '#E5E5E5',
-  },
-  progressSegmentComplete: {
-    backgroundColor: palette.primaryContainer,
-  },
-  progressValue: {
-    color: palette.primaryContainer,
-    fontSize: 32,
-    lineHeight: 38,
     fontWeight: '700',
   },
-  progressLabel: {
-    color: palette.secondary,
-    fontSize: 10,
-    lineHeight: 14,
-    fontWeight: '700',
-    marginTop: 2,
-  },
-  progressCopy: {
-    color: palette.secondary,
-    fontSize: 14,
-    lineHeight: 21,
-    textAlign: 'center',
-    marginTop: 24,
-  },
-  statsPanel: {
-    gap: 16,
-  },
-  statsPanelWide: {
-    flex: 1,
-  },
-  statsGrid: {
-    flex: 1,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 16,
-  },
-  statCard: {
-    minHeight: 170,
-    flexBasis: '46%',
-    flexGrow: 1,
-    justifyContent: 'space-between',
+  eventCard: {
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: palette.surfaceVariant,
+    borderColor: palette.outlineVariant,
     borderRadius: 8,
     backgroundColor: palette.surface,
     padding: 24,
+    shadowColor: palette.primaryContainer,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.04,
+    shadowRadius: 15,
+    elevation: 2,
   },
-  statCardWide: {
-    minWidth: 150,
-    flexBasis: '28%',
+  eventHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 24,
   },
-  statCardFull: {
-    flexBasis: '100%',
+  eventHeadingCopy: {
+    flex: 1,
   },
-  statIconCircle: {
+  eventTitle: {
+    color: palette.text,
+    fontSize: 24,
+    lineHeight: 32,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  eventMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  calendarIcon: {
+    color: palette.secondary,
+    fontSize: 18,
+  },
+  eventMeta: {
+    flex: 1,
+    color: palette.secondary,
+    fontSize: 15,
+    lineHeight: 24,
+  },
+  moreButton: {
     width: 40,
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: palette.outlineVariant,
     borderRadius: 20,
-    backgroundColor: palette.surfaceLow,
-    marginBottom: 16,
+    backgroundColor: palette.surfaceContainer,
   },
-  statIcon: {
+  moreText: {
+    color: palette.primaryContainer,
+    fontSize: 16,
+    lineHeight: 18,
+    fontWeight: '700',
+    marginTop: -6,
+  },
+  progressBlock: {
+    marginBottom: 24,
+  },
+  progressLabels: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  overline: {
     color: palette.secondary,
-    fontSize: 21,
-    fontWeight: '600',
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: '700',
   },
-  statLabel: {
+  progressValue: {
+    color: palette.primaryContainer,
+    fontSize: 16,
+    lineHeight: 24,
+    fontWeight: '700',
+  },
+  progressTrack: {
+    width: '100%',
+    height: 6,
+    overflow: 'hidden',
+    borderRadius: 3,
+    backgroundColor: palette.surfaceVariant,
+  },
+  progressFill: {
+    width: '65%',
+    height: '100%',
+    borderRadius: 3,
+    backgroundColor: palette.primaryContainer,
+  },
+  planStatsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+    borderTopWidth: 1,
+    borderTopColor: palette.outlineVariant,
+    paddingTop: 24,
+  },
+  planStat: {
+    minWidth: 120,
+    flexBasis: '45%',
+    flexGrow: 1,
+  },
+  planStatWide: {
+    minWidth: 150,
+    flexBasis: '20%',
+  },
+  planStatLabel: {
     color: palette.secondary,
     fontSize: 11,
     lineHeight: 16,
     fontWeight: '700',
     marginBottom: 4,
   },
-  statValue: {
+  planStatValue: {
     color: palette.text,
-    fontSize: 32,
-    lineHeight: 40,
+    fontSize: 18,
+    lineHeight: 25,
     fontWeight: '700',
   },
-  statSuffix: {
+  planStatDetail: {
     color: palette.secondary,
-    fontSize: 18,
-    lineHeight: 30,
+    fontSize: 14,
+    lineHeight: 21,
     fontWeight: '400',
   },
-  addButton: {
-    minHeight: 64,
+  accentText: {
+    color: palette.primaryContainer,
+  },
+  nextDueValue: {
+    fontSize: 16,
+    lineHeight: 21,
+  },
+  quickToolsSection: {
+    marginBottom: 48,
+  },
+  quickToolsHeading: {
+    color: palette.text,
+    fontSize: 20,
+    lineHeight: 28,
+    fontWeight: '700',
+    marginBottom: 16,
+  },
+  quickToolsGrid: {
     flexDirection: 'row',
+    gap: 10,
+  },
+  quickTool: {
+    minWidth: 0,
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+    borderWidth: 1,
+    borderColor: palette.outlineVariant,
     borderRadius: 8,
-    backgroundColor: palette.primaryContainer,
-    paddingHorizontal: 24,
-    paddingVertical: 16,
+    backgroundColor: palette.surface,
+    paddingHorizontal: 5,
+    paddingVertical: 12,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
-  addButtonPressed: {
-    backgroundColor: palette.primary,
-    transform: [{ scale: 0.99 }],
+  quickToolIconCircle: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 20,
+    backgroundColor: palette.surfaceContainer,
   },
-  addIcon: {
-    color: palette.surface,
-    fontSize: 26,
-    lineHeight: 28,
-    fontWeight: '400',
-  },
-  addButtonText: {
-    color: palette.surface,
-    fontSize: 20,
-    lineHeight: 28,
+  quickToolIcon: {
+    color: palette.secondary,
+    fontSize: 21,
+    lineHeight: 24,
     fontWeight: '600',
   },
-  milestonesSection: {
-    marginTop: 80,
+  quickToolLabel: {
+    maxWidth: '100%',
+    color: palette.text,
+    fontSize: 10,
+    lineHeight: 15,
+    fontWeight: '700',
   },
-  milestonesHeading: {
+  recommendedSection: {
+    marginBottom: 32,
+  },
+  recommendedHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: 16,
+    marginBottom: 24,
+  },
+  recommendedHeading: {
+    flex: 1,
     color: palette.text,
     fontSize: 24,
     lineHeight: 32,
-    fontWeight: '600',
-    borderBottomWidth: 1,
-    borderBottomColor: palette.surfaceVariant,
-    paddingBottom: 8,
-    marginBottom: 24,
+    fontWeight: '700',
   },
-  milestoneList: {
-    gap: 16,
-  },
-  milestoneCard: {
-    minHeight: 104,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    borderWidth: 1,
-    borderColor: palette.surfaceVariant,
-    borderRadius: 8,
-    backgroundColor: palette.surface,
-    padding: 16,
-  },
-  milestoneCardMuted: {
-    opacity: 0.8,
-  },
-  dateBlock: {
-    width: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  month: {
+  seeAll: {
     color: palette.primaryContainer,
     fontSize: 11,
     lineHeight: 16,
     fontWeight: '700',
   },
-  day: {
-    color: palette.text,
-    fontSize: 30,
-    lineHeight: 34,
-    fontWeight: '700',
-    marginTop: 2,
+  recommendationsList: {
+    gap: 24,
   },
-  secondaryText: {
-    color: palette.secondary,
+  recommendationCard: {
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: palette.outlineVariant,
+    borderRadius: 8,
+    backgroundColor: palette.surface,
   },
-  dateDivider: {
-    width: 1,
-    height: 48,
-    backgroundColor: palette.surfaceVariant,
+  recommendationCardWide: {
+    minHeight: 260,
+    flexDirection: 'row',
   },
-  milestoneCopy: {
+  imagePanel: {
+    width: '100%',
+    height: 192,
+    overflow: 'hidden',
+    backgroundColor: palette.surfaceContainer,
+  },
+  imagePanelWide: {
+    width: '33.333%',
+    height: '100%',
+    minHeight: 260,
+  },
+  recommendationImage: {
+    width: '100%',
+    height: '100%',
+  },
+  imageTint: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: 'rgba(94, 94, 94, 0.08)',
+  },
+  bookmarkButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  bookmarkOutline: {
+    width: 11,
+    height: 15,
+    borderWidth: 1.5,
+    borderColor: palette.secondary,
+    borderRadius: 2,
+  },
+  recommendationCopy: {
+    padding: 20,
+  },
+  recommendationCopyWide: {
     flex: 1,
+    justifyContent: 'center',
+    padding: 32,
   },
-  milestoneTitle: {
-    color: palette.text,
-    fontSize: 16,
-    lineHeight: 23,
-    fontWeight: '700',
-  },
-  milestoneDescription: {
+  category: {
     color: palette.secondary,
     fontSize: 11,
     lineHeight: 16,
     fontWeight: '700',
-    marginTop: 4,
+    marginBottom: 8,
   },
-  chevronButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: palette.surfaceVariant,
-    borderRadius: 20,
+  recommendationTitle: {
+    color: palette.text,
+    fontSize: 20,
+    lineHeight: 28,
+    fontWeight: '700',
+    marginBottom: 8,
   },
-  chevron: {
+  recommendationDescription: {
     color: palette.secondary,
-    fontSize: 22,
+    fontSize: 14,
+    lineHeight: 22,
+    marginBottom: 16,
+  },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 'auto',
+  },
+  price: {
+    color: palette.primaryContainer,
+    fontSize: 16,
     lineHeight: 24,
-    fontWeight: '300',
+    fontWeight: '700',
+  },
+  arrow: {
+    color: palette.outlineVariant,
+    fontSize: 24,
+    lineHeight: 26,
   },
   bottomNavigation: {
     position: 'absolute',
     right: 0,
     bottom: 0,
     left: 0,
-    zIndex: 20,
-    minHeight: 84,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
+    zIndex: 30,
+    height: 80,
+    justifyContent: 'center',
     borderTopWidth: 1,
-    borderTopColor: palette.surfaceVariant,
-    backgroundColor: 'rgba(249, 249, 249, 0.97)',
-    paddingHorizontal: 8,
-    paddingTop: 10,
-    paddingBottom: 14,
+    borderTopColor: palette.outlineVariant,
+    backgroundColor: palette.background,
     shadowColor: palette.primaryContainer,
     shadowOffset: { width: 0, height: -10 },
     shadowOpacity: 0.05,
     shadowRadius: 15,
     elevation: 8,
   },
-  sideNavigation: {
-    position: 'absolute',
-    top: 72,
-    bottom: 0,
-    left: 0,
-    zIndex: 5,
-    width: 80,
+  bottomNavigationContent: {
+    width: '100%',
+    maxWidth: 600,
+    alignSelf: 'center',
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 28,
-    borderRightWidth: 1,
-    borderRightColor: palette.surfaceVariant,
-    backgroundColor: palette.background,
-    paddingTop: 28,
-    shadowColor: '#000000',
-    shadowOffset: { width: 2, height: 0 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 2,
+    justifyContent: 'space-around',
+    paddingHorizontal: 8,
   },
   navItem: {
-    minWidth: 58,
+    width: 64,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 3,
-    paddingVertical: 4,
+  },
+  navIconContainer: {
+    width: 48,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+    marginBottom: 2,
+  },
+  navIconContainerActive: {
+    backgroundColor: 'rgba(255, 178, 187, 0.2)',
   },
   navIcon: {
     color: palette.secondary,
-    fontSize: 23,
-    lineHeight: 26,
+    fontSize: 22,
+    lineHeight: 24,
     fontWeight: '400',
   },
   navIconActive: {
@@ -730,30 +920,43 @@ const styles = StyleSheet.create({
   },
   navLabel: {
     color: palette.secondary,
-    fontSize: 9,
-    lineHeight: 13,
+    fontSize: 10,
+    lineHeight: 14,
     fontWeight: '700',
+    opacity: 0.8,
   },
   navLabelActive: {
     color: palette.primary,
+    opacity: 1,
   },
   messageBadge: {
     position: 'absolute',
-    top: -1,
-    right: -5,
+    top: 1,
+    right: 8,
     zIndex: 1,
-    width: 7,
-    height: 7,
+    width: 8,
+    height: 8,
+    borderWidth: 1,
+    borderColor: palette.background,
     borderRadius: 4,
     backgroundColor: palette.primaryContainer,
   },
+  primaryPressed: {
+    backgroundColor: palette.primary,
+    transform: [{ scale: 0.98 }],
+  },
   cardPressed: {
-    borderColor: palette.outline,
+    borderColor: palette.primaryContainer,
+    opacity: 0.92,
+    transform: [{ scale: 0.995 }],
+  },
+  toolPressed: {
+    borderColor: palette.primaryContainer,
     backgroundColor: palette.surfaceLow,
-    transform: [{ scale: 0.99 }],
+    transform: [{ scale: 0.97 }],
   },
   pressed: {
-    opacity: 0.55,
-    transform: [{ scale: 0.94 }],
+    opacity: 0.6,
+    transform: [{ scale: 0.95 }],
   },
 })
