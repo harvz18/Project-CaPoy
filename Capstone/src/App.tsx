@@ -144,7 +144,7 @@ export const App: React.FC = () => {
 
   return (
     <>
-      <StatusBar style={screen === 'clientHome' ? 'light' : 'dark'} />
+      <StatusBar style="dark" />
       <SafeAreaView
         style={[styles.container, screen === 'clientHome' && styles.homeContainer]}
       >
@@ -160,6 +160,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   homeContainer: {
-    backgroundColor: '#160D11',
+    backgroundColor: '#F9F9F9',
   },
 })

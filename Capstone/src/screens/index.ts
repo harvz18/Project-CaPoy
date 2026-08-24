@@ -1,5 +1,9 @@
 export { ClientHomeScreen } from './03-ClientHome'
-export type { ClientHomeAction, ClientHomeTab } from './03-ClientHome'
+export type {
+  ClientHomeAction,
+  ClientHomeMilestone,
+  ClientHomeTab,
+} from './03-ClientHome'
 export { OnboardingScreen } from './01-Onboarding'
 export { LoginScreen } from './01.1-Login'
 export { ForgotPasswordScreen } from './01.1.1-ForgotPassword'

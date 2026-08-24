@@ -1,510 +1,740 @@
 import React from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
-import { radius, spacing } from '../theme/tokens'
-import { typography } from '../theme/typography'
+import {
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+  type ViewStyle,
+} from 'react-native'
 
-export type ClientHomeAction = 'budget' | 'merchants' | 'bookings' | 'ledger'
-export type ClientHomeTab = 'home' | 'explore' | 'events' | 'bookings' | 'profile'
+export type ClientHomeAction = 'tasks' | 'budget' | 'vendors' | 'addItem'
+export type ClientHomeTab = 'home' | 'explore' | 'bookings' | 'messages' | 'profile'
+export type ClientHomeMilestone = 'catering' | 'saveTheDates'
 
 interface ClientHomeScreenProps {
-  userName?: string
-  onCreateEvent?: () => void
+  eventName?: string
+  onAddItem?: () => void
   onOpenNotifications?: () => void
   onSelectAction?: (action: ClientHomeAction) => void
+  onSelectMilestone?: (milestone: ClientHomeMilestone) => void
   onSelectTab?: (tab: ClientHomeTab) => void
 }
 
-const quickActions = [
+const PROFILE_IMAGE =
+  'https://lh3.googleusercontent.com/aida-public/AB6AXuAwjmCk4HvDrjJoFW3czfCUDBxxBFFu9wmoSKXzpj0G3M0cWA9eVLFbpHR5zIUBk90zAGF9R6Fv0cDqQrBj8fZCy5gXN-grKY98cw9EfPnR6GNvOmZ3swQ0vhTNctev2d9UzHeJsWECHAl6lr71ZWMEo3_GaZrKwgNcKQALrCB4DiXuaKSe4vxd81JWyuOaxgGBN5Zp9lFMKN1NJTTFUMBE8knLXM0Zy3gePik9LycX_fsH5u_AF6GOLg'
+
+const stats = [
+  { id: 'tasks' as const, icon: '✓', label: 'TASKS PENDING', value: '12', suffix: '' },
+  { id: 'budget' as const, icon: '₱', label: 'BUDGET USED', value: '45%', suffix: '' },
+  { id: 'vendors' as const, icon: '◇', label: 'VENDORS SECURED', value: '4', suffix: '/10' },
+] as const
+
+const milestones = [
   {
-    id: 'budget' as const,
-    icon: '\u20B1',
-    title: 'Budget Planner',
-    description: 'Track every expense',
+    id: 'catering' as const,
+    month: 'NOV',
+    day: '15',
+    title: 'Finalize Catering Menu',
+    description: 'Tasting scheduled at The Grand Hotel',
   },
   {
-    id: 'merchants' as const,
-    icon: '\u2726',
-    title: 'Find Merchants',
-    description: 'Discover trusted services',
-  },
-  {
-    id: 'bookings' as const,
-    icon: '\u2713',
-    title: 'My Bookings',
-    description: 'Review booking updates',
-  },
-  {
-    id: 'ledger' as const,
-    icon: '\u2261',
-    title: 'Event Ledger',
-    description: 'See your event finances',
+    id: 'saveTheDates' as const,
+    month: 'DEC',
+    day: '02',
+    title: 'Send Save the Dates',
+    description: 'Design approved, waiting on print delivery',
   },
 ] as const
 
 const navigationTabs = [
-  { id: 'home' as const, icon: 'H', label: 'Home' },
-  { id: 'explore' as const, icon: 'E', label: 'Explore' },
-  { id: 'events' as const, icon: '+', label: 'Events' },
-  { id: 'bookings' as const, icon: 'B', label: 'Bookings' },
-  { id: 'profile' as const, icon: 'P', label: 'Profile' },
+  { id: 'home' as const, icon: '⌂', label: 'Home' },
+  { id: 'explore' as const, icon: '◎', label: 'Explore' },
+  { id: 'bookings' as const, icon: '▦', label: 'Bookings' },
+  { id: 'messages' as const, icon: '●', label: 'Messages', hasBadge: true },
+  { id: 'profile' as const, icon: '○', label: 'Profile' },
 ] as const
 
+const progressSegments: ViewStyle[] = Array.from({ length: 40 }, (_, index) => {
+  const angle = (index / 40) * Math.PI * 2
+  const radius = 58
+
+  return {
+    left: 64 + radius * Math.sin(angle) - 2,
+    top: 64 - radius * Math.cos(angle) - 4,
+    transform: [{ rotate: `${index * 9}deg` }],
+  }
+})
+
 export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
-  userName = 'Planner',
-  onCreateEvent,
+  eventName = "L'Alliance",
+  onAddItem,
   onOpenNotifications,
   onSelectAction,
+  onSelectMilestone,
   onSelectTab,
 }) => {
+  const { width } = useWindowDimensions()
+  const isWide = width >= 768
+
+  const handleAddItem = () => {
+    onAddItem?.()
+    onSelectAction?.('addItem')
+  }
+
   return (
     <View style={styles.screen}>
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.brand}>MULTIVENT</Text>
-            <Text style={styles.brandTagline}>EVENTS, BEAUTIFULLY MANAGED</Text>
-          </View>
+      <View style={styles.topAppBar}>
+        <View style={[styles.topAppBarContent, isWide && styles.topAppBarContentWide]}>
+          <Image
+            accessibilityLabel="User profile photo"
+            source={{ uri: PROFILE_IMAGE }}
+            style={styles.avatar}
+          />
+
+          <Text style={[styles.brand, isWide && styles.brandWide]}>MULTIVENT</Text>
+
           <Pressable
-            accessibilityRole="button"
             accessibilityLabel="Open notifications"
+            accessibilityRole="button"
             hitSlop={10}
             onPress={onOpenNotifications}
             style={({ pressed }) => [styles.notificationButton, pressed && styles.pressed]}
           >
-            <Text style={styles.notificationIcon}>N</Text>
-            <View style={styles.notificationDot} />
+            <View style={styles.bellDome} />
+            <View style={styles.bellClapper} />
           </Pressable>
         </View>
+      </View>
 
-        <View style={styles.welcomeCopy}>
-          <Text style={styles.welcome}>Welcome, {userName}</Text>
-          <Text style={styles.welcomeSubtitle}>What would you like to plan today?</Text>
-        </View>
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Create a new event"
-          onPress={onCreateEvent}
-          style={({ pressed }) => [styles.heroCard, pressed && styles.heroCardPressed]}
-        >
-          <View style={styles.heroGlowOne} />
-          <View style={styles.heroGlowTwo} />
-          <View style={styles.heroContent}>
-            <Text style={styles.heroEyebrow}>START PLANNING</Text>
-            <Text style={styles.heroTitle}>Create your perfect event</Text>
-            <Text style={styles.heroDescription}>
-              Set your date, budget, and vision. We will help bring every detail together.
-            </Text>
-            <View style={styles.createAction}>
-              <Text style={styles.createActionText}>CREATE EVENT</Text>
-              <Text style={styles.createActionIcon}>+</Text>
-            </View>
-          </View>
-        </Pressable>
-
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <Text style={styles.sectionCaption}>YOUR PLANNING TOOLS</Text>
-        </View>
-
-        <View style={styles.quickActionGrid}>
-          {quickActions.map((action) => (
-            <Pressable
-              key={action.id}
-              accessibilityRole="button"
-              accessibilityLabel={action.title}
-              onPress={() => onSelectAction?.(action.id)}
-              style={({ pressed }) => [styles.actionCard, pressed && styles.actionCardPressed]}
-            >
-              <View style={styles.actionIconContainer}>
-                <Text style={styles.actionIcon}>{action.icon}</Text>
-              </View>
-              <Text style={styles.actionTitle}>{action.title}</Text>
-              <Text style={styles.actionDescription}>{action.description}</Text>
-            </Pressable>
-          ))}
-        </View>
-
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Recent Events</Text>
-          <Text style={styles.sectionCaption}>YOUR LATEST PLANS</Text>
-        </View>
-
-        <View style={styles.emptyState}>
-          <View style={styles.emptyIconContainer}>
-            <Text style={styles.emptyIcon}>+</Text>
-          </View>
-          <Text style={styles.emptyTitle}>Your first event starts here</Text>
-          <Text style={styles.emptyDescription}>
-            Create an event to begin tracking your budget, merchants, and bookings in one place.
+      <ScrollView
+        contentContainerStyle={[
+          styles.content,
+          isWide ? styles.contentWide : styles.contentMobile,
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.welcomeSection}>
+          <Text style={[styles.eventName, isWide && styles.eventNameWide]}>{eventName}</Text>
+          <Text style={styles.welcomeDescription}>
+            Your curated digital concierge for an unforgettable celebration.
           </Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Create your first event"
-            onPress={onCreateEvent}
-            style={({ pressed }) => [styles.emptyButton, pressed && styles.pressed]}
-          >
-            <Text style={styles.emptyButtonText}>CREATE EVENT</Text>
-          </Pressable>
+        </View>
+
+        <View style={[styles.dashboard, isWide && styles.dashboardWide]}>
+          <View style={[styles.progressCard, isWide && styles.progressCardWide]}>
+            <Text style={styles.cardHeading}>Planning Progress</Text>
+
+            <View
+              accessibilityLabel="Planning progress: 65 percent complete"
+              accessibilityRole="progressbar"
+              accessibilityValue={{ min: 0, max: 100, now: 65 }}
+              style={styles.progressRing}
+            >
+              {progressSegments.map((segment, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.progressSegment,
+                    segment,
+                    index < 26 && styles.progressSegmentComplete,
+                  ]}
+                />
+              ))}
+              <Text style={styles.progressValue}>65%</Text>
+              <Text style={styles.progressLabel}>COMPLETE</Text>
+            </View>
+
+            <Text style={styles.progressCopy}>You are on track for your big day.</Text>
+          </View>
+
+          <View style={[styles.statsPanel, isWide && styles.statsPanelWide]}>
+            <View style={styles.statsGrid}>
+              {stats.map((stat, index) => (
+                <Pressable
+                  key={stat.id}
+                  accessibilityLabel={`${stat.label}: ${stat.value}${stat.suffix ?? ''}`}
+                  accessibilityRole="button"
+                  onPress={() => onSelectAction?.(stat.id)}
+                  style={({ pressed }) => [
+                    styles.statCard,
+                    isWide ? styles.statCardWide : index === 2 && styles.statCardFull,
+                    pressed && styles.cardPressed,
+                  ]}
+                >
+                  <View style={styles.statIconCircle}>
+                    <Text style={styles.statIcon}>{stat.icon}</Text>
+                  </View>
+                  <View>
+                    <Text style={styles.statLabel}>{stat.label}</Text>
+                    <Text style={styles.statValue}>
+                      {stat.value}
+                      {stat.suffix ? <Text style={styles.statSuffix}>{stat.suffix}</Text> : null}
+                    </Text>
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+
+            <Pressable
+              accessibilityLabel="Add new item"
+              accessibilityRole="button"
+              onPress={handleAddItem}
+              style={({ pressed }) => [styles.addButton, pressed && styles.addButtonPressed]}
+            >
+              <Text style={styles.addIcon}>+</Text>
+              <Text style={styles.addButtonText}>Add New Item</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.milestonesSection}>
+          <Text style={styles.milestonesHeading}>Upcoming Milestones</Text>
+
+          <View style={styles.milestoneList}>
+            {milestones.map((milestone, index) => (
+              <Pressable
+                key={milestone.id}
+                accessibilityLabel={`${milestone.month} ${milestone.day}: ${milestone.title}`}
+                accessibilityRole="button"
+                onPress={() => onSelectMilestone?.(milestone.id)}
+                style={({ pressed }) => [
+                  styles.milestoneCard,
+                  index === 1 && styles.milestoneCardMuted,
+                  pressed && styles.cardPressed,
+                ]}
+              >
+                <View style={styles.dateBlock}>
+                  <Text style={[styles.month, index === 1 && styles.secondaryText]}>
+                    {milestone.month}
+                  </Text>
+                  <Text style={[styles.day, index === 1 && styles.secondaryText]}>
+                    {milestone.day}
+                  </Text>
+                </View>
+
+                <View style={styles.dateDivider} />
+
+                <View style={styles.milestoneCopy}>
+                  <Text style={styles.milestoneTitle}>{milestone.title}</Text>
+                  <Text style={styles.milestoneDescription}>{milestone.description}</Text>
+                </View>
+
+                <View style={styles.chevronButton}>
+                  <Text style={styles.chevron}>›</Text>
+                </View>
+              </Pressable>
+            ))}
+          </View>
         </View>
       </ScrollView>
 
-      <View style={styles.bottomNavigation}>
-        {navigationTabs.map((tab) => {
-          const isActive = tab.id === 'home'
-
-          return (
-            <Pressable
-              key={tab.id}
-              accessibilityRole="button"
-              accessibilityLabel={`Open ${tab.label}`}
-              accessibilityState={{ selected: isActive }}
-              onPress={() => onSelectTab?.(tab.id)}
-              style={({ pressed }) => [styles.navItem, pressed && styles.pressed]}
-            >
-              <View style={[styles.navIconContainer, isActive && styles.navIconActive]}>
-                <Text style={[styles.navIcon, isActive && styles.navIconTextActive]}>
-                  {tab.icon}
-                </Text>
-              </View>
-              <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>
-                {tab.label}
-              </Text>
-            </Pressable>
-          )
-        })}
-      </View>
+      {isWide ? (
+        <View style={styles.sideNavigation}>
+          {navigationTabs.slice(0, 4).map((tab) => (
+            <NavigationItem key={tab.id} onPress={() => onSelectTab?.(tab.id)} tab={tab} />
+          ))}
+        </View>
+      ) : (
+        <View style={styles.bottomNavigation}>
+          {navigationTabs.map((tab) => (
+            <NavigationItem key={tab.id} onPress={() => onSelectTab?.(tab.id)} tab={tab} />
+          ))}
+        </View>
+      )}
     </View>
   )
 }
 
-const homeColors = {
-  background: '#160D11',
-  surface: '#211419',
-  surfaceElevated: '#2B1A20',
-  wine: '#6B1E2E',
-  wineLight: '#8D3448',
-  gold: '#D4A574',
-  goldLight: '#F2D2AC',
-  text: '#FFF8F5',
-  textSecondary: '#CBBEC1',
-  textMuted: '#8E7C81',
-  border: '#3A272D',
+interface NavigationItemProps {
+  onPress: () => void
+  tab: (typeof navigationTabs)[number]
+}
+
+const NavigationItem: React.FC<NavigationItemProps> = ({ onPress, tab }) => {
+  const isActive = tab.id === 'home'
+
+  return (
+    <Pressable
+      accessibilityLabel={`Open ${tab.label}`}
+      accessibilityRole="button"
+      accessibilityState={{ selected: isActive }}
+      onPress={onPress}
+      style={({ pressed }) => [styles.navItem, pressed && styles.pressed]}
+    >
+      <View>
+        {'hasBadge' in tab && tab.hasBadge ? <View style={styles.messageBadge} /> : null}
+        <Text style={[styles.navIcon, isActive && styles.navIconActive]}>{tab.icon}</Text>
+      </View>
+      <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>{tab.label}</Text>
+    </Pressable>
+  )
+}
+
+const palette = {
+  background: '#F9F9F9',
+  surface: '#FFFFFF',
+  surfaceLow: '#F3F3F4',
+  surfaceVariant: '#E2E2E2',
+  primary: '#4E061A',
+  primaryContainer: '#6B1E2E',
+  secondary: '#5E5E5E',
+  text: '#1A1C1C',
+  outline: '#DAC0C2',
 } as const
 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: homeColors.background,
+    backgroundColor: palette.background,
   },
-  content: {
+  topAppBar: {
+    zIndex: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#F1E8E9',
+    backgroundColor: palette.background,
+    shadowColor: palette.primaryContainer,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 15,
+    elevation: 5,
+  },
+  topAppBarContent: {
     width: '100%',
-    maxWidth: 430,
+    maxWidth: 1280,
+    minHeight: 72,
     alignSelf: 'center',
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.lg,
-    paddingBottom: 112,
-  },
-  header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: spacing['3xl'],
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  topAppBarContentWide: {
+    paddingHorizontal: 64,
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderWidth: 1,
+    borderColor: palette.surfaceVariant,
+    borderRadius: 20,
+    backgroundColor: palette.surfaceLow,
   },
   brand: {
-    color: homeColors.gold,
-    fontSize: typography.h3,
-    fontWeight: '700',
-    letterSpacing: 3,
+    color: palette.primary,
+    fontSize: 22,
+    lineHeight: 30,
+    fontWeight: '600',
+    letterSpacing: -0.3,
   },
-  brandTagline: {
-    color: homeColors.textMuted,
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    marginTop: spacing.xs,
+  brandWide: {
+    fontSize: 24,
+    lineHeight: 32,
   },
   notificationButton: {
-    width: 44,
-    height: 44,
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: homeColors.border,
-    backgroundColor: homeColors.surface,
   },
-  notificationIcon: {
-    color: homeColors.text,
-    fontSize: typography.body,
-    fontWeight: '700',
+  bellDome: {
+    width: 16,
+    height: 17,
+    borderWidth: 2,
+    borderColor: palette.secondary,
+    borderTopLeftRadius: 9,
+    borderTopRightRadius: 9,
+    borderBottomLeftRadius: 3,
+    borderBottomRightRadius: 3,
   },
-  notificationDot: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 7,
-    height: 7,
-    borderRadius: radius.pill,
-    backgroundColor: homeColors.gold,
+  bellClapper: {
+    width: 5,
+    height: 3,
+    marginTop: 2,
+    borderRadius: 3,
+    backgroundColor: palette.secondary,
   },
-  welcomeCopy: {
-    marginBottom: spacing['2xl'],
+  content: {
+    width: '100%',
+    maxWidth: 1280,
+    alignSelf: 'center',
   },
-  welcome: {
-    color: homeColors.text,
-    fontSize: typography.h1,
-    lineHeight: 36,
-    fontWeight: '700',
-    marginBottom: spacing.xs,
+  contentMobile: {
+    paddingHorizontal: 20,
+    paddingTop: 32,
+    paddingBottom: 120,
   },
-  welcomeSubtitle: {
-    color: homeColors.textSecondary,
-    fontSize: typography.body,
-    lineHeight: 22,
+  contentWide: {
+    paddingLeft: 112,
+    paddingRight: 64,
+    paddingTop: 40,
+    paddingBottom: 64,
   },
-  heroCard: {
-    minHeight: 240,
-    justifyContent: 'flex-end',
-    overflow: 'hidden',
-    borderRadius: radius.xl,
-    borderWidth: 1,
-    borderColor: homeColors.wineLight,
-    backgroundColor: homeColors.wine,
-    padding: spacing['2xl'],
-    marginBottom: spacing['3xl'],
-  },
-  heroCardPressed: {
-    transform: [{ scale: 0.985 }],
-    opacity: 0.92,
-  },
-  heroGlowOne: {
-    position: 'absolute',
-    width: 220,
-    height: 220,
-    top: -100,
-    right: -60,
-    borderRadius: radius.pill,
-    backgroundColor: '#8E4050',
-    opacity: 0.45,
-  },
-  heroGlowTwo: {
-    position: 'absolute',
-    width: 140,
-    height: 140,
-    bottom: -70,
-    left: -30,
-    borderRadius: radius.pill,
-    backgroundColor: homeColors.gold,
-    opacity: 0.12,
-  },
-  heroContent: {
-    zIndex: 1,
-  },
-  heroEyebrow: {
-    color: homeColors.goldLight,
-    fontSize: typography.caption,
-    fontWeight: '700',
-    letterSpacing: 1.5,
-    marginBottom: spacing.sm,
-  },
-  heroTitle: {
-    maxWidth: 280,
-    color: homeColors.text,
-    fontSize: 28,
-    lineHeight: 36,
-    fontWeight: '700',
-    marginBottom: spacing.sm,
-  },
-  heroDescription: {
-    maxWidth: 320,
-    color: '#F2DDE2',
-    fontSize: typography.body,
-    lineHeight: 22,
-    marginBottom: spacing.xl,
-  },
-  createAction: {
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
+  welcomeSection: {
     alignItems: 'center',
-    gap: spacing.md,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderRadius: radius.pill,
-    backgroundColor: homeColors.gold,
+    marginBottom: 40,
   },
-  createActionText: {
-    color: '#2A171D',
-    fontSize: typography.caption,
+  eventName: {
+    color: palette.primaryContainer,
+    fontSize: 32,
+    lineHeight: 40,
+    fontWeight: '700',
+    letterSpacing: -0.32,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  eventNameWide: {
+    fontSize: 48,
+    lineHeight: 56,
+    letterSpacing: -0.96,
+  },
+  welcomeDescription: {
+    maxWidth: 640,
+    color: palette.secondary,
+    fontSize: 18,
+    lineHeight: 30,
+    textAlign: 'center',
+  },
+  dashboard: {
+    gap: 16,
+  },
+  dashboardWide: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 24,
+  },
+  progressCard: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: palette.surfaceVariant,
+    borderRadius: 8,
+    backgroundColor: palette.surface,
+    padding: 32,
+    shadowColor: palette.primaryContainer,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 15,
+    elevation: 3,
+  },
+  progressCardWide: {
+    flexBasis: '32%',
+  },
+  cardHeading: {
+    width: '100%',
+    color: palette.text,
+    fontSize: 24,
+    lineHeight: 32,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  progressRing: {
+    width: 128,
+    height: 128,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  progressSegment: {
+    position: 'absolute',
+    width: 4,
+    height: 8,
+    borderRadius: 2,
+    backgroundColor: '#E5E5E5',
+  },
+  progressSegmentComplete: {
+    backgroundColor: palette.primaryContainer,
+  },
+  progressValue: {
+    color: palette.primaryContainer,
+    fontSize: 32,
+    lineHeight: 38,
+    fontWeight: '700',
+  },
+  progressLabel: {
+    color: palette.secondary,
+    fontSize: 10,
+    lineHeight: 14,
     fontWeight: '700',
     letterSpacing: 1,
+    marginTop: 2,
   },
-  createActionIcon: {
-    color: '#2A171D',
-    fontSize: typography.h3,
-    fontWeight: '700',
+  progressCopy: {
+    color: palette.secondary,
+    fontSize: 14,
+    lineHeight: 21,
+    textAlign: 'center',
+    marginTop: 24,
   },
-  sectionHeader: {
-    marginBottom: spacing.lg,
+  statsPanel: {
+    gap: 16,
   },
-  sectionTitle: {
-    color: homeColors.text,
-    fontSize: typography.h2,
-    fontWeight: '700',
-    marginBottom: spacing.xs,
+  statsPanelWide: {
+    flex: 1,
   },
-  sectionCaption: {
-    color: homeColors.textMuted,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-  },
-  quickActionGrid: {
+  statsGrid: {
+    flex: 1,
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.md,
-    marginBottom: spacing['3xl'],
+    gap: 16,
   },
-  actionCard: {
-    width: '48%',
-    minHeight: 160,
+  statCard: {
+    minHeight: 170,
+    flexBasis: '46%',
+    flexGrow: 1,
+    justifyContent: 'space-between',
     borderWidth: 1,
-    borderColor: homeColors.border,
-    borderRadius: radius.large,
-    backgroundColor: homeColors.surface,
-    padding: spacing.lg,
+    borderColor: palette.surfaceVariant,
+    borderRadius: 8,
+    backgroundColor: palette.surface,
+    padding: 24,
   },
-  actionCardPressed: {
-    borderColor: homeColors.gold,
-    backgroundColor: homeColors.surfaceElevated,
-    transform: [{ scale: 0.98 }],
+  statCardWide: {
+    minWidth: 150,
+    flexBasis: '28%',
   },
-  actionIconContainer: {
-    width: 42,
-    height: 42,
+  statCardFull: {
+    flexBasis: '100%',
+  },
+  statIconCircle: {
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.medium,
-    backgroundColor: '#3A252B',
-    marginBottom: spacing.lg,
+    borderRadius: 20,
+    backgroundColor: palette.surfaceLow,
+    marginBottom: 16,
   },
-  actionIcon: {
-    color: homeColors.gold,
-    fontSize: typography.h3,
+  statIcon: {
+    color: palette.secondary,
+    fontSize: 21,
+    fontWeight: '600',
+  },
+  statLabel: {
+    color: palette.secondary,
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: '700',
+    letterSpacing: 1.1,
+    marginBottom: 4,
+  },
+  statValue: {
+    color: palette.text,
+    fontSize: 32,
+    lineHeight: 40,
     fontWeight: '700',
   },
-  actionTitle: {
-    color: homeColors.text,
-    fontSize: typography.body,
-    fontWeight: '700',
-    marginBottom: spacing.xs,
-  },
-  actionDescription: {
-    color: homeColors.textMuted,
-    fontSize: typography.caption,
-    lineHeight: 17,
-  },
-  emptyState: {
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: homeColors.border,
-    borderRadius: radius.large,
-    backgroundColor: homeColors.surface,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing['3xl'],
-  },
-  emptyIconContainer: {
-    width: 52,
-    height: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.pill,
-    backgroundColor: '#3A252B',
-    marginBottom: spacing.lg,
-  },
-  emptyIcon: {
-    color: homeColors.gold,
-    fontSize: 28,
+  statSuffix: {
+    color: palette.secondary,
+    fontSize: 18,
+    lineHeight: 30,
     fontWeight: '400',
   },
-  emptyTitle: {
-    color: homeColors.text,
-    fontSize: typography.h3,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: spacing.sm,
+  addButton: {
+    minHeight: 64,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 8,
+    backgroundColor: palette.primaryContainer,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
   },
-  emptyDescription: {
-    color: homeColors.textMuted,
-    fontSize: typography.body,
-    lineHeight: 22,
-    textAlign: 'center',
-    marginBottom: spacing.xl,
+  addButtonPressed: {
+    backgroundColor: palette.primary,
+    transform: [{ scale: 0.99 }],
   },
-  emptyButton: {
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md,
+  addIcon: {
+    color: palette.surface,
+    fontSize: 26,
+    lineHeight: 28,
+    fontWeight: '400',
+  },
+  addButtonText: {
+    color: palette.surface,
+    fontSize: 20,
+    lineHeight: 28,
+    fontWeight: '600',
+  },
+  milestonesSection: {
+    marginTop: 80,
+  },
+  milestonesHeading: {
+    color: palette.text,
+    fontSize: 24,
+    lineHeight: 32,
+    fontWeight: '600',
+    borderBottomWidth: 1,
+    borderBottomColor: palette.surfaceVariant,
+    paddingBottom: 8,
+    marginBottom: 24,
+  },
+  milestoneList: {
+    gap: 16,
+  },
+  milestoneCard: {
+    minHeight: 104,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
     borderWidth: 1,
-    borderColor: homeColors.gold,
-    borderRadius: radius.pill,
+    borderColor: palette.surfaceVariant,
+    borderRadius: 8,
+    backgroundColor: palette.surface,
+    padding: 16,
   },
-  emptyButtonText: {
-    color: homeColors.gold,
-    fontSize: typography.caption,
+  milestoneCardMuted: {
+    opacity: 0.8,
+  },
+  dateBlock: {
+    width: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  month: {
+    color: palette.primaryContainer,
+    fontSize: 11,
+    lineHeight: 16,
     fontWeight: '700',
-    letterSpacing: 1,
+    letterSpacing: 1.1,
+  },
+  day: {
+    color: palette.text,
+    fontSize: 30,
+    lineHeight: 34,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  secondaryText: {
+    color: palette.secondary,
+  },
+  dateDivider: {
+    width: 1,
+    height: 48,
+    backgroundColor: palette.surfaceVariant,
+  },
+  milestoneCopy: {
+    flex: 1,
+  },
+  milestoneTitle: {
+    color: palette.text,
+    fontSize: 16,
+    lineHeight: 23,
+    fontWeight: '700',
+  },
+  milestoneDescription: {
+    color: palette.secondary,
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: '700',
+    letterSpacing: 0.7,
+    marginTop: 4,
+  },
+  chevronButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: palette.surfaceVariant,
+    borderRadius: 20,
+  },
+  chevron: {
+    color: palette.secondary,
+    fontSize: 28,
+    lineHeight: 29,
+    fontWeight: '300',
+    marginTop: -2,
   },
   bottomNavigation: {
     position: 'absolute',
-    left: 0,
     right: 0,
     bottom: 0,
-    minHeight: 78,
+    left: 0,
+    zIndex: 20,
+    minHeight: 84,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
     borderTopWidth: 1,
-    borderTopColor: homeColors.border,
-    backgroundColor: '#1B1014',
-    paddingHorizontal: spacing.sm,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.md,
+    borderTopColor: palette.surfaceVariant,
+    backgroundColor: 'rgba(249, 249, 249, 0.97)',
+    paddingHorizontal: 8,
+    paddingTop: 10,
+    paddingBottom: 14,
+    shadowColor: palette.primaryContainer,
+    shadowOffset: { width: 0, height: -10 },
+    shadowOpacity: 0.05,
+    shadowRadius: 15,
+    elevation: 8,
+  },
+  sideNavigation: {
+    position: 'absolute',
+    top: 72,
+    bottom: 0,
+    left: 0,
+    zIndex: 5,
+    width: 80,
+    alignItems: 'center',
+    gap: 28,
+    borderRightWidth: 1,
+    borderRightColor: palette.surfaceVariant,
+    backgroundColor: palette.background,
+    paddingTop: 28,
+    shadowColor: '#000000',
+    shadowOffset: { width: 2, height: 0 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 2,
   },
   navItem: {
     minWidth: 58,
     alignItems: 'center',
-    gap: spacing.xs,
-  },
-  navIconContainer: {
-    width: 32,
-    height: 28,
-    alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.pill,
-  },
-  navIconActive: {
-    backgroundColor: homeColors.wine,
+    gap: 3,
+    paddingVertical: 4,
   },
   navIcon: {
-    color: homeColors.textMuted,
-    fontSize: typography.caption,
+    color: palette.secondary,
+    fontSize: 23,
+    lineHeight: 26,
+    fontWeight: '400',
+  },
+  navIconActive: {
+    color: palette.primary,
     fontWeight: '700',
   },
-  navIconTextActive: {
-    color: homeColors.goldLight,
-  },
   navLabel: {
-    color: homeColors.textMuted,
-    fontSize: 10,
-    fontWeight: '600',
+    color: palette.secondary,
+    fontSize: 9,
+    lineHeight: 13,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   navLabelActive: {
-    color: homeColors.gold,
+    color: palette.primary,
+  },
+  messageBadge: {
+    position: 'absolute',
+    top: -1,
+    right: -5,
+    zIndex: 1,
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: palette.primaryContainer,
+  },
+  cardPressed: {
+    borderColor: palette.outline,
+    backgroundColor: palette.surfaceLow,
+    transform: [{ scale: 0.99 }],
   },
   pressed: {
-    opacity: 0.65,
+    opacity: 0.55,
+    transform: [{ scale: 0.94 }],
   },
 })
