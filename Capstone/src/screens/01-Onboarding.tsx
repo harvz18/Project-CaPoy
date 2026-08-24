@@ -10,7 +10,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native'
-import { colors, radius, spacing, typography } from '../theme/tokens'
+import { colors, radius, spacing } from '../theme/tokens'
 import { typography as typographyScale } from '../theme/typography'
 
 interface OnboardingScreenProps {

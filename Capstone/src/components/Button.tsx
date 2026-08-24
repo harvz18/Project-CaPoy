@@ -10,13 +10,14 @@ import {
 } from 'react-native'
 import { colors, radius, spacing, typography } from '../theme/tokens'
 
-interface ButtonProps extends PressableProps {
+interface ButtonProps extends Omit<PressableProps, 'children' | 'style'> {
   variant?: 'primary' | 'secondary' | 'tertiary' | 'danger'
   size?: 'sm' | 'md' | 'lg'
   isFullWidth?: boolean
   isLoading?: boolean
   style?: StyleProp<ViewStyle>
   textStyle?: StyleProp<TextStyle>
+  children?: React.ReactNode
 }
 
 export const Button: React.FC<ButtonProps> = ({

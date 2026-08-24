@@ -1,95 +1,44 @@
 # MULTIVENT Mobile Application
 
-A React + TypeScript mobile event planning and vendor management platform built with Vite.
+MULTIVENT is an Expo and React Native application for planning events and managing vendors.
 
-## Project Structure
+## Requirements
 
-```
-src/
-├── components/        # Reusable UI components (Button, TextInput, etc.)
-├── screens/          # Full-page screen components (Home, Events, etc.)
-├── theme/
-│   ├── tokens.ts     # Design tokens (colors, typography, spacing, radius)
-│   └── global.ts     # Global styles and CSS variables
-├── hooks/            # Custom React hooks
-├── utils/            # Utility functions
-├── App.tsx           # Main app layout with bottom navigation
-└── main.tsx          # Entry point
-```
+- Node.js 20.19 or newer
+- npm
+- Expo Go on a physical device, or an Android/iOS simulator
 
-## Setup & Installation
+## Setup
 
-### Prerequisites
-- Node.js 18+ and npm
-
-### Install Dependencies
 ```bash
 npm install
+npm start
 ```
 
-### Development Server
-```bash
-npm run dev
-```
-Visit `http://localhost:5173` in your browser.
+After Expo starts, scan the QR code with Expo Go. You can also launch a platform directly:
 
-### Build for Production
 ```bash
-npm run build
+npm run android
+npm run ios
+npm run web
 ```
 
-### Linting
+## Checks
+
 ```bash
+npm run typecheck
 npm run lint
 ```
 
-## Design System
+## Project structure
 
-### Color Tokens
-- **Primary**: Burgundy (#8B3A3A) — main brand color
-- **Accent**: Soft Gold (#D4A574) — emphasis elements
-- **Backgrounds**: White and neutral greys
-- **Text**: Primary, Secondary, and Muted variations
+```text
+index.ts                 Expo entry point
+app.json                 Expo application configuration
+src/App.tsx              Root application component
+src/components/          Reusable React Native components
+src/screens/             Application screens
+src/theme/               Design tokens and typography
+```
 
-### Typography Scale
-- Display: 32px
-- Screen Title: 24px
-- Section: 20px
-- Subheading: 18px
-- Body: 16px
-- Secondary: 14px
-- Caption: 12px
-
-### Spacing
-4, 8, 12, 16, 20, 24, 32, 40, 48 (in pixels)
-
-### Border Radius
-- Small: 8px
-- Medium: 12px
-- Large: 16px
-- XL: 20px
-- Pill: 999px
-
-## Navigation
-
-Bottom navigation with five main sections:
-1. **Home** — Current events, quick actions, recent events
-2. **Explore** — Vendor and service discovery
-3. **Events** — Event list, details, budget, and selected services
-4. **Bookings** — Pending, confirmed, completed bookings
-5. **Profile** — User settings, preferences, and account
-
-## Building Screens Step-by-Step
-
-Each screen follows this pattern:
-1. Create a new TSX file in `src/screens/`
-2. Import design tokens from `@theme/tokens`
-3. Use base components from `@components/`
-4. Export from `src/screens/index.ts`
-5. Add route/navigation in `App.tsx`
-
-## Next Steps
-
-1. Install dependencies: `npm install`
-2. Run dev server: `npm run dev`
-3. Build screens one by one starting with **Explore Screen** (vendor discovery)
+Expo uses Metro as its bundler, so the project does not need an HTML entry point or global CSS files.
