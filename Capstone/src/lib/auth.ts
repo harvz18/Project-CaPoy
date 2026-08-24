@@ -1,10 +1,13 @@
 import { supabase, supabaseConfig } from './supabase'
+import * as AuthSession from 'expo-auth-session'
+import * as WebBrowser from 'expo-web-browser'
 
 type UserRole = 'client' | 'service_provider'
 
 type AuthResult = {
   ok: boolean
   message?: string
+  needsVerification?: boolean
 }
 
 type ClientSignupInput = {
@@ -20,6 +23,27 @@ type MerchantSignupInput = {
   email: string
   phoneNumber: string
   password: string
+}
+
+type OAuthProvider = 'google'
+
+const oauthRedirectTo = AuthSession.makeRedirectUri({
+  scheme: 'multivent',
+  path: 'auth/callback',
+})
+
+const emailRedirectTo = AuthSession.makeRedirectUri({
+  scheme: 'multivent',
+  path: 'auth/email',
+})
+
+const getUrlParam = (url: string, key: string) => {
+  const queryString = url.split('?')[1]?.split('#')[0] ?? ''
+  const hashString = url.split('#')[1] ?? ''
+  const queryParams = new URLSearchParams(queryString)
+  const hashParams = new URLSearchParams(hashString)
+
+  return queryParams.get(key) ?? hashParams.get(key)
 }
 
 const notConfiguredMessage =
@@ -100,6 +124,41 @@ const syncProviderProfile = async ({
   })
 }
 
+const syncOAuthProfile = async () => {
+  const client = requireSupabase()
+
+  if (!client) {
+    return
+  }
+
+  const {
+    data: { user },
+    error,
+  } = await client.auth.getUser()
+
+  if (error || !user) {
+    return
+  }
+
+  const metadata = user.user_metadata
+  const fullName =
+    typeof metadata.full_name === 'string' && metadata.full_name.trim().length > 0
+      ? metadata.full_name.trim()
+      : typeof metadata.name === 'string' && metadata.name.trim().length > 0
+        ? metadata.name.trim()
+        : user.email?.split('@')[0] ?? 'Planner'
+
+  const role =
+    metadata.default_role === 'service_provider' ? 'service_provider' : 'client'
+
+  await syncProfile({
+    userId: user.id,
+    fullName,
+    email: user.email ?? '',
+    role,
+  })
+}
+
 export const signInWithEmail = async (
   email: string,
   password: string
@@ -140,6 +199,7 @@ export const signUpClient = async ({
       email: normalizedEmail,
       password,
       options: {
+        emailRedirectTo,
         data: {
           full_name: normalizedName,
           default_role: 'client',
@@ -160,7 +220,7 @@ export const signUpClient = async ({
       })
     }
 
-    return { ok: true }
+    return { ok: true, needsVerification: !data.session }
   } catch (error) {
     return { ok: false, message: getErrorMessage(error) }
   }
@@ -190,6 +250,7 @@ export const signUpMerchant = async ({
       email: normalizedEmail,
       password,
       options: {
+        emailRedirectTo,
         data: {
           full_name: normalizedContactName,
           default_role: 'service_provider',
@@ -222,7 +283,7 @@ export const signUpMerchant = async ({
       })
     }
 
-    return { ok: true }
+    return { ok: true, needsVerification: !data.session }
   } catch (error) {
     return { ok: false, message: getErrorMessage(error) }
   }
@@ -244,8 +305,18 @@ export const verifySignupCode = async (
     type: 'signup',
   })
 
-  if (error) {
-    return { ok: false, message: error.message }
+  if (!error) {
+    return { ok: true }
+  }
+
+  const { error: emailTypeError } = await client.auth.verifyOtp({
+    email: email.trim().toLowerCase(),
+    token,
+    type: 'email',
+  })
+
+  if (emailTypeError) {
+    return { ok: false, message: emailTypeError.message }
   }
 
   return { ok: true }
@@ -261,6 +332,9 @@ export const resendSignupCode = async (email: string): Promise<AuthResult> => {
   const { error } = await client.auth.resend({
     email: email.trim().toLowerCase(),
     type: 'signup',
+    options: {
+      emailRedirectTo,
+    },
   })
 
   if (error) {
@@ -320,4 +394,74 @@ export const resetPasswordWithCode = async ({
   await client.auth.signOut()
 
   return { ok: true }
+}
+
+export const signInWithOAuth = async (
+  provider: OAuthProvider
+): Promise<AuthResult> => {
+  const client = requireSupabase()
+
+  if (!client) {
+    return { ok: false, message: notConfiguredMessage }
+  }
+
+  try {
+    const { data, error } = await client.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: oauthRedirectTo,
+        skipBrowserRedirect: true,
+      },
+    })
+
+    if (error) {
+      return { ok: false, message: error.message }
+    }
+
+    if (!data.url) {
+      return { ok: false, message: 'Unable to start OAuth sign in.' }
+    }
+
+    const result = await WebBrowser.openAuthSessionAsync(data.url, oauthRedirectTo)
+
+    if (result.type !== 'success') {
+      return { ok: false, message: 'OAuth sign in was cancelled.' }
+    }
+
+    const code = getUrlParam(result.url, 'code')
+
+    if (code) {
+      const { error: exchangeError } = await client.auth.exchangeCodeForSession(code)
+
+      if (exchangeError) {
+        return { ok: false, message: exchangeError.message }
+      }
+
+      await syncOAuthProfile()
+
+      return { ok: true }
+    }
+
+    const accessToken = getUrlParam(result.url, 'access_token')
+    const refreshToken = getUrlParam(result.url, 'refresh_token')
+
+    if (!accessToken || !refreshToken) {
+      return { ok: false, message: 'OAuth sign in did not return a session.' }
+    }
+
+    const { error: sessionError } = await client.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    })
+
+    if (sessionError) {
+      return { ok: false, message: sessionError.message }
+    }
+
+    await syncOAuthProfile()
+
+    return { ok: true }
+  } catch (error) {
+    return { ok: false, message: getErrorMessage(error) }
+  }
 }

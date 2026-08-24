@@ -232,7 +232,8 @@ export const VerificationScreen: React.FC<VerificationScreenProps> = ({
           <Text style={styles.noticeIcon}>i</Text>
           <Text style={styles.noticeText}>
             Check your spam or junk folder if the verification email does not appear within a
-            few minutes.
+            few minutes. If the email only has a confirmation link, add the Token variable to
+            your Supabase signup email template.
           </Text>
         </View>
       </ScrollView>

@@ -252,7 +252,14 @@ export const App: React.FC = () => {
           <SignupScreen
             onBack={() => setScreen('roleSelection')}
             onLogIn={() => openLogin('clientSignup')}
-            onSignUp={(email) => openVerification(email, 'clientSignup', 'clientHome')}
+            onSignUp={(email, needsVerification) => {
+              if (needsVerification) {
+                openVerification(email, 'clientSignup', 'clientHome')
+                return
+              }
+
+              handleAuthenticatedUser()
+            }}
           />
         )
       case 'merchantSignup':
@@ -260,9 +267,14 @@ export const App: React.FC = () => {
           <MerchantSignupScreen
             onBack={() => setScreen('roleSelection')}
             onLogIn={() => openLogin('merchantSignup')}
-            onSignUp={(email) =>
-              openVerification(email, 'merchantSignup', 'pendingApproval')
-            }
+            onSignUp={(email, needsVerification) => {
+              if (needsVerification) {
+                openVerification(email, 'merchantSignup', 'pendingApproval')
+                return
+              }
+
+              handleAuthenticatedUser()
+            }}
           />
         )
       case 'verification':

@@ -16,7 +16,7 @@ import { typography } from '../theme/typography'
 
 interface MerchantSignupScreenProps {
   onBack: () => void
-  onSignUp: (email: string) => void
+  onSignUp: (email: string, needsVerification: boolean) => void
   onLogIn?: () => void
 }
 
@@ -70,7 +70,7 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
     setIsLoading(false)
 
     if (result.ok) {
-      onSignUp(normalizedEmail)
+      onSignUp(normalizedEmail, result.needsVerification ?? true)
       return
     }
 
