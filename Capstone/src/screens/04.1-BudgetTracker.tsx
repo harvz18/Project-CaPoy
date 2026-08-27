@@ -8,10 +8,10 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native'
-import { PlanningStepIndicator } from '../components/PlanningStepIndicator'
+import { ClientBottomNavigation, ClientMainTab } from '../components/ClientBottomNavigation'
 
 export type MerchantCategory = 'venues' | 'photography' | 'catering' | 'florists' | 'attire'
-export type BudgetTrackerTab = 'home' | 'vendors' | 'planner' | 'chat'
+export type BudgetTrackerTab = ClientMainTab | 'vendors' | 'planner' | 'chat'
 
 interface BudgetTrackerScreenProps {
   remainingBudget?: number
@@ -74,9 +74,9 @@ const merchantCategories = [
   },
 ] as const
 
-const navigationTabs = [
+export const budgetTrackerLegacyNavigationTabs = [
   { id: 'home' as const, icon: '⌂', label: 'Home' },
-  { id: 'vendors' as const, icon: '◈', label: 'Vendors' },
+  { id: 'vendors' as const, icon: 'S', label: 'Service Providers' },
   { id: 'planner' as const, icon: '▣', label: 'Planner' },
   { id: 'chat' as const, icon: '○', label: 'Chat' },
 ] as const
@@ -110,29 +110,9 @@ export const BudgetTrackerScreen: React.FC<BudgetTrackerScreenProps> = ({
             <Text style={styles.backIcon}>{'\u2190'}</Text>
           </Pressable>
 
-          <Text style={[styles.brand, isWide && styles.brandWide]}>MULTIVENT</Text>
-
-          {isWide ? (
-            <View style={styles.desktopNavigation}>
-              {navigationTabs.map((tab) => {
-                const isActive = tab.id === 'vendors'
-
-                return (
-                  <Pressable
-                    key={tab.id}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: isActive }}
-                    onPress={() => onSelectTab?.(tab.id)}
-                    style={({ pressed }) => pressed && styles.pressed}
-                  >
-                    <Text style={[styles.desktopNavLabel, isActive && styles.desktopNavActive]}>
-                      {tab.label.toUpperCase()}
-                    </Text>
-                  </Pressable>
-                )
-              })}
-            </View>
-          ) : null}
+          <Text style={[styles.brand, isWide && styles.brandWide]}>
+            FIND SERVICE PROVIDERS
+          </Text>
 
           <Pressable
             accessibilityLabel="Open profile"
@@ -147,10 +127,6 @@ export const BudgetTrackerScreen: React.FC<BudgetTrackerScreenProps> = ({
             />
           </Pressable>
         </View>
-      </View>
-
-      <View style={[styles.stepWrapper, isWide && styles.horizontalPaddingWide]}>
-        <PlanningStepIndicator currentStep={3} label="Choose Services" />
       </View>
 
       <View style={[styles.budgetWrapper, isWide && styles.horizontalPaddingWide]}>
@@ -176,8 +152,8 @@ export const BudgetTrackerScreen: React.FC<BudgetTrackerScreenProps> = ({
         showsVerticalScrollIndicator={false}
       >
         <View style={[styles.headingSection, isWide && styles.headingSectionWide]}>
-          <Text style={[styles.title, isWide && styles.titleWide]}>Find Merchants</Text>
-          <Text style={styles.subtitle}>Discover premium vendors for your perfect day.</Text>
+          <Text style={[styles.title, isWide && styles.titleWide]}>Find Service Providers</Text>
+          <Text style={styles.subtitle}>Discover premium service providers for your perfect day.</Text>
         </View>
 
         <View style={styles.categoryGrid}>
@@ -226,25 +202,7 @@ export const BudgetTrackerScreen: React.FC<BudgetTrackerScreenProps> = ({
       </ScrollView>
 
       {!isWide ? (
-        <View style={styles.bottomNavigation}>
-          {navigationTabs.map((tab) => {
-            const isActive = tab.id === 'vendors'
-
-            return (
-              <Pressable
-                key={tab.id}
-                accessibilityLabel={`Open ${tab.label}`}
-                accessibilityRole="button"
-                accessibilityState={{ selected: isActive }}
-                onPress={() => onSelectTab?.(tab.id)}
-                style={({ pressed }) => [styles.navItem, pressed && styles.pressed]}
-              >
-                <Text style={[styles.navIcon, isActive && styles.navActive]}>{tab.icon}</Text>
-                <Text style={[styles.navLabel, isActive && styles.navActive]}>{tab.label}</Text>
-              </Pressable>
-            )
-          })}
-        </View>
+        <ClientBottomNavigation activeTab="explore" onSelectTab={onSelectTab} />
       ) : null}
     </View>
   )
@@ -270,8 +228,9 @@ const styles = StyleSheet.create({
   },
   topAppBar: {
     zIndex: 30,
-    height: 80,
-    justifyContent: 'center',
+    minHeight: 64,
+    borderBottomWidth: 1,
+    borderBottomColor: palette.outlineVariant,
     backgroundColor: palette.background,
   },
   topAppBarContent: {
@@ -281,6 +240,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    minHeight: 64,
     paddingHorizontal: 20,
   },
   horizontalPaddingMobile: {
@@ -298,33 +258,18 @@ const styles = StyleSheet.create({
   },
   backIcon: { color: palette.primary, fontSize: 27, lineHeight: 29 },
   brand: {
-    color: palette.primary,
-    fontSize: 32,
-    lineHeight: 40,
-    fontWeight: '700',
-    letterSpacing: -0.6,
-  },
-  brandWide: {
-    fontSize: 48,
-    lineHeight: 56,
-    letterSpacing: -1,
-  },
-  desktopNavigation: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 32,
-    marginLeft: 'auto',
-    marginRight: 40,
-  },
-  desktopNavLabel: {
+    flex: 1,
     color: palette.secondary,
     fontSize: 12,
     lineHeight: 16,
     fontWeight: '700',
     letterSpacing: 1.2,
+    textAlign: 'center',
   },
-  desktopNavActive: {
-    color: palette.primary,
+  brandWide: {
+    fontSize: 12,
+    lineHeight: 16,
+    letterSpacing: 1.2,
   },
   avatar: {
     width: 40,

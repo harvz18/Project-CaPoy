@@ -2,6 +2,7 @@ import React from 'react'
 import {
   Image,
   ImageBackground,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -69,6 +70,48 @@ const venueOptions = [
 const tipImage =
   'https://lh3.googleusercontent.com/aida-public/AB6AXuBN6x8Mx5zGHTD6IUyLqfk50QbAV-Dq_o6n1Enaq7AusFv1NnMCxYBi0buj801mTGgF7ik3QFivj2rQeGMjXrjptQ6nWOWxpil8cSFaiGfQ79kC9IIW2Jw1dSgsd1IpNCQzZUBkMjoeI_8PbNUsPPCfmvb5L7F7JenBBEY4QpYJe8FcwPrci6W4vHuD5rsSFk_v-xKjQy_eOgKNO7bWrx2GzC1QXPsn3MqYevozfV8UX9XJkZATyrsrCw'
 
+const monthOptions = Array.from({ length: 12 }, (_, index) => index + 1)
+const dayOptions = Array.from({ length: 31 }, (_, index) => index + 1)
+const yearStart = new Date().getFullYear()
+const yearOptions = Array.from({ length: 8 }, (_, index) => yearStart + index)
+const hourOptions = Array.from({ length: 12 }, (_, index) => index + 1)
+const minuteOptions = ['00', '15', '30', '45'] as const
+const meridiemOptions = ['AM', 'PM'] as const
+
+type Meridiem = (typeof meridiemOptions)[number]
+
+const padTwo = (value: number) => value.toString().padStart(2, '0')
+
+const parseDateParts = (value: string) => {
+  const [rawMonth, rawDay, rawYear] = value.split('/').map((part) => Number.parseInt(part, 10))
+  const month = Number.isInteger(rawMonth) && rawMonth >= 1 && rawMonth <= 12 ? rawMonth : 1
+  const day = Number.isInteger(rawDay) && rawDay >= 1 && rawDay <= 31 ? rawDay : 1
+  const year = yearOptions.includes(rawYear) ? rawYear : yearStart
+
+  return { day, month, year }
+}
+
+const formatDate = (month: number, day: number, year: number) =>
+  `${padTwo(month)}/${padTwo(day)}/${year}`
+
+const parseTimeParts = (value: string) => {
+  const match = value.trim().match(/^(\d{1,2}):(\d{2})\s?(AM|PM)$/i)
+  const rawHour = match ? Number.parseInt(match[1], 10) : 6
+  const rawMinute = match?.[2] ?? '00'
+  const rawMeridiem = match?.[3]?.toUpperCase() === 'AM' ? 'AM' : 'PM'
+
+  return {
+    hour: rawHour >= 1 && rawHour <= 12 ? rawHour : 6,
+    minute: minuteOptions.includes(rawMinute as (typeof minuteOptions)[number])
+      ? rawMinute
+      : '00',
+    meridiem: rawMeridiem as Meridiem,
+  }
+}
+
+const formatTime = (hour: number, minute: string, meridiem: Meridiem) =>
+  `${padTwo(hour)}:${minute} ${meridiem}`
+
 export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
   initialValue,
   onClose,
@@ -83,6 +126,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
   )
   const [date, setDate] = React.useState(initialValue?.date ?? '')
   const [time, setTime] = React.useState(initialValue?.time ?? '')
+  const [activePicker, setActivePicker] = React.useState<'date' | 'time' | null>(null)
   const [venueStatus, setVenueStatus] = React.useState<VenueStatus>(
     initialValue?.venueStatus ?? 'searching'
   )
@@ -142,7 +186,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
         <View style={[styles.progressSection, isWide && styles.horizontalPaddingWide]}>
           <View style={styles.progressLabels}>
             <Text style={styles.progressActiveLabel}>BASICS</Text>
-            <Text style={styles.progressLabel}>STEP 1 OF 4</Text>
+            <Text style={styles.progressLabel}>STEP 1 OF 5</Text>
           </View>
           <View style={styles.progressTrack}>
             <View style={styles.progressFill} />
@@ -212,17 +256,17 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
             </View>
 
             <View style={[styles.dateTimeGrid, isWide && styles.dateTimeGridWide]}>
-              <LabeledInput
+              <PickerField
                 icon="\u25A6"
                 label="DATE"
-                onChangeText={setDate}
+                onPress={() => setActivePicker('date')}
                 placeholder="MM/DD/YYYY"
                 value={date}
               />
-              <LabeledInput
+              <PickerField
                 icon="\u25F7"
                 label="TIME"
-                onChangeText={setTime}
+                onPress={() => setActivePicker('time')}
                 placeholder="HH:MM AM"
                 value={time}
               />
@@ -337,40 +381,221 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
           </Pressable>
         </View>
       </View>
+
+      {activePicker === 'date' ? (
+        <DatePickerModal
+          onChange={setDate}
+          onClose={() => setActivePicker(null)}
+          value={date}
+        />
+      ) : null}
+      {activePicker === 'time' ? (
+        <TimePickerModal
+          onChange={setTime}
+          onClose={() => setActivePicker(null)}
+          value={time}
+        />
+      ) : null}
     </View>
   )
 }
 
-interface LabeledInputProps {
+interface PickerFieldProps {
   icon: string
   label: string
-  onChangeText: (value: string) => void
+  onPress: () => void
   placeholder: string
   value: string
 }
 
-const LabeledInput: React.FC<LabeledInputProps> = ({
+const PickerField: React.FC<PickerFieldProps> = ({
   icon,
   label,
-  onChangeText,
+  onPress,
   placeholder,
   value,
 }) => (
   <View style={styles.dateTimeField}>
     <Text style={styles.fieldLabel}>{label}</Text>
-    <View style={styles.iconInputShell}>
+    <Pressable
+      accessibilityLabel={`Pick ${label.toLowerCase()}`}
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [styles.iconInputShell, pressed && styles.cardPressed]}
+    >
       <Text style={styles.inputIcon}>{icon}</Text>
-      <TextInput
-        accessibilityLabel={label.toLowerCase()}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={palette.placeholder}
-        style={styles.iconTextInput}
-        value={value}
-      />
-    </View>
+      <Text style={[styles.pickerValue, !value && styles.pickerPlaceholder]}>
+        {value || placeholder}
+      </Text>
+      <Text style={styles.pickerChevron}>{'\u2304'}</Text>
+    </Pressable>
   </View>
 )
+
+interface PickerColumnProps<T extends number | string> {
+  formatter?: (value: T) => string
+  onSelect: (value: T) => void
+  options: readonly T[]
+  selected: T
+  title: string
+}
+
+const PickerColumn = <T extends number | string,>({
+  formatter,
+  onSelect,
+  options,
+  selected,
+  title,
+}: PickerColumnProps<T>) => (
+  <View style={styles.pickerColumn}>
+    <Text style={styles.pickerColumnTitle}>{title}</Text>
+    <ScrollView
+      contentContainerStyle={styles.pickerOptionList}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+    >
+      {options.map((option) => {
+        const isSelected = option === selected
+
+        return (
+          <Pressable
+            key={String(option)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: isSelected }}
+            onPress={() => onSelect(option)}
+            style={({ pressed }) => [
+              styles.pickerOption,
+              isSelected && styles.pickerOptionSelected,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Text
+              style={[
+                styles.pickerOptionText,
+                isSelected && styles.pickerOptionTextSelected,
+              ]}
+            >
+              {formatter ? formatter(option) : String(option)}
+            </Text>
+          </Pressable>
+        )
+      })}
+    </ScrollView>
+  </View>
+)
+
+interface DatePickerModalProps {
+  onChange: (value: string) => void
+  onClose: () => void
+  value: string
+}
+
+const DatePickerModal: React.FC<DatePickerModalProps> = ({ onChange, onClose, value }) => {
+  const selected = parseDateParts(value)
+  const updateDate = (next: Partial<typeof selected>) => {
+    const merged = { ...selected, ...next }
+    onChange(formatDate(merged.month, merged.day, merged.year))
+  }
+
+  return (
+    <Modal animationType="fade" onRequestClose={onClose} transparent visible>
+      <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalScrim} onPress={onClose} />
+        <View style={styles.pickerSheet}>
+          <View style={styles.pickerHeader}>
+            <Text style={styles.pickerTitle}>Pick event date</Text>
+            <Pressable
+              accessibilityLabel="Close date picker"
+              accessibilityRole="button"
+              onPress={onClose}
+              style={({ pressed }) => [styles.modalCloseButton, pressed && styles.pressed]}
+            >
+              <Text style={styles.modalCloseText}>DONE</Text>
+            </Pressable>
+          </View>
+          <View style={styles.pickerColumns}>
+            <PickerColumn
+              formatter={(option) => padTwo(option)}
+              onSelect={(month) => updateDate({ month })}
+              options={monthOptions}
+              selected={selected.month}
+              title="MONTH"
+            />
+            <PickerColumn
+              formatter={(option) => padTwo(option)}
+              onSelect={(day) => updateDate({ day })}
+              options={dayOptions}
+              selected={selected.day}
+              title="DAY"
+            />
+            <PickerColumn
+              onSelect={(year) => updateDate({ year })}
+              options={yearOptions}
+              selected={selected.year}
+              title="YEAR"
+            />
+          </View>
+        </View>
+      </View>
+    </Modal>
+  )
+}
+
+interface TimePickerModalProps {
+  onChange: (value: string) => void
+  onClose: () => void
+  value: string
+}
+
+const TimePickerModal: React.FC<TimePickerModalProps> = ({ onChange, onClose, value }) => {
+  const selected = parseTimeParts(value)
+  const updateTime = (next: Partial<typeof selected>) => {
+    const merged = { ...selected, ...next }
+    onChange(formatTime(merged.hour, merged.minute, merged.meridiem))
+  }
+
+  return (
+    <Modal animationType="fade" onRequestClose={onClose} transparent visible>
+      <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalScrim} onPress={onClose} />
+        <View style={styles.pickerSheet}>
+          <View style={styles.pickerHeader}>
+            <Text style={styles.pickerTitle}>Pick event time</Text>
+            <Pressable
+              accessibilityLabel="Close time picker"
+              accessibilityRole="button"
+              onPress={onClose}
+              style={({ pressed }) => [styles.modalCloseButton, pressed && styles.pressed]}
+            >
+              <Text style={styles.modalCloseText}>DONE</Text>
+            </Pressable>
+          </View>
+          <View style={styles.pickerColumns}>
+            <PickerColumn
+              formatter={(option) => padTwo(option)}
+              onSelect={(hour) => updateTime({ hour })}
+              options={hourOptions}
+              selected={selected.hour}
+              title="HOUR"
+            />
+            <PickerColumn
+              onSelect={(minute) => updateTime({ minute })}
+              options={minuteOptions}
+              selected={selected.minute}
+              title="MIN"
+            />
+            <PickerColumn
+              onSelect={(meridiem) => updateTime({ meridiem })}
+              options={meridiemOptions}
+              selected={selected.meridiem}
+              title="AM/PM"
+            />
+          </View>
+        </View>
+      </View>
+    </Modal>
+  )
+}
 
 const SelectionCheck: React.FC = () => (
   <View style={styles.selectionCheck}>
@@ -431,7 +656,7 @@ const styles = StyleSheet.create({
   progressActiveLabel: { color: palette.burgundy, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 1.2 },
   progressLabel: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 1.2 },
   progressTrack: { width: '100%', height: 2, backgroundColor: '#E3E2E2' },
-  progressFill: { width: '25%', height: 2, backgroundColor: palette.burgundy },
+  progressFill: { width: '20%', height: 2, backgroundColor: palette.burgundy },
   mainContent: {
     width: '100%',
     maxWidth: 1200,
@@ -512,6 +737,115 @@ const styles = StyleSheet.create({
   },
   inputIcon: { color: palette.muted, fontSize: 20, lineHeight: 23, marginRight: 12 },
   iconTextInput: { flex: 1, minHeight: 56, color: palette.text, fontSize: 16, lineHeight: 24, paddingVertical: 14 },
+  pickerValue: {
+    flex: 1,
+    color: palette.text,
+    fontSize: 16,
+    lineHeight: 24,
+    paddingVertical: 16,
+  },
+  pickerPlaceholder: {
+    color: palette.placeholder,
+  },
+  pickerChevron: {
+    color: palette.muted,
+    fontSize: 18,
+    lineHeight: 20,
+    fontWeight: '700',
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalScrim: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: 'rgba(26, 28, 28, 0.35)',
+  },
+  pickerSheet: {
+    maxHeight: '72%',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    backgroundColor: palette.surface,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 28,
+  },
+  pickerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+    marginBottom: 18,
+  },
+  pickerTitle: {
+    flex: 1,
+    color: palette.text,
+    fontSize: 20,
+    lineHeight: 28,
+    fontWeight: '700',
+  },
+  modalCloseButton: {
+    minHeight: 38,
+    justifyContent: 'center',
+    borderRadius: 19,
+    backgroundColor: palette.surfaceLow,
+    paddingHorizontal: 16,
+  },
+  modalCloseText: {
+    color: palette.burgundy,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '800',
+    letterSpacing: 1.1,
+  },
+  pickerColumns: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  pickerColumn: {
+    flex: 1,
+    minHeight: 260,
+  },
+  pickerColumnTitle: {
+    color: palette.muted,
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: '700',
+    letterSpacing: 1.1,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  pickerOptionList: {
+    gap: 6,
+    paddingBottom: 8,
+  },
+  pickerOption: {
+    minHeight: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 8,
+    backgroundColor: palette.surface,
+  },
+  pickerOptionSelected: {
+    borderColor: palette.burgundy,
+    backgroundColor: '#FCF8F9',
+  },
+  pickerOptionText: {
+    color: palette.text,
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '600',
+  },
+  pickerOptionTextSelected: {
+    color: palette.burgundy,
+    fontWeight: '800',
+  },
   venueGrid: { gap: 16 },
   venueGridWide: { flexDirection: 'row' },
   venueCard: {

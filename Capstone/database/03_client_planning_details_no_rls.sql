@@ -5,8 +5,14 @@
 alter table public.events
   add column if not exists event_time time,
   add column if not exists timezone text not null default 'Asia/Manila',
+  add column if not exists venue_status text,
   add column if not exists preferred_start_at timestamptz,
   add column if not exists preferred_end_at timestamptz;
+
+alter table public.events
+  drop constraint if exists events_venue_status_check,
+  add constraint events_venue_status_check
+    check (venue_status is null or venue_status in ('secured', 'searching'));
 
 alter table public.event_service_selections
   add column if not exists attendee_count integer,
@@ -97,9 +103,15 @@ create index if not exists event_schedule_check_results_selection_id_idx
   on public.event_schedule_check_results (selection_id);
 
 alter table public.payments
+  alter column booking_id drop not null,
   add column if not exists event_id uuid references public.events(id) on delete set null,
   add column if not exists checkout_url text,
   add column if not exists metadata jsonb not null default '{}'::jsonb;
+
+alter table public.payments
+  drop constraint if exists payments_requires_booking_or_event,
+  add constraint payments_requires_booking_or_event
+    check (booking_id is not null or event_id is not null);
 
 create index if not exists payments_event_id_idx
   on public.payments (event_id);

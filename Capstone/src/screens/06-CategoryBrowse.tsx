@@ -10,11 +10,12 @@ import {
   View,
 } from 'react-native'
 import { PlanningStepIndicator } from '../components/PlanningStepIndicator'
+import { ClientBottomNavigation, ClientMainTab } from '../components/ClientBottomNavigation'
 import { CatalogService, formatServicePrice, mockCatalogServices } from '../lib/catalog'
 
 export type CategoryBrowseFilter = 'plated' | 'buffet' | 'packed' | 'under500'
 export type CategoryBrowseVendor = string
-export type CategoryBrowseTab = 'explore' | 'vendors' | 'budget' | 'profile'
+export type CategoryBrowseTab = ClientMainTab | 'vendors' | 'budget'
 
 interface CategoryBrowseScreenProps {
   services?: CatalogService[]
@@ -38,9 +39,9 @@ const filters = [
   { id: 'under500' as const, label: 'Under ₱500/head' },
 ] as const
 
-const navigationTabs = [
+export const categoryBrowseNavigationTabs = [
   { id: 'explore' as const, icon: '◎', label: 'Explore' },
-  { id: 'vendors' as const, icon: '◈', label: 'Vendors' },
+  { id: 'vendors' as const, icon: 'S', label: 'Service Providers' },
   { id: 'budget' as const, icon: '₱', label: 'Budget' },
   { id: 'profile' as const, icon: '○', label: 'Profile' },
 ] as const
@@ -105,7 +106,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
             <Text style={styles.backIcon}>←</Text>
           </Pressable>
 
-          <Text style={styles.headerTitle}>Browse Categories</Text>
+          <Text style={styles.headerTitle}>CHOOSE SERVICES</Text>
 
           <Pressable
             accessibilityLabel="More options"
@@ -269,33 +270,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
       </ScrollView>
 
       {!isWide ? (
-        <View style={styles.bottomNavigation}>
-          {navigationTabs.map((tab) => {
-            const isActive = tab.id === 'vendors'
-
-            return (
-              <Pressable
-                key={tab.id}
-                accessibilityLabel={`Open ${tab.label}`}
-                accessibilityRole="button"
-                accessibilityState={{ selected: isActive }}
-                onPress={() => onSelectTab?.(tab.id)}
-                style={({ pressed }) => [
-                  styles.navItem,
-                  isActive && styles.navItemActive,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Text style={[styles.navIcon, isActive && styles.navContentActive]}>
-                  {tab.icon}
-                </Text>
-                <Text style={[styles.navLabel, isActive && styles.navContentActive]}>
-                  {tab.label}
-                </Text>
-              </Pressable>
-            )
-          })}
-        </View>
+        <ClientBottomNavigation activeTab="explore" onSelectTab={onSelectTab} />
       ) : null}
     </View>
   )
@@ -370,10 +345,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   headerTitle: {
-    color: palette.primary,
-    fontSize: 24,
-    lineHeight: 32,
+    color: palette.secondary,
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: '700',
+    letterSpacing: 1.2,
     textAlign: 'center',
   },
   content: {

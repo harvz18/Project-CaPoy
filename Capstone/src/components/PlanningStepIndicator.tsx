@@ -10,66 +10,68 @@ interface PlanningStepIndicatorProps {
 export const PlanningStepIndicator: React.FC<PlanningStepIndicatorProps> = ({
   currentStep,
   label,
-  totalSteps = 4,
+  totalSteps = 5,
 }) => {
   const boundedStep = Math.max(1, Math.min(currentStep, totalSteps))
+  const progress = `${Math.round((boundedStep / totalSteps) * 100)}%` as `${number}%`
 
   return (
-    <View style={styles.stepStatus}>
-      <Text style={styles.stepLabel}>
-        STEP {boundedStep} OF {totalSteps} - {label}
-      </Text>
+    <View style={styles.progressSection}>
+      <View style={styles.progressLabels}>
+        <Text style={styles.progressActiveLabel}>{label.toUpperCase()}</Text>
+        <Text style={styles.progressLabel}>
+          STEP {boundedStep} OF {totalSteps}
+        </Text>
+      </View>
       <View
         accessibilityLabel={`Step ${boundedStep} of ${totalSteps}: ${label}`}
         accessibilityRole="progressbar"
         accessibilityValue={{ min: 1, max: totalSteps, now: boundedStep }}
-        style={styles.stepTrack}
+        style={styles.progressTrack}
       >
-        {Array.from({ length: totalSteps }, (_, index) => (
-          <View
-            key={index}
-            style={[styles.stepSegment, index < boundedStep && styles.stepSegmentActive]}
-          />
-        ))}
+        <View style={[styles.progressFill, { width: progress }]} />
       </View>
     </View>
   )
 }
 
 const palette = {
-  primaryContainer: '#6B1E2E',
+  burgundy: '#6B1E2E',
   secondary: '#5E5E5E',
-  surfaceContainerHigh: '#E8E8E8',
+  surface: '#E3E2E2',
 } as const
 
 const styles = StyleSheet.create({
-  stepStatus: {
-    flex: 1,
-    alignItems: 'center',
-    marginHorizontal: 16,
+  progressSection: {
+    width: '100%',
   },
-  stepLabel: {
+  progressLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 16,
+    marginBottom: 8,
+  },
+  progressActiveLabel: {
+    color: palette.burgundy,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+  },
+  progressLabel: {
     color: palette.secondary,
     fontSize: 12,
     lineHeight: 16,
     fontWeight: '700',
     letterSpacing: 1.2,
-    marginBottom: 8,
-    textAlign: 'center',
   },
-  stepTrack: {
+  progressTrack: {
     width: '100%',
-    maxWidth: 220,
-    flexDirection: 'row',
-    gap: 4,
+    height: 2,
+    backgroundColor: palette.surface,
   },
-  stepSegment: {
-    height: 3,
-    flex: 1,
-    borderRadius: 2,
-    backgroundColor: palette.surfaceContainerHigh,
-  },
-  stepSegmentActive: {
-    backgroundColor: palette.primaryContainer,
+  progressFill: {
+    height: 2,
+    backgroundColor: palette.burgundy,
   },
 })

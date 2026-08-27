@@ -8,9 +8,10 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native'
+import { ClientBottomNavigation, ClientMainTab } from '../components/ClientBottomNavigation'
 
 export type BookingStatus = 'all' | 'confirmed' | 'pending' | 'past'
-export type BookingTab = 'home' | 'merchants' | 'bookings' | 'messages' | 'profile'
+export type BookingTab = ClientMainTab | 'merchants'
 
 export interface BookingItem {
   category: string
@@ -73,14 +74,6 @@ const filters = [
   { id: 'confirmed' as const, label: 'CONFIRMED', count: 5 },
   { id: 'pending' as const, label: 'PENDING', count: 2 },
   { id: 'past' as const, label: 'PAST', count: 1 },
-]
-
-const navigationTabs = [
-  { id: 'home' as const, icon: '\u2302', label: 'Home' },
-  { id: 'merchants' as const, icon: '\u25A3', label: 'Merchants' },
-  { id: 'bookings' as const, icon: '\u25A6', label: 'Bookings' },
-  { id: 'messages' as const, icon: '\u25CF', label: 'Messages' },
-  { id: 'profile' as const, icon: '\u25CB', label: 'Profile' },
 ]
 
 const categoryIcons: Record<string, string> = {
@@ -151,7 +144,7 @@ export const BookingScreen: React.FC<BookingScreenProps> = ({
           <View style={[styles.intro, isWide && styles.introWide]}>
             <View style={styles.introCopy}>
               <Text style={styles.pageTitle}>My Bookings</Text>
-              <Text style={styles.pageDescription}>Manage your vendor reservations</Text>
+              <Text style={styles.pageDescription}>Manage your service provider reservations</Text>
             </View>
 
             <Pressable
@@ -277,31 +270,7 @@ export const BookingScreen: React.FC<BookingScreenProps> = ({
       </ScrollView>
 
       {!isWide && (
-        <View style={styles.bottomNav}>
-          <View style={styles.bottomNavContent}>
-            {navigationTabs.map((tab) => {
-              const active = tab.id === 'bookings'
-              return (
-                <Pressable
-                  key={tab.id}
-                  accessibilityRole="tab"
-                  accessibilityState={{ selected: active }}
-                  onPress={() => onSelectTab?.(tab.id)}
-                  style={({ pressed }) => [
-                    styles.navItem,
-                    active && styles.navItemActive,
-                    pressed && styles.navPressed,
-                  ]}
-                >
-                  <Text style={[styles.navIcon, active && styles.navTextActive]}>{tab.icon}</Text>
-                  <Text style={[styles.navLabel, active && styles.navTextActive]}>
-                    {tab.label}
-                  </Text>
-                </Pressable>
-              )
-            })}
-          </View>
-        </View>
+        <ClientBottomNavigation activeTab="bookings" onSelectTab={onSelectTab} />
       )}
     </View>
   )

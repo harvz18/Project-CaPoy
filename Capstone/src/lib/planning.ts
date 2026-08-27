@@ -11,6 +11,15 @@ type BudgetPlanInput = {
   priorities: string[]
 }
 
+type EventDraftInput = {
+  date: string
+  eventName: string
+  eventType: string
+  guestCount: number
+  time: string
+  venueStatus: string
+}
+
 type ServiceSelectionInput = {
   attendeeCount: number
   budgetPerHead: number
@@ -62,6 +71,38 @@ const toMessage = (error: unknown) =>
     ? error.message
     : 'Unable to save planning data.'
 
+const parseDate = (value?: string) => {
+  if (!value) return null
+
+  const trimmed = value.trim()
+  const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed)
+  if (isoMatch) return trimmed
+
+  const slashMatch = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(trimmed)
+  if (!slashMatch) return null
+
+  const [, month, day, year] = slashMatch
+  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
+}
+
+const parseTime = (value?: string) => {
+  if (!value) return null
+
+  const trimmed = value.trim().toUpperCase()
+  const match = /^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?$/.exec(trimmed)
+  if (!match) return null
+
+  const [, hourText, minuteText = '00', meridiem] = match
+  let hour = Number(hourText)
+  const minute = Number(minuteText)
+
+  if (hour > 23 || minute > 59) return null
+  if (meridiem === 'PM' && hour < 12) hour += 12
+  if (meridiem === 'AM' && hour === 12) hour = 0
+
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`
+}
+
 const getCurrentUserId = async () => {
   const client = getClient()
 
@@ -74,7 +115,33 @@ const getCurrentUserId = async () => {
   return data.user?.id ?? null
 }
 
-const ensureDraftEvent = async (budget?: number) => {
+const toEventPayload = (budget?: number, details?: EventDraftInput) => {
+  const payload: Record<string, unknown> = {
+    status: 'planning',
+    updated_at: new Date().toISOString(),
+  }
+
+  if (budget !== undefined) {
+    payload.total_budget = budget
+  }
+
+  if (details) {
+    const eventDate = parseDate(details.date)
+    const eventTime = parseTime(details.time)
+
+    payload.name = details.eventName.trim() || defaultEventName
+    payload.event_type = details.eventType
+    payload.guest_count = details.guestCount
+    payload.venue_status = details.venueStatus
+
+    if (eventDate) payload.event_date = eventDate
+    if (eventTime) payload.event_time = eventTime
+  }
+
+  return payload
+}
+
+const ensureDraftEvent = async (budget?: number, details?: EventDraftInput) => {
   const client = getClient()
   const userId = await getCurrentUserId()
 
@@ -92,14 +159,7 @@ const ensureDraftEvent = async (budget?: number) => {
     .maybeSingle()
 
   if (existing?.id) {
-    await client
-      .from('events')
-      .update({
-        status: 'planning',
-        total_budget: budget,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', existing.id)
+    await client.from('events').update(toEventPayload(budget, details)).eq('id', existing.id)
 
     return { eventId: existing.id as string, userId }
   }
@@ -109,8 +169,7 @@ const ensureDraftEvent = async (budget?: number) => {
     .insert({
       client_id: userId,
       name: defaultEventName,
-      status: 'planning',
-      total_budget: budget,
+      ...toEventPayload(budget, details),
     })
     .select('id')
     .single()
@@ -120,6 +179,22 @@ const ensureDraftEvent = async (budget?: number) => {
   }
 
   return { eventId: created.id as string, userId }
+}
+
+export const saveEventDraft = async (
+  value: EventDraftInput
+): Promise<PlanningResult> => {
+  try {
+    const event = await ensureDraftEvent(undefined, value)
+
+    if (!event) {
+      return { ok: false, message: 'Supabase is not configured or no user is signed in.' }
+    }
+
+    return { ok: true }
+  } catch (error) {
+    return { ok: false, message: toMessage(error) }
+  }
 }
 
 export const saveBudgetPlan = async ({
@@ -150,6 +225,45 @@ export const saveBudgetPlan = async ({
     }
 
     return { ok: true }
+  } catch (error) {
+    return { ok: false, message: toMessage(error) }
+  }
+}
+
+export const savePlanningPayment = async (
+  value: {
+    amount: number
+    method: string
+    paymentType: string
+    termsAccepted: boolean
+  },
+  items: Array<{ id: string; name: string; price: number }>
+): Promise<PlanningResult> => {
+  try {
+    const client = getClient()
+    const event = await ensureDraftEvent()
+
+    if (!client || !event) {
+      return { ok: false, message: 'Supabase is not configured or no user is signed in.' }
+    }
+
+    const { error } = await client.from('payments').insert({
+      event_id: event.eventId,
+      payer_id: event.userId,
+      amount: value.amount,
+      currency: 'PHP',
+      provider: value.method,
+      provider_reference: `mock-${Date.now()}`,
+      status: 'paid',
+      paid_at: new Date().toISOString(),
+      metadata: {
+        items,
+        paymentType: value.paymentType,
+        termsAccepted: value.termsAccepted,
+      },
+    })
+
+    return { ok: !error, message: error?.message }
   } catch (error) {
     return { ok: false, message: toMessage(error) }
   }

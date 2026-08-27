@@ -117,7 +117,7 @@ export const InstructionModuleScreen: React.FC<InstructionModuleScreenProps> = (
           >
             <Text style={styles.backIcon}>←</Text>
           </Pressable>
-          <Text style={styles.brand}>MULTIVENT</Text>
+          <Text style={styles.brand}>PROVIDER REQUESTS</Text>
           <View style={styles.headerSpacer} />
         </View>
       </View>
@@ -377,11 +377,11 @@ const styles = StyleSheet.create({
   },
   backIcon: { color: palette.secondary, fontSize: 27, lineHeight: 29 },
   brand: {
-    color: palette.primary,
+    color: palette.secondary,
     fontSize: 12,
     lineHeight: 16,
     fontWeight: '700',
-    letterSpacing: 1.4,
+    letterSpacing: 1.2,
   },
   headerSpacer: { width: 40, height: 40 },
   stepWrapper: {

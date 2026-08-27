@@ -10,6 +10,8 @@ import {
 } from './lib/catalog'
 import {
   saveBudgetPlan,
+  saveEventDraft,
+  savePlanningPayment,
   saveProviderInstructions,
   saveScheduleCheck,
   saveServiceSelection,
@@ -27,7 +29,10 @@ import { PendingApprovalScreen } from './screens/02.2.1-PendingApproval'
 import { RejectedApplicationScreen } from './screens/02.2.2-RejectedApplication'
 import { VerificationScreen } from './screens/02.3-Verification'
 import { BudgetAllocationScreen } from './screens/05-BudgetAllocation'
-import { EventCreationScreen } from './screens/04-EventCreation'
+import {
+  EventCreationScreen,
+  EventCreationValue,
+} from './screens/04-EventCreation'
 import { BudgetTrackerScreen } from './screens/04.1-BudgetTracker'
 import { CategoryBrowseScreen } from './screens/06-CategoryBrowse'
 import { ServiceDetailsScreen } from './screens/08-ServiceDetails'
@@ -41,9 +46,18 @@ import { ScheduleNoConflictScreen } from './screens/10-Schedule(No-Conflict)'
 import { ScheduleConflictScreen } from './screens/10-Schedule(Conflict)'
 import { BookingItem, BookingScreen } from './screens/11-BookingScreen'
 import { BookingDetailsScreen } from './screens/11.1-BookingDetails'
-import { PaymentScreen } from './screens/12-Payment'
-import { ConfirmationScreen } from './screens/13-Confirmation'
-import { EventLedgerScreen } from './screens/14-EventLedger'
+import {
+  PaymentEventDetails,
+  PaymentOrderItem,
+  PaymentScreen,
+  PaymentValue,
+} from './screens/12-Payment'
+import { ConfirmationReceipt, ConfirmationScreen } from './screens/13-Confirmation'
+import {
+  EventLedgerScreen,
+  LedgerCategory,
+  LedgerTransaction,
+} from './screens/14-EventLedger'
 import { SubmitReviewScreen } from './screens/15-SubmitReview'
 
 type AppScreen =
@@ -99,6 +113,16 @@ type UserMetadata = {
 }
 
 const DEFAULT_BUDGET = 45000
+const DEFAULT_EVENT: EventCreationValue = {
+  date: '',
+  eventName: '',
+  eventType: 'wedding',
+  guestCount: 120,
+  time: '',
+  venueStatus: 'searching',
+}
+
+const ledgerColors = ['#6B1E2E', '#994251', '#DAC0C2', '#544244', '#C7C6C6']
 
 const getMetadataName = (metadata: UserMetadata) => {
   const possibleName =
@@ -137,20 +161,80 @@ export const App: React.FC = () => {
   const [currentServiceId, setCurrentServiceId] = React.useState(mockCatalogServices[0].id)
   const [selectedServices, setSelectedServices] = React.useState<SelectedSummaryService[]>([])
   const [totalBudget, setTotalBudget] = React.useState(DEFAULT_BUDGET)
-  const [remainingBudget, setRemainingBudget] = React.useState(DEFAULT_BUDGET)
+  const [eventDetails, setEventDetails] =
+    React.useState<EventCreationValue>(DEFAULT_EVENT)
+  const [lastPayment, setLastPayment] = React.useState<PaymentValue>()
 
   const openPlanningHub = () => setScreen('budgetTracker')
   const openSelectedPlan = () => setScreen('selectedSummary')
+  const eventDisplayName = eventDetails.eventName.trim() || 'My Event Plan'
+  const eventDisplayDate = eventDetails.date.trim() || 'Date to be confirmed'
+  const eventDisplayTime = eventDetails.time.trim() || 'Time to be confirmed'
   const selectedEstimatedTotal = selectedServices.reduce(
     (total, service) => total + service.price,
     0
   )
+  const remainingBudget = Math.max(0, totalBudget - selectedEstimatedTotal)
   const currentService =
     catalogServices.find((service) => service.id === currentServiceId) ?? mockCatalogServices[0]
   const categoryServices = catalogServices.filter(
     (service) => service.categoryId === selectedCategory
   )
   const visibleCatalogServices = categoryServices.length > 0 ? categoryServices : catalogServices
+  const paymentItems: PaymentOrderItem[] = selectedServices.map((service) => ({
+    description: service.detail,
+    id: service.id,
+    name: service.name,
+    price: service.price,
+  }))
+  const payableItems =
+    paymentItems.length > 0
+      ? paymentItems
+      : [
+          {
+            description: 'Add services first to build a real order.',
+            id: 'empty-plan',
+            name: 'No selected services yet',
+            price: 0,
+          },
+        ]
+  const paymentEvent: PaymentEventDetails = {
+    date: eventDisplayDate,
+    guestCount: eventDetails.guestCount,
+    name: eventDisplayName,
+    time: eventDisplayTime,
+  }
+  const bookingItems: BookingItem[] = selectedServices.map((service) => ({
+    category: service.category,
+    date: eventDisplayDate,
+    id: service.id,
+    image: service.imageUrl,
+    imageLabel: service.imageLabel,
+    name: service.name,
+    status: lastPayment ? 'confirmed' : 'pending',
+  }))
+  const ledgerCategories: LedgerCategory[] = selectedServices.map((service, index) => ({
+    amount: service.price,
+    color: ledgerColors[index % ledgerColors.length],
+    id: service.id,
+    label: service.category,
+  }))
+  const ledgerTransactions: LedgerTransaction[] = lastPayment
+    ? [
+        {
+          amount: lastPayment.amount,
+          category: lastPayment.paymentType === 'deposit' ? 'Deposit' : 'Full Payment',
+          date: new Date().toLocaleDateString('en-US', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+          }),
+          id: 'latest-payment',
+          merchant: eventDisplayName,
+          status: lastPayment.paymentType === 'deposit' ? 'depositPaid' : 'fullyPaid',
+        },
+      ]
+    : []
 
   React.useEffect(() => {
     let isMounted = true
@@ -301,12 +385,15 @@ export const App: React.FC = () => {
       return
     }
 
-    const selectedCost = totalBudget - remainingBudget
-
     setTotalBudget(budget)
-    setRemainingBudget(Math.max(0, budget - selectedCost))
     void saveBudgetPlan({ budget, priorities })
     openPlanningHub()
+  }
+
+  const handleEventContinue = (value: EventCreationValue, nextScreen: AppScreen) => {
+    setEventDetails(value)
+    void saveEventDraft(value)
+    setScreen(nextScreen)
   }
 
   const handleAddSelection = (value: Parameters<typeof saveServiceSelection>[0]) => {
@@ -323,17 +410,11 @@ export const App: React.FC = () => {
 
     setSelectedServices((current) => {
       const existingIndex = current.findIndex((service) => service.id === nextSelection.id)
-      const next =
-        existingIndex >= 0
-          ? current.map((service, index) =>
-              index === existingIndex ? nextSelection : service
-            )
-          : [...current, nextSelection]
-      const nextTotal = next.reduce((total, service) => total + service.price, 0)
-
-      setRemainingBudget(Math.max(0, totalBudget - nextTotal))
-
-      return next
+      return existingIndex >= 0
+        ? current.map((service, index) =>
+            index === existingIndex ? nextSelection : service
+          )
+        : [...current, nextSelection]
     })
 
     void saveServiceSelection(value)
@@ -431,6 +512,9 @@ export const App: React.FC = () => {
         return (
           <ClientHomeScreen
             userName={userName}
+            remainingBudget={remainingBudget}
+            selectedServiceCount={selectedServices.length}
+            totalBudget={totalBudget}
             onOpenActiveEvent={() => setScreen('selectedSummary')}
             onOpenProfile={() => setScreen('selectedSummary')}
             onOpenNotifications={() => setScreen('notifications')}
@@ -456,13 +540,24 @@ export const App: React.FC = () => {
           />
         )
       case 'eventLedger':
-        return <EventLedgerScreen onBack={() => setScreen('clientHome')} />
+        return (
+          <EventLedgerScreen
+            budget={totalBudget}
+            categories={ledgerCategories}
+            transactions={ledgerTransactions}
+            onBack={() => setScreen('clientHome')}
+            onExportPdf={() => setScreen('eventLedger')}
+            onShare={() => setScreen('eventLedger')}
+            onViewAll={() => setScreen('eventLedger')}
+          />
+        )
       case 'eventCreation':
         return (
           <EventCreationScreen
+            initialValue={eventDetails}
             onClose={() => setScreen('clientHome')}
-            onContinue={() => setScreen('budgetAllocation')}
-            onSaveExit={() => setScreen('clientHome')}
+            onContinue={(value) => handleEventContinue(value, 'budgetAllocation')}
+            onSaveExit={(value) => handleEventContinue(value, 'clientHome')}
           />
         )
       case 'providerHome':
@@ -509,7 +604,7 @@ export const App: React.FC = () => {
         return (
           <BudgetAllocationScreen
             initialBudget={totalBudget}
-            onBack={() => setScreen('clientHome')}
+            onBack={() => setScreen('eventCreation')}
             onBudgetChange={setTotalBudget}
             onContinue={(value) => handleBudgetContinue(value.budget, value.priorities)}
             onSkip={openPlanningHub}
@@ -529,9 +624,11 @@ export const App: React.FC = () => {
             }}
             onSelectTab={(tab) => {
               if (tab === 'home') setScreen('clientHome')
-              if (tab === 'vendors') setScreen('budgetTracker')
+              if (tab === 'explore' || tab === 'vendors') setScreen('budgetTracker')
+              if (tab === 'bookings') setScreen('bookings')
+              if (tab === 'messages' || tab === 'chat') setScreen('messages')
+              if (tab === 'profile') setScreen('selectedSummary')
               if (tab === 'planner') setScreen('budgetAllocation')
-              if (tab === 'chat') setScreen('messages')
             }}
           />
         )
@@ -581,7 +678,14 @@ export const App: React.FC = () => {
               setScreen('serviceDetails')
             }}
             onSelectTab={(tab) => {
-              if (tab === 'plan') setScreen('instructionModule')
+              if (tab === 'plan') {
+                setScreen(selectedServices.length > 0 ? 'instructionModule' : 'budgetTracker')
+              }
+              if (tab === 'home') setScreen('clientHome')
+              if (tab === 'explore') setScreen('budgetTracker')
+              if (tab === 'bookings') setScreen('bookings')
+              if (tab === 'messages') setScreen('messages')
+              if (tab === 'profile') setScreen('selectedSummary')
               if (tab === 'guestList') setScreen('guestList')
               if (tab === 'budget') setScreen('budgetAllocation')
               if (tab === 'settings') setScreen('clientHome')
@@ -620,7 +724,7 @@ export const App: React.FC = () => {
             onBack={() => setScreen('scheduleConflict')}
             onContinueToPayment={() => {
               void saveScheduleCheck('available')
-              setScreen('payment')
+              setScreen(selectedServices.length > 0 ? 'payment' : 'selectedSummary')
             }}
             onSelectProvider={() => setScreen('instructionModule')}
           />
@@ -658,13 +762,36 @@ export const App: React.FC = () => {
       case 'payment':
         return (
           <PaymentScreen
+            event={paymentEvent}
+            items={payableItems}
             onBack={() => setScreen('scheduleNoConflict')}
-            onPay={() => setScreen('confirmation')}
+            onOpenCancellationPolicy={() => setScreen('payment')}
+            onOpenTerms={() => setScreen('payment')}
+            onPay={(value) => {
+              setLastPayment(value)
+              void savePlanningPayment(value, payableItems)
+              setScreen('confirmation')
+            }}
           />
         )
       case 'confirmation':
         return (
           <ConfirmationScreen
+            receipt={{
+              currencySymbol: 'PHP ',
+              eventDate: eventDisplayDate,
+              items: payableItems.map((item) => ({
+                detail: item.description,
+                id: item.id,
+                name: item.name,
+                price:
+                  lastPayment?.paymentType === 'deposit'
+                    ? Math.round(item.price * 0.3)
+                    : item.price,
+              })),
+              referenceNumber: `MV-${Date.now().toString().slice(-8)}`,
+              serviceFee: 0,
+            } satisfies ConfirmationReceipt}
             onBackHome={() => setScreen('clientHome')}
             onViewBookings={() => setScreen('bookings')}
           />
@@ -672,13 +799,21 @@ export const App: React.FC = () => {
       case 'bookings':
         return (
           <BookingScreen
+            bookings={bookingItems}
+            eventName={eventDisplayName}
+            onOpenMenu={() => setScreen('clientHome')}
+            onOpenProfile={() => setScreen('clientHome')}
+            onSelectEvent={() => setScreen('selectedSummary')}
             onSelectBooking={(booking) => {
               setSelectedBooking(booking)
               setScreen('bookingDetails')
             }}
             onSelectTab={(tab) => {
               if (tab === 'home') setScreen('clientHome')
-              if (tab === 'merchants') setScreen('budgetTracker')
+              if (tab === 'explore' || tab === 'merchants') setScreen('budgetTracker')
+              if (tab === 'bookings') setScreen('bookings')
+              if (tab === 'messages') setScreen('messages')
+              if (tab === 'profile') setScreen('selectedSummary')
             }}
           />
         )
@@ -686,7 +821,19 @@ export const App: React.FC = () => {
         return (
           <BookingDetailsScreen
             booking={selectedBooking}
+            details={{
+              date: eventDisplayDate,
+              paymentStatus: lastPayment ? 'Paid' : 'Pending',
+              price: `PHP ${Math.round(
+                selectedServices.find((service) => service.id === selectedBooking?.id)
+                  ?.price ?? 0
+              ).toLocaleString('en-US')}`,
+              requestedDate: eventDisplayDate,
+              time: eventDisplayTime,
+            }}
             onBack={() => setScreen('bookings')}
+            onCancelOrReschedule={() => setScreen('scheduleNoConflict')}
+            onMessageProvider={() => setScreen('messages')}
             onSubmitReview={() => setScreen('submitReview')}
           />
         )
@@ -696,6 +843,7 @@ export const App: React.FC = () => {
             booking={selectedBooking}
             onBackToBookings={() => setScreen('bookings')}
             onClose={() => setScreen('bookingDetails')}
+            onSubmit={() => setScreen('bookings')}
           />
         )
     }

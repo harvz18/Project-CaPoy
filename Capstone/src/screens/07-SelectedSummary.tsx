@@ -8,10 +8,11 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native'
+import { ClientBottomNavigation, ClientMainTab } from '../components/ClientBottomNavigation'
 import { PlanningStepIndicator } from '../components/PlanningStepIndicator'
 
 export type SelectedServiceId = string
-export type SelectedSummaryTab = 'plan' | 'guestList' | 'budget' | 'settings'
+export type SelectedSummaryTab = ClientMainTab | 'plan' | 'guestList' | 'budget' | 'settings'
 
 export interface SelectedSummaryService {
   category: string
@@ -35,13 +36,6 @@ interface SelectedSummaryScreenProps {
   onSelectService?: (service: SelectedServiceId) => void
   onSelectTab?: (tab: SelectedSummaryTab) => void
 }
-
-const navigationTabs = [
-  { id: 'plan' as const, icon: '▣', label: 'Plan' },
-  { id: 'guestList' as const, icon: '○', label: 'Guest List' },
-  { id: 'budget' as const, icon: '$', label: 'Budget' },
-  { id: 'settings' as const, icon: '◈', label: 'Settings' },
-] as const
 
 const formatCurrency = (value: number) =>
   Math.max(0, Math.floor(value)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
@@ -78,7 +72,7 @@ export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
             <Text style={styles.backIcon}>{'\u2190'}</Text>
           </Pressable>
 
-          <Text style={styles.headerTitle}>Your Event Plan</Text>
+          <Text style={styles.headerTitle}>REVIEW SERVICES</Text>
 
           <Pressable
             accessibilityLabel="Open profile"
@@ -96,7 +90,7 @@ export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
       </View>
 
       <View style={[styles.stepWrapper, isWide && styles.horizontalPaddingWide]}>
-        <PlanningStepIndicator currentStep={4} label="Review Plan" />
+        <PlanningStepIndicator currentStep={3} label="Review Services" />
       </View>
 
       <View style={[styles.budgetSection, isWide && styles.horizontalPaddingWide]}>
@@ -144,7 +138,7 @@ export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
             <View style={styles.emptyState}>
               <Text style={styles.emptyTitle}>No services selected yet</Text>
               <Text style={styles.emptyCopy}>
-                Add vendors from the browse screen and they will appear here.
+                Add services from Explore and they will appear here.
               </Text>
             </View>
           ) : null}
@@ -190,6 +184,16 @@ export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
         </View>
 
         <View style={styles.addServiceSection}>
+          {selectedServices.length > 0 ? (
+            <Pressable
+              accessibilityLabel="Proceed"
+              accessibilityRole="button"
+              onPress={() => onSelectTab?.('plan')}
+              style={({ pressed }) => [styles.continueButton, pressed && styles.addPressed]}
+            >
+              <Text style={styles.addServiceText}>Proceed</Text>
+            </Pressable>
+          ) : null}
           <Pressable
             accessibilityLabel="Add another service"
             accessibilityRole="button"
@@ -203,25 +207,7 @@ export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
       </ScrollView>
 
       {!isWide ? (
-        <View style={styles.bottomNavigation}>
-          {navigationTabs.map((tab) => {
-            const isActive = tab.id === 'plan'
-
-            return (
-              <Pressable
-                key={tab.id}
-                accessibilityLabel={`Open ${tab.label}`}
-                accessibilityRole="button"
-                accessibilityState={{ selected: isActive }}
-                onPress={() => onSelectTab?.(tab.id)}
-                style={({ pressed }) => [styles.navItem, pressed && styles.pressed]}
-              >
-                <Text style={[styles.navIcon, isActive && styles.navActive]}>{tab.icon}</Text>
-                <Text style={[styles.navLabel, isActive && styles.navActive]}>{tab.label}</Text>
-              </Pressable>
-            )
-          })}
-        </View>
+        <ClientBottomNavigation activeTab="profile" onSelectTab={onSelectTab} />
       ) : null}
     </View>
   )
@@ -279,11 +265,11 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     flex: 1,
-    color: palette.primary,
-    fontSize: 24,
-    lineHeight: 32,
-    fontWeight: '800',
-    letterSpacing: -0.3,
+    color: palette.secondary,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '700',
+    letterSpacing: 1.2,
     textAlign: 'center',
   },
   profileIcon: { width: 26, height: 26, alignItems: 'center' },
@@ -504,7 +490,7 @@ const styles = StyleSheet.create({
   },
   serviceDetail: { flex: 1, color: palette.secondary, fontSize: 16, lineHeight: 24 },
   servicePrice: { color: palette.primaryContainer, fontSize: 16, lineHeight: 24, fontWeight: '700' },
-  addServiceSection: { alignItems: 'center', paddingVertical: 64 },
+  addServiceSection: { alignItems: 'center', gap: 12, paddingVertical: 64 },
   addServiceButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -512,6 +498,15 @@ const styles = StyleSheet.create({
     gap: 8,
     borderRadius: 4,
     backgroundColor: palette.primaryContainer,
+    paddingHorizontal: 32,
+    paddingVertical: 13,
+  },
+  continueButton: {
+    minHeight: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 4,
+    backgroundColor: palette.primary,
     paddingHorizontal: 32,
     paddingVertical: 13,
   },

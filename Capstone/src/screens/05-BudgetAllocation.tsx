@@ -51,7 +51,7 @@ const formatBudget = (digits: string) => digits.replace(/\B(?=(\d{3})+(?!\d))/g,
 
 export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
   initialBudget,
-  initialPriorities = ['venue', 'eventOrganizer'],
+  initialPriorities = [],
   onBack,
   onBudgetChange,
   onContinue,
@@ -125,12 +125,8 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={styles.screen}
     >
-      <ScrollView
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.header}>
+      <View style={styles.topAppBar}>
+        <View style={styles.topAppBarContent}>
           <Pressable
             accessibilityLabel="Go back"
             accessibilityRole="button"
@@ -138,12 +134,22 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
             onPress={onBack}
             style={({ pressed }) => [styles.backButton, pressed && styles.subtlePressed]}
           >
-            <Text style={styles.backIcon}>←</Text>
+            <Text style={styles.backIcon}>{'\u2190'}</Text>
           </Pressable>
 
-          <PlanningStepIndicator currentStep={2} label="Budget" />
+          <Text style={styles.mobileTitle}>BUDGET</Text>
 
           <View style={styles.headerSpacer} />
+        </View>
+      </View>
+
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.stepWrapper}>
+          <PlanningStepIndicator currentStep={2} label="Budget" />
         </View>
 
         <View style={styles.mainContent}>
@@ -277,13 +283,39 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: palette.background,
   },
+  topAppBar: {
+    zIndex: 40,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(226, 226, 226, 0.5)',
+    backgroundColor: palette.background,
+  },
+  topAppBarContent: {
+    width: '100%',
+    maxWidth: 600,
+    minHeight: 64,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+  },
+  mobileTitle: {
+    color: palette.secondary,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+  },
   content: {
     width: '100%',
     maxWidth: 600,
     alignSelf: 'center',
     paddingHorizontal: 20,
-    paddingTop: 32,
+    paddingTop: 16,
     paddingBottom: 184,
+  },
+  stepWrapper: {
+    marginBottom: 32,
   },
   header: {
     flexDirection: 'row',

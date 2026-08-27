@@ -7,6 +7,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native'
+import { PlanningStepIndicator } from '../components/PlanningStepIndicator'
 
 export type PaymentType = 'deposit' | 'full'
 export type PaymentMethod = 'paymongo' | 'gcash' | 'bankTransfer'
@@ -125,8 +126,13 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
           >
             <Text style={styles.backIcon}>{'\u2190'}</Text>
           </Pressable>
-          <Text style={styles.headerTitle}>Review & Pay</Text>
+          <Text style={styles.headerTitle}>PAYMENT</Text>
+          <View style={styles.headerSpacer} />
         </View>
+      </View>
+
+      <View style={styles.stepWrapper}>
+        <PlanningStepIndicator currentStep={5} label="Payment" />
       </View>
 
       <ScrollView
@@ -419,15 +425,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
   },
-  backButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, marginRight: 4 },
+  backButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },
   backIcon: { color: palette.burgundyDark, fontSize: 26, lineHeight: 29 },
-  headerTitle: { color: palette.burgundyDark, fontSize: 24, lineHeight: 32, fontWeight: '700' },
+  headerTitle: {
+    flex: 1,
+    color: palette.muted,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    textAlign: 'center',
+  },
+  headerSpacer: { width: 40, height: 40 },
+  stepWrapper: {
+    zIndex: 30,
+    width: '100%',
+    maxWidth: 768,
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 4,
+    backgroundColor: palette.background,
+  },
   content: {
     width: '100%',
     maxWidth: 768,
     alignSelf: 'center',
     paddingHorizontal: 20,
-    paddingTop: 32,
+    paddingTop: 24,
     paddingBottom: 152,
   },
   section: { gap: 24, marginBottom: 72 },

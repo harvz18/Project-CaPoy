@@ -9,12 +9,16 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native'
+import { ClientBottomNavigation, ClientMainTab } from '../components/ClientBottomNavigation'
 
 export type ClientHomeAction = 'newEvent' | 'budget' | 'vendors' | 'ledger' | 'tasks'
-export type ClientHomeTab = 'home' | 'explore' | 'bookings' | 'messages' | 'profile'
+export type ClientHomeTab = ClientMainTab
 export type ClientHomeRecommendation = 'glasshouse' | 'aesthete'
 
 interface ClientHomeScreenProps {
+  remainingBudget?: number
+  selectedServiceCount?: number
+  totalBudget?: number
   userName?: string
   searchValue?: string
   onChangeSearch?: (value: string) => void
@@ -27,16 +31,9 @@ interface ClientHomeScreenProps {
   onSelectTab?: (tab: ClientHomeTab) => void
 }
 
-const planStats = [
-  { label: 'TASKS', value: '18', detail: '/ 45 done' },
-  { label: 'BUDGET', value: 'PHP 42k', detail: '/ PHP 85k', accent: true },
-  { label: 'VENDORS', value: '5', detail: 'booked' },
-  { label: 'NEXT DUE', value: 'Caterer Deposit' },
-] as const
-
 const quickTools = [
   { id: 'budget' as const, icon: 'P', label: 'Budget' },
-  { id: 'vendors' as const, icon: 'V', label: 'Vendors' },
+  { id: 'vendors' as const, icon: 'S', label: 'Service Providers' },
   { id: 'ledger' as const, icon: 'L', label: 'Ledger' },
   { id: 'tasks' as const, icon: 'T', label: 'Tasks' },
 ] as const
@@ -66,14 +63,6 @@ const recommendations = [
   },
 ] as const
 
-const navigationTabs = [
-  { id: 'home' as const, icon: 'H', label: 'Home' },
-  { id: 'explore' as const, icon: 'E', label: 'Explore' },
-  { id: 'bookings' as const, icon: 'B', label: 'Bookings' },
-  { id: 'messages' as const, icon: 'M', label: 'Messages', hasBadge: true },
-  { id: 'profile' as const, icon: 'P', label: 'Profile' },
-] as const
-
 const getFirstName = (name: string) => {
   const trimmedName = name.trim()
 
@@ -86,7 +75,20 @@ const getFirstName = (name: string) => {
 
 const getAvatarInitial = (name: string) => getFirstName(name).charAt(0).toUpperCase()
 
+const formatCompactPeso = (value: number) => {
+  const safeValue = Math.max(0, Math.round(value))
+
+  if (safeValue >= 1000) {
+    return `PHP ${Math.round(safeValue / 1000)}k`
+  }
+
+  return `PHP ${safeValue}`
+}
+
 export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
+  remainingBudget = 45000,
+  selectedServiceCount = 0,
+  totalBudget = 45000,
   userName = 'Planner',
   searchValue,
   onChangeSearch,
@@ -102,6 +104,22 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   const isWide = width >= 768
   const firstName = getFirstName(userName)
   const avatarInitial = getAvatarInitial(userName)
+  const spentBudget = Math.max(0, totalBudget - remainingBudget)
+  const planStats = [
+    { label: 'TASKS', value: selectedServiceCount > 0 ? '3' : '0', detail: '/ 45 done' },
+    {
+      label: 'BUDGET',
+      value: formatCompactPeso(spentBudget),
+      detail: `/ ${formatCompactPeso(totalBudget)}`,
+      accent: true,
+    },
+    {
+      label: 'SERVICE PROVIDERS',
+      value: String(selectedServiceCount),
+      detail: selectedServiceCount === 1 ? 'selected' : 'selected',
+    },
+    { label: 'NEXT DUE', value: selectedServiceCount > 0 ? 'Provider Requests' : 'Pick Services' },
+  ]
 
   return (
     <View style={styles.screen}>
@@ -315,32 +333,7 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
       </ScrollView>
 
       {!isWide ? (
-        <View style={styles.bottomNavigation}>
-          <View style={styles.bottomNavigationContent}>
-            {navigationTabs.map((tab) => {
-              const isActive = tab.id === 'home'
-
-              return (
-                <Pressable
-                  key={tab.id}
-                  accessibilityLabel={`Open ${tab.label}`}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: isActive }}
-                  onPress={() => onSelectTab?.(tab.id)}
-                  style={({ pressed }) => [styles.navItem, pressed && styles.pressed]}
-                >
-                  <View style={[styles.navIconContainer, isActive && styles.navIconContainerActive]}>
-                    {'hasBadge' in tab && tab.hasBadge ? <View style={styles.messageBadge} /> : null}
-                    <Text style={[styles.navIcon, isActive && styles.navIconActive]}>{tab.icon}</Text>
-                  </View>
-                  <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>
-                    {tab.label}
-                  </Text>
-                </Pressable>
-              )
-            })}
-          </View>
-        </View>
+        <ClientBottomNavigation activeTab="home" onSelectTab={onSelectTab} />
       ) : null}
     </View>
   )
@@ -865,81 +858,6 @@ const styles = StyleSheet.create({
     color: palette.outlineVariant,
     fontSize: 24,
     lineHeight: 26,
-  },
-  bottomNavigation: {
-    position: 'absolute',
-    right: 0,
-    bottom: 0,
-    left: 0,
-    zIndex: 30,
-    height: 80,
-    justifyContent: 'center',
-    borderTopWidth: 1,
-    borderTopColor: palette.outlineVariant,
-    backgroundColor: palette.background,
-    shadowColor: palette.primaryContainer,
-    shadowOffset: { width: 0, height: -10 },
-    shadowOpacity: 0.05,
-    shadowRadius: 15,
-    elevation: 8,
-  },
-  bottomNavigationContent: {
-    width: '100%',
-    maxWidth: 600,
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingHorizontal: 8,
-  },
-  navItem: {
-    width: 64,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  navIconContainer: {
-    width: 48,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 16,
-    marginBottom: 2,
-  },
-  navIconContainerActive: {
-    backgroundColor: 'rgba(255, 178, 187, 0.2)',
-  },
-  navIcon: {
-    color: palette.secondary,
-    fontSize: 22,
-    lineHeight: 24,
-    fontWeight: '400',
-  },
-  navIconActive: {
-    color: palette.primary,
-    fontWeight: '700',
-  },
-  navLabel: {
-    color: palette.secondary,
-    fontSize: 10,
-    lineHeight: 14,
-    fontWeight: '700',
-    opacity: 0.8,
-  },
-  navLabelActive: {
-    color: palette.primary,
-    opacity: 1,
-  },
-  messageBadge: {
-    position: 'absolute',
-    top: 1,
-    right: 8,
-    zIndex: 1,
-    width: 8,
-    height: 8,
-    borderWidth: 1,
-    borderColor: palette.background,
-    borderRadius: 4,
-    backgroundColor: palette.primaryContainer,
   },
   primaryPressed: {
     backgroundColor: palette.primary,

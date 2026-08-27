@@ -18,6 +18,12 @@
     },
     "plugins": [
       "expo-web-browser"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "1eec28bc-ce22-43f4-b877-ad1763539a85"
+      }
+    },
+    "owner": "shaolin18"
   }
 }
