@@ -3,6 +3,17 @@ import { StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
 import { supabase } from './lib/supabase'
+import {
+  CatalogService,
+  fetchCatalogServices,
+  mockCatalogServices,
+} from './lib/catalog'
+import {
+  saveBudgetPlan,
+  saveProviderInstructions,
+  saveScheduleCheck,
+  saveServiceSelection,
+} from './lib/planning'
 import { colors } from './theme/tokens'
 import { ClientHomeScreen } from './screens/03-ClientHome'
 import { OnboardingScreen } from './screens/01-Onboarding'
@@ -19,8 +30,14 @@ import { BudgetAllocationScreen } from './screens/04-BudgetAllocation'
 import { BudgetTrackerScreen } from './screens/04.1-BudgetTracker'
 import { CategoryBrowseScreen } from './screens/05-CategoryBrowse'
 import { ServiceDetailsScreen } from './screens/06-ServiceDetails'
-import { SelectedSummaryScreen } from './screens/07-SelectedSummary'
+import {
+  SelectedSummaryScreen,
+  SelectedSummaryService,
+} from './screens/07-SelectedSummary'
 import { RoleHomePlaceholderScreen } from './screens/RoleHomePlaceholder'
+import { InstructionModuleScreen } from './screens/08-InstructionModule'
+import { ScheduleNoConflictScreen } from './screens/09-Schedule(No-Conflict)'
+import { ScheduleConflictScreen } from './screens/09.1-Schedule(Conflict)'
 
 type AppScreen =
   | 'onboarding'
@@ -43,6 +60,13 @@ type AppScreen =
   | 'categoryBrowse'
   | 'serviceDetails'
   | 'selectedSummary'
+  | 'instructionModule'
+  | 'scheduleConflict'
+  | 'scheduleNoConflict'
+  | 'messages'
+  | 'notifications'
+  | 'guestList'
+  | 'payment'
 
 type LoginReturnScreen = 'roleSelection' | 'clientSignup' | 'merchantSignup'
 type VerificationReturnScreen = 'clientSignup' | 'merchantSignup'
@@ -93,11 +117,45 @@ export const App: React.FC = () => {
   const [verificationNextScreen, setVerificationNextScreen] =
     React.useState<VerificationNextScreen>('clientHome')
   const [recoveryContact, setRecoveryContact] = React.useState('')
+  const [catalogServices, setCatalogServices] =
+    React.useState<CatalogService[]>(mockCatalogServices)
+  const [selectedCategory, setSelectedCategory] = React.useState('catering')
+  const [currentServiceId, setCurrentServiceId] = React.useState(mockCatalogServices[0].id)
+  const [selectedServices, setSelectedServices] = React.useState<SelectedSummaryService[]>([])
   const [totalBudget, setTotalBudget] = React.useState(DEFAULT_BUDGET)
   const [remainingBudget, setRemainingBudget] = React.useState(DEFAULT_BUDGET)
-  const [selectedEstimatedTotal, setSelectedEstimatedTotal] = React.useState(0)
 
   const openPlanningHub = () => setScreen('budgetTracker')
+  const openSelectedPlan = () => setScreen('selectedSummary')
+  const selectedEstimatedTotal = selectedServices.reduce(
+    (total, service) => total + service.price,
+    0
+  )
+  const currentService =
+    catalogServices.find((service) => service.id === currentServiceId) ?? mockCatalogServices[0]
+  const categoryServices = catalogServices.filter(
+    (service) => service.categoryId === selectedCategory
+  )
+  const visibleCatalogServices = categoryServices.length > 0 ? categoryServices : catalogServices
+
+  React.useEffect(() => {
+    let isMounted = true
+
+    fetchCatalogServices().then((services) => {
+      if (!isMounted) {
+        return
+      }
+
+      setCatalogServices(services)
+      setCurrentServiceId((current) =>
+        services.some((service) => service.id === current) ? current : services[0].id
+      )
+    })
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   const routeForRole = React.useCallback((role?: AccountRole | string | null) => {
     switch (role) {
@@ -223,7 +281,7 @@ export const App: React.FC = () => {
     setScreen(role === 'client' ? 'clientSignup' : 'merchantSignup')
   }
 
-  const handleBudgetContinue = (budget: number) => {
+  const handleBudgetContinue = (budget: number, priorities: string[]) => {
     if (budget <= 0) {
       openPlanningHub()
       return
@@ -233,7 +291,39 @@ export const App: React.FC = () => {
 
     setTotalBudget(budget)
     setRemainingBudget(Math.max(0, budget - selectedCost))
+    void saveBudgetPlan({ budget, priorities })
     openPlanningHub()
+  }
+
+  const handleAddSelection = (value: Parameters<typeof saveServiceSelection>[0]) => {
+    const nextSelection: SelectedSummaryService = {
+      id: value.service.id,
+      category: value.service.categoryName.toUpperCase(),
+      detail: value.attendeeCount > 0 ? `${value.attendeeCount} Guests` : value.service.detail,
+      imageLabel: value.service.imageLabel,
+      imageUrl: value.service.imageUrl,
+      name: value.service.name,
+      price: value.estimatedTotal,
+      status: 'Selected',
+    }
+
+    setSelectedServices((current) => {
+      const existingIndex = current.findIndex((service) => service.id === nextSelection.id)
+      const next =
+        existingIndex >= 0
+          ? current.map((service, index) =>
+              index === existingIndex ? nextSelection : service
+            )
+          : [...current, nextSelection]
+      const nextTotal = next.reduce((total, service) => total + service.price, 0)
+
+      setRemainingBudget(Math.max(0, totalBudget - nextTotal))
+
+      return next
+    })
+
+    void saveServiceSelection(value)
+    setScreen('selectedSummary')
   }
 
   const renderScreen = () => {
@@ -329,16 +419,21 @@ export const App: React.FC = () => {
             userName={userName}
             onOpenActiveEvent={() => setScreen('selectedSummary')}
             onOpenProfile={() => setScreen('selectedSummary')}
+            onOpenNotifications={() => setScreen('notifications')}
             onSeeAllVenues={openPlanningHub}
             onSelectAction={(action) => {
               if (action === 'newEvent' || action === 'budget') setScreen('budgetAllocation')
               if (action === 'vendors') openPlanningHub()
               if (action === 'ledger' || action === 'tasks') setScreen('selectedSummary')
             }}
-            onSelectRecommendation={() => setScreen('serviceDetails')}
+            onSelectRecommendation={() => {
+              setCurrentServiceId(mockCatalogServices[0].id)
+              setScreen('serviceDetails')
+            }}
             onSelectTab={(tab) => {
               if (tab === 'home') setScreen('clientHome')
               if (tab === 'explore' || tab === 'bookings') openPlanningHub()
+              if (tab === 'messages') setScreen('messages')
               if (tab === 'profile') setScreen('selectedSummary')
             }}
           />
@@ -389,7 +484,7 @@ export const App: React.FC = () => {
             initialBudget={totalBudget}
             onBack={() => setScreen('clientHome')}
             onBudgetChange={setTotalBudget}
-            onContinue={(value) => handleBudgetContinue(value.budget)}
+            onContinue={(value) => handleBudgetContinue(value.budget, value.priorities)}
             onSkip={openPlanningHub}
           />
         )
@@ -397,22 +492,35 @@ export const App: React.FC = () => {
         return (
           <BudgetTrackerScreen
             remainingBudget={remainingBudget}
+            onBack={() => setScreen('budgetAllocation')}
             onOpenBudget={() => setScreen('budgetAllocation')}
+            onOpenMenu={openSelectedPlan}
             onOpenProfile={() => setScreen('selectedSummary')}
-            onSelectCategory={() => setScreen('categoryBrowse')}
+            onSelectCategory={(category) => {
+              setSelectedCategory(category)
+              setScreen('categoryBrowse')
+            }}
             onSelectTab={(tab) => {
               if (tab === 'home') setScreen('clientHome')
+              if (tab === 'vendors') setScreen('budgetTracker')
               if (tab === 'planner') setScreen('budgetAllocation')
+              if (tab === 'chat') setScreen('messages')
             }}
           />
         )
       case 'categoryBrowse':
         return (
           <CategoryBrowseScreen
+            services={visibleCatalogServices}
             remainingBudget={remainingBudget}
             onBack={openPlanningHub}
+            onMore={openSelectedPlan}
             onOpenBudget={() => setScreen('budgetAllocation')}
-            onSelectVendor={() => setScreen('serviceDetails')}
+            onOpenSort={() => setScreen('categoryBrowse')}
+            onSelectVendor={(vendorId) => {
+              setCurrentServiceId(vendorId)
+              setScreen('serviceDetails')
+            }}
             onSelectTab={(tab) => {
               if (tab === 'explore' || tab === 'vendors') openPlanningHub()
               if (tab === 'budget') setScreen('budgetAllocation')
@@ -423,31 +531,111 @@ export const App: React.FC = () => {
       case 'serviceDetails':
         return (
           <ServiceDetailsScreen
+            service={currentService}
             remainingBudget={remainingBudget}
-            onAddSelection={(value) => {
-              setSelectedEstimatedTotal((current) => current + value.estimatedTotal)
-              setRemainingBudget((current) => Math.max(0, current - value.estimatedTotal))
-              setScreen('selectedSummary')
-            }}
+            onAddSelection={handleAddSelection}
             onBack={() => setScreen('categoryBrowse')}
             onBrowseMenus={() => setScreen('categoryBrowse')}
+            onReadAllReviews={() => setScreen('serviceDetails')}
           />
         )
       case 'selectedSummary':
         return (
           <SelectedSummaryScreen
             budget={totalBudget}
-            totalEstimatedCost={selectedEstimatedTotal || totalBudget - remainingBudget}
+            selectedServices={selectedServices}
+            totalEstimatedCost={selectedEstimatedTotal}
             onAddService={openPlanningHub}
+            onBack={openPlanningHub}
+            onOpenMenu={() => setScreen('clientHome')}
             onOpenProfile={() => setScreen('clientHome')}
             onSelectService={(service) => {
-              if (service === 'catering') setScreen('serviceDetails')
+              setCurrentServiceId(service)
+              setScreen('serviceDetails')
             }}
             onSelectTab={(tab) => {
-              if (tab === 'plan') setScreen('selectedSummary')
+              if (tab === 'plan') setScreen('instructionModule')
+              if (tab === 'guestList') setScreen('guestList')
               if (tab === 'budget') setScreen('budgetAllocation')
               if (tab === 'settings') setScreen('clientHome')
             }}
+          />
+        )
+      case 'instructionModule':
+        return (
+          <InstructionModuleScreen
+            onBack={() => setScreen('selectedSummary')}
+            onSaveContinue={(value) => {
+              void saveProviderInstructions(value)
+              void saveScheduleCheck('conflict')
+              setScreen('scheduleConflict')
+            }}
+          />
+        )
+      case 'scheduleConflict':
+        return (
+          <ScheduleConflictScreen
+            onBack={() => setScreen('instructionModule')}
+            onChangeDate={() => {
+              void saveScheduleCheck('available')
+              setScreen('scheduleNoConflict')
+            }}
+            onChooseDifferentProvider={() => {
+              void saveScheduleCheck('available')
+              setScreen('scheduleNoConflict')
+            }}
+            onMessageProvider={() => setScreen('messages')}
+          />
+        )
+      case 'scheduleNoConflict':
+        return (
+          <ScheduleNoConflictScreen
+            onBack={() => setScreen('scheduleConflict')}
+            onContinueToPayment={() => {
+              void saveScheduleCheck('available')
+              setScreen('payment')
+            }}
+            onSelectProvider={() => setScreen('instructionModule')}
+          />
+        )
+      case 'messages':
+        return (
+          <RoleHomePlaceholderScreen
+            description="Client and provider conversations will appear here for quotes, schedule changes, and booking updates."
+            onBackToRoleSelection={() => setScreen('clientHome')}
+            roleLabel="Messages"
+            title="Your event messages are ready when providers respond."
+            userName={userName}
+          />
+        )
+      case 'notifications':
+        return (
+          <RoleHomePlaceholderScreen
+            description="Notifications will show booking approvals, payment reminders, provider replies, and schedule alerts."
+            onBackToRoleSelection={() => setScreen('clientHome')}
+            roleLabel="Alerts"
+            title="No urgent updates right now."
+            userName={userName}
+          />
+        )
+      case 'guestList':
+        return (
+          <RoleHomePlaceholderScreen
+            description="Guest counts already feed the catering estimate. The full guest list workspace will manage invites, RSVPs, and meal notes."
+            onBackToRoleSelection={() => setScreen('selectedSummary')}
+            roleLabel="Guests"
+            title="Your guest list workspace is being prepared."
+            userName={userName}
+          />
+        )
+      case 'payment':
+        return (
+          <RoleHomePlaceholderScreen
+            description="This is where selected providers, payable deposits, and checkout handoff will be reviewed before payment."
+            onBackToRoleSelection={() => setScreen('selectedSummary')}
+            roleLabel="Payment"
+            title="Ready for payment review."
+            userName={userName}
           />
         )
     }

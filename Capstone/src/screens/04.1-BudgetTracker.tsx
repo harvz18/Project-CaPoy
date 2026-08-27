@@ -8,12 +8,14 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native'
+import { PlanningStepIndicator } from '../components/PlanningStepIndicator'
 
 export type MerchantCategory = 'venues' | 'photography' | 'catering' | 'florists' | 'attire'
 export type BudgetTrackerTab = 'home' | 'vendors' | 'planner' | 'chat'
 
 interface BudgetTrackerScreenProps {
   remainingBudget?: number
+  onBack?: () => void
   onOpenBudget?: () => void
   onOpenMenu?: () => void
   onOpenProfile?: () => void
@@ -84,6 +86,7 @@ const formatCurrency = (value: number) =>
 
 export const BudgetTrackerScreen: React.FC<BudgetTrackerScreenProps> = ({
   remainingBudget = 45000,
+  onBack,
   onOpenBudget,
   onOpenMenu,
   onOpenProfile,
@@ -97,19 +100,15 @@ export const BudgetTrackerScreen: React.FC<BudgetTrackerScreenProps> = ({
     <View style={styles.screen}>
       <View style={styles.topAppBar}>
         <View style={[styles.topAppBarContent, isWide && styles.horizontalPaddingWide]}>
-          {!isWide ? (
-            <Pressable
-              accessibilityLabel="Open menu"
-              accessibilityRole="button"
-              hitSlop={8}
-              onPress={onOpenMenu}
-              style={({ pressed }) => [styles.menuButton, pressed && styles.pressed]}
-            >
-              <View style={styles.menuLine} />
-              <View style={styles.menuLine} />
-              <View style={styles.menuLine} />
-            </Pressable>
-          ) : null}
+          <Pressable
+            accessibilityLabel="Go back"
+            accessibilityRole="button"
+            hitSlop={8}
+            onPress={onBack ?? onOpenMenu}
+            style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
+          >
+            <Text style={styles.backIcon}>{'\u2190'}</Text>
+          </Pressable>
 
           <Text style={[styles.brand, isWide && styles.brandWide]}>MULTIVENT</Text>
 
@@ -148,6 +147,10 @@ export const BudgetTrackerScreen: React.FC<BudgetTrackerScreenProps> = ({
             />
           </Pressable>
         </View>
+      </View>
+
+      <View style={[styles.stepWrapper, isWide && styles.horizontalPaddingWide]}>
+        <PlanningStepIndicator currentStep={3} label="Choose Services" />
       </View>
 
       <View style={[styles.budgetWrapper, isWide && styles.horizontalPaddingWide]}>
@@ -286,20 +289,14 @@ const styles = StyleSheet.create({
   horizontalPaddingWide: {
     paddingHorizontal: 64,
   },
-  menuButton: {
+  backButton: {
     width: 40,
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
     borderRadius: 20,
   },
-  menuLine: {
-    width: 19,
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: palette.primary,
-  },
+  backIcon: { color: palette.primary, fontSize: 27, lineHeight: 29 },
   brand: {
     color: palette.primary,
     fontSize: 32,
@@ -337,12 +334,21 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: palette.surfaceVariant,
   },
+  stepWrapper: {
+    zIndex: 20,
+    width: '100%',
+    maxWidth: 1200,
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 4,
+    paddingBottom: 8,
+  },
   budgetWrapper: {
     zIndex: 20,
     width: '100%',
     maxWidth: 1200,
     alignSelf: 'center',
-    marginTop: 16,
+    marginTop: 8,
     marginBottom: 32,
     paddingHorizontal: 20,
   },

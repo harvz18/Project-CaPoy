@@ -10,6 +10,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native'
+import { CatalogService, formatPeso, mockCatalogServices } from '../lib/catalog'
 
 export type MealType = 'plated' | 'buffet' | 'packed'
 
@@ -20,10 +21,12 @@ export interface ServiceSelectionValue {
   mealType: MealType
   notes: string
   outsideFood: boolean
+  service: CatalogService
 }
 
 interface ServiceDetailsScreenProps {
   remainingBudget?: number
+  service?: CatalogService
   initialFavorite?: boolean
   onAddSelection?: (value: ServiceSelectionValue) => void
   onBack?: () => void
@@ -95,6 +98,7 @@ const digitsOnly = (value: string) => value.replace(/\D/g, '').slice(0, 8)
 
 export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   remainingBudget = 45000,
+  service = mockCatalogServices[0],
   initialFavorite = true,
   onAddSelection,
   onBack,
@@ -113,6 +117,16 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   const [budgetDigits, setBudgetDigits] = React.useState('')
   const [notes, setNotes] = React.useState('')
   const [outsideFood, setOutsideFood] = React.useState(false)
+  const serviceImages = React.useMemo(
+    () => [
+      {
+        uri: service.imageUrl,
+        label: service.imageLabel,
+      },
+      ...heroImages,
+    ],
+    [service.imageLabel, service.imageUrl]
+  )
 
   const attendeeCount = attendeeDigits ? Number(attendeeDigits) : 0
   const budgetPerHead = budgetDigits ? Number(budgetDigits) : 0
@@ -135,6 +149,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
       mealType,
       notes,
       outsideFood,
+      service,
     })
   }
 
@@ -154,7 +169,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
             pagingEnabled
             showsHorizontalScrollIndicator={false}
           >
-            {heroImages.map((image) => (
+            {serviceImages.map((image) => (
               <Image
                 key={image.uri}
                 accessibilityLabel={image.label}
@@ -189,7 +204,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
           </View>
 
           <View style={[styles.pagination, isWide && styles.paginationWide]}>
-            {heroImages.map((image, index) => (
+            {serviceImages.map((image, index) => (
               <View
                 key={image.uri}
                 style={[styles.paginationDot, index === heroIndex && styles.paginationDotActive]}
@@ -200,18 +215,18 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
           <View style={[styles.heroCopy, isWide && styles.contentPaddingWide]}>
             <View style={styles.badgeRow}>
               <View style={styles.categoryBadge}>
-                <Text style={styles.categoryBadgeText}>CATERING</Text>
+                <Text style={styles.categoryBadgeText}>{service.categoryName.toUpperCase()}</Text>
               </View>
               <View style={styles.ratingBadge}>
                 <Text style={styles.badgeStar}>★</Text>
-                <Text style={styles.ratingBadgeText}>4.8</Text>
+                <Text style={styles.ratingBadgeText}>{service.rating}</Text>
               </View>
             </View>
-            <Text style={styles.serviceTitle}>Grand Buffet Catering</Text>
+            <Text style={styles.serviceTitle}>{service.name}</Text>
             <View style={styles.heroBudgetBadge}>
               <Text style={styles.walletIcon}>₱</Text>
               <Text style={styles.heroBudgetText}>
-                Remaining Budget: ₱{formatCurrency(remainingBudget)}
+                Remaining Budget: {formatPeso(remainingBudget)}
               </Text>
             </View>
           </View>
@@ -220,9 +235,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
         <View style={[styles.content, isWide && styles.contentPaddingWide]}>
           <View style={styles.descriptionSection}>
             <Text style={styles.description}>
-              Award-winning culinary experiences tailored for elegant celebrations. We
-              specialize in locally sourced, exquisitely presented menus that elevate your
-              wedding day.
+              {service.description}
             </Text>
           </View>
 

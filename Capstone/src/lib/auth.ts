@@ -114,14 +114,18 @@ const syncProviderProfile = async ({
     return
   }
 
-  await client.from('provider_profiles').insert({
-    user_id: userId,
-    business_name: businessName,
-    description: serviceCategory,
-    contact_email: contactEmail,
-    contact_phone: contactPhone,
-    verification_status: 'pending',
-  })
+  await client.from('provider_profiles').upsert(
+    {
+      user_id: userId,
+      business_name: businessName,
+      description: serviceCategory,
+      contact_email: contactEmail,
+      contact_phone: contactPhone,
+      verification_status: 'pending',
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'user_id' }
+  )
 }
 
 const syncOAuthProfile = async () => {
