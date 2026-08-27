@@ -65,6 +65,49 @@ const requireSupabase = () => {
   return supabase
 }
 
+const requestEmailOtp = async (email: string) => {
+  const client = requireSupabase()
+
+  if (!client) {
+    return { ok: false, message: notConfiguredMessage }
+  }
+
+  const { error } = await client.auth.signInWithOtp({
+    email: email.trim().toLowerCase(),
+    options: {
+      emailRedirectTo,
+      shouldCreateUser: false,
+    },
+  })
+
+  if (error) {
+    return { ok: false, message: error.message }
+  }
+
+  return { ok: true }
+}
+
+const requestVerificationOtp = async (email: string) => {
+  const result = await requestEmailOtp(email)
+
+  if (result.ok) {
+    return result
+  }
+
+  const message = result.message?.toLowerCase() ?? ''
+  const isRateLimited =
+    message.includes('rate') ||
+    message.includes('security') ||
+    message.includes('seconds') ||
+    message.includes('minute')
+
+  if (isRateLimited) {
+    return { ok: true, message: result.message }
+  }
+
+  return result
+}
+
 const syncProfile = async ({
   userId,
   fullName,
@@ -224,6 +267,10 @@ export const signUpClient = async ({
       })
     }
 
+    if (!data.session) {
+      await requestVerificationOtp(normalizedEmail)
+    }
+
     return { ok: true, needsVerification: !data.session }
   } catch (error) {
     return { ok: false, message: getErrorMessage(error) }
@@ -287,6 +334,10 @@ export const signUpMerchant = async ({
       })
     }
 
+    if (!data.session) {
+      await requestVerificationOtp(normalizedEmail)
+    }
+
     return { ok: true, needsVerification: !data.session }
   } catch (error) {
     return { ok: false, message: getErrorMessage(error) }
@@ -333,19 +384,20 @@ export const resendSignupCode = async (email: string): Promise<AuthResult> => {
     return { ok: false, message: notConfiguredMessage }
   }
 
+  const normalizedEmail = email.trim().toLowerCase()
   const { error } = await client.auth.resend({
-    email: email.trim().toLowerCase(),
+    email: normalizedEmail,
     type: 'signup',
     options: {
       emailRedirectTo,
     },
   })
 
-  if (error) {
-    return { ok: false, message: error.message }
+  if (!error) {
+    return { ok: true }
   }
 
-  return { ok: true }
+  return requestEmailOtp(normalizedEmail)
 }
 
 export const requestPasswordReset = async (email: string): Promise<AuthResult> => {
