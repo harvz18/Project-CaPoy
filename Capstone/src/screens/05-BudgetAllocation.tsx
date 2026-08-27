@@ -10,6 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native'
+import { PlanningStepIndicator } from '../components/PlanningStepIndicator'
 
 export type BudgetPriority =
   | 'venue'
@@ -140,14 +141,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
             <Text style={styles.backIcon}>←</Text>
           </Pressable>
 
-          <View style={styles.stepStatus}>
-            <Text style={styles.stepLabel}>STEP 2 OF 4</Text>
-            <View style={styles.stepTrack}>
-              {[0, 1, 2, 3].map((step) => (
-                <View key={step} style={[styles.stepSegment, step < 2 && styles.stepSegmentActive]} />
-              ))}
-            </View>
-          </View>
+          <PlanningStepIndicator currentStep={2} label="Budget" />
 
           <View style={styles.headerSpacer} />
         </View>
@@ -309,34 +303,6 @@ const styles = StyleSheet.create({
     fontSize: 28,
     lineHeight: 30,
     fontWeight: '400',
-  },
-  stepStatus: {
-    flex: 1,
-    alignItems: 'center',
-    marginHorizontal: 16,
-  },
-  stepLabel: {
-    color: palette.secondary,
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    marginBottom: 8,
-  },
-  stepTrack: {
-    width: '100%',
-    maxWidth: 200,
-    flexDirection: 'row',
-    gap: 4,
-  },
-  stepSegment: {
-    height: 3,
-    flex: 1,
-    borderRadius: 2,
-    backgroundColor: palette.surfaceContainerHigh,
-  },
-  stepSegmentActive: {
-    backgroundColor: palette.primaryContainer,
   },
   headerSpacer: {
     width: 40,

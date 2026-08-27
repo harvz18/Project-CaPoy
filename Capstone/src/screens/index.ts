@@ -1,7 +1,6 @@
 export { ClientHomeScreen } from './03-ClientHome'
 export type {
   ClientHomeAction,
-  ClientHomeMilestone,
   ClientHomeRecommendation,
   ClientHomeTab,
 } from './03-ClientHome'
@@ -32,7 +31,12 @@ export { ServiceDetailsScreen } from './08-ServiceDetails'
 export type { MealType, ServiceSelectionValue } from './08-ServiceDetails'
 export { CoordinatorDetailsScreen } from './06.1-CoordinatorDetails'
 export { SelectedSummaryScreen } from './07-SelectedSummary'
-export type { SelectedServiceId, SelectedSummaryTab } from './07-SelectedSummary'
+export type {
+  SelectedServiceId,
+  SelectedSummaryService,
+  SelectedSummaryTab,
+} from './07-SelectedSummary'
+export { RoleHomePlaceholderScreen } from './RoleHomePlaceholder'
 export { InstructionModuleScreen } from './09-InstructionModule'
 export type { InstructionModuleValue, InstructionProviderId } from './09-InstructionModule'
 export { ScheduleNoConflictScreen } from './10-Schedule(No-Conflict)'

@@ -10,6 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native'
+import { PlanningStepIndicator } from '../components/PlanningStepIndicator'
 
 export type InstructionProviderId = 'catering' | 'venue' | 'photography'
 
@@ -119,6 +120,10 @@ export const InstructionModuleScreen: React.FC<InstructionModuleScreenProps> = (
           <Text style={styles.brand}>MULTIVENT</Text>
           <View style={styles.headerSpacer} />
         </View>
+      </View>
+
+      <View style={styles.stepWrapper}>
+        <PlanningStepIndicator currentStep={4} label="Provider Requests" />
       </View>
 
       <ScrollView
@@ -379,6 +384,14 @@ const styles = StyleSheet.create({
     letterSpacing: 1.4,
   },
   headerSpacer: { width: 40, height: 40 },
+  stepWrapper: {
+    width: '100%',
+    maxWidth: 600,
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 4,
+  },
   content: {
     width: '100%',
     maxWidth: 600,

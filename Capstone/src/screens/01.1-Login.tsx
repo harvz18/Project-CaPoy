@@ -10,6 +10,7 @@ import {
 } from 'react-native'
 import { Button } from '../components/Button'
 import { TextInput } from '../components/TextInput'
+import { signInWithEmail, signInWithOAuth } from '../lib/auth'
 import { colors, radius, spacing } from '../theme/tokens'
 import { typography } from '../theme/typography'
 
@@ -30,18 +31,52 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const [password, setPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [isOAuthLoading, setIsOAuthLoading] = useState(false)
+  const [authError, setAuthError] = useState('')
 
   const normalizedEmail = email.trim()
   const emailIsValid = /^\S+@\S+\.\S+$/.test(normalizedEmail)
   const passwordIsValid = password.length > 0
   const canSubmit = emailIsValid && passwordIsValid
 
-  const handleLogIn = () => {
+  const handleLogIn = async () => {
     setSubmitted(true)
+    setAuthError('')
 
-    if (canSubmit) {
-      onLogIn()
+    if (!canSubmit || isLoading) {
+      return
     }
+
+    setIsLoading(true)
+    const result = await signInWithEmail(normalizedEmail, password)
+    setIsLoading(false)
+
+    if (result.ok) {
+      onLogIn()
+      return
+    }
+
+    setAuthError(result.message ?? 'Unable to log in. Please try again.')
+  }
+
+  const handleGoogleLogIn = async () => {
+    if (isOAuthLoading || isLoading) {
+      return
+    }
+
+    setSubmitted(false)
+    setAuthError('')
+    setIsOAuthLoading(true)
+    const result = await signInWithOAuth('google')
+    setIsOAuthLoading(false)
+
+    if (result.ok) {
+      onLogIn()
+      return
+    }
+
+    setAuthError(result.message ?? 'Unable to continue with Google. Please try again.')
   }
 
   return (
@@ -140,14 +175,42 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               </Text>
             )}
 
+            {authError.length > 0 && (
+              <Text accessibilityRole="alert" style={styles.formError}>
+                {authError}
+              </Text>
+            )}
+
             <Button
               accessibilityLabel="Log in"
+              disabled={!canSubmit}
               isFullWidth
+              isLoading={isLoading}
               onPress={handleLogIn}
               size="lg"
               style={styles.loginButton}
             >
               LOG IN
+            </Button>
+
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <Button
+              accessibilityLabel="Continue with Google"
+              disabled={isLoading}
+              isFullWidth
+              isLoading={isOAuthLoading}
+              onPress={handleGoogleLogIn}
+              size="lg"
+              style={styles.oauthButton}
+              textStyle={styles.oauthButtonText}
+              variant="secondary"
+            >
+              CONTINUE WITH GOOGLE
             </Button>
           </View>
         </View>
@@ -308,6 +371,29 @@ const styles = StyleSheet.create({
   loginButton: {
     borderRadius: radius.pill,
     backgroundColor: colors.primaryDark,
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  dividerLine: {
+    height: 1,
+    flex: 1,
+    backgroundColor: colors.border,
+  },
+  dividerText: {
+    color: colors.textSecondary,
+    fontSize: typography.caption,
+    fontWeight: '700',
+  },
+  oauthButton: {
+    borderRadius: radius.pill,
+    backgroundColor: colors.background,
+  },
+  oauthButtonText: {
+    color: colors.primaryDark,
+    fontWeight: '700',
   },
   footer: {
     flexDirection: 'row',

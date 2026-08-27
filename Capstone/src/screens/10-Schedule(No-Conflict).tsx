@@ -7,6 +7,7 @@ import {
   Text,
   View,
 } from 'react-native'
+import { PlanningStepIndicator } from '../components/PlanningStepIndicator'
 
 export interface ScheduleProvider {
   available: boolean
@@ -100,6 +101,10 @@ export const ScheduleNoConflictScreen: React.FC<ScheduleNoConflictScreenProps> =
           <Text style={styles.headerTitle}>Schedule Check</Text>
           <View style={styles.headerSpacer} />
         </View>
+      </View>
+
+      <View style={styles.stepWrapper}>
+        <PlanningStepIndicator currentStep={4} label="Schedule Check" />
       </View>
 
       <ScrollView
@@ -241,6 +246,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   headerSpacer: { width: 40, height: 40 },
+  stepWrapper: {
+    width: '100%',
+    maxWidth: 448,
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 4,
+  },
   content: {
     width: '100%',
     maxWidth: 448,

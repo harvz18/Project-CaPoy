@@ -10,6 +10,7 @@ import {
 } from 'react-native'
 import { Button } from '../components/Button'
 import { TextInput } from '../components/TextInput'
+import { requestPasswordReset } from '../lib/auth'
 import { colors, radius, spacing } from '../theme/tokens'
 import { typography } from '../theme/typography'
 
@@ -25,18 +26,31 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
   const [recoveryContact, setRecoveryContact] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [requestSent, setRequestSent] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [authError, setAuthError] = useState('')
 
   const normalizedContact = recoveryContact.trim()
   const isEmail = /^\S+@\S+\.\S+$/.test(normalizedContact)
-  const isPhoneNumber = /^\+?[\d\s()-]{7,}$/.test(normalizedContact)
-  const contactIsValid = isEmail || isPhoneNumber
+  const contactIsValid = isEmail
 
-  const handleRequestReset = () => {
+  const handleRequestReset = async () => {
     setSubmitted(true)
+    setAuthError('')
 
-    if (contactIsValid) {
-      setRequestSent(true)
+    if (!contactIsValid || isLoading) {
+      return
     }
+
+    setIsLoading(true)
+    const result = await requestPasswordReset(normalizedContact)
+    setIsLoading(false)
+
+    if (result.ok) {
+      setRequestSent(true)
+      return
+    }
+
+    setAuthError(result.message ?? 'Unable to request a password reset. Please try again.')
   }
 
   const handleUseAnotherEmail = () => {
@@ -84,8 +98,8 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
             <View style={styles.notice}>
               <Text style={styles.noticeIcon}>i</Text>
               <Text style={styles.noticeText}>
-                The reset code will expire for your security. Check your spam folder or text
-                messages if it does not arrive within a few minutes.
+                The reset code will expire for your security. Check your spam folder if it
+                does not arrive within a few minutes.
               </Text>
             </View>
 
@@ -117,8 +131,7 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
               <Text style={styles.eyebrow}>ACCOUNT RECOVERY</Text>
               <Text style={styles.title}>Forgot your password?</Text>
               <Text style={styles.subtitle}>
-                Enter the email or phone number linked to your account and we will send you a
-                reset code.
+                Enter the email linked to your account and we will send you a reset code.
               </Text>
             </View>
 
@@ -128,10 +141,12 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
                 error={submitted && !contactIsValid}
                 helperText={
                   submitted && !contactIsValid
-                    ? 'Enter a valid email address or phone number.'
+                    ? 'Enter a valid email address.'
                     : undefined
                 }
-                label="Email or Phone Number"
+                inputMode="email"
+                keyboardType="email-address"
+                label="Email address"
                 onChangeText={setRecoveryContact}
                 onSubmitEditing={handleRequestReset}
                 placeholder="you@example.com"
@@ -139,9 +154,17 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
                 value={recoveryContact}
               />
 
+              {authError.length > 0 && (
+                <Text accessibilityRole="alert" style={styles.formError}>
+                  {authError}
+                </Text>
+              )}
+
               <Button
                 accessibilityLabel="Send password reset code"
+                disabled={!contactIsValid}
                 isFullWidth
+                isLoading={isLoading}
                 onPress={handleRequestReset}
                 size="lg"
                 style={styles.primaryButton}
@@ -313,6 +336,11 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: typography.body,
     lineHeight: 21,
+  },
+  formError: {
+    color: colors.error,
+    fontSize: typography.body,
+    lineHeight: 20,
   },
   actions: {
     width: '100%',

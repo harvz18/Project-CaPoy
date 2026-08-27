@@ -13,7 +13,6 @@ import {
 export type ClientHomeAction = 'newEvent' | 'budget' | 'vendors' | 'ledger' | 'tasks'
 export type ClientHomeTab = 'home' | 'explore' | 'bookings' | 'messages' | 'profile'
 export type ClientHomeRecommendation = 'glasshouse' | 'aesthete'
-export type ClientHomeMilestone = 'activeEvent'
 
 interface ClientHomeScreenProps {
   userName?: string
@@ -28,21 +27,18 @@ interface ClientHomeScreenProps {
   onSelectTab?: (tab: ClientHomeTab) => void
 }
 
-const PROFILE_IMAGE =
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuBaBqssJqnV5OnnX1umA_yS5oGZdKcGzfKZ_9fiNnoiJov4K-g854TIb6NT5B3CxjsUPBa3sBN9NbJANsGsHauwmGgw4kwBtzodez5C4r1c8NfpC66jfeB3SXRsvNDt14q7GDwun61VyENSuPBsQg4dsYm2sLWIwRpwr-o9x5q8RWDX_BymdsOfhDmtySSHYxrQ1PfyxjjXjIyIvhxe8V_IUcxXQ9L1HVQxWchFZTfDe4WDzClGV2d1tA'
-
 const planStats = [
   { label: 'TASKS', value: '18', detail: '/ 45 done' },
-  { label: 'BUDGET', value: '$42k', detail: '/ $85k', accent: true },
+  { label: 'BUDGET', value: 'PHP 42k', detail: '/ PHP 85k', accent: true },
   { label: 'VENDORS', value: '5', detail: 'booked' },
   { label: 'NEXT DUE', value: 'Caterer Deposit' },
 ] as const
 
 const quickTools = [
-  { id: 'budget' as const, icon: '₱', label: 'Budget' },
-  { id: 'vendors' as const, icon: '◇', label: 'Vendors' },
-  { id: 'ledger' as const, icon: '≡', label: 'Ledger' },
-  { id: 'tasks' as const, icon: '✓', label: 'Tasks' },
+  { id: 'budget' as const, icon: 'P', label: 'Budget' },
+  { id: 'vendors' as const, icon: 'V', label: 'Vendors' },
+  { id: 'ledger' as const, icon: 'L', label: 'Ledger' },
+  { id: 'tasks' as const, icon: 'T', label: 'Tasks' },
 ] as const
 
 const recommendations = [
@@ -51,35 +47,47 @@ const recommendations = [
     image:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuACgPKY6101R5Tt8wM3MANys6BhdJIdq1lEXymw2shJq516w4JybVe1vBAbZ7aeMfuHHry13Yy3fmt7tA6qoTOtxueyxdpuKDui18IO8ECZIIJDVrFCmgAc0gpyyGkCBLHu2IolGWZWlWnprUVbJSXFDDyy2ef5ck9w5VW_KXkT9bKfW_UN8lPym799buuDLFhshrnkD-PLqLFWvxmrVNLyb15lTaySHkXVDvJJMrTu9lb-ianLsojffw',
     imageLabel: 'The Glasshouse Botanical venue',
-    category: 'VENUE • MINIMALIST',
+    category: 'VENUE / MINIMALIST',
     title: 'The Glasshouse Botanical',
     description:
-      'An ethereal space blending modern architecture with lush, curated gardens. Perfect for refined, intimate gatherings.',
-    price: 'From $8,500',
+      'An ethereal space blending modern architecture with lush, curated gardens.',
+    price: 'From PHP 480k',
   },
   {
     id: 'aesthete' as const,
     image:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuAM9W82WCl23k2o4k6YTzPQls2wvdD5QmVEV_CNbUrqcJN4hkSXgAaCe4WCwIpAQWsAEAcnYo_3XZqHY4KmnU4HEbf2ELXoKRPaDFooeL4Cu4IuaHk4_0DAwCh-yii_8j1GIsF9mQV3maGJ6oIdsX3RrOaUPLRUlP-TINybREUbIvO0p_ZeORHdxqvqVYFgC7_Ix2SIVeNwvzxTtpldCsOocgG6cLLjPsJv6o81qzwIUOG1i5OqrDs0aQ',
     imageLabel: 'Studio Aesthete editorial photography',
-    category: 'PHOTOGRAPHY • EDITORIAL',
+    category: 'PHOTOGRAPHY / EDITORIAL',
     title: 'Studio Aesthete',
     description:
-      'Capturing raw emotion through a refined, cinematic lens. Specializing in high-end editorial wedding storytelling.',
-    price: 'From $4,200',
+      'Capturing raw emotion through a refined, cinematic lens for wedding storytelling.',
+    price: 'From PHP 235k',
   },
 ] as const
 
 const navigationTabs = [
-  { id: 'home' as const, icon: '⌂', label: 'Home' },
-  { id: 'explore' as const, icon: '⌕', label: 'Explore' },
-  { id: 'bookings' as const, icon: '▦', label: 'Bookings' },
-  { id: 'messages' as const, icon: '●', label: 'Messages', hasBadge: true },
-  { id: 'profile' as const, icon: '○', label: 'Profile' },
+  { id: 'home' as const, icon: 'H', label: 'Home' },
+  { id: 'explore' as const, icon: 'E', label: 'Explore' },
+  { id: 'bookings' as const, icon: 'B', label: 'Bookings' },
+  { id: 'messages' as const, icon: 'M', label: 'Messages', hasBadge: true },
+  { id: 'profile' as const, icon: 'P', label: 'Profile' },
 ] as const
 
+const getFirstName = (name: string) => {
+  const trimmedName = name.trim()
+
+  if (trimmedName.length === 0) {
+    return 'Planner'
+  }
+
+  return trimmedName.split(/\s+/)[0]
+}
+
+const getAvatarInitial = (name: string) => getFirstName(name).charAt(0).toUpperCase()
+
 export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
-  userName = 'Jamie',
+  userName = 'Planner',
   searchValue,
   onChangeSearch,
   onOpenActiveEvent,
@@ -92,6 +100,8 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
 }) => {
   const { width } = useWindowDimensions()
   const isWide = width >= 768
+  const firstName = getFirstName(userName)
+  const avatarInitial = getAvatarInitial(userName)
 
   return (
     <View style={styles.screen}>
@@ -104,14 +114,12 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
             onPress={onOpenProfile}
             style={({ pressed }) => pressed && styles.pressed}
           >
-            <Image
-              accessibilityLabel="User profile"
-              source={{ uri: PROFILE_IMAGE }}
-              style={styles.avatar}
-            />
+            <View style={styles.avatar}>
+              <Text style={styles.avatarInitial}>{avatarInitial}</Text>
+            </View>
           </Pressable>
 
-          <Text style={styles.brand}>L'Alliance</Text>
+          <Text style={styles.brand}>MULTIVENT</Text>
 
           <Pressable
             accessibilityLabel="Open notifications"
@@ -135,13 +143,13 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
         showsVerticalScrollIndicator={false}
       >
         <View style={[styles.greeting, isWide && styles.greetingWide]}>
-          <Text style={styles.greetingTitle}>Hi, {userName}</Text>
-          <Text style={styles.greetingSubtitle}>Dashboard &amp; Overview</Text>
+          <Text style={styles.greetingTitle}>Hi, {firstName}</Text>
+          <Text style={styles.greetingSubtitle}>Dashboard and Overview</Text>
         </View>
 
         <View style={styles.searchSection}>
           <View style={styles.searchField}>
-            <Text style={styles.searchIcon}>⌕</Text>
+            <Text style={styles.searchIcon}>S</Text>
             <TextInput
               accessibilityLabel="Search services"
               onChangeText={onChangeSearch}
@@ -171,7 +179,7 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
           </View>
 
           <Pressable
-            accessibilityLabel="Open The Smith-Doe Wedding plan"
+            accessibilityLabel="Open current event plan"
             accessibilityRole="button"
             onPress={onOpenActiveEvent}
             style={({ pressed }) => [styles.eventCard, pressed && styles.cardPressed]}
@@ -180,12 +188,12 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
               <View style={styles.eventHeadingCopy}>
                 <Text style={styles.eventTitle}>The Smith-Doe Wedding</Text>
                 <View style={styles.eventMetaRow}>
-                  <Text style={styles.calendarIcon}>▦</Text>
-                  <Text style={styles.eventMeta}>Oct 12, 2024 · Estate Solitude</Text>
+                  <Text style={styles.calendarIcon}>D</Text>
+                  <Text style={styles.eventMeta}>Oct 12, 2024 / Estate Solitude</Text>
                 </View>
               </View>
               <View style={styles.moreButton}>
-                <Text style={styles.moreText}>•••</Text>
+                <Text style={styles.moreText}>...</Text>
               </View>
             </View>
 
@@ -297,7 +305,7 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
                   </Text>
                   <View style={styles.priceRow}>
                     <Text style={styles.price}>{recommendation.price}</Text>
-                    <Text style={styles.arrow}>→</Text>
+                    <Text style={styles.arrow}>{'>'}</Text>
                   </View>
                 </View>
               </Pressable>
@@ -346,7 +354,6 @@ const palette = {
   surfaceVariant: '#E2E2E2',
   primary: '#4E061A',
   primaryContainer: '#6B1E2E',
-  primaryFixed: '#FFD9DC',
   primaryFixedDim: '#FFB2BB',
   secondary: '#5E5E5E',
   text: '#1A1C1C',
@@ -381,18 +388,25 @@ const styles = StyleSheet.create({
   avatar: {
     width: 32,
     height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
     borderColor: palette.outlineVariant,
     borderRadius: 16,
-    backgroundColor: palette.surfaceContainer,
+    backgroundColor: palette.primaryContainer,
+  },
+  avatarInitial: {
+    color: palette.surface,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: '700',
   },
   brand: {
     color: palette.primary,
-    fontSize: 26,
-    lineHeight: 34,
+    fontSize: 21,
+    lineHeight: 28,
     fontWeight: '700',
-    fontStyle: 'italic',
-    letterSpacing: -0.4,
+    letterSpacing: 2.4,
   },
   notificationButton: {
     width: 32,
@@ -473,8 +487,8 @@ const styles = StyleSheet.create({
   },
   searchIcon: {
     color: palette.secondary,
-    fontSize: 24,
-    lineHeight: 26,
+    fontSize: 20,
+    lineHeight: 24,
     marginRight: 8,
   },
   searchInput: {
@@ -592,7 +606,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 18,
     fontWeight: '700',
-    letterSpacing: 1,
     marginTop: -6,
   },
   progressBlock: {
@@ -609,7 +622,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 16,
     fontWeight: '700',
-    letterSpacing: 1.1,
   },
   progressValue: {
     color: palette.primaryContainer,
@@ -652,7 +664,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 16,
     fontWeight: '700',
-    letterSpacing: 1.1,
     marginBottom: 4,
   },
   planStatValue: {
@@ -749,7 +760,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 16,
     fontWeight: '700',
-    letterSpacing: 1.2,
   },
   recommendationsList: {
     gap: 24,
@@ -824,7 +834,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 16,
     fontWeight: '700',
-    letterSpacing: 1.2,
     marginBottom: 8,
   },
   recommendationTitle: {

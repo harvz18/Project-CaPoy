@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native'
 import { Button } from '../components/Button'
+import { resendSignupCode, verifySignupCode } from '../lib/auth'
 import { colors, radius, spacing } from '../theme/tokens'
 import { typography } from '../theme/typography'
 
@@ -30,6 +31,9 @@ export const VerificationScreen: React.FC<VerificationScreenProps> = ({
   const [code, setCode] = useState<string[]>(Array(codeLength).fill(''))
   const [submitted, setSubmitted] = useState(false)
   const [resent, setResent] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [authError, setAuthError] = useState('')
+  const [resendError, setResendError] = useState('')
 
   const isComplete = code.every((digit) => digit.length === 1)
   const recipient = email.trim() || 'your email address'
@@ -68,19 +72,42 @@ export const VerificationScreen: React.FC<VerificationScreenProps> = ({
     }
   }
 
-  const handleVerify = () => {
+  const handleVerify = async () => {
     setSubmitted(true)
+    setAuthError('')
 
-    if (isComplete) {
-      onVerified()
+    if (!isComplete || isLoading) {
+      return
     }
+
+    setIsLoading(true)
+    const result = await verifySignupCode(email, code.join(''))
+    setIsLoading(false)
+
+    if (result.ok) {
+      onVerified()
+      return
+    }
+
+    setAuthError(result.message ?? 'Unable to verify this code. Please try again.')
   }
 
-  const handleResend = () => {
+  const handleResend = async () => {
     setCode(Array(codeLength).fill(''))
     setSubmitted(false)
-    setResent(true)
+    setResent(false)
+    setAuthError('')
+    setResendError('')
     inputRefs.current[0]?.focus()
+
+    const result = await resendSignupCode(email)
+
+    if (result.ok) {
+      setResent(true)
+      return
+    }
+
+    setResendError(result.message ?? 'Unable to request a new code. Please try again.')
   }
 
   return (
@@ -159,15 +186,29 @@ export const VerificationScreen: React.FC<VerificationScreenProps> = ({
             </Text>
           )}
 
+          {authError.length > 0 && (
+            <Text accessibilityRole="alert" style={styles.errorText}>
+              {authError}
+            </Text>
+          )}
+
           {resent && (
             <Text accessibilityLiveRegion="polite" style={styles.successText}>
               A new verification code has been requested.
             </Text>
           )}
 
+          {resendError.length > 0 && (
+            <Text accessibilityRole="alert" style={styles.errorText}>
+              {resendError}
+            </Text>
+          )}
+
           <Button
             accessibilityLabel="Verify email address"
+            disabled={!isComplete}
             isFullWidth
+            isLoading={isLoading}
             onPress={handleVerify}
             size="lg"
             style={styles.verifyButton}
@@ -191,7 +232,8 @@ export const VerificationScreen: React.FC<VerificationScreenProps> = ({
           <Text style={styles.noticeIcon}>i</Text>
           <Text style={styles.noticeText}>
             Check your spam or junk folder if the verification email does not appear within a
-            few minutes.
+            few minutes. If the email only has a confirmation link, add the Token variable to
+            your Supabase signup email template.
           </Text>
         </View>
       </ScrollView>

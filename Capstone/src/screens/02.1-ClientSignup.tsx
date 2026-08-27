@@ -10,12 +10,13 @@ import {
 } from 'react-native'
 import { Button } from '../components/Button'
 import { TextInput } from '../components/TextInput'
+import { signUpClient } from '../lib/auth'
 import { colors, radius, spacing } from '../theme/tokens'
 import { typography } from '../theme/typography'
 
 interface SignupScreenProps {
   onBack: () => void
-  onSignUp: (email: string) => void
+  onSignUp: (email: string, needsVerification: boolean) => void
   onLogIn?: () => void
 }
 
@@ -30,22 +31,41 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({
   const [confirmPassword, setConfirmPassword] = useState('')
   const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [authError, setAuthError] = useState('')
 
   const normalizedEmail = email.trim()
+  const emailIsValid = /^\S+@\S+\.\S+$/.test(normalizedEmail)
   const passwordsMatch = password === confirmPassword
   const hasRequiredFields =
     fullName.trim().length > 0 &&
-    normalizedEmail.length > 0 &&
+    emailIsValid &&
     password.length >= 8 &&
     confirmPassword.length > 0
   const canSubmit = hasRequiredFields && passwordsMatch && acceptedTerms
 
-  const handleSignUp = () => {
+  const handleSignUp = async () => {
     setSubmitted(true)
+    setAuthError('')
 
-    if (canSubmit) {
-      onSignUp(normalizedEmail)
+    if (!canSubmit || isLoading) {
+      return
     }
+
+    setIsLoading(true)
+    const result = await signUpClient({
+      fullName,
+      email: normalizedEmail,
+      password,
+    })
+    setIsLoading(false)
+
+    if (result.ok) {
+      onSignUp(normalizedEmail, result.needsVerification ?? true)
+      return
+    }
+
+    setAuthError(result.message ?? 'Unable to create your account. Please try again.')
   }
 
   return (
@@ -94,6 +114,10 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({
           <TextInput
             autoCapitalize="none"
             autoComplete="email"
+            error={submitted && !emailIsValid}
+            helperText={
+              submitted && !emailIsValid ? 'Enter a valid email address.' : undefined
+            }
             inputMode="email"
             keyboardType="email-address"
             label="Email address"
@@ -149,14 +173,22 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({
 
           {submitted && !canSubmit && (
             <Text accessibilityRole="alert" style={styles.formError}>
-              Please complete every field, use at least 8 password characters, and accept the
-              terms.
+              Please complete every field, use a valid email, use at least 8 password
+              characters, and accept the terms.
+            </Text>
+          )}
+
+          {authError.length > 0 && (
+            <Text accessibilityRole="alert" style={styles.formError}>
+              {authError}
             </Text>
           )}
 
           <Button
             accessibilityLabel="Create client account"
+            disabled={!canSubmit}
             isFullWidth
+            isLoading={isLoading}
             onPress={handleSignUp}
             size="lg"
             style={styles.submitButton}

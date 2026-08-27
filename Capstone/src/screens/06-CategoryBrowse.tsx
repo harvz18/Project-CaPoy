@@ -9,12 +9,15 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native'
+import { PlanningStepIndicator } from '../components/PlanningStepIndicator'
+import { CatalogService, formatServicePrice, mockCatalogServices } from '../lib/catalog'
 
 export type CategoryBrowseFilter = 'plated' | 'buffet' | 'packed' | 'under500'
-export type CategoryBrowseVendor = 'grandBuffet' | 'elitePlated' | 'budgetBites'
+export type CategoryBrowseVendor = string
 export type CategoryBrowseTab = 'explore' | 'vendors' | 'budget' | 'profile'
 
 interface CategoryBrowseScreenProps {
+  services?: CatalogService[]
   remainingBudget?: number
   searchValue?: string
   sortLabel?: string
@@ -35,39 +38,6 @@ const filters = [
   { id: 'under500' as const, label: 'Under ₱500/head' },
 ] as const
 
-const vendors = [
-  {
-    id: 'grandBuffet' as const,
-    name: 'Grand Buffet Catering',
-    rating: '4.8 (120)',
-    price: '₱450 - ₱800 / head',
-    tags: ['BUFFET', 'FILIPINO'],
-    image:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuCrR-HGww7wZlPKqJYg84-Q4OmoBTnamXaWB4_X69QkVMLbfzF0hC8Df4DlHffg8X2G2_rVvyMbvVsJyNJUhX2qqVrP0pceiOrdgsKwkhToaw3SGbqBg2eWnHOL0Dw1wnoaVRl_s8knmcJOGDREikONMrRGNWPQZkFwATgr-IusvatHnK0grCwm8sV7GefP26X4JlIw_zQU-vuWnzbN2QL5BpsiP-I9m-B3kZb2IzaHPhFiTQDnotiivg',
-    imageLabel: 'Elegant wedding buffet setup',
-  },
-  {
-    id: 'elitePlated' as const,
-    name: 'Elite Plated Service',
-    rating: '4.9 (85)',
-    price: '₱1,200 - ₱2,500 / head',
-    tags: ['PLATED', 'INTERNATIONAL'],
-    image:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuDacsYIzBiVKm-sxb0LhAMveTcicHFQln13pVhHJinV6XDw5q_ywtMS609VmszF_uhXXGNZBjWNyaCccrIW-Whan2-6yrALhKymnyUBH6_Vp2ZLoVZW4tKgDUAEXL0DcYVdi5EMTXfnZ2Oe6n6d6ajLP2IF1rNTIon43H4FN8BqkzIlEp3gO-_N9dffA3O5sB_GvXtin6BwTaok-8R17gdbwNEDX_MPWGCJXkwbc5Lim2F2QAf_yCeIYw',
-    imageLabel: 'Fine dining plated steak',
-  },
-  {
-    id: 'budgetBites' as const,
-    name: 'Budget Bites',
-    rating: '4.5 (210)',
-    price: '₱250 - ₱400 / head',
-    tags: ['BUFFET', 'FINGER FOOD'],
-    image:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuC-7oTJe0reSXcvQJdYLb9JvhmQHJOewSkNxZiSrKixchByIe0ecPcpCGqWz-Js56Lb7L1PdE0RDj3dfYgVQuRtDEacJeaBCNH2NhQtXcbN-iY0fcF36BkecQ22sknkdJ1ELQTiPEFIr1Edqp62W6B3yTmZnYxplXVcaARDZf3iuJd3p65NKmItYT0WlWPLCbDRcwpabjIB34mcTulaDZkGrlboJhxhx2kMOqeMb7R9OiqbXpecRWNcnA',
-    imageLabel: 'Elegant cocktail appetizers',
-  },
-] as const
-
 const navigationTabs = [
   { id: 'explore' as const, icon: '◎', label: 'Explore' },
   { id: 'vendors' as const, icon: '◈', label: 'Vendors' },
@@ -79,6 +49,7 @@ const formatCurrency = (value: number) =>
   Math.max(0, Math.floor(value)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 
 export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
+  services = mockCatalogServices,
   remainingBudget = 45000,
   searchValue,
   sortLabel = 'Relevance',
@@ -98,13 +69,14 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   const [selectedFilter, setSelectedFilter] = React.useState<CategoryBrowseFilter>('buffet')
   const query = searchValue ?? internalSearch
 
-  const visibleVendors = vendors.filter((vendor) => {
+  const visibleVendors = services.filter((vendor) => {
     const normalizedQuery = query.trim().toLowerCase()
 
     if (!normalizedQuery) return true
 
     return (
       vendor.name.toLowerCase().includes(normalizedQuery) ||
+      vendor.providerName.toLowerCase().includes(normalizedQuery) ||
       vendor.tags.some((tag) => tag.toLowerCase().includes(normalizedQuery))
     )
   })
@@ -145,6 +117,10 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
             <Text style={styles.moreIcon}>⋮</Text>
           </Pressable>
         </View>
+      </View>
+
+      <View style={[styles.stepWrapper, isWide && styles.horizontalPaddingWide]}>
+        <PlanningStepIndicator currentStep={3} label="Choose Services" />
       </View>
 
       <ScrollView
@@ -247,7 +223,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                 <Image
                   accessibilityLabel={vendor.imageLabel}
                   resizeMode="cover"
-                  source={{ uri: vendor.image }}
+                  source={{ uri: vendor.imageUrl }}
                   style={styles.vendorImage}
                 />
               </View>
@@ -262,11 +238,15 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                   <Text style={styles.vendorName}>{vendor.name}</Text>
                   <View style={styles.ratingGroup}>
                     <Text style={styles.star}>★</Text>
-                    <Text style={styles.rating}>{vendor.rating}</Text>
+                    <Text style={styles.rating}>
+                      {vendor.reviewCount > 0
+                        ? `${vendor.rating} (${vendor.reviewCount})`
+                        : vendor.rating}
+                    </Text>
                   </View>
                 </View>
 
-                <Text style={styles.price}>{vendor.price}</Text>
+                <Text style={styles.price}>{formatServicePrice(vendor)}</Text>
 
                 <View style={styles.tagsRow}>
                   {vendor.tags.map((tag) => (
@@ -362,6 +342,14 @@ const styles = StyleSheet.create({
   },
   horizontalPaddingWide: {
     paddingHorizontal: 64,
+  },
+  stepWrapper: {
+    width: '100%',
+    maxWidth: 1200,
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 4,
   },
   headerButton: {
     width: 40,

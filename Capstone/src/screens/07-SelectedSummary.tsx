@@ -8,58 +8,33 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native'
+import { PlanningStepIndicator } from '../components/PlanningStepIndicator'
 
-export type SelectedServiceId = 'venue' | 'catering' | 'photography'
+export type SelectedServiceId = string
 export type SelectedSummaryTab = 'plan' | 'guestList' | 'budget' | 'settings'
+
+export interface SelectedSummaryService {
+  category: string
+  detail: string
+  id: string
+  imageLabel: string
+  imageUrl: string
+  name: string
+  price: number
+  status: string
+}
 
 interface SelectedSummaryScreenProps {
   budget?: number
+  selectedServices?: SelectedSummaryService[]
   totalEstimatedCost?: number
   onAddService?: () => void
+  onBack?: () => void
   onOpenMenu?: () => void
   onOpenProfile?: () => void
   onSelectService?: (service: SelectedServiceId) => void
   onSelectTab?: (tab: SelectedSummaryTab) => void
 }
-
-const selectedServices = [
-  {
-    id: 'venue' as const,
-    category: 'VENUE',
-    icon: '⌖',
-    name: 'The Grand Conservatory',
-    detail: 'Oct 14, 2024',
-    price: 12000,
-    status: 'Confirmed',
-    image:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuCX-ehN8BLlOGoLq_bEhy07E7ZeMmWgegvejl2t7WtAONGw9tE3QthWUVJFOMfryiiW6kOhZ6OIwnG3C643RThpEZq4No8T_BW4gK_S0Kcr7_j2CRoHnOdSwLn1hyw2ynrFpxK9w9DAXo83S7x2vUdqXIrPyDY96Rt6LKfOnheRb2nAf284rZ122pj_HbX_fZujdcHuz0ZL6wZdEP8XWd9x-xAT_EFYO9NMFjTfSUQ5ezx6VnqoM8M48A',
-    imageLabel: 'The Grand Conservatory wedding venue',
-  },
-  {
-    id: 'catering' as const,
-    category: 'CATERING',
-    icon: '♨',
-    name: 'Lumina Culinary Studio',
-    detail: '150 Guests',
-    price: 8500,
-    status: 'Pending Deposit',
-    image:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuDFKKZ_pGWf1GNo_5rCTt3BED1-msImpIkD2qsB3PVsgS4uEZkEkObxVJWkjOnJCspuWGPnoLnYWrkoUOewMJZKL09xIA8xCWpuq5zrFVmGzq-xEAMytJgflHcUmcwGjZn3NjeqP0KBX_sIP8hj94BXNOOxgJwCa8OFjFHJD5JBxxdm9nbzjV8yyupIZ9PrrbNrAGPmKNpfRpW2TdEJ_I2CFSv9MiDt_O8vFEObVnaNFQVxetgGJZAbwA',
-    imageLabel: 'Lumina Culinary Studio plated meal',
-  },
-  {
-    id: 'photography' as const,
-    category: 'PHOTOGRAPHY',
-    icon: '◉',
-    name: 'Aura Visuals',
-    detail: '8 Hours Coverage',
-    price: 4200,
-    status: 'Confirmed',
-    image:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuDrJFtJiWJrT0olBrPJR7Ox-O0GyZkOvCCU07hfEHndctW9g2xm2W3MvVb5yxhR-lgnGprCzEhAwusqkueWJHyjkdluNAklXfSCuxcvJDPCeROyeejNxaK8UPlNrJ4wf2Jkm62iwQRJv5wPth82dcNnOeJPxWMzj8GD5DtBLTzqdXRoksUJCx1EsRm-G8tRkBCFpsKVOPgoq3DDm6IUZfPv7BvIFhcP4ktXwXEgrRg0OuwktMbNNN8G0w',
-    imageLabel: 'Aura Visuals vintage wedding camera',
-  },
-] as const
 
 const navigationTabs = [
   { id: 'plan' as const, icon: '▣', label: 'Plan' },
@@ -73,8 +48,10 @@ const formatCurrency = (value: number) =>
 
 export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
   budget = 40000,
+  selectedServices = [],
   totalEstimatedCost = 34500,
   onAddService,
+  onBack,
   onOpenMenu,
   onOpenProfile,
   onSelectService,
@@ -92,15 +69,13 @@ export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
       <View style={styles.topAppBar}>
         <View style={[styles.topAppBarContent, isWide && styles.horizontalPaddingWide]}>
           <Pressable
-            accessibilityLabel="Open menu"
+            accessibilityLabel="Go back"
             accessibilityRole="button"
             hitSlop={8}
-            onPress={onOpenMenu}
+            onPress={onBack ?? onOpenMenu}
             style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}
           >
-            <View style={styles.menuLine} />
-            <View style={styles.menuLine} />
-            <View style={styles.menuLine} />
+            <Text style={styles.backIcon}>{'\u2190'}</Text>
           </Pressable>
 
           <Text style={styles.headerTitle}>Your Event Plan</Text>
@@ -120,18 +95,22 @@ export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
         </View>
       </View>
 
+      <View style={[styles.stepWrapper, isWide && styles.horizontalPaddingWide]}>
+        <PlanningStepIndicator currentStep={4} label="Review Plan" />
+      </View>
+
       <View style={[styles.budgetSection, isWide && styles.horizontalPaddingWide]}>
         <View style={[styles.budgetCard, isWide && styles.budgetCardWide]}>
           <View style={styles.totalCopy}>
             <Text style={styles.totalLabel}>TOTAL ESTIMATED COST</Text>
             <Text style={[styles.totalValue, isWide && styles.totalValueWide]}>
-              ${formatCurrency(totalEstimatedCost)}
+              PHP {formatCurrency(totalEstimatedCost)}
             </Text>
           </View>
 
           <View style={[styles.allocationBlock, isWide && styles.allocationBlockWide]}>
             <View style={styles.allocationLabels}>
-              <Text style={styles.budgetLabel}>Budget: ${formatCurrency(budget)}</Text>
+              <Text style={styles.budgetLabel}>Budget: PHP {formatCurrency(budget)}</Text>
               <Text style={styles.allocatedLabel}>{allocationPercent}% Allocated</Text>
             </View>
             <View
@@ -161,6 +140,15 @@ export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
         <Text style={styles.sectionHeading}>Selected Services</Text>
 
         <View style={styles.serviceGrid}>
+          {selectedServices.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyTitle}>No services selected yet</Text>
+              <Text style={styles.emptyCopy}>
+                Add vendors from the browse screen and they will appear here.
+              </Text>
+            </View>
+          ) : null}
+
           {selectedServices.map((service) => (
             <Pressable
               key={service.id}
@@ -181,20 +169,20 @@ export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
               <Image
                 accessibilityLabel={service.imageLabel}
                 resizeMode="cover"
-                source={{ uri: service.image }}
+                source={{ uri: service.imageUrl }}
                 style={styles.serviceImage}
               />
 
               <View style={styles.serviceCopy}>
                 <View style={styles.categoryRow}>
-                  <Text style={styles.categoryIcon}>{service.icon}</Text>
+                  <Text style={styles.categoryIcon}>+</Text>
                   <Text style={styles.categoryLabel}>{service.category}</Text>
                 </View>
                 <Text style={styles.serviceName}>{service.name}</Text>
 
                 <View style={styles.serviceFooter}>
                   <Text style={styles.serviceDetail}>{service.detail}</Text>
-                  <Text style={styles.servicePrice}>${formatCurrency(service.price)}</Text>
+                  <Text style={styles.servicePrice}>PHP {formatCurrency(service.price)}</Text>
                 </View>
               </View>
             </Pressable>
@@ -281,6 +269,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 20,
   },
+  backIcon: { color: palette.primary, fontSize: 27, lineHeight: 29 },
   menuLine: {
     width: 19,
     height: 2,
@@ -315,13 +304,23 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 11,
     marginTop: 3,
   },
+  stepWrapper: {
+    zIndex: 30,
+    width: '100%',
+    maxWidth: 1200,
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 4,
+    backgroundColor: palette.background,
+  },
   budgetSection: {
     zIndex: 30,
     width: '100%',
     maxWidth: 1200,
     alignSelf: 'center',
     paddingHorizontal: 20,
-    paddingTop: 24,
+    paddingTop: 12,
     paddingBottom: 16,
     backgroundColor: palette.background,
   },
@@ -412,6 +411,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 24,
+  },
+  emptyState: {
+    width: '100%',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: palette.surfaceVariant,
+    borderRadius: 8,
+    backgroundColor: palette.surfaceLowest,
+    padding: 32,
+  },
+  emptyTitle: {
+    color: palette.text,
+    fontSize: 18,
+    lineHeight: 25,
+    fontWeight: '700',
+  },
+  emptyCopy: {
+    maxWidth: 320,
+    color: palette.secondary,
+    fontSize: 14,
+    lineHeight: 21,
+    textAlign: 'center',
+    marginTop: 6,
   },
   serviceCard: {
     width: '100%',

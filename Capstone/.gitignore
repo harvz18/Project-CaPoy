@@ -9,6 +9,7 @@ lerna-debug.log*
 
 node_modules
 .expo/
+.env
 dist
 *.local
 
