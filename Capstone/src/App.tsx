@@ -21,6 +21,8 @@ import { SelectedSummaryScreen } from './screens/07-SelectedSummary'
 import { InstructionModuleScreen } from './screens/08-InstructionModule'
 import { ScheduleNoConflictScreen } from './screens/09-Schedule(No-Conflict)'
 import { ScheduleConflictScreen } from './screens/09.1-Schedule(Conflict)'
+import { BookingItem, BookingScreen } from './screens/10-BookingScreen'
+import { BookingDetailsScreen } from './screens/10.1-BookingDetails'
 
 type AppScreen =
   | 'onboarding'
@@ -42,6 +44,8 @@ type AppScreen =
   | 'instructionModule'
   | 'scheduleConflict'
   | 'scheduleNoConflict'
+  | 'bookings'
+  | 'bookingDetails'
 
 type LoginReturnScreen = 'roleSelection' | 'clientSignup' | 'merchantSignup'
 type VerificationReturnScreen = 'clientSignup' | 'merchantSignup'
@@ -58,6 +62,7 @@ export const App: React.FC = () => {
     React.useState<VerificationNextScreen>('clientHome')
   const [recoveryContact, setRecoveryContact] = React.useState('')
   const [remainingBudget, setRemainingBudget] = React.useState(45000)
+  const [selectedBooking, setSelectedBooking] = React.useState<BookingItem>()
 
   const openLogin = (returnScreen: LoginReturnScreen) => {
     setLoginReturnScreen(returnScreen)
@@ -161,6 +166,10 @@ export const App: React.FC = () => {
               if (action === 'budget') setScreen('budgetAllocation')
               if (action === 'vendors') setScreen('budgetTracker')
             }}
+            onSelectTab={(tab) => {
+              if (tab === 'bookings') setScreen('bookings')
+              if (tab === 'explore') setScreen('budgetTracker')
+            }}
           />
         )
       case 'budgetAllocation':
@@ -245,6 +254,26 @@ export const App: React.FC = () => {
           <ScheduleNoConflictScreen
             onBack={() => setScreen('scheduleConflict')}
             onContinueToPayment={() => setScreen('selectedSummary')}
+          />
+        )
+      case 'bookings':
+        return (
+          <BookingScreen
+            onSelectBooking={(booking) => {
+              setSelectedBooking(booking)
+              setScreen('bookingDetails')
+            }}
+            onSelectTab={(tab) => {
+              if (tab === 'home') setScreen('clientHome')
+              if (tab === 'merchants') setScreen('budgetTracker')
+            }}
+          />
+        )
+      case 'bookingDetails':
+        return (
+          <BookingDetailsScreen
+            booking={selectedBooking}
+            onBack={() => setScreen('bookings')}
           />
         )
     }
