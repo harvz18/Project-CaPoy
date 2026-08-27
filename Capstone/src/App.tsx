@@ -13,16 +13,21 @@ import { MerchantSignupScreen } from './screens/02.2-MerchantSignup'
 import { PendingApprovalScreen } from './screens/02.2.1-PendingApproval'
 import { RejectedApplicationScreen } from './screens/02.2.2-RejectedApplication'
 import { VerificationScreen } from './screens/02.3-Verification'
-import { BudgetAllocationScreen } from './screens/04-BudgetAllocation'
+import { BudgetAllocationScreen } from './screens/05-BudgetAllocation'
+import { EventCreationScreen } from './screens/04-EventCreation'
 import { BudgetTrackerScreen } from './screens/04.1-BudgetTracker'
-import { CategoryBrowseScreen } from './screens/05-CategoryBrowse'
-import { ServiceDetailsScreen } from './screens/06-ServiceDetails'
+import { CategoryBrowseScreen } from './screens/06-CategoryBrowse'
+import { ServiceDetailsScreen } from './screens/08-ServiceDetails'
 import { SelectedSummaryScreen } from './screens/07-SelectedSummary'
-import { InstructionModuleScreen } from './screens/08-InstructionModule'
-import { ScheduleNoConflictScreen } from './screens/09-Schedule(No-Conflict)'
-import { ScheduleConflictScreen } from './screens/09.1-Schedule(Conflict)'
-import { BookingItem, BookingScreen } from './screens/10-BookingScreen'
-import { BookingDetailsScreen } from './screens/10.1-BookingDetails'
+import { InstructionModuleScreen } from './screens/09-InstructionModule'
+import { ScheduleNoConflictScreen } from './screens/10-Schedule(No-Conflict)'
+import { ScheduleConflictScreen } from './screens/10-Schedule(Conflict)'
+import { BookingItem, BookingScreen } from './screens/11-BookingScreen'
+import { BookingDetailsScreen } from './screens/11.1-BookingDetails'
+import { PaymentScreen } from './screens/12-Payment'
+import { ConfirmationScreen } from './screens/13-Confirmation'
+import { EventLedgerScreen } from './screens/14-EventLedger'
+import { SubmitReviewScreen } from './screens/15-SubmitReview'
 
 type AppScreen =
   | 'onboarding'
@@ -36,6 +41,7 @@ type AppScreen =
   | 'pendingApproval'
   | 'rejectedApplication'
   | 'clientHome'
+  | 'eventCreation'
   | 'budgetAllocation'
   | 'budgetTracker'
   | 'categoryBrowse'
@@ -46,6 +52,10 @@ type AppScreen =
   | 'scheduleNoConflict'
   | 'bookings'
   | 'bookingDetails'
+  | 'payment'
+  | 'confirmation'
+  | 'eventLedger'
+  | 'submitReview'
 
 type LoginReturnScreen = 'roleSelection' | 'clientSignup' | 'merchantSignup'
 type VerificationReturnScreen = 'clientSignup' | 'merchantSignup'
@@ -163,13 +173,25 @@ export const App: React.FC = () => {
         return (
           <ClientHomeScreen
             onSelectAction={(action) => {
+              if (action === 'newEvent') setScreen('eventCreation')
               if (action === 'budget') setScreen('budgetAllocation')
               if (action === 'vendors') setScreen('budgetTracker')
+              if (action === 'ledger') setScreen('eventLedger')
             }}
             onSelectTab={(tab) => {
               if (tab === 'bookings') setScreen('bookings')
               if (tab === 'explore') setScreen('budgetTracker')
             }}
+          />
+        )
+      case 'eventLedger':
+        return <EventLedgerScreen onBack={() => setScreen('clientHome')} />
+      case 'eventCreation':
+        return (
+          <EventCreationScreen
+            onClose={() => setScreen('clientHome')}
+            onContinue={() => setScreen('budgetAllocation')}
+            onSaveExit={() => setScreen('clientHome')}
           />
         )
       case 'budgetAllocation':
@@ -253,7 +275,21 @@ export const App: React.FC = () => {
         return (
           <ScheduleNoConflictScreen
             onBack={() => setScreen('scheduleConflict')}
-            onContinueToPayment={() => setScreen('selectedSummary')}
+            onContinueToPayment={() => setScreen('payment')}
+          />
+        )
+      case 'payment':
+        return (
+          <PaymentScreen
+            onBack={() => setScreen('scheduleNoConflict')}
+            onPay={() => setScreen('confirmation')}
+          />
+        )
+      case 'confirmation':
+        return (
+          <ConfirmationScreen
+            onBackHome={() => setScreen('clientHome')}
+            onViewBookings={() => setScreen('bookings')}
           />
         )
       case 'bookings':
@@ -274,6 +310,15 @@ export const App: React.FC = () => {
           <BookingDetailsScreen
             booking={selectedBooking}
             onBack={() => setScreen('bookings')}
+            onSubmitReview={() => setScreen('submitReview')}
+          />
+        )
+      case 'submitReview':
+        return (
+          <SubmitReviewScreen
+            booking={selectedBooking}
+            onBackToBookings={() => setScreen('bookings')}
+            onClose={() => setScreen('bookingDetails')}
           />
         )
     }

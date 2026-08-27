@@ -1,6 +1,6 @@
 import React from 'react'
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
-import type { BookingItem } from './10-BookingScreen'
+import type { BookingItem } from './11-BookingScreen'
 
 export interface BookingDetailValue {
   confirmedDate: string
@@ -19,6 +19,7 @@ interface BookingDetailsScreenProps {
   onBack?: () => void
   onCancelOrReschedule?: () => void
   onMessageProvider?: () => void
+  onSubmitReview?: () => void
 }
 
 const defaultProvider: Pick<
@@ -55,6 +56,7 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
   onBack,
   onCancelOrReschedule,
   onMessageProvider,
+  onSubmitReview,
 }) => {
   const provider = booking ?? defaultProvider
   const value = {
@@ -141,6 +143,18 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
         </View>
 
         <View style={styles.actions}>
+          {onSubmitReview && (
+            <Pressable
+              accessibilityRole="button"
+              onPress={onSubmitReview}
+              style={({ pressed }) => [
+                styles.reviewButton,
+                pressed && styles.reviewButtonPressed,
+              ]}
+            >
+              <Text style={styles.reviewButtonText}>Submit Review</Text>
+            </Pressable>
+          )}
           <Pressable
             accessibilityRole="button"
             onPress={onMessageProvider}
@@ -392,6 +406,18 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   actions: { alignItems: 'center', gap: 16, paddingTop: 16 },
+  reviewButton: {
+    width: '100%',
+    minHeight: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    backgroundColor: palette.burgundy,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+  },
+  reviewButtonPressed: { opacity: 0.88, transform: [{ scale: 0.98 }] },
+  reviewButtonText: { color: palette.surface, fontSize: 16, lineHeight: 24, fontWeight: '700' },
   messageButton: {
     width: '100%',
     minHeight: 58,
