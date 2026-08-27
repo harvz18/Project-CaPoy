@@ -18,6 +18,9 @@ import { BudgetTrackerScreen } from './screens/04.1-BudgetTracker'
 import { CategoryBrowseScreen } from './screens/05-CategoryBrowse'
 import { ServiceDetailsScreen } from './screens/06-ServiceDetails'
 import { SelectedSummaryScreen } from './screens/07-SelectedSummary'
+import { InstructionModuleScreen } from './screens/08-InstructionModule'
+import { ScheduleNoConflictScreen } from './screens/09-Schedule(No-Conflict)'
+import { ScheduleConflictScreen } from './screens/09.1-Schedule(Conflict)'
 
 type AppScreen =
   | 'onboarding'
@@ -36,6 +39,9 @@ type AppScreen =
   | 'categoryBrowse'
   | 'serviceDetails'
   | 'selectedSummary'
+  | 'instructionModule'
+  | 'scheduleConflict'
+  | 'scheduleNoConflict'
 
 type LoginReturnScreen = 'roleSelection' | 'clientSignup' | 'merchantSignup'
 type VerificationReturnScreen = 'clientSignup' | 'merchantSignup'
@@ -214,8 +220,31 @@ export const App: React.FC = () => {
               if (service === 'catering') setScreen('serviceDetails')
             }}
             onSelectTab={(tab) => {
+              if (tab === 'plan') setScreen('instructionModule')
               if (tab === 'budget') setScreen('budgetAllocation')
             }}
+          />
+        )
+      case 'instructionModule':
+        return (
+          <InstructionModuleScreen
+            onBack={() => setScreen('selectedSummary')}
+            onSaveContinue={() => setScreen('scheduleConflict')}
+          />
+        )
+      case 'scheduleConflict':
+        return (
+          <ScheduleConflictScreen
+            onBack={() => setScreen('instructionModule')}
+            onChangeDate={() => setScreen('scheduleNoConflict')}
+            onChooseDifferentProvider={() => setScreen('scheduleNoConflict')}
+          />
+        )
+      case 'scheduleNoConflict':
+        return (
+          <ScheduleNoConflictScreen
+            onBack={() => setScreen('scheduleConflict')}
+            onContinueToPayment={() => setScreen('selectedSummary')}
           />
         )
     }
