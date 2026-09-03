@@ -11,7 +11,8 @@
       "supportsTablet": true
     },
     "android": {
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.intelink.multivent"
     },
     "web": {
       "bundler": "metro"
