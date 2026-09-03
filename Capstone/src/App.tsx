@@ -1,6 +1,6 @@
 import React from 'react'
 import { StyleSheet } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
 import { supabase } from './lib/supabase'
 import {
@@ -18,6 +18,8 @@ import {
 } from './lib/planning'
 import { colors } from './theme/tokens'
 import { ClientHomeScreen } from './screens/03-ClientHome'
+import { MerchantHomeScreen } from './screens/16-MerchantHome'
+import { ServiceListingScreen } from './screens/17-ServiceListing'
 import { OnboardingScreen } from './screens/01-Onboarding'
 import { LoginScreen } from './screens/01.1-Login'
 import { ForgotPasswordScreen } from './screens/01.1.1-ForgotPassword'
@@ -41,9 +43,9 @@ import {
   SelectedSummaryService,
 } from './screens/07-SelectedSummary'
 import { RoleHomePlaceholderScreen } from './screens/RoleHomePlaceholder'
-import { InstructionModuleScreen } from './screens/09-InstructionModule'
-import { ScheduleNoConflictScreen } from './screens/10-Schedule(No-Conflict)'
-import { ScheduleConflictScreen } from './screens/10-Schedule(Conflict)'
+import { InstructionModuleScreen } from './screens/10-InstructionModule'
+import { ScheduleNoConflictScreen } from './screens/09-Schedule(No-Conflict)'
+import { ScheduleConflictScreen } from './screens/09-Schedule(Conflict)'
 import { BookingItem, BookingScreen } from './screens/11-BookingScreen'
 import { BookingDetailsScreen } from './screens/11.1-BookingDetails'
 import {
@@ -74,6 +76,7 @@ type AppScreen =
   | 'clientHome'
   | 'eventCreation'
   | 'providerHome'
+  | 'providerServices'
   | 'coordinatorHome'
   | 'adminHome'
   | 'superadminHome'
@@ -106,6 +109,7 @@ type AccountRole =
   | 'superadmin'
 
 type UserMetadata = {
+  business_name?: unknown
   default_role?: unknown
   email?: unknown
   full_name?: unknown
@@ -146,6 +150,8 @@ const getMetadataName = (metadata: UserMetadata) => {
 export const App: React.FC = () => {
   const [screen, setScreen] = React.useState<AppScreen>('onboarding')
   const [userName, setUserName] = React.useState('Planner')
+  const [homeReturnScreen, setHomeReturnScreen] =
+    React.useState<'clientHome' | 'providerHome'>('clientHome')
   const [loginReturnScreen, setLoginReturnScreen] =
     React.useState<LoginReturnScreen>('roleSelection')
   const [verificationEmail, setVerificationEmail] = React.useState('')
@@ -258,9 +264,11 @@ export const App: React.FC = () => {
   const routeForRole = React.useCallback((role?: AccountRole | string | null) => {
     switch (role) {
       case 'client':
+        setHomeReturnScreen('clientHome')
         setScreen('clientHome')
         return
       case 'service_provider':
+        setHomeReturnScreen('providerHome')
         setScreen('providerHome')
         return
       case 'event_coordinator':
@@ -291,12 +299,20 @@ export const App: React.FC = () => {
 
       const profileName = data?.full_name?.trim()
       const metadataName = getMetadataName(metadata)
+      const resolvedRole = data?.default_role ?? String(metadata.default_role ?? '')
 
       if (profileName || metadataName) {
         setUserName(profileName || metadataName)
       }
 
-      routeForRole(data?.default_role ?? String(metadata.default_role ?? ''))
+      const metadataBusinessName =
+        typeof metadata.business_name === 'string' ? metadata.business_name.trim() : ''
+
+      if (resolvedRole === 'service_provider' && metadataBusinessName) {
+        setUserName(metadataBusinessName)
+      }
+
+      routeForRole(resolvedRole)
     },
     [routeForRole]
   )
@@ -517,7 +533,10 @@ export const App: React.FC = () => {
             totalBudget={totalBudget}
             onOpenActiveEvent={() => setScreen('selectedSummary')}
             onOpenProfile={() => setScreen('selectedSummary')}
-            onOpenNotifications={() => setScreen('notifications')}
+            onOpenNotifications={() => {
+              setHomeReturnScreen('clientHome')
+              setScreen('notifications')
+            }}
             onSeeAllVenues={openPlanningHub}
             onSelectAction={(action) => {
               if (action === 'newEvent') setScreen('eventCreation')
@@ -532,9 +551,15 @@ export const App: React.FC = () => {
             }}
             onSelectTab={(tab) => {
               if (tab === 'home') setScreen('clientHome')
-              if (tab === 'bookings') setScreen('bookings')
+              if (tab === 'bookings') {
+                setHomeReturnScreen('clientHome')
+                setScreen('bookings')
+              }
               if (tab === 'explore') openPlanningHub()
-              if (tab === 'messages') setScreen('messages')
+              if (tab === 'messages') {
+                setHomeReturnScreen('clientHome')
+                setScreen('messages')
+              }
               if (tab === 'profile') setScreen('selectedSummary')
             }}
           />
@@ -545,7 +570,7 @@ export const App: React.FC = () => {
             budget={totalBudget}
             categories={ledgerCategories}
             transactions={ledgerTransactions}
-            onBack={() => setScreen('clientHome')}
+            onBack={() => setScreen(homeReturnScreen)}
             onExportPdf={() => setScreen('eventLedger')}
             onShare={() => setScreen('eventLedger')}
             onViewAll={() => setScreen('eventLedger')}
@@ -562,12 +587,44 @@ export const App: React.FC = () => {
         )
       case 'providerHome':
         return (
-          <RoleHomePlaceholderScreen
-            description="The service provider dashboard will live here once 03.1-MerchantHome is rebuilt as 03.1-ProviderHome."
-            onBackToRoleSelection={() => setScreen('roleSelection')}
-            roleLabel="Service Provider"
-            title="Your provider workspace is being prepared."
-            userName={userName}
+          <MerchantHomeScreen
+            businessName={userName}
+            onOpenNotifications={() => {
+              setHomeReturnScreen('providerHome')
+              setScreen('notifications')
+            }}
+            onSelectQuickAction={(action) => {
+              setHomeReturnScreen('providerHome')
+              if (action === 'newQuote') setScreen('messages')
+              if (action === 'clients') setScreen('bookings')
+              if (action === 'invoices') setScreen('eventLedger')
+            }}
+            onSelectScheduleItem={() => {
+              setHomeReturnScreen('providerHome')
+              setScreen('bookings')
+            }}
+            onSelectTab={(tab) => {
+              setHomeReturnScreen('providerHome')
+              if (tab === 'services') setScreen('providerServices')
+              if (tab === 'bookings') setScreen('bookings')
+              if (tab === 'messages') setScreen('messages')
+            }}
+            onViewAllSchedule={() => {
+              setHomeReturnScreen('providerHome')
+              setScreen('bookings')
+            }}
+          />
+        )
+      case 'providerServices':
+        return (
+          <ServiceListingScreen
+            onOpenMenu={() => setScreen('providerHome')}
+            onSelectTab={(tab) => {
+              setHomeReturnScreen('providerHome')
+              if (tab === 'home') setScreen('providerHome')
+              if (tab === 'bookings') setScreen('bookings')
+              if (tab === 'messages') setScreen('messages')
+            }}
           />
         )
       case 'coordinatorHome':
@@ -733,7 +790,7 @@ export const App: React.FC = () => {
         return (
           <RoleHomePlaceholderScreen
             description="Client and provider conversations will appear here for quotes, schedule changes, and booking updates."
-            onBackToRoleSelection={() => setScreen('clientHome')}
+            onBackToRoleSelection={() => setScreen(homeReturnScreen)}
             roleLabel="Messages"
             title="Your event messages are ready when providers respond."
             userName={userName}
@@ -743,7 +800,7 @@ export const App: React.FC = () => {
         return (
           <RoleHomePlaceholderScreen
             description="Notifications will show booking approvals, payment reminders, provider replies, and schedule alerts."
-            onBackToRoleSelection={() => setScreen('clientHome')}
+            onBackToRoleSelection={() => setScreen(homeReturnScreen)}
             roleLabel="Alerts"
             title="No urgent updates right now."
             userName={userName}
@@ -809,11 +866,19 @@ export const App: React.FC = () => {
               setScreen('bookingDetails')
             }}
             onSelectTab={(tab) => {
-              if (tab === 'home') setScreen('clientHome')
-              if (tab === 'explore' || tab === 'merchants') setScreen('budgetTracker')
+              if (tab === 'home') setScreen(homeReturnScreen)
+              if (tab === 'explore' || tab === 'merchants') {
+                setScreen(
+                  homeReturnScreen === 'providerHome' ? 'providerServices' : 'budgetTracker'
+                )
+              }
               if (tab === 'bookings') setScreen('bookings')
               if (tab === 'messages') setScreen('messages')
-              if (tab === 'profile') setScreen('selectedSummary')
+              if (tab === 'profile') {
+                setScreen(
+                  homeReturnScreen === 'providerHome' ? 'providerHome' : 'selectedSummary'
+                )
+              }
             }}
           />
         )
@@ -849,15 +914,16 @@ export const App: React.FC = () => {
     }
   }
 
-  const isClientHome = screen === 'clientHome'
+  const isHome =
+    screen === 'clientHome' || screen === 'providerHome' || screen === 'providerServices'
 
   return (
-    <>
-      <StatusBar style={isClientHome ? 'light' : 'dark'} />
-      <SafeAreaView style={[styles.container, isClientHome && styles.homeContainer]}>
+    <SafeAreaProvider>
+      <StatusBar style={screen === 'clientHome' ? 'light' : 'dark'} />
+      <SafeAreaView style={[styles.container, isHome && styles.homeContainer]}>
         {renderScreen()}
       </SafeAreaView>
-    </>
+    </SafeAreaProvider>
   )
 }
 
