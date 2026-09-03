@@ -257,14 +257,14 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
 
             <View style={[styles.dateTimeGrid, isWide && styles.dateTimeGridWide]}>
               <PickerField
-                icon="\u25A6"
+                icon={'\u25A6'}
                 label="DATE"
                 onPress={() => setActivePicker('date')}
                 placeholder="MM/DD/YYYY"
                 value={date}
               />
               <PickerField
-                icon="\u25F7"
+                icon={'\u25F7'}
                 label="TIME"
                 onPress={() => setActivePicker('time')}
                 placeholder="HH:MM AM"

@@ -334,42 +334,42 @@ export const MerchantProfileScreen: React.FC<MerchantProfileScreenProps> = ({
               <View style={styles.menuList}>
                 <MenuRow
                   action="services"
-                  glyph="\u2637"
+                  glyph={'\u2637'}
                   label="Services"
                   onPress={onSelectAction}
                   subtitle={`${value.activeServices} active listings`}
                 />
                 <MenuRow
                   action="packages"
-                  glyph="\u25A3"
+                  glyph={'\u25A3'}
                   label="Packages"
                   onPress={onSelectAction}
                   subtitle="Manage pricing and inclusions"
                 />
                 <MenuRow
                   action="availability"
-                  glyph="\u25A6"
+                  glyph={'\u25A6'}
                   label="Availability"
                   onPress={onSelectAction}
                   subtitle="Update your booking calendar"
                 />
                 <MenuRow
                   action="operatingHours"
-                  glyph="\u25F7"
+                  glyph={'\u25F7'}
                   label="Operating Hours"
                   onPress={onSelectAction}
                   subtitle="Set your weekly business schedule"
                 />
                 <MenuRow
                   action="payouts"
-                  glyph="\u20B1"
+                  glyph={'\u20B1'}
                   label="Payouts & Earnings"
                   onPress={onSelectAction}
                   subtitle="Track income and manage payouts"
                 />
                 <MenuRow
                   action="reviews"
-                  glyph="\u2605"
+                  glyph={'\u2605'}
                   label="Reviews & Performance"
                   last
                   onPress={onSelectAction}

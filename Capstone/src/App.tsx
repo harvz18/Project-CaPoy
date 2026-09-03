@@ -32,7 +32,6 @@ import {
   saveMerchantTransactionNote,
   saveNotificationPreferences,
   saveOperatingHours,
-  uploadMerchantServicePhoto,
 } from './lib/merchant'
 import { colors } from './theme/tokens'
 import { ClientHomeScreen } from './screens/03-ClientHome'
@@ -380,7 +379,9 @@ export const App: React.FC = () => {
     setCatalogServices(services)
     setClientBookings(bookings)
     setMerchantRequests(requests)
-    setMerchantServices(merchantServiceRows)
+    setMerchantServices((current) =>
+      merchantServiceRows.length > 0 ? merchantServiceRows : current
+    )
     setCurrentServiceId((current) =>
       services.some((service) => service.id === current) ? current : services[0]?.id ?? ''
     )
@@ -554,6 +555,12 @@ export const App: React.FC = () => {
     return () => clearTimeout(timeout)
   }, [toastMessage])
 
+  React.useEffect(() => {
+    if (screen === 'providerServices') {
+      void refreshLiveData()
+    }
+  }, [refreshLiveData, screen])
+
   const handleAddSelection = (value: Parameters<typeof saveServiceSelection>[0]) => {
     const nextSelection: SelectedSummaryService = {
       id: value.service.id,
@@ -627,6 +634,21 @@ export const App: React.FC = () => {
 
     if (result.ok) {
       await refreshLiveData()
+      const savedService = result.service
+
+      if (savedService) {
+        setMerchantServices((current) => {
+          const existingIndex = current.findIndex((service) => service.id === savedService.id)
+
+          if (existingIndex >= 0) {
+            return current.map((service, index) =>
+              index === existingIndex ? savedService : service
+            )
+          }
+
+          return [savedService, ...current]
+        })
+      }
       setHasMerchantDraft(status === 'draft')
       setToastMessage(status === 'active' ? 'Service published successfully.' : 'Draft saved.')
       setScreen('providerServices')
@@ -671,11 +693,7 @@ export const App: React.FC = () => {
       return null
     }
 
-    const uploaded = await Promise.all(
-      result.assets.map((asset) => uploadMerchantServicePhoto(asset.uri))
-    )
-
-    return uploaded.filter((uri): uri is string => Boolean(uri))
+    return result.assets.map((asset) => asset.uri).filter(Boolean)
   }
 
   const renderScreen = () => {
@@ -1010,6 +1028,15 @@ export const App: React.FC = () => {
                 return nextPackages
               })
               setHasMerchantDraft(true)
+              setScreen('providerServiceReview')
+            }}
+            onSkip={() => {
+              setHasMerchantDraft(true)
+              void saveMerchantServiceDraft({
+                information: merchantServiceInfo,
+                packages: merchantPackages,
+                pricing: merchantServicePricing,
+              })
               setScreen('providerServiceReview')
             }}
           />

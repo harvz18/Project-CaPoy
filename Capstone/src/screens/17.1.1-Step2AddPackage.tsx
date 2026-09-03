@@ -27,6 +27,7 @@ interface Step2AddPackageScreenProps {
   maxInclusions?: number
   onBack?: (draft?: ServicePackageValue) => void
   onSave?: (value: ServicePackageValue) => void
+  onSkip?: () => void
 }
 
 const pricingUnits: Array<{ id: ServicePricingUnit; label: string }> = [
@@ -61,6 +62,7 @@ export const Step2AddPackageScreen: React.FC<Step2AddPackageScreenProps> = ({
   maxInclusions = 10,
   onBack,
   onSave,
+  onSkip,
 }) => {
   const { width } = useWindowDimensions()
   const isWide = width >= 768
@@ -198,10 +200,24 @@ export const Step2AddPackageScreen: React.FC<Step2AddPackageScreenProps> = ({
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.intro}>
-          <Text style={styles.title}>{isEditing ? 'Edit Your Package' : 'Create a Package'}</Text>
-          <Text style={styles.subtitle}>
-            Bundle your service into a clear option that clients can compare.
-          </Text>
+          <View style={styles.introHeader}>
+            <View style={styles.introCopy}>
+              <Text style={styles.title}>{isEditing ? 'Edit Your Package' : 'Create a Package'}</Text>
+              <Text style={styles.subtitle}>
+                Bundle your service into a clear option that clients can compare.
+              </Text>
+            </View>
+            {!isEditing ? (
+              <Pressable
+                accessibilityLabel="Skip package setup"
+                accessibilityRole="button"
+                onPress={onSkip}
+                style={({ pressed }) => [styles.skipButton, pressed && styles.skipButtonPressed]}
+              >
+                <Text style={styles.skipButtonText}>Skip</Text>
+              </Pressable>
+            ) : null}
+          </View>
         </View>
 
         <View style={styles.form}>
@@ -473,6 +489,8 @@ const styles = StyleSheet.create({
   contentMobile: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 32 },
   contentWide: { paddingHorizontal: 32, paddingTop: 32, paddingBottom: 40 },
   intro: { marginBottom: 32 },
+  introHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 },
+  introCopy: { minWidth: 0, flex: 1 },
   title: { color: palette.text, fontSize: 22, lineHeight: 28, fontWeight: '700' },
   subtitle: { color: palette.secondary, fontSize: 14, lineHeight: 20, marginTop: 6 },
   form: { gap: 24 },
@@ -611,6 +629,19 @@ const styles = StyleSheet.create({
   },
   cancelButtonPressed: { backgroundColor: palette.primaryPill },
   cancelButtonText: { color: palette.primaryContainer, fontSize: 16, lineHeight: 24, fontWeight: '600' },
+  skipButton: {
+    minWidth: 88,
+    minHeight: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E7CDD2',
+    borderRadius: 999,
+    backgroundColor: palette.primaryPill,
+    paddingHorizontal: 16,
+  },
+  skipButtonPressed: { opacity: 0.78 },
+  skipButtonText: { color: palette.primaryContainer, fontSize: 16, lineHeight: 24, fontWeight: '600' },
   saveButton: {
     minHeight: 52,
     flex: 1,

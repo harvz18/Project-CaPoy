@@ -16,6 +16,7 @@ import type {
 type MerchantResult = {
   ok: boolean
   message?: string
+  service?: MerchantServiceListing
 }
 
 export interface MerchantServiceListing {
@@ -48,6 +49,17 @@ const getClient = () => {
 
 const toMessage = (error: unknown, fallback = 'Unable to save merchant data.') =>
   error instanceof Error && error.message.trim().length > 0 ? error.message : fallback
+
+const randomUuid = () => {
+  const bytes = Array.from({ length: 16 }, () => Math.floor(Math.random() * 256))
+  bytes[6] = (bytes[6] & 0x0f) | 0x40
+  bytes[8] = (bytes[8] & 0x3f) | 0x80
+
+  const hex = bytes.map((byte) => byte.toString(16).padStart(2, '0'))
+  return `${hex.slice(0, 4).join('')}-${hex.slice(4, 6).join('')}-${hex
+    .slice(6, 8)
+    .join('')}-${hex.slice(8, 10).join('')}-${hex.slice(10, 16).join('')}`
+}
 
 const getMerchantContext = async (): Promise<
   | {
@@ -175,6 +187,34 @@ const amountFromListing = (value: ServiceListingReviewValue) => {
   return value.pricing.amount ?? 0
 }
 
+const isRemoteUri = (uri: string) => /^https?:\/\//i.test(uri)
+
+const uploadListingPhoto = async (uri: string) => {
+  if (isRemoteUri(uri)) {
+    return uri
+  }
+
+  return uploadMerchantServicePhoto(uri)
+}
+
+const mapMerchantServiceRow = (row: unknown, fallbackCategoryName = 'Service') => {
+  const record = row as Record<string, unknown>
+  const category = nested(record.service_categories) as Record<string, unknown> | undefined
+  const packages = Array.isArray(record.service_packages) ? record.service_packages : []
+
+  return {
+    basePrice: numberFrom(record.base_price),
+    categoryName: textFrom(category?.name, fallbackCategoryName),
+    coverImageUrl: textFrom(record.cover_image_url),
+    description: textFrom(record.description),
+    id: textFrom(record.id),
+    name: textFrom(record.name, 'Untitled service'),
+    packageCount: packages.length,
+    status: textFrom(record.status, 'draft'),
+    updatedAt: textFrom(record.updated_at, new Date().toISOString()),
+  } satisfies MerchantServiceListing
+}
+
 export const loadMerchantServiceDraft = async (): Promise<ServiceListingReviewValue | null> => {
   const context = await getMerchantContext()
 
@@ -274,24 +314,29 @@ export const saveMerchantServiceListing = async (
     }
 
     const categoryId = await findCategoryId(value.information.category)
-    const coverImageUrl = value.information.photos[0] ?? null
+    const uploadedPhotos = await Promise.all(
+      value.information.photos.map((photo) => uploadListingPhoto(photo))
+    )
+    const coverImageUrl = uploadedPhotos.find((photo): photo is string => Boolean(photo)) ?? null
+    const now = new Date().toISOString()
+    const serviceId = randomUuid()
+    const servicePayload = {
+      id: serviceId,
+      base_price: amountFromListing(value),
+      category_id: categoryId,
+      cover_image_url: coverImageUrl,
+      description: value.information.description,
+      provider_id: context.providerId,
+      name: value.information.serviceName,
+      status,
+      updated_at: now,
+    }
 
-    const { data: service, error } = await context.client
-      .from('services')
-      .insert({
-        base_price: amountFromListing(value),
-        category_id: categoryId,
-        cover_image_url: coverImageUrl,
-        description: value.information.description,
-        provider_id: context.providerId,
-        name: value.information.serviceName,
-        status,
-      })
-      .select('id')
-      .single()
+    const { error } = await context.client.from('services').insert(servicePayload)
 
-    if (error || !service?.id) {
-      return { ok: false, message: error?.message }
+    if (error) {
+      console.warn('Unable to create merchant service:', error.message)
+      return { ok: false, message: error.message }
     }
 
     if (value.packages.length > 0) {
@@ -302,7 +347,7 @@ export const saveMerchantServiceListing = async (
           is_active: status === 'active',
           name: item.name,
           price: item.price,
-          service_id: service.id,
+          service_id: serviceId,
         }))
       )
 
@@ -316,7 +361,16 @@ export const saveMerchantServiceListing = async (
       .delete()
       .eq('provider_id', context.providerId)
 
-    return { ok: true }
+    return {
+      ok: true,
+      service: mapMerchantServiceRow(
+        {
+          ...servicePayload,
+          service_packages: value.packages.map((item) => ({ id: item.id })),
+        },
+        value.information.category
+      ),
+    }
   } catch (error) {
     return { ok: false, message: toMessage(error) }
   }
@@ -423,7 +477,7 @@ export const fetchMerchantServices = async (): Promise<MerchantServiceListing[]>
 
   if (!context) return []
 
-  const { data, error } = await context.client
+  const query = context.client
     .from('services')
     .select(
       'id, name, description, base_price, cover_image_url, status, updated_at, service_categories(name), service_packages(id)'
@@ -431,25 +485,31 @@ export const fetchMerchantServices = async (): Promise<MerchantServiceListing[]>
     .eq('provider_id', context.providerId)
     .order('updated_at', { ascending: false })
 
-  if (error || !data) return []
+  const { data, error } = await query
 
-  return data.map((row) => {
-    const record = row as Record<string, unknown>
-    const category = nested(record.service_categories) as Record<string, unknown> | undefined
-    const packages = Array.isArray(record.service_packages) ? record.service_packages : []
-
-    return {
-      basePrice: numberFrom(record.base_price),
-      categoryName: textFrom(category?.name, 'Service'),
-      coverImageUrl: textFrom(record.cover_image_url),
-      description: textFrom(record.description),
-      id: textFrom(record.id),
-      name: textFrom(record.name, 'Untitled service'),
-      packageCount: packages.length,
-      status: textFrom(record.status, 'draft'),
-      updatedAt: textFrom(record.updated_at),
+  if (error || !data) {
+    if (error) {
+      console.warn('Unable to fetch merchant services:', error.message)
     }
-  })
+
+    const { data: fallbackData, error: fallbackError } = await context.client
+      .from('services')
+      .select('id, name, description, base_price, cover_image_url, status, updated_at')
+      .eq('provider_id', context.providerId)
+      .order('updated_at', { ascending: false })
+
+    if (fallbackError || !fallbackData) {
+      if (fallbackError) {
+        console.warn('Unable to fetch merchant services without joins:', fallbackError.message)
+      }
+
+      return []
+    }
+
+    return fallbackData.map((row) => mapMerchantServiceRow(row))
+  }
+
+  return data.map((row) => mapMerchantServiceRow(row))
 }
 
 export const saveAvailabilityCalendar = async ({
