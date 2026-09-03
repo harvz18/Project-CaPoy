@@ -24,7 +24,7 @@ export interface ServicePricingValue {
 
 interface Step2PricingScreenProps {
   initialValue?: Partial<ServicePricingValue>
-  onBack?: () => void
+  onBack?: (draft?: ServicePricingValue) => void
   onNext?: (value: ServicePricingValue) => void
 }
 
@@ -118,6 +118,14 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
     })
   }
 
+  const buildDraft = (): ServicePricingValue => ({
+    amount: requiresAmount ? amount : undefined,
+    currency: 'PHP',
+    details: details.trim(),
+    model,
+    unit: requiresAmount ? unit : undefined,
+  })
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -130,7 +138,7 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
               accessibilityLabel="Go back to service information"
               accessibilityRole="button"
               hitSlop={8}
-              onPress={onBack}
+              onPress={() => onBack?.(buildDraft())}
               style={({ pressed }) => [styles.backButton, pressed && styles.iconButtonPressed]}
             >
               <BackIcon />
@@ -157,7 +165,10 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
             </View>
           </View>
 
-          <Text numberOfLines={1} style={styles.headerTitle}>
+          <Text
+            numberOfLines={isWide ? 1 : 2}
+            style={[styles.headerTitle, !isWide && styles.headerTitleMobile]}
+          >
             Set Your Pricing
           </Text>
           <View style={styles.headerSpacer} />
@@ -363,7 +374,7 @@ const styles = StyleSheet.create({
   },
   wideHorizontalPadding: { paddingHorizontal: 32 },
   headerSide: {
-    minWidth: 128,
+    minWidth: 112,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -410,7 +421,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: 8,
   },
-  headerSpacer: { width: 128 },
+  headerTitleMobile: {
+    fontSize: 16,
+    lineHeight: 20,
+    textAlign: 'right',
+  },
+  headerSpacer: { width: 40 },
   content: { width: '100%', maxWidth: 768, alignSelf: 'center' },
   contentMobile: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 32 },
   contentWide: { paddingHorizontal: 32, paddingTop: 32, paddingBottom: 40 },

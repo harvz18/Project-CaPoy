@@ -8,6 +8,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native'
+import { MerchantBottomNavigation } from '../components/MerchantBottomNavigation'
 import type { MerchantHomeTab } from './16-MerchantHome'
 
 export type MerchantVerificationStatus = 'approved' | 'pending' | 'rejected'
@@ -71,14 +72,6 @@ const defaultProfile: MerchantProfileValue = {
   reviewCount: 124,
   verificationStatus: 'approved',
 }
-
-const navigationTabs: Array<{ id: MerchantHomeTab; label: string; glyph: string }> = [
-  { id: 'home', label: 'Home', glyph: '\u2302' },
-  { id: 'services', label: 'Services', glyph: '\u2637' },
-  { id: 'bookings', label: 'Bookings', glyph: '\u25A3' },
-  { id: 'messages', label: 'Messages', glyph: '\u2709' },
-  { id: 'profile', label: 'Profile', glyph: '\u25CB' },
-]
 
 const accountActions: Array<{
   action: MerchantProfileAction
@@ -450,32 +443,7 @@ export const MerchantProfileScreen: React.FC<MerchantProfileScreenProps> = ({
       </ScrollView>
 
       {!isWide ? (
-        <View style={styles.bottomNavigation}>
-          <View style={styles.bottomNavigationContent}>
-            {navigationTabs.map((tab) => {
-              const selected = tab.id === 'profile'
-              return (
-                <Pressable
-                  key={tab.id}
-                  accessibilityLabel={`Open ${tab.label}`}
-                  accessibilityRole="tab"
-                  accessibilityState={{ selected }}
-                  onPress={() => onSelectTab?.(tab.id)}
-                  style={({ pressed }) => [styles.navItem, pressed && styles.navItemPressed]}
-                >
-                  <View style={[styles.navIconContainer, selected && styles.navIconSelected]}>
-                    <Text style={[styles.navGlyph, selected && styles.navGlyphSelected]}>
-                      {tab.glyph}
-                    </Text>
-                  </View>
-                  <Text style={[styles.navLabel, selected && styles.navLabelSelected]}>
-                    {tab.label}
-                  </Text>
-                </Pressable>
-              )
-            })}
-          </View>
-        </View>
+        <MerchantBottomNavigation activeTab="profile" onSelectTab={onSelectTab} />
       ) : null}
     </View>
   )
@@ -812,14 +780,4 @@ const styles = StyleSheet.create({
   logoutButtonPressed: { backgroundColor: palette.errorSoft },
   logoutGlyph: { color: palette.error, fontSize: 18, lineHeight: 22 },
   logoutText: { color: palette.error, fontSize: 13, lineHeight: 19, fontWeight: '600' },
-  bottomNavigation: { position: 'absolute', right: 0, bottom: 0, left: 0, zIndex: 40, minHeight: 76, justifyContent: 'center', borderTopWidth: 1, borderTopColor: palette.border, backgroundColor: palette.background, paddingVertical: 6 },
-  bottomNavigationContent: { width: '100%', maxWidth: 560, alignSelf: 'center', flexDirection: 'row', justifyContent: 'space-around' },
-  navItem: { width: 68, minHeight: 58, alignItems: 'center', justifyContent: 'center', gap: 2 },
-  navItemPressed: { opacity: 0.55, transform: [{ scale: 0.93 }] },
-  navIconContainer: { width: 50, height: 30, alignItems: 'center', justifyContent: 'center', borderRadius: 15 },
-  navIconSelected: { backgroundColor: palette.primaryContainer },
-  navGlyph: { color: palette.secondary, fontSize: 18, lineHeight: 22 },
-  navGlyphSelected: { color: palette.onPrimary },
-  navLabel: { color: palette.secondary, fontSize: 9, lineHeight: 13 },
-  navLabelSelected: { color: palette.primaryContainer, fontWeight: '700' },
 })

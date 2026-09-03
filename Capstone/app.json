@@ -18,6 +18,12 @@
       "bundler": "metro"
     },
     "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow MULTIVENT to select service photos from your device."
+        }
+      ],
       "expo-web-browser"
     ],
     "extra": {

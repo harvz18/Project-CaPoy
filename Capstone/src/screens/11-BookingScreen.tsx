@@ -33,39 +33,6 @@ interface BookingScreenProps {
   onSelectTab?: (tab: BookingTab) => void
 }
 
-const defaultBookings: BookingItem[] = [
-  {
-    id: 'bloom',
-    name: 'Bloom & Co. Floral Design',
-    category: 'Florist',
-    date: 'Oct 12, 2024',
-    status: 'confirmed',
-    imageLabel: 'Burgundy and white wedding flowers',
-    image:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuDNza7Ea4qcTAb2VvQN2HF_5F9MaahHs1-NE41dqQmC59MbqYdGxJ6y9dtFBtsY874amM7g-C_eDNh394waj-7fjl-8uDwACSncBzSg5hfEuoE__b5-8P-L7k8YQd90quOmexFXMqvojz4n0O9JtFY7c_dkxgRnODD-Gzku5pCZTqocu1NeLtwBjDoaz299K8zUiAejxPhN2nNbVeBvi2kmgq5D1jgl1ll1iYHhZK4QuKhx7PN9Mb1NUA',
-  },
-  {
-    id: 'lumina',
-    name: 'Lumina Studios',
-    category: 'Photography',
-    date: 'Oct 12, 2024',
-    status: 'pending',
-    imageLabel: 'Professional camera and wedding invitations',
-    image:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuDyttZEr4I_yedpP-bfFgmfYBI2PiDE0WFI3PQaXWo6szA6T2C3nfbIz6mxCYBjOgkYC_uI8P82Hyd5ukZsN_HF4PRgQrRHvocZNgETIqYh9xB35uYu7e_37D1QTGTLAZ95-S0kC7zSh8zPA06XeA-KYQkzhwAoLCZQvAzfpcJoFS7don7in4xvy28LR_r2Ni4y237DEMRtt4_jtZQF0O1P8YbVxjbNh7D1P2wQvR8kbel68u4duNwRGA',
-  },
-  {
-    id: 'epicurean',
-    name: 'Epicurean Delights',
-    category: 'Catering',
-    date: 'Oct 12, 2024',
-    status: 'confirmed',
-    imageLabel: 'Gourmet plated catering dish',
-    image:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuB_EIFo0SJ-TT7DgjYnwWHnL5bOdoujXkukfV_lQBTtOhXpDVi6dqvZPUucpsO-YOw6owu98l0Ay0nNP2wxd4yUzRcvp2InPd7q7hNMxKP9EVP742E9QEP8zMqhBBJl7GokMCwCmD1QQeNxxMO6_35iFC4r0_BBllTq-gvdafYrm0Jk3GEgva16m1qkLxKcDvwLI76mtBPJuwCfd3MEnuDRsdDCTC6SJh0UUBwjogXyZsBDjHv9mfe0Xw',
-  },
-]
-
 const profileImage =
   'https://lh3.googleusercontent.com/aida-public/AB6AXuDFKwwMGKf49MfjiaUPbQKbEV8NAm7-Ac8OP_SHq6vcWQCN3Re793zWxivgmVCo6QuLCp-8HNm2S3W_Jbcm_WlaTPpN3nkd1TbURID3kM0AnFd9X4OJgEKc9msJGzYFIL8ktk08fD82kYaDWMjXh9IoyXG1ywt7ZvE7-g9w4pkB-O6wa1DVpBOd3v0EeR1P5T0L2gWhclnG-gntgBi9HLC4WSyJdhGoetVg7jKhT0XK1HGBWLpevDqSXQ'
 
@@ -83,7 +50,7 @@ const categoryIcons: Record<string, string> = {
 }
 
 export const BookingScreen: React.FC<BookingScreenProps> = ({
-  bookings = defaultBookings,
+  bookings = [],
   eventName = 'Sarah & James Wedding',
   onOpenMenu,
   onOpenProfile,
@@ -207,12 +174,20 @@ export const BookingScreen: React.FC<BookingScreenProps> = ({
                     pressed && styles.bookingRowPressed,
                   ]}
                 >
-                  <Image
-                    accessibilityLabel={booking.imageLabel}
-                    resizeMode="cover"
-                    source={{ uri: booking.image }}
-                    style={styles.thumbnail}
-                  />
+                  {booking.image ? (
+                    <Image
+                      accessibilityLabel={booking.imageLabel}
+                      resizeMode="cover"
+                      source={{ uri: booking.image }}
+                      style={styles.thumbnail}
+                    />
+                  ) : (
+                    <View style={[styles.thumbnail, styles.thumbnailPlaceholder]}>
+                      <Text style={styles.thumbnailPlaceholderText}>
+                        {booking.name.charAt(0)}
+                      </Text>
+                    </View>
+                  )}
 
                   <View style={styles.bookingCopy}>
                     <View style={styles.bookingHeading}>
@@ -411,6 +386,17 @@ const styles = StyleSheet.create({
     borderColor: palette.border,
     borderRadius: 8,
     backgroundColor: '#EEEEEE',
+  },
+  thumbnailPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: palette.background,
+  },
+  thumbnailPlaceholderText: {
+    color: palette.burgundy,
+    fontSize: 22,
+    fontWeight: '700',
+    lineHeight: 28,
   },
   bookingCopy: { flex: 1, minWidth: 0 },
   bookingHeading: {

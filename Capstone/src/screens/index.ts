@@ -29,6 +29,7 @@ export type {
 } from './16-MerchantHome'
 export { Step1ServiceListingScreen } from './17-Step1ServiceListing'
 export type { ServiceInformationValue } from './17-Step1ServiceListing'
+export { ProviderServicesScreen } from './17-ProviderServices'
 export { Step2PricingScreen } from './17.1-Step2Pricing'
 export type {
   ServicePricingModel,
@@ -114,12 +115,6 @@ export type {
   MerchantNotificationFilter,
   MerchantNotificationPreferences,
 } from './22.5-Notification'
-export { ServiceListingScreen } from './17-ServiceListing'
-export type {
-  MerchantServiceItem,
-  ServiceListingFilter,
-  ServiceListingTab,
-} from './17-ServiceListing'
 export { OnboardingScreen } from './01-Onboarding'
 export { LoginScreen } from './01.1-Login'
 export { ForgotPasswordScreen } from './01.1.1-ForgotPassword'

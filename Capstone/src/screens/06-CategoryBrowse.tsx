@@ -11,7 +11,7 @@ import {
 } from 'react-native'
 import { PlanningStepIndicator } from '../components/PlanningStepIndicator'
 import { ClientBottomNavigation, ClientMainTab } from '../components/ClientBottomNavigation'
-import { CatalogService, formatServicePrice, mockCatalogServices } from '../lib/catalog'
+import { CatalogService, formatServicePrice } from '../lib/catalog'
 
 export type CategoryBrowseFilter = 'plated' | 'buffet' | 'packed' | 'under500'
 export type CategoryBrowseVendor = string
@@ -50,7 +50,7 @@ const formatCurrency = (value: number) =>
   Math.max(0, Math.floor(value)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 
 export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
-  services = mockCatalogServices,
+  services = [],
   remainingBudget = 45000,
   searchValue,
   sortLabel = 'Relevance',
@@ -262,8 +262,8 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
 
           {visibleVendors.length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>No caterers found</Text>
-              <Text style={styles.emptyCopy}>Try a different name or service type.</Text>
+              <Text style={styles.emptyTitle}>No services found</Text>
+              <Text style={styles.emptyCopy}>Services will appear here after providers publish them.</Text>
             </View>
           ) : null}
         </View>

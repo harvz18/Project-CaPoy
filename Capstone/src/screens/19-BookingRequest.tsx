@@ -7,6 +7,8 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native'
+import { MerchantBottomNavigation } from '../components/MerchantBottomNavigation'
+import type { MerchantHomeTab } from './16-MerchantHome'
 
 export type BookingRequestStatus = 'new' | 'confirmed' | 'completed' | 'cancelled'
 export type BookingRequestNavigationTab = 'events' | 'bookings' | 'budget' | 'chat'
@@ -26,6 +28,7 @@ interface BookingRequestScreenProps {
   onAccept?: (request: MerchantBookingRequest) => void
   onBack?: () => void
   onDecline?: (request: MerchantBookingRequest) => void
+  onSelectMerchantTab?: (tab: MerchantHomeTab) => void
   onSelectNavigationTab?: (tab: BookingRequestNavigationTab) => void
   onSelectRequest?: (request: MerchantBookingRequest) => void
   onStatusChange?: (status: BookingRequestStatus) => void
@@ -33,51 +36,11 @@ interface BookingRequestScreenProps {
   requests?: MerchantBookingRequest[]
 }
 
-const defaultRequests: MerchantBookingRequest[] = [
-  {
-    amount: 3500,
-    clientName: 'Eleanor Vance',
-    currency: 'PHP',
-    eventDate: '2026-10-12',
-    id: 'eleanor-vance',
-    packageName: 'Premium Photography Package',
-    status: 'new',
-  },
-  {
-    amount: 1800,
-    clientName: 'Theodora Crain',
-    currency: 'PHP',
-    eventDate: '2026-11-05',
-    id: 'theodora-crain',
-    packageName: 'Standard Videography',
-    status: 'new',
-  },
-  {
-    amount: 5200,
-    clientName: 'Luke Crain',
-    currency: 'PHP',
-    eventDate: '2026-12-20',
-    id: 'luke-crain',
-    packageName: 'Deluxe Combo Package',
-    status: 'new',
-  },
-]
-
 const filters: Array<{ id: BookingRequestStatus; label: string }> = [
   { id: 'new', label: 'New' },
   { id: 'confirmed', label: 'Confirmed' },
   { id: 'completed', label: 'Completed' },
   { id: 'cancelled', label: 'Cancelled' },
-]
-
-const navigationTabs: Array<{
-  id: BookingRequestNavigationTab
-  label: string
-}> = [
-  { id: 'events', label: 'Events' },
-  { id: 'bookings', label: 'Bookings' },
-  { id: 'budget', label: 'Budget' },
-  { id: 'chat', label: 'Chat' },
 ]
 
 const statusLabels: Record<BookingRequestStatus, string> = {
@@ -118,11 +81,12 @@ export const BookingRequestScreen: React.FC<BookingRequestScreenProps> = ({
   onAccept,
   onBack,
   onDecline,
+  onSelectMerchantTab,
   onSelectNavigationTab,
   onSelectRequest,
   onStatusChange,
   processingRequestId,
-  requests = defaultRequests,
+  requests = [],
 }) => {
   const { width } = useWindowDimensions()
   const isWide = width >= 768
@@ -314,74 +278,16 @@ export const BookingRequestScreen: React.FC<BookingRequestScreenProps> = ({
       </ScrollView>
 
       {!isWide ? (
-        <View style={styles.bottomNavigation}>
-          <View style={styles.bottomNavigationContent}>
-            {navigationTabs.map((tab) => {
-              const selected = tab.id === 'bookings'
-              const color = selected ? palette.primary : palette.secondary
-
-              return (
-                <Pressable
-                  key={tab.id}
-                  accessibilityLabel={`Open ${tab.label}`}
-                  accessibilityRole="tab"
-                  accessibilityState={{ selected }}
-                  onPress={() => onSelectNavigationTab?.(tab.id)}
-                  style={({ pressed }) => [styles.navItem, pressed && styles.navItemPressed]}
-                >
-                  <BookingNavigationIcon color={color} name={tab.id} />
-                  <Text style={[styles.navLabel, selected && styles.navLabelSelected]}>
-                    {tab.label.toUpperCase()}
-                  </Text>
-                </Pressable>
-              )
-            })}
-          </View>
-        </View>
+        <MerchantBottomNavigation
+          activeTab="bookings"
+          onSelectTab={(tab) => {
+            onSelectMerchantTab?.(tab)
+            if (tab === 'home') onSelectNavigationTab?.('events')
+            if (tab === 'bookings') onSelectNavigationTab?.('bookings')
+            if (tab === 'messages') onSelectNavigationTab?.('chat')
+          }}
+        />
       ) : null}
-    </View>
-  )
-}
-
-const BookingNavigationIcon = ({
-  color,
-  name,
-}: {
-  color: string
-  name: BookingRequestNavigationTab
-}) => {
-  if (name === 'events') {
-    return (
-      <View style={[styles.navIconCanvas, styles.calendarIcon, { borderColor: color }]}>
-        <View style={[styles.calendarRule, { backgroundColor: color }]} />
-        <View style={styles.calendarDots}>
-          <View style={[styles.calendarDot, { backgroundColor: color }]} />
-          <View style={[styles.calendarDot, { backgroundColor: color }]} />
-        </View>
-      </View>
-    )
-  }
-
-  if (name === 'bookings') {
-    return (
-      <View style={[styles.navIconCanvas, styles.bookingIcon, { borderColor: color }]}>
-        <View style={[styles.bookingIconLine, { backgroundColor: color }]} />
-        <View style={[styles.bookingIconLine, styles.bookingIconLineShort, { backgroundColor: color }]} />
-      </View>
-    )
-  }
-
-  if (name === 'budget') {
-    return (
-      <View style={[styles.navIconCanvas, styles.walletIcon, { borderColor: color }]}>
-        <View style={[styles.walletClasp, { borderColor: color }]} />
-      </View>
-    )
-  }
-
-  return (
-    <View style={[styles.navIconCanvas, styles.chatIcon, { borderColor: color }]}>
-      <View style={[styles.chatTail, { borderColor: color }]} />
     </View>
   )
 }
@@ -549,50 +455,4 @@ const styles = StyleSheet.create({
   emptyCalendarDot: { width: 5, height: 5, borderRadius: 2, backgroundColor: palette.border },
   emptyTitle: { color: palette.text, fontSize: 16, lineHeight: 22, fontWeight: '600', textAlign: 'center' },
   emptyCopy: { maxWidth: 320, color: palette.secondary, fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 4 },
-  bottomNavigation: {
-    position: 'absolute',
-    right: 0,
-    bottom: 0,
-    left: 0,
-    zIndex: 40,
-    minHeight: 72,
-    justifyContent: 'center',
-    borderTopWidth: 1,
-    borderTopColor: palette.border,
-    backgroundColor: palette.background,
-    paddingVertical: 7,
-  },
-  bottomNavigationContent: {
-    width: '100%',
-    maxWidth: 520,
-    alignSelf: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  navItem: { width: 72, minHeight: 54, alignItems: 'center', justifyContent: 'center', gap: 4 },
-  navItemPressed: { opacity: 0.55, transform: [{ scale: 0.92 }] },
-  navLabel: { color: palette.secondary, fontSize: 10, lineHeight: 14, letterSpacing: 0.6 },
-  navLabelSelected: { color: palette.primary, fontWeight: '700' },
-  navIconCanvas: { width: 22, height: 21 },
-  calendarIcon: { overflow: 'hidden', borderWidth: 1.6, borderRadius: 3 },
-  calendarRule: { width: '100%', height: 1.5, marginTop: 5 },
-  calendarDots: { flexDirection: 'row', gap: 4, marginTop: 4, marginLeft: 4 },
-  calendarDot: { width: 3, height: 3, borderRadius: 1 },
-  bookingIcon: { justifyContent: 'center', gap: 4, borderWidth: 1.6, borderRadius: 3, paddingHorizontal: 4 },
-  bookingIconLine: { width: '100%', height: 1.5, borderRadius: 1 },
-  bookingIconLineShort: { width: '65%' },
-  walletIcon: { borderWidth: 1.6, borderRadius: 4 },
-  walletClasp: { position: 'absolute', right: -2, top: 6, width: 9, height: 8, borderWidth: 1.4, borderRadius: 2 },
-  chatIcon: { borderWidth: 1.6, borderRadius: 5 },
-  chatTail: {
-    position: 'absolute',
-    bottom: -4,
-    left: 3,
-    width: 7,
-    height: 7,
-    borderLeftWidth: 1.6,
-    borderBottomWidth: 1.6,
-    transform: [{ skewY: '-35deg' }],
-    backgroundColor: palette.background,
-  },
 })

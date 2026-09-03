@@ -1,25 +1,91 @@
 import React from 'react'
-import { StyleSheet } from 'react-native'
+import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
+import * as ImagePicker from 'expo-image-picker'
 import { supabase } from './lib/supabase'
-import {
-  CatalogService,
-  fetchCatalogServices,
-  mockCatalogServices,
-} from './lib/catalog'
+import { CatalogService, fetchCatalogServices } from './lib/catalog'
 import {
   saveBudgetPlan,
+  saveClientReview,
   saveEventDraft,
   savePlanningPayment,
   saveProviderInstructions,
   saveScheduleCheck,
   saveServiceSelection,
 } from './lib/planning'
+import {
+  changeMerchantPassword,
+  clearMerchantServiceDraft,
+  fetchClientBookings,
+  fetchMerchantBookingRequests,
+  fetchMerchantServices,
+  loadMerchantServiceDraft,
+  MerchantServiceListing,
+  markMerchantNotificationRead,
+  markMerchantNotificationsRead,
+  requestMerchantPayout,
+  saveAvailabilityCalendar,
+  saveBookingDecision,
+  saveMerchantServiceDraft,
+  saveMerchantServiceListing,
+  saveMerchantTransactionNote,
+  saveNotificationPreferences,
+  saveOperatingHours,
+  uploadMerchantServicePhoto,
+} from './lib/merchant'
 import { colors } from './theme/tokens'
 import { ClientHomeScreen } from './screens/03-ClientHome'
 import { MerchantHomeScreen } from './screens/16-MerchantHome'
-import { ServiceListingScreen } from './screens/17-ServiceListing'
+import {
+  Step1ServiceListingScreen,
+  ServiceInformationValue,
+} from './screens/17-Step1ServiceListing'
+import { ProviderServicesScreen } from './screens/17-ProviderServices'
+import {
+  Step2PricingScreen,
+  ServicePricingValue,
+} from './screens/17.1-Step2Pricing'
+import {
+  Step2AddPackageScreen,
+  ServicePackageValue,
+} from './screens/17.1.1-Step2AddPackage'
+import {
+  ReviewListingSection,
+  ServiceListingReviewValue,
+  Step3ReviewListingsScreen,
+} from './screens/17.2-Step3ReviewListings'
+import {
+  AvailabilityCalendarScreen,
+  AvailabilityEntry,
+} from './screens/18-AvailabilityCalendar'
+import {
+  BookingRequestDecisionValue,
+  BookingRequestDetailsScreen,
+} from './screens/19.1-BookingRequest'
+import {
+  BookingRequestDeclineScreen,
+  BookingRequestDeclineValue,
+} from './screens/19.2-BookingRequest(Deciline)'
+import {
+  BookingRequestScreen,
+  BookingRequestStatus,
+  MerchantBookingRequest,
+} from './screens/19-BookingRequest'
+import { MerchantBookingDetailScreen } from './screens/20-BookingDetail'
+import { ReviewPerformanceScreen } from './screens/21-ReviewPerformance'
+import {
+  MerchantProfileAction,
+  MerchantProfileScreen,
+} from './screens/22-MerchantProfile'
+import { OperatingHoursScreen } from './screens/22.1-OperatingHours'
+import {
+  PayoutEarningsScreen,
+  PayoutTransaction,
+} from './screens/22.2-PayoutEarnings'
+import { TransactionDetailsScreen } from './screens/22.3-TransactionDetails'
+import { ChangePasswordScreen } from './screens/22.4-ChangePassword'
+import { NotificationScreen } from './screens/22.5-Notification'
 import { OnboardingScreen } from './screens/01-Onboarding'
 import { LoginScreen } from './screens/01.1-Login'
 import { ForgotPasswordScreen } from './screens/01.1.1-ForgotPassword'
@@ -76,7 +142,24 @@ type AppScreen =
   | 'clientHome'
   | 'eventCreation'
   | 'providerHome'
+  | 'providerDraftChoice'
   | 'providerServices'
+  | 'providerServiceInfo'
+  | 'providerServicePricing'
+  | 'providerPackage'
+  | 'providerServiceReview'
+  | 'providerAvailability'
+  | 'providerBookingRequests'
+  | 'providerBookingRequestDetails'
+  | 'providerBookingDecline'
+  | 'providerBookingDetails'
+  | 'providerReviews'
+  | 'providerProfile'
+  | 'providerOperatingHours'
+  | 'providerPayouts'
+  | 'providerTransactionDetails'
+  | 'providerChangePassword'
+  | 'providerNotifications'
   | 'coordinatorHome'
   | 'adminHome'
   | 'superadminHome'
@@ -126,6 +209,20 @@ const DEFAULT_EVENT: EventCreationValue = {
   venueStatus: 'searching',
 }
 
+const DEFAULT_SERVICE_INFORMATION: ServiceInformationValue = {
+  category: 'Catering',
+  description: '',
+  photos: [],
+  serviceName: '',
+}
+
+const DEFAULT_SERVICE_PRICING: ServicePricingValue = {
+  currency: 'PHP',
+  details: '',
+  model: 'fixed',
+  unit: 'event',
+}
+
 const ledgerColors = ['#6B1E2E', '#994251', '#DAC0C2', '#544244', '#C7C6C6']
 
 const getMetadataName = (metadata: UserMetadata) => {
@@ -161,15 +258,34 @@ export const App: React.FC = () => {
     React.useState<VerificationNextScreen>('clientHome')
   const [recoveryContact, setRecoveryContact] = React.useState('')
   const [selectedBooking, setSelectedBooking] = React.useState<BookingItem>()
-  const [catalogServices, setCatalogServices] =
-    React.useState<CatalogService[]>(mockCatalogServices)
+  const [catalogServices, setCatalogServices] = React.useState<CatalogService[]>([])
   const [selectedCategory, setSelectedCategory] = React.useState('catering')
-  const [currentServiceId, setCurrentServiceId] = React.useState(mockCatalogServices[0].id)
+  const [currentServiceId, setCurrentServiceId] = React.useState('')
   const [selectedServices, setSelectedServices] = React.useState<SelectedSummaryService[]>([])
+  const [clientBookings, setClientBookings] = React.useState<BookingItem[]>([])
+  const [merchantRequests, setMerchantRequests] = React.useState<MerchantBookingRequest[]>([])
+  const [merchantServices, setMerchantServices] = React.useState<MerchantServiceListing[]>([])
   const [totalBudget, setTotalBudget] = React.useState(DEFAULT_BUDGET)
   const [eventDetails, setEventDetails] =
     React.useState<EventCreationValue>(DEFAULT_EVENT)
   const [lastPayment, setLastPayment] = React.useState<PaymentValue>()
+  const [merchantServiceInfo, setMerchantServiceInfo] =
+    React.useState<ServiceInformationValue>(DEFAULT_SERVICE_INFORMATION)
+  const [merchantServicePricing, setMerchantServicePricing] =
+    React.useState<ServicePricingValue>(DEFAULT_SERVICE_PRICING)
+  const [merchantPackages, setMerchantPackages] = React.useState<ServicePackageValue[]>([])
+  const [merchantAvailability, setMerchantAvailability] = React.useState<AvailabilityEntry[]>([])
+  const [selectedMerchantRequest, setSelectedMerchantRequest] =
+    React.useState<MerchantBookingRequest>()
+  const [selectedMerchantTransaction, setSelectedMerchantTransaction] =
+    React.useState<PayoutTransaction>()
+  const [merchantRequestStatus, setMerchantRequestStatus] =
+    React.useState<BookingRequestStatus>('new')
+  const [isPublishingService, setIsPublishingService] = React.useState(false)
+  const [isSavingServiceDraft, setIsSavingServiceDraft] = React.useState(false)
+  const [isSavingAvailability, setIsSavingAvailability] = React.useState(false)
+  const [hasMerchantDraft, setHasMerchantDraft] = React.useState(false)
+  const [toastMessage, setToastMessage] = React.useState('')
 
   const openPlanningHub = () => setScreen('budgetTracker')
   const openSelectedPlan = () => setScreen('selectedSummary')
@@ -181,8 +297,7 @@ export const App: React.FC = () => {
     0
   )
   const remainingBudget = Math.max(0, totalBudget - selectedEstimatedTotal)
-  const currentService =
-    catalogServices.find((service) => service.id === currentServiceId) ?? mockCatalogServices[0]
+  const currentService = catalogServices.find((service) => service.id === currentServiceId)
   const categoryServices = catalogServices.filter(
     (service) => service.categoryId === selectedCategory
   )
@@ -210,15 +325,7 @@ export const App: React.FC = () => {
     name: eventDisplayName,
     time: eventDisplayTime,
   }
-  const bookingItems: BookingItem[] = selectedServices.map((service) => ({
-    category: service.category,
-    date: eventDisplayDate,
-    id: service.id,
-    image: service.imageUrl,
-    imageLabel: service.imageLabel,
-    name: service.name,
-    status: lastPayment ? 'confirmed' : 'pending',
-  }))
+  const bookingItems = clientBookings
   const ledgerCategories: LedgerCategory[] = selectedServices.map((service, index) => ({
     amount: service.price,
     color: ledgerColors[index % ledgerColors.length],
@@ -252,13 +359,36 @@ export const App: React.FC = () => {
 
       setCatalogServices(services)
       setCurrentServiceId((current) =>
-        services.some((service) => service.id === current) ? current : services[0].id
+        services.some((service) => service.id === current) ? current : services[0]?.id ?? ''
       )
     })
 
     return () => {
       isMounted = false
     }
+  }, [])
+
+  const refreshLiveData = React.useCallback(async () => {
+    const [services, bookings, requests, merchantServiceRows, draft] = await Promise.all([
+      fetchCatalogServices(),
+      fetchClientBookings(),
+      fetchMerchantBookingRequests(),
+      fetchMerchantServices(),
+      loadMerchantServiceDraft(),
+    ])
+
+    setCatalogServices(services)
+    setClientBookings(bookings)
+    setMerchantRequests(requests)
+    setMerchantServices(merchantServiceRows)
+    setCurrentServiceId((current) =>
+      services.some((service) => service.id === current) ? current : services[0]?.id ?? ''
+    )
+
+    setHasMerchantDraft(Boolean(draft))
+    if (draft?.information) setMerchantServiceInfo(draft.information)
+    if (draft?.pricing) setMerchantServicePricing(draft.pricing)
+    if (draft?.packages) setMerchantPackages(draft.packages)
   }, [])
 
   const routeForRole = React.useCallback((role?: AccountRole | string | null) => {
@@ -333,6 +463,7 @@ export const App: React.FC = () => {
         ...data.session.user.user_metadata,
         email: data.session.user.email,
       })
+      void refreshLiveData()
     })
 
     const {
@@ -347,6 +478,7 @@ export const App: React.FC = () => {
           ...session.user.user_metadata,
           email: session.user.email,
         })
+        void refreshLiveData()
       }
     })
 
@@ -354,7 +486,7 @@ export const App: React.FC = () => {
       isMounted = false
       subscription.unsubscribe()
     }
-  }, [loadProfileAndRoute])
+  }, [loadProfileAndRoute, refreshLiveData])
 
   const handleAuthenticatedUser = React.useCallback(async () => {
     if (!supabase) {
@@ -373,7 +505,8 @@ export const App: React.FC = () => {
       ...data.user.user_metadata,
       email: data.user.email,
     })
-  }, [loadProfileAndRoute])
+    void refreshLiveData()
+  }, [loadProfileAndRoute, refreshLiveData])
 
   const openLogin = (returnScreen: LoginReturnScreen) => {
     setLoginReturnScreen(returnScreen)
@@ -412,6 +545,15 @@ export const App: React.FC = () => {
     setScreen(nextScreen)
   }
 
+  React.useEffect(() => {
+    if (!toastMessage) {
+      return undefined
+    }
+
+    const timeout = setTimeout(() => setToastMessage(''), 2600)
+    return () => clearTimeout(timeout)
+  }, [toastMessage])
+
   const handleAddSelection = (value: Parameters<typeof saveServiceSelection>[0]) => {
     const nextSelection: SelectedSummaryService = {
       id: value.service.id,
@@ -433,8 +575,107 @@ export const App: React.FC = () => {
         : [...current, nextSelection]
     })
 
-    void saveServiceSelection(value)
+    void saveServiceSelection(value).then(() => refreshLiveData())
     setScreen('selectedSummary')
+  }
+
+  const openMerchantTab = (tab: 'home' | 'services' | 'bookings' | 'messages' | 'profile') => {
+    setHomeReturnScreen('providerHome')
+    if (tab === 'home') setScreen('providerHome')
+    if (tab === 'services') setScreen('providerServices')
+    if (tab === 'bookings') setScreen('providerBookingRequests')
+    if (tab === 'messages') setScreen('messages')
+    if (tab === 'profile') setScreen('providerProfile')
+  }
+
+  const handleMerchantAction = (action: MerchantProfileAction) => {
+    if (action === 'services' || action === 'packages') {
+      setScreen('providerServices')
+    }
+    if (action === 'availability') setScreen('providerAvailability')
+    if (action === 'operatingHours') setScreen('providerOperatingHours')
+    if (action === 'payouts') setScreen('providerPayouts')
+    if (action === 'reviews') setScreen('providerReviews')
+    if (action === 'notifications') setScreen('providerNotifications')
+    if (action === 'security') setScreen('providerChangePassword')
+    if (action === 'verification') setScreen('pendingApproval')
+    if (action === 'help' || action === 'terms') setScreen('providerProfile')
+    if (action === 'logout') {
+      void supabase?.auth.signOut()
+      setUserName('Planner')
+      setScreen('roleSelection')
+    }
+  }
+
+  const handleServiceListingSubmit = async (
+    value: ServiceListingReviewValue,
+    status: 'draft' | 'active'
+  ) => {
+    if (status === 'active') {
+      setIsPublishingService(true)
+    } else {
+      setIsSavingServiceDraft(true)
+    }
+
+    const result =
+      status === 'draft'
+        ? await saveMerchantServiceDraft(value)
+        : await saveMerchantServiceListing(value, status)
+
+    setIsPublishingService(false)
+    setIsSavingServiceDraft(false)
+
+    if (result.ok) {
+      await refreshLiveData()
+      setHasMerchantDraft(status === 'draft')
+      setToastMessage(status === 'active' ? 'Service published successfully.' : 'Draft saved.')
+      setScreen('providerServices')
+    } else if (result.message) {
+      setToastMessage(result.message)
+    }
+  }
+
+  const startNewMerchantListing = () => {
+    setMerchantServiceInfo(DEFAULT_SERVICE_INFORMATION)
+    setMerchantServicePricing(DEFAULT_SERVICE_PRICING)
+    setMerchantPackages([])
+    setHasMerchantDraft(false)
+    void clearMerchantServiceDraft()
+    setScreen('providerServiceInfo')
+  }
+
+  const handleBookingDecision = (
+    value: BookingRequestDecisionValue | BookingRequestDeclineValue
+  ) => {
+    void saveBookingDecision(value).then(() => refreshLiveData())
+    setMerchantRequestStatus('reason' in value || value.decision === 'declined' ? 'cancelled' : 'confirmed')
+    setSelectedMerchantRequest(value.request)
+    setScreen('providerBookingRequests')
+  }
+
+  const pickMerchantServicePhotos = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync()
+
+    if (!permission.granted) {
+      return null
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsMultipleSelection: true,
+      mediaTypes: ['images'],
+      quality: 0.82,
+      selectionLimit: 5,
+    })
+
+    if (result.canceled) {
+      return null
+    }
+
+    const uploaded = await Promise.all(
+      result.assets.map((asset) => uploadMerchantServicePhoto(asset.uri))
+    )
+
+    return uploaded.filter((uri): uri is string => Boolean(uri))
   }
 
   const renderScreen = () => {
@@ -546,8 +787,12 @@ export const App: React.FC = () => {
               if (action === 'tasks') setScreen('selectedSummary')
             }}
             onSelectRecommendation={() => {
-              setCurrentServiceId(mockCatalogServices[0].id)
-              setScreen('serviceDetails')
+              if (catalogServices[0]?.id) {
+                setCurrentServiceId(catalogServices[0].id)
+                setScreen('serviceDetails')
+              } else {
+                openPlanningHub()
+              }
             }}
             onSelectTab={(tab) => {
               if (tab === 'home') setScreen('clientHome')
@@ -596,34 +841,349 @@ export const App: React.FC = () => {
             onSelectQuickAction={(action) => {
               setHomeReturnScreen('providerHome')
               if (action === 'newQuote') setScreen('messages')
-              if (action === 'clients') setScreen('bookings')
-              if (action === 'invoices') setScreen('eventLedger')
+              if (action === 'calendar') setScreen('providerAvailability')
+              if (action === 'clients') setScreen('providerBookingRequests')
+              if (action === 'invoices') setScreen('providerPayouts')
             }}
             onSelectScheduleItem={() => {
               setHomeReturnScreen('providerHome')
-              setScreen('bookings')
+              setScreen('providerBookingRequests')
             }}
-            onSelectTab={(tab) => {
-              setHomeReturnScreen('providerHome')
-              if (tab === 'services') setScreen('providerServices')
-              if (tab === 'bookings') setScreen('bookings')
-              if (tab === 'messages') setScreen('messages')
-            }}
+            onSelectTab={openMerchantTab}
             onViewAllSchedule={() => {
               setHomeReturnScreen('providerHome')
-              setScreen('bookings')
+              setScreen('providerBookingRequests')
             }}
           />
         )
+      case 'providerDraftChoice':
+        return (
+          <View style={styles.draftChoiceScreen}>
+            <View style={styles.draftChoiceCard}>
+              <Text style={styles.draftChoiceTitle}>Continue previous draft?</Text>
+              <Text style={styles.draftChoiceCopy}>
+                You have an unpublished service listing saved for {merchantServiceInfo.serviceName || 'your service'}.
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setScreen('providerServiceReview')}
+                style={({ pressed }) => [
+                  styles.draftPrimaryButton,
+                  pressed && styles.draftButtonPressed,
+                ]}
+              >
+                <Text style={styles.draftPrimaryText}>Continue Draft</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={startNewMerchantListing}
+                style={({ pressed }) => [
+                  styles.draftSecondaryButton,
+                  pressed && styles.draftButtonPressed,
+                ]}
+              >
+                <Text style={styles.draftSecondaryText}>Start New Listing</Text>
+              </Pressable>
+            </View>
+          </View>
+        )
       case 'providerServices':
         return (
-          <ServiceListingScreen
-            onOpenMenu={() => setScreen('providerHome')}
-            onSelectTab={(tab) => {
-              setHomeReturnScreen('providerHome')
-              if (tab === 'home') setScreen('providerHome')
-              if (tab === 'bookings') setScreen('bookings')
-              if (tab === 'messages') setScreen('messages')
+          <ProviderServicesScreen
+            hasDraft={hasMerchantDraft}
+            services={merchantServices}
+            onAddService={() => {
+              setScreen(hasMerchantDraft ? 'providerDraftChoice' : 'providerServiceInfo')
+            }}
+            onBack={() => setScreen('providerHome')}
+            onContinueDraft={() => setScreen('providerServiceReview')}
+            onOpenAccount={() => setScreen('providerProfile')}
+            onSelectTab={openMerchantTab}
+          />
+        )
+      case 'providerServiceReview':
+        return (
+          <Step3ReviewListingsScreen
+            information={merchantServiceInfo}
+            isPublishing={isPublishingService}
+            isSavingDraft={isSavingServiceDraft}
+            packages={merchantPackages}
+            pricing={merchantServicePricing}
+            onBack={() => setScreen('providerHome')}
+            onEditSection={(section: ReviewListingSection) => {
+              if (section === 'serviceInformation') setScreen('providerServiceInfo')
+              if (section === 'pricing') setScreen('providerServicePricing')
+              if (section === 'packages') setScreen('providerPackage')
+            }}
+            onOpenAccount={() => setScreen('providerProfile')}
+            onPublish={(value) => void handleServiceListingSubmit(value, 'active')}
+            onSaveDraft={(value) => void handleServiceListingSubmit(value, 'draft')}
+          />
+        )
+      case 'providerServiceInfo':
+        return (
+          <Step1ServiceListingScreen
+            initialValue={merchantServiceInfo}
+            onAddPhoto={pickMerchantServicePhotos}
+            onBack={(draft) => {
+              const information = draft ?? merchantServiceInfo
+              setMerchantServiceInfo(information)
+              setHasMerchantDraft(true)
+              void saveMerchantServiceDraft({
+                information,
+                packages: merchantPackages,
+                pricing: merchantServicePricing,
+              })
+              setScreen('providerServices')
+            }}
+            onNext={(value) => {
+              setMerchantServiceInfo(value)
+              setHasMerchantDraft(true)
+              void saveMerchantServiceDraft({
+                information: value,
+                packages: merchantPackages,
+                pricing: merchantServicePricing,
+              })
+              setScreen('providerServicePricing')
+            }}
+          />
+        )
+      case 'providerServicePricing':
+        return (
+          <Step2PricingScreen
+            initialValue={merchantServicePricing}
+            onBack={(draft) => {
+              const pricing = draft ?? merchantServicePricing
+              setMerchantServicePricing(pricing)
+              setHasMerchantDraft(true)
+              void saveMerchantServiceDraft({
+                information: merchantServiceInfo,
+                packages: merchantPackages,
+                pricing,
+              })
+              setScreen('providerServiceInfo')
+            }}
+            onNext={(value) => {
+              setMerchantServicePricing(value)
+              setHasMerchantDraft(true)
+              void saveMerchantServiceDraft({
+                information: merchantServiceInfo,
+                packages: merchantPackages,
+                pricing: value,
+              })
+              setScreen('providerPackage')
+            }}
+          />
+        )
+      case 'providerPackage':
+        return (
+          <Step2AddPackageScreen
+            onBack={(draft) => {
+              if (draft) {
+                setMerchantPackages((current) => {
+                  const existing = current.findIndex((item) => item.id === draft.id)
+                  const nextPackages = existing >= 0
+                    ? current.map((item, index) => (index === existing ? draft : item))
+                    : [...current, draft]
+                  void saveMerchantServiceDraft({
+                    information: merchantServiceInfo,
+                    packages: nextPackages,
+                    pricing: merchantServicePricing,
+                  })
+                  return nextPackages
+                })
+              }
+              setHasMerchantDraft(true)
+              setScreen('providerServicePricing')
+            }}
+            onSave={(value) => {
+              setMerchantPackages((current) => {
+                const existing = current.findIndex((item) => item.id === value.id)
+                const nextPackages = existing >= 0
+                  ? current.map((item, index) => (index === existing ? value : item))
+                  : [...current, value]
+                void saveMerchantServiceDraft({
+                  information: merchantServiceInfo,
+                  packages: nextPackages,
+                  pricing: merchantServicePricing,
+                })
+                return nextPackages
+              })
+              setHasMerchantDraft(true)
+              setScreen('providerServiceReview')
+            }}
+          />
+        )
+      case 'providerAvailability':
+        return (
+          <AvailabilityCalendarScreen
+            initialEntries={merchantAvailability}
+            isSaving={isSavingAvailability}
+            onBack={() => setScreen('providerProfile')}
+            onOpenAccount={() => setScreen('providerProfile')}
+            onSave={async (value) => {
+              setIsSavingAvailability(true)
+              const result = await saveAvailabilityCalendar(value)
+              setIsSavingAvailability(false)
+              if (result.ok) setMerchantAvailability(value.entries)
+            }}
+          />
+        )
+      case 'providerBookingRequests':
+        return (
+          <BookingRequestScreen
+            initialStatus={merchantRequestStatus}
+            requests={merchantRequests}
+            onAccept={(request) => {
+              void saveBookingDecision({
+                decision: 'accepted',
+                providerNote: '',
+                request,
+              }).then(() => refreshLiveData())
+              setMerchantRequestStatus('confirmed')
+            }}
+            onBack={() => setScreen('providerHome')}
+            onDecline={(request) => {
+              setSelectedMerchantRequest(request)
+              setScreen('providerBookingDecline')
+            }}
+            onSelectNavigationTab={(tab) => {
+              if (tab === 'events') setScreen('providerHome')
+              if (tab === 'bookings') setScreen('providerBookingRequests')
+              if (tab === 'budget') setScreen('providerPayouts')
+              if (tab === 'chat') setScreen('messages')
+            }}
+            onSelectMerchantTab={openMerchantTab}
+            onSelectRequest={(request) => {
+              setSelectedMerchantRequest(request)
+              setScreen('providerBookingRequestDetails')
+            }}
+            onStatusChange={setMerchantRequestStatus}
+          />
+        )
+      case 'providerBookingRequestDetails':
+        return (
+          <BookingRequestDetailsScreen
+            request={selectedMerchantRequest}
+            onAccept={handleBookingDecision}
+            onBack={() => setScreen('providerBookingRequests')}
+            onDecline={(value) => {
+              setSelectedMerchantRequest(value.request)
+              setScreen('providerBookingDecline')
+            }}
+            onMessageClient={() => setScreen('messages')}
+          />
+        )
+      case 'providerBookingDecline':
+        return (
+          <BookingRequestDeclineScreen
+            request={selectedMerchantRequest}
+            onBack={() => setScreen('providerBookingRequestDetails')}
+            onCancel={() => setScreen('providerBookingRequests')}
+            onConfirmDecline={handleBookingDecision}
+          />
+        )
+      case 'providerBookingDetails':
+        return (
+          <MerchantBookingDetailScreen
+            request={selectedMerchantRequest}
+            onAccept={(request) => {
+              void saveBookingDecision({
+                decision: 'accepted',
+                providerNote: '',
+                request: { ...request, status: 'confirmed' },
+              })
+              setScreen('providerBookingRequests')
+            }}
+            onBack={() => setScreen('providerBookingRequests')}
+            onDecline={(request) => {
+              setSelectedMerchantRequest(request)
+              setScreen('providerBookingDecline')
+            }}
+            onEmailClient={() => setScreen('messages')}
+          />
+        )
+      case 'providerReviews':
+        return (
+          <ReviewPerformanceScreen
+            onBack={() => setScreen('providerProfile')}
+            onOpenAccount={() => setScreen('providerProfile')}
+            onReplyToReview={() => setScreen('messages')}
+            onSelectReview={() => setScreen('providerReviews')}
+          />
+        )
+      case 'providerProfile':
+        return (
+          <MerchantProfileScreen
+            profile={{ businessName: userName }}
+            onBack={() => setScreen('providerHome')}
+            onEditProfile={() => setScreen('merchantSignup')}
+            onOpenNotifications={() => setScreen('providerNotifications')}
+            onSelectAction={handleMerchantAction}
+            onSelectTab={openMerchantTab}
+            onViewPublicProfile={() => setScreen('providerServices')}
+          />
+        )
+      case 'providerOperatingHours':
+        return (
+          <OperatingHoursScreen
+            onBack={() => setScreen('providerProfile')}
+            onOpenAvailabilityCalendar={() => setScreen('providerAvailability')}
+            onSave={(value) => {
+              void saveOperatingHours(value)
+              setScreen('providerProfile')
+            }}
+          />
+        )
+      case 'providerPayouts':
+        return (
+          <PayoutEarningsScreen
+            onBack={() => setScreen('providerProfile')}
+            onManagePayoutAccount={() => setScreen('providerProfile')}
+            onRequestPayout={(amount) => void requestMerchantPayout(amount)}
+            onSelectTransaction={(transaction) => {
+              setSelectedMerchantTransaction(transaction)
+              setScreen('providerTransactionDetails')
+            }}
+          />
+        )
+      case 'providerTransactionDetails':
+        return (
+          <TransactionDetailsScreen
+            transaction={selectedMerchantTransaction}
+            onBack={() => setScreen('providerPayouts')}
+            onContactSupport={(transaction) =>
+              void saveMerchantTransactionNote(transaction, 'contact_support')
+            }
+            onDownloadReceipt={(transaction) =>
+              void saveMerchantTransactionNote(transaction, 'download_receipt')
+            }
+            onOpenRelatedRecord={() => setScreen('providerBookingRequests')}
+          />
+        )
+      case 'providerChangePassword':
+        return (
+          <ChangePasswordScreen
+            onBack={() => setScreen('providerProfile')}
+            onChangePassword={(value) => void changeMerchantPassword(value)}
+            onDone={() => setScreen('providerProfile')}
+            onForgotPassword={() => setScreen('forgotPassword')}
+          />
+        )
+      case 'providerNotifications':
+        return (
+          <NotificationScreen
+            onBack={() => setScreen('providerProfile')}
+            onMarkAllRead={(ids) => void markMerchantNotificationsRead(ids)}
+            onMarkRead={(notification) => void markMerchantNotificationRead(notification)}
+            onPreferencesChange={(preferences) =>
+              void saveNotificationPreferences(preferences)
+            }
+            onSelectNotification={(notification) => {
+              if (notification.category === 'booking') setScreen('providerBookingRequests')
+              if (notification.category === 'payment') setScreen('providerPayouts')
+              if (notification.category === 'message') setScreen('messages')
+              if (notification.category === 'review') setScreen('providerReviews')
             }}
           />
         )
@@ -826,7 +1386,7 @@ export const App: React.FC = () => {
             onOpenTerms={() => setScreen('payment')}
             onPay={(value) => {
               setLastPayment(value)
-              void savePlanningPayment(value, payableItems)
+              void savePlanningPayment(value, payableItems).then(() => refreshLiveData())
               setScreen('confirmation')
             }}
           />
@@ -908,7 +1468,10 @@ export const App: React.FC = () => {
             booking={selectedBooking}
             onBackToBookings={() => setScreen('bookings')}
             onClose={() => setScreen('bookingDetails')}
-            onSubmit={() => setScreen('bookings')}
+            onSubmit={(value) => {
+              void saveClientReview(value).then(() => refreshLiveData())
+              setScreen('bookings')
+            }}
           />
         )
     }
@@ -922,6 +1485,13 @@ export const App: React.FC = () => {
       <StatusBar style={screen === 'clientHome' ? 'light' : 'dark'} />
       <SafeAreaView style={[styles.container, isHome && styles.homeContainer]}>
         {renderScreen()}
+        {toastMessage ? (
+          <View pointerEvents="none" style={styles.toastOverlay}>
+            <View style={styles.toast}>
+              <Text style={styles.toastText}>{toastMessage}</Text>
+            </View>
+          </View>
+        ) : null}
       </SafeAreaView>
     </SafeAreaProvider>
   )
@@ -932,7 +1502,97 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  draftButtonPressed: {
+    opacity: 0.82,
+    transform: [{ scale: 0.98 }],
+  },
+  draftChoiceCard: {
+    width: '100%',
+    maxWidth: 420,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: '#E3E2E2',
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    padding: 20,
+  },
+  draftChoiceCopy: {
+    color: '#5D5F5F',
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  draftChoiceScreen: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.background,
+    padding: 20,
+  },
+  draftChoiceTitle: {
+    color: '#1B1C1C',
+    fontSize: 22,
+    fontWeight: '700',
+    lineHeight: 28,
+  },
+  draftPrimaryButton: {
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    backgroundColor: '#6B1E2E',
+    paddingHorizontal: 18,
+  },
+  draftPrimaryText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+    lineHeight: 21,
+  },
+  draftSecondaryButton: {
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#6B1E2E',
+    borderRadius: 8,
+    paddingHorizontal: 18,
+  },
+  draftSecondaryText: {
+    color: '#6B1E2E',
+    fontSize: 15,
+    fontWeight: '700',
+    lineHeight: 21,
+  },
   homeContainer: {
     backgroundColor: '#F9F9F9',
+  },
+  toast: {
+    maxWidth: 420,
+    borderRadius: 8,
+    backgroundColor: '#1B1C1C',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.16,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  toastOverlay: {
+    position: 'absolute',
+    right: 0,
+    bottom: 92,
+    left: 0,
+    zIndex: 80,
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  toastText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 20,
+    textAlign: 'center',
   },
 })

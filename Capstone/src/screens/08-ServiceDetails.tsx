@@ -10,7 +10,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native'
-import { CatalogService, formatPeso, mockCatalogServices } from '../lib/catalog'
+import { CatalogService, formatPeso } from '../lib/catalog'
 
 export type MealType = 'plated' | 'buffet' | 'packed'
 
@@ -35,27 +35,10 @@ interface ServiceDetailsScreenProps {
   onReadAllReviews?: () => void
 }
 
-const heroImages = [
-  {
-    uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCneDbGxsehKvUdDm0r9og1c14LIG6PDkS9fRCHuealXvhVquYvLZC5yD732yON-mHvLN_LZ5aROOU3liTkTBcd9TfgQ2YACQLfNL6ol1Q7lfCbQk56iX4UVhVPo_ruAa41oFTW_ZuPOHnG2GIst0IHmQ89XE6Xj0-nKucjHd6ULx3Sq7ImJqWIeY12nAJVe5SBJpM0zRXTphm86Zg9s_gaOVipZ8ic-vK9-mlpDbQ22GkKcBCETY5stA',
-    label: 'Grand Buffet Catering spread',
-  },
-  {
-    uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuB64UHC5EHMJ_lNu5Im7YUTV8YPcDylvNzyHd4VzjWZKC5uH88vB3BR1Kmb4w3ZZkxp1flImbm3YlRMqNKQU0PNZ3TqAfNejONC3Lt03n1F5VwbWxTakPgut8w_DSwqD1Hh-0LbYeBUl8SlT8r0xaoN8_k_RR92q0J4sdufGATrBjUoJNrnQkdPFOEYEdbZVhmabp0j6Y3SD9tm6QBGpNIgEYDFyhVKc8nm6ViK97LS0zP1ioHHdFFUdg',
-    label: 'Detailed Grand Buffet table setup',
-  },
-] as const
-
 const mealTypes = [
   { id: 'plated' as const, icon: '♨', label: 'Plated' },
   { id: 'buffet' as const, icon: '◈', label: 'Buffet' },
   { id: 'packed' as const, icon: '▣', label: 'Packed' },
-] as const
-
-const menuImages = [
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuDDLdkU3m2UzKdAGckbHMyM_UoVwivs6nhyt5bqHvaN-q6OeuUdyZSAu21Y_Iz2HheCJJA6n2YoQi7oQflQ4Ibx0YjOiuN8osU8W-2iHB_m_2Z3FxzAzpurfkcUVvMRlJmz0jIihv2MS9Ifzv-FmUoNMuVKC2AiO6LxfHUMql11u9Cx41MxoomdLpcwQFfNVJFurPnr6Be0I9eKARcD4oeFk9Y0_OCpWpu6WL0qmSbSOXN0aaqDSng9Bw',
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuBSCthaNJ_qMPUlp0abXiDRNLC6pkK2uS4qbsLy0-H0aTQa8AXmIaT3qYIHn26cFQYrN_pf4DX-CN-BKvU3yrPTP6vXrQ5ri5V5QKk_-YtK-KbmJTFlvmznsG5npzMHQgMXlhNwdIiSOzJm0eiX8hIU6FoMc-8ikS1Mw8gApOvRpWxpWiomJooy_MOrkVoykQhnhZQNtSnujRMq4z-gezDzSN672cn468Aqq8-dJSQK7QdD-eIg6dgd2A',
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuA_gvvdlWDwWR6myQg8rZlgoQErmRtawOSyBzBXHi0KKSPPwiTgPeeE4BXUcAf5RZHKRaqNROM9pdCYSg7QyaE3DtVIo9wqSwdtTH-rkRZEQ1YmGGg_iSRx3A4MnGDtErPPYGwHqV0vkdRmc7hYPdi2-QQqrojbL7i2xtnSCE7Sh7EAPvyfM05FAfAQ_t0ESitmgiYtAPKtQPXm3-uTt6nmJmwcQVxGjIl9y-bsbkK62gvV8XoexJe3SA',
 ] as const
 
 const ratingDistribution = [
@@ -98,7 +81,7 @@ const digitsOnly = (value: string) => value.replace(/\D/g, '').slice(0, 8)
 
 export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   remainingBudget = 45000,
-  service = mockCatalogServices[0],
+  service,
   initialFavorite = true,
   onAddSelection,
   onBack,
@@ -118,22 +101,38 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   const [notes, setNotes] = React.useState('')
   const [outsideFood, setOutsideFood] = React.useState(false)
   const serviceImages = React.useMemo(
-    () => [
-      {
-        uri: service.imageUrl,
-        label: service.imageLabel,
-      },
-      ...heroImages,
-    ],
-    [service.imageLabel, service.imageUrl]
+    () =>
+      service?.imageUrl
+        ? [
+            {
+              uri: service.imageUrl,
+              label: service.imageLabel,
+            },
+          ]
+        : [],
+    [service?.imageLabel, service?.imageUrl]
   )
+
+  if (!service) {
+    return (
+      <View style={styles.emptyScreen}>
+        <Text style={styles.emptyTitle}>No service selected</Text>
+        <Pressable
+          accessibilityRole="button"
+          onPress={onBack}
+          style={({ pressed }) => [styles.emptyButton, pressed && styles.pressed]}
+        >
+          <Text style={styles.emptyButtonText}>Back to services</Text>
+        </Pressable>
+      </View>
+    )
+  }
 
   const attendeeCount = attendeeDigits ? Number(attendeeDigits) : 0
   const budgetPerHead = budgetDigits ? Number(budgetDigits) : 0
   const estimatedTotal = attendeeCount > 0 && budgetPerHead > 0
     ? attendeeCount * budgetPerHead
     : 25000
-  const menusUnlocked = budgetPerHead > 0
 
   const toggleFavorite = () => {
     const nextFavorite = !favorite
@@ -169,15 +168,21 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
             pagingEnabled
             showsHorizontalScrollIndicator={false}
           >
-            {serviceImages.map((image) => (
-              <Image
-                key={image.uri}
-                accessibilityLabel={image.label}
-                resizeMode="cover"
-                source={{ uri: image.uri }}
-                style={{ width: heroWidth, height: heroHeight }}
-              />
-            ))}
+            {serviceImages.length > 0 ? (
+              serviceImages.map((image) => (
+                <Image
+                  key={image.uri}
+                  accessibilityLabel={image.label}
+                  resizeMode="cover"
+                  source={{ uri: image.uri }}
+                  style={{ width: heroWidth, height: heroHeight }}
+                />
+              ))
+            ) : (
+              <View style={[styles.heroPlaceholder, { width: heroWidth, height: heroHeight }]}>
+                <Text style={styles.heroPlaceholderText}>{service.name}</Text>
+              </View>
+            )}
           </ScrollView>
 
           <View style={styles.heroShade} pointerEvents="none" />
@@ -322,19 +327,21 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
 
               <View style={styles.menuCard}>
                 <View style={styles.menuThumbnails}>
-                  {menuImages.map((image) => (
-                    <Image key={image} source={{ uri: image }} style={styles.menuThumbnail} />
+                  {service.packages?.slice(0, 3).map((item) => (
+                    <View key={item.id} style={styles.menuThumbnail}>
+                      <Text style={styles.menuThumbnailText}>{item.name.charAt(0)}</Text>
+                    </View>
                   ))}
                 </View>
                 <View style={styles.menuWash} />
                 <View style={styles.menuMessage}>
                   <View style={styles.lockCircle}>
-                    <Text style={styles.lockIcon}>{menusUnlocked ? '✓' : '▣'}</Text>
+                    <Text style={styles.lockIcon}>{service.packages?.length ? '✓' : '+'}</Text>
                   </View>
                   <Text style={styles.menuMessageText}>
-                    {menusUnlocked
-                      ? 'Curated menus are ready to browse'
-                      : 'Set budget per head to unlock curated menus'}
+                    {service.packages?.length
+                      ? `${service.packages.length} live package${service.packages.length === 1 ? '' : 's'} available`
+                      : 'No packages have been added for this service yet'}
                   </Text>
                 </View>
               </View>
@@ -506,6 +513,54 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: palette.surfaceLow,
   },
+  heroPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: palette.primary,
+    paddingHorizontal: 28,
+  },
+  heroPlaceholderText: {
+    color: palette.white,
+    fontSize: 28,
+    fontWeight: '700',
+    lineHeight: 34,
+    textAlign: 'center',
+  },
+  emptyScreen: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 14,
+    backgroundColor: palette.background,
+    padding: 24,
+  },
+  emptyTitle: {
+    color: palette.text,
+    fontSize: 18,
+    fontWeight: '700',
+    lineHeight: 24,
+    textAlign: 'center',
+  },
+  emptyCopy: {
+    color: palette.secondary,
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: 'center',
+  },
+  emptyButton: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    backgroundColor: palette.primary,
+    paddingHorizontal: 18,
+  },
+  emptyButtonText: {
+    color: palette.white,
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
   heroShade: {
     position: 'absolute',
     right: 0,
@@ -676,7 +731,21 @@ const styles = StyleSheet.create({
     backgroundColor: palette.surfaceLowest,
   },
   menuThumbnails: { position: 'absolute', top: 8, right: 8, bottom: 8, left: 8, flexDirection: 'row', gap: 8 },
-  menuThumbnail: { flex: 1, height: '100%', borderRadius: 8, opacity: 0.35 },
+  menuThumbnail: {
+    flex: 1,
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    backgroundColor: palette.surfaceLow,
+    opacity: 0.7,
+  },
+  menuThumbnailText: {
+    color: palette.primary,
+    fontSize: 24,
+    fontWeight: '700',
+    lineHeight: 30,
+  },
   menuWash: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(255,255,255,0.45)' },
   menuMessage: { zIndex: 2, alignItems: 'center', gap: 12, paddingHorizontal: 24 },
   lockCircle: {

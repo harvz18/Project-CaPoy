@@ -7,6 +7,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native'
+import { MerchantBottomNavigation } from '../components/MerchantBottomNavigation'
 
 export type MerchantHomeQuickAction = 'newQuote' | 'calendar' | 'clients' | 'invoices'
 export type MerchantHomeTab = 'home' | 'services' | 'bookings' | 'messages' | 'profile'
@@ -77,14 +78,6 @@ const quickActions = [
   { id: 'calendar' as const, label: 'Manage Calendar', icon: 'calendar' as const },
   { id: 'clients' as const, label: 'Client List', icon: 'clients' as const },
   { id: 'invoices' as const, label: 'Invoices', icon: 'invoices' as const },
-]
-
-const navigationTabs = [
-  { id: 'home' as const, label: 'Home', icon: 'home' as const },
-  { id: 'services' as const, label: 'Services', icon: 'services' as const },
-  { id: 'bookings' as const, label: 'Bookings', icon: 'bookings' as const },
-  { id: 'messages' as const, label: 'Messages', icon: 'messages' as const },
-  { id: 'profile' as const, label: 'Profile', icon: 'profile' as const },
 ]
 
 const DashboardIcon: React.FC<{ color?: string; name: IconName; size?: number }> = ({
@@ -384,29 +377,7 @@ export const MerchantHomeScreen: React.FC<MerchantHomeScreenProps> = ({
       </ScrollView>
 
       {!isWide ? (
-        <View style={styles.bottomNavigation}>
-          <View style={styles.bottomNavigationContent}>
-            {navigationTabs.map((tab) => {
-              const isActive = tab.id === 'home'
-              const iconColor = isActive ? palette.onPrimaryContainer : palette.secondary
-
-              return (
-                <Pressable
-                  key={tab.id}
-                  accessibilityLabel={`Open ${tab.label}`}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: isActive }}
-                  onPress={() => onSelectTab?.(tab.id)}
-                  style={({ pressed }) => [styles.navItem, pressed && styles.navItemPressed]}
-                >
-                  <View style={[styles.navIconContainer, isActive && styles.navIconActive]}>
-                    <DashboardIcon color={iconColor} name={tab.icon} />
-                  </View>
-                </Pressable>
-              )
-            })}
-          </View>
-        </View>
+        <MerchantBottomNavigation activeTab="home" onSelectTab={onSelectTab} />
       ) : null}
     </View>
   )
@@ -420,7 +391,6 @@ const palette = {
   surfaceContainerHighest: '#E3E2E2',
   primary: '#4E061A',
   primaryContainer: '#6B1E2E',
-  onPrimaryContainer: '#EE8594',
   secondary: '#5D5F5F',
   text: '#1B1C1C',
   outline: '#877274',
@@ -678,49 +648,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 21,
     fontWeight: '600',
-  },
-  bottomNavigation: {
-    position: 'absolute',
-    right: 0,
-    bottom: 0,
-    left: 0,
-    zIndex: 30,
-    minHeight: 72,
-    justifyContent: 'center',
-    borderTopWidth: 1,
-    borderTopColor: palette.border,
-    backgroundColor: palette.surface,
-    paddingTop: 4,
-    paddingBottom: 12,
-  },
-  bottomNavigationContent: {
-    width: '100%',
-    maxWidth: 560,
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingHorizontal: 8,
-  },
-  navItem: {
-    width: 64,
-    height: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  navIconContainer: {
-    width: 56,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 16,
-  },
-  navIconActive: {
-    backgroundColor: palette.primaryContainer,
-  },
-  navItemPressed: {
-    opacity: 0.6,
-    transform: [{ scale: 0.94 }],
   },
   iconButtonPressed: {
     backgroundColor: palette.surfaceContainerLow,

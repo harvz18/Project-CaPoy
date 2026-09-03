@@ -25,7 +25,7 @@ export interface ServicePackageValue {
 interface Step2AddPackageScreenProps {
   initialValue?: Partial<ServicePackageValue>
   maxInclusions?: number
-  onBack?: () => void
+  onBack?: (draft?: ServicePackageValue) => void
   onSave?: (value: ServicePackageValue) => void
 }
 
@@ -126,6 +126,20 @@ export const Step2AddPackageScreen: React.FC<Step2AddPackageScreenProps> = ({
     })
   }
 
+  const buildDraft = (): ServicePackageValue | undefined => {
+    if (!normalizedName || !price) return undefined
+
+    return {
+      currency: 'PHP',
+      description: description.trim(),
+      id: packageId,
+      inclusions: inclusions.map((inclusion) => inclusion.trim()).filter(Boolean),
+      name: normalizedName,
+      price,
+      unit,
+    }
+  }
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -138,7 +152,7 @@ export const Step2AddPackageScreen: React.FC<Step2AddPackageScreenProps> = ({
               accessibilityLabel="Go back to pricing"
               accessibilityRole="button"
               hitSlop={8}
-              onPress={onBack}
+              onPress={() => onBack?.(buildDraft())}
               style={({ pressed }) => [styles.backButton, pressed && styles.iconButtonPressed]}
             >
               <BackIcon />
@@ -165,7 +179,10 @@ export const Step2AddPackageScreen: React.FC<Step2AddPackageScreenProps> = ({
             </View>
           </View>
 
-          <Text numberOfLines={1} style={styles.headerTitle}>
+          <Text
+            numberOfLines={isWide ? 1 : 2}
+            style={[styles.headerTitle, !isWide && styles.headerTitleMobile]}
+          >
             {isEditing ? 'Edit Package' : 'Add Package'}
           </Text>
           <View style={styles.headerSpacer} />
@@ -349,7 +366,7 @@ export const Step2AddPackageScreen: React.FC<Step2AddPackageScreenProps> = ({
           <Pressable
             accessibilityLabel="Cancel package changes"
             accessibilityRole="button"
-            onPress={onBack}
+            onPress={() => onBack?.(buildDraft())}
             style={({ pressed }) => [styles.cancelButton, pressed && styles.cancelButtonPressed]}
           >
             <Text style={styles.cancelButtonText}>Cancel</Text>
@@ -403,7 +420,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   wideHorizontalPadding: { paddingHorizontal: 32 },
-  headerSide: { minWidth: 128, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  headerSide: { minWidth: 112, flexDirection: 'row', alignItems: 'center', gap: 8 },
   backButton: {
     width: 36,
     height: 40,
@@ -446,7 +463,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: 8,
   },
-  headerSpacer: { width: 128 },
+  headerTitleMobile: {
+    fontSize: 16,
+    lineHeight: 20,
+    textAlign: 'right',
+  },
+  headerSpacer: { width: 40 },
   content: { width: '100%', maxWidth: 768, alignSelf: 'center' },
   contentMobile: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 32 },
   contentWide: { paddingHorizontal: 32, paddingTop: 32, paddingBottom: 40 },

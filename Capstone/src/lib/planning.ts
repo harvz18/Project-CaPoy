@@ -1,5 +1,6 @@
 import { supabase, supabaseConfig } from './supabase'
 import { CatalogService } from './catalog'
+import type { SubmitReviewValue } from '../screens'
 
 type PlanningResult = {
   ok: boolean
@@ -102,6 +103,14 @@ const parseTime = (value?: string) => {
 
   return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`
 }
+
+const isUuid = (value?: string) =>
+  Boolean(
+    value &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        value
+      )
+  )
 
 const getCurrentUserId = async () => {
   const client = getClient()
@@ -263,6 +272,23 @@ export const savePlanningPayment = async (
       },
     })
 
+    if (!error) {
+      await client
+        .from('bookings')
+        .update({
+          status: 'paid',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('event_id', event.eventId)
+        .eq('client_id', event.userId)
+        .in('status', ['requested', 'approved', 'payment_required'])
+
+      await client
+        .from('events')
+        .update({ status: 'confirmed', updated_at: new Date().toISOString() })
+        .eq('id', event.eventId)
+    }
+
     return { ok: !error, message: error?.message }
   } catch (error) {
     return { ok: false, message: toMessage(error) }
@@ -280,9 +306,13 @@ export const saveServiceSelection = async (
       return { ok: false, message: 'Supabase is not configured or no user is signed in.' }
     }
 
-    const { error } = await client.from('event_service_selections').insert({
+    const { data: selection, error } = await client.from('event_service_selections').insert({
       event_id: event.eventId,
       client_id: event.userId,
+      provider_id: isUuid(value.service.providerId) ? value.service.providerId : null,
+      service_id: isUuid(value.service.id) ? value.service.id : null,
+      package_id: isUuid(value.service.packageId) ? value.service.packageId : null,
+      category_id: isUuid(value.service.categoryDbId) ? value.service.categoryDbId : null,
       service_name: value.service.name,
       category_name: value.service.categoryName,
       estimated_amount: value.estimatedTotal,
@@ -298,7 +328,29 @@ export const saveServiceSelection = async (
         rating: value.service.rating,
         remainingBudgetCurrency: 'PHP',
       },
-    })
+    }).select('id')
+      .single()
+
+    if (!error && selection?.id && isUuid(value.service.providerId) && isUuid(value.service.id)) {
+      const { data: eventRow } = await client
+        .from('events')
+        .select('event_date, event_time')
+        .eq('id', event.eventId)
+        .maybeSingle()
+
+      await client.from('bookings').insert({
+        amount: value.estimatedTotal,
+        client_id: event.userId,
+        client_notes: value.notes,
+        event_id: event.eventId,
+        package_id: isUuid(value.service.packageId) ? value.service.packageId : null,
+        provider_id: value.service.providerId,
+        requested_date: eventRow?.event_date ?? null,
+        requested_time: eventRow?.event_time ?? null,
+        service_id: value.service.id,
+        status: 'requested',
+      })
+    }
 
     return { ok: !error, message: error?.message }
   } catch (error) {
@@ -431,6 +483,47 @@ export const saveScheduleCheck = async (
       .insert(results)
 
     return { ok: !resultError, message: resultError?.message }
+  } catch (error) {
+    return { ok: false, message: toMessage(error) }
+  }
+}
+
+export const saveClientReview = async ({
+  bookingId,
+  comment,
+  rating,
+  tags,
+}: SubmitReviewValue): Promise<PlanningResult> => {
+  try {
+    const client = getClient()
+    const reviewerId = await getCurrentUserId()
+
+    if (!client || !reviewerId || !bookingId || rating < 1) {
+      return { ok: false, message: 'Supabase is not configured or no reviewable booking exists.' }
+    }
+
+    const { data: booking } = await client
+      .from('bookings')
+      .select('provider_id, service_id')
+      .eq('id', bookingId)
+      .eq('client_id', reviewerId)
+      .maybeSingle()
+
+    if (!booking?.provider_id) {
+      return { ok: false, message: 'Unable to find this booking for review.' }
+    }
+
+    const { error } = await client.from('reviews').insert({
+      booking_id: bookingId,
+      comment,
+      provider_id: booking.provider_id,
+      rating,
+      reviewer_id: reviewerId,
+      service_id: booking.service_id ?? null,
+      tags,
+    })
+
+    return { ok: !error, message: error?.message }
   } catch (error) {
     return { ok: false, message: toMessage(error) }
   }

@@ -29,7 +29,7 @@ interface Step1ServiceListingScreenProps {
     | string[]
     | null
     | undefined
-  onBack?: () => void
+  onBack?: (draft?: ServiceInformationValue) => void
   onNext?: (value: ServiceInformationValue) => void
   onRemovePhoto?: (photoUri: string, index: number) => void
 }
@@ -129,6 +129,15 @@ export const Step1ServiceListingScreen: React.FC<Step1ServiceListingScreenProps>
     })
   }
 
+  const handleBack = () => {
+    onBack?.({
+      category,
+      description: normalizedDescription,
+      photos,
+      serviceName: normalizedName,
+    })
+  }
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -141,7 +150,7 @@ export const Step1ServiceListingScreen: React.FC<Step1ServiceListingScreenProps>
               accessibilityLabel="Go back"
               accessibilityRole="button"
               hitSlop={8}
-              onPress={onBack}
+              onPress={handleBack}
               style={({ pressed }) => [styles.backButton, pressed && styles.iconButtonPressed]}
             >
               <BackIcon />
@@ -168,7 +177,10 @@ export const Step1ServiceListingScreen: React.FC<Step1ServiceListingScreenProps>
             </View>
           </View>
 
-          <Text numberOfLines={1} style={styles.headerTitle}>
+          <Text
+            numberOfLines={isWide ? 1 : 2}
+            style={[styles.headerTitle, !isWide && styles.headerTitleMobile]}
+          >
             Tell Us About Your Service
           </Text>
           <View style={styles.headerSpacer} />
@@ -380,7 +392,7 @@ const styles = StyleSheet.create({
   },
   wideHorizontalPadding: { paddingHorizontal: 32 },
   headerSide: {
-    minWidth: 128,
+    minWidth: 112,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -427,7 +439,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: 8,
   },
-  headerSpacer: { width: 128 },
+  headerTitleMobile: {
+    fontSize: 16,
+    lineHeight: 20,
+    textAlign: 'right',
+  },
+  headerSpacer: { width: 40 },
   content: { width: '100%', maxWidth: 768, alignSelf: 'center' },
   contentMobile: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 32 },
   contentWide: { paddingHorizontal: 32, paddingTop: 32, paddingBottom: 40 },

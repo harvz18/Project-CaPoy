@@ -5,6 +5,7 @@ export type CatalogCategoryId = 'venues' | 'photography' | 'catering' | 'florist
 export interface CatalogService {
   id: string
   categoryId: CatalogCategoryId
+  categoryDbId?: string
   categoryName: string
   description: string
   detail: string
@@ -13,6 +14,14 @@ export interface CatalogService {
   maxPrice?: number
   minPrice: number
   name: string
+  packageId?: string
+  packages?: Array<{
+    id: string
+    inclusions: string[]
+    name: string
+    price: number
+  }>
+  providerId?: string
   providerName: string
   rating: string
   reviewCount: number
@@ -96,11 +105,51 @@ const numberFrom = (value: unknown, fallback: number) =>
   typeof value === 'number' && Number.isFinite(value) ? value : fallback
 
 const getNestedText = (value: unknown, key: string, fallback: string) => {
-  if (!value || typeof value !== 'object' || !(key in value)) {
+  const source = Array.isArray(value) ? value[0] : value
+
+  if (!source || typeof source !== 'object' || !(key in source)) {
     return fallback
   }
 
-  return textFrom((value as Record<string, unknown>)[key], fallback)
+  return textFrom((source as Record<string, unknown>)[key], fallback)
+}
+
+const getNestedId = (value: unknown, fallback = '') => {
+  const source = Array.isArray(value) ? value[0] : value
+
+  if (!source || typeof source !== 'object' || !('id' in source)) {
+    return fallback
+  }
+
+  return textFrom((source as Record<string, unknown>).id, fallback ?? '')
+}
+
+const getPackages = (value: unknown) => {
+  if (!Array.isArray(value)) return []
+
+  return value.flatMap((item) => {
+    if (!item || typeof item !== 'object') return []
+
+    const record = item as Record<string, unknown>
+    const id = textFrom(record.id, '')
+    const name = textFrom(record.name, '')
+    const price = numberFrom(record.price, 0)
+
+    if (!id || !name) return []
+
+    return [
+      {
+        id,
+        inclusions: Array.isArray(record.inclusions)
+          ? record.inclusions.filter(
+              (inclusion): inclusion is string => typeof inclusion === 'string'
+            )
+          : [],
+        name,
+        price,
+      },
+    ]
+  })
 }
 
 export const formatPeso = (value: number) =>
@@ -116,19 +165,20 @@ export const formatServicePrice = (service: CatalogService) => {
 
 export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
   if (!supabase || !supabaseConfig.isConfigured) {
-    return mockCatalogServices
+    return []
   }
 
   const { data, error } = await supabase
     .from('services')
     .select(
-      'id, name, description, base_price, cover_image_url, provider_profiles(business_name), service_categories(name)'
+      'id, provider_id, category_id, name, description, base_price, cover_image_url, provider_profiles(id, business_name), service_categories(id, name), service_packages(id, name, price, inclusions)'
     )
     .eq('status', 'active')
+    .order('updated_at', { ascending: false })
     .limit(50)
 
   if (error || !data || data.length === 0) {
-    return mockCatalogServices
+    return []
   }
 
   const services = data.map((row, index) => {
@@ -136,18 +186,24 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
     const categoryName = getNestedText(record.service_categories, 'name', 'Catering')
     const providerName = getNestedText(record.provider_profiles, 'business_name', 'Provider')
     const name = textFrom(record.name, providerName)
-    const minPrice = numberFrom(record.base_price, mockCatalogServices[index % mockCatalogServices.length].minPrice)
+    const packages = getPackages(record.service_packages)
+    const minPrice = numberFrom(record.base_price, packages[0]?.price ?? 0)
+    const coverImageUrl = textFrom(record.cover_image_url, '')
 
     return {
       id: textFrom(record.id, `service-${index}`),
       categoryId: categoryNameToId(categoryName),
+      categoryDbId: getNestedId(record.service_categories, textFrom(record.category_id, '')),
       categoryName,
       description: textFrom(record.description, `${name} service package.`),
       detail: categoryName,
       imageLabel: name,
-      imageUrl: textFrom(record.cover_image_url, mockCatalogServices[index % mockCatalogServices.length].imageUrl),
+      imageUrl: coverImageUrl,
       minPrice,
       name,
+      packageId: packages[0]?.id,
+      packages,
+      providerId: textFrom(record.provider_id, getNestedId(record.provider_profiles, '')),
       providerName,
       rating: 'New',
       reviewCount: 0,
@@ -155,5 +211,5 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
     } satisfies CatalogService
   })
 
-  return services.length > 0 ? services : mockCatalogServices
+  return services
 }
