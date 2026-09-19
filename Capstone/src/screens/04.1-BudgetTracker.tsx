@@ -1,10 +1,11 @@
+import { Text } from '../components/AppText'
 import React from 'react'
 import {
   Image,
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
+  
   useWindowDimensions,
   View,
 } from 'react-native'
@@ -15,6 +16,7 @@ export type BudgetTrackerTab = ClientMainTab | 'vendors' | 'planner' | 'chat'
 
 interface BudgetTrackerScreenProps {
   remainingBudget?: number
+  showBottomNavigation?: boolean
   onBack?: () => void
   onOpenBudget?: () => void
   onOpenMenu?: () => void
@@ -75,10 +77,10 @@ const merchantCategories = [
 ] as const
 
 export const budgetTrackerLegacyNavigationTabs = [
-  { id: 'home' as const, icon: '⌂', label: 'Home' },
+  { id: 'home' as const, icon: 'ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬â„¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡', label: 'Home' },
   { id: 'vendors' as const, icon: 'S', label: 'Service Providers' },
-  { id: 'planner' as const, icon: '▣', label: 'Planner' },
-  { id: 'chat' as const, icon: '○', label: 'Chat' },
+  { id: 'planner' as const, icon: 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“Ãƒâ€šÃ‚Â£', label: 'Planner' },
+  { id: 'chat' as const, icon: 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬ÂÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¹', label: 'Chat' },
 ] as const
 
 const formatCurrency = (value: number) =>
@@ -86,6 +88,7 @@ const formatCurrency = (value: number) =>
 
 export const BudgetTrackerScreen: React.FC<BudgetTrackerScreenProps> = ({
   remainingBudget = 45000,
+  showBottomNavigation = true,
   onBack,
   onOpenBudget,
   onOpenMenu,
@@ -138,8 +141,8 @@ export const BudgetTrackerScreen: React.FC<BudgetTrackerScreenProps> = ({
         >
           <Text style={styles.budgetLabel}>REMAINING BUDGET</Text>
           <View style={styles.budgetValueGroup}>
-            <Text style={styles.budgetValue}>₱{formatCurrency(remainingBudget)}</Text>
-            <Text style={styles.budgetChevron}>⌄</Text>
+            <Text style={styles.budgetValue}>ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â±{formatCurrency(remainingBudget)}</Text>
+            <Text style={styles.budgetChevron}>ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬â„¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾</Text>
           </View>
         </Pressable>
       </View>
@@ -201,7 +204,7 @@ export const BudgetTrackerScreen: React.FC<BudgetTrackerScreenProps> = ({
         </View>
       </ScrollView>
 
-      {!isWide ? (
+      {showBottomNavigation && !isWide ? (
         <ClientBottomNavigation activeTab="explore" onSelectTab={onSelectTab} />
       ) : null}
     </View>

@@ -1,5 +1,6 @@
+import { Text } from '../components/AppText'
 import React from 'react'
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Animated, Pressable, ScrollView, StyleSheet,  View } from 'react-native'
 
 export interface ConfirmationLineItem {
   detail?: string

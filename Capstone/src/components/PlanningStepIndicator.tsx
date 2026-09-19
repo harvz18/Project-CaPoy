@@ -1,5 +1,6 @@
+import { Text } from './AppText'
 import React from 'react'
-import { StyleSheet, Text, View } from 'react-native'
+import { StyleSheet,  View } from 'react-native'
 
 interface PlanningStepIndicatorProps {
   currentStep: number
@@ -13,7 +14,6 @@ export const PlanningStepIndicator: React.FC<PlanningStepIndicatorProps> = ({
   totalSteps = 5,
 }) => {
   const boundedStep = Math.max(1, Math.min(currentStep, totalSteps))
-  const progress = `${Math.round((boundedStep / totalSteps) * 100)}%` as `${number}%`
 
   return (
     <View style={styles.progressSection}>
@@ -27,9 +27,14 @@ export const PlanningStepIndicator: React.FC<PlanningStepIndicatorProps> = ({
         accessibilityLabel={`Step ${boundedStep} of ${totalSteps}: ${label}`}
         accessibilityRole="progressbar"
         accessibilityValue={{ min: 1, max: totalSteps, now: boundedStep }}
-        style={styles.progressTrack}
+        style={styles.progressSegments}
       >
-        <View style={[styles.progressFill, { width: progress }]} />
+        {Array.from({ length: totalSteps }, (_, index) => (
+          <View
+            key={index}
+            style={[styles.progressSegment, index < boundedStep && styles.progressSegmentActive]}
+          />
+        ))}
       </View>
     </View>
   )
@@ -65,13 +70,18 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 1.2,
   },
-  progressTrack: {
+  progressSegments: {
     width: '100%',
-    height: 2,
+    flexDirection: 'row',
+    gap: 6,
+  },
+  progressSegment: {
+    height: 10,
+    flex: 1,
+    borderRadius: 999,
     backgroundColor: palette.surface,
   },
-  progressFill: {
-    height: 2,
+  progressSegmentActive: {
     backgroundColor: palette.burgundy,
   },
 })

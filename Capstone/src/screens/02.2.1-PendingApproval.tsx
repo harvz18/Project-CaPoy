@@ -1,5 +1,6 @@
+import { Text } from '../components/AppText'
 import React from 'react'
-import { ScrollView, StyleSheet, Text, View } from 'react-native'
+import { ScrollView, StyleSheet,  View } from 'react-native'
 import { Button } from '../components/Button'
 import { colors, radius, spacing } from '../theme/tokens'
 import { typography } from '../theme/typography'
@@ -55,7 +56,7 @@ export const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({
         <View style={styles.estimateRow}>
           <View>
             <Text style={styles.cardEyebrow}>ESTIMATED REVIEW TIME</Text>
-            <Text style={styles.estimate}>24–48 hours</Text>
+            <Text style={styles.estimate}>24ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ48 hours</Text>
           </View>
           <View style={styles.pendingBadge}>
             <View style={styles.pendingDot} />

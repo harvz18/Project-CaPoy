@@ -1,10 +1,11 @@
+import { Text } from '../components/AppText'
 import React from 'react'
 import {
   Image,
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
+  
   useWindowDimensions,
   View,
 } from 'react-native'
@@ -26,6 +27,7 @@ export interface BookingItem {
 interface BookingScreenProps {
   bookings?: BookingItem[]
   eventName?: string
+  showBottomNavigation?: boolean
   onOpenMenu?: () => void
   onOpenProfile?: () => void
   onSelectBooking?: (booking: BookingItem) => void
@@ -85,6 +87,7 @@ const categoryIcons: Record<string, string> = {
 export const BookingScreen: React.FC<BookingScreenProps> = ({
   bookings = defaultBookings,
   eventName = 'Sarah & James Wedding',
+  showBottomNavigation = true,
   onOpenMenu,
   onOpenProfile,
   onSelectBooking,
@@ -269,7 +272,7 @@ export const BookingScreen: React.FC<BookingScreenProps> = ({
         </View>
       </ScrollView>
 
-      {!isWide && (
+      {showBottomNavigation && !isWide && (
         <ClientBottomNavigation activeTab="bookings" onSelectTab={onSelectTab} />
       )}
     </View>

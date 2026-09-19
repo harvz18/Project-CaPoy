@@ -1,9 +1,10 @@
+import { Text } from '../components/AppText'
 import React from 'react'
 import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
+  
   useWindowDimensions,
   View,
 } from 'react-native'
@@ -413,8 +414,8 @@ const styles = StyleSheet.create({
   topAppBar: {
     zIndex: 40,
     borderBottomWidth: 1,
-    borderBottomColor: palette.outline,
-    backgroundColor: palette.background,
+    borderBottomColor: '#4E061A',
+    backgroundColor: '#6B1E2E',
   },
   topAppBarContent: {
     width: '100%',
@@ -426,10 +427,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   backButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },
-  backIcon: { color: palette.burgundyDark, fontSize: 26, lineHeight: 29 },
+  backIcon: { color: '#FFFFFF', fontSize: 26, lineHeight: 29 },
   headerTitle: {
     flex: 1,
-    color: palette.muted,
+    color: '#FFFFFF',
     fontSize: 12,
     lineHeight: 16,
     fontWeight: '700',

@@ -1,10 +1,11 @@
+import { Text } from '../components/AppText'
 import React from 'react'
 import {
   Image,
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
+  
   TextInput,
   useWindowDimensions,
   View,
@@ -20,6 +21,7 @@ export type CategoryBrowseTab = ClientMainTab | 'vendors' | 'budget'
 interface CategoryBrowseScreenProps {
   services?: CatalogService[]
   remainingBudget?: number
+  showBottomNavigation?: boolean
   searchValue?: string
   sortLabel?: string
   onBack?: () => void
@@ -36,14 +38,14 @@ const filters = [
   { id: 'plated' as const, label: 'Plated' },
   { id: 'buffet' as const, label: 'Buffet' },
   { id: 'packed' as const, label: 'Packed' },
-  { id: 'under500' as const, label: 'Under ₱500/head' },
+  { id: 'under500' as const, label: 'Under ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â±500/head' },
 ] as const
 
 export const categoryBrowseNavigationTabs = [
-  { id: 'explore' as const, icon: '◎', label: 'Explore' },
+  { id: 'explore' as const, icon: 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬ÂÃƒâ€¦Ã‚Â½', label: 'Explore' },
   { id: 'vendors' as const, icon: 'S', label: 'Service Providers' },
-  { id: 'budget' as const, icon: '₱', label: 'Budget' },
-  { id: 'profile' as const, icon: '○', label: 'Profile' },
+  { id: 'budget' as const, icon: 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â±', label: 'Budget' },
+  { id: 'profile' as const, icon: 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬ÂÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¹', label: 'Profile' },
 ] as const
 
 const formatCurrency = (value: number) =>
@@ -52,6 +54,7 @@ const formatCurrency = (value: number) =>
 export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   services = mockCatalogServices,
   remainingBudget = 45000,
+  showBottomNavigation = true,
   searchValue,
   sortLabel = 'Relevance',
   onBack,
@@ -103,7 +106,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
             onPress={onBack}
             style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}
           >
-            <Text style={styles.backIcon}>←</Text>
+            <Text style={styles.backIcon}>ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Ãƒâ€šÃ‚Â</Text>
           </Pressable>
 
           <Text style={styles.headerTitle}>CHOOSE SERVICES</Text>
@@ -115,7 +118,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
             onPress={onMore}
             style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}
           >
-            <Text style={styles.moreIcon}>⋮</Text>
+            <Text style={styles.moreIcon}>ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¹Ãƒâ€šÃ‚Â®</Text>
           </Pressable>
         </View>
       </View>
@@ -139,18 +142,18 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
           style={({ pressed }) => [styles.budgetPill, pressed && styles.budgetPressed]}
         >
           <Text style={styles.budgetText}>
-            Remaining Budget: ₱{formatCurrency(remainingBudget)}
+            Remaining Budget: ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â±{formatCurrency(remainingBudget)}
           </Text>
-          <Text style={styles.chevron}>⌄</Text>
+          <Text style={styles.chevron}>ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬â„¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾</Text>
         </Pressable>
 
         <View style={styles.categoryHeader}>
-          <Text style={styles.categoryIcon}>♨</Text>
+          <Text style={styles.categoryIcon}>ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢Ãƒâ€šÃ‚Â¨</Text>
           <Text style={styles.categoryTitle}>Catering</Text>
         </View>
 
         <View style={styles.searchField}>
-          <Text style={styles.searchIcon}>⌕</Text>
+          <Text style={styles.searchIcon}>ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬â„¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢</Text>
           <TextInput
             accessibilityLabel="Search caterers"
             onChangeText={handleSearchChange}
@@ -199,7 +202,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
           style={({ pressed }) => [styles.sortControl, pressed && styles.pressed]}
         >
           <Text style={styles.sortText}>Sort: {sortLabel}</Text>
-          <Text style={styles.sortChevron}>⌄</Text>
+          <Text style={styles.sortChevron}>ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬â„¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾</Text>
         </Pressable>
 
         <View style={styles.resultsList}>
@@ -238,7 +241,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                 <View style={styles.vendorHeadingRow}>
                   <Text style={styles.vendorName}>{vendor.name}</Text>
                   <View style={styles.ratingGroup}>
-                    <Text style={styles.star}>★</Text>
+                    <Text style={styles.star}>ÃƒÆ’Ã‚Â¢Ãƒâ€¹Ã…â€œÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦</Text>
                     <Text style={styles.rating}>
                       {vendor.reviewCount > 0
                         ? `${vendor.rating} (${vendor.reviewCount})`
@@ -269,7 +272,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
         </View>
       </ScrollView>
 
-      {!isWide ? (
+      {showBottomNavigation && !isWide ? (
         <ClientBottomNavigation activeTab="explore" onSelectTab={onSelectTab} />
       ) : null}
     </View>
@@ -298,8 +301,8 @@ const styles = StyleSheet.create({
   topAppBar: {
     zIndex: 40,
     borderBottomWidth: 1,
-    borderBottomColor: palette.outlineVariant,
-    backgroundColor: palette.background,
+    borderBottomColor: '#4E061A',
+    backgroundColor: '#6B1E2E',
   },
   topAppBarContent: {
     width: '100%',
@@ -334,18 +337,18 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   backIcon: {
-    color: palette.primary,
+    color: '#FFFFFF',
     fontSize: 28,
     lineHeight: 30,
   },
   moreIcon: {
-    color: palette.primary,
+    color: '#FFFFFF',
     fontSize: 28,
     lineHeight: 30,
     fontWeight: '700',
   },
   headerTitle: {
-    color: palette.secondary,
+    color: '#FFFFFF',
     fontSize: 12,
     lineHeight: 16,
     fontWeight: '700',

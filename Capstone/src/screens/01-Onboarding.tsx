@@ -1,12 +1,14 @@
+import { Text } from '../components/AppText'
 import React, { useRef, useState } from 'react'
 import {
+  Animated,
   Image,
   NativeScrollEvent,
   NativeSyntheticEvent,
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
+  
   useWindowDimensions,
   View,
 } from 'react-native'
@@ -47,6 +49,7 @@ const slides = [
 export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
   const { width, height } = useWindowDimensions()
   const scrollViewRef = useRef<ScrollView>(null)
+  const scrollX = useRef(new Animated.Value(0)).current
   const [currentSlide, setCurrentSlide] = useState(0)
   const isLastSlide = currentSlide === slides.length - 1
 
@@ -70,35 +73,51 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }
 
   return (
     <View style={styles.container}>
-      <View style={styles.topBar}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Skip onboarding"
-          onPress={() => moveToSlide(slides.length - 1)}
-          style={({ pressed }) => [styles.skipButton, pressed && styles.pressed]}
-        >
-          <Text style={styles.skipText}>{isLastSlide ? '' : 'SKIP'}</Text>
-        </Pressable>
-      </View>
-
-      <ScrollView
+      <Animated.ScrollView
         ref={scrollViewRef}
         horizontal
         pagingEnabled
+        decelerationRate="fast"
+        scrollEventThrottle={16}
         showsHorizontalScrollIndicator={false}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
+          useNativeDriver: true,
+        })}
         onMomentumScrollEnd={handleScrollEnd}
         style={styles.carousel}
       >
-        {slides.map((slide) => (
-          <View key={slide.title} style={[styles.slide, { width }]}>
+        {slides.map((slide, index) => (
+          <Animated.View
+            key={slide.title}
+            style={[
+              styles.slide,
+              { width },
+              {
+                opacity: scrollX.interpolate({
+                  inputRange: [(index - 1) * width, index * width, (index + 1) * width],
+                  outputRange: [0.72, 1, 0.72],
+                  extrapolate: 'clamp',
+                }),
+                transform: [
+                  {
+                    scale: scrollX.interpolate({
+                      inputRange: [(index - 1) * width, index * width, (index + 1) * width],
+                      outputRange: [0.96, 1, 0.96],
+                      extrapolate: 'clamp',
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
             <Image source={{ uri: slide.image }} style={[styles.image, { height: height * 0.42 }]} />
             <View style={styles.copy}>
               <Text style={styles.title}>{slide.title}</Text>
               <Text style={styles.description}>{slide.description}</Text>
             </View>
-          </View>
+          </Animated.View>
         ))}
-      </ScrollView>
+      </Animated.ScrollView>
 
       <View style={styles.footer}>
         <View style={styles.dots}>
@@ -113,14 +132,38 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }
           ))}
         </View>
 
-        <Pressable
-          accessibilityRole="button"
-          onPress={handleNext}
-          style={({ pressed }) => [styles.nextButton, pressed && styles.nextButtonPressed]}
+        <View
+          style={[
+            styles.footerActions,
+            currentSlide === 0 && styles.firstSlideFooterActions,
+            isLastSlide && styles.lastSlideFooterActions,
+          ]}
         >
-          <Text style={styles.nextText}>{isLastSlide ? 'GET STARTED' : 'NEXT'}</Text>
-          {!isLastSlide && <Text style={styles.arrow}>-&gt;</Text>}
-        </Pressable>
+          {currentSlide !== 0 && !isLastSlide && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Skip onboarding"
+              onPress={onComplete}
+              style={({ pressed }) => [styles.skipButton, pressed && styles.pressed]}
+            >
+              <Text style={styles.skipText}>SKIP</Text>
+            </Pressable>
+          )}
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={handleNext}
+            style={({ pressed }) => [
+              styles.nextButton,
+              currentSlide === 0 && styles.getStartedButton,
+              pressed && styles.nextButtonPressed,
+            ]}
+          >
+            <Text style={styles.nextText}>
+              {currentSlide === 0 ? 'Get Started' : isLastSlide ? 'Continue' : 'NEXT'}
+            </Text>
+          </Pressable>
+        </View>
       </View>
     </View>
   )
@@ -131,14 +174,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
-  topBar: {
-    alignItems: 'flex-end',
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.md,
-    minHeight: 52,
-  },
   skipButton: {
     padding: spacing.sm,
+    marginLeft: spacing.xl,
   },
   skipText: {
     color: '#5E5E5E',
@@ -183,7 +221,7 @@ const styles = StyleSheet.create({
   },
   footer: {
     alignItems: 'center',
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing.md,
     paddingBottom: spacing.xl,
     paddingTop: spacing.md,
     backgroundColor: '#FFFFFF',
@@ -207,10 +245,22 @@ const styles = StyleSheet.create({
     height: 8,
     backgroundColor: '#E2E2E2',
   },
-  nextButton: {
+  footerActions: {
     width: '100%',
-    maxWidth: 380,
-    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  firstSlideFooterActions: {
+    justifyContent: 'center',
+  },
+  lastSlideFooterActions: {
+    justifyContent: 'flex-end',
+  },
+  nextButton: {
+    minWidth: 132,
+    minHeight: 44,
+    paddingHorizontal: spacing.xl,
     borderRadius: radius.pill,
     backgroundColor: '#6B1E2E',
     flexDirection: 'row',
@@ -218,19 +268,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
   },
+  getStartedButton: {
+    minWidth: 220,
+  },
   nextButtonPressed: {
     backgroundColor: '#4E061A',
   },
   nextText: {
     color: colors.textInverse,
-    fontSize: typographyScale.button,
+    fontSize: typographyScale.body,
+    lineHeight: 20,
     fontWeight: '700',
     letterSpacing: 1.2,
-  },
-  arrow: {
-    color: colors.textInverse,
-    fontSize: typographyScale.button,
-    fontWeight: '700',
   },
   pressed: {
     opacity: 0.7,

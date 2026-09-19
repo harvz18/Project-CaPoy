@@ -1,3 +1,4 @@
+import { Text } from '../components/AppText'
 import React from 'react'
 import {
   Image,
@@ -5,7 +6,7 @@ import {
   ScrollView,
   StyleSheet,
   Switch,
-  Text,
+  
   TextInput,
   useWindowDimensions,
   View,
@@ -47,9 +48,9 @@ const heroImages = [
 ] as const
 
 const mealTypes = [
-  { id: 'plated' as const, icon: '♨', label: 'Plated' },
-  { id: 'buffet' as const, icon: '◈', label: 'Buffet' },
-  { id: 'packed' as const, icon: '▣', label: 'Packed' },
+  { id: 'plated' as const, icon: 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢Ãƒâ€šÃ‚Â¨', label: 'Plated' },
+  { id: 'buffet' as const, icon: 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬ÂÃƒâ€¹Ã¢â‚¬Â ', label: 'Buffet' },
+  { id: 'packed' as const, icon: 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“Ãƒâ€šÃ‚Â£', label: 'Packed' },
 ] as const
 
 const menuImages = [
@@ -72,7 +73,7 @@ const reviews = [
   {
     id: 'sarahMark',
     name: 'Sarah & Mark',
-    event: 'Wedding • Oct 2023',
+    event: 'Wedding ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ Oct 2023',
     rating: 5,
     image:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuDfGD4O0selRcI1cYgXRf-OaWhj2bkVLXP6FFfkfoSZbu88LW8ruXx4vTM_MpjWdcBsGK1XZrVFr8WS7xkcmyD89cGrkBjgFO0iYLOAoEv8gF-pR32_9SHM3h6iPSLot_NnDiXrhtLmjAJF-zo764m-C1G_L_Kze5GQUjH-uQWNTdOEPTcnfgFtXwcU6IpV7eVp5nNKk5l_TkJW8cipftuNm-93VKrqEbJ0mR979AhIyr6-6U3wlXPwaA',
@@ -82,7 +83,7 @@ const reviews = [
   {
     id: 'james',
     name: 'James T.',
-    event: 'Corporate Event • Sep 2023',
+    event: 'Corporate Event ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ Sep 2023',
     rating: 4,
     image:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuCvaPwCzBQSQaA6SPVMpWzjtnKTyz37kGdT9MgiLbHdgbqEFdF3ToPSFP_rnIp-YVxTXCyo9zxOsFdIM6_kbCbRSk7D5923y_WbzjUGtwUN6-o9jw_A_o8B_Lgjd2t9N95-vw7Sw7nzXyvnP7FC88hUvICH0dw04xbfRjEXURL-pUXONQVTS69DulcIZqIW4a3eW8e9iF9hLpPozQJe3TpYoh9y_cFr63pij-lFlLNJyy1z0fm-dy8QMg',
@@ -189,7 +190,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
               onPress={onBack}
               style={({ pressed }) => [styles.heroButton, pressed && styles.heroButtonPressed]}
             >
-              <Text style={styles.heroButtonIcon}>←</Text>
+              <Text style={styles.heroButtonIcon}>ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Ãƒâ€šÃ‚Â</Text>
             </Pressable>
 
             <Pressable
@@ -199,7 +200,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
               onPress={toggleFavorite}
               style={({ pressed }) => [styles.heroButton, pressed && styles.heroButtonPressed]}
             >
-              <Text style={styles.favoriteIcon}>{favorite ? '♥' : '♡'}</Text>
+              <Text style={styles.favoriteIcon}>{favorite ? 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢Ãƒâ€šÃ‚Â¥' : 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢Ãƒâ€šÃ‚Â¡'}</Text>
             </Pressable>
           </View>
 
@@ -218,13 +219,13 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                 <Text style={styles.categoryBadgeText}>{service.categoryName.toUpperCase()}</Text>
               </View>
               <View style={styles.ratingBadge}>
-                <Text style={styles.badgeStar}>★</Text>
+                <Text style={styles.badgeStar}>ÃƒÆ’Ã‚Â¢Ãƒâ€¹Ã…â€œÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦</Text>
                 <Text style={styles.ratingBadgeText}>{service.rating}</Text>
               </View>
             </View>
             <Text style={styles.serviceTitle}>{service.name}</Text>
             <View style={styles.heroBudgetBadge}>
-              <Text style={styles.walletIcon}>₱</Text>
+              <Text style={styles.walletIcon}>ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â±</Text>
               <Text style={styles.heroBudgetText}>
                 Remaining Budget: {formatPeso(remainingBudget)}
               </Text>
@@ -291,7 +292,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>BUDGET PER HEAD</Text>
                 <View style={styles.inputShell}>
-                  <Text style={styles.inputPrefix}>₱</Text>
+                  <Text style={styles.inputPrefix}>ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â±</Text>
                   <TextInput
                     accessibilityLabel="Budget per head in Philippine pesos"
                     inputMode="numeric"
@@ -329,7 +330,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                 <View style={styles.menuWash} />
                 <View style={styles.menuMessage}>
                   <View style={styles.lockCircle}>
-                    <Text style={styles.lockIcon}>{menusUnlocked ? '✓' : '▣'}</Text>
+                    <Text style={styles.lockIcon}>{menusUnlocked ? 'ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ' : 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“Ãƒâ€šÃ‚Â£'}</Text>
                   </View>
                   <Text style={styles.menuMessageText}>
                     {menusUnlocked
@@ -378,7 +379,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
             <View style={[styles.reviewSummary, isWide && styles.reviewSummaryWide]}>
               <View style={styles.ratingCard}>
                 <Text style={styles.bigRating}>4.8</Text>
-                <Text style={styles.summaryStars}>★★★★☆</Text>
+                <Text style={styles.summaryStars}>ÃƒÆ’Ã‚Â¢Ãƒâ€¹Ã…â€œÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢Ãƒâ€¹Ã…â€œÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢Ãƒâ€¹Ã…â€œÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢Ãƒâ€¹Ã…â€œÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢Ãƒâ€¹Ã…â€œÃƒÂ¢Ã¢â€šÂ¬Ã‚Â </Text>
                 <Text style={styles.reviewCount}>120 REVIEWS</Text>
               </View>
 
@@ -396,7 +397,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
 
             <View style={styles.insightCard}>
               <View style={styles.insightHeadingRow}>
-                <Text style={styles.insightIcon}>✦</Text>
+                <Text style={styles.insightIcon}>ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“Ãƒâ€šÃ‚Â¦</Text>
                 <Text style={styles.insightHeading}>EXPERT INSIGHT</Text>
               </View>
               <Text style={styles.insightCopy}>
@@ -433,7 +434,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                       </View>
                     </View>
                     <Text style={styles.reviewStars}>
-                      {'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}
+                      {'ÃƒÆ’Ã‚Â¢Ãƒâ€¹Ã…â€œÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦'.repeat(review.rating)}{'ÃƒÆ’Ã‚Â¢Ãƒâ€¹Ã…â€œÃƒÂ¢Ã¢â€šÂ¬Ã‚Â '.repeat(5 - review.rating)}
                     </Text>
                   </View>
                   <Text style={styles.reviewCopy}>{review.copy}</Text>
@@ -458,7 +459,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
           {isWide ? (
             <View>
               <Text style={styles.estimatedLabel}>ESTIMATED TOTAL</Text>
-              <Text style={styles.estimatedValue}>₱{formatCurrency(estimatedTotal)}</Text>
+              <Text style={styles.estimatedValue}>ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â±{formatCurrency(estimatedTotal)}</Text>
             </View>
           ) : null}
 
@@ -471,7 +472,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
             <Text style={styles.addButtonText}>Add to Selection</Text>
             {!isWide ? <Text style={styles.addDivider}>|</Text> : null}
             {!isWide ? (
-              <Text style={styles.addPrice}>₱{formatCurrency(estimatedTotal)}</Text>
+              <Text style={styles.addPrice}>ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â±{formatCurrency(estimatedTotal)}</Text>
             ) : null}
           </Pressable>
         </View>

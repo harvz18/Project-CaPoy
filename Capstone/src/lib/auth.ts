@@ -13,6 +13,7 @@ type AuthResult = {
 type ClientSignupInput = {
   fullName: string
   email: string
+  phoneNumber: string
   password: string
 }
 
@@ -231,11 +232,13 @@ export const signInWithEmail = async (
 export const signUpClient = async ({
   fullName,
   email,
+  phoneNumber,
   password,
 }: ClientSignupInput): Promise<AuthResult> => {
   const client = requireSupabase()
   const normalizedEmail = email.trim().toLowerCase()
   const normalizedName = fullName.trim()
+  const normalizedPhone = phoneNumber.trim()
 
   if (!client) {
     return { ok: false, message: notConfiguredMessage }
@@ -250,6 +253,7 @@ export const signUpClient = async ({
         data: {
           full_name: normalizedName,
           default_role: 'client',
+          phone: normalizedPhone,
         },
       },
     })
@@ -263,6 +267,7 @@ export const signUpClient = async ({
         userId: data.user.id,
         fullName: normalizedName,
         email: normalizedEmail,
+        phone: normalizedPhone,
         role: 'client',
       })
     }

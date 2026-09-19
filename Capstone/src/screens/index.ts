@@ -114,12 +114,6 @@ export type {
   MerchantNotificationFilter,
   MerchantNotificationPreferences,
 } from './22.5-Notification'
-export { ServiceListingScreen } from './17-ServiceListing'
-export type {
-  MerchantServiceItem,
-  ServiceListingFilter,
-  ServiceListingTab,
-} from './17-ServiceListing'
 export { OnboardingScreen } from './01-Onboarding'
 export { LoginScreen } from './01.1-Login'
 export { ForgotPasswordScreen } from './01.1.1-ForgotPassword'

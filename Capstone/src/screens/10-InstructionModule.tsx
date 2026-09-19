@@ -1,3 +1,4 @@
+import { Text } from '../components/AppText'
 import React from 'react'
 import {
   Image,
@@ -6,7 +7,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
+  
   TextInput,
   View,
 } from 'react-native'
@@ -115,7 +116,7 @@ export const InstructionModuleScreen: React.FC<InstructionModuleScreenProps> = (
             onPress={onBack}
             style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
           >
-            <Text style={styles.backIcon}>←</Text>
+            <Text style={styles.backIcon}>ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Ãƒâ€šÃ‚Â</Text>
           </Pressable>
           <Text style={styles.brand}>PROVIDER REQUESTS</Text>
           <View style={styles.headerSpacer} />
@@ -134,7 +135,7 @@ export const InstructionModuleScreen: React.FC<InstructionModuleScreenProps> = (
         <View style={styles.introSection}>
           <Text style={styles.title}>Any Special Requests?</Text>
           <Text style={styles.subtitle}>
-            Let your providers know exactly what you need — this step is optional but helpful.
+            Let your providers know exactly what you need ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â this step is optional but helpful.
           </Text>
         </View>
 
@@ -284,7 +285,7 @@ const ProviderAccordion: React.FC<ProviderAccordionProps> = ({
             <Text style={styles.providerCategory}>{provider.category}</Text>
           </View>
         </View>
-        <Text style={[styles.chevron, expanded && styles.chevronExpanded]}>⌄</Text>
+        <Text style={[styles.chevron, expanded && styles.chevronExpanded]}>ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬â„¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾</Text>
       </Pressable>
 
       {expanded ? <View style={styles.providerContent}>{children}</View> : null}
@@ -356,8 +357,8 @@ const styles = StyleSheet.create({
     height: 64,
     justifyContent: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: palette.surfaceVariant,
-    backgroundColor: palette.surfaceLowest,
+    borderBottomColor: '#4E061A',
+    backgroundColor: '#6B1E2E',
   },
   topAppBarContent: {
     width: '100%',
@@ -375,9 +376,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 20,
   },
-  backIcon: { color: palette.secondary, fontSize: 27, lineHeight: 29 },
+  backIcon: { color: '#FFFFFF', fontSize: 27, lineHeight: 29 },
   brand: {
-    color: palette.secondary,
+    color: '#FFFFFF',
     fontSize: 12,
     lineHeight: 16,
     fontWeight: '700',

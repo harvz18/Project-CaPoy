@@ -1,16 +1,18 @@
+import { Text } from '../components/AppText'
 import React from 'react'
 import {
   Image,
-  ImageBackground,
   Modal,
   Pressable,
+  Platform,
   ScrollView,
   StyleSheet,
-  Text,
   TextInput,
+  TextStyle,
   useWindowDimensions,
   View,
 } from 'react-native'
+import { MaterialIcons } from '@expo/vector-icons'
 
 export type EventType = 'wedding' | 'preWedding' | 'postWedding'
 export type VenueStatus = 'secured' | 'searching'
@@ -22,6 +24,7 @@ export interface EventCreationValue {
   guestCount: number
   time: string
   venueStatus: VenueStatus
+  weddingThemes?: string[]
 }
 
 interface EventCreationScreenProps {
@@ -31,41 +34,22 @@ interface EventCreationScreenProps {
   onSaveExit?: (value: EventCreationValue) => void
 }
 
-const eventTypes = [
-  {
-    id: 'wedding' as const,
-    label: 'Wedding',
-    image:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuDtbgaP5yLMURgwEgNm5CQixnMUrzm3IHOAeKVzccQZRKFKIfKEY6mUYG_NPLBpHtNDUheLSQPgfXWnjCyrH9Y987-RtkuyJn9HY7RzZ_T89od8uGJMkF3Ai7oHwRV-uaAiI_NQ0WA_I0kthInGHZmIDL_Wp-MWEdNxqEzfw3ULsvCEpx1xIKbsjA_4y7pVFkQ-06ruBVu6hChPHuRN3uttF3MyJ46hZxZ8ndBq9njIyY9qWh50zHJ7jg',
-  },
-  {
-    id: 'preWedding' as const,
-    label: 'Pre-Wedding',
-    image:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuDp3KM__YFrSf5w2oh1icvCV98frJzMG2pC0F4wDFNlnSG6KR1u5v3QlInk12-xummzhdVpMVFFl6zYBhhqI4AaWnQLhRiLMg_gluN3Gpka6OJdLkkCz8PyZg8NcDcZdLYd1A580T0B8EZ0_-z94cmeShqe4cNzOZdmzKiXDDyDsfqS1NOYwipISiq9DBiSPKtmsHbEuNzyv1KRQv4gj127awfjZrsqdlRUKizrDvkcHremNk3A6O0m4A',
-  },
-  {
-    id: 'postWedding' as const,
-    label: 'Post-Wedding',
-    image:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuANJ7cED48Zg_vdfzs3HOQ50fRBj_NBh-tCp5hF_TeEuxw7Cqv054NndGrVQfxLRYt_-hLHBV6f9U9Rpx8ghg-eBasjrQ5o4XTAeOEb1KCqMdPSQco2n3S2gIwmjfjN_CrjIRFx9obgqYVdgeYVquzxGA7ilu7NxzZljbid5EKEeS196ZYO5Y6BYJd9qxEoHy20vNCByvUdH3jHxIWaITWSEDyo9jARckZwWYvid6vpAEHE8q1u8pH2dw',
-  },
-]
-
 const venueOptions = [
   {
     id: 'secured' as const,
-    icon: '\u25A5',
+    icon: <MaterialIcons name="assured-workload" size={23} />,
     title: 'Venue Secured',
     description: 'I have a confirmed location for this event.',
   },
   {
     id: 'searching' as const,
-    icon: '\u2315',
+    icon: <MaterialIcons name="youtube-searched-for" size={23} />,
     title: 'Still Searching',
     description: 'I need to find or decide on a location.',
   },
 ]
+
+const weddingThemes = ['Minimalist', 'Rustic', 'Garden', 'Classic', 'Modern', 'Beach', 'Glam']
 
 const tipImage =
   'https://lh3.googleusercontent.com/aida-public/AB6AXuBN6x8Mx5zGHTD6IUyLqfk50QbAV-Dq_o6n1Enaq7AusFv1NnMCxYBi0buj801mTGgF7ik3QFivj2rQeGMjXrjptQ6nWOWxpil8cSFaiGfQ79kC9IIW2Jw1dSgsd1IpNCQzZUBkMjoeI_8PbNUsPPCfmvb5L7F7JenBBEY4QpYJe8FcwPrci6W4vHuD5rsSFk_v-xKjQy_eOgKNO7bWrx2GzC1QXPsn3MqYevozfV8UX9XJkZATyrsrCw'
@@ -121,16 +105,46 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
   const { width } = useWindowDimensions()
   const isWide = width >= 768
   const [eventName, setEventName] = React.useState(initialValue?.eventName ?? '')
-  const [eventType, setEventType] = React.useState<EventType>(
-    initialValue?.eventType ?? 'wedding'
-  )
+  const eventType: EventType = initialValue?.eventType ?? 'wedding'
   const [date, setDate] = React.useState(initialValue?.date ?? '')
   const [time, setTime] = React.useState(initialValue?.time ?? '')
+  const [isEventNameFocused, setIsEventNameFocused] = React.useState(false)
   const [activePicker, setActivePicker] = React.useState<'date' | 'time' | null>(null)
   const [venueStatus, setVenueStatus] = React.useState<VenueStatus>(
     initialValue?.venueStatus ?? 'searching'
   )
   const [guestCount, setGuestCount] = React.useState(initialValue?.guestCount ?? 120)
+  const [selectedWeddingThemes, setSelectedWeddingThemes] = React.useState<string[]>(
+    initialValue?.weddingThemes ?? []
+  )
+  const [themeLimitMessage, setThemeLimitMessage] = React.useState(false)
+  const themeLimitTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  React.useEffect(
+    () => () => {
+      if (themeLimitTimer.current) {
+        clearTimeout(themeLimitTimer.current)
+      }
+    },
+  )
+
+  const toggleWeddingTheme = (theme: string) => {
+    if (selectedWeddingThemes.includes(theme)) {
+      setSelectedWeddingThemes((current) => current.filter((item) => item !== theme))
+      return
+    }
+
+    if (selectedWeddingThemes.length >= 2) {
+      setThemeLimitMessage(true)
+      if (themeLimitTimer.current) {
+        clearTimeout(themeLimitTimer.current)
+      }
+      themeLimitTimer.current = setTimeout(() => setThemeLimitMessage(false), 2200)
+      return
+    }
+
+    setSelectedWeddingThemes((current) => [...current, theme])
+  }
 
   const value: EventCreationValue = {
     eventName,
@@ -139,6 +153,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
     time,
     venueStatus,
     guestCount,
+    weddingThemes: selectedWeddingThemes,
   }
 
   return (
@@ -157,7 +172,11 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                 pressed && styles.pressed,
               ]}
             >
-              <Text style={styles.headerIcon}>{isWide ? '\u2190' : '\u00D7'}</Text>
+              {isWide ? (
+                <Text style={styles.headerIcon}>{'\u2190'}</Text>
+              ) : (
+                <MaterialIcons color={palette.surface} name="cancel" size={24} />
+              )}
             </Pressable>
             {isWide && <Text style={styles.desktopTitle}>New Celebration</Text>}
           </View>
@@ -178,21 +197,26 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
         </View>
       </View>
 
+      <View style={[styles.progressSection, isWide && styles.horizontalPaddingWide]}>
+        <View style={styles.progressLabels}>
+          <Text style={styles.progressActiveLabel}>BASICS</Text>
+          <Text style={styles.progressLabel}>STEP 1 OF 5</Text>
+        </View>
+        <View style={styles.progressSegments}>
+          {Array.from({ length: 5 }, (_, index) => (
+            <View
+              key={index}
+              style={[styles.progressSegment, index === 0 && styles.progressSegmentActive]}
+            />
+          ))}
+        </View>
+      </View>
+
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.progressSection, isWide && styles.horizontalPaddingWide]}>
-          <View style={styles.progressLabels}>
-            <Text style={styles.progressActiveLabel}>BASICS</Text>
-            <Text style={styles.progressLabel}>STEP 1 OF 5</Text>
-          </View>
-          <View style={styles.progressTrack}>
-            <View style={styles.progressFill} />
-          </View>
-        </View>
-
         <View style={[styles.mainContent, isWide && styles.horizontalPaddingWide]}>
           <View style={[styles.form, isWide && styles.formWide]}>
             <View style={styles.intro}>
@@ -207,64 +231,94 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
 
             <View style={styles.fieldGroup}>
               <Text style={styles.fieldLabel}>EVENT NAME</Text>
-              <View style={styles.textInputShell}>
+              <View
+                style={[styles.textInputShell, isEventNameFocused && styles.textInputShellFocused]}
+              >
+                <MaterialIcons
+                  accessibilityLabel="Event name"
+                  color={palette.burgundy}
+                  name="event-note"
+                  size={22}
+                  style={styles.eventNameIcon}
+                />
                 <TextInput
                   accessibilityLabel="Event name"
+                  onBlur={() => setIsEventNameFocused(false)}
                   onChangeText={setEventName}
-                  placeholder="e.g., The Rehearsal Dinner"
-                  placeholderTextColor={palette.placeholder}
-                  style={styles.textInput}
+                  onFocus={() => setIsEventNameFocused(true)}
+                  placeholder="e.g., Lorainne & Oemer's Wedding"
+                  placeholderTextColor="#BDBDBD"
+                  style={[
+                    styles.textInput,
+                    styles.textInputWithIcon,
+                    Platform.OS === 'web'
+                      ? ({ outlineStyle: 'none' } as unknown as TextStyle)
+                      : null,
+                  ]}
                   value={eventName}
                 />
               </View>
             </View>
 
-            <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>WHAT TYPE OF EVENT IS THIS?</Text>
-              <View style={styles.eventTypeGrid}>
-                {eventTypes.map((option) => {
-                  const selected = eventType === option.id
+            <View style={styles.themeSection}>
+              <View style={styles.themeLabelRow}>
+                <Text style={styles.fieldLabel}>WEDDING THEME</Text>
+                <Text style={styles.themeOptionalLabel}>OPTIONAL</Text>
+              </View>
+              <Text style={styles.themeHelperText}>
+                Pick up to 2 — helps us recommend vendors that match your style.
+              </Text>
+              <View style={styles.themeChipGrid}>
+                {weddingThemes.map((theme) => {
+                  const selected = selectedWeddingThemes.includes(theme)
                   return (
                     <Pressable
-                      key={option.id}
-                      accessibilityRole="radio"
+                      key={theme}
+                      accessibilityRole="checkbox"
                       accessibilityState={{ checked: selected }}
-                      onPress={() => setEventType(option.id)}
+                      onPress={() => toggleWeddingTheme(theme)}
                       style={({ pressed }) => [
-                        styles.eventTypeCard,
-                        isWide && styles.eventTypeCardWide,
-                        selected && styles.selectionCardActive,
+                        styles.themeChip,
+                        selected && styles.themeChipSelected,
                         pressed && styles.cardPressed,
                       ]}
                     >
-                      <ImageBackground
-                        imageStyle={styles.eventTypeImage}
-                        resizeMode="cover"
-                        source={{ uri: option.image }}
-                        style={styles.eventTypeImageBackground}
-                      >
-                        <View style={styles.eventTypeFade} />
-                        <View style={styles.eventTypeContent}>
-                          <Text style={styles.eventTypeLabel}>{option.label}</Text>
-                          {selected && <SelectionCheck />}
-                        </View>
-                      </ImageBackground>
+                      <Text style={[styles.themeChipText, selected && styles.themeChipTextSelected]}>
+                        {theme}
+                      </Text>
                     </Pressable>
                   )
                 })}
               </View>
+              {themeLimitMessage && (
+                <Text style={styles.themeLimitMessage}>You can only pick up to 2.</Text>
+              )}
             </View>
 
             <View style={[styles.dateTimeGrid, isWide && styles.dateTimeGridWide]}>
               <PickerField
-                icon="\u25A6"
+                icon={
+                  <MaterialIcons
+                    color={palette.burgundy}
+                    name="calendar-month"
+                    size={22}
+                    style={styles.inputIcon}
+                  />
+                }
                 label="DATE"
                 onPress={() => setActivePicker('date')}
                 placeholder="MM/DD/YYYY"
                 value={date}
               />
               <PickerField
-                icon="\u25F7"
+                icon={
+                  <MaterialIcons
+                    color={palette.burgundy}
+                    name="timer"
+                    size={22}
+                    style={styles.inputIcon}
+                  />
+                }
                 label="TIME"
                 onPress={() => setActivePicker('time')}
                 placeholder="HH:MM AM"
@@ -290,9 +344,15 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                       ]}
                     >
                       <View style={[styles.venueIconCircle, selected && styles.venueIconSelected]}>
-                        <Text style={[styles.venueIcon, selected && styles.venueIconTextSelected]}>
-                          {option.icon}
-                        </Text>
+                        {React.isValidElement(option.icon) ? (
+                          React.cloneElement(option.icon as React.ReactElement<{ color?: string }>, {
+                            color: selected ? palette.surface : palette.burgundyDark,
+                          })
+                        ) : (
+                          <Text style={[styles.venueIcon, selected && styles.venueIconTextSelected]}>
+                            {option.icon}
+                          </Text>
+                        )}
                       </View>
                       <View style={styles.venueCopy}>
                         <Text style={styles.venueTitle}>{option.title}</Text>
@@ -307,17 +367,26 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
 
             <View style={styles.guestSection}>
               <View style={styles.guestLabelRow}>
-                <Text style={styles.fieldLabel}>ESTIMATED GUEST COUNT</Text>
-                <Text style={styles.optionalLabel}>OPTIONAL</Text>
+                <Text style={[styles.fieldLabel, styles.guestLabelCentered]}>
+                  ESTIMATED GUEST COUNT
+                </Text>
               </View>
               <View style={styles.stepper}>
                 <Pressable
                   accessibilityLabel="Decrease guest count by 10"
                   accessibilityRole="button"
                   onPress={() => setGuestCount((current) => Math.max(0, current - 10))}
-                  style={({ pressed }) => [styles.stepperButton, pressed && styles.cardPressed]}
+                  style={({ pressed }) => [
+                    styles.stepperButton,
+                    pressed && styles.stepperButtonPressed,
+                    pressed && styles.cardPressed,
+                  ]}
                 >
-                  <Text style={styles.stepperButtonText}>-</Text>
+                  {({ pressed }) => (
+                    <Text style={[styles.stepperButtonText, pressed && styles.stepperButtonTextPressed]}>
+                      -
+                    </Text>
+                  )}
                 </Pressable>
                 <View style={styles.guestInputShell}>
                   <TextInput
@@ -335,9 +404,17 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                   accessibilityLabel="Increase guest count by 10"
                   accessibilityRole="button"
                   onPress={() => setGuestCount((current) => current + 10)}
-                  style={({ pressed }) => [styles.stepperButton, pressed && styles.cardPressed]}
+                  style={({ pressed }) => [
+                    styles.stepperButton,
+                    pressed && styles.stepperButtonPressed,
+                    pressed && styles.cardPressed,
+                  ]}
                 >
-                  <Text style={styles.stepperButtonText}>+</Text>
+                  {({ pressed }) => (
+                    <Text style={[styles.stepperButtonText, pressed && styles.stepperButtonTextPressed]}>
+                      +
+                    </Text>
+                  )}
                 </Pressable>
               </View>
             </View>
@@ -401,7 +478,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
 }
 
 interface PickerFieldProps {
-  icon: string
+  icon: React.ReactNode
   label: string
   onPress: () => void
   placeholder: string
@@ -423,7 +500,7 @@ const PickerField: React.FC<PickerFieldProps> = ({
       onPress={onPress}
       style={({ pressed }) => [styles.iconInputShell, pressed && styles.cardPressed]}
     >
-      <Text style={styles.inputIcon}>{icon}</Text>
+      {typeof icon === 'string' ? <Text style={styles.inputIcon}>{icon}</Text> : icon}
       <Text style={[styles.pickerValue, !value && styles.pickerPlaceholder]}>
         {value || placeholder}
       </Text>
@@ -620,43 +697,64 @@ const styles = StyleSheet.create({
   topAppBar: {
     zIndex: 40,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(226, 226, 226, 0.5)',
-    backgroundColor: palette.background,
+    borderBottomColor: palette.burgundyDark,
+    backgroundColor: palette.burgundy,
   },
   topAppBarContent: {
     width: '100%',
     maxWidth: 1200,
-    minHeight: 64,
+    minHeight: 56,
     alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
   },
-  topAppBarContentWide: { minHeight: 96, paddingHorizontal: 64 },
+  topAppBarContentWide: { minHeight: 72, paddingHorizontal: 64 },
   desktopTitleGroup: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  headerButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },
-  headerButtonWide: { borderWidth: 1, borderColor: palette.border },
-  headerIcon: { color: palette.muted, fontSize: 25, lineHeight: 28 },
-  desktopTitle: { color: palette.burgundyDark, fontSize: 24, lineHeight: 32, fontWeight: '600' },
+  headerButton: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18 },
+  headerButtonWide: { borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.5)' },
+  headerIcon: { color: palette.surface, fontSize: 25, lineHeight: 28 },
+  desktopTitle: { color: palette.surface, fontSize: 24, lineHeight: 32, fontWeight: '600' },
   mobileTitle: {
-    color: palette.muted,
+    color: palette.surface,
     fontSize: 12,
     lineHeight: 16,
     fontWeight: '700',
     letterSpacing: 1.2,
   },
   saveButton: { minHeight: 40, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
-  saveButtonText: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 1.1 },
-  headerSpacer: { width: 40, height: 40 },
+  saveButtonText: { color: palette.surface, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 1.1 },
+  headerSpacer: { width: 36, height: 36 },
   scrollContent: { paddingBottom: 128 },
-  progressSection: { width: '100%', maxWidth: 1200, alignSelf: 'center', paddingHorizontal: 20, marginTop: 16 },
+  progressSection: {
+    zIndex: 20,
+    width: '100%',
+    maxWidth: 1200,
+    alignSelf: 'center',
+    backgroundColor: palette.background,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 16,
+  },
   horizontalPaddingWide: { paddingHorizontal: 64 },
   progressLabels: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
   progressActiveLabel: { color: palette.burgundy, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 1.2 },
   progressLabel: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 1.2 },
-  progressTrack: { width: '100%', height: 2, backgroundColor: '#E3E2E2' },
-  progressFill: { width: '20%', height: 2, backgroundColor: palette.burgundy },
+  progressSegments: {
+    width: '100%',
+    flexDirection: 'row',
+    gap: 6,
+  },
+  progressSegment: {
+    height: 10,
+    flex: 1,
+    borderRadius: 999,
+    backgroundColor: '#E3E2E2',
+  },
+  progressSegmentActive: {
+    backgroundColor: palette.burgundy,
+  },
   mainContent: {
     width: '100%',
     maxWidth: 1200,
@@ -668,51 +766,30 @@ const styles = StyleSheet.create({
   form: { width: '100%', gap: 48 },
   formWide: { width: '64%' },
   intro: { marginBottom: 16 },
-  pageTitle: { color: palette.text, fontSize: 32, lineHeight: 40, fontWeight: '700', letterSpacing: -0.3, marginBottom: 16 },
+  pageTitle: { color: '#2A1A1D', fontSize: 32, lineHeight: 40, fontWeight: '700', letterSpacing: -0.3, marginBottom: 16 },
   pageTitleWide: { fontSize: 48, lineHeight: 56, letterSpacing: -0.8 },
   pageDescription: { color: palette.muted, fontSize: 18, lineHeight: 30 },
   fieldGroup: { gap: 12 },
   fieldLabel: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 1.2 },
-  textInputShell: { borderWidth: 1, borderColor: palette.border, borderRadius: 8, backgroundColor: palette.surface },
-  textInput: { minHeight: 58, color: palette.text, fontSize: 18, lineHeight: 28, paddingHorizontal: 16, paddingVertical: 14 },
-  eventTypeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  eventTypeCard: {
-    width: '48%',
-    height: 160,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 12,
-    backgroundColor: palette.surface,
+  textInputShell: { flexDirection: 'row', alignItems: 'center', minHeight: 52, borderWidth: 2, borderColor: palette.border, borderRadius: 20, backgroundColor: '#F1F2F4' },
+  textInputShellFocused: { borderColor: palette.burgundy },
+  eventNameIcon: { marginLeft: 16 },
+  textInput: { minHeight: 52, borderWidth: 0, borderColor: 'transparent', borderRadius: 0, color: palette.text, fontSize: 15, lineHeight: 22, paddingHorizontal: 16, paddingVertical: 14 },
+  textInputWithIcon: {
+    minWidth: 0,
+    flex: 1,
+    paddingLeft: 12,
+    paddingRight: 16,
+    outlineWidth: 0,
   },
-  eventTypeCardWide: { width: '31.5%' },
   selectionCardActive: {
     borderColor: palette.burgundy,
     shadowColor: palette.burgundy,
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 15,
-    elevation: 3,
+    shadowOpacity: 0.32,
+    shadowRadius: 18,
+    elevation: 8,
   },
-  eventTypeImageBackground: { flex: 1, justifyContent: 'flex-end' },
-  eventTypeImage: { opacity: 0.52 },
-  eventTypeFade: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    backgroundColor: 'rgba(255,255,255,0.34)',
-  },
-  eventTypeContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-    backgroundColor: 'rgba(255,255,255,0.82)',
-    padding: 16,
-  },
-  eventTypeLabel: { flex: 1, color: palette.text, fontSize: 18, lineHeight: 24, fontWeight: '600' },
   selectionCheck: {
     width: 24,
     height: 24,
@@ -726,16 +803,16 @@ const styles = StyleSheet.create({
   dateTimeGridWide: { flexDirection: 'row' },
   dateTimeField: { flex: 1, gap: 12 },
   iconInputShell: {
-    minHeight: 58,
+    minHeight: 52,
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: palette.border,
-    borderRadius: 8,
-    backgroundColor: palette.surface,
+    borderRadius: 20,
+    backgroundColor: '#F1F2F4',
     paddingHorizontal: 16,
   },
-  inputIcon: { color: palette.muted, fontSize: 20, lineHeight: 23, marginRight: 12 },
+  inputIcon: { color: palette.burgundy, fontSize: 20, lineHeight: 23, marginRight: 12 },
   iconTextInput: { flex: 1, minHeight: 56, color: palette.text, fontSize: 16, lineHeight: 24, paddingVertical: 14 },
   pickerValue: {
     flex: 1,
@@ -745,7 +822,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   pickerPlaceholder: {
-    color: palette.placeholder,
+    color: '#BDBDBD',
   },
   pickerChevron: {
     color: palette.muted,
@@ -812,8 +889,8 @@ const styles = StyleSheet.create({
   },
   pickerColumnTitle: {
     color: palette.muted,
-    fontSize: 11,
-    lineHeight: 15,
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: '700',
     letterSpacing: 1.1,
     marginBottom: 8,
@@ -850,34 +927,68 @@ const styles = StyleSheet.create({
   venueGridWide: { flexDirection: 'row' },
   venueCard: {
     flex: 1,
-    minHeight: 128,
+    minHeight: 104,
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 16,
+    alignItems: 'center',
+    gap: 12,
     borderWidth: 1,
     borderColor: palette.border,
     borderRadius: 12,
     backgroundColor: palette.surface,
-    padding: 24,
+    padding: 16,
   },
   venueIconCircle: {
-    width: 48,
-    height: 48,
+    width: 40,
+    height: 40,
     flexShrink: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 24,
-    backgroundColor: palette.surfaceLow,
+    borderRadius: 20,
+    backgroundColor: '#F8EDEF',
   },
   venueIconSelected: { backgroundColor: palette.burgundy },
   venueIcon: { color: palette.burgundyDark, fontSize: 23, lineHeight: 26 },
   venueIconTextSelected: { color: palette.surface },
   venueCopy: { flex: 1 },
-  venueTitle: { color: palette.text, fontSize: 16, lineHeight: 24, fontWeight: '600', marginBottom: 4 },
-  venueDescription: { color: palette.muted, fontSize: 14, lineHeight: 20 },
-  guestSection: { borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 32, gap: 12 },
-  guestLabelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  optionalLabel: { color: palette.placeholder, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 1.1 },
+  venueTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '600', marginBottom: 3 },
+  venueDescription: { color: palette.muted, fontSize: 12, lineHeight: 18 },
+  themeSection: { gap: 10 },
+  themeLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  themeOptionalLabel: {
+    color: '#8A8A8A',
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  themeHelperText: { color: '#8A8A8A', fontSize: 12, lineHeight: 18 },
+  themeChipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  themeChip: {
+    minHeight: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 17,
+    backgroundColor: '#E5E5E5',
+    paddingHorizontal: 14,
+  },
+  themeChipSelected: { backgroundColor: palette.burgundy },
+  themeChipText: { color: '#8A8A8A', fontSize: 12, lineHeight: 16, fontWeight: '600' },
+  themeChipTextSelected: { color: palette.surface },
+  themeLimitMessage: { color: '#8A8A8A', fontSize: 12, lineHeight: 18 },
+  guestSection: {
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: palette.border,
+    paddingTop: 32,
+    gap: 12,
+  },
+  guestLabelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 },
+  guestLabelCentered: { textAlign: 'center' },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 24 },
   stepperButton: {
     width: 48,
@@ -888,8 +999,15 @@ const styles = StyleSheet.create({
     borderColor: palette.border,
     borderRadius: 24,
     backgroundColor: palette.surface,
+    shadowColor: palette.burgundy,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 7,
+    elevation: 3,
   },
   stepperButtonText: { color: palette.burgundyDark, fontSize: 27, lineHeight: 29, fontWeight: '400' },
+  stepperButtonPressed: { backgroundColor: palette.burgundy, borderColor: palette.burgundy },
+  stepperButtonTextPressed: { color: palette.surface },
   guestInputShell: { width: 128, borderWidth: 1, borderColor: palette.border, borderRadius: 8, backgroundColor: palette.surface },
   guestInput: { minHeight: 54, color: palette.text, fontSize: 24, lineHeight: 32, fontWeight: '600', textAlign: 'center', paddingVertical: 10 },
   tipPanel: {

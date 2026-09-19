@@ -1,10 +1,11 @@
+import { Text } from '../components/AppText'
 import React from 'react'
 import {
   Animated,
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
+  
   View,
 } from 'react-native'
 import { PlanningStepIndicator } from '../components/PlanningStepIndicator'
@@ -96,7 +97,7 @@ export const ScheduleNoConflictScreen: React.FC<ScheduleNoConflictScreenProps> =
             onPress={onBack}
             style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
           >
-            <Text style={styles.backIcon}>←</Text>
+            <Text style={styles.backIcon}>ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Ãƒâ€šÃ‚Â</Text>
           </Pressable>
           <Text style={styles.headerTitle}>Schedule Check</Text>
           <View style={styles.headerSpacer} />
@@ -120,7 +121,7 @@ export const ScheduleNoConflictScreen: React.FC<ScheduleNoConflictScreenProps> =
           <View style={[styles.statusIconCircle, hasConflicts && styles.statusIconConflict]}>
             <View style={[styles.checkCircle, hasConflicts && styles.conflictCircle]}>
               <Text style={[styles.checkMark, hasConflicts && styles.conflictMark]}>
-                {hasConflicts ? '!' : '✓'}
+                {hasConflicts ? '!' : 'ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ'}
               </Text>
             </View>
           </View>
@@ -168,7 +169,7 @@ export const ScheduleNoConflictScreen: React.FC<ScheduleNoConflictScreenProps> =
                   <Text
                     style={[styles.rowCheckMark, !provider.available && styles.rowConflictMark]}
                   >
-                    {provider.available ? '✓' : '!'}
+                    {provider.available ? 'ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ' : '!'}
                   </Text>
                 </View>
               </Pressable>
@@ -214,8 +215,8 @@ const styles = StyleSheet.create({
   topAppBar: {
     zIndex: 50,
     borderBottomWidth: 1,
-    borderBottomColor: palette.surfaceVariant,
-    backgroundColor: palette.surface,
+    borderBottomColor: '#4E061A',
+    backgroundColor: '#6B1E2E',
   },
   topAppBarContent: {
     width: '100%',
@@ -235,10 +236,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 20,
   },
-  backIcon: { color: palette.text, fontSize: 27, lineHeight: 29 },
+  backIcon: { color: '#FFFFFF', fontSize: 27, lineHeight: 29 },
   headerTitle: {
     flex: 1,
-    color: palette.primary,
+    color: '#FFFFFF',
     fontSize: 32,
     lineHeight: 40,
     fontWeight: '700',

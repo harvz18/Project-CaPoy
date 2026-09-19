@@ -1,9 +1,10 @@
+import { Text } from './AppText'
 import React from 'react'
 import {
   Pressable,
   PressableProps,
   StyleSheet,
-  Text,
+  
   StyleProp,
   TextStyle,
   ViewStyle,

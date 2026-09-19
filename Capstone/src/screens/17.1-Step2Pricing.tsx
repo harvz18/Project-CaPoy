@@ -1,3 +1,4 @@
+import { Text } from '../components/AppText'
 import React from 'react'
 import {
   KeyboardAvoidingView,
@@ -5,7 +6,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
+  
   TextInput,
   useWindowDimensions,
   View,
@@ -286,7 +287,7 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
                 <Text style={styles.quoteNoticeIconText}>i</Text>
               </View>
               <Text style={styles.quoteNoticeText}>
-                Your listing will show “Request a quote.” You can agree on a price after
+                Your listing will show ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“Request a quote.ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â You can agree on a price after
                 reviewing each client's event details.
               </Text>
             </View>
