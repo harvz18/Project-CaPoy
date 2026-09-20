@@ -1,7 +1,8 @@
+import { Text } from './AppText'
 import React from 'react'
 import {
   StyleSheet,
-  Text,
+  
   TextInput as RNTextInput,
   TextInputProps as RNTextInputProps,
   View,
@@ -13,10 +14,11 @@ interface TextInputProps extends RNTextInputProps {
   helperText?: string
   error?: boolean
   icon?: React.ReactNode
+  rightIcon?: React.ReactNode
 }
 
 export const TextInput = React.forwardRef<RNTextInput, TextInputProps>(
-  ({ label, helperText, error = false, icon, style, ...props }, ref) => {
+  ({ label, helperText, error = false, icon, rightIcon, style, ...props }, ref) => {
     return (
       <View style={styles.wrapper}>
         {label && <Text style={styles.label}>{label}</Text>}
@@ -29,11 +31,13 @@ export const TextInput = React.forwardRef<RNTextInput, TextInputProps>(
             style={[
               styles.input,
               icon ? styles.inputWithIcon : null,
+              rightIcon ? styles.inputWithRightIcon : null,
               error ? styles.inputError : null,
               style,
             ]}
             {...props}
           />
+          {rightIcon && <View style={styles.rightIcon}>{rightIcon}</View>}
         </View>
 
         {helperText && (
@@ -69,6 +73,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.medium,
     backgroundColor: colors.surface,
     color: colors.textPrimary,
+    fontFamily: 'Inter_400Regular',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     fontSize: typography.body.fontSize,
@@ -76,12 +81,20 @@ const styles = StyleSheet.create({
   inputWithIcon: {
     paddingLeft: spacing.xl,
   },
+  inputWithRightIcon: {
+    paddingRight: spacing['4xl'],
+  },
   inputError: {
     borderColor: colors.error,
   },
   icon: {
     position: 'absolute',
     left: spacing.md,
+    zIndex: 1,
+  },
+  rightIcon: {
+    position: 'absolute',
+    right: spacing.md,
     zIndex: 1,
   },
   helperText: {

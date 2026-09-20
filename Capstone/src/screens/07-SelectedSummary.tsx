@@ -1,10 +1,11 @@
+import { Text } from '../components/AppText'
 import React from 'react'
 import {
   Image,
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
+  
   useWindowDimensions,
   View,
 } from 'react-native'
@@ -28,6 +29,7 @@ export interface SelectedSummaryService {
 interface SelectedSummaryScreenProps {
   budget?: number
   selectedServices?: SelectedSummaryService[]
+  showBottomNavigation?: boolean
   totalEstimatedCost?: number
   onAddService?: () => void
   onBack?: () => void
@@ -43,6 +45,7 @@ const formatCurrency = (value: number) =>
 export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
   budget = 40000,
   selectedServices = [],
+  showBottomNavigation = true,
   totalEstimatedCost = 34500,
   onAddService,
   onBack,
@@ -206,7 +209,7 @@ export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
         </View>
       </ScrollView>
 
-      {!isWide ? (
+      {showBottomNavigation && !isWide ? (
         <ClientBottomNavigation activeTab="profile" onSelectTab={onSelectTab} />
       ) : null}
     </View>
@@ -234,8 +237,8 @@ const styles = StyleSheet.create({
     height: 64,
     justifyContent: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: palette.outlineVariant,
-    backgroundColor: palette.surfaceLowest,
+    borderBottomColor: '#4E061A',
+    backgroundColor: '#6B1E2E',
   },
   topAppBarContent: {
     width: '100%',
@@ -255,17 +258,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 20,
   },
-  backIcon: { color: palette.primary, fontSize: 27, lineHeight: 29 },
+  backIcon: { color: '#FFFFFF', fontSize: 27, lineHeight: 29 },
   menuLine: {
     width: 19,
     height: 2,
     borderRadius: 1,
-    backgroundColor: palette.primary,
+    backgroundColor: '#FFFFFF',
     marginVertical: 2,
   },
   headerTitle: {
     flex: 1,
-    color: palette.secondary,
+    color: '#FFFFFF',
     fontSize: 12,
     lineHeight: 16,
     fontWeight: '700',
@@ -277,7 +280,7 @@ const styles = StyleSheet.create({
     width: 9,
     height: 9,
     borderWidth: 2,
-    borderColor: palette.primary,
+    borderColor: '#FFFFFF',
     borderRadius: 5,
   },
   profileBody: {
@@ -285,7 +288,7 @@ const styles = StyleSheet.create({
     height: 11,
     borderWidth: 2,
     borderBottomWidth: 0,
-    borderColor: palette.primary,
+    borderColor: '#FFFFFF',
     borderTopLeftRadius: 11,
     borderTopRightRadius: 11,
     marginTop: 3,

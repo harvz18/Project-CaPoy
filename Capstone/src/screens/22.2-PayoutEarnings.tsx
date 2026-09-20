@@ -1,9 +1,10 @@
+import { Text } from '../components/AppText'
 import React from 'react'
 import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
+  
   useWindowDimensions,
   View,
 } from 'react-native'
@@ -95,7 +96,7 @@ const defaultTransactions: PayoutTransaction[] = [
     amount: -30000,
     createdAt: '2026-08-29T09:00:00+08:00',
     id: 'transaction-po-184',
-    label: 'Payout to BDO •••• 4821',
+    label: 'Payout to BDO ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ 4821',
     reference: 'Payout #PO-184',
     status: 'completed',
     type: 'payout',
@@ -463,7 +464,7 @@ const PayoutDestination = ({
         <View style={styles.bankDetails}>
           <Text style={styles.bankName}>{account.bankName}</Text>
           <Text style={styles.bankNumber}>
-            {account.accountName} · •••• {account.accountNumberLast4}
+            {account.accountName} ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ {account.accountNumberLast4}
           </Text>
         </View>
       </View>
@@ -478,7 +479,7 @@ const PayoutDestination = ({
       <View style={styles.payoutSchedule}>
         <Text style={styles.payoutScheduleLabel}>NEXT AUTOMATIC PAYOUT</Text>
         <Text style={styles.payoutScheduleValue}>
-          {formatDate(nextPayoutDate)} · {currency}
+          {formatDate(nextPayoutDate)} ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· {currency}
         </Text>
       </View>
     ) : null}
@@ -547,7 +548,7 @@ const TransactionRow = ({
           {transaction.label}
         </Text>
         <Text numberOfLines={1} style={styles.transactionMeta}>
-          {isCompact ? formatDate(transaction.createdAt) : `${transaction.reference} · ${formatDate(transaction.createdAt)}`}
+          {isCompact ? formatDate(transaction.createdAt) : `${transaction.reference} ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· ${formatDate(transaction.createdAt)}`}
         </Text>
       </View>
       <View style={styles.transactionAmountColumn}>
@@ -558,7 +559,7 @@ const TransactionRow = ({
             isCredit ? styles.transactionAmountCredit : styles.transactionAmountDebit,
           ]}
         >
-          {isCredit ? '+' : '−'}
+          {isCredit ? '+' : 'ÃƒÆ’Ã‚Â¢Ãƒâ€¹Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢'}
           {formatCurrency(Math.abs(transaction.amount), currency)}
         </Text>
         <Text
@@ -584,7 +585,7 @@ const PayoutNotice = () => (
       <Text style={styles.infoTitle}>About payout timing</Text>
       <Text style={styles.infoText}>
         Booking payments become available after the service is completed. Bank processing may take
-        1–3 business days.
+        1ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ3 business days.
       </Text>
     </View>
   </View>

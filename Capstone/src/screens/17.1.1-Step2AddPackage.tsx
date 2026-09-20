@@ -1,3 +1,4 @@
+import { Text } from '../components/AppText'
 import React from 'react'
 import {
   KeyboardAvoidingView,
@@ -5,7 +6,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
+  
   TextInput,
   useWindowDimensions,
   View,

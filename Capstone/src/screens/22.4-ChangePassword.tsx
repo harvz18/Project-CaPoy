@@ -1,3 +1,4 @@
+import { Text } from '../components/AppText'
 import React from 'react'
 import {
   KeyboardAvoidingView,
@@ -5,7 +6,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
+  
   TextInput,
   useWindowDimensions,
   View,
@@ -255,7 +256,7 @@ export const ChangePasswordScreen: React.FC<ChangePasswordScreenProps> = ({
                         requirement.met && styles.requirementCheckMet,
                       ]}
                     >
-                      {requirement.met ? '\u2713' : '·'}
+                      {requirement.met ? '\u2713' : 'ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â·'}
                     </Text>
                   </View>
                   <Text

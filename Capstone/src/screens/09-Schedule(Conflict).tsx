@@ -1,5 +1,6 @@
+import { Text } from '../components/AppText'
 import React from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Pressable, ScrollView, StyleSheet,  View } from 'react-native'
 import { PlanningStepIndicator } from '../components/PlanningStepIndicator'
 
 export interface ScheduleConflictProvider {
@@ -199,8 +200,8 @@ const styles = StyleSheet.create({
   topAppBar: {
     zIndex: 50,
     borderBottomWidth: 1,
-    borderBottomColor: palette.border,
-    backgroundColor: palette.background,
+    borderBottomColor: '#4E061A',
+    backgroundColor: '#6B1E2E',
   },
   topAppBarContent: {
     width: '100%',
@@ -219,10 +220,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 20,
   },
-  backIcon: { color: palette.burgundy, fontSize: 27, lineHeight: 29 },
+  backIcon: { color: '#FFFFFF', fontSize: 27, lineHeight: 29 },
   headerTitle: {
     flex: 1,
-    color: palette.burgundy,
+    color: '#FFFFFF',
     fontSize: 24,
     lineHeight: 32,
     fontWeight: '700',

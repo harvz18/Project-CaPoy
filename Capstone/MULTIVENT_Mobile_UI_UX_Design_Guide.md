@@ -9,7 +9,7 @@ MULTIVENT is a mobile-based event planning platform that centralizes:
 - Event planning
 - Merchant/service discovery
 - Service comparison
-- Booking
+- Booking/Reservation
 - Budget management
 - Payment
 - Messaging
@@ -54,7 +54,7 @@ The merchant/service provider:
 
 - Manages profile
 - Creates services
-- Publishes packages
+- Publishes packages/services
 - Sets prices
 - Manages availability
 - Receives booking requests
@@ -164,10 +164,10 @@ The current project document describes the User Home Screen as:
 - Elegant
 - Premium
 - Sophisticated
-- Dark background
-- Wine-toned highlights
+- standard white background
+- Burgundy highlights
 - Soft neutral text
-- Gold accents
+- Grey accents
 - Large Create Event card
 - Shortcut cards
 - Recent Events
@@ -178,11 +178,11 @@ This should be the starting visual direction for the rebuild. fileciteturn
 ### Design relationship
 
 ```text
-Dark foundation
+white foundation
       ↓
-Wine / burgundy emphasis
+burgundy emphasis
       ↓
-Gold for important actions
+Grey for important actions
       ↓
 Soft neutral text
       ↓
@@ -535,8 +535,8 @@ It also describes:
 - Clear input areas
 - Calendar selection
 - Venue selection
-- Wine gradients
-- Gold action elements
+- burgundy gradients
+- Grey action elements
 - Continue action leading to the budget stage
 
 fileciteturn2file1L167-L169

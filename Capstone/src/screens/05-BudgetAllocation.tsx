@@ -1,3 +1,4 @@
+import { Text } from '../components/AppText'
 import React from 'react'
 import {
   Animated,
@@ -6,11 +7,15 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
+  
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native'
+import { MaterialIcons } from '@expo/vector-icons'
 import { PlanningStepIndicator } from '../components/PlanningStepIndicator'
+
+type MaterialIconName = React.ComponentProps<typeof MaterialIcons>['name']
 
 export type BudgetPriority =
   | 'venue'
@@ -37,14 +42,14 @@ interface BudgetAllocationScreenProps {
 }
 
 const priorityOptions = [
-  { id: 'venue' as const, icon: '⌖', label: 'Venue' },
-  { id: 'catering' as const, icon: '♨', label: 'Catering' },
-  { id: 'eventOrganizer' as const, icon: '▣', label: 'Event Organizer' },
-  { id: 'photoVideo' as const, icon: '◉', label: 'Photo/Video' },
-  { id: 'gownRental' as const, icon: '◇', label: 'Gown Rental' },
-  { id: 'hostEmcee' as const, icon: '◈', label: 'Host/Emcee' },
-  { id: 'soundLights' as const, icon: '♫', label: 'Sound & Lights' },
-  { id: 'floral' as const, icon: '✿', label: 'Floral' },
+  { id: 'venue' as const, icon: 'location-on' as MaterialIconName, label: 'Venue' },
+  { id: 'catering' as const, icon: 'restaurant' as MaterialIconName, label: 'Catering' },
+  { id: 'eventOrganizer' as const, icon: 'event' as MaterialIconName, label: 'Event Organizer' },
+  { id: 'photoVideo' as const, icon: 'camera-alt' as MaterialIconName, label: 'Photo/Video' },
+  { id: 'gownRental' as const, icon: 'checkroom' as MaterialIconName, label: 'Gown Rental' },
+  { id: 'hostEmcee' as const, icon: 'mic' as MaterialIconName, label: 'Host/Emcee' },
+  { id: 'soundLights' as const, icon: 'volume-up' as MaterialIconName, label: 'Sound & Lights' },
+  { id: 'floral' as const, icon: 'local-florist' as MaterialIconName, label: 'Floral' },
 ] as const
 
 const formatBudget = (digits: string) => digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
@@ -57,6 +62,8 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
   onContinue,
   onSkip,
 }) => {
+  const { width } = useWindowDimensions()
+  const isWide = width >= 768
   const [budgetDigits, setBudgetDigits] = React.useState(
     initialBudget == null ? '' : String(Math.max(0, Math.floor(initialBudget)))
   )
@@ -134,7 +141,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
             onPress={onBack}
             style={({ pressed }) => [styles.backButton, pressed && styles.subtlePressed]}
           >
-            <Text style={styles.backIcon}>{'\u2190'}</Text>
+            <MaterialIcons color={palette.white} name="chevron-left" size={26} />
           </Pressable>
 
           <Text style={styles.mobileTitle}>BUDGET</Text>
@@ -162,7 +169,6 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
             </View>
 
             <View style={styles.budgetCard}>
-              <Text style={styles.currencySymbol}>₱</Text>
               <TextInput
                 accessibilityLabel="Event budget in Philippine pesos"
                 inputMode="numeric"
@@ -174,7 +180,6 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
                 style={styles.budgetInput}
                 value={formatBudget(budgetDigits)}
               />
-              <View style={styles.inputAccent} />
             </View>
           </View>
 
@@ -210,14 +215,11 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
                         pressed && styles.chipPressed,
                       ]}
                     >
-                      <Text
-                        style={[
-                          styles.priorityIcon,
-                          isSelected && styles.priorityContentSelected,
-                        ]}
-                      >
-                        {option.icon}
-                      </Text>
+                      <MaterialIcons
+                        color={isSelected ? palette.white : palette.tertiaryMuted}
+                        name={option.icon}
+                        size={29}
+                      />
                       <Text
                         numberOfLines={1}
                         style={[
@@ -252,10 +254,14 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
             accessibilityLabel="Continue to the next step"
             accessibilityRole="button"
             onPress={handleContinue}
-            style={({ pressed }) => [styles.continueButton, pressed && styles.continuePressed]}
+            style={({ pressed }) => [
+              styles.continueButton,
+              isWide && styles.continueButtonWide,
+              pressed && styles.continuePressed,
+            ]}
           >
-            <Text style={styles.continueText}>CONTINUE</Text>
-            <Text style={styles.continueIcon}>→</Text>
+            <Text style={styles.continueText}>{isWide ? 'CONTINUE' : 'NEXT STEP'}</Text>
+            <MaterialIcons color={palette.white} name="arrow-forward" size={18} />
           </Pressable>
         </View>
       </View>
@@ -286,13 +292,13 @@ const styles = StyleSheet.create({
   topAppBar: {
     zIndex: 40,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(226, 226, 226, 0.5)',
-    backgroundColor: palette.background,
+    borderBottomColor: '#4E061A',
+    backgroundColor: '#6B1E2E',
   },
   topAppBarContent: {
     width: '100%',
     maxWidth: 600,
-    minHeight: 64,
+    minHeight: 56,
     alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
@@ -300,7 +306,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   mobileTitle: {
-    color: palette.secondary,
+    color: '#FFFFFF',
     fontSize: 12,
     lineHeight: 16,
     fontWeight: '700',
@@ -324,17 +330,13 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   backButton: {
-    width: 40,
-    height: 40,
+    width: 28,
+    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 20,
-  },
-  backIcon: {
-    color: palette.primary,
-    fontSize: 28,
-    lineHeight: 30,
-    fontWeight: '400',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+    borderRadius: 14,
   },
   headerSpacer: {
     width: 40,
@@ -383,14 +385,6 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 6,
   },
-  currencySymbol: {
-    width: 48,
-    color: palette.primaryContainer,
-    fontSize: 32,
-    lineHeight: 40,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
   budgetInput: {
     height: 96,
     flex: 1,
@@ -401,16 +395,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: 8,
     paddingVertical: 16,
-  },
-  inputAccent: {
-    position: 'absolute',
-    bottom: 16,
-    left: '37.5%',
-    width: '25%',
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: palette.primaryContainer,
-    opacity: 0.2,
   },
   prioritiesSection: {
     marginTop: 8,
@@ -484,23 +468,20 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     zIndex: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.97)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(226, 226, 226, 0.5)',
+    backgroundColor: 'rgba(249, 249, 249, 0.96)',
     paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 28,
-    shadowColor: palette.primaryContainer,
-    shadowOffset: { width: 0, height: -10 },
-    shadowOpacity: 0.04,
-    shadowRadius: 15,
-    elevation: 8,
+    paddingVertical: 16,
   },
   footerContent: {
     width: '100%',
-    maxWidth: 600,
+    maxWidth: 1200,
     alignSelf: 'center',
-    alignItems: 'center',
+    alignItems: 'flex-end',
   },
   skipButton: {
+    alignSelf: 'center',
     paddingHorizontal: 16,
     paddingVertical: 6,
     marginBottom: 12,
@@ -514,21 +495,22 @@ const styles = StyleSheet.create({
   },
   continueButton: {
     width: '100%',
-    minHeight: 50,
+    minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    borderRadius: 25,
-    backgroundColor: palette.primaryContainer,
-    paddingHorizontal: 24,
+    borderRadius: 28,
+    backgroundColor: palette.primary,
+    paddingHorizontal: 32,
     paddingVertical: 14,
-    shadowColor: palette.primaryContainer,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.05,
-    shadowRadius: 15,
-    elevation: 3,
+    shadowColor: palette.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 4,
   },
+  continueButtonWide: { width: 200 },
   continueText: {
     color: palette.white,
     fontSize: 12,
@@ -536,18 +518,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 1.2,
   },
-  continueIcon: {
-    color: palette.white,
-    fontSize: 18,
-    lineHeight: 20,
-  },
   chipPressed: {
     opacity: 0.82,
     transform: [{ scale: 0.98 }],
   },
   continuePressed: {
-    backgroundColor: palette.primary,
-    transform: [{ scale: 0.99 }],
+    opacity: 0.9,
+    transform: [{ scale: 0.98 }],
   },
   subtlePressed: {
     opacity: 0.55,

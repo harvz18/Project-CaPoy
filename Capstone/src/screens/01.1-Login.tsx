@@ -1,13 +1,16 @@
+import { Text } from '../components/AppText'
 import React, { useState } from 'react'
 import {
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
+  
   View,
 } from 'react-native'
+import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { Button } from '../components/Button'
 import { TextInput } from '../components/TextInput'
 import { signInWithEmail, signInWithOAuth } from '../lib/auth'
@@ -15,6 +18,7 @@ import { colors, radius, spacing } from '../theme/tokens'
 import { typography } from '../theme/typography'
 
 interface LoginScreenProps {
+  allowPreviewAccess?: boolean
   onBack: () => void
   onLogIn: () => void
   onCreateAccount: () => void
@@ -22,6 +26,7 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({
+  allowPreviewAccess = false,
   onBack,
   onLogIn,
   onCreateAccount,
@@ -44,9 +49,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     setSubmitted(true)
     setAuthError('')
 
-    if (!canSubmit || isLoading) {
+    if (isLoading) {
       return
     }
+
+    if (allowPreviewAccess) {
+      onLogIn()
+      return
+    }
+
+    if (!canSubmit) return
 
     setIsLoading(true)
     const result = await signInWithEmail(normalizedEmail, password)
@@ -89,7 +101,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.topBar}>
+        <View style={styles.hero}>
+          <Image
+            accessibilityIgnoresInvertColors
+            source={require('../../images/ClientSignupSVG.png')}
+            style={styles.heroImage}
+            resizeMode="cover"
+          />
+          <View style={styles.heroOverlay} />
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Go back"
@@ -97,24 +116,27 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             onPress={onBack}
             style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
           >
-            <Text style={styles.backArrow}>{'\u2039'}</Text>
+            <MaterialCommunityIcons
+              color={colors.textInverse}
+              name="chevron-left-circle-outline"
+              size={34}
+            />
           </Pressable>
-          <Text style={styles.brand}>MULTIVENT</Text>
-          <View style={styles.topBarSpacer} />
         </View>
 
-        <View style={styles.hero}>
-          <View style={styles.brandMark}>
-            <Text style={styles.brandInitial}>M</Text>
+        <View style={styles.sheet}>
+          <Text style={styles.title}>Welcome Back!</Text>
+          <View style={styles.signupPrompt}>
+            <Text style={styles.signupPromptText}>Don't Have An Account? </Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={onCreateAccount}
+              style={({ pressed }) => pressed && styles.pressed}
+            >
+              <Text style={styles.signupText}>Sign Up</Text>
+            </Pressable>
           </View>
-          <Text style={styles.eyebrow}>WELCOME BACK</Text>
-          <Text style={styles.title}>Log in to your account</Text>
-          <Text style={styles.subtitle}>
-            Continue planning your events or managing your business with MULTIVENT.
-          </Text>
-        </View>
 
-        <View style={styles.formCard}>
           <View style={styles.form}>
             <TextInput
               autoCapitalize="none"
@@ -125,10 +147,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               }
               inputMode="email"
               keyboardType="email-address"
-              label="Email address"
+              icon={<MaterialCommunityIcons color={colors.primaryDark} name="email-outline" size={18} />}
               onChangeText={setEmail}
-              placeholder="name@example.com"
+              placeholder="Enter your email address"
               returnKeyType="next"
+              style={styles.input}
               value={email}
             />
 
@@ -139,12 +162,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               helperText={
                 submitted && !passwordIsValid ? 'Enter your password.' : undefined
               }
-              label="Password"
+              icon={<MaterialCommunityIcons color={colors.primaryDark} name="lock-outline" size={18} />}
               onChangeText={setPassword}
               onSubmitEditing={handleLogIn}
-              placeholder="Enter your password"
+              placeholder="Password"
               returnKeyType="done"
               secureTextEntry
+              style={styles.input}
               value={password}
             />
 
@@ -183,19 +207,19 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
 
             <Button
               accessibilityLabel="Log in"
-              disabled={!canSubmit}
+              disabled={!allowPreviewAccess && !canSubmit}
               isFullWidth
               isLoading={isLoading}
               onPress={handleLogIn}
               size="lg"
               style={styles.loginButton}
             >
-              LOG IN
+              Login
             </Button>
 
             <View style={styles.dividerRow}>
               <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or</Text>
+              <Text style={styles.dividerText}>OR CONTINUE WITH</Text>
               <View style={styles.dividerLine} />
             </View>
 
@@ -210,20 +234,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               textStyle={styles.oauthButtonText}
               variant="secondary"
             >
-              CONTINUE WITH GOOGLE
+              <MaterialCommunityIcons color="#4285F4" name="google" size={18} />
+              <Text style={styles.googleLabel}>Google</Text>
             </Button>
           </View>
-        </View>
-
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>New to MULTIVENT? </Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={onCreateAccount}
-            style={({ pressed }) => pressed && styles.pressed}
-          >
-            <Text style={styles.createAccountText}>Create an account</Text>
-          </Pressable>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -240,8 +254,8 @@ const styles = StyleSheet.create({
     maxWidth: 430,
     minHeight: '100%',
     alignSelf: 'center',
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing['2xl'],
+    paddingBottom: spacing.xl,
+    backgroundColor: colors.background,
   },
   topBar: {
     minHeight: 64,
@@ -250,12 +264,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   backButton: {
-    width: 40,
-    height: 40,
+    position: 'absolute',
+    top: spacing.lg,
+    left: spacing.lg,
+    zIndex: 2,
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.pill,
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: 'transparent',
   },
   backArrow: {
     color: colors.primaryDark,
@@ -273,9 +291,19 @@ const styles = StyleSheet.create({
     width: 40,
   },
   hero: {
-    alignItems: 'center',
-    marginTop: spacing['3xl'],
-    marginBottom: spacing['2xl'],
+    height: 340,
+    overflow: 'hidden',
+    backgroundColor: colors.primaryDark,
+    position: 'relative',
+  },
+  heroImage: {
+    ...StyleSheet.absoluteFill,
+    width: undefined,
+    height: undefined,
+  },
+  heroOverlay: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(42, 12, 22, 0.58)',
   },
   brandMark: {
     width: 70,
@@ -301,18 +329,47 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   title: {
-    color: colors.textPrimary,
-    fontSize: typography.h1,
-    lineHeight: 36,
+    color: colors.primaryDark,
+    fontSize: 24,
+    lineHeight: 29,
     fontWeight: '700',
     textAlign: 'center',
-    marginBottom: spacing.md,
   },
-  subtitle: {
+  sheet: {
+    marginTop: -54,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing['2xl'],
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    backgroundColor: colors.background,
+  },
+  signupPrompt: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: spacing.sm,
+    marginBottom: spacing.xl,
+  },
+  signupPromptText: {
     color: colors.textSecondary,
-    fontSize: typography.body,
-    lineHeight: 23,
-    textAlign: 'center',
+    fontSize: typography.caption,
+  },
+  signupText: {
+    color: colors.primaryDark,
+    fontSize: typography.caption,
+    fontWeight: '700',
+  },
+  input: {
+    height: 52,
+    borderWidth: 0,
+    borderRadius: radius.xl,
+    backgroundColor: '#F1F2F4',
+    paddingHorizontal: spacing.xl,
+    paddingLeft: spacing['4xl'],
+    fontSize: 15,
+  },
+  inputWithIcon: {
+    paddingLeft: spacing['4xl'],
   },
   formCard: {
     backgroundColor: colors.backgroundSecondary,
@@ -322,7 +379,7 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
   },
   form: {
-    gap: spacing.lg,
+    gap: spacing.md,
   },
   accountOptions: {
     flexDirection: 'row',
@@ -356,44 +413,57 @@ const styles = StyleSheet.create({
   },
   rememberText: {
     color: colors.textSecondary,
-    fontSize: typography.body,
+    fontSize: typography.caption,
   },
   forgotPasswordText: {
     color: colors.primaryDark,
-    fontSize: typography.body,
+    fontSize: typography.caption,
     fontWeight: '700',
   },
   formError: {
     color: colors.error,
-    fontSize: typography.body,
     lineHeight: 20,
   },
   loginButton: {
     borderRadius: radius.pill,
-    backgroundColor: colors.primaryDark,
+    minHeight: 48,
+    backgroundColor: '#7A1D35',
+    shadowColor: '#7A1D35',
+    shadowOffset: { width: 0, height: 7 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 4,
   },
   dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
+    justifyContent: 'center',
+    marginTop: spacing.sm,
   },
   dividerLine: {
-    height: 1,
-    flex: 1,
-    backgroundColor: colors.border,
+    display: 'none',
   },
   dividerText: {
     color: colors.textSecondary,
-    fontSize: typography.caption,
+    fontSize: 10,
     fontWeight: '700',
+    letterSpacing: 0.8,
   },
   oauthButton: {
     borderRadius: radius.pill,
+    minHeight: 48,
     backgroundColor: colors.background,
+    paddingVertical: spacing.sm,
   },
   oauthButtonText: {
     color: colors.primaryDark,
     fontWeight: '700',
+  },
+  googleLabel: {
+    color: colors.textPrimary,
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: spacing.sm,
   },
   footer: {
     flexDirection: 'row',

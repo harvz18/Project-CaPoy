@@ -1,10 +1,11 @@
+import { Text } from '../components/AppText'
 import React from 'react'
 import {
   Image,
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
+  
   useWindowDimensions,
   View,
 } from 'react-native'

@@ -1,9 +1,10 @@
+import { Text } from '../components/AppText'
 import React from 'react'
 import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
+  
   TextInput,
   useWindowDimensions,
   View,

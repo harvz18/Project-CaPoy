@@ -1,3 +1,4 @@
+import { Text } from '../components/AppText'
 import React from 'react'
 import {
   Animated,
@@ -5,7 +6,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
+  
   TextInput,
   View,
 } from 'react-native'

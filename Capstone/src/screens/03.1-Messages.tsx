@@ -1,15 +1,17 @@
+import { Text } from '../components/AppText'
 import React from 'react'
 import {
   Image,
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
+  
   TextInput,
   useWindowDimensions,
   View,
 } from 'react-native'
 import type { ClientHomeTab } from './03-ClientHome'
+import type { MerchantHomeTab } from './16-MerchantHome'
 
 export type ClientConversationFilter = 'all' | 'unread' | 'bookings'
 
@@ -36,7 +38,8 @@ interface MessagesScreenProps {
   onOpenProfile?: () => void
   onSearchChange?: (value: string) => void
   onSelectConversation?: (conversation: ClientConversation) => void
-  onSelectTab?: (tab: ClientHomeTab) => void
+  navigationVariant?: 'client' | 'merchant'
+  onSelectTab?: (tab: ClientHomeTab | MerchantHomeTab) => void
   searchValue?: string
   userName?: string
 }
@@ -97,9 +100,17 @@ const filterOptions: Array<{ id: ClientConversationFilter; label: string }> = [
   { id: 'bookings', label: 'Bookings' },
 ]
 
-const navigationTabs: Array<{ glyph: string; id: ClientHomeTab; label: string }> = [
+const clientNavigationTabs: Array<{ glyph: string; id: ClientHomeTab; label: string }> = [
   { glyph: '\u2302', id: 'home', label: 'Home' },
   { glyph: '\u25C7', id: 'explore', label: 'Explore' },
+  { glyph: '\u25A6', id: 'bookings', label: 'Bookings' },
+  { glyph: '\u2709', id: 'messages', label: 'Messages' },
+  { glyph: '\u25CB', id: 'profile', label: 'Profile' },
+]
+
+const merchantNavigationTabs: Array<{ glyph: string; id: MerchantHomeTab; label: string }> = [
+  { glyph: '\u2302', id: 'home', label: 'Home' },
+  { glyph: '\u2637', id: 'services', label: 'Services' },
   { glyph: '\u25A6', id: 'bookings', label: 'Bookings' },
   { glyph: '\u2709', id: 'messages', label: 'Messages' },
   { glyph: '\u25CB', id: 'profile', label: 'Profile' },
@@ -157,6 +168,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
   conversations = defaultConversations,
   hasUnreadNotifications = false,
   initialFilter = 'all',
+  navigationVariant = 'client',
   onMarkRead,
   onNewMessage,
   onOpenNotifications,
@@ -195,6 +207,8 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
 
     return matchesFilter && matchesSearch
   })
+  const navigationTabs =
+    navigationVariant === 'merchant' ? merchantNavigationTabs : clientNavigationTabs
 
   const changeSearch = (value: string) => {
     if (searchValue === undefined) setInternalSearch(value)
@@ -293,7 +307,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
               onPress={() => changeSearch('')}
               style={({ pressed }) => [styles.clearSearch, pressed && styles.surfacePressed]}
             >
-              <Text style={styles.clearSearchText}>×</Text>
+              <Text style={styles.clearSearchText}>ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â</Text>
             </Pressable>
           ) : null}
         </View>
@@ -380,32 +394,34 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
         )}
       </ScrollView>
 
-      <View style={styles.bottomNavigation}>
-        <View style={[styles.bottomNavigationContent, isWide && styles.horizontalPaddingWide]}>
-          {navigationTabs.map((tab) => {
-            const selected = tab.id === 'messages'
-            return (
-              <Pressable
-                key={tab.id}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-                onPress={() => onSelectTab?.(tab.id)}
-                style={({ pressed }) => [styles.tabButton, pressed && styles.tabPressed]}
-              >
-                <View style={[styles.tabIconWrap, selected && styles.tabIconWrapSelected]}>
-                  <Text style={[styles.tabGlyph, selected && styles.tabGlyphSelected]}>
-                    {tab.glyph}
+      {navigationVariant === 'client' ? null : (
+        <View style={styles.bottomNavigation}>
+          <View style={[styles.bottomNavigationContent, isWide && styles.horizontalPaddingWide]}>
+            {navigationTabs.map((tab) => {
+              const selected = tab.id === 'messages'
+              return (
+                <Pressable
+                  key={tab.id}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  onPress={() => onSelectTab?.(tab.id)}
+                  style={({ pressed }) => [styles.tabButton, pressed && styles.tabPressed]}
+                >
+                  <View style={[styles.tabIconWrap, selected && styles.tabIconWrapSelected]}>
+                    <Text style={[styles.tabGlyph, selected && styles.tabGlyphSelected]}>
+                      {tab.glyph}
+                    </Text>
+                    {tab.id === 'messages' && unreadCount ? <View style={styles.tabBadge} /> : null}
+                  </View>
+                  <Text style={[styles.tabLabel, selected && styles.tabLabelSelected]}>
+                    {tab.label}
                   </Text>
-                  {tab.id === 'messages' && unreadCount ? <View style={styles.tabBadge} /> : null}
-                </View>
-                <Text style={[styles.tabLabel, selected && styles.tabLabelSelected]}>
-                  {tab.label}
-                </Text>
-              </Pressable>
-            )
-          })}
+                </Pressable>
+              )
+            })}
+          </View>
         </View>
-      </View>
+      )}
     </View>
   )
 }

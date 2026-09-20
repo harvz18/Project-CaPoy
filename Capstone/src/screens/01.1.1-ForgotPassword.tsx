@@ -1,3 +1,4 @@
+import { Text } from '../components/AppText'
 import React, { useState } from 'react'
 import {
   KeyboardAvoidingView,
@@ -5,7 +6,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
+  
   View,
 } from 'react-native'
 import { Button } from '../components/Button'

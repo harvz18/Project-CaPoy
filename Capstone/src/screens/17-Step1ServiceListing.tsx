@@ -1,3 +1,4 @@
+import { Text } from '../components/AppText'
 import React from 'react'
 import {
   Image,
@@ -6,7 +7,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
+  
   TextInput,
   useWindowDimensions,
   View,

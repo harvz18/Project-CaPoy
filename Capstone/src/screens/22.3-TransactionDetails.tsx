@@ -1,9 +1,10 @@
+import { Text } from '../components/AppText'
 import React from 'react'
 import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
+  
   useWindowDimensions,
   View,
 } from 'react-native'
@@ -196,7 +197,7 @@ export const TransactionDetailsScreen: React.FC<TransactionDetailsScreenProps> =
             numberOfLines={1}
             style={[styles.amount, !isCredit && styles.amountDebit]}
           >
-            {isCredit ? '+' : '−'}
+            {isCredit ? '+' : 'ÃƒÆ’Ã‚Â¢Ãƒâ€¹Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢'}
             {formatCurrency(Math.abs(value.amount), value.currency)}
           </Text>
           <Text numberOfLines={2} style={styles.transactionLabel}>
@@ -245,7 +246,7 @@ export const TransactionDetailsScreen: React.FC<TransactionDetailsScreenProps> =
                         item.amount < 0 && styles.breakdownFee,
                       ]}
                     >
-                      {item.amount < 0 ? '−' : ''}
+                      {item.amount < 0 ? 'ÃƒÆ’Ã‚Â¢Ãƒâ€¹Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢' : ''}
                       {formatCurrency(Math.abs(item.amount), value.currency)}
                     </Text>
                   </View>
