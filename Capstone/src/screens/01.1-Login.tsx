@@ -18,7 +18,6 @@ import { colors, radius, spacing } from '../theme/tokens'
 import { typography } from '../theme/typography'
 
 interface LoginScreenProps {
-  allowPreviewAccess?: boolean
   onBack: () => void
   onLogIn: () => void
   onCreateAccount: () => void
@@ -26,7 +25,6 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({
-  allowPreviewAccess = false,
   onBack,
   onLogIn,
   onCreateAccount,
@@ -50,11 +48,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     setAuthError('')
 
     if (isLoading) {
-      return
-    }
-
-    if (allowPreviewAccess) {
-      onLogIn()
       return
     }
 
@@ -93,11 +86,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.screen}
     >
       <ScrollView
+        automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
         contentContainerStyle={styles.content}
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -207,7 +202,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
 
             <Button
               accessibilityLabel="Log in"
-              disabled={!allowPreviewAccess && !canSubmit}
+              disabled={!canSubmit}
               isFullWidth
               isLoading={isLoading}
               onPress={handleLogIn}

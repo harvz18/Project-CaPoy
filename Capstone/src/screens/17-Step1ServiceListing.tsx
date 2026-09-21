@@ -12,9 +12,12 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native'
+import type { ServiceCategoryOption } from '../lib/catalog'
+import { fallbackServiceCategories } from '../lib/catalog'
 
 export interface ServiceInformationValue {
   category: string
+  categoryId?: string
   description: string
   photos: string[]
   serviceName: string
@@ -22,7 +25,8 @@ export interface ServiceInformationValue {
 
 interface Step1ServiceListingScreenProps {
   category?: string
-  initialValue?: Partial<Omit<ServiceInformationValue, 'category'>>
+  categories?: ServiceCategoryOption[]
+  initialValue?: Partial<ServiceInformationValue>
   maxPhotos?: number
   onAddPhoto?: () =>
     | Promise<string | string[] | null | undefined>
@@ -67,6 +71,7 @@ const ImagePlaceholderIcon = () => (
 
 export const Step1ServiceListingScreen: React.FC<Step1ServiceListingScreenProps> = ({
   category = 'Catering',
+  categories = fallbackServiceCategories,
   initialValue,
   maxPhotos = DEFAULT_MAX_PHOTOS,
   onAddPhoto,
@@ -79,6 +84,13 @@ export const Step1ServiceListingScreen: React.FC<Step1ServiceListingScreenProps>
   const photoLimit = Math.max(1, Math.floor(maxPhotos))
   const [serviceName, setServiceName] = React.useState(initialValue?.serviceName ?? '')
   const [description, setDescription] = React.useState(initialValue?.description ?? '')
+  const [selectedCategory, setSelectedCategory] = React.useState(
+    initialValue?.category ?? category
+  )
+  const [selectedCategoryId, setSelectedCategoryId] = React.useState(
+    initialValue?.categoryId
+  )
+  const [isCategoryOpen, setIsCategoryOpen] = React.useState(false)
   const [photos, setPhotos] = React.useState(
     () => initialValue?.photos?.filter(Boolean).slice(0, photoLimit) ?? []
   )
@@ -90,6 +102,16 @@ export const Step1ServiceListingScreen: React.FC<Step1ServiceListingScreenProps>
   const serviceNameMissing = submitted && normalizedName.length === 0
   const descriptionMissing = submitted && normalizedDescription.length === 0
   const canAddPhoto = photos.length < photoLimit && !isAddingPhoto
+
+  React.useEffect(() => {
+    if (selectedCategoryId) return
+
+    const matchingCategory = categories.find(
+      (option) => option.name.toLowerCase() === selectedCategory.toLowerCase()
+    )
+
+    if (matchingCategory) setSelectedCategoryId(matchingCategory.id)
+  }, [categories, selectedCategory, selectedCategoryId])
 
   const handleAddPhoto = async () => {
     if (!canAddPhoto || !onAddPhoto) return
@@ -123,7 +145,8 @@ export const Step1ServiceListingScreen: React.FC<Step1ServiceListingScreenProps>
     if (!normalizedName || !normalizedDescription) return
 
     onNext?.({
-      category,
+      category: selectedCategory,
+      categoryId: selectedCategoryId,
       description: normalizedDescription,
       photos,
       serviceName: normalizedName,
@@ -132,7 +155,8 @@ export const Step1ServiceListingScreen: React.FC<Step1ServiceListingScreenProps>
 
   const handleBack = () => {
     onBack?.({
-      category,
+      category: selectedCategory,
+      categoryId: selectedCategoryId,
       description: normalizedDescription,
       photos,
       serviceName: normalizedName,
@@ -201,9 +225,58 @@ export const Step1ServiceListingScreen: React.FC<Step1ServiceListingScreenProps>
         <View style={styles.form}>
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>Category</Text>
-            <View style={styles.categoryPill}>
-              <Text style={styles.categoryText}>{category}</Text>
-            </View>
+            <Pressable
+              accessibilityLabel="Service category"
+              accessibilityRole="button"
+              accessibilityState={{ expanded: isCategoryOpen }}
+              onPress={() => setIsCategoryOpen((open) => !open)}
+              style={({ pressed }) => [
+                styles.categorySelect,
+                isCategoryOpen && styles.categorySelectOpen,
+                pressed && styles.categorySelectPressed,
+              ]}
+            >
+              <Text style={styles.categoryText}>{selectedCategory}</Text>
+              <Text style={styles.categoryChevron}>{isCategoryOpen ? '\u2303' : '\u2304'}</Text>
+            </Pressable>
+            {isCategoryOpen ? (
+              <View style={styles.categoryOptions}>
+                {categories.map((option, index) => {
+                  const isSelected =
+                    option.id === selectedCategoryId || option.name === selectedCategory
+
+                  return (
+                    <Pressable
+                      key={option.id}
+                      accessibilityLabel={`Choose ${option.name}`}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: isSelected }}
+                      onPress={() => {
+                        setSelectedCategory(option.name)
+                        setSelectedCategoryId(option.id)
+                        setIsCategoryOpen(false)
+                      }}
+                      style={({ pressed }) => [
+                        styles.categoryOption,
+                        index === categories.length - 1 && styles.categoryOptionLast,
+                        isSelected && styles.categoryOptionSelected,
+                        pressed && styles.categoryOptionPressed,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.categoryOptionText,
+                          isSelected && styles.categoryOptionTextSelected,
+                        ]}
+                      >
+                        {option.name}
+                      </Text>
+                      {isSelected ? <Text style={styles.categoryCheck}>{'\u2713'}</Text> : null}
+                    </Pressable>
+                  )
+                })}
+              </View>
+            ) : null}
           </View>
 
           <View style={styles.fieldGroup}>
@@ -459,23 +532,52 @@ const styles = StyleSheet.create({
   form: { gap: 24 },
   fieldGroup: { gap: 4 },
   label: { color: palette.secondary, fontSize: 12, lineHeight: 16 },
-  categoryPill: {
-    alignSelf: 'flex-start',
-    minHeight: 36,
-    justifyContent: 'center',
+  categorySelect: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     borderWidth: 1,
     borderColor: '#E7CDD2',
-    borderRadius: 999,
+    borderRadius: 8,
     backgroundColor: palette.primaryPill,
     paddingHorizontal: 16,
-    paddingVertical: 6,
+    paddingVertical: 10,
   },
+  categorySelectOpen: { borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
+  categorySelectPressed: { opacity: 0.78 },
   categoryText: {
     color: palette.primaryContainer,
     fontSize: 14,
     lineHeight: 20,
     fontWeight: '600',
   },
+  categoryChevron: { color: palette.primaryContainer, fontSize: 18, fontWeight: '700' },
+  categoryOptions: {
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderColor: '#E7CDD2',
+    borderBottomLeftRadius: 8,
+    borderBottomRightRadius: 8,
+    backgroundColor: palette.inputBackground,
+  },
+  categoryOption: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: palette.border,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  categoryOptionLast: { borderBottomWidth: 0 },
+  categoryOptionSelected: { backgroundColor: palette.primaryPill },
+  categoryOptionPressed: { opacity: 0.7 },
+  categoryOptionText: { color: palette.text, fontSize: 14, lineHeight: 20 },
+  categoryOptionTextSelected: { color: palette.primaryContainer, fontWeight: '600' },
+  categoryCheck: { color: palette.primaryContainer, fontSize: 16, fontWeight: '700' },
   input: {
     minHeight: 44,
     borderWidth: 1,

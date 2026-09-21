@@ -186,7 +186,7 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
                   >
                   {isSelected && (
                     <View style={styles.checkmark}>
-                      <Text style={styles.checkmarkText}>ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ</Text>
+                      <Text style={styles.checkmarkText}>✓</Text>
                     </View>
                   )}
 

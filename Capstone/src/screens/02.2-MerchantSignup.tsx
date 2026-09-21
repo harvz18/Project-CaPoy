@@ -144,7 +144,7 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.screen}
     >
       <View style={styles.content}>
@@ -196,8 +196,9 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
           </View>
 
           <ScrollView
+            automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
             contentContainerStyle={styles.form}
-            keyboardDismissMode="on-drag"
+            keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
             keyboardShouldPersistTaps="handled"
             ref={sheetScroll}
             showsVerticalScrollIndicator={false}
@@ -333,7 +334,7 @@ const styles = StyleSheet.create({
   loginPromptText: { color: colors.textSecondary, fontSize: 14 },
   loginText: { color: colors.primaryDark, fontSize: 14, fontWeight: '700' },
   subtitle: { color: colors.textSecondary, fontSize: typography.body, lineHeight: 22, textAlign: 'center', marginTop: spacing.sm, marginBottom: spacing['2xl'] },
-  form: { gap: spacing.md },
+  form: { gap: spacing.md, paddingBottom: spacing['3xl'] },
   formScroll: { flex: 1 },
   input: { height: 52, borderWidth: 0, borderRadius: radius.xl, backgroundColor: '#F1F2F4', paddingHorizontal: spacing.xl, fontSize: 15 },
   inputWithIcon: { paddingLeft: spacing['4xl'] },

@@ -1,6 +1,23 @@
 import { Text } from './AppText'
 import React from 'react'
-import { StyleSheet,  View } from 'react-native'
+import { Pressable, StyleSheet, View } from 'react-native'
+
+interface PlanningStepNavigationValue {
+  maxReachableStep: number
+  onStepPress?: (step: number) => void
+}
+
+const PlanningStepNavigationContext = React.createContext<PlanningStepNavigationValue>({
+  maxReachableStep: 1,
+})
+
+export const PlanningStepNavigationProvider: React.FC<
+  PlanningStepNavigationValue & React.PropsWithChildren
+> = ({ children, maxReachableStep, onStepPress }) => (
+  <PlanningStepNavigationContext.Provider value={{ maxReachableStep, onStepPress }}>
+    {children}
+  </PlanningStepNavigationContext.Provider>
+)
 
 interface PlanningStepIndicatorProps {
   currentStep: number
@@ -14,6 +31,8 @@ export const PlanningStepIndicator: React.FC<PlanningStepIndicatorProps> = ({
   totalSteps = 5,
 }) => {
   const boundedStep = Math.max(1, Math.min(currentStep, totalSteps))
+  const navigation = React.useContext(PlanningStepNavigationContext)
+  const maxReachableStep = Math.max(1, Math.min(navigation.maxReachableStep, totalSteps))
 
   return (
     <View style={styles.progressSection}>
@@ -29,12 +48,30 @@ export const PlanningStepIndicator: React.FC<PlanningStepIndicatorProps> = ({
         accessibilityValue={{ min: 1, max: totalSteps, now: boundedStep }}
         style={styles.progressSegments}
       >
-        {Array.from({ length: totalSteps }, (_, index) => (
-          <View
-            key={index}
-            style={[styles.progressSegment, index < boundedStep && styles.progressSegmentActive]}
-          />
-        ))}
+        {Array.from({ length: totalSteps }, (_, index) => {
+          const step = index + 1
+          const isReachable = step <= maxReachableStep
+          const isFilled = step <= boundedStep
+          const isCurrent = step === boundedStep
+
+          return (
+            <Pressable
+              key={step}
+              accessibilityLabel={`Go to planning step ${step}`}
+              accessibilityRole={isReachable ? 'button' : undefined}
+              accessibilityState={{ disabled: !isReachable, selected: isCurrent }}
+              disabled={!isReachable || !navigation.onStepPress}
+              hitSlop={6}
+              onPress={() => navigation.onStepPress?.(step)}
+              style={({ pressed }) => [
+                styles.progressSegment,
+                isFilled && styles.progressSegmentFilled,
+                isCurrent && styles.progressSegmentCurrent,
+                pressed && styles.progressSegmentPressed,
+              ]}
+            />
+          )
+        })}
       </View>
     </View>
   )
@@ -81,7 +118,16 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: palette.surface,
   },
-  progressSegmentActive: {
+  progressSegmentFilled: {
     backgroundColor: palette.burgundy,
   },
+  progressSegmentCurrent: {
+    shadowColor: palette.burgundy,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.24,
+    shadowRadius: 4,
+    elevation: 2,
+    transform: [{ scaleY: 1.12 }],
+  },
+  progressSegmentPressed: { opacity: 0.62 },
 })

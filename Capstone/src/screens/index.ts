@@ -149,13 +149,18 @@ export type {
 } from './07-SelectedSummary'
 export { RoleHomePlaceholderScreen } from './RoleHomePlaceholder'
 export { InstructionModuleScreen } from './10-InstructionModule'
-export type { InstructionModuleValue, InstructionProviderId } from './10-InstructionModule'
+export type { InstructionModuleService, InstructionModuleValue } from './10-InstructionModule'
 export { ScheduleNoConflictScreen } from './09-Schedule(No-Conflict)'
 export type { ScheduleProvider } from './09-Schedule(No-Conflict)'
 export { ScheduleConflictScreen } from './09-Schedule(Conflict)'
 export type { ScheduleConflictProvider } from './09-Schedule(Conflict)'
 export { BookingScreen } from './11-BookingScreen'
-export type { BookingItem, BookingStatus, BookingTab } from './11-BookingScreen'
+export type {
+  BookingItem,
+  BookingServiceItem,
+  BookingStatus,
+  BookingTab,
+} from './11-BookingScreen'
 export { BookingDetailsScreen } from './11.1-BookingDetails'
 export type { BookingDetailValue } from './11.1-BookingDetails'
 export { PaymentScreen } from './12-Payment'
@@ -176,3 +181,5 @@ export type {
 } from './14-EventLedger'
 export { SubmitReviewScreen } from './15-SubmitReview'
 export type { ReviewTag, SubmitReviewValue } from './15-SubmitReview'
+export { EventFeedbackScreen } from './15.1-EventFeedback'
+export type { EventFeedbackValue } from './15.1-EventFeedback'

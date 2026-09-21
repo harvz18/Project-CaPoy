@@ -318,7 +318,7 @@ export const ChatThreadScreen: React.FC<ChatThreadScreenProps> = ({
                 {booking.serviceName}
               </Text>
               <Text numberOfLines={1} style={styles.bookingMeta}>
-                #{booking.id} ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· {booking.eventDate}
+                #{booking.id} · {booking.eventDate}
               </Text>
             </View>
             <View
@@ -420,7 +420,7 @@ export const ChatThreadScreen: React.FC<ChatThreadScreenProps> = ({
                     hitSlop={6}
                     onPress={() => onRemovePendingAttachment?.(attachment)}
                   >
-                    <Text style={styles.removeAttachment}>ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â</Text>
+                    <Text style={styles.removeAttachment}>×</Text>
                   </Pressable>
                 </View>
               ))}
@@ -463,7 +463,7 @@ export const ChatThreadScreen: React.FC<ChatThreadScreenProps> = ({
                 pressed && styles.sendButtonPressed,
               ]}
             >
-              <Text style={styles.sendButtonText}>{isSending ? 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦' : '\u2191'}</Text>
+              <Text style={styles.sendButtonText}>{isSending ? '…' : '\u2191'}</Text>
             </Pressable>
           </View>
         </View>

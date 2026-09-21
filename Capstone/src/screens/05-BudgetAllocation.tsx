@@ -13,7 +13,7 @@ import {
   useWindowDimensions,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
-import { PlanningStepIndicator } from '../components/PlanningStepIndicator'
+import { PlanningScreenHeader } from '../components/PlanningScreenHeader'
 
 type MaterialIconName = React.ComponentProps<typeof MaterialIcons>['name']
 
@@ -64,8 +64,11 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
 }) => {
   const { width } = useWindowDimensions()
   const isWide = width >= 768
+  const [hasBudgetInput, setHasBudgetInput] = React.useState(
+    typeof initialBudget === 'number' && initialBudget > 0
+  )
   const [budgetDigits, setBudgetDigits] = React.useState(
-    initialBudget == null ? '' : String(Math.max(0, Math.floor(initialBudget)))
+    initialBudget != null && initialBudget > 0 ? String(Math.floor(initialBudget)) : ''
   )
   const [priorities, setPriorities] = React.useState<BudgetPriority[]>(
     initialPriorities.slice(0, 3)
@@ -122,9 +125,15 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
 
   const handleContinue = () => {
     onContinue?.({
-      budget: budgetDigits ? Number(budgetDigits) : 0,
+      budget: hasBudgetInput && budgetDigits ? Number(budgetDigits) : 0,
       priorities,
     })
+  }
+
+  const removeBudget = () => {
+    setBudgetDigits('')
+    setHasBudgetInput(false)
+    onBudgetChange?.(0)
   }
 
   return (
@@ -132,33 +141,20 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={styles.screen}
     >
-      <View style={styles.topAppBar}>
-        <View style={styles.topAppBarContent}>
-          <Pressable
-            accessibilityLabel="Go back"
-            accessibilityRole="button"
-            hitSlop={8}
-            onPress={onBack}
-            style={({ pressed }) => [styles.backButton, pressed && styles.subtlePressed]}
-          >
-            <MaterialIcons color={palette.white} name="chevron-left" size={26} />
-          </Pressable>
-
-          <Text style={styles.mobileTitle}>BUDGET</Text>
-
-          <View style={styles.headerSpacer} />
-        </View>
-      </View>
+      <PlanningScreenHeader
+        currentStep={2}
+        label="Budget"
+        nextEnabled
+        onBack={onBack}
+        onNext={handleContinue}
+        title="Budget"
+      />
 
       <ScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.stepWrapper}>
-          <PlanningStepIndicator currentStep={2} label="Budget" />
-        </View>
-
         <View style={styles.mainContent}>
           <View style={styles.budgetSection}>
             <View style={styles.introCopy}>
@@ -168,19 +164,54 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
               </Text>
             </View>
 
-            <View style={styles.budgetCard}>
-              <TextInput
-                accessibilityLabel="Event budget in Philippine pesos"
-                inputMode="numeric"
-                keyboardType="number-pad"
-                onChangeText={handleBudgetChange}
-                placeholder="150,000"
-                placeholderTextColor={palette.secondaryFixedDim}
-                selectionColor={palette.primaryContainer}
-                style={styles.budgetInput}
-                value={formatBudget(budgetDigits)}
-              />
-            </View>
+            {hasBudgetInput ? (
+              <View style={[styles.budgetCard, styles.budgetInputCard]}>
+                <View style={styles.currencyBadge}>
+                  <Text style={styles.currencyBadgeText}>PHP</Text>
+                </View>
+                <TextInput
+                  accessibilityLabel="Event budget in Philippine pesos"
+                  autoFocus
+                  inputMode="numeric"
+                  keyboardType="number-pad"
+                  onChangeText={handleBudgetChange}
+                  placeholder="150,000"
+                  placeholderTextColor={palette.secondaryFixedDim}
+                  selectionColor={palette.primaryContainer}
+                  style={styles.budgetInput}
+                  value={formatBudget(budgetDigits)}
+                />
+                <Pressable
+                  accessibilityLabel="Remove event budget"
+                  accessibilityRole="button"
+                  hitSlop={8}
+                  onPress={removeBudget}
+                  style={({ pressed }) => [styles.removeBudgetButton, pressed && styles.subtlePressed]}
+                >
+                  <MaterialIcons color={palette.secondary} name="close" size={20} />
+                </Pressable>
+              </View>
+            ) : (
+              <View style={[styles.budgetCard, styles.optionalBudgetCard]}>
+                <View style={styles.optionalBudgetIcon}>
+                  <MaterialIcons color={palette.primaryContainer} name="account-balance-wallet" size={26} />
+                </View>
+                <View style={styles.optionalBudgetCopy}>
+                  <Text style={styles.optionalBudgetTitle}>Budget is optional</Text>
+                  <Text style={styles.optionalBudgetDescription}>
+                    Continue without one and pay the actual cost of the services you choose.
+                  </Text>
+                </View>
+                <Pressable
+                  accessibilityLabel="Enter an event budget"
+                  accessibilityRole="button"
+                  onPress={() => setHasBudgetInput(true)}
+                  style={({ pressed }) => [styles.enterBudgetButton, pressed && styles.continuePressed]}
+                >
+                  <Text style={styles.enterBudgetText}>ENTER BUDGET</Text>
+                </Pressable>
+              </View>
+            )}
           </View>
 
           <View style={styles.prioritiesSection}>
@@ -384,6 +415,77 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 20,
     elevation: 6,
+  },
+  budgetInputCard: { gap: 10 },
+  currencyBadge: {
+    minWidth: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+    backgroundColor: '#F8EDEF',
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+  },
+  currencyBadgeText: {
+    color: palette.primaryContainer,
+    fontSize: 10,
+    lineHeight: 14,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  removeBudgetButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 18,
+    backgroundColor: palette.surfaceContainer,
+  },
+  optionalBudgetCard: {
+    minHeight: 210,
+    flexDirection: 'column',
+    justifyContent: 'center',
+    gap: 14,
+    paddingVertical: 24,
+  },
+  optionalBudgetIcon: {
+    width: 52,
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 26,
+    backgroundColor: '#F8EDEF',
+  },
+  optionalBudgetCopy: { alignItems: 'center', gap: 5 },
+  optionalBudgetTitle: {
+    color: palette.primaryContainer,
+    fontSize: 18,
+    lineHeight: 24,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  optionalBudgetDescription: {
+    maxWidth: 340,
+    color: palette.secondary,
+    fontSize: 13,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+  enterBudgetButton: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 22,
+    backgroundColor: palette.primaryContainer,
+    paddingHorizontal: 24,
+    paddingVertical: 11,
+  },
+  enterBudgetText: {
+    color: palette.white,
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: '800',
+    letterSpacing: 1.1,
   },
   budgetInput: {
     height: 96,

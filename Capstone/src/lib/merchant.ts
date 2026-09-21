@@ -2,6 +2,7 @@ import { supabase, supabaseConfig } from './supabase'
 import type {
   AvailabilityCalendarValue,
   BookingItem,
+  BookingServiceItem,
   BookingRequestDeclineValue,
   BookingRequestDecisionValue,
   ChangePasswordValue,
@@ -32,7 +33,8 @@ export interface MerchantServiceListing {
 }
 
 const notReady =
-  'Supabase is not configured, no user is signed in, or this account is not a merchant account.'
+  'Supabase is not configured, no user is signed in, or this account is not a service-provider account.'
+const merchantRepairAttempts = new Set<string>()
 
 const metadataText = (metadata: Record<string, unknown>, key: string, fallback = '') => {
   const value = metadata[key]
@@ -61,6 +63,14 @@ const randomUuid = () => {
     .join('')}-${hex.slice(8, 10).join('')}-${hex.slice(10, 16).join('')}`
 }
 
+const isUuid = (value?: string) =>
+  Boolean(
+    value &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        value
+      )
+  )
+
 const getMerchantContext = async (): Promise<
   | {
       client: NonNullable<typeof supabase>
@@ -83,11 +93,17 @@ const getMerchantContext = async (): Promise<
     return null
   }
 
-  const { data: existingProvider } = await client
+  const { data: existingProvider, error: providerLookupError } = await client
     .from('provider_profiles')
     .select('id')
     .eq('user_id', userId)
+    .order('created_at', { ascending: true })
+    .limit(1)
     .maybeSingle()
+
+  if (providerLookupError) {
+    console.warn('Unable to load service-provider profile:', providerLookupError.message)
+  }
 
   if (existingProvider?.id) {
     return { client, providerId: existingProvider.id as string, userId }
@@ -100,6 +116,18 @@ const getMerchantContext = async (): Promise<
     .maybeSingle()
 
   const metadata = (user?.user_metadata ?? {}) as Record<string, unknown>
+  const accountRole = String(profile?.default_role ?? metadata.default_role ?? '')
+
+  if (accountRole !== 'service_provider') {
+    return null
+  }
+
+  if (merchantRepairAttempts.has(userId)) {
+    return null
+  }
+
+  merchantRepairAttempts.add(userId)
+
   const email = user?.email ?? metadataText(metadata, 'email', String(profile?.email ?? ''))
   const phone = metadataText(metadata, 'phone', String(profile?.phone ?? ''))
   const fullName = metadataText(
@@ -112,7 +140,6 @@ const getMerchantContext = async (): Promise<
 
   const { error: profileError } = await client.from('profiles').upsert({
     id: userId,
-    account_status: 'pending',
     default_role: 'service_provider',
     email,
     full_name: fullName,
@@ -189,6 +216,24 @@ const amountFromListing = (value: ServiceListingReviewValue) => {
 
 const isRemoteUri = (uri: string) => /^https?:\/\//i.test(uri)
 
+const extensionForPhoto = (uri: string, mimeType: string) => {
+  const mimeExtension = mimeType.split('/')[1]?.toLowerCase().replace('jpeg', 'jpg')
+  if (mimeExtension && /^[a-z0-9]+$/.test(mimeExtension)) return mimeExtension
+
+  const uriExtension = uri.match(/\.([a-z0-9]{2,5})(?:\?|$)/i)?.[1]?.toLowerCase()
+  return uriExtension ?? 'jpg'
+}
+
+const isMissingListingDetailsColumn = (message?: string) => {
+  const normalized = message?.toLowerCase() ?? ''
+  return (
+    normalized.includes('gallery_urls') ||
+    normalized.includes('pricing_model') ||
+    normalized.includes('pricing_unit') ||
+    normalized.includes('pricing_details')
+  )
+}
+
 const uploadListingPhoto = async (uri: string) => {
   if (isRemoteUri(uri)) {
     return uri
@@ -238,7 +283,11 @@ export const saveMerchantServiceDraft = async (
     const context = await getMerchantContext()
 
     if (!context) {
-      return { ok: false, message: notReady }
+      return {
+        ok: false,
+        message:
+          'Your session is active, but its service-provider profile could not be loaded. Sign out, sign back in with the service-provider account, and try again.',
+      }
     }
 
     const { error } = await context.client.from('provider_service_listing_drafts').upsert(
@@ -261,7 +310,11 @@ export const clearMerchantServiceDraft = async (): Promise<MerchantResult> => {
     const context = await getMerchantContext()
 
     if (!context) {
-      return { ok: false, message: notReady }
+      return {
+        ok: false,
+        message:
+          'Your account is signed in, but its service-provider profile could not be loaded. Sign out, sign back in with the service-provider account, and try again.',
+      }
     }
 
     const { error } = await context.client
@@ -285,20 +338,22 @@ export const uploadMerchantServicePhoto = async (uri: string): Promise<string | 
 
     const response = await fetch(uri)
     const blob = await response.blob()
-    const extension = uri.split('.').pop()?.split('?')[0] || 'jpg'
+    const extension = extensionForPhoto(uri, blob.type)
     const path = `${context.providerId}/${Date.now()}.${extension}`
     const { error } = await context.client.storage
       .from('service-photos')
       .upload(path, blob, { contentType: blob.type || 'image/jpeg', upsert: false })
 
     if (error) {
-      return uri
+      console.warn('Unable to upload service photo:', error.message)
+      return null
     }
 
     const { data } = context.client.storage.from('service-photos').getPublicUrl(path)
     return data.publicUrl
-  } catch {
-    return uri
+  } catch (error) {
+    console.warn('Unable to upload service photo:', toMessage(error))
+    return null
   }
 }
 
@@ -310,10 +365,23 @@ export const saveMerchantServiceListing = async (
     const context = await getMerchantContext()
 
     if (!context) {
-      return { ok: false, message: notReady }
+      return {
+        ok: false,
+        message:
+          'Your account is signed in, but its service-provider profile could not be loaded. Sign out, sign back in with the service-provider account, and try again.',
+      }
     }
 
-    const categoryId = await findCategoryId(value.information.category)
+    const categoryId = isUuid(value.information.categoryId)
+      ? value.information.categoryId
+      : await findCategoryId(value.information.category)
+
+    if (!categoryId) {
+      return {
+        ok: false,
+        message: 'Choose an active service category before publishing this listing.',
+      }
+    }
     const uploadedPhotos = await Promise.all(
       value.information.photos.map((photo) => uploadListingPhoto(photo))
     )
@@ -331,8 +399,21 @@ export const saveMerchantServiceListing = async (
       status,
       updated_at: now,
     }
+    const detailedServicePayload = {
+      ...servicePayload,
+      gallery_urls: uploadedPhotos.filter((photo): photo is string => Boolean(photo)),
+      pricing_details: value.pricing.details,
+      pricing_model: value.pricing.model,
+      pricing_unit: value.pricing.unit ?? null,
+    }
 
-    const { error } = await context.client.from('services').insert(servicePayload)
+    let serviceInsert = await context.client.from('services').insert(detailedServicePayload)
+
+    if (serviceInsert.error && isMissingListingDetailsColumn(serviceInsert.error.message)) {
+      serviceInsert = await context.client.from('services').insert(servicePayload)
+    }
+
+    const { error } = serviceInsert
 
     if (error) {
       console.warn('Unable to create merchant service:', error.message)
@@ -340,8 +421,7 @@ export const saveMerchantServiceListing = async (
     }
 
     if (value.packages.length > 0) {
-      const { error: packageError } = await context.client.from('service_packages').insert(
-        value.packages.map((item) => ({
+      const packageRows = value.packages.map((item) => ({
           description: item.description,
           inclusions: item.inclusions,
           is_active: status === 'active',
@@ -349,7 +429,18 @@ export const saveMerchantServiceListing = async (
           price: item.price,
           service_id: serviceId,
         }))
+      let packageInsert = await context.client.from('service_packages').insert(
+        packageRows.map((item, index) => ({
+          ...item,
+          pricing_unit: value.packages[index]?.unit ?? 'event',
+        }))
       )
+
+      if (packageInsert.error && isMissingListingDetailsColumn(packageInsert.error.message)) {
+        packageInsert = await context.client.from('service_packages').insert(packageRows)
+      }
+
+      const { error: packageError } = packageInsert
 
       if (packageError) {
         return { ok: false, message: packageError.message }
@@ -384,12 +475,13 @@ const numberFrom = (value: unknown, fallback = 0) =>
 
 const nested = (value: unknown) => (Array.isArray(value) ? value[0] : value)
 
-const toIsoDate = (value: unknown) => textFrom(value, new Date().toISOString().slice(0, 10))
+const toIsoDate = (value: unknown) => textFrom(value, 'Date to be confirmed')
 
-const mapBookingStatus = (status: string): BookingItem['status'] => {
-  if (status === 'completed') return 'past'
-  if (status === 'confirmed' || status === 'paid' || status === 'approved') return 'confirmed'
-  return 'pending'
+const mapServiceBookingStatus = (status: string): BookingServiceItem['status'] => {
+  if (status === 'completed') return 'completed'
+  if (status === 'confirmed' || status === 'approved') return 'confirmed'
+  if (status === 'rejected' || status === 'cancelled' || status === 'expired') return 'declined'
+  return 'requested'
 }
 
 const mapRequestStatus = (status: string): MerchantBookingRequest['status'] => {
@@ -412,28 +504,113 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
   const { data, error } = await client
     .from('bookings')
     .select(
-      'id, status, requested_date, services(name, cover_image_url, service_categories(name)), provider_profiles(business_name)'
+      'id, event_id, amount, status, requested_date, requested_time, created_at, updated_at, events(id, name, event_type, event_date, event_time, guest_count, venue, location, status), services(name, cover_image_url, service_categories(name)), provider_profiles(business_name), payments!inner(status, amount, paid_at, metadata)'
     )
     .eq('client_id', userId)
+    .neq('status', 'payment_required')
+    .in('payments.status', ['paid', 'verified'])
     .order('updated_at', { ascending: false })
 
   if (error || !data) return []
 
-  return data.map((row) => {
+  const eventIds = Array.from(
+    new Set(
+      data
+        .map((row) => textFrom((row as Record<string, unknown>).event_id))
+        .filter(Boolean)
+    )
+  )
+  const { data: feedbackRows } = eventIds.length
+    ? await client
+        .from('event_feedback')
+        .select('event_id')
+        .eq('client_id', userId)
+        .in('event_id', eventIds)
+    : { data: [] }
+  const reviewedEventIds = new Set((feedbackRows ?? []).map((row) => textFrom(row.event_id)))
+  const grouped = new Map<string, BookingItem>()
+
+  data.forEach((row) => {
     const record = row as Record<string, unknown>
+    const event = nested(record.events) as Record<string, unknown> | undefined
     const service = nested(record.services) as Record<string, unknown> | undefined
     const provider = nested(record.provider_profiles) as Record<string, unknown> | undefined
     const category = nested(service?.service_categories) as Record<string, unknown> | undefined
+    const payments = Array.isArray(record.payments)
+      ? (record.payments as Array<Record<string, unknown>>)
+      : []
+    const latestPayment = payments.at(-1)
     const serviceName = textFrom(service?.name, textFrom(provider?.business_name, 'Service'))
+    const eventId = textFrom(record.event_id, textFrom(event?.id, textFrom(record.id)))
+    const rawStatus = textFrom(record.status)
+    const serviceItem: BookingServiceItem = {
+      amount: numberFrom(record.amount),
+      bookingId: textFrom(record.id),
+      category: textFrom(category?.name, 'Service'),
+      image: textFrom(service?.cover_image_url),
+      paymentStatus: textFrom(latestPayment?.status, 'pending'),
+      providerName: textFrom(provider?.business_name, 'Service provider'),
+      rawStatus,
+      serviceName,
+      status: mapServiceBookingStatus(rawStatus),
+      updatedAt: textFrom(record.updated_at),
+    }
+
+    const current = grouped.get(eventId)
+    if (current) {
+      current.amount = Number(current.amount ?? 0) + serviceItem.amount
+      current.services = [...(current.services ?? []), serviceItem]
+      if (!current.image && serviceItem.image) current.image = serviceItem.image
+      if (textFrom(record.updated_at) > textFrom(current.updatedAt)) {
+        current.updatedAt = textFrom(record.updated_at)
+      }
+      return
+    }
+
+    const eventName = textFrom(event?.name, 'Event booking')
+    const metadata =
+      latestPayment?.metadata && typeof latestPayment.metadata === 'object'
+        ? (latestPayment.metadata as Record<string, unknown>)
+        : {}
+    const paymentType = metadata.paymentType === 'full' ? 'Paid in full' : 'Deposit paid'
+
+    grouped.set(eventId, {
+      amount: serviceItem.amount,
+      category: textFrom(event?.event_type, 'Event'),
+      createdAt: textFrom(record.created_at),
+      date: toIsoDate(event?.event_date ?? record.requested_date),
+      eventId,
+      hasFeedback: reviewedEventIds.has(eventId),
+      eventType: textFrom(event?.event_type, 'Event'),
+      guestCount: numberFrom(event?.guest_count),
+      id: eventId,
+      image: serviceItem.image,
+      imageLabel: eventName,
+      location: textFrom(event?.location),
+      name: eventName,
+      paymentStatus: latestPayment ? paymentType : 'Pending',
+      rawStatus: textFrom(event?.status),
+      requestedTime: textFrom(event?.event_time, textFrom(record.requested_time)),
+      services: [serviceItem],
+      status: 'requested',
+      updatedAt: textFrom(record.updated_at),
+      venue: textFrom(event?.venue),
+    })
+  })
+
+  return Array.from(grouped.values()).map((booking) => {
+    const services = booking.services ?? []
+    const statuses = services.map((service) => service.status)
 
     return {
-      category: textFrom(category?.name, 'Service'),
-      date: toIsoDate(record.requested_date),
-      id: textFrom(record.id),
-      image: textFrom(service?.cover_image_url),
-      imageLabel: serviceName,
-      name: serviceName,
-      status: mapBookingStatus(textFrom(record.status)),
+      ...booking,
+      status:
+        statuses.length > 0 && statuses.every((status) => status === 'completed')
+          ? 'completed'
+          : statuses.length > 0 &&
+              statuses.every((status) => status === 'confirmed' || status === 'completed')
+            ? 'confirmed'
+            : 'requested',
     }
   })
 }
@@ -446,12 +623,26 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
   const { data, error } = await context.client
     .from('bookings')
     .select(
-      'id, amount, status, requested_date, client_notes, profiles(full_name, email), events(name, event_date), services(name), service_packages(name)'
+      'id, event_id, service_id, amount, status, requested_date, requested_time, client_notes, created_at, profiles(full_name, email), events(name, event_type, event_date, event_time, guest_count, venue, location), services(name, description), service_packages(name, description, inclusions), payments!inner(status)'
     )
     .eq('provider_id', context.providerId)
+    .neq('status', 'payment_required')
+    .in('payments.status', ['paid', 'verified'])
     .order('updated_at', { ascending: false })
 
   if (error || !data) return []
+
+  const eventIds = Array.from(
+    new Set(data.map((row) => row.event_id as string | null).filter(Boolean))
+  ) as string[]
+  const { data: instructionRows } = eventIds.length
+    ? await context.client
+        .from('event_provider_instructions')
+        .select('id, event_id, provider_id, service_id, category_name, title, body, tags')
+        .in('event_id', eventIds)
+        .or(`provider_id.eq.${context.providerId},provider_id.is.null`)
+        .eq('status', 'saved')
+    : { data: [] }
 
   return data.map((row) => {
     const record = row as Record<string, unknown>
@@ -459,15 +650,50 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
     const event = nested(record.events) as Record<string, unknown> | undefined
     const service = nested(record.services) as Record<string, unknown> | undefined
     const servicePackage = nested(record.service_packages) as Record<string, unknown> | undefined
+    const packageInclusions = Array.isArray(servicePackage?.inclusions)
+      ? servicePackage.inclusions.filter((item): item is string => typeof item === 'string')
+      : []
+    const eventId = textFrom(record.event_id)
+    const serviceId = textFrom(record.service_id)
+    const instructions = (instructionRows ?? [])
+      .filter(
+        (instruction) =>
+          instruction.event_id === eventId &&
+          (!instruction.service_id || instruction.service_id === serviceId)
+      )
+      .map((instruction) => ({
+        body: textFrom(instruction.body),
+        category: textFrom(instruction.category_name, 'Event'),
+        id: textFrom(instruction.id),
+        tags: Array.isArray(instruction.tags)
+          ? instruction.tags.filter((tag): tag is string => typeof tag === 'string')
+          : [],
+        title: textFrom(instruction.title, 'Client instruction'),
+      }))
+      .filter((instruction) => instruction.body.length > 0 || instruction.tags.length > 0)
 
     return {
       amount: numberFrom(record.amount),
+      clientEmail: textFrom(profile?.email),
+      clientNotes: textFrom(record.client_notes),
       clientName: textFrom(profile?.full_name, textFrom(profile?.email, 'Client')),
       currency: 'PHP',
       eventDate: toIsoDate(record.requested_date ?? event?.event_date),
+      eventId,
+      eventName: textFrom(event?.name, 'Event'),
+      eventType: textFrom(event?.event_type, 'Event'),
+      guestCount: numberFrom(event?.guest_count),
       id: textFrom(record.id),
+      instructions,
+      location: textFrom(event?.location),
+      packageDescription: textFrom(servicePackage?.description, textFrom(service?.description)),
+      packageInclusions,
       packageName: textFrom(servicePackage?.name, textFrom(service?.name, 'Service request')),
+      requestedTime: textFrom(record.requested_time, textFrom(event?.event_time)),
+      serviceId,
       status: mapRequestStatus(textFrom(record.status)),
+      submittedAt: textFrom(record.created_at),
+      venue: textFrom(event?.venue),
     }
   })
 }
@@ -594,17 +820,20 @@ export const saveBookingDecision = async (
     }
 
     const isDecline = 'reason' in value
-    const { error } = await context.client
+    const nextStatus = isDecline || value.decision === 'declined' ? 'rejected' : 'confirmed'
+    const { data: booking, error } = await context.client
       .from('bookings')
       .update({
         provider_notes: isDecline
           ? [value.reasonLabel, value.message].filter(Boolean).join(': ')
           : value.providerNote,
-        status: isDecline || value.decision === 'declined' ? 'rejected' : 'approved',
+        status: nextStatus,
         updated_at: new Date().toISOString(),
       })
       .eq('id', value.request.id)
       .eq('provider_id', context.providerId)
+      .select('client_id, services(name)')
+      .single()
 
     if (error) {
       return { ok: false, message: error.message }
@@ -616,7 +845,41 @@ export const saveBookingDecision = async (
       })
     }
 
+    if (booking?.client_id) {
+      const service = nested(booking.services) as Record<string, unknown> | undefined
+      const serviceName = textFrom(service?.name, value.request.packageName)
+
+      await context.client.from('notifications').insert({
+        body:
+          nextStatus === 'confirmed'
+            ? `${serviceName} accepted your booking request.`
+            : `${serviceName} could not accept your booking request.`,
+        resource_id: value.request.id,
+        resource_type: 'booking',
+        title: nextStatus === 'confirmed' ? 'Booking confirmed' : 'Booking declined',
+        user_id: booking.client_id,
+      })
+    }
+
     return { ok: true }
+  } catch (error) {
+    return { ok: false, message: toMessage(error) }
+  }
+}
+
+export const completeMerchantBooking = async (bookingId: string): Promise<MerchantResult> => {
+  try {
+    const context = await getMerchantContext()
+
+    if (!context) {
+      return { ok: false, message: notReady }
+    }
+
+    const { error } = await context.client.rpc('mark_provider_booking_completed', {
+      target_booking_id: bookingId,
+    })
+
+    return { ok: !error, message: error?.message }
   } catch (error) {
     return { ok: false, message: toMessage(error) }
   }

@@ -263,6 +263,31 @@ export const MerchantBookingDetailScreen: React.FC<MerchantBookingDetailScreenPr
             <Text style={styles.clientMessage}>{value.clientMessage}</Text>
           </View>
         </View>
+
+        {request.instructions && request.instructions.length > 0 ? (
+          <View style={[styles.section, styles.instructionBanner]}>
+            <View style={styles.instructionHeading}>
+              <View style={styles.instructionIcon}>
+                <Text style={styles.instructionIconText}>!</Text>
+              </View>
+              <View style={styles.instructionHeadingCopy}>
+                <Text style={styles.instructionEyebrow}>CLIENT INSTRUCTIONS</Text>
+                <Text style={styles.instructionTitle}>Important notes for this service</Text>
+              </View>
+            </View>
+            {request.instructions.map((instruction) => (
+              <View key={instruction.id} style={styles.instructionItem}>
+                <Text style={styles.instructionItemTitle}>{instruction.title}</Text>
+                {instruction.body ? (
+                  <Text style={styles.instructionBody}>{instruction.body}</Text>
+                ) : null}
+                {instruction.tags.length > 0 ? (
+                  <Text style={styles.instructionTagText}>{instruction.tags.join(' · ')}</Text>
+                ) : null}
+              </View>
+            ))}
+          </View>
+        ) : null}
       </ScrollView>
 
       {isPending ? (
@@ -639,6 +664,34 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   clientMessage: { color: palette.text, fontSize: 16, lineHeight: 26, fontStyle: 'italic', paddingRight: 16 },
+  instructionBanner: {
+    gap: 12,
+    borderWidth: 1,
+    borderLeftWidth: 5,
+    borderColor: '#D9A441',
+    borderRadius: 10,
+    backgroundColor: '#FFF7E5',
+    marginHorizontal: 16,
+    marginBottom: 24,
+    padding: 16,
+  },
+  instructionHeading: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  instructionIcon: {
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 15,
+    backgroundColor: '#D9A441',
+  },
+  instructionIconText: { color: palette.white, fontSize: 18, lineHeight: 22, fontWeight: '800' },
+  instructionHeadingCopy: { minWidth: 0, flex: 1 },
+  instructionEyebrow: { color: '#6E4B0D', fontSize: 10, lineHeight: 14, fontWeight: '800', letterSpacing: 0.8 },
+  instructionTitle: { color: palette.text, fontSize: 15, lineHeight: 21, fontWeight: '700' },
+  instructionItem: { borderTopWidth: 1, borderTopColor: '#ECD39F', paddingTop: 11 },
+  instructionItemTitle: { color: '#5B3D08', fontSize: 14, lineHeight: 20, fontWeight: '700' },
+  instructionBody: { color: palette.text, fontSize: 14, lineHeight: 21, marginTop: 3 },
+  instructionTagText: { color: '#60420B', fontSize: 11, lineHeight: 16, fontWeight: '700', marginTop: 6 },
   footer: {
     zIndex: 40,
     width: '100%',

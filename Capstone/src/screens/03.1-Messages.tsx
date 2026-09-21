@@ -17,7 +17,10 @@ export type ClientConversationFilter = 'all' | 'unread' | 'bookings'
 
 export interface ClientConversation {
   avatarUrl?: string
+  bookingDate?: string
+  bookingId?: string
   bookingReference?: string
+  bookingStatus?: 'pending' | 'confirmed' | 'completed'
   id: string
   isOnline?: boolean
   isPinned?: boolean
@@ -25,6 +28,8 @@ export interface ClientConversation {
   lastMessageAt: string
   participantName: string
   participantRole: string
+  participantUserId?: string
+  serviceName?: string
   unreadCount: number
 }
 
@@ -307,7 +312,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
               onPress={() => changeSearch('')}
               style={({ pressed }) => [styles.clearSearch, pressed && styles.surfacePressed]}
             >
-              <Text style={styles.clearSearchText}>ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â</Text>
+              <Text style={styles.clearSearchText}>×</Text>
             </Pressable>
           ) : null}
         </View>

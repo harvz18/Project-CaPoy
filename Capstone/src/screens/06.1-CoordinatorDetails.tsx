@@ -11,6 +11,7 @@ import {
 } from 'react-native'
 
 interface CoordinatorDetailsScreenProps {
+  mode?: 'explore' | 'planning'
   initialFavorite?: boolean
   onBack?: () => void
   onFavoriteChange?: (favorite: boolean) => void
@@ -50,23 +51,24 @@ const portfolioImages = [
 
 const pricingItems = [
   {
-    icon: 'ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ',
+    icon: '✓',
     title: 'Full Planning',
     description: 'Comprehensive design and coordination',
   },
   {
-    icon: 'ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ',
+    icon: '✓',
     title: 'Partial Planning',
     description: 'Assistance concluding the final months',
   },
   {
-    icon: 'ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬â„¢ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“',
+    icon: '⌖',
     title: 'Based in New York',
     description: 'Available for travel worldwide',
   },
 ] as const
 
 export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> = ({
+  mode = 'planning',
   initialFavorite = true,
   onBack,
   onFavoriteChange,
@@ -77,6 +79,7 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
 }) => {
   const { width } = useWindowDimensions()
   const isWide = width >= 768
+  const isExploreMode = mode === 'explore'
   const [favorite, setFavorite] = React.useState(initialFavorite)
 
   const toggleFavorite = () => {
@@ -117,7 +120,7 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
             onPress={onBack}
             style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}
           >
-            <Text style={styles.backIcon}>ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Ãƒâ€šÃ‚Â</Text>
+            <Text style={styles.backIcon}>←</Text>
           </Pressable>
 
           <Text numberOfLines={1} style={styles.headerTitle}>Provider Profile</Text>
@@ -130,7 +133,7 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
             onPress={toggleFavorite}
             style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}
           >
-            <Text style={styles.favoriteIcon}>{favorite ? 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢Ãƒâ€šÃ‚Â¥' : 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢Ãƒâ€šÃ‚Â¡'}</Text>
+            <Text style={styles.favoriteIcon}>{favorite ? '♥' : '♡'}</Text>
           </Pressable>
         </View>
       </View>
@@ -160,7 +163,7 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
 
               <View style={[styles.profileRating, isWide && styles.profileRatingWide]}>
                 <View style={styles.ratingRow}>
-                  <Text style={styles.star}>ÃƒÆ’Ã‚Â¢Ãƒâ€¹Ã…â€œÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦</Text>
+                  <Text style={styles.star}>★</Text>
                   <Text style={styles.ratingValue}>4.9</Text>
                 </View>
                 <Text style={styles.reviewCount}>124 REVIEWS</Text>
@@ -182,7 +185,7 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
               <Text style={styles.storyCopy}>
                 Founded in 2015 by Isabella Rossi, Lumina Event Design specializes in crafting
                 narrative-driven weddings that reflect the unique personality of each couple. We
-                believe in editorial minimalismÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Âwhere every detail is curated, and nothing feels
+                believe in editorial minimalism—where every detail is curated, and nothing feels
                 superfluous. Our approach combines meticulous organization with an intuitive sense
                 of style, ensuring your celebration is both breathtaking and seamlessly executed.
                 From intimate coastal elopements to grand city center galas, we transform spaces
@@ -258,7 +261,7 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
         </View>
       </ScrollView>
 
-      {isWide ? (
+      {!isExploreMode && isWide ? (
         <View style={styles.desktopActionBar}>
           <Pressable
             accessibilityLabel="Message Lumina Event Design"
@@ -266,7 +269,7 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
             onPress={onMessage}
             style={({ pressed }) => [styles.desktopMessageButton, pressed && styles.pressed]}
           >
-            <Text style={styles.messageIcon}>ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬ÂÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¹</Text>
+            <Text style={styles.messageIcon}>○</Text>
             <Text style={styles.desktopMessageText}>MESSAGE</Text>
           </Pressable>
           <View style={styles.actionDivider} />
@@ -279,7 +282,7 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
             <Text style={styles.desktopSelectText}>SELECT PROVIDER</Text>
           </Pressable>
         </View>
-      ) : (
+      ) : !isExploreMode ? (
         <View style={styles.bottomNavigation}>
           <Pressable
             accessibilityLabel="Message Lumina Event Design"
@@ -287,7 +290,7 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
             onPress={onMessage}
             style={({ pressed }) => [styles.mobileAction, pressed && styles.pressed]}
           >
-            <Text style={styles.mobileMessageIcon}>ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬ÂÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¹</Text>
+            <Text style={styles.mobileMessageIcon}>○</Text>
             <Text style={styles.mobileMessageText}>Message</Text>
           </Pressable>
 
@@ -297,11 +300,11 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
             onPress={onSelectProvider}
             style={({ pressed }) => [styles.mobileSelectAction, pressed && styles.selectPressed]}
           >
-            <Text style={styles.mobileSelectIcon}>ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ</Text>
+            <Text style={styles.mobileSelectIcon}>✓</Text>
             <Text style={styles.mobileSelectText}>Select</Text>
           </Pressable>
         </View>
-      )}
+      ) : null}
     </View>
   )
 }

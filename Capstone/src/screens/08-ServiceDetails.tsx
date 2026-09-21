@@ -11,7 +11,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native'
-import { CatalogService, formatPeso } from '../lib/catalog'
+import { CatalogService, formatPeso, formatServicePrice } from '../lib/catalog'
 
 export type MealType = 'plated' | 'buffet' | 'packed'
 
@@ -26,10 +26,12 @@ export interface ServiceSelectionValue {
 }
 
 interface ServiceDetailsScreenProps {
+  hasBudget?: boolean
+  mode?: 'explore' | 'planning'
   remainingBudget?: number
   service?: CatalogService
   initialFavorite?: boolean
-  onAddSelection?: (value: ServiceSelectionValue) => void
+  onAddSelection?: (value: ServiceSelectionValue) => Promise<void> | void
   onBack?: () => void
   onBrowseMenus?: () => void
   onFavoriteChange?: (favorite: boolean) => void
@@ -80,18 +82,29 @@ const formatCurrency = (value: number) =>
 
 const digitsOnly = (value: string) => value.replace(/\D/g, '').slice(0, 8)
 
+const pricingUnitLabel = (unit?: 'event' | 'person' | 'hour' | 'day') => {
+  if (unit === 'person') return 'per person'
+  if (unit === 'hour') return 'per hour'
+  if (unit === 'day') return 'per day'
+  if (unit === 'event') return 'per event'
+  return ''
+}
+
 export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
+  hasBudget,
+  mode = 'planning',
   remainingBudget = 45000,
   service,
   initialFavorite = true,
   onAddSelection,
   onBack,
-  onBrowseMenus,
   onFavoriteChange,
   onReadAllReviews,
 }) => {
   const { width, height } = useWindowDimensions()
   const isWide = width >= 768
+  const isExploreMode = mode === 'explore'
+  const hasSetBudget = hasBudget ?? remainingBudget > 0
   const heroWidth = Math.min(width, 1200)
   const heroHeight = Math.max(400, Math.min(560, height * 0.5))
   const [heroIndex, setHeroIndex] = React.useState(0)
@@ -101,18 +114,31 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   const [budgetDigits, setBudgetDigits] = React.useState('')
   const [notes, setNotes] = React.useState('')
   const [outsideFood, setOutsideFood] = React.useState(false)
+  const [isAddingSelection, setIsAddingSelection] = React.useState(false)
+  const [selectedPackageId, setSelectedPackageId] = React.useState(
+    service?.packageId ?? service?.packages?.[0]?.id ?? ''
+  )
   const serviceImages = React.useMemo(
     () =>
-      service?.imageUrl
-        ? [
-            {
-              uri: service.imageUrl,
-              label: service.imageLabel,
-            },
-          ]
-        : [],
-    [service?.imageLabel, service?.imageUrl]
+      (service?.galleryUrls?.length
+        ? service.galleryUrls
+        : service?.imageUrl
+          ? [service.imageUrl]
+          : []
+      ).map((uri, index) => ({
+        uri,
+        label:
+          index === 0
+            ? service?.imageLabel ?? 'Service photo'
+            : `${service?.name} photo ${index + 1}`,
+      })),
+    [service?.galleryUrls, service?.imageLabel, service?.imageUrl, service?.name]
   )
+
+  React.useEffect(() => {
+    setSelectedPackageId(service?.packageId ?? service?.packages?.[0]?.id ?? '')
+    setHeroIndex(0)
+  }, [service?.id, service?.packageId, service?.packages])
 
   if (!service) {
     return (
@@ -131,9 +157,20 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
 
   const attendeeCount = attendeeDigits ? Number(attendeeDigits) : 0
   const budgetPerHead = budgetDigits ? Number(budgetDigits) : 0
-  const estimatedTotal = attendeeCount > 0 && budgetPerHead > 0
-    ? attendeeCount * budgetPerHead
-    : 25000
+  const selectedPackage = service.packages?.find((item) => item.id === selectedPackageId)
+  const selectedUnit = selectedPackage?.unit ?? service.pricingUnit ?? 'event'
+  const selectedPrice = selectedPackage?.price ?? service.minPrice
+  const requiresQuote = service.pricingModel === 'customQuote' || selectedPrice <= 0
+  const estimatedTotal =
+    requiresQuote
+      ? 0
+      : selectedUnit === 'person' && attendeeCount > 0
+        ? selectedPrice * attendeeCount
+        : selectedPrice
+  const estimatedDisplay =
+    requiresQuote
+      ? 'Quote required'
+      : `PHP ${formatCurrency(estimatedTotal)}`
 
   const toggleFavorite = () => {
     const nextFavorite = !favorite
@@ -141,16 +178,26 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     onFavoriteChange?.(nextFavorite)
   }
 
-  const handleAddSelection = () => {
-    onAddSelection?.({
-      attendeeCount,
-      budgetPerHead,
-      estimatedTotal,
-      mealType,
-      notes,
-      outsideFood,
-      service,
-    })
+  const handleAddSelection = async () => {
+    if (!onAddSelection || isAddingSelection) return
+
+    setIsAddingSelection(true)
+
+    try {
+      await onAddSelection({
+        attendeeCount,
+        budgetPerHead,
+        estimatedTotal,
+        mealType,
+        notes,
+        outsideFood,
+        service: selectedPackage
+          ? { ...service, minPrice: selectedPackage.price, packageId: selectedPackage.id }
+          : service,
+      })
+    } finally {
+      setIsAddingSelection(false)
+    }
   }
 
   return (
@@ -229,26 +276,104 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
               </View>
             </View>
             <Text style={styles.serviceTitle}>{service.name}</Text>
-            <View style={styles.heroBudgetBadge}>
-              <Text style={styles.walletIcon}>PHP</Text>
-              <Text style={styles.heroBudgetText}>
-                Remaining Budget: {formatPeso(remainingBudget)}
-              </Text>
-            </View>
+            {!isExploreMode ? (
+              <View style={styles.heroBudgetBadge}>
+                <Text style={styles.walletIcon}>PHP</Text>
+                <Text style={styles.heroBudgetText}>
+                  {hasSetBudget
+                    ? `Remaining Budget: ${formatPeso(remainingBudget)}`
+                    : 'Pay actual service costs'}
+                </Text>
+              </View>
+            ) : null}
           </View>
         </View>
 
         <View style={[styles.content, isWide && styles.contentPaddingWide]}>
           <View style={styles.descriptionSection}>
-            <Text style={styles.description}>
-              {service.description}
-            </Text>
+            <Text style={styles.description}>{service.description}</Text>
+            <View style={styles.serviceFacts}>
+              <View style={styles.serviceFactRow}>
+                <Text style={styles.serviceFactLabel}>SERVICE PROVIDER</Text>
+                <Text style={styles.serviceFactValue}>{service.providerName}</Text>
+              </View>
+              <View style={styles.serviceFactRow}>
+                <Text style={styles.serviceFactLabel}>PRICE</Text>
+                <Text style={styles.servicePriceValue}>{formatServicePrice(service)}</Text>
+              </View>
+              {service.location ? (
+                <View style={styles.serviceFactRow}>
+                  <Text style={styles.serviceFactLabel}>LOCATION</Text>
+                  <Text style={styles.serviceFactValue}>{service.location}</Text>
+                </View>
+              ) : null}
+              {service.pricingDetails ? (
+                <View style={styles.pricingNotes}>
+                  <Text style={styles.serviceFactLabel}>PRICING DETAILS</Text>
+                  <Text style={styles.pricingNotesText}>{service.pricingDetails}</Text>
+                </View>
+              ) : null}
+            </View>
           </View>
 
-          <View style={styles.bookingSection}>
-            <Text style={styles.sectionHeading}>Design Your Meal</Text>
+          <View style={styles.packagesSection}>
+            <Text style={styles.sectionHeading}>Packages</Text>
+            {service.packages?.length ? (
+              <View style={styles.packageList}>
+                {service.packages.map((item) => {
+                  const isSelected = item.id === selectedPackageId
 
-            <View style={styles.mealTypeGrid}>
+                  return (
+                    <Pressable
+                      key={item.id}
+                      accessibilityLabel={'Choose package ' + item.name}
+                      accessibilityRole={isExploreMode ? undefined : 'radio'}
+                      accessibilityState={isExploreMode ? undefined : { checked: isSelected }}
+                      disabled={isExploreMode}
+                      onPress={() => setSelectedPackageId(item.id)}
+                      style={({ pressed }) => [
+                        styles.packageCard,
+                        isSelected && !isExploreMode && styles.packageCardSelected,
+                        pressed && styles.packageCardPressed,
+                      ]}
+                    >
+                      <View style={styles.packageHeading}>
+                        <Text style={styles.packageName}>{item.name}</Text>
+                        <Text style={styles.packagePrice}>
+                          {formatPeso(item.price)}
+                          {item.unit ? ` / ${pricingUnitLabel(item.unit)}` : ''}
+                        </Text>
+                      </View>
+                      {item.description ? (
+                        <Text style={styles.packageDescription}>{item.description}</Text>
+                      ) : null}
+                      {item.inclusions.length ? (
+                        <View style={styles.inclusionList}>
+                          {item.inclusions.map((inclusion) => (
+                            <Text key={inclusion} style={styles.inclusionText}>
+                              {'\u2713'} {inclusion}
+                            </Text>
+                          ))}
+                        </View>
+                      ) : null}
+                    </Pressable>
+                  )
+                })}
+              </View>
+            ) : (
+              <Text style={styles.noPackages}>
+                This provider has not configured separate packages. The listed base price applies.
+              </Text>
+            )}
+          </View>
+
+          {!isExploreMode ? (
+            <View style={styles.bookingSection}>
+            <Text style={styles.sectionHeading}>
+              {service.categoryId === 'catering' ? 'Booking Details' : 'Request This Service'}
+            </Text>
+
+            {service.categoryId === 'catering' ? <View style={styles.mealTypeGrid}>
               {mealTypes.map((meal) => {
                 const isSelected = meal.id === mealType
 
@@ -274,7 +399,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                   </Pressable>
                 )
               })}
-            </View>
+            </View> : null}
 
             <View style={[styles.inputGrid, isWide && styles.inputGridWide]}>
               <View style={styles.inputGroup}>
@@ -295,7 +420,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>BUDGET PER HEAD</Text>
+                <Text style={styles.inputLabel}>YOUR BUDGET PER HEAD</Text>
                 <View style={styles.inputShell}>
                   <Text style={styles.inputPrefix}>PHP</Text>
                   <TextInput
@@ -308,43 +433,6 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                     style={[styles.fieldInput, styles.fieldInputWithPrefix]}
                     value={budgetDigits ? formatCurrency(Number(budgetDigits)) : ''}
                   />
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.menuSection}>
-              <View style={styles.menuHeader}>
-                <Text style={styles.inputLabel}>AVAILABLE MENUS</Text>
-                <Pressable
-                  accessibilityLabel="Browse all menus"
-                  accessibilityRole="button"
-                  hitSlop={8}
-                  onPress={onBrowseMenus}
-                  style={({ pressed }) => pressed && styles.pressed}
-                >
-                  <Text style={styles.browseAll}>BROWSE ALL</Text>
-                </Pressable>
-              </View>
-
-              <View style={styles.menuCard}>
-                <View style={styles.menuThumbnails}>
-                  {service.packages?.slice(0, 3).map((item) => (
-                    <View key={item.id} style={styles.menuThumbnail}>
-                      <Text style={styles.menuThumbnailText}>{item.name.charAt(0)}</Text>
-                    </View>
-                  ))}
-                </View>
-                <View style={styles.menuWash} />
-                <View style={styles.menuMessage}>
-                  <View style={styles.lockCircle}>
-
-                    <Text style={styles.lockIcon}>{service.packages?.length ? 'OK' : '+'}</Text>
-                  </View>
-                  <Text style={styles.menuMessageText}>
-                    {service.packages?.length
-                      ? `${service.packages.length} live package${service.packages.length === 1 ? '' : 's'} available`
-                      : 'No packages have been added for this service yet'}
-                  </Text>
                 </View>
               </View>
             </View>
@@ -379,11 +467,14 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                 />
               </View>
             </View>
-          </View>
+            </View>
+          ) : null}
 
           <View style={styles.reviewsSection}>
             <Text style={styles.sectionHeading}>Guest Reviews</Text>
 
+            {service.isMock ? (
+              <>
             <View style={[styles.reviewSummary, isWide && styles.reviewSummaryWide]}>
               <View style={styles.ratingCard}>
                 <Text style={styles.bigRating}>4.8</Text>
@@ -458,33 +549,69 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
             >
               <Text style={styles.readReviewsText}>Read All 120 Reviews</Text>
             </Pressable>
+              </>
+            ) : (
+              <View style={styles.liveReviewCard}>
+                {service.reviewCount > 0 ? (
+                  <>
+                    <Text style={styles.liveReviewRating}>{service.rating}</Text>
+                    <Text style={styles.liveReviewCopy}>
+                      Based on {service.reviewCount}{' '}
+                      {service.reviewCount === 1 ? 'verified review' : 'verified reviews'}
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.liveReviewTitle}>No reviews yet</Text>
+                    <Text style={styles.liveReviewCopy}>
+                      Reviews will appear after clients complete bookings with this provider.
+                    </Text>
+                  </>
+                )}
+              </View>
+            )}
           </View>
         </View>
       </ScrollView>
 
-      <View style={styles.bottomActionBar}>
-        <View style={styles.bottomActionContent}>
-          {isWide ? (
-            <View>
-              <Text style={styles.estimatedLabel}>ESTIMATED TOTAL</Text>
-              <Text style={styles.estimatedValue}>PHP {formatCurrency(estimatedTotal)}</Text>
-            </View>
-          ) : null}
-
-          <Pressable
-            accessibilityLabel={`Add to selection for ${formatCurrency(estimatedTotal)} pesos`}
-            accessibilityRole="button"
-            onPress={handleAddSelection}
-            style={({ pressed }) => [styles.addButton, isWide && styles.addButtonWide, pressed && styles.addPressed]}
-          >
-            <Text style={styles.addButtonText}>Add to Selection</Text>
-            {!isWide ? <Text style={styles.addDivider}>|</Text> : null}
-            {!isWide ? (
-              <Text style={styles.addPrice}>PHP {formatCurrency(estimatedTotal)}</Text>
+      {!isExploreMode ? (
+        <View style={styles.bottomActionBar}>
+          <View style={styles.bottomActionContent}>
+            {isWide ? (
+              <View>
+                <Text style={styles.estimatedLabel}>ESTIMATED TOTAL</Text>
+                <Text style={styles.estimatedValue}>{estimatedDisplay}</Text>
+              </View>
             ) : null}
-          </Pressable>
+
+            <Pressable
+              accessibilityLabel={
+                requiresQuote
+                  ? 'Add custom quote service to selection'
+                  : `Add to selection for ${formatCurrency(estimatedTotal)} pesos`
+              }
+              accessibilityRole="button"
+              accessibilityState={{ disabled: isAddingSelection }}
+              disabled={isAddingSelection}
+              onPress={handleAddSelection}
+              style={({ pressed }) => [
+                styles.addButton,
+                isWide && styles.addButtonWide,
+                isAddingSelection && styles.addButtonDisabled,
+                pressed && styles.addPressed,
+              ]}
+            >
+              <Text style={styles.addButtonText}>
+                {isAddingSelection ? 'Adding...' : 'Add to Selection'}
+              </Text>
+              {!isWide ? <Text style={styles.addDivider}>|</Text> : null}
+              {!isWide ? (
+                <Text style={styles.addPrice}>{estimatedDisplay}</Text>
+              ) : null}
+            </Pressable>
+          </View>
         </View>
-      </View>
+      ) : null}
     </View>
   )
 }
@@ -679,6 +806,42 @@ const styles = StyleSheet.create({
   },
   descriptionSection: { borderBottomWidth: 1, borderBottomColor: palette.surfaceVariant, paddingBottom: 32 },
   description: { maxWidth: 680, color: palette.secondary, fontSize: 18, lineHeight: 30 },
+  serviceFacts: {
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: palette.surfaceVariant,
+    borderRadius: 14,
+    backgroundColor: palette.surfaceLowest,
+    marginTop: 24,
+  },
+  serviceFactRow: {
+    minHeight: 58,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: palette.surfaceVariant,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+  },
+  serviceFactLabel: { color: palette.secondary, fontSize: 11, lineHeight: 15, fontWeight: '700', letterSpacing: 1 },
+  serviceFactValue: { flex: 1, color: palette.text, fontSize: 15, lineHeight: 21, fontWeight: '600', textAlign: 'right' },
+  servicePriceValue: { flex: 1, color: palette.primary, fontSize: 17, lineHeight: 23, fontWeight: '700', textAlign: 'right' },
+  pricingNotes: { gap: 6, padding: 18 },
+  pricingNotesText: { color: palette.text, fontSize: 15, lineHeight: 23 },
+  packagesSection: { borderBottomWidth: 1, borderBottomColor: palette.surfaceVariant, paddingVertical: 40 },
+  packageList: { gap: 14 },
+  packageCard: { borderWidth: 1, borderColor: palette.surfaceVariant, borderRadius: 14, backgroundColor: palette.surfaceLowest, padding: 18 },
+  packageCardSelected: { borderWidth: 2, borderColor: palette.primary, backgroundColor: '#FCF5F6' },
+  packageCardPressed: { opacity: 0.78, transform: [{ scale: 0.99 }] },
+  packageHeading: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 },
+  packageName: { minWidth: 0, flex: 1, color: palette.text, fontSize: 18, lineHeight: 24, fontWeight: '700' },
+  packagePrice: { color: palette.primary, fontSize: 15, lineHeight: 21, fontWeight: '700', textAlign: 'right' },
+  packageDescription: { color: palette.secondary, fontSize: 14, lineHeight: 22, marginTop: 10 },
+  inclusionList: { gap: 6, marginTop: 14 },
+  inclusionText: { color: palette.text, fontSize: 14, lineHeight: 21 },
+  noPackages: { color: palette.secondary, fontSize: 15, lineHeight: 23 },
   bookingSection: { borderBottomWidth: 1, borderBottomColor: palette.surfaceVariant, paddingVertical: 40 },
   sectionHeading: { color: palette.text, fontSize: 24, lineHeight: 32, fontWeight: '700', marginBottom: 24 },
   mealTypeGrid: { flexDirection: 'row', gap: 12, marginBottom: 32 },
@@ -804,6 +967,10 @@ const styles = StyleSheet.create({
   outsideFoodTitle: { color: palette.text, fontSize: 17, lineHeight: 24, fontWeight: '600' },
   outsideFoodSubtitle: { color: palette.secondary, fontSize: 14, lineHeight: 20, marginTop: 2 },
   reviewsSection: { paddingTop: 40, paddingBottom: 64 },
+  liveReviewCard: { alignItems: 'center', borderWidth: 1, borderColor: palette.surfaceVariant, borderRadius: 16, backgroundColor: palette.surfaceLowest, padding: 28 },
+  liveReviewRating: { color: palette.primary, fontSize: 44, lineHeight: 48, fontWeight: '700' },
+  liveReviewTitle: { color: palette.text, fontSize: 18, lineHeight: 25, fontWeight: '700' },
+  liveReviewCopy: { maxWidth: 480, color: palette.secondary, fontSize: 14, lineHeight: 21, textAlign: 'center', marginTop: 6 },
   reviewSummary: { gap: 24, marginBottom: 40 },
   reviewSummaryWide: { flexDirection: 'row', gap: 32 },
   ratingCard: {
@@ -871,6 +1038,7 @@ const styles = StyleSheet.create({
   addDivider: { color: 'rgba(255,255,255,0.5)', fontSize: 16 },
   addPrice: { color: palette.white, fontSize: 16, lineHeight: 22, fontWeight: '700' },
   addPressed: { opacity: 0.88, transform: [{ scale: 0.985 }] },
+  addButtonDisabled: { opacity: 0.62 },
   outlinePressed: { backgroundColor: '#FCF5F6', transform: [{ scale: 0.99 }] },
   pressed: { opacity: 0.55 },
 })

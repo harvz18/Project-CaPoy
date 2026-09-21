@@ -225,7 +225,7 @@ create table public.payments (
   payer_id uuid not null references public.profiles(id),
   amount numeric(12,2) not null,
   currency text not null default 'PHP',
-  provider text not null default 'paymongo',
+  provider text not null default 'eWallet',
   provider_reference text,
   status public.payment_status not null default 'pending',
   paid_at timestamptz,

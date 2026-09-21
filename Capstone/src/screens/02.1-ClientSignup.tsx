@@ -5,6 +5,7 @@ import {
   Image,
   KeyboardAvoidingView,
   Keyboard,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -113,7 +114,10 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({
   )
 
   return (
-    <KeyboardAvoidingView style={styles.screen}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={styles.screen}
+    >
       <View style={styles.content}>
         <View style={styles.hero}>
           <Pressable
@@ -163,8 +167,9 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({
           </View>
 
           <ScrollView
+            automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
             contentContainerStyle={styles.form}
-            keyboardDismissMode="on-drag"
+            keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
             keyboardShouldPersistTaps="handled"
             ref={sheetScroll}
             showsVerticalScrollIndicator={false}
@@ -208,7 +213,7 @@ const styles = StyleSheet.create({
   loginPrompt: { flexDirection: 'row', justifyContent: 'center', marginTop: spacing.sm, marginBottom: spacing['2xl'] },
   loginPromptText: { color: colors.textSecondary, fontSize: 14 },
   loginText: { color: colors.primaryDark, fontSize: 14, fontWeight: '700' },
-  form: { gap: spacing.md },
+  form: { gap: spacing.md, paddingBottom: spacing['3xl'] },
   formScroll: { flex: 1, marginBottom: spacing.md },
   input: { height: 52, borderWidth: 0, borderRadius: radius.xl, backgroundColor: '#F1F2F4', paddingHorizontal: spacing.xl, fontSize: 15 },
   inputWithIcon: { paddingLeft: spacing['4xl'] },

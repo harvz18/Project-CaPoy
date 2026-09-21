@@ -2,6 +2,7 @@ import { Text } from '../components/AppText'
 import React from 'react'
 import {
   Image,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,26 +11,37 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native'
-import { PlanningStepIndicator } from '../components/PlanningStepIndicator'
+import { PlanningScreenHeader } from '../components/PlanningScreenHeader'
 import { ClientBottomNavigation, ClientMainTab } from '../components/ClientBottomNavigation'
-import { CatalogService, formatServicePrice } from '../lib/catalog'
+import { CatalogService, formatServicePrice, ServiceCategoryOption } from '../lib/catalog'
 
 export type CategoryBrowseFilter = 'plated' | 'buffet' | 'packed' | 'under500'
 export type CategoryBrowseVendor = string
 export type CategoryBrowseTab = ClientMainTab | 'vendors' | 'budget'
 
 interface CategoryBrowseScreenProps {
+  categoryName?: string
+  categories?: ServiceCategoryOption[]
+  hasBudget?: boolean
+  mode?: 'explore' | 'planning'
   services?: CatalogService[]
+  selectedServiceCount?: number
   remainingBudget?: number
+  replacementContext?: {
+    currentProviderName: string
+    serviceName: string
+  }
   showBottomNavigation?: boolean
   searchValue?: string
   sortLabel?: string
   onBack?: () => void
   onChangeSearch?: (value: string) => void
-  onMore?: () => void
   onOpenBudget?: () => void
+  onOpenSelectedServices?: () => void
   onOpenSort?: () => void
+  onConfirmReplacement?: (vendorId: string) => boolean | Promise<boolean>
   onSelectFilter?: (filter: CategoryBrowseFilter) => void
+  onSelectCategory?: (category: ServiceCategoryOption) => void
   onSelectTab?: (tab: CategoryBrowseTab) => void
   onSelectVendor?: (vendor: CategoryBrowseVendor) => void
 }
@@ -38,43 +50,68 @@ const filters = [
   { id: 'plated' as const, label: 'Plated' },
   { id: 'buffet' as const, label: 'Buffet' },
   { id: 'packed' as const, label: 'Packed' },
-  { id: 'under500' as const, label: 'Under ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â±500/head' },
+  { id: 'under500' as const, label: 'Under ₱500/head' },
 ] as const
 
 export const categoryBrowseNavigationTabs = [
-  { id: 'explore' as const, icon: 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬ÂÃƒâ€¦Ã‚Â½', label: 'Explore' },
+  { id: 'explore' as const, icon: '◎', label: 'Explore' },
   { id: 'vendors' as const, icon: 'S', label: 'Service Providers' },
-  { id: 'budget' as const, icon: 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â±', label: 'Budget' },
-  { id: 'profile' as const, icon: 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬ÂÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¹', label: 'Profile' },
+  { id: 'budget' as const, icon: '₱', label: 'Budget' },
+  { id: 'profile' as const, icon: '○', label: 'Profile' },
 ] as const
 
 const formatCurrency = (value: number) =>
   Math.max(0, Math.floor(value)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 
 export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
+  categoryName = 'Services',
+  categories = [],
+  hasBudget,
+  mode = 'planning',
   services = [],
+  selectedServiceCount = 0,
   remainingBudget = 45000,
+  replacementContext,
   showBottomNavigation = true,
   searchValue,
   sortLabel = 'Relevance',
   onBack,
   onChangeSearch,
-  onMore,
   onOpenBudget,
+  onOpenSelectedServices,
   onOpenSort,
+  onConfirmReplacement,
   onSelectFilter,
+  onSelectCategory,
   onSelectTab,
   onSelectVendor,
 }) => {
   const { width } = useWindowDimensions()
   const isWide = width >= 768
+  const isExploreMode = mode === 'explore'
+  const hasSetBudget = hasBudget ?? remainingBudget > 0
   const useHorizontalCards = width >= 640
   const [internalSearch, setInternalSearch] = React.useState('')
   const [selectedFilter, setSelectedFilter] = React.useState<CategoryBrowseFilter>('buffet')
+  const [selectedExploreCategory, setSelectedExploreCategory] = React.useState('All')
+  const [pendingReplacement, setPendingReplacement] = React.useState<CatalogService>()
+  const [isReplacing, setIsReplacing] = React.useState(false)
   const query = searchValue ?? internalSearch
+  const exploreCategories = React.useMemo(
+    () => ['All', ...Array.from(new Set(services.map((service) => service.categoryName)))],
+    [services]
+  )
 
   const visibleVendors = services.filter((vendor) => {
     const normalizedQuery = query.trim().toLowerCase()
+
+    if (
+      isExploreMode &&
+      selectedExploreCategory !== 'All' &&
+      vendor.categoryName !== selectedExploreCategory
+    ) {
+      return false
+    }
 
     if (!normalizedQuery) return true
 
@@ -97,67 +134,144 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
 
   return (
     <View style={styles.screen}>
-      <View style={styles.topAppBar}>
-        <View style={[styles.topAppBarContent, isWide && styles.horizontalPaddingWide]}>
-          <Pressable
-            accessibilityLabel="Go back"
-            accessibilityRole="button"
-            hitSlop={8}
-            onPress={onBack}
-            style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}
-          >
-            <Text style={styles.backIcon}>ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Ãƒâ€šÃ‚Â</Text>
-          </Pressable>
-
-          <Text style={styles.headerTitle}>CHOOSE SERVICES</Text>
-
-          <Pressable
-            accessibilityLabel="More options"
-            accessibilityRole="button"
-            hitSlop={8}
-            onPress={onMore}
-            style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}
-          >
-            <Text style={styles.moreIcon}>ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¹Ãƒâ€šÃ‚Â®</Text>
-          </Pressable>
+      {isExploreMode ? (
+        <View style={styles.topAppBar}>
+          <View style={[styles.topAppBarContent, isWide && styles.horizontalPaddingWide]}>
+            <View style={styles.headerButton} />
+            <Text style={styles.headerTitle}>EXPLORE SERVICES</Text>
+            <View style={styles.headerButton} />
+          </View>
         </View>
-      </View>
-
-      <View style={[styles.stepWrapper, isWide && styles.horizontalPaddingWide]}>
-        <PlanningStepIndicator currentStep={3} label="Choose Services" />
-      </View>
+      ) : (
+        <PlanningScreenHeader
+          currentStep={replacementContext ? 4 : 3}
+          label={replacementContext ? 'Replace Provider' : 'Choose Services'}
+          nextAccessibilityLabel="Review selected services"
+          nextEnabled={!replacementContext && selectedServiceCount > 0}
+          onBack={onBack}
+          onNext={replacementContext ? undefined : onOpenSelectedServices}
+          title={replacementContext ? 'Change Provider' : 'Choose Services'}
+        />
+      )}
 
       <ScrollView
         contentContainerStyle={[
           styles.content,
+          !isExploreMode &&
+            !replacementContext &&
+            selectedServiceCount > 0 &&
+            styles.contentWithSelectedServicesAction,
           isWide ? styles.horizontalPaddingWide : styles.horizontalPaddingMobile,
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <Pressable
-          accessibilityLabel={`Remaining budget: ${formatCurrency(remainingBudget)} pesos`}
-          accessibilityRole="button"
-          onPress={onOpenBudget}
-          style={({ pressed }) => [styles.budgetPill, pressed && styles.budgetPressed]}
-        >
-          <Text style={styles.budgetText}>
-            Remaining Budget: ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â±{formatCurrency(remainingBudget)}
-          </Text>
-          <Text style={styles.chevron}>ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬â„¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾</Text>
-        </Pressable>
+        {replacementContext ? (
+          <View style={styles.replacementBanner}>
+            <Text style={styles.replacementEyebrow}>REPLACING PROVIDER</Text>
+            <Text style={styles.replacementTitle}>{replacementContext.serviceName}</Text>
+            <Text style={styles.replacementCopy}>
+              Choose a replacement for {replacementContext.currentProviderName}. Your schedule
+              will be checked again automatically.
+            </Text>
+          </View>
+        ) : !isExploreMode ? (
+          <Pressable
+            accessibilityLabel={
+              hasSetBudget
+                ? `Remaining budget: ${formatCurrency(remainingBudget)} pesos`
+                : 'No budget set. Pay actual service costs'
+            }
+            accessibilityRole="button"
+            onPress={onOpenBudget}
+            style={({ pressed }) => [styles.budgetPill, pressed && styles.budgetPressed]}
+          >
+            <Text style={styles.budgetText}>
+              {hasSetBudget
+                ? `Remaining Budget: ₱${formatCurrency(remainingBudget)}`
+                : 'Pay actual service costs'}
+            </Text>
+            <Text style={styles.chevron}>⌄</Text>
+          </Pressable>
+        ) : null}
 
         <View style={styles.categoryHeader}>
-          <Text style={styles.categoryIcon}>ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢Ãƒâ€šÃ‚Â¨</Text>
-          <Text style={styles.categoryTitle}>Catering</Text>
+          {!isExploreMode ? <Text style={styles.categoryIcon}>♨</Text> : null}
+          <Text style={styles.categoryTitle}>
+            {isExploreMode ? 'All Services' : categoryName}
+          </Text>
         </View>
 
+        {isExploreMode ? (
+          <ScrollView
+            contentContainerStyle={styles.exploreCategoryContent}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.exploreCategoryScroller}
+          >
+            {exploreCategories.map((option) => {
+              const isSelected = selectedExploreCategory === option
+
+              return (
+                <Pressable
+                  key={option}
+                  accessibilityLabel={`Show ${option} services`}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isSelected }}
+                  onPress={() => setSelectedExploreCategory(option)}
+                  style={({ pressed }) => [
+                    styles.filterChip,
+                    isSelected && styles.filterChipSelected,
+                    pressed && styles.chipPressed,
+                  ]}
+                >
+                  <Text style={[styles.filterLabel, isSelected && styles.filterLabelSelected]}>
+                    {option}
+                  </Text>
+                </Pressable>
+              )
+            })}
+          </ScrollView>
+        ) : replacementContext ? null : (
+          <ScrollView
+            contentContainerStyle={styles.exploreCategoryContent}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.exploreCategoryScroller}
+          >
+            {categories.map((option) => {
+              const isSelected = option.name === categoryName
+
+              return (
+                <Pressable
+                  key={option.id}
+                  accessibilityLabel={`Browse ${option.name}`}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isSelected }}
+                  onPress={() => onSelectCategory?.(option)}
+                  style={({ pressed }) => [
+                    styles.filterChip,
+                    isSelected && styles.filterChipSelected,
+                    pressed && styles.chipPressed,
+                  ]}
+                >
+                  <Text style={[styles.filterLabel, isSelected && styles.filterLabelSelected]}>
+                    {option.name}
+                  </Text>
+                </Pressable>
+              )
+            })}
+          </ScrollView>
+        )}
+
         <View style={styles.searchField}>
-          <Text style={styles.searchIcon}>ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬â„¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢</Text>
+          <Text style={styles.searchIcon}>⌕</Text>
           <TextInput
-            accessibilityLabel="Search caterers"
+            accessibilityLabel={
+              isExploreMode ? 'Search services' : `Search ${categoryName} services`
+            }
             onChangeText={handleSearchChange}
-            placeholder="Search caterers"
+            placeholder={isExploreMode ? 'Search services' : `Search ${categoryName}`}
             placeholderTextColor={palette.secondary}
             returnKeyType="search"
             style={styles.searchInput}
@@ -165,45 +279,49 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
           />
         </View>
 
-        <ScrollView
-          contentContainerStyle={styles.filterContent}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.filterScroller}
-        >
-          {filters.map((filter) => {
-            const isSelected = filter.id === selectedFilter
+        {!isExploreMode && categoryName.toLowerCase().includes('catering') ? (
+          <>
+            <ScrollView
+              contentContainerStyle={styles.filterContent}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.filterScroller}
+            >
+              {filters.map((filter) => {
+                const isSelected = filter.id === selectedFilter
 
-            return (
-              <Pressable
-                key={filter.id}
-                accessibilityLabel={`Filter by ${filter.label}`}
-                accessibilityRole="button"
-                accessibilityState={{ selected: isSelected }}
-                onPress={() => handleFilterChange(filter.id)}
-                style={({ pressed }) => [
-                  styles.filterChip,
-                  isSelected && styles.filterChipSelected,
-                  pressed && styles.chipPressed,
-                ]}
-              >
-                <Text style={[styles.filterLabel, isSelected && styles.filterLabelSelected]}>
-                  {filter.label}
-                </Text>
-              </Pressable>
-            )
-          })}
-        </ScrollView>
+                return (
+                  <Pressable
+                    key={filter.id}
+                    accessibilityLabel={`Filter by ${filter.label}`}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isSelected }}
+                    onPress={() => handleFilterChange(filter.id)}
+                    style={({ pressed }) => [
+                      styles.filterChip,
+                      isSelected && styles.filterChipSelected,
+                      pressed && styles.chipPressed,
+                    ]}
+                  >
+                    <Text style={[styles.filterLabel, isSelected && styles.filterLabelSelected]}>
+                      {filter.label}
+                    </Text>
+                  </Pressable>
+                )
+              })}
+            </ScrollView>
 
-        <Pressable
-          accessibilityLabel={`Sort results. Current sort: ${sortLabel}`}
-          accessibilityRole="button"
-          onPress={onOpenSort}
-          style={({ pressed }) => [styles.sortControl, pressed && styles.pressed]}
-        >
-          <Text style={styles.sortText}>Sort: {sortLabel}</Text>
-          <Text style={styles.sortChevron}>ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬â„¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾</Text>
-        </Pressable>
+            <Pressable
+              accessibilityLabel={`Sort results. Current sort: ${sortLabel}`}
+              accessibilityRole="button"
+              onPress={onOpenSort}
+              style={({ pressed }) => [styles.sortControl, pressed && styles.pressed]}
+            >
+              <Text style={styles.sortText}>Sort: {sortLabel}</Text>
+              <Text style={styles.sortChevron}>⌄</Text>
+            </Pressable>
+          </>
+        ) : null}
 
         <View style={styles.resultsList}>
           {visibleVendors.map((vendor) => (
@@ -218,7 +336,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                 pressed && styles.cardPressed,
               ]}
             >
-              <View
+                <View
                 style={[
                   styles.imagePanel,
                   useHorizontalCards && styles.imagePanelHorizontal,
@@ -241,7 +359,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                 <View style={styles.vendorHeadingRow}>
                   <Text style={styles.vendorName}>{vendor.name}</Text>
                   <View style={styles.ratingGroup}>
-                    <Text style={styles.star}>ÃƒÆ’Ã‚Â¢Ãƒâ€¹Ã…â€œÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦</Text>
+                    <Text style={styles.star}>★</Text>
                     <Text style={styles.rating}>
                       {vendor.reviewCount > 0
                         ? `${vendor.rating} (${vendor.reviewCount})`
@@ -259,18 +377,118 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                     </View>
                   ))}
                 </View>
+
+                {replacementContext ? (
+                  <Pressable
+                    accessibilityLabel={`Change to ${vendor.providerName}`}
+                    accessibilityRole="button"
+                    onPress={(event) => {
+                      event.stopPropagation()
+                      setPendingReplacement(vendor)
+                    }}
+                    style={({ pressed }) => [
+                      styles.changeProviderButton,
+                      pressed && styles.changeProviderButtonPressed,
+                    ]}
+                  >
+                    <Text style={styles.changeProviderButtonText}>CHANGE</Text>
+                  </Pressable>
+                ) : null}
               </View>
             </Pressable>
           ))}
 
           {visibleVendors.length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>No services found</Text>
-              <Text style={styles.emptyCopy}>Services will appear here after providers publish them.</Text>
+              <Text style={styles.emptyTitle}>
+                {replacementContext ? 'No alternate providers available' : 'No services found'}
+              </Text>
+              <Text style={styles.emptyCopy}>
+                {replacementContext
+                  ? 'Another published provider in this category is required before this service can be changed.'
+                  : 'Services will appear here after providers publish them.'}
+              </Text>
             </View>
           ) : null}
         </View>
       </ScrollView>
+
+      {!isExploreMode && !replacementContext && selectedServiceCount > 0 ? (
+        <View style={styles.selectedServicesBar}>
+          <Pressable
+            accessibilityLabel={`Open selected services. ${selectedServiceCount} selected`}
+            accessibilityRole="button"
+            onPress={onOpenSelectedServices}
+            style={({ pressed }) => [
+              styles.selectedServicesButton,
+              pressed && styles.selectedServicesButtonPressed,
+            ]}
+          >
+            <View>
+              <Text style={styles.selectedServicesButtonText}>Selected Services</Text>
+              <Text style={styles.selectedServicesButtonHint}>
+                Review your current event selections
+              </Text>
+            </View>
+            <View style={styles.selectedServicesCount}>
+              <Text style={styles.selectedServicesCountText}>{selectedServiceCount}</Text>
+            </View>
+            <Text style={styles.selectedServicesArrow}>{'\u2192'}</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      <Modal
+        animationType="fade"
+        onRequestClose={() => {
+          if (!isReplacing) setPendingReplacement(undefined)
+        }}
+        transparent
+        visible={Boolean(pendingReplacement)}
+      >
+        <View style={styles.confirmationOverlay}>
+          <View accessibilityViewIsModal style={styles.confirmationCard}>
+            <View style={styles.confirmationIcon}>
+              <Text style={styles.confirmationIconText}>?</Text>
+            </View>
+            <Text style={styles.confirmationTitle}>Confirm provider change</Text>
+            <Text style={styles.confirmationCopy}>
+              Replace {replacementContext?.currentProviderName} with{' '}
+              {pendingReplacement?.providerName}? Your saved event details stay the same.
+            </Text>
+            <View style={styles.confirmationActions}>
+              <Pressable
+                accessibilityRole="button"
+                disabled={isReplacing}
+                onPress={() => setPendingReplacement(undefined)}
+                style={({ pressed }) => [styles.confirmationCancel, pressed && styles.pressed]}
+              >
+                <Text style={styles.confirmationCancelText}>CANCEL</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                disabled={isReplacing}
+                onPress={async () => {
+                  if (!pendingReplacement || isReplacing) return
+                  setIsReplacing(true)
+                  const changed = await onConfirmReplacement?.(pendingReplacement.id)
+                  setIsReplacing(false)
+                  if (changed !== false) setPendingReplacement(undefined)
+                }}
+                style={({ pressed }) => [
+                  styles.confirmationConfirm,
+                  isReplacing && styles.confirmationDisabled,
+                  pressed && styles.changeProviderButtonPressed,
+                ]}
+              >
+                <Text style={styles.confirmationConfirmText}>
+                  {isReplacing ? 'CHANGING...' : 'CONFIRM CHANGE'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {showBottomNavigation && !isWide ? (
         <ClientBottomNavigation activeTab="explore" onSelectTab={onSelectTab} />
@@ -362,6 +580,73 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 112,
   },
+  contentWithSelectedServicesAction: {
+    paddingBottom: 32,
+  },
+  selectedServicesBar: {
+    borderTopWidth: 1,
+    borderTopColor: palette.outlineVariant,
+    backgroundColor: palette.background,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 16,
+  },
+  selectedServicesButton: {
+    width: '100%',
+    maxWidth: 1160,
+    minHeight: 60,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 30,
+    backgroundColor: palette.primaryContainer,
+    paddingHorizontal: 22,
+    paddingVertical: 10,
+    shadowColor: palette.primaryContainer,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  selectedServicesButtonText: {
+    color: palette.onPrimary,
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  selectedServicesButtonHint: {
+    color: '#F3CED4',
+    fontSize: 11,
+    lineHeight: 15,
+    marginTop: 1,
+  },
+  selectedServicesCount: {
+    minWidth: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    marginLeft: 'auto',
+  },
+  selectedServicesCountText: {
+    color: palette.primaryContainer,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '800',
+  },
+  selectedServicesArrow: {
+    color: palette.onPrimary,
+    fontSize: 22,
+    lineHeight: 24,
+    fontWeight: '700',
+    marginLeft: 10,
+  },
+  selectedServicesButtonPressed: {
+    opacity: 0.9,
+    transform: [{ scale: 0.99 }],
+  },
   budgetPill: {
     alignSelf: 'center',
     flexDirection: 'row',
@@ -384,6 +669,29 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     fontWeight: '600',
   },
+  replacementBanner: {
+    borderWidth: 1,
+    borderColor: palette.outlineVariant,
+    borderRadius: 14,
+    backgroundColor: '#FFF7F8',
+    padding: 18,
+    marginBottom: 20,
+  },
+  replacementEyebrow: {
+    color: palette.primaryContainer,
+    fontSize: 10,
+    lineHeight: 14,
+    fontWeight: '800',
+    letterSpacing: 1.1,
+  },
+  replacementTitle: {
+    color: palette.primary,
+    fontSize: 18,
+    lineHeight: 25,
+    fontWeight: '700',
+    marginTop: 4,
+  },
+  replacementCopy: { color: palette.secondary, fontSize: 13, lineHeight: 20, marginTop: 5 },
   chevron: {
     color: palette.primaryContainer,
     fontSize: 17,
@@ -436,6 +744,8 @@ const styles = StyleSheet.create({
     marginHorizontal: -20,
     marginTop: 12,
   },
+  exploreCategoryScroller: { marginHorizontal: -20, marginBottom: 12 },
+  exploreCategoryContent: { gap: 8, paddingHorizontal: 20, paddingBottom: 4 },
   filterContent: {
     gap: 8,
     paddingHorizontal: 20,
@@ -579,6 +889,111 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.9,
   },
+  changeProviderButton: {
+    minHeight: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 21,
+    backgroundColor: palette.primaryContainer,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    marginTop: 18,
+  },
+  changeProviderButtonText: {
+    color: palette.onPrimary,
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: '800',
+    letterSpacing: 1.1,
+  },
+  changeProviderButtonPressed: { opacity: 0.82, transform: [{ scale: 0.98 }] },
+  confirmationOverlay: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(26, 10, 15, 0.58)',
+    padding: 24,
+  },
+  confirmationCard: {
+    width: '100%',
+    maxWidth: 420,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: palette.outlineVariant,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  confirmationIcon: {
+    width: 52,
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 26,
+    backgroundColor: '#F8EDEF',
+    marginBottom: 14,
+  },
+  confirmationIconText: {
+    color: palette.primaryContainer,
+    fontSize: 25,
+    lineHeight: 28,
+    fontWeight: '800',
+  },
+  confirmationTitle: {
+    color: palette.primary,
+    fontSize: 21,
+    lineHeight: 28,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  confirmationCopy: {
+    color: palette.secondary,
+    fontSize: 14,
+    lineHeight: 21,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  confirmationActions: { width: '100%', flexDirection: 'row', gap: 10, marginTop: 24 },
+  confirmationCancel: {
+    minHeight: 48,
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: palette.outlineVariant,
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 14,
+  },
+  confirmationCancelText: {
+    color: palette.primaryContainer,
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: '800',
+    letterSpacing: 0.9,
+  },
+  confirmationConfirm: {
+    minHeight: 48,
+    flex: 1.25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 24,
+    backgroundColor: palette.primaryContainer,
+    paddingHorizontal: 14,
+  },
+  confirmationConfirmText: {
+    color: palette.onPrimary,
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  confirmationDisabled: { opacity: 0.58 },
   emptyState: {
     alignItems: 'center',
     borderWidth: 1,

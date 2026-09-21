@@ -45,12 +45,6 @@ const defaultDetails: BookingDetailValue = {
   paymentStatus: 'Paid',
 }
 
-const serviceNames: Record<string, string> = {
-  Catering: 'Wedding Catering',
-  Florist: 'Wedding Floral Design',
-  Photography: 'Wedding Photography',
-}
-
 export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
   booking,
   details,
@@ -60,11 +54,19 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
   onSubmitReview,
 }) => {
   const provider = booking ?? defaultProvider
+  const isConfirmed = booking?.status === 'confirmed' || booking?.status === 'completed'
+  const isCompleted = booking?.status === 'completed'
+  const bookedServices = booking?.services ?? []
   const value = {
     ...defaultDetails,
     ...(booking
       ? {
-          service: serviceNames[booking.category] ?? booking.category,
+          confirmedDate:
+            isConfirmed && booking.updatedAt
+              ? new Date(booking.updatedAt).toLocaleDateString('en-PH')
+              : '',
+          coverage: `${bookedServices.length} service${bookedServices.length === 1 ? '' : 's'}`,
+          service: booking.eventType || booking.category,
           date: booking.date,
         }
       : {}),
@@ -84,7 +86,7 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
           >
             <Text style={styles.backIcon}>{'\u2190'}</Text>
           </Pressable>
-          <Text style={styles.headerTitle}>Booking Detail</Text>
+          <Text style={styles.headerTitle}>Event Booking</Text>
           <View style={styles.headerSpacer} />
         </View>
       </View>
@@ -94,18 +96,28 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.providerHeader}>
-          <Image
-            accessibilityLabel={provider.imageLabel}
-            resizeMode="cover"
-            source={{ uri: provider.image }}
-            style={styles.providerImage}
-          />
+          {provider.image ? (
+            <Image
+              accessibilityLabel={provider.imageLabel}
+              resizeMode="cover"
+              source={{ uri: provider.image }}
+              style={styles.providerImage}
+            />
+          ) : (
+            <View style={[styles.providerImage, styles.eventImagePlaceholder]}>
+              <Text style={styles.eventImageText}>{provider.name.charAt(0)}</Text>
+            </View>
+          )}
           <View style={styles.providerCopy}>
             <Text numberOfLines={2} style={styles.providerName}>
               {provider.name}
             </Text>
             <View style={styles.categoryBadge}>
-              <Text style={styles.categoryBadgeText}>{provider.category}</Text>
+              <Text style={styles.categoryBadgeText}>
+                {bookedServices.length
+                  ? `${bookedServices.length} SERVICES`
+                  : provider.category.toUpperCase()}
+              </Text>
             </View>
           </View>
         </View>
@@ -118,23 +130,78 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
             label="Requested"
           />
           <TimelineStep
-            complete
-            date={value.confirmedDate}
+            complete={isConfirmed}
+            date={isConfirmed ? value.confirmedDate : undefined}
             label="Confirmed"
           />
-          <TimelineStep label="Completed" />
+          <TimelineStep complete={isCompleted} label="Completed" />
         </View>
 
         <View style={styles.detailsCard}>
-          <Text style={styles.cardTitle}>Booking Details</Text>
-          <DetailRow label="SERVICE" value={value.service} />
+          <Text style={styles.cardTitle}>Event Details</Text>
+          <DetailRow label="EVENT TYPE" value={value.service} />
           <DetailRow
             label="DATE & TIME"
             value={`${value.date}\n${value.time}`}
           />
-          <DetailRow label="COVERAGE" value={value.coverage} />
+          {booking?.guestCount ? (
+            <DetailRow label="GUESTS" value={`${booking.guestCount} guests`} />
+          ) : null}
+          {booking?.venue || booking?.location ? (
+            <DetailRow
+              label="VENUE"
+              value={[booking.venue, booking.location].filter(Boolean).join(', ')}
+            />
+          ) : null}
+          <DetailRow label="SERVICES" value={value.coverage} />
           <DetailRow label="PRICE" last price value={value.price} />
         </View>
+
+        {bookedServices.length > 0 ? (
+          <View style={styles.servicesSection}>
+            <Text style={styles.cardTitle}>Booked Services</Text>
+            {bookedServices.map((service) => (
+              <View key={service.bookingId} style={styles.serviceCard}>
+                {service.image ? (
+                  <Image
+                    accessibilityLabel={service.serviceName}
+                    resizeMode="cover"
+                    source={{ uri: service.image }}
+                    style={styles.serviceImage}
+                  />
+                ) : (
+                  <View style={[styles.serviceImage, styles.eventImagePlaceholder]}>
+                    <Text style={styles.eventImageText}>{service.serviceName.charAt(0)}</Text>
+                  </View>
+                )}
+                <View style={styles.serviceCopy}>
+                  <View style={styles.serviceHeading}>
+                    <Text numberOfLines={2} style={styles.serviceName}>
+                      {service.serviceName}
+                    </Text>
+                    <View
+                      style={[
+                        styles.serviceStatus,
+                        service.status === 'confirmed' && styles.serviceStatusConfirmed,
+                        service.status === 'declined' && styles.serviceStatusDeclined,
+                      ]}
+                    >
+                      <Text style={styles.serviceStatusText}>
+                        {service.status === 'requested'
+                          ? 'REQUESTED'
+                          : service.status.toUpperCase()}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.serviceProvider}>{service.providerName}</Text>
+                  <Text style={styles.serviceMeta}>
+                    {service.category} · PHP {Math.round(service.amount).toLocaleString('en-PH')}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : null}
 
         <View style={styles.paymentCard}>
           <Text style={styles.paymentLabel}>Payment Status</Text>
@@ -144,6 +211,19 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
         </View>
 
         <View style={styles.actions}>
+          {isCompleted && booking?.hasFeedback ? (
+            <View style={styles.feedbackSubmittedCard}>
+              <View style={styles.feedbackSubmittedIcon}>
+                <Text style={styles.feedbackSubmittedCheck}>{'\u2713'}</Text>
+              </View>
+              <View style={styles.feedbackSubmittedCopy}>
+                <Text style={styles.feedbackSubmittedTitle}>Event feedback submitted</Text>
+                <Text style={styles.feedbackSubmittedText}>
+                  Your overall experience was saved for analysis.
+                </Text>
+              </View>
+            </View>
+          ) : null}
           {onSubmitReview && (
             <Pressable
               accessibilityRole="button"
@@ -153,7 +233,7 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                 pressed && styles.reviewButtonPressed,
               ]}
             >
-              <Text style={styles.reviewButtonText}>Submit Review</Text>
+              <Text style={styles.reviewButtonText}>Share Event Experience</Text>
             </Pressable>
           )}
           <Pressable
@@ -170,13 +250,15 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
             <Text style={styles.messageButtonText}>Message Provider</Text>
           </Pressable>
 
-          <Pressable
-            accessibilityRole="button"
-            onPress={onCancelOrReschedule}
-            style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
-          >
-            <Text style={styles.secondaryButtonText}>CANCEL OR RESCHEDULE</Text>
-          </Pressable>
+          {!isCompleted ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={onCancelOrReschedule}
+              style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
+            >
+              <Text style={styles.secondaryButtonText}>CANCEL OR RESCHEDULE</Text>
+            </Pressable>
+          ) : null}
         </View>
       </ScrollView>
     </View>
@@ -286,6 +368,8 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
   },
+  eventImagePlaceholder: { alignItems: 'center', justifyContent: 'center' },
+  eventImageText: { color: palette.burgundy, fontSize: 24, lineHeight: 30, fontWeight: '700' },
   providerCopy: { flex: 1, alignItems: 'flex-start' },
   providerName: { color: palette.text, fontSize: 24, lineHeight: 32, fontWeight: '600', marginBottom: 4 },
   categoryBadge: {
@@ -375,6 +459,44 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   priceValue: { color: palette.burgundy, fontSize: 18, lineHeight: 26, fontWeight: '700' },
+  servicesSection: { gap: 12, marginBottom: 32 },
+  serviceCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    padding: 12,
+  },
+  serviceImage: {
+    width: 56,
+    height: 56,
+    flexShrink: 0,
+    borderRadius: 10,
+    backgroundColor: palette.card,
+  },
+  serviceCopy: { flex: 1, minWidth: 0 },
+  serviceHeading: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  serviceName: { flex: 1, color: palette.text, fontSize: 15, lineHeight: 21, fontWeight: '700' },
+  serviceProvider: { color: palette.muted, fontSize: 13, lineHeight: 19, marginTop: 2 },
+  serviceMeta: { color: palette.burgundy, fontSize: 13, lineHeight: 19, fontWeight: '600', marginTop: 3 },
+  serviceStatus: {
+    borderRadius: 10,
+    backgroundColor: '#FFF1D9',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+  },
+  serviceStatusConfirmed: { backgroundColor: '#DDF4E4' },
+  serviceStatusDeclined: { backgroundColor: '#F9DEDE' },
+  serviceStatusText: {
+    color: palette.text,
+    fontSize: 9,
+    lineHeight: 12,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+  },
   paymentCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -406,6 +528,29 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 1,
   },
+  feedbackSubmittedCard: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderColor: '#B7D7C5',
+    borderRadius: 12,
+    backgroundColor: '#E7F3EB',
+    padding: 15,
+  },
+  feedbackSubmittedIcon: {
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 17,
+    backgroundColor: '#145133',
+  },
+  feedbackSubmittedCheck: { color: palette.surface, fontSize: 17, lineHeight: 20, fontWeight: '800' },
+  feedbackSubmittedCopy: { minWidth: 0, flex: 1 },
+  feedbackSubmittedTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '700' },
+  feedbackSubmittedText: { color: palette.muted, fontSize: 12, lineHeight: 18, marginTop: 2 },
   actions: { alignItems: 'center', gap: 16, paddingTop: 16 },
   reviewButton: {
     width: '100%',

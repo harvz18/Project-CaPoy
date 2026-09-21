@@ -64,7 +64,7 @@ const defaultNotifications: MerchantNotification[] = [
     createdAt: '2026-09-03T08:10:00+08:00',
     id: 'notification-payout-184',
     isRead: true,
-    message: 'Your ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â±30,000.00 payout to BDO ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ 4821 has been processed.',
+    message: 'Your ₱30,000.00 payout to BDO •••• 4821 has been processed.',
     title: 'Payout completed',
   },
   {
@@ -468,11 +468,11 @@ const NotificationRow = ({
         </Text>
         <View style={styles.notificationMeta}>
           <Text style={[styles.categoryLabel, { color: category.color }]}>{category.label}</Text>
-          <Text style={styles.metaDivider}>ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â·</Text>
+          <Text style={styles.metaDivider}>·</Text>
           <Text style={styles.notificationTime}>{formatTime(notification.createdAt)}</Text>
           {notification.actionLabel ? (
             <>
-              <Text style={styles.metaDivider}>ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â·</Text>
+              <Text style={styles.metaDivider}>·</Text>
               <Text style={styles.actionLabel}>{notification.actionLabel}</Text>
             </>
           ) : null}

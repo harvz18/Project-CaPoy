@@ -33,9 +33,11 @@ export interface BookingRequestDecisionValue {
 interface BookingRequestDetailsScreenProps {
   details?: Partial<MerchantBookingRequestDetails>
   initialProviderNote?: string
+  isCompleting?: boolean
   onAccept?: (value: BookingRequestDecisionValue) => void
   onBack?: () => void
   onDecline?: (value: BookingRequestDecisionValue) => void
+  onMarkCompleted?: (request: MerchantBookingRequest) => void
   onMessageClient?: (request: MerchantBookingRequest) => void
   onProviderNoteChange?: (note: string) => void
   processingAction?: BookingRequestDecision
@@ -132,9 +134,11 @@ const statusLabels: Record<MerchantBookingRequest['status'], string> = {
 export const BookingRequestDetailsScreen: React.FC<BookingRequestDetailsScreenProps> = ({
   details,
   initialProviderNote = '',
+  isCompleting = false,
   onAccept,
   onBack,
   onDecline,
+  onMarkCompleted,
   onMessageClient,
   onProviderNoteChange,
   processingAction,
@@ -145,8 +149,17 @@ export const BookingRequestDetailsScreen: React.FC<BookingRequestDetailsScreenPr
   const value: MerchantBookingRequestDetails = { ...defaultDetails, ...details }
   const [providerNote, setProviderNote] = React.useState(initialProviderNote)
   const [showDeclineConfirmation, setShowDeclineConfirmation] = React.useState(false)
-  const isProcessing = Boolean(processingAction)
+  const [showCompletionConfirmation, setShowCompletionConfirmation] = React.useState(false)
+  const isProcessing = Boolean(processingAction) || isCompleting
   const canReview = request.status === 'new'
+  const isConfirmed = request.status === 'confirmed'
+  const parsedEventDate = /^\d{4}-\d{2}-\d{2}$/.test(request.eventDate)
+    ? new Date(`${request.eventDate}T00:00:00`)
+    : new Date(request.eventDate)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const eventDateHasArrived =
+    !Number.isNaN(parsedEventDate.getTime()) && parsedEventDate <= today
 
   const handleProviderNoteChange = (note: string) => {
     setProviderNote(note)
@@ -263,6 +276,37 @@ export const BookingRequestDetailsScreen: React.FC<BookingRequestDetailsScreenPr
                 {value.clientNotes.trim() || 'The client did not add any notes.'}
               </Text>
             </View>
+
+            {request.instructions && request.instructions.length > 0 ? (
+              <View style={styles.instructionBanner}>
+                <View style={styles.instructionHeading}>
+                  <View style={styles.instructionIcon}>
+                    <Text style={styles.instructionIconText}>!</Text>
+                  </View>
+                  <View style={styles.instructionHeadingCopy}>
+                    <Text style={styles.instructionEyebrow}>CLIENT INSTRUCTIONS</Text>
+                    <Text style={styles.instructionTitle}>Please review before accepting</Text>
+                  </View>
+                </View>
+                {request.instructions.map((instruction) => (
+                  <View key={instruction.id} style={styles.instructionItem}>
+                    <Text style={styles.instructionItemTitle}>{instruction.title}</Text>
+                    {instruction.body ? (
+                      <Text style={styles.instructionBody}>{instruction.body}</Text>
+                    ) : null}
+                    {instruction.tags.length > 0 ? (
+                      <View style={styles.instructionTags}>
+                        {instruction.tags.map((tag) => (
+                          <View key={`${instruction.id}-${tag}`} style={styles.instructionTag}>
+                            <Text style={styles.instructionTagText}>{tag}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    ) : null}
+                  </View>
+                ))}
+              </View>
+            ) : null}
           </View>
 
           <View style={styles.secondaryColumn}>
@@ -333,6 +377,25 @@ export const BookingRequestDetailsScreen: React.FC<BookingRequestDetailsScreenPr
             </View>
           </View>
         ) : null}
+
+        {isConfirmed ? (
+          <View style={styles.completionBanner}>
+            <View style={styles.completionIcon}>
+              <Text style={styles.completionIconText}>{eventDateHasArrived ? '\u2713' : '\u25F7'}</Text>
+            </View>
+            <View style={styles.completionCopy}>
+              <Text style={styles.completionEyebrow}>SERVICE COMPLETION</Text>
+              <Text style={styles.completionTitle}>
+                {eventDateHasArrived ? 'Has your booked service finished?' : 'Completion opens on the event date'}
+              </Text>
+              <Text style={styles.completionText}>
+                {eventDateHasArrived
+                  ? 'Confirm only after you have finished delivering this service. The client will be notified immediately.'
+                  : `You can mark this service finished on or after ${formatDate(request.eventDate)}.`}
+              </Text>
+            </View>
+          </View>
+        ) : null}
       </ScrollView>
 
       {canReview ? (
@@ -399,6 +462,65 @@ export const BookingRequestDetailsScreen: React.FC<BookingRequestDetailsScreenPr
                   </Text>
                 </Pressable>
               </>
+            )}
+          </View>
+        </View>
+      ) : null}
+
+      {isConfirmed ? (
+        <View style={styles.footer}>
+          <View style={[styles.footerContent, isWide && styles.wideHorizontalPadding]}>
+            {showCompletionConfirmation ? (
+              <>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={isCompleting}
+                  onPress={() => setShowCompletionConfirmation(false)}
+                  style={({ pressed }) => [
+                    styles.secondaryButton,
+                    isCompleting && styles.buttonDisabled,
+                    pressed && styles.secondaryButtonPressed,
+                  ]}
+                >
+                  <Text style={styles.secondaryButtonText}>Not Yet</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityLabel="Confirm service is finished"
+                  accessibilityRole="button"
+                  disabled={isCompleting}
+                  onPress={() => onMarkCompleted?.(request)}
+                  style={({ pressed }) => [
+                    styles.acceptButton,
+                    isCompleting && styles.buttonDisabled,
+                    pressed && styles.acceptButtonPressed,
+                  ]}
+                >
+                  <Text style={styles.acceptButtonText}>
+                    {isCompleting ? 'Marking Finished...' : 'Yes, Service Is Finished'}
+                  </Text>
+                </Pressable>
+              </>
+            ) : (
+              <Pressable
+                accessibilityLabel={
+                  eventDateHasArrived
+                    ? 'Mark booked service as finished'
+                    : 'Service completion is not available before the event date'
+                }
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !eventDateHasArrived }}
+                disabled={!eventDateHasArrived}
+                onPress={() => setShowCompletionConfirmation(true)}
+                style={({ pressed }) => [
+                  styles.acceptButton,
+                  !eventDateHasArrived && styles.buttonDisabled,
+                  pressed && styles.acceptButtonPressed,
+                ]}
+              >
+                <Text style={styles.acceptButtonText}>
+                  {eventDateHasArrived ? 'Mark Service as Finished' : 'Available on Event Date'}
+                </Text>
+              </Pressable>
             )}
           </View>
         </View>
@@ -576,6 +698,34 @@ const styles = StyleSheet.create({
   detailValue: { minWidth: 0, flex: 1, color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '500' },
   notesCard: { borderRadius: 10, backgroundColor: palette.surfaceContainerLow, padding: 18 },
   clientNotes: { color: palette.secondary, fontSize: 14, lineHeight: 21, marginTop: 10 },
+  instructionBanner: {
+    gap: 12,
+    borderWidth: 1,
+    borderColor: '#D9A441',
+    borderLeftWidth: 5,
+    borderRadius: 10,
+    backgroundColor: '#FFF7E5',
+    padding: 16,
+  },
+  instructionHeading: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  instructionIcon: {
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 15,
+    backgroundColor: '#D9A441',
+  },
+  instructionIconText: { color: palette.white, fontSize: 17, lineHeight: 20, fontWeight: '800' },
+  instructionHeadingCopy: { flex: 1 },
+  instructionEyebrow: { color: '#6E4B0D', fontSize: 10, lineHeight: 14, fontWeight: '800', letterSpacing: 0.9 },
+  instructionTitle: { color: palette.text, fontSize: 15, lineHeight: 21, fontWeight: '700', marginTop: 1 },
+  instructionItem: { borderTopWidth: 1, borderTopColor: '#ECD39F', paddingTop: 11 },
+  instructionItemTitle: { color: palette.text, fontSize: 13, lineHeight: 19, fontWeight: '700' },
+  instructionBody: { color: palette.secondary, fontSize: 13, lineHeight: 20, marginTop: 3 },
+  instructionTags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
+  instructionTag: { borderRadius: 999, backgroundColor: '#F3D99D', paddingHorizontal: 9, paddingVertical: 4 },
+  instructionTagText: { color: '#60420B', fontSize: 10, lineHeight: 14, fontWeight: '700' },
   packageCard: {
     borderWidth: 1,
     borderColor: palette.border,
@@ -630,6 +780,32 @@ const styles = StyleSheet.create({
     padding: 16,
     marginTop: 20,
   },
+  completionBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    borderWidth: 1,
+    borderColor: '#B7D7C5',
+    borderLeftWidth: 5,
+    borderLeftColor: palette.completed,
+    borderRadius: 10,
+    backgroundColor: palette.completedSoft,
+    padding: 16,
+    marginTop: 20,
+  },
+  completionIcon: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+    backgroundColor: palette.completed,
+  },
+  completionIconText: { color: palette.white, fontSize: 17, lineHeight: 20, fontWeight: '800' },
+  completionCopy: { minWidth: 0, flex: 1 },
+  completionEyebrow: { color: palette.completed, fontSize: 10, lineHeight: 14, fontWeight: '800', letterSpacing: 0.9 },
+  completionTitle: { color: palette.text, fontSize: 15, lineHeight: 21, fontWeight: '700', marginTop: 2 },
+  completionText: { color: palette.secondary, fontSize: 12, lineHeight: 18, marginTop: 3 },
   warningIcon: {
     width: 24,
     height: 24,

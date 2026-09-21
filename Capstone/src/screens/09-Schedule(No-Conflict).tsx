@@ -8,13 +8,16 @@ import {
   
   View,
 } from 'react-native'
-import { PlanningStepIndicator } from '../components/PlanningStepIndicator'
+import { PlanningScreenHeader } from '../components/PlanningScreenHeader'
 
 export interface ScheduleProvider {
   available: boolean
+  category?: string
   dateTime: string
   id: string
+  message?: string
   name: string
+  serviceName?: string
 }
 
 interface ScheduleNoConflictScreenProps {
@@ -88,25 +91,14 @@ export const ScheduleNoConflictScreen: React.FC<ScheduleNoConflictScreenProps> =
 
   return (
     <View style={styles.screen}>
-      <View style={styles.topAppBar}>
-        <View style={styles.topAppBarContent}>
-          <Pressable
-            accessibilityLabel="Go back"
-            accessibilityRole="button"
-            hitSlop={8}
-            onPress={onBack}
-            style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
-          >
-            <Text style={styles.backIcon}>ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Ãƒâ€šÃ‚Â</Text>
-          </Pressable>
-          <Text style={styles.headerTitle}>Schedule Check</Text>
-          <View style={styles.headerSpacer} />
-        </View>
-      </View>
-
-      <View style={styles.stepWrapper}>
-        <PlanningStepIndicator currentStep={4} label="Schedule Check" />
-      </View>
+      <PlanningScreenHeader
+        currentStep={4}
+        label="Schedule Check"
+        nextEnabled={!hasConflicts}
+        onBack={onBack}
+        onNext={onContinueToPayment}
+        title="Schedule Check"
+      />
 
       <ScrollView
         contentContainerStyle={styles.content}
@@ -121,7 +113,7 @@ export const ScheduleNoConflictScreen: React.FC<ScheduleNoConflictScreenProps> =
           <View style={[styles.statusIconCircle, hasConflicts && styles.statusIconConflict]}>
             <View style={[styles.checkCircle, hasConflicts && styles.conflictCircle]}>
               <Text style={[styles.checkMark, hasConflicts && styles.conflictMark]}>
-                {hasConflicts ? '!' : 'ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ'}
+                {hasConflicts ? '!' : '✓'}
               </Text>
             </View>
           </View>
@@ -158,6 +150,12 @@ export const ScheduleNoConflictScreen: React.FC<ScheduleNoConflictScreenProps> =
               >
                 <View style={styles.providerCopy}>
                   <Text style={styles.providerName}>{provider.name}</Text>
+                  {provider.serviceName ? (
+                    <Text style={styles.serviceName}>
+                      {provider.serviceName}
+                      {provider.category ? ` \u00b7 ${provider.category}` : ''}
+                    </Text>
+                  ) : null}
                   <Text style={styles.providerDate}>{provider.dateTime}</Text>
                 </View>
                 <View
@@ -169,7 +167,7 @@ export const ScheduleNoConflictScreen: React.FC<ScheduleNoConflictScreenProps> =
                   <Text
                     style={[styles.rowCheckMark, !provider.available && styles.rowConflictMark]}
                   >
-                    {provider.available ? 'ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ' : '!'}
+                    {provider.available ? '✓' : '!'}
                   </Text>
                 </View>
               </Pressable>
@@ -343,6 +341,7 @@ const styles = StyleSheet.create({
   providerRowPressed: { backgroundColor: palette.background },
   providerCopy: { flex: 1 },
   providerName: { color: palette.text, fontSize: 16, lineHeight: 24, fontWeight: '600' },
+  serviceName: { color: palette.primaryContainer, fontSize: 12, lineHeight: 17, marginTop: 2 },
   providerDate: {
     color: palette.secondary,
     fontSize: 11,

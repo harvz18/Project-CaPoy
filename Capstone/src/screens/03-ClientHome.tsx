@@ -67,11 +67,13 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   onSelectAction,
   onSelectRecommendation,
   remainingBudget,
+  totalBudget,
   userName,
 }) => {
   const { width } = useWindowDimensions()
   const isWide = width >= 768
-  const budget = remainingBudget ?? 45000
+  const budget = remainingBudget ?? 0
+  const hasSetBudget = (totalBudget ?? 0) > 0
   const lastScrollY = React.useRef(0)
 
   return (
@@ -187,8 +189,12 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
               <View style={styles.budgetCardContent}>
                 <Image accessibilityLabel="Budget illustration" source={require('../../images/BudgetSVG.png')} style={styles.budgetImage} />
                 <View style={styles.budgetCardCopy}>
-                  <Text style={styles.financeLabel}>BUDGET AVAILABLE</Text>
-                  <Text style={styles.financeValue}>₱{budget.toLocaleString()}</Text>
+                  <Text style={styles.financeLabel}>
+                    {hasSetBudget ? 'BUDGET AVAILABLE' : 'PAYMENT PLAN'}
+                  </Text>
+                  <Text style={[styles.financeValue, !hasSetBudget && styles.financeValueCompact]}>
+                    {hasSetBudget ? `₱${budget.toLocaleString()}` : 'Actual service costs'}
+                  </Text>
                 </View>
               </View>
             </Pressable>
@@ -644,6 +650,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: 2,
   },
+  financeValueCompact: { fontSize: 15, lineHeight: 20 },
   financeSubvalue: {
     color: '#2B2323',
     fontSize: 12,

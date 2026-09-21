@@ -1,4 +1,5 @@
 import React from 'react'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 import { Animated, Easing, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
@@ -14,10 +15,23 @@ import {
 
 import clientSignupVideo from '../images/ClientSignupMP4.mp4'
 import { supabase } from './lib/supabase'
-import { CatalogService, fetchCatalogServices, mockCatalogServices } from './lib/catalog'
 import {
+  CatalogCategoryId,
+  CatalogService,
+  catalogCategoryName,
+  categoryNameToId,
+  fallbackServiceCategories,
+  fetchServiceCategories,
+  loadClientCatalogServices,
+  mockCatalogServices,
+  ServiceCategoryOption,
+} from './lib/catalog'
+import {
+  fetchClientPlanningState,
+  removeServiceSelection,
+  replaceServiceSelection,
   saveBudgetPlan,
-  saveClientReview,
+  saveEventFeedback,
   saveEventDraft,
   savePlanningPayment,
   saveProviderInstructions,
@@ -27,6 +41,7 @@ import {
 import {
   changeMerchantPassword,
   clearMerchantServiceDraft,
+  completeMerchantBooking,
   fetchClientBookings,
   fetchMerchantBookingRequests,
   fetchMerchantServices,
@@ -47,7 +62,7 @@ import { colors } from './theme/tokens'
 import { ClientBottomNavigation } from './components/ClientBottomNavigation'
 import { ClientHomeScreen, ClientHomeTab } from './screens/03-ClientHome'
 import { ClientConversation, MessagesScreen } from './screens/03.1-Messages'
-import { ChatThreadScreen } from './screens/03.2-ChatThread'
+import { ChatMessage, ChatThreadScreen } from './screens/03.2-ChatThread'
 import { MerchantHomeScreen, MerchantHomeTab } from './screens/16-MerchantHome'
 import {
   ServiceInformationValue,
@@ -110,9 +125,19 @@ import {
   SelectedSummaryService,
 } from './screens/07-SelectedSummary'
 import { RoleHomePlaceholderScreen } from './screens/RoleHomePlaceholder'
-import { InstructionModuleScreen } from './screens/10-InstructionModule'
-import { ScheduleNoConflictScreen } from './screens/09-Schedule(No-Conflict)'
-import { ScheduleConflictScreen } from './screens/09-Schedule(Conflict)'
+import {
+  InstructionModuleScreen,
+  InstructionModuleService,
+} from './screens/10-InstructionModule'
+import {
+  ScheduleNoConflictScreen,
+  ScheduleProvider,
+} from './screens/09-Schedule(No-Conflict)'
+import {
+  ScheduleConflictProvider,
+  ScheduleConflictScreen,
+} from './screens/09-Schedule(Conflict)'
+import { PlanningStepNavigationProvider } from './components/PlanningStepIndicator'
 import { BookingItem, BookingScreen } from './screens/11-BookingScreen'
 import { BookingDetailsScreen } from './screens/11.1-BookingDetails'
 import {
@@ -127,7 +152,14 @@ import {
   LedgerCategory,
   LedgerTransaction,
 } from './screens/14-EventLedger'
-import { SubmitReviewScreen } from './screens/15-SubmitReview'
+import { EventFeedbackScreen } from './screens/15.1-EventFeedback'
+import {
+  fetchConversationMessages,
+  fetchConversations,
+  fetchNotifications,
+  markConversationRead,
+  sendConversationMessage,
+} from './lib/messaging'
 
 type AppScreen =
   | 'onboarding'
@@ -179,7 +211,7 @@ type AppScreen =
   | 'payment'
   | 'confirmation'
   | 'eventLedger'
-  | 'submitReview'
+  | 'eventFeedback'
   | 'messages'
   | 'chatThread'
   | 'notifications'
@@ -257,7 +289,7 @@ const ClientSignupIntroScreen: React.FC<ClientSignupIntroScreenProps> = ({ onCom
   )
 }
 
-const DEFAULT_BUDGET = 45000
+const DEFAULT_BUDGET = 0
 const DEFAULT_EVENT: EventCreationValue = {
   date: '',
   eventName: '',
@@ -335,11 +367,24 @@ export const App: React.FC = () => {
   const [selectedBooking, setSelectedBooking] = React.useState<BookingItem>()
   const [selectedConversation, setSelectedConversation] =
     React.useState<ClientConversation>()
+  const [conversations, setConversations] = React.useState<ClientConversation[]>([])
+  const [conversationMessages, setConversationMessages] = React.useState<ChatMessage[]>([])
+  const [notifications, setNotifications] = React.useState<MerchantNotification[]>([])
+  const [isSendingMessage, setIsSendingMessage] = React.useState(false)
   const [catalogServices, setCatalogServices] =
     React.useState<CatalogService[]>(mockCatalogServices)
-  const [selectedCategory, setSelectedCategory] = React.useState('catering')
+  const [serviceCategories, setServiceCategories] =
+    React.useState<ServiceCategoryOption[]>(fallbackServiceCategories)
+  const [serviceBrowseMode, setServiceBrowseMode] =
+    React.useState<'explore' | 'planning'>('planning')
+  const [selectedCategory, setSelectedCategory] =
+    React.useState<CatalogCategoryId>('catering')
   const [currentServiceId, setCurrentServiceId] = React.useState(mockCatalogServices[0]?.id ?? '')
   const [selectedServices, setSelectedServices] = React.useState<SelectedSummaryService[]>([])
+  const [scheduleProviders, setScheduleProviders] = React.useState<ScheduleProvider[]>([])
+  const [replacementTarget, setReplacementTarget] =
+    React.useState<ScheduleConflictProvider>()
+  const [maxPlanningStep, setMaxPlanningStep] = React.useState(1)
   const [clientBookings, setClientBookings] = React.useState<BookingItem[]>([])
   const [merchantRequests, setMerchantRequests] = React.useState<MerchantBookingRequest[]>([])
   const [merchantServices, setMerchantServices] = React.useState<MerchantServiceListing[]>([])
@@ -362,6 +407,9 @@ export const App: React.FC = () => {
   const [isPublishingService, setIsPublishingService] = React.useState(false)
   const [isSavingServiceDraft, setIsSavingServiceDraft] = React.useState(false)
   const [isSavingAvailability, setIsSavingAvailability] = React.useState(false)
+  const [completingBookingId, setCompletingBookingId] = React.useState('')
+  const [isFinalizingPayment, setIsFinalizingPayment] = React.useState(false)
+  const [removingServiceId, setRemovingServiceId] = React.useState('')
   const [hasMerchantDraft, setHasMerchantDraft] = React.useState(false)
   const [toastMessage, setToastMessage] = React.useState('')
 
@@ -390,14 +438,9 @@ export const App: React.FC = () => {
   }
 
   const openPlanningHub = () => {
-    budgetTrackerEntrance.setValue(width)
-    setScreen('budgetTracker')
-    Animated.timing(budgetTrackerEntrance, {
-      toValue: 0,
-      duration: 360,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start()
+    setReplacementTarget(undefined)
+    setServiceBrowseMode('planning')
+    setScreen('categoryBrowse')
   }
   const openSelectedPlan = () => setScreen('selectedSummary')
   const openEventCreation = () => {
@@ -465,7 +508,10 @@ export const App: React.FC = () => {
   const openClientTab = (tab: ClientHomeTab) => {
     setHomeReturnScreen('clientHome')
     if (tab === 'home') setScreen('clientHome')
-    if (tab === 'explore') setScreen('budgetTracker')
+    if (tab === 'explore') {
+      setServiceBrowseMode('explore')
+      setScreen('categoryBrowse')
+    }
     if (tab === 'bookings') setScreen('bookings')
     if (tab === 'messages') setScreen('messages')
     if (tab === 'profile') setScreen('selectedSummary')
@@ -498,7 +544,12 @@ export const App: React.FC = () => {
   const categoryServices = catalogServices.filter(
     (service) => service.categoryId === selectedCategory
   )
-  const visibleCatalogServices = categoryServices.length > 0 ? categoryServices : catalogServices
+  const visibleCatalogServices = categoryServices
+  const replacementCatalogServices = replacementTarget
+    ? visibleCatalogServices.filter(
+        (service) => !service.isMock && service.providerName !== replacementTarget.name
+      )
+    : visibleCatalogServices
   const paymentItems: PaymentOrderItem[] = selectedServices.map((service) => ({
     description: service.detail,
     id: service.id,
@@ -516,6 +567,20 @@ export const App: React.FC = () => {
             price: 0,
           },
         ]
+  const instructionServices: InstructionModuleService[] = selectedServices.map((selected) => {
+    const catalogService = catalogServices.find((service) => service.id === selected.id)
+
+    return {
+      category: catalogService?.categoryName ?? selected.category,
+      id: selected.id,
+      imageLabel: selected.imageLabel,
+      imageUrl: selected.imageUrl,
+      name: selected.name,
+      providerId: catalogService?.bookingProviderId ?? catalogService?.providerId,
+      providerName: catalogService?.providerName ?? selected.name,
+      serviceId: catalogService?.bookingServiceId ?? catalogService?.id,
+    }
+  })
   const paymentEvent: PaymentEventDetails = {
     date: eventDisplayDate,
     guestCount: eventDetails.guestCount,
@@ -549,16 +614,19 @@ export const App: React.FC = () => {
   React.useEffect(() => {
     let isMounted = true
 
-    fetchCatalogServices().then((services) => {
+    Promise.all([loadClientCatalogServices(), fetchServiceCategories()]).then(
+      ([services, categories]) => {
       if (!isMounted) {
         return
       }
 
       setCatalogServices(services)
+      setServiceCategories(categories)
       setCurrentServiceId((current) =>
         services.some((service) => service.id === current) ? current : services[0]?.id ?? ''
       )
-    })
+      }
+    )
 
     return () => {
       isMounted = false
@@ -566,12 +634,26 @@ export const App: React.FC = () => {
   }, [])
 
   const refreshLiveData = React.useCallback(async () => {
-    const [services, bookings, requests, merchantServiceRows, draft] = await Promise.all([
-      fetchCatalogServices(),
+    const [
+      services,
+      bookings,
+      requests,
+      merchantServiceRows,
+      draft,
+      conversationRows,
+      notificationRows,
+      planningState,
+      categories,
+    ] = await Promise.all([
+      loadClientCatalogServices(),
       fetchClientBookings(),
       fetchMerchantBookingRequests(),
       fetchMerchantServices(),
       loadMerchantServiceDraft(),
+      fetchConversations(),
+      fetchNotifications(),
+      fetchClientPlanningState(),
+      fetchServiceCategories(),
     ])
 
     setCatalogServices(services)
@@ -580,6 +662,18 @@ export const App: React.FC = () => {
     setMerchantServices((current) =>
       merchantServiceRows.length > 0 ? merchantServiceRows : current
     )
+    setConversations(conversationRows)
+    setNotifications(notificationRows)
+    setServiceCategories(categories)
+    if (planningState.event) setEventDetails(planningState.event)
+    if (planningState.totalBudget !== undefined) setTotalBudget(planningState.totalBudget)
+    setSelectedServices(planningState.selectedServices)
+    setLastPayment(planningState.lastPayment)
+    setScheduleProviders(planningState.scheduleProviders ?? [])
+    setMaxPlanningStep((current) => {
+      const inferredStep = planningState.maxPlanningStep ?? 1
+      return Math.max(current, inferredStep)
+    })
     setCurrentServiceId((current) =>
       services.some((service) => service.id === current) ? current : services[0]?.id ?? ''
     )
@@ -669,6 +763,13 @@ export const App: React.FC = () => {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (!session?.user) {
+        if (event === 'SIGNED_OUT') {
+          setUserName('Planner')
+          setMaxPlanningStep(1)
+          setReplacementTarget(undefined)
+          setScheduleProviders([])
+          setScreen('roleSelection')
+        }
         return
       }
 
@@ -738,22 +839,31 @@ export const App: React.FC = () => {
     }).start()
   }
 
-  const handleBudgetContinue = (budget: number, priorities: string[]) => {
-    if (budget <= 0) {
-      openPlanningHub()
+  const handleBudgetContinue = async (budget: number, priorities: string[]) => {
+    const result = await saveBudgetPlan({ budget, priorities })
+
+    if (!result.ok) {
+      setToastMessage(result.message ?? 'Unable to save your budget preferences.')
       return
     }
 
     setTotalBudget(budget)
-    void saveBudgetPlan({ budget, priorities })
+    setMaxPlanningStep((current) => Math.max(current, 3))
     openPlanningHub()
   }
 
-  const handleEventContinue = (value: EventCreationValue, nextScreen: AppScreen) => {
+  const handleEventContinue = async (value: EventCreationValue, nextScreen: AppScreen) => {
     setEventDetails(value)
-    void saveEventDraft(value)
+    setScheduleProviders([])
+
+    const result = await saveEventDraft(value)
+    if (!result.ok) {
+      setToastMessage(result.message ?? 'Unable to save your event details.')
+      return
+    }
 
     if (nextScreen === 'budgetAllocation') {
+      setMaxPlanningStep((current) => Math.min(4, Math.max(current, 2)))
       budgetAllocationEntrance.setValue(width)
       setScreen(nextScreen)
       Animated.timing(budgetAllocationEntrance, {
@@ -768,6 +878,84 @@ export const App: React.FC = () => {
     setScreen(nextScreen)
   }
 
+  const runScheduleCheck = async () => {
+    const scheduleResult = await saveScheduleCheck()
+
+    if (!scheduleResult.ok) {
+      setToastMessage(scheduleResult.message ?? 'Unable to check provider availability.')
+      return false
+    }
+
+    setScheduleProviders(scheduleResult.providers ?? [])
+    const hasConflict = scheduleResult.status === 'conflict'
+    setMaxPlanningStep((current) =>
+      hasConflict ? Math.min(current, 4) : Math.max(current, 5)
+    )
+    setScreen(hasConflict ? 'scheduleConflict' : 'scheduleNoConflict')
+    return true
+  }
+
+  const handlePlanningStepPress = (step: number) => {
+    if (step < 1 || step > maxPlanningStep) return
+
+    setReplacementTarget(undefined)
+    setServiceBrowseMode('planning')
+
+    if (step === 1) setScreen('eventCreation')
+    if (step === 2) setScreen('budgetAllocation')
+    if (step === 3) setScreen(selectedServices.length > 0 ? 'selectedSummary' : 'categoryBrowse')
+    if (step === 4) {
+      if (scheduleProviders.length > 0) {
+        setScreen(
+          scheduleProviders.some((provider) => !provider.available)
+            ? 'scheduleConflict'
+            : 'scheduleNoConflict'
+        )
+      } else {
+        setScreen('instructionModule')
+      }
+    }
+    if (step === 5) setScreen('payment')
+  }
+
+  const handleScheduleDateChange = async (date: string) => {
+    const nextEvent = { ...eventDetails, date }
+    const result = await saveEventDraft(nextEvent)
+
+    if (!result.ok) {
+      setToastMessage(result.message ?? 'Unable to update the event date.')
+      return false
+    }
+
+    setEventDetails(nextEvent)
+    setScheduleProviders([])
+    return runScheduleCheck()
+  }
+
+  const handleProviderReplacement = async (vendorId: string) => {
+    if (!replacementTarget) return false
+    const service = catalogServices.find((item) => item.id === vendorId)
+    if (!service) {
+      setToastMessage('The selected provider service is no longer available.')
+      return false
+    }
+
+    const result = await replaceServiceSelection({
+      selectionId: replacementTarget.id,
+      service,
+    })
+
+    if (!result.ok) {
+      setToastMessage(result.message ?? 'Unable to change the service provider.')
+      return false
+    }
+
+    setReplacementTarget(undefined)
+    await refreshLiveData()
+    setToastMessage(`Provider changed to ${service.providerName}. Rechecking the schedule.`)
+    return runScheduleCheck()
+  }
+
   React.useEffect(() => {
     if (!toastMessage) {
       return undefined
@@ -778,12 +966,97 @@ export const App: React.FC = () => {
   }, [toastMessage])
 
   React.useEffect(() => {
-    if (screen === 'providerServices') {
+    if (
+      [
+        'bookings',
+        'categoryBrowse',
+        'messages',
+        'notifications',
+        'providerBookingRequests',
+        'providerHome',
+        'providerNotifications',
+        'providerServices',
+      ].includes(screen)
+    ) {
       void refreshLiveData()
     }
   }, [refreshLiveData, screen])
 
-  const handleAddSelection = (value: Parameters<typeof saveServiceSelection>[0]) => {
+  React.useEffect(() => {
+    if (!supabase) return undefined
+
+    const client = supabase
+    let active = true
+    let bookingChannel: RealtimeChannel | undefined
+
+    void client.auth.getUser().then(({ data }) => {
+      if (!active || !data.user) return
+
+      bookingChannel = client
+        .channel(`client-booking-progress-${data.user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            filter: `client_id=eq.${data.user.id}`,
+            schema: 'public',
+            table: 'bookings',
+          },
+          () => {
+            void refreshLiveData()
+          }
+        )
+        .subscribe()
+    })
+
+    return () => {
+      active = false
+      if (bookingChannel) void client.removeChannel(bookingChannel)
+    }
+  }, [refreshLiveData])
+
+  React.useEffect(() => {
+    if (screen !== 'bookings' && screen !== 'bookingDetails') return undefined
+
+    const refreshTimer = setInterval(() => {
+      void refreshLiveData()
+    }, 12000)
+
+    return () => clearInterval(refreshTimer)
+  }, [refreshLiveData, screen])
+
+  React.useEffect(() => {
+    setSelectedBooking((current) =>
+      current
+        ? clientBookings.find((booking) => booking.id === current.id) ?? current
+        : current
+    )
+  }, [clientBookings])
+
+  const handleAddSelection = async (value: Parameters<typeof saveServiceSelection>[0]) => {
+    if (!supabase) {
+      setToastMessage('Supabase is not configured. Check the app environment settings.')
+      return
+    }
+
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession()
+
+    if (sessionError || !session?.user) {
+      setToastMessage('Your session expired. Sign in again with your client account.')
+      openLogin('roleSelection')
+      return
+    }
+
+    const result = await saveServiceSelection(value)
+
+    if (!result.ok) {
+      setToastMessage(result.message ?? 'Unable to save the service selection.')
+      return
+    }
+
     const nextSelection: SelectedSummaryService = {
       id: value.service.id,
       category: value.service.categoryName.toUpperCase(),
@@ -803,9 +1076,37 @@ export const App: React.FC = () => {
           )
         : [...current, nextSelection]
     })
+    setScheduleProviders([])
+    setMaxPlanningStep((current) => Math.min(current, 4))
 
-    void saveServiceSelection(value).then(() => refreshLiveData())
+    setToastMessage('Service added. Providers are notified only after final booking.')
+    await refreshLiveData()
     setScreen('selectedSummary')
+  }
+
+  const handleRemoveSelection = async (service: SelectedSummaryService) => {
+    if (removingServiceId) return
+
+    setRemovingServiceId(service.id)
+    const result = await removeServiceSelection({
+      serviceId: service.id,
+      serviceName: service.name,
+    })
+
+    if (!result.ok) {
+      setToastMessage(result.message ?? 'Unable to remove this service.')
+      setRemovingServiceId('')
+      return
+    }
+
+    setSelectedServices((current) => current.filter((item) => item.id !== service.id))
+    setScheduleProviders([])
+    setMaxPlanningStep((current) =>
+      Math.min(current, selectedServices.length === 1 ? 3 : 4)
+    )
+    setToastMessage(`${service.name} removed from your event plan.`)
+    await refreshLiveData()
+    setRemovingServiceId('')
   }
 
   const handleMerchantAction = (action: MerchantProfileAction) => {
@@ -831,6 +1132,22 @@ export const App: React.FC = () => {
     value: ServiceListingReviewValue,
     status: 'draft' | 'active'
   ) => {
+    if (!supabase) {
+      setToastMessage('Supabase is not configured. Check the app environment settings.')
+      return
+    }
+
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession()
+
+    if (sessionError || !session?.user) {
+      setToastMessage('Your session expired. Sign in again with your service-provider account.')
+      openLogin('roleSelection')
+      return
+    }
+
     if (status === 'active') {
       setIsPublishingService(true)
     } else {
@@ -879,12 +1196,38 @@ export const App: React.FC = () => {
     setScreen('providerServiceInfo')
   }
 
-  const handleBookingDecision = (
+  const handleBookingDecision = async (
     value: BookingRequestDecisionValue | BookingRequestDeclineValue
   ) => {
-    void saveBookingDecision(value).then(() => refreshLiveData())
+    const result = await saveBookingDecision(value)
+    if (!result.ok) {
+      setToastMessage(result.message ?? 'Unable to update the booking request.')
+      return
+    }
+
+    await refreshLiveData()
     setMerchantRequestStatus('reason' in value || value.decision === 'declined' ? 'cancelled' : 'confirmed')
     setSelectedMerchantRequest(value.request)
+    setScreen('providerBookingRequests')
+  }
+
+  const handleBookingCompletion = async (request: MerchantBookingRequest) => {
+    if (completingBookingId) return
+
+    setCompletingBookingId(request.id)
+    const result = await completeMerchantBooking(request.id)
+
+    if (!result.ok) {
+      setCompletingBookingId('')
+      setToastMessage(result.message ?? 'Unable to mark this service as finished.')
+      return
+    }
+
+    await refreshLiveData()
+    setCompletingBookingId('')
+    setMerchantRequestStatus('completed')
+    setSelectedMerchantRequest({ ...request, status: 'completed' })
+    setToastMessage('Service marked finished. The client has been notified.')
     setScreen('providerBookingRequests')
   }
 
@@ -952,14 +1295,10 @@ export const App: React.FC = () => {
       case 'login':
         return (
           <LoginScreen
-            allowPreviewAccess
             onBack={() => setScreen(loginReturnScreen)}
             onCreateAccount={() => setScreen('roleSelection')}
             onForgotPassword={() => setScreen('forgotPassword')}
-            onLogIn={() => {
-              setHomeReturnScreen('clientHome')
-              setScreen('clientHome')
-            }}
+            onLogIn={handleAuthenticatedUser}
           />
         )
       case 'forgotPassword':
@@ -1115,6 +1454,23 @@ export const App: React.FC = () => {
         return (
           <MerchantHomeScreen
             businessName={userName}
+            hasUnreadNotifications={notifications.some((notification) => !notification.isRead)}
+            scheduleItems={merchantRequests
+              .filter((request) => request.status === 'confirmed')
+              .slice(0, 4)
+              .map((request) => ({
+                id: request.id,
+                location: request.clientName,
+                time: request.eventDate,
+                title: request.packageName,
+              }))}
+            stats={{
+              activeEvents: merchantRequests.filter(
+                (request) => request.status === 'confirmed'
+              ).length,
+              newRequests: merchantRequests.filter((request) => request.status === 'new').length,
+              pendingAction: merchantRequests.filter((request) => request.status === 'new').length,
+            }}
             onOpenNotifications={() => {
               setHomeReturnScreen('providerHome')
               setScreen('notifications')
@@ -1126,9 +1482,12 @@ export const App: React.FC = () => {
               if (action === 'clients') setScreen('providerBookingRequests')
               if (action === 'invoices') setScreen('providerPayouts')
             }}
-            onSelectScheduleItem={() => {
+            onSelectScheduleItem={(item) => {
+              setSelectedMerchantRequest(
+                merchantRequests.find((request) => request.id === item.id)
+              )
               setHomeReturnScreen('providerHome')
-              setScreen('providerBookingRequests')
+              setScreen('providerBookingRequestDetails')
             }}
             onSelectTab={openMerchantTab}
             onViewAllSchedule={() => {
@@ -1205,6 +1564,7 @@ export const App: React.FC = () => {
       case 'providerServiceInfo':
         return (
           <Step1ServiceListingScreen
+            categories={serviceCategories}
             initialValue={merchantServiceInfo}
             onAddPhoto={pickMerchantServicePhotos}
             onBack={(draft) => {
@@ -1326,12 +1686,11 @@ export const App: React.FC = () => {
             initialStatus={merchantRequestStatus}
             requests={merchantRequests}
             onAccept={(request) => {
-              void saveBookingDecision({
+              void handleBookingDecision({
                 decision: 'accepted',
                 providerNote: '',
                 request,
-              }).then(() => refreshLiveData())
-              setMerchantRequestStatus('confirmed')
+              })
             }}
             onBack={() => setScreen('providerHome')}
             onDecline={(request) => {
@@ -1355,7 +1714,25 @@ export const App: React.FC = () => {
       case 'providerBookingRequestDetails':
         return (
           <BookingRequestDetailsScreen
+            details={
+              selectedMerchantRequest
+                ? {
+                    clientNotes: selectedMerchantRequest.clientNotes ?? '',
+                    eventName: selectedMerchantRequest.eventName ?? 'Event',
+                    eventType: selectedMerchantRequest.eventType ?? 'Event',
+                    guestCount: selectedMerchantRequest.guestCount,
+                    packageInclusions: selectedMerchantRequest.packageInclusions ?? [],
+                    requestedTime: selectedMerchantRequest.requestedTime ?? 'Time to be confirmed',
+                    submittedAt:
+                      selectedMerchantRequest.submittedAt ?? new Date().toISOString(),
+                    venue: [selectedMerchantRequest.venue, selectedMerchantRequest.location]
+                      .filter(Boolean)
+                      .join(', ') || 'Venue to be confirmed',
+                  }
+                : undefined
+            }
             request={selectedMerchantRequest}
+            isCompleting={completingBookingId === selectedMerchantRequest?.id}
             onAccept={handleBookingDecision}
             onBack={() => setScreen('providerBookingRequests')}
             onDecline={(value) => {
@@ -1363,6 +1740,7 @@ export const App: React.FC = () => {
               setScreen('providerBookingDecline')
             }}
             onMessageClient={() => setScreen('messages')}
+            onMarkCompleted={(request) => void handleBookingCompletion(request)}
           />
         )
       case 'providerBookingDecline':
@@ -1379,12 +1757,11 @@ export const App: React.FC = () => {
           <MerchantBookingDetailScreen
             request={selectedMerchantRequest}
             onAccept={(request) => {
-              void saveBookingDecision({
+              void handleBookingDecision({
                 decision: 'accepted',
                 providerNote: '',
                 request: { ...request, status: 'confirmed' },
               })
-              setScreen('providerBookingRequests')
             }}
             onBack={() => setScreen('providerBookingRequests')}
             onDecline={(request) => {
@@ -1464,9 +1841,14 @@ export const App: React.FC = () => {
       case 'providerNotifications':
         return (
           <NotificationScreen
+            notifications={notifications}
             onBack={() => setScreen('providerProfile')}
-            onMarkAllRead={(ids) => void markMerchantNotificationsRead(ids)}
-            onMarkRead={(notification) => void markMerchantNotificationRead(notification)}
+            onMarkAllRead={(ids) => {
+              void markMerchantNotificationsRead(ids).then(() => refreshLiveData())
+            }}
+            onMarkRead={(notification) => {
+              void markMerchantNotificationRead(notification).then(() => refreshLiveData())
+            }}
             onPreferencesChange={(preferences) =>
               void saveNotificationPreferences(preferences)
             }
@@ -1516,9 +1898,8 @@ export const App: React.FC = () => {
             <BudgetAllocationScreen
               initialBudget={totalBudget}
               onBack={openEventCreationFromBudget}
-              onBudgetChange={setTotalBudget}
               onContinue={(value) => handleBudgetContinue(value.budget, value.priorities)}
-              onSkip={openPlanningHub}
+              onSkip={() => handleBudgetContinue(0, [])}
             />
           </Animated.View>
         )
@@ -1535,6 +1916,7 @@ export const App: React.FC = () => {
               onOpenMenu={openSelectedPlan}
               onOpenProfile={() => setScreen('selectedSummary')}
               onSelectCategory={(category) => {
+                setServiceBrowseMode('planning')
                 setSelectedCategory(category)
                 setScreen('categoryBrowse')
               }}
@@ -1550,14 +1932,45 @@ export const App: React.FC = () => {
       case 'categoryBrowse':
         return (
           <CategoryBrowseScreen
-            services={visibleCatalogServices}
+            categories={serviceCategories}
+            categoryName={catalogCategoryName(selectedCategory)}
+            mode={serviceBrowseMode}
+            services={
+              serviceBrowseMode === 'explore'
+                ? catalogServices
+                : replacementTarget
+                  ? replacementCatalogServices
+                  : visibleCatalogServices
+            }
+            hasBudget={totalBudget > 0}
+            selectedServiceCount={selectedServices.length}
             remainingBudget={remainingBudget}
+            replacementContext={
+              replacementTarget
+                ? {
+                    currentProviderName: replacementTarget.name,
+                    serviceName: replacementTarget.serviceName ?? 'Selected service',
+                  }
+                : undefined
+            }
             showBottomNavigation={false}
-            onBack={openPlanningHub}
-            onMore={openSelectedPlan}
+            onBack={() => {
+              if (replacementTarget) {
+                setReplacementTarget(undefined)
+                setScreen('scheduleConflict')
+              } else if (serviceBrowseMode === 'planning') setScreen('budgetAllocation')
+              else setScreen('clientHome')
+            }}
+            onConfirmReplacement={handleProviderReplacement}
             onOpenBudget={() => setScreen('budgetAllocation')}
+            onOpenSelectedServices={() => setScreen('selectedSummary')}
             onOpenSort={() => setScreen('categoryBrowse')}
+            onSelectCategory={(category) => {
+              if (replacementTarget) return
+              setSelectedCategory(categoryNameToId(category.name))
+            }}
             onSelectVendor={(vendorId) => {
+              if (replacementTarget) return
               setCurrentServiceId(vendorId)
               const selectedVendor = catalogServices.find((service) => service.id === vendorId)
               setScreen(
@@ -1576,6 +1989,7 @@ export const App: React.FC = () => {
       case 'coordinatorDetails':
         return (
           <CoordinatorDetailsScreen
+            mode={serviceBrowseMode}
             onBack={() => setScreen('categoryBrowse')}
             onMessage={() => {
               setHomeReturnScreen('clientHome')
@@ -1587,7 +2001,9 @@ export const App: React.FC = () => {
       case 'serviceDetails':
         return (
           <ServiceDetailsScreen
+            mode={serviceBrowseMode}
             service={currentService}
+            hasBudget={totalBudget > 0}
             remainingBudget={remainingBudget}
             onAddSelection={handleAddSelection}
             onBack={() => setScreen('categoryBrowse')}
@@ -1599,13 +2015,14 @@ export const App: React.FC = () => {
         return (
           <SelectedSummaryScreen
             budget={totalBudget}
+            removingServiceId={removingServiceId}
             selectedServices={selectedServices}
             showBottomNavigation={false}
             totalEstimatedCost={selectedEstimatedTotal}
             onAddService={openPlanningHub}
             onBack={openPlanningHub}
             onOpenMenu={() => setScreen('clientHome')}
-            onOpenProfile={() => setScreen('clientHome')}
+            onRemoveService={handleRemoveSelection}
             onSelectService={(service) => {
               setCurrentServiceId(service)
               const selectedService = selectedServices.find((item) => item.id === service)
@@ -1617,7 +2034,12 @@ export const App: React.FC = () => {
             }}
             onSelectTab={(tab) => {
               if (tab === 'plan') {
-                setScreen(selectedServices.length > 0 ? 'instructionModule' : 'budgetTracker')
+                if (selectedServices.length > 0) {
+                  setMaxPlanningStep((current) => Math.max(current, 4))
+                  setScreen('instructionModule')
+                } else {
+                  setScreen('categoryBrowse')
+                }
               } else if (tab === 'guestList') setScreen('guestList')
               else if (tab === 'budget') setScreen('budgetAllocation')
               else if (tab === 'settings') setScreen('clientHome')
@@ -1629,24 +2051,48 @@ export const App: React.FC = () => {
         return (
           <InstructionModuleScreen
             onBack={() => setScreen('selectedSummary')}
-            onSaveContinue={(value) => {
-              void saveProviderInstructions(value)
-              void saveScheduleCheck('conflict')
-              setScreen('scheduleConflict')
+            services={instructionServices}
+            onSaveContinue={async (value) => {
+              if (!supabase) {
+                setToastMessage('Supabase is not configured. Check the app environment settings.')
+                return
+              }
+
+              const {
+                data: { session },
+              } = await supabase.auth.getSession()
+
+              if (!session?.user) {
+                setToastMessage('Please sign in to save your event instructions.')
+                openLogin('roleSelection')
+                return
+              }
+
+              const instructionsResult = await saveProviderInstructions(value)
+
+              if (!instructionsResult.ok) {
+                setToastMessage(
+                  instructionsResult.message ?? 'Unable to save provider instructions.'
+                )
+                return
+              }
+
+              await runScheduleCheck()
             }}
           />
         )
       case 'scheduleConflict':
         return (
           <ScheduleConflictScreen
+            eventDate={eventDetails.date}
             onBack={() => setScreen('instructionModule')}
-            onChangeDate={() => {
-              void saveScheduleCheck('available')
-              setScreen('scheduleNoConflict')
-            }}
-            onChooseDifferentProvider={() => {
-              void saveScheduleCheck('available')
-              setScreen('scheduleNoConflict')
+            providers={scheduleProviders}
+            onConfirmDateChange={handleScheduleDateChange}
+            onChooseDifferentProvider={(provider) => {
+              setReplacementTarget(provider)
+              setSelectedCategory(categoryNameToId(provider.category ?? ''))
+              setServiceBrowseMode('planning')
+              setScreen('categoryBrowse')
             }}
             onMessageProvider={() => setScreen('messages')}
           />
@@ -1654,9 +2100,10 @@ export const App: React.FC = () => {
       case 'scheduleNoConflict':
         return (
           <ScheduleNoConflictScreen
-            onBack={() => setScreen('scheduleConflict')}
+            providers={scheduleProviders}
+            onBack={() => setScreen('instructionModule')}
             onContinueToPayment={() => {
-              void saveScheduleCheck('available')
+              setMaxPlanningStep((current) => Math.max(current, 5))
               setScreen(selectedServices.length > 0 ? 'payment' : 'selectedSummary')
             }}
             onSelectProvider={() => setScreen('instructionModule')}
@@ -1665,7 +2112,17 @@ export const App: React.FC = () => {
       case 'messages':
         return (
           <MessagesScreen
+            conversations={conversations}
+            hasUnreadNotifications={notifications.some((notification) => !notification.isRead)}
             navigationVariant={homeReturnScreen === 'providerHome' ? 'merchant' : 'client'}
+            onMarkRead={(conversation) => {
+              setConversations((current) =>
+                current.map((item) =>
+                  item.id === conversation.id ? { ...item, unreadCount: 0 } : item
+                )
+              )
+              void markConversationRead(conversation.id)
+            }}
             onOpenNotifications={() => setScreen('notifications')}
             onOpenProfile={() =>
               setScreen(
@@ -1674,11 +2131,24 @@ export const App: React.FC = () => {
             }
             onSelectConversation={(conversation) => {
               setSelectedConversation(conversation)
+              setConversationMessages([])
               setScreen('chatThread')
+              void Promise.all([
+                fetchConversationMessages(conversation.id),
+                markConversationRead(conversation.id),
+              ]).then(([messages]) => {
+                setConversationMessages(messages)
+                setConversations((current) =>
+                  current.map((item) =>
+                    item.id === conversation.id ? { ...item, unreadCount: 0 } : item
+                  )
+                )
+              })
             }}
             onNewMessage={() => {
-              setSelectedConversation(undefined)
-              setScreen('chatThread')
+              setServiceBrowseMode('explore')
+              setToastMessage('Choose a service to start a provider conversation.')
+              setScreen('categoryBrowse')
             }}
             onSelectTab={openMessageTab}
             userName={userName}
@@ -1687,6 +2157,18 @@ export const App: React.FC = () => {
       case 'chatThread':
         return (
           <ChatThreadScreen
+            booking={
+              selectedConversation?.bookingId
+                ? {
+                    eventDate: selectedConversation.bookingDate ?? 'Date to be confirmed',
+                    id: selectedConversation.bookingId.slice(0, 8).toUpperCase(),
+                    serviceName: selectedConversation.serviceName ?? 'Service booking',
+                    status: selectedConversation.bookingStatus ?? 'pending',
+                  }
+                : null
+            }
+            isSending={isSendingMessage}
+            messages={conversationMessages}
             participant={
               selectedConversation
                 ? {
@@ -1698,7 +2180,10 @@ export const App: React.FC = () => {
                   }
                 : undefined
             }
-            onBack={() => setScreen('messages')}
+            onBack={() => {
+              void refreshLiveData()
+              setScreen('messages')
+            }}
             onOpenBooking={() =>
               setScreen(
                 homeReturnScreen === 'providerHome'
@@ -1706,12 +2191,32 @@ export const App: React.FC = () => {
                   : 'bookings'
               )
             }
+            onSend={(value) => {
+              if (!selectedConversation) return
+
+              setIsSendingMessage(true)
+              void sendConversationMessage(selectedConversation.id, value.text).then((result) => {
+                setIsSendingMessage(false)
+                if (result.message) {
+                  setConversationMessages((current) => [...current, result.message as ChatMessage])
+                } else if (result.error) {
+                  setToastMessage(result.error)
+                }
+              })
+            }}
           />
         )
       case 'notifications':
         return (
           <NotificationScreen
+            notifications={notifications}
             onBack={() => setScreen(homeReturnScreen)}
+            onMarkAllRead={(ids) => {
+              void markMerchantNotificationsRead(ids).then(() => refreshLiveData())
+            }}
+            onMarkRead={(notification) => {
+              void markMerchantNotificationRead(notification).then(() => refreshLiveData())
+            }}
             onSelectNotification={(notification: MerchantNotification) => {
               if (notification.category === 'message') setScreen('messages')
               else if (notification.category === 'payment') {
@@ -1746,14 +2251,27 @@ export const App: React.FC = () => {
         return (
           <PaymentScreen
             event={paymentEvent}
+            isProcessing={isFinalizingPayment}
             items={payableItems}
             onBack={() => setScreen('scheduleNoConflict')}
             onOpenCancellationPolicy={() => setScreen('payment')}
             onOpenTerms={() => setScreen('payment')}
             onPay={(value) => {
-              setLastPayment(value)
-              void savePlanningPayment(value, payableItems).then(() => refreshLiveData())
-              setScreen('confirmation')
+              if (isFinalizingPayment) return
+              setIsFinalizingPayment(true)
+              void savePlanningPayment(value, payableItems).then(async (result) => {
+                if (!result.ok) {
+                  setIsFinalizingPayment(false)
+                  setToastMessage(result.message ?? 'Unable to record the payment.')
+                  return
+                }
+
+                setLastPayment(value)
+                await refreshLiveData()
+                setIsFinalizingPayment(false)
+                setToastMessage('Payment recorded. Booking requests were sent to your providers.')
+                setScreen('confirmation')
+              })
             }}
           />
         )
@@ -1803,30 +2321,41 @@ export const App: React.FC = () => {
           <BookingDetailsScreen
             booking={selectedBooking}
             details={{
-              date: eventDisplayDate,
-              paymentStatus: lastPayment ? 'Paid' : 'Pending',
-              price: `PHP ${Math.round(
-                selectedServices.find((service) => service.id === selectedBooking?.id)
-                  ?.price ?? 0
-              ).toLocaleString('en-US')}`,
-              requestedDate: eventDisplayDate,
-              time: eventDisplayTime,
+              date: selectedBooking?.date ?? eventDisplayDate,
+              paymentStatus:
+                selectedBooking?.paymentStatus ?? 'Pending',
+              price: `PHP ${Math.round(selectedBooking?.amount ?? 0).toLocaleString('en-US')}`,
+              requestedDate: selectedBooking?.createdAt
+                ? new Date(selectedBooking.createdAt).toLocaleDateString('en-PH')
+                : eventDisplayDate,
+              time: selectedBooking?.requestedTime ?? eventDisplayTime,
             }}
             onBack={() => setScreen('bookings')}
             onCancelOrReschedule={() => setScreen('scheduleNoConflict')}
             onMessageProvider={() => setScreen('messages')}
-            onSubmitReview={() => setScreen('submitReview')}
+            onSubmitReview={
+              selectedBooking?.status === 'completed' && !selectedBooking.hasFeedback
+                ? () => setScreen('eventFeedback')
+                : undefined
+            }
           />
         )
-      case 'submitReview':
+      case 'eventFeedback':
         return (
-          <SubmitReviewScreen
+          <EventFeedbackScreen
             booking={selectedBooking}
             onBackToBookings={() => setScreen('bookings')}
             onClose={() => setScreen('bookingDetails')}
-            onSubmit={(value) => {
-              void saveClientReview(value).then(() => refreshLiveData())
-              setScreen('bookings')
+            onSubmit={async (value) => {
+              const result = await saveEventFeedback(value)
+              if (!result.ok) {
+                setToastMessage(result.message ?? 'Unable to save your event feedback.')
+                return false
+              }
+
+              await refreshLiveData()
+              setSelectedBooking((current) => current ? { ...current, hasFeedback: true } : current)
+              return true
             }}
           />
         )
@@ -1838,15 +2367,13 @@ export const App: React.FC = () => {
   const clientMainTab: ClientHomeTab | null =
     screen === 'clientHome'
       ? 'home'
-      : screen === 'budgetTracker' || screen === 'categoryBrowse'
+      : screen === 'categoryBrowse' && serviceBrowseMode === 'explore'
         ? 'explore'
         : screen === 'bookings'
           ? 'bookings'
           : screen === 'messages' && homeReturnScreen === 'clientHome'
             ? 'messages'
-            : screen === 'selectedSummary'
-              ? 'profile'
-              : null
+          : null
 
   if (!fontsLoaded) {
     return null
@@ -1856,7 +2383,12 @@ export const App: React.FC = () => {
     <SafeAreaProvider>
       <StatusBar style={screen === 'clientHome' ? 'light' : 'dark'} />
       <SafeAreaView style={[styles.container, isHome && styles.homeContainer]}>
-        {renderScreen()}
+        <PlanningStepNavigationProvider
+          maxReachableStep={maxPlanningStep}
+          onStepPress={handlePlanningStepPress}
+        >
+          {renderScreen()}
+        </PlanningStepNavigationProvider>
 
         {toastMessage ? (
           <View pointerEvents="none" style={styles.toastOverlay}>

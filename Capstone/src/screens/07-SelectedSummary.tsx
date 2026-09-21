@@ -1,5 +1,6 @@
 import { Text } from '../components/AppText'
 import React from 'react'
+import { MaterialCommunityIcons } from '@expo/vector-icons'
 import {
   Image,
   Pressable,
@@ -10,7 +11,7 @@ import {
   View,
 } from 'react-native'
 import { ClientBottomNavigation, ClientMainTab } from '../components/ClientBottomNavigation'
-import { PlanningStepIndicator } from '../components/PlanningStepIndicator'
+import { PlanningScreenHeader } from '../components/PlanningScreenHeader'
 
 export type SelectedServiceId = string
 export type SelectedSummaryTab = ClientMainTab | 'plan' | 'guestList' | 'budget' | 'settings'
@@ -28,13 +29,14 @@ export interface SelectedSummaryService {
 
 interface SelectedSummaryScreenProps {
   budget?: number
+  removingServiceId?: string
   selectedServices?: SelectedSummaryService[]
   showBottomNavigation?: boolean
   totalEstimatedCost?: number
   onAddService?: () => void
   onBack?: () => void
   onOpenMenu?: () => void
-  onOpenProfile?: () => void
+  onRemoveService?: (service: SelectedSummaryService) => void
   onSelectService?: (service: SelectedServiceId) => void
   onSelectTab?: (tab: SelectedSummaryTab) => void
 }
@@ -44,57 +46,35 @@ const formatCurrency = (value: number) =>
 
 export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
   budget = 40000,
+  removingServiceId = '',
   selectedServices = [],
   showBottomNavigation = true,
   totalEstimatedCost = 34500,
   onAddService,
   onBack,
   onOpenMenu,
-  onOpenProfile,
+  onRemoveService,
   onSelectService,
   onSelectTab,
 }) => {
   const { width } = useWindowDimensions()
   const isWide = width >= 768
   const isDesktop = width >= 1024
+  const hasSetBudget = budget > 0
   const allocationPercent = budget > 0
     ? Math.min(100, Math.round((totalEstimatedCost / budget) * 100))
     : 0
 
   return (
     <View style={styles.screen}>
-      <View style={styles.topAppBar}>
-        <View style={[styles.topAppBarContent, isWide && styles.horizontalPaddingWide]}>
-          <Pressable
-            accessibilityLabel="Go back"
-            accessibilityRole="button"
-            hitSlop={8}
-            onPress={onBack ?? onOpenMenu}
-            style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}
-          >
-            <Text style={styles.backIcon}>{'\u2190'}</Text>
-          </Pressable>
-
-          <Text style={styles.headerTitle}>REVIEW SERVICES</Text>
-
-          <Pressable
-            accessibilityLabel="Open profile"
-            accessibilityRole="button"
-            hitSlop={8}
-            onPress={onOpenProfile}
-            style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}
-          >
-            <View style={styles.profileIcon}>
-              <View style={styles.profileHead} />
-              <View style={styles.profileBody} />
-            </View>
-          </Pressable>
-        </View>
-      </View>
-
-      <View style={[styles.stepWrapper, isWide && styles.horizontalPaddingWide]}>
-        <PlanningStepIndicator currentStep={3} label="Review Services" />
-      </View>
+      <PlanningScreenHeader
+        currentStep={3}
+        label="Review Services"
+        nextEnabled={selectedServices.length > 0}
+        onBack={onBack ?? onOpenMenu}
+        onNext={() => onSelectTab?.('plan')}
+        title="Review Services"
+      />
 
       <View style={[styles.budgetSection, isWide && styles.horizontalPaddingWide]}>
         <View style={[styles.budgetCard, isWide && styles.budgetCardWide]}>
@@ -105,25 +85,32 @@ export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
             </Text>
           </View>
 
-          <View style={[styles.allocationBlock, isWide && styles.allocationBlockWide]}>
-            <View style={styles.allocationLabels}>
-              <Text style={styles.budgetLabel}>Budget: PHP {formatCurrency(budget)}</Text>
-              <Text style={styles.allocatedLabel}>{allocationPercent}% Allocated</Text>
-            </View>
-            <View
-              accessibilityLabel={`${allocationPercent} percent of budget allocated`}
-              accessibilityRole="progressbar"
-              accessibilityValue={{ min: 0, max: 100, now: allocationPercent }}
-              style={styles.progressTrack}
-            >
+          {hasSetBudget ? (
+            <View style={[styles.allocationBlock, isWide && styles.allocationBlockWide]}>
+              <View style={styles.allocationLabels}>
+                <Text style={styles.budgetLabel}>Budget: PHP {formatCurrency(budget)}</Text>
+                <Text style={styles.allocatedLabel}>{allocationPercent}% Allocated</Text>
+              </View>
               <View
-                style={[
-                  styles.progressFill,
-                  { width: `${allocationPercent}%` as `${number}%` },
-                ]}
-              />
+                accessibilityLabel={`${allocationPercent} percent of budget allocated`}
+                accessibilityRole="progressbar"
+                accessibilityValue={{ min: 0, max: 100, now: allocationPercent }}
+                style={styles.progressTrack}
+              >
+                <View
+                  style={[
+                    styles.progressFill,
+                    { width: `${allocationPercent}%` as `${number}%` },
+                  ]}
+                />
+              </View>
             </View>
-          </View>
+          ) : (
+            <View style={[styles.actualCostBlock, isWide && styles.allocationBlockWide]}>
+              <Text style={styles.actualCostEyebrow}>NO BUDGET SET</Text>
+              <Text style={styles.actualCostText}>Pay actual service costs</Text>
+            </View>
+          )}
         </View>
       </View>
 
@@ -163,6 +150,31 @@ export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
                 <Text style={styles.statusText}>{service.status}</Text>
               </View>
 
+              {service.status === 'Selected' ? (
+                <Pressable
+                  accessibilityLabel={`Remove ${service.name} from selected services`}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: removingServiceId === service.id }}
+                  disabled={removingServiceId === service.id}
+                  hitSlop={8}
+                  onPress={(event) => {
+                    event.stopPropagation()
+                    onRemoveService?.(service)
+                  }}
+                  style={({ pressed }) => [
+                    styles.removeButton,
+                    removingServiceId === service.id && styles.removeButtonDisabled,
+                    pressed && styles.removeButtonPressed,
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    color={palette.primaryContainer}
+                    name={removingServiceId === service.id ? 'progress-clock' : 'trash-can-outline'}
+                    size={19}
+                  />
+                </Pressable>
+              ) : null}
+
               <Image
                 accessibilityLabel={service.imageLabel}
                 resizeMode="cover"
@@ -187,16 +199,6 @@ export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
         </View>
 
         <View style={styles.addServiceSection}>
-          {selectedServices.length > 0 ? (
-            <Pressable
-              accessibilityLabel="Proceed"
-              accessibilityRole="button"
-              onPress={() => onSelectTab?.('plan')}
-              style={({ pressed }) => [styles.continueButton, pressed && styles.addPressed]}
-            >
-              <Text style={styles.addServiceText}>Proceed</Text>
-            </Pressable>
-          ) : null}
           <Pressable
             accessibilityLabel="Add another service"
             accessibilityRole="button"
@@ -208,6 +210,29 @@ export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
           </Pressable>
         </View>
       </ScrollView>
+
+      {!showBottomNavigation ? (
+        <View style={styles.footer}>
+          <View style={styles.footerContent}>
+            <Pressable
+              accessibilityLabel="Continue to the next step"
+              accessibilityRole="button"
+              accessibilityState={{ disabled: selectedServices.length === 0 }}
+              disabled={selectedServices.length === 0}
+              onPress={() => onSelectTab?.('plan')}
+              style={({ pressed }) => [
+                styles.nextStepButton,
+                isWide && styles.nextStepButtonWide,
+                selectedServices.length === 0 && styles.nextStepButtonDisabled,
+                pressed && styles.addPressed,
+              ]}
+            >
+              <Text style={styles.nextStepText}>{isWide ? 'CONTINUE' : 'NEXT STEP'}</Text>
+              <Text style={styles.nextStepArrow}>{'\u2192'}</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
 
       {showBottomNavigation && !isWide ? (
         <ClientBottomNavigation activeTab="profile" onSelectTab={onSelectTab} />
@@ -350,6 +375,28 @@ const styles = StyleSheet.create({
   totalValueWide: { fontSize: 48, lineHeight: 56 },
   allocationBlock: { width: '100%', marginTop: 20 },
   allocationBlockWide: { width: '50%', marginTop: 0 },
+  actualCostBlock: {
+    width: '100%',
+    alignItems: 'center',
+    borderRadius: 8,
+    backgroundColor: '#F8EDEF',
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    marginTop: 20,
+  },
+  actualCostEyebrow: {
+    color: palette.secondary,
+    fontSize: 10,
+    lineHeight: 14,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  actualCostText: {
+    color: palette.primaryContainer,
+    fontSize: 15,
+    lineHeight: 21,
+    fontWeight: '700',
+  },
   allocationLabels: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -463,6 +510,27 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.8,
   },
+  removeButton: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    zIndex: 3,
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: palette.outlineVariant,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  removeButtonPressed: { backgroundColor: '#F8EDEF', transform: [{ scale: 0.94 }] },
+  removeButtonDisabled: { opacity: 0.55 },
   serviceImage: { width: '100%', height: 192 },
   serviceCopy: { flex: 1, padding: 24 },
   categoryRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
@@ -504,15 +572,51 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     paddingVertical: 13,
   },
-  continueButton: {
-    minHeight: 52,
+  footer: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 50,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(226, 226, 226, 0.5)',
+    backgroundColor: 'rgba(249,249,249,0.96)',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  footerContent: {
+    width: '100%',
+    maxWidth: 1200,
+    alignSelf: 'center',
+    alignItems: 'flex-end',
+  },
+  nextStepButton: {
+    width: '100%',
+    minHeight: 56,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 4,
+    gap: 8,
+    borderRadius: 28,
     backgroundColor: palette.primary,
     paddingHorizontal: 32,
-    paddingVertical: 13,
+    paddingVertical: 14,
+    shadowColor: palette.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 4,
   },
+  nextStepButtonWide: { width: 200 },
+  nextStepButtonDisabled: { opacity: 0.45, shadowOpacity: 0, elevation: 0 },
+  nextStepText: {
+    color: palette.white,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+  },
+  nextStepArrow: { color: palette.white, fontSize: 18, lineHeight: 21 },
   addIcon: { color: palette.white, fontSize: 22, lineHeight: 24 },
   addServiceText: { color: palette.white, fontSize: 16, lineHeight: 24, fontWeight: '500' },
   bottomNavigation: {

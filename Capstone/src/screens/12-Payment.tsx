@@ -8,10 +8,11 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native'
-import { PlanningStepIndicator } from '../components/PlanningStepIndicator'
+import { MaterialCommunityIcons } from '@expo/vector-icons'
+import { PlanningScreenHeader } from '../components/PlanningScreenHeader'
 
 export type PaymentType = 'deposit' | 'full'
-export type PaymentMethod = 'paymongo' | 'gcash' | 'bankTransfer'
+export type PaymentMethod = 'eWallet' | 'bankTransfer'
 
 export interface PaymentEventDetails {
   date: string
@@ -36,6 +37,7 @@ export interface PaymentValue {
 
 interface PaymentScreenProps {
   event?: PaymentEventDetails
+  isProcessing?: boolean
   items?: PaymentOrderItem[]
   onBack?: () => void
   onOpenCancellationPolicy?: () => void
@@ -72,9 +74,8 @@ const defaultItems: PaymentOrderItem[] = [
 ]
 
 const paymentMethods = [
-  { id: 'paymongo' as const, icon: '\u20B1', label: 'Paymongo' },
-  { id: 'gcash' as const, icon: 'G', label: 'GCash' },
-  { id: 'bankTransfer' as const, icon: '\u25A5', label: 'Bank Transfer' },
+  { id: 'eWallet' as const, icon: 'wallet-outline' as const, label: 'E-Wallets' },
+  { id: 'bankTransfer' as const, icon: 'bank-outline' as const, label: 'Bank Transfer' },
 ]
 
 const formatCurrency = (value: number) =>
@@ -82,6 +83,7 @@ const formatCurrency = (value: number) =>
 
 export const PaymentScreen: React.FC<PaymentScreenProps> = ({
   event = defaultEvent,
+  isProcessing = false,
   items = defaultItems,
   onBack,
   onOpenCancellationPolicy,
@@ -92,7 +94,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
   const isWide = width >= 640
   const [summaryExpanded, setSummaryExpanded] = React.useState(true)
   const [paymentType, setPaymentType] = React.useState<PaymentType>('deposit')
-  const [paymentMethod, setPaymentMethod] = React.useState<PaymentMethod>('paymongo')
+  const [paymentMethod, setPaymentMethod] = React.useState<PaymentMethod>('eWallet')
   const [termsAccepted, setTermsAccepted] = React.useState(false)
   const [showTermsError, setShowTermsError] = React.useState(false)
   const subtotal = items.reduce((total, item) => total + item.price, 0)
@@ -101,6 +103,8 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
   const remainingBalance = Math.max(0, subtotal - amountDue)
 
   const handlePay = () => {
+    if (isProcessing) return
+
     if (!termsAccepted) {
       setShowTermsError(true)
       return
@@ -116,25 +120,13 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
 
   return (
     <View style={styles.screen}>
-      <View style={styles.topAppBar}>
-        <View style={styles.topAppBarContent}>
-          <Pressable
-            accessibilityLabel="Go back"
-            accessibilityRole="button"
-            hitSlop={8}
-            onPress={onBack}
-            style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
-          >
-            <Text style={styles.backIcon}>{'\u2190'}</Text>
-          </Pressable>
-          <Text style={styles.headerTitle}>PAYMENT</Text>
-          <View style={styles.headerSpacer} />
-        </View>
-      </View>
-
-      <View style={styles.stepWrapper}>
-        <PlanningStepIndicator currentStep={5} label="Payment" />
-      </View>
+      <PlanningScreenHeader
+        currentStep={5}
+        label="Payment"
+        nextAccessibilityLabel="Payment is the final step"
+        onBack={onBack}
+        title="Payment"
+      />
 
       <ScrollView
         contentContainerStyle={styles.content}
@@ -239,7 +231,11 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
                 >
                   <View style={styles.methodCopy}>
                     <View style={styles.methodIconCircle}>
-                      <Text style={styles.methodIcon}>{method.icon}</Text>
+                      <MaterialCommunityIcons
+                        color={palette.burgundy}
+                        name={method.icon}
+                        size={21}
+                      />
                     </View>
                     <Text style={styles.methodLabel}>{method.label}</Text>
                   </View>
@@ -296,16 +292,20 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
           )}
           <Pressable
             accessibilityRole="button"
+            accessibilityState={{ disabled: isProcessing }}
+            disabled={isProcessing}
             onPress={handlePay}
             style={({ pressed }) => [
               styles.payButton,
               isWide && styles.payButtonWide,
+              isProcessing && styles.payButtonDisabled,
               pressed && styles.payButtonPressed,
             ]}
           >
             <Text style={styles.payButtonText}>
-              {paymentType === 'deposit' ? 'Pay Deposit' : 'Pay in Full'} {'\u00B7'}{' '}
-              {formatCurrency(amountDue).replace(' ', '')}
+              {isProcessing
+                ? 'Finalizing booking...'
+                : `${paymentType === 'deposit' ? 'Pay Deposit' : 'Pay in Full'} · ${formatCurrency(amountDue).replace(' ', '')}`}
             </Text>
           </Pressable>
         </View>
@@ -530,7 +530,6 @@ const styles = StyleSheet.create({
   },
   methodCopy: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 16 },
   methodIconCircle: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: '#F3E8EA' },
-  methodIcon: { color: palette.burgundy, fontSize: 20, lineHeight: 23, fontWeight: '700' },
   methodLabel: { color: palette.text, fontSize: 16, lineHeight: 24 },
   termsSection: { flexDirection: 'row', alignItems: 'flex-start', gap: 16 },
   checkbox: { width: 24, height: 24, flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.muted, borderRadius: 5, backgroundColor: palette.surface, marginTop: 2 },
@@ -571,6 +570,7 @@ const styles = StyleSheet.create({
   },
   payButtonWide: { flex: 0, width: 330 },
   payButtonText: { color: palette.surface, fontSize: 18, lineHeight: 28, fontWeight: '700', textAlign: 'center' },
+  payButtonDisabled: { opacity: 0.6 },
   payButtonPressed: { backgroundColor: '#7B2B3A', transform: [{ scale: 0.98 }] },
   cardPressed: { opacity: 0.88, transform: [{ scale: 0.99 }] },
   pressed: { opacity: 0.58 },

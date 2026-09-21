@@ -11,17 +11,43 @@ import {
 } from 'react-native'
 import { ClientBottomNavigation, ClientMainTab } from '../components/ClientBottomNavigation'
 
-export type BookingStatus = 'all' | 'confirmed' | 'pending' | 'past'
+export type BookingStatus = 'all' | 'confirmed' | 'requested' | 'completed'
 export type BookingTab = ClientMainTab | 'merchants'
 
-export interface BookingItem {
+export interface BookingServiceItem {
+  amount: number
+  bookingId: string
   category: string
+  image: string
+  paymentStatus: string
+  providerName: string
+  rawStatus: string
+  serviceName: string
+  status: 'confirmed' | 'declined' | 'requested' | 'completed'
+  updatedAt: string
+}
+
+export interface BookingItem {
+  amount?: number
+  category: string
+  createdAt?: string
   date: string
+  eventId?: string
+  hasFeedback?: boolean
+  eventType?: string
+  guestCount?: number
   id: string
   image: string
   imageLabel: string
+  location?: string
   name: string
+  paymentStatus?: string
+  rawStatus?: string
+  requestedTime?: string
   status: Exclude<BookingStatus, 'all'>
+  services?: BookingServiceItem[]
+  updatedAt?: string
+  venue?: string
 }
 
 interface BookingScreenProps {
@@ -38,11 +64,11 @@ interface BookingScreenProps {
 const profileImage =
   'https://lh3.googleusercontent.com/aida-public/AB6AXuDFKwwMGKf49MfjiaUPbQKbEV8NAm7-Ac8OP_SHq6vcWQCN3Re793zWxivgmVCo6QuLCp-8HNm2S3W_Jbcm_WlaTPpN3nkd1TbURID3kM0AnFd9X4OJgEKc9msJGzYFIL8ktk08fD82kYaDWMjXh9IoyXG1ywt7ZvE7-g9w4pkB-O6wa1DVpBOd3v0EeR1P5T0L2gWhclnG-gntgBi9HLC4WSyJdhGoetVg7jKhT0XK1HGBWLpevDqSXQ'
 
-const filters = [
-  { id: 'all' as const, label: 'ALL BOOKINGS', count: 8 },
-  { id: 'confirmed' as const, label: 'CONFIRMED', count: 5 },
-  { id: 'pending' as const, label: 'PENDING', count: 2 },
-  { id: 'past' as const, label: 'PAST', count: 1 },
+const filterOptions = [
+  { id: 'all' as const, label: 'ALL EVENTS' },
+  { id: 'requested' as const, label: 'REQUESTED' },
+  { id: 'confirmed' as const, label: 'CONFIRMED' },
+  { id: 'completed' as const, label: 'COMPLETED' },
 ]
 
 const categoryIcons: Record<string, string> = {
@@ -67,6 +93,13 @@ export const BookingScreen: React.FC<BookingScreenProps> = ({
   const visibleBookings = activeFilter === 'all'
     ? bookings
     : bookings.filter((booking) => booking.status === activeFilter)
+  const filters = filterOptions.map((filter) => ({
+    ...filter,
+    count:
+      filter.id === 'all'
+        ? bookings.length
+        : bookings.filter((booking) => booking.status === filter.id).length,
+  }))
 
   return (
     <View style={styles.screen}>
@@ -114,7 +147,7 @@ export const BookingScreen: React.FC<BookingScreenProps> = ({
           <View style={[styles.intro, isWide && styles.introWide]}>
             <View style={styles.introCopy}>
               <Text style={styles.pageTitle}>My Bookings</Text>
-              <Text style={styles.pageDescription}>Manage your service provider reservations</Text>
+              <Text style={styles.pageDescription}>Track each event and all provider requests</Text>
             </View>
 
             <Pressable
@@ -203,9 +236,9 @@ export const BookingScreen: React.FC<BookingScreenProps> = ({
                             styles.statusDot,
                             booking.status === 'confirmed'
                               ? styles.confirmedDot
-                              : booking.status === 'pending'
+                              : booking.status === 'requested'
                                 ? styles.pendingDot
-                                : styles.pastDot,
+                                : styles.completedDot,
                           ]}
                         />
                         <Text style={styles.statusText}>{booking.status.toUpperCase()}</Text>
@@ -218,7 +251,9 @@ export const BookingScreen: React.FC<BookingScreenProps> = ({
                           {categoryIcons[booking.category] ?? '\u25A1'}
                         </Text>
                         <Text numberOfLines={1} style={styles.detailText}>
-                          {booking.category}
+                          {booking.services?.length
+                            ? `${booking.services.length} service${booking.services.length === 1 ? '' : 's'}`
+                            : booking.category}
                         </Text>
                       </View>
                       {isWide && <Text style={styles.detailDivider}>{'\u2022'}</Text>}
@@ -237,7 +272,9 @@ export const BookingScreen: React.FC<BookingScreenProps> = ({
             ) : (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyIcon}>{'\u25A6'}</Text>
-                <Text style={styles.emptyTitle}>No {activeFilter} bookings</Text>
+                <Text style={styles.emptyTitle}>
+                  {activeFilter === 'all' ? 'No event bookings yet' : `No ${activeFilter} events`}
+                </Text>
                 <Text style={styles.emptyDescription}>
                   Reservations with this status will appear here.
                 </Text>
@@ -423,7 +460,7 @@ const styles = StyleSheet.create({
   statusDot: { width: 6, height: 6, borderRadius: 3 },
   confirmedDot: { backgroundColor: palette.green },
   pendingDot: { backgroundColor: palette.orange },
-  pastDot: { backgroundColor: palette.muted },
+  completedDot: { backgroundColor: palette.green },
   statusText: {
     color: palette.textVariant,
     fontSize: 10,

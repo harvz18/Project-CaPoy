@@ -256,7 +256,7 @@ export const ChangePasswordScreen: React.FC<ChangePasswordScreenProps> = ({
                         requirement.met && styles.requirementCheckMet,
                       ]}
                     >
-                      {requirement.met ? '\u2713' : 'ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â·'}
+                      {requirement.met ? '\u2713' : '·'}
                     </Text>
                   </View>
                   <Text

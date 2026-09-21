@@ -11,71 +11,106 @@ import {
   TextInput,
   View,
 } from 'react-native'
-import { PlanningStepIndicator } from '../components/PlanningStepIndicator'
+import { PlanningScreenHeader } from '../components/PlanningScreenHeader'
 
-export type InstructionProviderId = 'catering' | 'venue' | 'photography'
+export interface InstructionModuleService {
+  category: string
+  id: string
+  imageLabel: string
+  imageUrl: string
+  name: string
+  providerId?: string
+  providerName: string
+  serviceId?: string
+}
 
 export interface InstructionModuleValue {
-  catering: {
+  requests: Array<{
+    category: string
     dietaryRestrictions: string
-    selectedTags: string[]
-    specialMenuRequests: string
-  }
-  generalNotes: string
-  photography: {
     mustHaveShots: string
-  }
-  venue: {
+    notes: string
+    providerId?: string
+    selectedTags: string[]
+    serviceId?: string
+    serviceKey: string
+    serviceName: string
     setupRequirements: string
-  }
+    specialMenuRequests: string
+  }>
 }
 
 interface InstructionModuleScreenProps {
   onBack?: () => void
-  onSaveContinue?: (value: InstructionModuleValue) => void
+  onSaveContinue?: (value: InstructionModuleValue) => Promise<void> | void
+  services?: InstructionModuleService[]
 }
 
-const providers = {
-  catering: {
-    name: 'Gourmet Affairs',
-    category: 'CATERING',
-    image:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuDFs3ndPnsu71-0oiIUAeDqiGwrzcPRqjAC3Xwx7Vo4Wq2QM9vDKcRlcpq0mtwIZguE5aO9z2TUZxFuEg9ss-wZETOp2QCGzgq2oXDphHsL5pcorkyLbG7tNfm_jnrqR3wHP6znQ3ztc4RA7EL7j0Noo-oR-bbzq3oqEvGPAA-mtWOtdj3bf5G1XX-xi9KijsZbZuH-p1IvTsvTUktxRTQMuEzK8e-xgS38VxoVxnLIXOVjPnw_cpT0iw',
-    imageLabel: 'Gourmet Affairs plated wedding meal',
-  },
-  venue: {
-    name: 'The Glasshouse',
-    category: 'VENUE',
-    image:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuCDhQAnlYD_ipRoNaZuN3L8WdiSOkrERg_ohdzCs0WCWaDpM3ubD6ox5ImEKtuMJyf_HTE7m2j8Hc0h0ipKMYnDjMvuN5c-b8OqkgExotLpRMBShnTPyhhpFUwKpEim2e-vr4YO5na2xunN9TFUFtXNPCXSj6DHb3HnHoMQZyutf7t3V0XBDg25lONPROLA0Y_I1ABUt0J90Ky4uqRq-MVkTmQnJLiRw3RRRz8UKLTHaX1YvhY_sK8KoA',
-    imageLabel: 'The Glasshouse botanical venue',
-  },
-  photography: {
-    name: 'Lumina Studios',
-    category: 'PHOTOGRAPHY',
-    image:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuDZpl1b7ka_8tBALSRBEPjqZNe3P25ykpXCouecxi8l30dkhfJoh3YKUJmzOXznFiNF7gJ97NHXB0dtE5VjkpqtoqejHpYhAO4vCuxbBrdgyDxzQTUyt-Igfz7XxPMIrpsyCW9W7nhl-6DD7lLrWBomHti4-HRk0H6DfFzzhGb4OIB3DBxD5RE9p9zs3YUFl4LJUV6ixWs00dhGA3gnl1MJMqtrS_pr5MSl56PlB51wpATPHUlIwtie9Q',
-    imageLabel: 'Lumina Studios camera equipment',
-  },
-} as const
-
 const commonTags = ['Vegetarian', 'Vegan', 'Gluten-Free', 'Nut Allergy', 'Dairy-Free']
+
+type InstructionDraft = {
+  dietaryRestrictions: string
+  mustHaveShots: string
+  notes: string
+  selectedTags: string[]
+  setupRequirements: string
+  specialMenuRequests: string
+}
+
+const emptyDraft = (): InstructionDraft => ({
+  dietaryRestrictions: '',
+  mustHaveShots: '',
+  notes: '',
+  selectedTags: [],
+  setupRequirements: '',
+  specialMenuRequests: '',
+})
+
+const instructionKind = (category: string) => {
+  const normalized = category.toLowerCase()
+  if (normalized.includes('cater')) return 'catering'
+  if (normalized.includes('venue') || normalized.includes('estate')) return 'venue'
+  if (normalized.includes('photo')) return 'photography'
+  return 'general'
+}
+
+const generalRequestCopy = (category: string): [string, string] => {
+  const normalized = category.toLowerCase()
+  if (normalized.includes('flor')) return ['FLORAL & STYLING REQUESTS', 'Colors, flowers, bouquet, or styling details...']
+  if (normalized.includes('attire')) return ['FITTING & ATTIRE REQUESTS', 'Sizes, fitting schedule, style, or alteration notes...']
+  if (normalized.includes('sound') || normalized.includes('light')) return ['TECHNICAL REQUIREMENTS', 'Stage, microphones, lighting cues, or equipment needs...']
+  if (normalized.includes('host') || normalized.includes('emcee')) return ['PROGRAM & HOSTING NOTES', 'Program flow, tone, language, games, or announcements...']
+  if (normalized.includes('organizer') || normalized.includes('coordinator')) return ['PLANNING & COORDINATION NOTES', 'Program flow, family arrangements, timelines, or supplier notes...']
+  return ['SPECIAL REQUESTS', `Add any requests for this ${category.toLowerCase()} service...`]
+}
 
 export const InstructionModuleScreen: React.FC<InstructionModuleScreenProps> = ({
   onBack,
   onSaveContinue,
+  services = [],
 }) => {
-  const [expandedProviders, setExpandedProviders] = React.useState<InstructionProviderId[]>([
-    'catering',
-  ])
-  const [selectedTags, setSelectedTags] = React.useState(['Vegan'])
-  const [dietaryRestrictions, setDietaryRestrictions] = React.useState('')
-  const [specialMenuRequests, setSpecialMenuRequests] = React.useState('')
-  const [setupRequirements, setSetupRequirements] = React.useState('')
-  const [mustHaveShots, setMustHaveShots] = React.useState('')
-  const [generalNotes, setGeneralNotes] = React.useState('')
+  const [expandedProviders, setExpandedProviders] = React.useState<string[]>(() =>
+    services[0]?.id ? [services[0].id] : []
+  )
+  const [drafts, setDrafts] = React.useState<Record<string, InstructionDraft>>(() =>
+    Object.fromEntries(services.map((service) => [service.id, emptyDraft()]))
+  )
+  const [isSaving, setIsSaving] = React.useState(false)
 
-  const toggleProvider = (provider: InstructionProviderId) => {
+  React.useEffect(() => {
+    setDrafts((current) => {
+      const next = { ...current }
+      services.forEach((service) => {
+        if (!next[service.id]) next[service.id] = emptyDraft()
+      })
+      return next
+    })
+    setExpandedProviders((current) =>
+      current.length > 0 || !services[0]?.id ? current : [services[0].id]
+    )
+  }, [services])
+
+  const toggleProvider = (provider: string) => {
     setExpandedProviders((current) =>
       current.includes(provider)
         ? current.filter((item) => item !== provider)
@@ -83,23 +118,41 @@ export const InstructionModuleScreen: React.FC<InstructionModuleScreenProps> = (
     )
   }
 
-  const toggleTag = (tag: string) => {
-    setSelectedTags((current) =>
-      current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]
-    )
+  const updateDraft = (serviceId: string, patch: Partial<InstructionDraft>) => {
+    setDrafts((current) => ({
+      ...current,
+      [serviceId]: { ...(current[serviceId] ?? emptyDraft()), ...patch },
+    }))
   }
 
-  const handleSave = () => {
-    onSaveContinue?.({
-      catering: {
-        dietaryRestrictions,
-        selectedTags,
-        specialMenuRequests,
-      },
-      generalNotes,
-      photography: { mustHaveShots },
-      venue: { setupRequirements },
+  const toggleTag = (serviceId: string, tag: string) => {
+    const selectedTags = drafts[serviceId]?.selectedTags ?? []
+    updateDraft(serviceId, {
+      selectedTags: selectedTags.includes(tag)
+        ? selectedTags.filter((item) => item !== tag)
+        : [...selectedTags, tag],
     })
+  }
+
+  const handleSave = async () => {
+    if (isSaving || !onSaveContinue) return
+
+    setIsSaving(true)
+
+    try {
+      await onSaveContinue({
+        requests: services.map((service) => ({
+          category: service.category,
+          ...(drafts[service.id] ?? emptyDraft()),
+          providerId: service.providerId,
+          serviceId: service.serviceId,
+          serviceKey: service.id,
+          serviceName: service.name,
+        })),
+      })
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   return (
@@ -107,25 +160,15 @@ export const InstructionModuleScreen: React.FC<InstructionModuleScreenProps> = (
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={styles.screen}
     >
-      <View style={styles.topAppBar}>
-        <View style={styles.topAppBarContent}>
-          <Pressable
-            accessibilityLabel="Go back"
-            accessibilityRole="button"
-            hitSlop={8}
-            onPress={onBack}
-            style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
-          >
-            <Text style={styles.backIcon}>ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Ãƒâ€šÃ‚Â</Text>
-          </Pressable>
-          <Text style={styles.brand}>PROVIDER REQUESTS</Text>
-          <View style={styles.headerSpacer} />
-        </View>
-      </View>
-
-      <View style={styles.stepWrapper}>
-        <PlanningStepIndicator currentStep={4} label="Provider Requests" />
-      </View>
+      <PlanningScreenHeader
+        currentStep={4}
+        label="Provider Requests"
+        nextAccessibilityLabel="Save requests and check the schedule"
+        nextEnabled={services.length > 0 && !isSaving}
+        onBack={onBack}
+        onNext={handleSave}
+        title="Provider Requests"
+      />
 
       <ScrollView
         contentContainerStyle={styles.content}
@@ -135,102 +178,111 @@ export const InstructionModuleScreen: React.FC<InstructionModuleScreenProps> = (
         <View style={styles.introSection}>
           <Text style={styles.title}>Any Special Requests?</Text>
           <Text style={styles.subtitle}>
-            Let your providers know exactly what you need ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â this step is optional but helpful.
+            Let your providers know exactly what you need — this step is optional but helpful.
           </Text>
         </View>
 
         <View style={styles.providerList}>
-          <ProviderAccordion
-            expanded={expandedProviders.includes('catering')}
-            id="catering"
-            onToggle={toggleProvider}
-          >
-            <Text style={styles.tagsCaption}>COMMON TAGS</Text>
-            <View style={styles.tagsRow}>
-              {commonTags.map((tag) => {
-                const isSelected = selectedTags.includes(tag)
+          {services.map((service) => {
+            const draft = drafts[service.id] ?? emptyDraft()
+            const kind = instructionKind(service.category)
+            const [generalLabel, generalPlaceholder] = generalRequestCopy(service.category)
 
-                return (
-                  <Pressable
-                    key={tag}
-                    accessibilityLabel={`${tag}${isSelected ? ', selected' : ''}`}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: isSelected }}
-                    onPress={() => toggleTag(tag)}
-                    style={({ pressed }) => [
-                      styles.tag,
-                      isSelected && styles.tagSelected,
-                      pressed && styles.tagPressed,
-                    ]}
-                  >
-                    <Text style={[styles.tagText, isSelected && styles.tagTextSelected]}>
-                      {tag}
-                    </Text>
-                  </Pressable>
-                )
-              })}
+            return (
+              <ProviderAccordion
+                key={service.id}
+                expanded={expandedProviders.includes(service.id)}
+                onToggle={toggleProvider}
+                service={service}
+              >
+                {kind === 'catering' ? (
+                  <>
+                    <Text style={styles.tagsCaption}>COMMON DIETARY TAGS</Text>
+                    <View style={styles.tagsRow}>
+                      {commonTags.map((tag) => {
+                        const isSelected = draft.selectedTags.includes(tag)
+
+                        return (
+                          <Pressable
+                            key={tag}
+                            accessibilityLabel={`${tag}${isSelected ? ', selected' : ''}`}
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: isSelected }}
+                            onPress={() => toggleTag(service.id, tag)}
+                            style={({ pressed }) => [
+                              styles.tag,
+                              isSelected && styles.tagSelected,
+                              pressed && styles.tagPressed,
+                            ]}
+                          >
+                            <Text style={[styles.tagText, isSelected && styles.tagTextSelected]}>
+                              {tag}
+                            </Text>
+                          </Pressable>
+                        )
+                      })}
+                    </View>
+                    <RequestField
+                      badge="Optional"
+                      label="DIETARY RESTRICTIONS / ALLERGIES"
+                      onChangeText={(dietaryRestrictions) =>
+                        updateDraft(service.id, { dietaryRestrictions })
+                      }
+                      placeholder="e.g. 2 vegan guests, 1 peanut allergy"
+                      value={draft.dietaryRestrictions}
+                    />
+                    <RequestField
+                      badge="Optional"
+                      label="SPECIAL MENU REQUESTS"
+                      onChangeText={(specialMenuRequests) =>
+                        updateDraft(service.id, { specialMenuRequests })
+                      }
+                      placeholder="Specific dishes, serving style, or late-night snacks..."
+                      value={draft.specialMenuRequests}
+                    />
+                  </>
+                ) : kind === 'venue' ? (
+                  <RequestField
+                    badge="Optional"
+                    label="SETUP REQUIREMENTS"
+                    numberOfLines={4}
+                    onChangeText={(setupRequirements) =>
+                      updateDraft(service.id, { setupRequirements })
+                    }
+                    placeholder="Layout, access time, decorations, parking, or setup requirements..."
+                    value={draft.setupRequirements}
+                  />
+                ) : kind === 'photography' ? (
+                  <RequestField
+                    badge="Optional"
+                    label="MUST-HAVE SHOTS"
+                    numberOfLines={4}
+                    onChangeText={(mustHaveShots) =>
+                      updateDraft(service.id, { mustHaveShots })
+                    }
+                    placeholder="Important people, moments, locations, or preferred photo style..."
+                    value={draft.mustHaveShots}
+                  />
+                ) : (
+                  <RequestField
+                    badge="Optional"
+                    label={generalLabel}
+                    numberOfLines={4}
+                    onChangeText={(notes) => updateDraft(service.id, { notes })}
+                    placeholder={generalPlaceholder}
+                    value={draft.notes}
+                  />
+                )}
+              </ProviderAccordion>
+            )
+          })}
+
+          {services.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyTitle}>No selected services</Text>
+              <Text style={styles.emptyText}>Go back and select a service before adding instructions.</Text>
             </View>
-
-            <RequestField
-              badge="Required"
-              label="DIETARY RESTRICTIONS / ALLERGIES"
-              onChangeText={setDietaryRestrictions}
-              placeholder="e.g. 2 Vegan, 1 Peanut Allergy"
-              value={dietaryRestrictions}
-            />
-            <RequestField
-              badge="Optional"
-              label="SPECIAL MENU REQUESTS"
-              onChangeText={setSpecialMenuRequests}
-              placeholder="Any specific dishes or late-night snacks?"
-              value={specialMenuRequests}
-            />
-          </ProviderAccordion>
-
-          <ProviderAccordion
-            expanded={expandedProviders.includes('venue')}
-            id="venue"
-            onToggle={toggleProvider}
-          >
-            <RequestField
-              badge="Optional"
-              label="SETUP REQUIREMENTS"
-              numberOfLines={3}
-              onChangeText={setSetupRequirements}
-              placeholder="e.g. Need extra space for a photobooth near the entrance."
-              value={setupRequirements}
-            />
-          </ProviderAccordion>
-
-          <ProviderAccordion
-            expanded={expandedProviders.includes('photography')}
-            id="photography"
-            onToggle={toggleProvider}
-          >
-            <RequestField
-              badge="Optional"
-              label="MUST-HAVE SHOTS"
-              numberOfLines={3}
-              onChangeText={setMustHaveShots}
-              placeholder="e.g. First look with grandparents, candid dance floor moments."
-              value={mustHaveShots}
-            />
-          </ProviderAccordion>
-        </View>
-
-        <View style={styles.generalNotesSection}>
-          <Text style={styles.generalNotesHeading}>General Notes for Your Organizer</Text>
-          <TextInput
-            accessibilityLabel="General notes for your organizer"
-            multiline
-            numberOfLines={5}
-            onChangeText={setGeneralNotes}
-            placeholder="e.g. program flow, family arrangements..."
-            placeholderTextColor={palette.secondaryFixedDim}
-            style={[styles.textArea, styles.generalNotesInput]}
-            textAlignVertical="top"
-            value={generalNotes}
-          />
+          ) : null}
         </View>
       </ScrollView>
 
@@ -239,10 +291,16 @@ export const InstructionModuleScreen: React.FC<InstructionModuleScreenProps> = (
           <Pressable
             accessibilityLabel="Save requests and continue"
             accessibilityRole="button"
+            accessibilityState={{ disabled: isSaving }}
+            disabled={isSaving}
             onPress={handleSave}
-            style={({ pressed }) => [styles.saveButton, pressed && styles.savePressed]}
+            style={({ pressed }) => [
+              styles.saveButton,
+              isSaving && styles.saveDisabled,
+              pressed && styles.savePressed,
+            ]}
           >
-            <Text style={styles.saveText}>Save &amp; Continue</Text>
+            <Text style={styles.saveText}>{isSaving ? 'Saving...' : 'Save & Continue'}</Text>
           </Pressable>
         </View>
       </View>
@@ -253,39 +311,44 @@ export const InstructionModuleScreen: React.FC<InstructionModuleScreenProps> = (
 interface ProviderAccordionProps {
   children: React.ReactNode
   expanded: boolean
-  id: InstructionProviderId
-  onToggle: (id: InstructionProviderId) => void
+  onToggle: (id: string) => void
+  service: InstructionModuleService
 }
 
 const ProviderAccordion: React.FC<ProviderAccordionProps> = ({
   children,
   expanded,
-  id,
   onToggle,
+  service,
 }) => {
-  const provider = providers[id]
-
   return (
     <View style={styles.providerCard}>
       <Pressable
-        accessibilityLabel={`${expanded ? 'Collapse' : 'Expand'} ${provider.name} requests`}
+        accessibilityLabel={`${expanded ? 'Collapse' : 'Expand'} ${service.name} requests`}
         accessibilityRole="button"
         accessibilityState={{ expanded }}
-        onPress={() => onToggle(id)}
+        onPress={() => onToggle(service.id)}
         style={({ pressed }) => [styles.providerHeader, pressed && styles.providerHeaderPressed]}
       >
         <View style={styles.providerIdentity}>
-          <Image
-            accessibilityLabel={provider.imageLabel}
-            source={{ uri: provider.image }}
-            style={styles.providerImage}
-          />
+          {service.imageUrl ? (
+            <Image
+              accessibilityLabel={service.imageLabel}
+              source={{ uri: service.imageUrl }}
+              style={styles.providerImage}
+            />
+          ) : (
+            <View style={[styles.providerImage, styles.providerImagePlaceholder]}>
+              <Text style={styles.providerImageInitial}>{service.name.charAt(0)}</Text>
+            </View>
+          )}
           <View style={styles.providerCopy}>
-            <Text style={styles.providerName}>{provider.name}</Text>
-            <Text style={styles.providerCategory}>{provider.category}</Text>
+            <Text style={styles.providerName}>{service.name}</Text>
+            <Text style={styles.providerBusiness}>{service.providerName}</Text>
+            <Text style={styles.providerCategory}>{service.category.toUpperCase()}</Text>
           </View>
         </View>
-        <Text style={[styles.chevron, expanded && styles.chevronExpanded]}>ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬â„¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾</Text>
+        <Text style={[styles.chevron, expanded && styles.chevronExpanded]}>⌄</Text>
       </Pressable>
 
       {expanded ? <View style={styles.providerContent}>{children}</View> : null}
@@ -434,8 +497,11 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     backgroundColor: palette.surfaceDim,
   },
+  providerImagePlaceholder: { alignItems: 'center', justifyContent: 'center' },
+  providerImageInitial: { color: palette.primaryContainer, fontSize: 18, fontWeight: '700' },
   providerCopy: { flex: 1 },
   providerName: { color: palette.text, fontSize: 18, lineHeight: 25, fontWeight: '600' },
+  providerBusiness: { color: palette.textVariant, fontSize: 12, lineHeight: 17, marginTop: 1 },
   providerCategory: {
     color: palette.secondary,
     fontSize: 11,
@@ -458,6 +524,15 @@ const styles = StyleSheet.create({
     backgroundColor: palette.surfaceLowest,
     padding: 16,
   },
+  emptyState: {
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: palette.surfaceVariant,
+    borderRadius: 12,
+    padding: 24,
+  },
+  emptyTitle: { color: palette.text, fontSize: 16, lineHeight: 22, fontWeight: '700' },
+  emptyText: { color: palette.secondary, fontSize: 13, lineHeight: 20, textAlign: 'center', marginTop: 4 },
   tagsCaption: {
     color: palette.secondary,
     fontSize: 10,
@@ -563,6 +638,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   saveText: { color: palette.white, fontSize: 16, lineHeight: 22, fontWeight: '600' },
+  saveDisabled: { opacity: 0.65 },
   savePressed: { backgroundColor: palette.primary, transform: [{ scale: 0.985 }] },
   pressed: { opacity: 0.55, transform: [{ scale: 0.95 }] },
 })

@@ -11,7 +11,15 @@ import {
 } from 'react-native'
 import { ClientBottomNavigation, ClientMainTab } from '../components/ClientBottomNavigation'
 
-export type MerchantCategory = 'venues' | 'photography' | 'catering' | 'florists' | 'attire'
+export type MerchantCategory =
+  | 'venues'
+  | 'photography'
+  | 'catering'
+  | 'florists'
+  | 'attire'
+  | 'eventOrganizers'
+  | 'hosts'
+  | 'soundLights'
 export type BudgetTrackerTab = ClientMainTab | 'vendors' | 'planner' | 'chat'
 
 interface BudgetTrackerScreenProps {
@@ -74,13 +82,40 @@ const merchantCategories = [
       'https://lh3.googleusercontent.com/aida-public/AB6AXuAhOaMh7guHQRWcfJIcC56siy1CyThxFOSx7dyWh6AG-8PBqlKc_xoyX4MNRQVGxsTqI07SOOqSaAnPWyVfEsezhn5jGDzCSTrzP_KJPf53_4p93_h9ts4yBdtN6F_tO0EVIbisbn1TP21WJfuejQfbwEdWpEfNOPgr05R1vgUpl3-V2AJGmrxpqa8-KBWVbeiEDX4tAZyKo_8wc8RenWMhdYYFDzG3LsMBuKHMI2BDyqI8ih3zj7PzpA',
     imageLabel: 'Designer wedding gown and burgundy tuxedo',
   },
+  {
+    id: 'eventOrganizers' as const,
+    title: 'Event Organizer',
+    subtitle: 'Planning and coordination',
+    featured: false,
+    image:
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuDcsG3q-fnP7YT8BoefsbQp-dsyHueshrdXDPYVSU30cc0CKsPEoEyrH7kqGV-DHCjy-dWdlW-hkOAzVwebQlrBC-0QcKZveHZHG8ljzAb5mXvNzyarrJSPRz7DRuvSol4tTtG2lObMjjD0sFK4-bJQLpGtO9R6vQjYZ3F3Bj4WMZwGY-N02BIvNED-SWAYXTHOYdIHw36Hvs_ibLOOujMX9mMhBGBSixszIl93YxJ0i_vTgECOmmZuLA',
+    imageLabel: 'Wedding event organizer venue setup',
+  },
+  {
+    id: 'hosts' as const,
+    title: 'Host/Emcee',
+    subtitle: 'Keep every moment flowing',
+    featured: false,
+    image:
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuC1ZIU6o-m0q6y4T4wQeXMLmoVAc9EZd1FfTiE46IJoR0_bz8RlR8qnb1nLYsv4_DvPB8OXhCtl1G4smTBFdmVmEuBJygUFyWyvNZnosGFxZeIzBkbqPbK1SOaBwnGInYFTA-V6SQzBKx2Hc-C8OaWlWG1GYcQzVT2SmHohIQK0SKGBSWpZf6Ch89DCzz_o5Wv63pUYfqCrrdqTKteTCjJiReWnKIHkhMkLpH7p3GME5EZreXJOeg2oXQ',
+    imageLabel: 'Professional event host service',
+  },
+  {
+    id: 'soundLights' as const,
+    title: 'Sound & Lights',
+    subtitle: 'Production for your celebration',
+    featured: false,
+    image:
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuBYIJtkALd6RZTKB793xTml6IliaeOS--YYb7nCOzBNZjzLtFYVWDdwGKaNi_mPRU62Wt5FYlQiePs93otpMlHT0Cz38RzlC3d9uE8YLt3QHL0UWZ7LIyp0KbmD3L_znUY9EmN9hQoR9B-lx0V67uiTAq-5yHzAUzVJILN2SSFLN5UQDT31rxBkUe0QDWuduZxbSt5LwtlVMwM8oiRRG1sicxmtQsmkFYNBkOwC-pbg7kcLpd-My6m3eg',
+    imageLabel: 'Event sound and lighting production',
+  },
 ] as const
 
 export const budgetTrackerLegacyNavigationTabs = [
-  { id: 'home' as const, icon: 'ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬â„¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡', label: 'Home' },
+  { id: 'home' as const, icon: '⌂', label: 'Home' },
   { id: 'vendors' as const, icon: 'S', label: 'Service Providers' },
-  { id: 'planner' as const, icon: 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“Ãƒâ€šÃ‚Â£', label: 'Planner' },
-  { id: 'chat' as const, icon: 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬ÂÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¹', label: 'Chat' },
+  { id: 'planner' as const, icon: '▣', label: 'Planner' },
+  { id: 'chat' as const, icon: '○', label: 'Chat' },
 ] as const
 
 const formatCurrency = (value: number) =>
@@ -141,8 +176,8 @@ export const BudgetTrackerScreen: React.FC<BudgetTrackerScreenProps> = ({
         >
           <Text style={styles.budgetLabel}>REMAINING BUDGET</Text>
           <View style={styles.budgetValueGroup}>
-            <Text style={styles.budgetValue}>ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â±{formatCurrency(remainingBudget)}</Text>
-            <Text style={styles.budgetChevron}>ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬â„¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾</Text>
+            <Text style={styles.budgetValue}>₱{formatCurrency(remainingBudget)}</Text>
+            <Text style={styles.budgetChevron}>⌄</Text>
           </View>
         </Pressable>
       </View>

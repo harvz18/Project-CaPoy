@@ -14,14 +14,36 @@ import type { MerchantHomeTab } from './16-MerchantHome'
 export type BookingRequestStatus = 'new' | 'confirmed' | 'completed' | 'cancelled'
 export type BookingRequestNavigationTab = 'events' | 'bookings' | 'budget' | 'chat'
 
+export interface ClientInstructionNote {
+  body: string
+  category: string
+  id: string
+  tags: string[]
+  title: string
+}
+
 export interface MerchantBookingRequest {
   amount: number
+  clientEmail?: string
+  clientNotes?: string
   clientName: string
   currency: 'PHP'
   eventDate: string
+  eventId?: string
+  eventName?: string
+  eventType?: string
+  guestCount?: number
   id: string
+  instructions?: ClientInstructionNote[]
+  location?: string
+  packageDescription?: string
+  packageInclusions?: string[]
   packageName: string
+  requestedTime?: string
+  serviceId?: string
   status: BookingRequestStatus
+  submittedAt?: string
+  venue?: string
 }
 
 interface BookingRequestScreenProps {
@@ -75,6 +97,17 @@ const formatDate = (value: string) => {
     month: 'short',
     year: 'numeric',
   }).format(date)
+}
+
+const completionIsAvailable = (value: string) => {
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? new Date(`${value}T00:00:00`)
+    : new Date(value)
+  if (Number.isNaN(parsed.getTime())) return false
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return parsed <= today
 }
 
 export const BookingRequestScreen: React.FC<BookingRequestScreenProps> = ({
@@ -178,6 +211,8 @@ export const BookingRequestScreen: React.FC<BookingRequestScreenProps> = ({
           {visibleRequests.length > 0 ? (
             visibleRequests.map((request) => {
               const isProcessing = processingRequestId === request.id
+              const needsCompletion =
+                request.status === 'confirmed' && completionIsAvailable(request.eventDate)
 
               return (
                 <View key={request.id} style={styles.requestCard}>
@@ -240,6 +275,7 @@ export const BookingRequestScreen: React.FC<BookingRequestScreenProps> = ({
                         style={[
                           styles.statusBadge,
                           request.status === 'confirmed' && styles.statusBadgeConfirmed,
+                          needsCompletion && styles.statusBadgeAction,
                           request.status === 'completed' && styles.statusBadgeCompleted,
                           request.status === 'cancelled' && styles.statusBadgeCancelled,
                         ]}
@@ -248,11 +284,12 @@ export const BookingRequestScreen: React.FC<BookingRequestScreenProps> = ({
                           style={[
                             styles.statusBadgeText,
                             request.status === 'confirmed' && styles.statusTextConfirmed,
+                            needsCompletion && styles.statusTextAction,
                             request.status === 'completed' && styles.statusTextCompleted,
                             request.status === 'cancelled' && styles.statusTextCancelled,
                           ]}
                         >
-                          {statusLabels[request.status]}
+                          {needsCompletion ? 'MARK FINISHED' : statusLabels[request.status]}
                         </Text>
                       </View>
                     )}
@@ -428,10 +465,12 @@ const styles = StyleSheet.create({
   buttonDisabled: { opacity: 0.5 },
   statusBadge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
   statusBadgeConfirmed: { backgroundColor: palette.primarySoft },
+  statusBadgeAction: { backgroundColor: '#FFF0D6' },
   statusBadgeCompleted: { backgroundColor: palette.completedSoft },
   statusBadgeCancelled: { backgroundColor: palette.errorSoft },
   statusBadgeText: { fontSize: 12, lineHeight: 16, fontWeight: '600' },
   statusTextConfirmed: { color: palette.primaryContainer },
+  statusTextAction: { color: '#7A4D00' },
   statusTextCompleted: { color: palette.completed },
   statusTextCancelled: { color: palette.error },
   emptyState: {
