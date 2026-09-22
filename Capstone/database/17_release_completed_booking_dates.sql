@@ -1,12 +1,7 @@
--- MULTIVENT private, real provider schedule check and payment-method default.
--- Run after 12_provider_instruction_visibility.sql in the Supabase SQL Editor.
--- The function exposes only availability results for an event owned by the
--- signed-in client; it does not expose another client's booking information.
+-- Release provider dates as soon as a booking is marked completed.
+-- Run after 16_service_feedback_sentiment.sql.
 
 begin;
-
-alter table public.payments
-  alter column provider set default 'eWallet';
 
 create or replace function public.get_event_schedule_availability(target_event_id uuid)
 returns table (
@@ -107,7 +102,13 @@ as $$
         where bookings.provider_id = selected.provider_id
           and bookings.event_id <> target_event_id
           and bookings.requested_date = selected.event_date
-          and bookings.status in ('requested', 'approved', 'payment_required', 'paid', 'confirmed')
+          and bookings.status in (
+            'requested',
+            'approved',
+            'payment_required',
+            'paid',
+            'confirmed'
+          )
       ) as is_available,
     case
       when selected.event_date is null then 'Add an event date before checking availability.'
@@ -119,7 +120,13 @@ as $$
         where bookings.provider_id = selected.provider_id
           and bookings.event_id <> target_event_id
           and bookings.requested_date = selected.event_date
-          and bookings.status in ('requested', 'approved', 'payment_required', 'paid', 'confirmed')
+          and bookings.status in (
+            'requested',
+            'approved',
+            'payment_required',
+            'paid',
+            'confirmed'
+          )
       ) then 'Provider already has an active booking on this date.'
       when exists (
         select 1

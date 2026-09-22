@@ -52,9 +52,25 @@ Apply `13_real_schedule_check.sql` so schedule results use the selected provider
 operating window, and active booking dates without exposing other clients' booking data. It also
 changes the default payment provider label to E-Wallet for new payment records.
 Apply `14_event_completion_feedback.sql` so providers can securely mark services finished on or
-after the event date, the event completes after every active provider finishes, clients receive
-completion notifications, and one raw overall-experience comment is queued for future sentiment
-and topic analysis.
+after the event date, the event completes after every active provider finishes, and clients receive
+completion notifications.
+Apply `15_sentiment_analysis_integrity.sql`, `16_service_feedback_sentiment.sql`, and
+`18_ai_feedback_summary_cache.sql`; deploy the `analyze-review` and `summarize-reviews` Supabase Edge
+Functions; and configure the external Python analysis service.
+Clients then rate every completed service and can optionally submit a separately analyzed comment
+for each service. See
+[`docs/sentiment-integration.md`](docs/sentiment-integration.md) for the data flow, secrets,
+deployment steps, score semantics, retry behavior, and model limitations.
+Apply `17_release_completed_booking_dates.sql` so completed bookings remain in history without
+blocking the provider from accepting another event on that same calendar date.
+Apply `19_event_coordinator_workspace.sql` to enable the role-scoped coordinator dashboard, assigned
+event summaries, and secure task creation/status updates. See
+[`docs/EVENT_COORDINATOR_IMPLEMENTATION.md`](docs/EVENT_COORDINATOR_IMPLEMENTATION.md) for account
+assignment and app testing steps.
+Provider booking requests are grouped by event while preserving individual service actions, notes,
+instructions, and statuses. See
+[`docs/MERCHANT_EVENT_BOOKING_GROUPING.md`](docs/MERCHANT_EVENT_BOOKING_GROUPING.md) for the mapping
+rules and test procedure.
 
 The client catalog displays the mock examples alongside every active Supabase service. Each
 example is linked at runtime to an active Supabase test service so event selections create real

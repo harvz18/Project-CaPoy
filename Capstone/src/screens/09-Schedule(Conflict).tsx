@@ -23,6 +23,7 @@ interface ScheduleConflictScreenProps {
   ) => boolean | Promise<boolean>
   onChooseDifferentProvider?: (provider: ScheduleConflictProvider) => void
   onMessageProvider?: (provider: ScheduleConflictProvider) => void
+  onRecheckAvailability?: () => boolean | Promise<boolean>
 }
 
 const defaultProviders: ScheduleConflictProvider[] = [
@@ -76,6 +77,7 @@ export const ScheduleConflictScreen: React.FC<ScheduleConflictScreenProps> = ({
   onConfirmDateChange,
   onChooseDifferentProvider,
   onMessageProvider,
+  onRecheckAvailability,
 }) => {
   const today = React.useMemo(() => startOfDay(new Date()), [])
   const initialDate = React.useMemo(() => {
@@ -88,6 +90,7 @@ export const ScheduleConflictScreen: React.FC<ScheduleConflictScreenProps> = ({
     new Date(initialDate.getFullYear(), initialDate.getMonth(), 1)
   )
   const [isSavingDate, setIsSavingDate] = React.useState(false)
+  const [isRechecking, setIsRechecking] = React.useState(false)
   const [dateError, setDateError] = React.useState('')
   const daysInMonth = new Date(
     visibleMonth.getFullYear(),
@@ -110,6 +113,17 @@ export const ScheduleConflictScreen: React.FC<ScheduleConflictScreenProps> = ({
     setSelectedDate(initialDate)
     setVisibleMonth(new Date(initialDate.getFullYear(), initialDate.getMonth(), 1))
     setDateError('')
+  }
+
+  const handleRecheckAvailability = async () => {
+    if (!onRecheckAvailability || isRechecking) return
+
+    setIsRechecking(true)
+    try {
+      await onRecheckAvailability()
+    } finally {
+      setIsRechecking(false)
+    }
   }
 
   return (
@@ -234,15 +248,24 @@ export const ScheduleConflictScreen: React.FC<ScheduleConflictScreenProps> = ({
 
       <View style={styles.footer}>
         <View style={styles.footerContent}>
-          <Text style={styles.footerHint}>Resolve the conflict above to continue</Text>
+          <Text style={styles.footerHint}>
+            Finished bookings release the provider's date. Recheck to load the latest status.
+          </Text>
           <Pressable
-            accessibilityLabel="Continue to payment, unavailable until conflicts are resolved"
+            accessibilityLabel="Recheck provider availability"
             accessibilityRole="button"
-            accessibilityState={{ disabled: true }}
-            disabled
-            style={styles.disabledButton}
+            accessibilityState={{ busy: isRechecking, disabled: isRechecking }}
+            disabled={isRechecking}
+            onPress={handleRecheckAvailability}
+            style={({ pressed }) => [
+              styles.recheckButton,
+              isRechecking && styles.recheckButtonDisabled,
+              pressed && styles.recheckButtonPressed,
+            ]}
           >
-            <Text style={styles.disabledButtonText}>Continue to Payment</Text>
+            <Text style={styles.recheckButtonText}>
+              {isRechecking ? 'Checking Availability...' : 'Recheck Availability'}
+            </Text>
           </Pressable>
         </View>
       </View>
@@ -643,18 +666,20 @@ const styles = StyleSheet.create({
   },
   footerContent: { width: '100%', maxWidth: 448, alignSelf: 'center', gap: 10 },
   footerHint: { color: palette.greyMid, fontSize: 12, lineHeight: 16, textAlign: 'center' },
-  disabledButton: {
+  recheckButton: {
     width: '100%',
     minHeight: 56,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 12,
-    backgroundColor: palette.greyLight,
+    backgroundColor: palette.burgundy,
     paddingHorizontal: 24,
     paddingVertical: 15,
   },
-  disabledButtonText: {
-    color: palette.greyMid,
+  recheckButtonDisabled: { opacity: 0.55 },
+  recheckButtonPressed: { opacity: 0.88, transform: [{ scale: 0.99 }] },
+  recheckButtonText: {
+    color: palette.surface,
     fontSize: 16,
     lineHeight: 24,
     fontWeight: '600',

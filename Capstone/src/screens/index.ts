@@ -53,6 +53,7 @@ export { BookingRequestScreen } from './19-BookingRequest'
 export type {
   BookingRequestNavigationTab,
   BookingRequestStatus,
+  MerchantBookedService,
   MerchantBookingRequest,
 } from './19-BookingRequest'
 export { BookingRequestDetailsScreen } from './19.1-BookingRequest'
@@ -115,6 +116,7 @@ export type {
   MerchantNotificationFilter,
   MerchantNotificationPreferences,
 } from './22.5-Notification'
+export { CoordinatorScreen } from './23-Coordinator'
 export { OnboardingScreen } from './01-Onboarding'
 export { LoginScreen } from './01.1-Login'
 export { ForgotPasswordScreen } from './01.1.1-ForgotPassword'

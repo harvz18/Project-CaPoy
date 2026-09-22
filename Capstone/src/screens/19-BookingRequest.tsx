@@ -22,6 +22,22 @@ export interface ClientInstructionNote {
   title: string
 }
 
+export interface MerchantBookedService {
+  amount: number
+  clientNotes?: string
+  id: string
+  instructions: ClientInstructionNote[]
+  packageDescription?: string
+  packageInclusions: string[]
+  packageName: string
+  requestedTime?: string
+  serviceCategory?: string
+  serviceId?: string
+  serviceName: string
+  status: BookingRequestStatus
+  submittedAt?: string
+}
+
 export interface MerchantBookingRequest {
   amount: number
   clientEmail?: string
@@ -40,7 +56,10 @@ export interface MerchantBookingRequest {
   packageInclusions?: string[]
   packageName: string
   requestedTime?: string
+  serviceCategory?: string
   serviceId?: string
+  serviceName?: string
+  services?: MerchantBookedService[]
   status: BookingRequestStatus
   submittedAt?: string
   venue?: string
@@ -48,14 +67,11 @@ export interface MerchantBookingRequest {
 
 interface BookingRequestScreenProps {
   initialStatus?: BookingRequestStatus
-  onAccept?: (request: MerchantBookingRequest) => void
   onBack?: () => void
-  onDecline?: (request: MerchantBookingRequest) => void
   onSelectMerchantTab?: (tab: MerchantHomeTab) => void
   onSelectNavigationTab?: (tab: BookingRequestNavigationTab) => void
   onSelectRequest?: (request: MerchantBookingRequest) => void
   onStatusChange?: (status: BookingRequestStatus) => void
-  processingRequestId?: string
   requests?: MerchantBookingRequest[]
 }
 
@@ -112,14 +128,11 @@ const completionIsAvailable = (value: string) => {
 
 export const BookingRequestScreen: React.FC<BookingRequestScreenProps> = ({
   initialStatus = 'new',
-  onAccept,
   onBack,
-  onDecline,
   onSelectMerchantTab,
   onSelectNavigationTab,
   onSelectRequest,
   onStatusChange,
-  processingRequestId,
   requests = [],
 }) => {
   const { width } = useWindowDimensions()
@@ -137,18 +150,6 @@ export const BookingRequestScreen: React.FC<BookingRequestScreenProps> = ({
   const handleStatusChange = (status: BookingRequestStatus) => {
     setActiveStatus(status)
     onStatusChange?.(status)
-  }
-
-  const updateRequestStatus = (
-    request: MerchantBookingRequest,
-    status: Extract<BookingRequestStatus, 'confirmed' | 'cancelled'>
-  ) => {
-    setRequestItems((current) =>
-      current.map((item) => (item.id === request.id ? { ...item, status } : item))
-    )
-
-    if (status === 'confirmed') onAccept?.({ ...request, status })
-    if (status === 'cancelled') onDecline?.({ ...request, status })
   }
 
   return (
@@ -210,7 +211,8 @@ export const BookingRequestScreen: React.FC<BookingRequestScreenProps> = ({
         <View style={styles.requestList}>
           {visibleRequests.length > 0 ? (
             visibleRequests.map((request) => {
-              const isProcessing = processingRequestId === request.id
+              const serviceCount = request.services?.length ?? 1
+              const serviceNames = request.services?.map((service) => service.serviceName) ?? [request.packageName]
               const needsCompletion =
                 request.status === 'confirmed' && completionIsAvailable(request.eventDate)
 
@@ -218,7 +220,7 @@ export const BookingRequestScreen: React.FC<BookingRequestScreenProps> = ({
                 <View key={request.id} style={styles.requestCard}>
                   <View style={[styles.requestTopRow, isCompact && styles.requestTopRowCompact]}>
                     <Pressable
-                      accessibilityLabel={`View request from ${request.clientName}`}
+                      accessibilityLabel={`View ${request.eventName || 'event'} booking details`}
                       accessibilityRole="button"
                       onPress={() => onSelectRequest?.(request)}
                       style={({ pressed }) => [
@@ -228,71 +230,40 @@ export const BookingRequestScreen: React.FC<BookingRequestScreenProps> = ({
                     >
                       <View style={styles.namePriceRow}>
                         <Text numberOfLines={1} style={styles.clientName}>
-                          {request.clientName}
+                          {request.eventName || 'Untitled event'}
                         </Text>
                         <Text style={styles.price}>{formatPrice(request)}</Text>
                       </View>
                       <Text numberOfLines={2} style={styles.requestMeta}>
-                        {formatDate(request.eventDate)} {'\u2022'} {request.packageName}
+                        {formatDate(request.eventDate)} {'\u2022'} {serviceCount}{' '}
+                        {serviceCount === 1 ? 'service' : 'services'}
+                      </Text>
+                      <Text numberOfLines={1} style={styles.serviceNames}>
+                        {serviceNames.join(' · ')}
                       </Text>
                     </Pressable>
 
-                    {request.status === 'new' ? (
-                      <View style={[styles.requestActions, isCompact && styles.requestActionsCompact]}>
-                        <Pressable
-                          accessibilityLabel={`Decline booking request from ${request.clientName}`}
-                          accessibilityRole="button"
-                          accessibilityState={{ disabled: isProcessing }}
-                          disabled={isProcessing}
-                          onPress={() => updateRequestStatus(request, 'cancelled')}
-                          style={({ pressed }) => [
-                            styles.declineButton,
-                            isProcessing && styles.buttonDisabled,
-                            pressed && styles.declineButtonPressed,
-                          ]}
-                        >
-                          <Text style={styles.declineButtonText}>Decline</Text>
-                        </Pressable>
-                        <Pressable
-                          accessibilityLabel={`Accept booking request from ${request.clientName}`}
-                          accessibilityRole="button"
-                          accessibilityState={{ disabled: isProcessing }}
-                          disabled={isProcessing}
-                          onPress={() => updateRequestStatus(request, 'confirmed')}
-                          style={({ pressed }) => [
-                            styles.acceptButton,
-                            isProcessing && styles.buttonDisabled,
-                            pressed && styles.acceptButtonPressed,
-                          ]}
-                        >
-                          <Text style={styles.acceptButtonText}>
-                            {isProcessing ? 'Updating' : 'Accept'}
-                          </Text>
-                        </Pressable>
-                      </View>
-                    ) : (
-                      <View
+                    <View
+                      style={[
+                        styles.statusBadge,
+                        request.status === 'confirmed' && styles.statusBadgeConfirmed,
+                        needsCompletion && styles.statusBadgeAction,
+                        request.status === 'completed' && styles.statusBadgeCompleted,
+                        request.status === 'cancelled' && styles.statusBadgeCancelled,
+                      ]}
+                    >
+                      <Text
                         style={[
-                          styles.statusBadge,
-                          request.status === 'confirmed' && styles.statusBadgeConfirmed,
-                          needsCompletion && styles.statusBadgeAction,
-                          request.status === 'completed' && styles.statusBadgeCompleted,
-                          request.status === 'cancelled' && styles.statusBadgeCancelled,
+                          styles.statusBadgeText,
+                          request.status === 'confirmed' && styles.statusTextConfirmed,
+                          needsCompletion && styles.statusTextAction,
+                          request.status === 'completed' && styles.statusTextCompleted,
+                          request.status === 'cancelled' && styles.statusTextCancelled,
                         ]}
                       >
-                        <Text
-                          style={[
-                            styles.statusBadgeText,
-                            request.status === 'confirmed' && styles.statusTextConfirmed,
-                            needsCompletion && styles.statusTextAction,
-                            request.status === 'completed' && styles.statusTextCompleted,
-                            request.status === 'cancelled' && styles.statusTextCancelled,
-                          ]}
-                        >
-                          {needsCompletion ? 'MARK FINISHED' : statusLabels[request.status]}
-                        </Text>
-                      </View>
-                    )}
+                        {needsCompletion ? 'ACTION NEEDED' : statusLabels[request.status]}
+                      </Text>
+                    </View>
                   </View>
                 </View>
               )
@@ -437,6 +408,7 @@ const styles = StyleSheet.create({
   clientName: { minWidth: 0, flexShrink: 1, color: palette.text, fontSize: 16, lineHeight: 22, fontWeight: '600' },
   price: { color: palette.primaryContainer, fontSize: 16, lineHeight: 22, fontWeight: '700' },
   requestMeta: { color: palette.secondary, fontSize: 12, lineHeight: 17, marginTop: 4 },
+  serviceNames: { color: palette.secondary, fontSize: 11, lineHeight: 16, marginTop: 2 },
   requestActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   requestActionsCompact: { alignSelf: 'flex-end' },
   declineButton: {
@@ -463,12 +435,12 @@ const styles = StyleSheet.create({
   acceptButtonPressed: { opacity: 0.85 },
   acceptButtonText: { color: palette.onPrimary, fontSize: 14, lineHeight: 20, fontWeight: '600' },
   buttonDisabled: { opacity: 0.5 },
-  statusBadge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  statusBadge: { borderRadius: 999, backgroundColor: palette.primarySoft, paddingHorizontal: 10, paddingVertical: 5 },
   statusBadgeConfirmed: { backgroundColor: palette.primarySoft },
   statusBadgeAction: { backgroundColor: '#FFF0D6' },
   statusBadgeCompleted: { backgroundColor: palette.completedSoft },
   statusBadgeCancelled: { backgroundColor: palette.errorSoft },
-  statusBadgeText: { fontSize: 12, lineHeight: 16, fontWeight: '600' },
+  statusBadgeText: { color: palette.primaryContainer, fontSize: 12, lineHeight: 16, fontWeight: '600' },
   statusTextConfirmed: { color: palette.primaryContainer },
   statusTextAction: { color: '#7A4D00' },
   statusTextCompleted: { color: palette.completed },

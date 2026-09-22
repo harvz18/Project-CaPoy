@@ -504,7 +504,7 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
   const { data, error } = await client
     .from('bookings')
     .select(
-      'id, event_id, amount, status, requested_date, requested_time, created_at, updated_at, events(id, name, event_type, event_date, event_time, guest_count, venue, location, status), services(name, cover_image_url, service_categories(name)), provider_profiles(business_name), payments!inner(status, amount, paid_at, metadata)'
+      'id, event_id, provider_id, service_id, amount, status, requested_date, requested_time, created_at, updated_at, events(id, name, event_type, event_date, event_time, guest_count, venue, location, status), services(name, cover_image_url, service_categories(name)), provider_profiles(business_name), payments!inner(status, amount, paid_at, metadata)'
     )
     .eq('client_id', userId)
     .neq('status', 'payment_required')
@@ -513,21 +513,17 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
 
   if (error || !data) return []
 
-  const eventIds = Array.from(
-    new Set(
-      data
-        .map((row) => textFrom((row as Record<string, unknown>).event_id))
-        .filter(Boolean)
-    )
-  )
-  const { data: feedbackRows } = eventIds.length
+  const bookingIds = data
+    .map((row) => textFrom((row as Record<string, unknown>).id))
+    .filter(Boolean)
+  const { data: reviewRows } = bookingIds.length
     ? await client
-        .from('event_feedback')
-        .select('event_id')
-        .eq('client_id', userId)
-        .in('event_id', eventIds)
+        .from('reviews')
+        .select('booking_id')
+        .eq('reviewer_id', userId)
+        .in('booking_id', bookingIds)
     : { data: [] }
-  const reviewedEventIds = new Set((feedbackRows ?? []).map((row) => textFrom(row.event_id)))
+  const reviewedBookingIds = new Set((reviewRows ?? []).map((row) => textFrom(row.booking_id)))
   const grouped = new Map<string, BookingItem>()
 
   data.forEach((row) => {
@@ -549,8 +545,10 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
       category: textFrom(category?.name, 'Service'),
       image: textFrom(service?.cover_image_url),
       paymentStatus: textFrom(latestPayment?.status, 'pending'),
+      providerId: textFrom(record.provider_id),
       providerName: textFrom(provider?.business_name, 'Service provider'),
       rawStatus,
+      serviceId: textFrom(record.service_id),
       serviceName,
       status: mapServiceBookingStatus(rawStatus),
       updatedAt: textFrom(record.updated_at),
@@ -580,7 +578,7 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
       createdAt: textFrom(record.created_at),
       date: toIsoDate(event?.event_date ?? record.requested_date),
       eventId,
-      hasFeedback: reviewedEventIds.has(eventId),
+      hasFeedback: false,
       eventType: textFrom(event?.event_type, 'Event'),
       guestCount: numberFrom(event?.guest_count),
       id: eventId,
@@ -604,6 +602,9 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
 
     return {
       ...booking,
+      hasFeedback:
+        services.length > 0 &&
+        services.every((service) => reviewedBookingIds.has(service.bookingId)),
       status:
         statuses.length > 0 && statuses.every((status) => status === 'completed')
           ? 'completed'
@@ -623,7 +624,7 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
   const { data, error } = await context.client
     .from('bookings')
     .select(
-      'id, event_id, service_id, amount, status, requested_date, requested_time, client_notes, created_at, profiles(full_name, email), events(name, event_type, event_date, event_time, guest_count, venue, location), services(name, description), service_packages(name, description, inclusions), payments!inner(status)'
+      'id, event_id, service_id, amount, status, requested_date, requested_time, client_notes, created_at, profiles(full_name, email), events(name, event_type, event_date, event_time, guest_count, venue, location), services(name, description, service_categories(name)), service_packages(name, description, inclusions), payments!inner(status)'
     )
     .eq('provider_id', context.providerId)
     .neq('status', 'payment_required')
@@ -644,11 +645,12 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
         .eq('status', 'saved')
     : { data: [] }
 
-  return data.map((row) => {
+  const individualRequests = data.map((row) => {
     const record = row as Record<string, unknown>
     const profile = nested(record.profiles) as Record<string, unknown> | undefined
     const event = nested(record.events) as Record<string, unknown> | undefined
     const service = nested(record.services) as Record<string, unknown> | undefined
+    const serviceCategory = nested(service?.service_categories) as Record<string, unknown> | undefined
     const servicePackage = nested(record.service_packages) as Record<string, unknown> | undefined
     const packageInclusions = Array.isArray(servicePackage?.inclusions)
       ? servicePackage.inclusions.filter((item): item is string => typeof item === 'string')
@@ -677,7 +679,7 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
       clientEmail: textFrom(profile?.email),
       clientNotes: textFrom(record.client_notes),
       clientName: textFrom(profile?.full_name, textFrom(profile?.email, 'Client')),
-      currency: 'PHP',
+      currency: 'PHP' as const,
       eventDate: toIsoDate(record.requested_date ?? event?.event_date),
       eventId,
       eventName: textFrom(event?.name, 'Event'),
@@ -691,10 +693,60 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
       packageName: textFrom(servicePackage?.name, textFrom(service?.name, 'Service request')),
       requestedTime: textFrom(record.requested_time, textFrom(event?.event_time)),
       serviceId,
+      serviceCategory: textFrom(serviceCategory?.name),
+      serviceName: textFrom(service?.name, 'Service request'),
       status: mapRequestStatus(textFrom(record.status)),
       submittedAt: textFrom(record.created_at),
       venue: textFrom(event?.venue),
     }
+  })
+
+  const grouped = new Map<string, MerchantBookingRequest>()
+
+  individualRequests.forEach((request) => {
+    const groupId = request.eventId || request.id
+    const service = {
+      amount: request.amount,
+      clientNotes: request.clientNotes,
+      id: request.id,
+      instructions: request.instructions ?? [],
+      packageDescription: request.packageDescription,
+      packageInclusions: request.packageInclusions ?? [],
+      packageName: request.packageName,
+      requestedTime: request.requestedTime,
+      serviceCategory: request.serviceCategory,
+      serviceId: request.serviceId,
+      serviceName: request.serviceName,
+      status: request.status,
+      submittedAt: request.submittedAt,
+    }
+    const existing = grouped.get(groupId)
+
+    if (existing) {
+      if (existing.services?.some((item) => item.id === service.id)) return
+      existing.amount += request.amount
+      existing.services = [...(existing.services ?? []), service]
+      return
+    }
+
+    grouped.set(groupId, {
+      ...request,
+      id: groupId,
+      services: [service],
+    })
+  })
+
+  return Array.from(grouped.values()).map((request) => {
+    const statuses = (request.services ?? []).map((service) => service.status)
+    const status: MerchantBookingRequest['status'] = statuses.some((value) => value === 'new')
+      ? 'new'
+      : statuses.some((value) => value === 'confirmed')
+        ? 'confirmed'
+        : statuses.some((value) => value === 'completed')
+          ? 'completed'
+          : 'cancelled'
+
+    return { ...request, status }
   })
 }
 

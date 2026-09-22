@@ -1263,40 +1263,66 @@ export const saveClientReview = async ({
 
 export const saveEventFeedback = async ({
   eventId,
-  overallComment,
+  serviceReviews,
 }: EventFeedbackValue): Promise<PlanningResult> => {
   try {
     const client = getClient()
     const clientId = await getCurrentUserId()
-    const comment = overallComment.trim()
 
-    if (!client || !clientId || !eventId || comment.length < 10) {
-      return { ok: false, message: 'A completed event and meaningful feedback are required.' }
+    if (!client || !clientId || !eventId || serviceReviews.length === 0) {
+      return { ok: false, message: 'A completed event and service ratings are required.' }
     }
 
-    const { data: event } = await client
-      .from('events')
-      .select('id, status')
-      .eq('id', eventId)
-      .eq('client_id', clientId)
-      .maybeSingle()
-
-    if (!event?.id || event.status !== 'completed') {
-      return { ok: false, message: 'Feedback opens after every provider marks the event finished.' }
+    if (
+      serviceReviews.some(
+        (review) =>
+          !review.bookingId ||
+          !Number.isInteger(review.rating) ||
+          review.rating < 1 ||
+          review.rating > 5 ||
+          review.comment.trim().length > 4000
+      )
+    ) {
+      return { ok: false, message: 'Rate every service from 1 to 5 stars.' }
     }
 
-    const { error } = await client.from('event_feedback').insert({
-      analysis_status: 'pending',
-      client_id: clientId,
-      event_id: eventId,
-      overall_comment: comment,
+    const { data, error } = await client.rpc('submit_event_service_feedback', {
+      service_reviews: serviceReviews.map((review) => ({
+        booking_id: review.bookingId,
+        comment: review.comment.trim() || null,
+        rating: review.rating,
+      })),
+      target_event_id: eventId,
     })
 
-    if (error?.code === '23505') {
-      return { ok: false, message: 'Feedback has already been submitted for this event.' }
+    if (error) {
+      return { ok: false, message: error.message ?? 'Unable to save service feedback.' }
     }
 
-    return { ok: !error, message: error?.message }
+    const result = data as
+      | { reviews?: Array<{ needs_analysis?: boolean; review_id?: string }> }
+      | null
+    const queuedReviews = (result?.reviews ?? []).filter(
+      (review): review is { needs_analysis: true; review_id: string } =>
+        review.needs_analysis === true && typeof review.review_id === 'string'
+    )
+    const analysisResults = await Promise.allSettled(
+      queuedReviews.map((review) =>
+        client.functions.invoke('analyze-review', {
+          body: { reviewId: review.review_id },
+        })
+      )
+    )
+    const hasPendingAnalysis = analysisResults.some(
+      (result) => result.status === 'rejected' || Boolean(result.value.error)
+    )
+
+    return {
+      ok: true,
+      message: hasPendingAnalysis
+        ? 'Ratings were saved. Some comment analysis is still pending.'
+        : undefined,
+    }
   } catch (error) {
     return { ok: false, message: toMessage(error) }
   }

@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native'
 import { CatalogService, formatPeso, formatServicePrice } from '../lib/catalog'
+import type { ReviewSentiment, ServiceReviewInsights } from '../lib/reviews'
 
 export type MealType = 'plated' | 'buffet' | 'packed'
 
@@ -36,6 +37,8 @@ interface ServiceDetailsScreenProps {
   onBrowseMenus?: () => void
   onFavoriteChange?: (favorite: boolean) => void
   onReadAllReviews?: () => void
+  reviewInsights?: ServiceReviewInsights
+  reviewInsightsLoading?: boolean
 }
 
 const mealTypes = [
@@ -100,6 +103,8 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   onBack,
   onFavoriteChange,
   onReadAllReviews,
+  reviewInsights,
+  reviewInsightsLoading = false,
 }) => {
   const { width, height } = useWindowDimensions()
   const isWide = width >= 768
@@ -115,6 +120,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   const [notes, setNotes] = React.useState('')
   const [outsideFood, setOutsideFood] = React.useState(false)
   const [isAddingSelection, setIsAddingSelection] = React.useState(false)
+  const [expandedSentiment, setExpandedSentiment] = React.useState<ReviewSentiment>()
   const [selectedPackageId, setSelectedPackageId] = React.useState(
     service?.packageId ?? service?.packages?.[0]?.id ?? ''
   )
@@ -138,6 +144,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   React.useEffect(() => {
     setSelectedPackageId(service?.packageId ?? service?.packages?.[0]?.id ?? '')
     setHeroIndex(0)
+    setExpandedSentiment(undefined)
   }, [service?.id, service?.packageId, service?.packages])
 
   if (!service) {
@@ -473,7 +480,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
           <View style={styles.reviewsSection}>
             <Text style={styles.sectionHeading}>Guest Reviews</Text>
 
-            {service.isMock ? (
+            {service.isMock && !service.bookingServiceId ? (
               <>
             <View style={[styles.reviewSummary, isWide && styles.reviewSummaryWide]}>
               <View style={styles.ratingCard}>
@@ -551,24 +558,126 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
             </Pressable>
               </>
             ) : (
-              <View style={styles.liveReviewCard}>
-                {service.reviewCount > 0 ? (
-                  <>
-                    <Text style={styles.liveReviewRating}>{service.rating}</Text>
-                    <Text style={styles.liveReviewCopy}>
-                      Based on {service.reviewCount}{' '}
-                      {service.reviewCount === 1 ? 'verified review' : 'verified reviews'}
+              reviewInsightsLoading ? (
+                <View style={styles.liveReviewCard}>
+                  <Text style={styles.liveReviewTitle}>Loading verified feedback...</Text>
+                </View>
+              ) : reviewInsights && reviewInsights.totalRatings > 0 ? (
+                <>
+                  <View style={[styles.reviewSummary, isWide && styles.reviewSummaryWide]}>
+                    <View style={styles.ratingCard}>
+                      <Text style={styles.bigRating}>{reviewInsights.averageRating.toFixed(1)}</Text>
+                      <Text style={styles.summaryStars}>
+                        {'\u2605'.repeat(Math.round(reviewInsights.averageRating))}
+                        {'\u2606'.repeat(5 - Math.round(reviewInsights.averageRating))}
+                      </Text>
+                      <Text style={styles.reviewCount}>
+                        {reviewInsights.totalRatings}{' '}
+                        {reviewInsights.totalRatings === 1 ? 'RATING' : 'RATINGS'}
+                      </Text>
+                    </View>
+
+                    <View style={styles.distributionList}>
+                      {[5, 4, 3, 2, 1].map((rating) => {
+                        const count = reviewInsights.distribution[rating as 1 | 2 | 3 | 4 | 5]
+                        const width = `${Math.round((count / reviewInsights.totalRatings) * 100)}%` as const
+
+                        return (
+                          <View key={rating} style={styles.distributionRow}>
+                            <Text style={styles.distributionLabel}>{rating}</Text>
+                            <View style={styles.distributionTrack}>
+                              <View style={[styles.distributionFill, { width }]} />
+                            </View>
+                            <Text style={styles.distributionCount}>{count}</Text>
+                          </View>
+                        )
+                      })}
+                    </View>
+                  </View>
+
+                  <View style={styles.sentimentGrid}>
+                    {(['positive', 'negative'] as const).map((sentiment) => {
+                      const group = reviewInsights[sentiment]
+                      const expanded = expandedSentiment === sentiment
+                      const positive = sentiment === 'positive'
+
+                      return (
+                        <View key={sentiment}>
+                          <Pressable
+                            accessibilityLabel={`${expanded ? 'Hide' : 'Show'} all ${positive ? 'good' : 'critical'} comments`}
+                            accessibilityRole="button"
+                            accessibilityState={{ expanded }}
+                            onPress={() => setExpandedSentiment(expanded ? undefined : sentiment)}
+                            style={({ pressed }) => [
+                              styles.sentimentCard,
+                              positive ? styles.positiveCard : styles.negativeCard,
+                              pressed && styles.outlinePressed,
+                            ]}
+                          >
+                            <View style={styles.sentimentHeadingRow}>
+                              <Text style={styles.sentimentIcon}>{positive ? '\u2665' : '!'}</Text>
+                              <Text style={styles.sentimentHeading}>
+                                {positive ? 'WHAT CLIENTS LOVED' : 'WHAT COULD IMPROVE'}
+                              </Text>
+                              <Text style={styles.sentimentCount}>{group.count}</Text>
+                            </View>
+                            <Text style={styles.sentimentSummary}>{group.summary}</Text>
+                            <Text style={styles.sentimentAction}>
+                              {group.count > 0
+                                ? expanded
+                                  ? 'HIDE COMMENTS'
+                                  : `READ ALL ${group.count} ${positive ? 'GOOD' : 'CRITICAL'} COMMENTS`
+                                : 'NO COMMENTS TO DISPLAY'}
+                            </Text>
+                          </Pressable>
+
+                          {expanded && group.reviews.length > 0 ? (
+                            <View style={styles.sentimentReviewList}>
+                              {group.reviews.map((review) => (
+                                <View key={review.id} style={styles.sentimentReviewItem}>
+                                  <View style={styles.sentimentReviewHeader}>
+                                    <View>
+                                      <Text style={styles.reviewerName}>Verified client</Text>
+                                      <Text style={styles.reviewerEvent}>
+                                        {review.createdAt
+                                          ? new Date(review.createdAt).toLocaleDateString('en-PH', {
+                                              day: 'numeric', month: 'short', year: 'numeric',
+                                            })
+                                          : 'Completed booking'}
+                                      </Text>
+                                    </View>
+                                    <Text style={styles.reviewStars}>
+                                      {'\u2605'.repeat(review.rating)}{'\u2606'.repeat(5 - review.rating)}
+                                    </Text>
+                                  </View>
+                                  <Text style={styles.reviewCopy}>{review.comment}</Text>
+                                </View>
+                              ))}
+                            </View>
+                          ) : null}
+                        </View>
+                      )
+                    })}
+                  </View>
+
+                  <Text style={styles.analysisCaption}>
+                    SUMMARY OF VERIFIED CLIENT FEEDBACK
+                  </Text>
+                  {reviewInsights.pendingCommentCount > 0 ? (
+                    <Text style={styles.pendingAnalysisCopy}>
+                      {reviewInsights.pendingCommentCount}{' '}
+                      {reviewInsights.pendingCommentCount === 1 ? 'comment is' : 'comments are'} still being analyzed.
                     </Text>
-                  </>
-                ) : (
-                  <>
-                    <Text style={styles.liveReviewTitle}>No reviews yet</Text>
-                    <Text style={styles.liveReviewCopy}>
-                      Reviews will appear after clients complete bookings with this provider.
-                    </Text>
-                  </>
-                )}
-              </View>
+                  ) : null}
+                </>
+              ) : (
+                <View style={styles.liveReviewCard}>
+                  <Text style={styles.liveReviewTitle}>No reviews yet</Text>
+                  <Text style={styles.liveReviewCopy}>
+                    Ratings and analyzed comments will appear after clients complete bookings.
+                  </Text>
+                </View>
+              )
             )}
           </View>
         </View>
@@ -991,6 +1100,22 @@ const styles = StyleSheet.create({
   distributionLabel: { width: 14, color: palette.secondary, fontSize: 15, lineHeight: 20, fontWeight: '600' },
   distributionTrack: { height: 12, flex: 1, overflow: 'hidden', borderRadius: 6, backgroundColor: palette.surfaceHigh },
   distributionFill: { height: '100%', borderRadius: 6, backgroundColor: palette.primary },
+  distributionCount: { width: 24, color: palette.secondary, fontSize: 12, lineHeight: 17, textAlign: 'right' },
+  sentimentGrid: { gap: 14 },
+  sentimentCard: { borderWidth: 1, borderRadius: 16, padding: 20 },
+  positiveCard: { borderColor: '#B8D9C4', backgroundColor: '#F2FAF5' },
+  negativeCard: { borderColor: '#E6C4C8', backgroundColor: '#FCF5F6' },
+  sentimentHeadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sentimentIcon: { width: 22, color: palette.primary, fontSize: 18, lineHeight: 22, fontWeight: '800', textAlign: 'center' },
+  sentimentHeading: { flex: 1, color: palette.primary, fontSize: 12, lineHeight: 17, fontWeight: '800', letterSpacing: 1 },
+  sentimentCount: { minWidth: 28, color: palette.primary, fontSize: 13, lineHeight: 19, fontWeight: '800', textAlign: 'right' },
+  sentimentSummary: { color: palette.text, fontSize: 15, lineHeight: 23, marginTop: 11 },
+  sentimentAction: { color: palette.primary, fontSize: 10, lineHeight: 15, fontWeight: '800', letterSpacing: 0.8, marginTop: 13 },
+  sentimentReviewList: { borderRightWidth: 1, borderBottomWidth: 1, borderLeftWidth: 1, borderColor: palette.surfaceVariant, borderBottomLeftRadius: 14, borderBottomRightRadius: 14, backgroundColor: palette.surfaceLowest, paddingHorizontal: 18 },
+  sentimentReviewItem: { borderBottomWidth: 1, borderBottomColor: palette.surfaceVariant, paddingVertical: 18 },
+  sentimentReviewHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 10 },
+  analysisCaption: { color: palette.secondary, fontSize: 9, lineHeight: 14, fontWeight: '700', letterSpacing: 0.8, textAlign: 'center', marginTop: 16 },
+  pendingAnalysisCopy: { color: palette.secondary, fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 7 },
   insightCard: { borderWidth: 1, borderColor: '#F0DDE0', borderRadius: 16, backgroundColor: '#FCF5F6', padding: 24, marginBottom: 32 },
   insightHeadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
   insightIcon: { color: palette.primary, fontSize: 21, lineHeight: 23 },

@@ -16,6 +16,11 @@ import {
 import clientSignupVideo from '../images/ClientSignupMP4.mp4'
 import { supabase } from './lib/supabase'
 import {
+  fetchServiceReviewInsights,
+  fetchServiceReviewSummaries,
+  ServiceReviewInsights,
+} from './lib/reviews'
+import {
   CatalogCategoryId,
   CatalogService,
   catalogCategoryName,
@@ -101,6 +106,7 @@ import { PayoutEarningsScreen, PayoutTransaction } from './screens/22.2-PayoutEa
 import { TransactionDetailsScreen } from './screens/22.3-TransactionDetails'
 import { ChangePasswordScreen } from './screens/22.4-ChangePassword'
 import { MerchantNotification, NotificationScreen } from './screens/22.5-Notification'
+import { CoordinatorScreen } from './screens/23-Coordinator'
 import { OnboardingScreen } from './screens/01-Onboarding'
 import { LoginScreen } from './screens/01.1-Login'
 import { ForgotPasswordScreen } from './screens/01.1.1-ForgotPassword'
@@ -160,6 +166,14 @@ import {
   markConversationRead,
   sendConversationMessage,
 } from './lib/messaging'
+import {
+  CoordinatorDashboard,
+  CoordinatorTask,
+  createCoordinatorTask,
+  emptyCoordinatorDashboard,
+  fetchCoordinatorDashboard,
+  updateCoordinatorTaskStatus,
+} from './lib/coordinator'
 
 type AppScreen =
   | 'onboarding'
@@ -195,6 +209,7 @@ type AppScreen =
   | 'providerChangePassword'
   | 'providerNotifications'
   | 'coordinatorHome'
+  | 'coordinatorNotifications'
   | 'adminHome'
   | 'superadminHome'
   | 'budgetAllocation'
@@ -380,6 +395,9 @@ export const App: React.FC = () => {
   const [selectedCategory, setSelectedCategory] =
     React.useState<CatalogCategoryId>('catering')
   const [currentServiceId, setCurrentServiceId] = React.useState(mockCatalogServices[0]?.id ?? '')
+  const [serviceReviewInsights, setServiceReviewInsights] =
+    React.useState<ServiceReviewInsights>()
+  const [serviceReviewInsightsLoading, setServiceReviewInsightsLoading] = React.useState(false)
   const [selectedServices, setSelectedServices] = React.useState<SelectedSummaryService[]>([])
   const [scheduleProviders, setScheduleProviders] = React.useState<ScheduleProvider[]>([])
   const [replacementTarget, setReplacementTarget] =
@@ -408,7 +426,14 @@ export const App: React.FC = () => {
   const [isSavingServiceDraft, setIsSavingServiceDraft] = React.useState(false)
   const [isSavingAvailability, setIsSavingAvailability] = React.useState(false)
   const [completingBookingId, setCompletingBookingId] = React.useState('')
+  const [processingMerchantBookingId, setProcessingMerchantBookingId] = React.useState('')
   const [isFinalizingPayment, setIsFinalizingPayment] = React.useState(false)
+  const [coordinatorDashboard, setCoordinatorDashboard] =
+    React.useState<CoordinatorDashboard>(emptyCoordinatorDashboard())
+  const [coordinatorError, setCoordinatorError] = React.useState('')
+  const [isCoordinatorLoading, setIsCoordinatorLoading] = React.useState(false)
+  const [isCoordinatorRefreshing, setIsCoordinatorRefreshing] = React.useState(false)
+  const [busyCoordinatorTaskId, setBusyCoordinatorTaskId] = React.useState('')
   const [removingServiceId, setRemovingServiceId] = React.useState('')
   const [hasMerchantDraft, setHasMerchantDraft] = React.useState(false)
   const [toastMessage, setToastMessage] = React.useState('')
@@ -541,6 +566,49 @@ export const App: React.FC = () => {
   )
   const remainingBudget = Math.max(0, totalBudget - selectedEstimatedTotal)
   const currentService = catalogServices.find((service) => service.id === currentServiceId)
+  const currentReviewServiceId = currentService?.bookingServiceId ?? currentService?.id
+
+  React.useEffect(() => {
+    let active = true
+
+    if (screen !== 'serviceDetails' || !currentReviewServiceId) {
+      setServiceReviewInsights(undefined)
+      setServiceReviewInsightsLoading(false)
+      return () => {
+        active = false
+      }
+    }
+
+    setServiceReviewInsightsLoading(true)
+    void fetchServiceReviewInsights(currentReviewServiceId).then(async (insights) => {
+      if (!active) return
+      setServiceReviewInsights(insights)
+      setServiceReviewInsightsLoading(false)
+
+      if (!insights.analyzedCommentCount) return
+      const summaries = await fetchServiceReviewSummaries(currentReviewServiceId)
+      if (!active || (!summaries.positive && !summaries.negative)) return
+      setServiceReviewInsights((current) =>
+        current
+          ? {
+              ...current,
+              negative: {
+                ...current.negative,
+                summary: summaries.negative ?? current.negative.summary,
+              },
+              positive: {
+                ...current.positive,
+                summary: summaries.positive ?? current.positive.summary,
+              },
+            }
+          : current
+      )
+    })
+
+    return () => {
+      active = false
+    }
+  }, [currentReviewServiceId, screen])
   const categoryServices = catalogServices.filter(
     (service) => service.categoryId === selectedCategory
   )
@@ -683,6 +751,71 @@ export const App: React.FC = () => {
     if (draft?.pricing) setMerchantServicePricing(draft.pricing)
     if (draft?.packages) setMerchantPackages(draft.packages)
   }, [])
+
+  const loadCoordinatorWorkspace = React.useCallback(async (refreshing = false) => {
+    if (refreshing) setIsCoordinatorRefreshing(true)
+    else setIsCoordinatorLoading(true)
+
+    const result = await fetchCoordinatorDashboard()
+    if (result.ok && result.data) {
+      setCoordinatorDashboard(result.data)
+      setCoordinatorError('')
+    } else {
+      setCoordinatorError(result.message ?? 'Unable to load the coordinator workspace.')
+    }
+
+    setIsCoordinatorLoading(false)
+    setIsCoordinatorRefreshing(false)
+  }, [])
+
+  React.useEffect(() => {
+    if (screen !== 'coordinatorHome') return
+    void loadCoordinatorWorkspace()
+  }, [loadCoordinatorWorkspace, screen])
+
+  const handleCoordinatorTaskToggle = React.useCallback(
+    async (task: CoordinatorTask) => {
+      if (busyCoordinatorTaskId) return
+
+      setBusyCoordinatorTaskId(task.id)
+      const nextStatus = task.status === 'completed' ? 'pending' : 'completed'
+      const result = await updateCoordinatorTaskStatus(task.id, nextStatus)
+
+      if (result.ok) {
+        setCoordinatorDashboard((current) => ({
+          events: current.events.map((event) => {
+            if (event.id !== task.eventId) return event
+            const completedTaskCount = Math.max(
+              0,
+              event.completedTaskCount + (nextStatus === 'completed' ? 1 : -1)
+            )
+            return { ...event, completedTaskCount }
+          }),
+          tasks: current.tasks.map((item) =>
+            item.id === task.id ? { ...item, status: nextStatus } : item
+          ),
+        }))
+        setToastMessage(nextStatus === 'completed' ? 'Task marked complete.' : 'Task reopened.')
+      } else {
+        setToastMessage(result.message ?? 'Unable to update this task.')
+      }
+
+      setBusyCoordinatorTaskId('')
+    },
+    [busyCoordinatorTaskId]
+  )
+
+  const handleCreateCoordinatorTask = React.useCallback(
+    async (input: Parameters<typeof createCoordinatorTask>[0]) => {
+      const result = await createCoordinatorTask(input)
+      if (result.ok) {
+        setToastMessage('Coordination task created.')
+        await loadCoordinatorWorkspace(true)
+      }
+      return result
+    },
+    [loadCoordinatorWorkspace]
+  )
 
   const routeForRole = React.useCallback((role?: AccountRole | string | null) => {
     switch (role) {
@@ -1199,16 +1332,39 @@ export const App: React.FC = () => {
   const handleBookingDecision = async (
     value: BookingRequestDecisionValue | BookingRequestDeclineValue
   ) => {
+    if (processingMerchantBookingId) return
+    setProcessingMerchantBookingId(value.request.id)
     const result = await saveBookingDecision(value)
     if (!result.ok) {
+      setProcessingMerchantBookingId('')
       setToastMessage(result.message ?? 'Unable to update the booking request.')
       return
     }
 
     await refreshLiveData()
-    setMerchantRequestStatus('reason' in value || value.decision === 'declined' ? 'cancelled' : 'confirmed')
-    setSelectedMerchantRequest(value.request)
-    setScreen('providerBookingRequests')
+    const nextStatus: BookingRequestStatus = 'reason' in value || value.decision === 'declined'
+      ? 'cancelled'
+      : 'confirmed'
+    setSelectedMerchantRequest((current) => {
+      const eventRequest =
+        current?.eventId && current.eventId === value.request.eventId ? current : value.request
+      const services = eventRequest.services?.map((service) =>
+        service.id === value.request.id ? { ...service, status: nextStatus } : service
+      )
+      const statuses = services?.map((service) => service.status) ?? [nextStatus]
+      const eventStatus: BookingRequestStatus = statuses.some((status) => status === 'new')
+        ? 'new'
+        : statuses.some((status) => status === 'confirmed')
+          ? 'confirmed'
+          : statuses.some((status) => status === 'completed')
+            ? 'completed'
+            : 'cancelled'
+
+      return { ...eventRequest, services, status: eventStatus }
+    })
+    setToastMessage(nextStatus === 'confirmed' ? 'Service request accepted.' : 'Service request declined.')
+    setProcessingMerchantBookingId('')
+    setScreen('providerBookingRequestDetails')
   }
 
   const handleBookingCompletion = async (request: MerchantBookingRequest) => {
@@ -1225,10 +1381,25 @@ export const App: React.FC = () => {
 
     await refreshLiveData()
     setCompletingBookingId('')
-    setMerchantRequestStatus('completed')
-    setSelectedMerchantRequest({ ...request, status: 'completed' })
+    setSelectedMerchantRequest((current) => {
+      const eventRequest =
+        current?.eventId && current.eventId === request.eventId ? current : request
+      const services = eventRequest.services?.map((service) =>
+        service.id === request.id ? { ...service, status: 'completed' as const } : service
+      )
+      const statuses = services?.map((service) => service.status) ?? ['completed']
+      const eventStatus: BookingRequestStatus = statuses.some((status) => status === 'new')
+        ? 'new'
+        : statuses.some((status) => status === 'confirmed')
+          ? 'confirmed'
+          : statuses.some((status) => status === 'completed')
+            ? 'completed'
+            : 'cancelled'
+
+      return { ...eventRequest, services, status: eventStatus }
+    })
     setToastMessage('Service marked finished. The client has been notified.')
-    setScreen('providerBookingRequests')
+    setScreen('providerBookingRequestDetails')
   }
 
   const pickMerchantServicePhotos = async () => {
@@ -1460,9 +1631,9 @@ export const App: React.FC = () => {
               .slice(0, 4)
               .map((request) => ({
                 id: request.id,
-                location: request.clientName,
+                location: request.venue || request.location || 'Venue to be confirmed',
                 time: request.eventDate,
-                title: request.packageName,
+                title: request.eventName || 'Event',
               }))}
             stats={{
               activeEvents: merchantRequests.filter(
@@ -1685,18 +1856,7 @@ export const App: React.FC = () => {
           <BookingRequestScreen
             initialStatus={merchantRequestStatus}
             requests={merchantRequests}
-            onAccept={(request) => {
-              void handleBookingDecision({
-                decision: 'accepted',
-                providerNote: '',
-                request,
-              })
-            }}
             onBack={() => setScreen('providerHome')}
-            onDecline={(request) => {
-              setSelectedMerchantRequest(request)
-              setScreen('providerBookingDecline')
-            }}
             onSelectNavigationTab={(tab) => {
               if (tab === 'events') setScreen('providerHome')
               if (tab === 'bookings') setScreen('providerBookingRequests')
@@ -1732,7 +1892,8 @@ export const App: React.FC = () => {
                 : undefined
             }
             request={selectedMerchantRequest}
-            isCompleting={completingBookingId === selectedMerchantRequest?.id}
+            completingBookingId={completingBookingId}
+            processingBookingId={processingMerchantBookingId}
             onAccept={handleBookingDecision}
             onBack={() => setScreen('providerBookingRequests')}
             onDecline={(value) => {
@@ -1747,6 +1908,7 @@ export const App: React.FC = () => {
         return (
           <BookingRequestDeclineScreen
             request={selectedMerchantRequest}
+            isSubmitting={processingMerchantBookingId === selectedMerchantRequest?.id}
             onBack={() => setScreen('providerBookingRequestDetails')}
             onCancel={() => setScreen('providerBookingRequests')}
             onConfirmDecline={handleBookingDecision}
@@ -1862,12 +2024,42 @@ export const App: React.FC = () => {
         )
       case 'coordinatorHome':
         return (
-          <RoleHomePlaceholderScreen
-            description="The event coordinator dashboard will show assigned events, task queues, schedules, and client updates."
-            onBackToRoleSelection={() => setScreen('roleSelection')}
-            roleLabel="Event Coordinator"
-            title="Your coordinator workspace is being prepared."
+          <CoordinatorScreen
+            busyTaskId={busyCoordinatorTaskId}
+            dashboard={coordinatorDashboard}
+            errorMessage={coordinatorError}
+            isLoading={isCoordinatorLoading}
+            isRefreshing={isCoordinatorRefreshing}
+            onCreateTask={handleCreateCoordinatorTask}
+            onOpenNotifications={() => setScreen('coordinatorNotifications')}
+            onRefresh={() => void loadCoordinatorWorkspace(true)}
+            onSignOut={() => {
+              void supabase?.auth.signOut()
+              setCoordinatorDashboard(emptyCoordinatorDashboard())
+              setUserName('Planner')
+              setScreen('roleSelection')
+            }}
+            onToggleTask={(task) => void handleCoordinatorTaskToggle(task)}
+            unreadNotificationCount={notifications.filter((notification) => !notification.isRead).length}
             userName={userName}
+          />
+        )
+      case 'coordinatorNotifications':
+        return (
+          <NotificationScreen
+            notifications={notifications}
+            onBack={() => setScreen('coordinatorHome')}
+            onMarkAllRead={(ids) => {
+              void markMerchantNotificationsRead(ids).then(() => refreshLiveData())
+            }}
+            onMarkRead={(notification) => {
+              void markMerchantNotificationRead(notification).then(() => refreshLiveData())
+            }}
+            onSelectNotification={(notification) => {
+              void markMerchantNotificationRead(notification).then(() => refreshLiveData())
+              setScreen('coordinatorHome')
+            }}
+            variant="coordinator"
           />
         )
       case 'adminHome':
@@ -2009,6 +2201,8 @@ export const App: React.FC = () => {
             onBack={() => setScreen('categoryBrowse')}
             onBrowseMenus={() => setScreen('categoryBrowse')}
             onReadAllReviews={() => setScreen('serviceDetails')}
+            reviewInsights={serviceReviewInsights}
+            reviewInsightsLoading={serviceReviewInsightsLoading}
           />
         )
       case 'selectedSummary':
@@ -2095,6 +2289,7 @@ export const App: React.FC = () => {
               setScreen('categoryBrowse')
             }}
             onMessageProvider={() => setScreen('messages')}
+            onRecheckAvailability={runScheduleCheck}
           />
         )
       case 'scheduleNoConflict':
@@ -2355,6 +2550,7 @@ export const App: React.FC = () => {
 
               await refreshLiveData()
               setSelectedBooking((current) => current ? { ...current, hasFeedback: true } : current)
+              if (result.message) setToastMessage(result.message)
               return true
             }}
           />

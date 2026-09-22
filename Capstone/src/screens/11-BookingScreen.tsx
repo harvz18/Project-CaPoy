@@ -20,8 +20,10 @@ export interface BookingServiceItem {
   category: string
   image: string
   paymentStatus: string
+  providerId: string
   providerName: string
   rawStatus: string
+  serviceId: string
   serviceName: string
   status: 'confirmed' | 'declined' | 'requested' | 'completed'
   updatedAt: string

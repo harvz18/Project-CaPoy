@@ -46,6 +46,7 @@ interface NotificationScreenProps {
   onMarkRead?: (notification: MerchantNotification) => void
   onPreferencesChange?: (preferences: MerchantNotificationPreferences) => void
   onSelectNotification?: (notification: MerchantNotification) => void
+  variant?: 'coordinator' | 'merchant'
 }
 
 const defaultNotifications: MerchantNotification[] = [
@@ -222,6 +223,7 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({
   onMarkRead,
   onPreferencesChange,
   onSelectNotification,
+  variant = 'merchant',
 }) => {
   const { width } = useWindowDimensions()
   const isWide = width >= 820
@@ -233,6 +235,7 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({
     ...defaultPreferences,
     ...initialPreferences,
   })
+  const isCoordinator = variant === 'coordinator'
 
   const unreadNotifications = notifications.filter((item) => !readIds.has(item.id))
   const visibleNotifications =
@@ -279,7 +282,7 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({
       <View style={styles.topAppBar}>
         <View style={[styles.topAppBarContent, isWide && styles.wideHorizontalPadding]}>
           <Pressable
-            accessibilityLabel="Back to merchant profile"
+            accessibilityLabel={isCoordinator ? 'Back to coordinator workspace' : 'Back to merchant profile'}
             accessibilityRole="button"
             hitSlop={8}
             onPress={onBack}
@@ -322,7 +325,9 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({
           <View style={styles.introCopy}>
             <Text style={styles.title}>Stay up to date</Text>
             <Text style={styles.subtitle}>
-              Booking requests, client messages, payments, and account activity appear here.
+              {isCoordinator
+                ? 'Assigned-event changes, task reminders, and client updates appear here.'
+                : 'Booking requests, client messages, payments, and account activity appear here.'}
             </Text>
           </View>
           {unreadNotifications.length ? (
@@ -334,8 +339,8 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({
           ) : null}
         </View>
 
-        <View style={[styles.dashboard, isWide && styles.dashboardWide]}>
-          <View style={[styles.feedColumn, isWide && styles.feedColumnWide]}>
+        <View style={[styles.dashboard, isWide && !isCoordinator && styles.dashboardWide]}>
+          <View style={[styles.feedColumn, isWide && !isCoordinator && styles.feedColumnWide]}>
             <View style={styles.filterBar}>
               {(['all', 'unread'] as MerchantNotificationFilter[]).map((option) => {
                 const selected = filter === option
@@ -394,13 +399,15 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({
                 <Text style={styles.emptyText}>
                   {filter === 'unread'
                     ? 'There are no unread notifications right now.'
-                    : 'New merchant activity will appear here.'}
+                    : isCoordinator
+                      ? 'New coordinator activity will appear here.'
+                      : 'New merchant activity will appear here.'}
                 </Text>
               </View>
             )}
           </View>
 
-          <View style={[styles.preferenceCard, isWide && styles.preferenceCardWide]}>
+          {!isCoordinator ? <View style={[styles.preferenceCard, isWide && styles.preferenceCardWide]}>
             <View style={styles.preferenceHeader}>
               <Text style={styles.sectionTitle}>Notification preferences</Text>
               <Text style={styles.sectionSubtitle}>Choose which updates you receive</Text>
@@ -421,7 +428,7 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({
                 Critical account and security alerts cannot be turned off.
               </Text>
             </View>
-          </View>
+          </View> : null}
         </View>
       </ScrollView>
     </View>

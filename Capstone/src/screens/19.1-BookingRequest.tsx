@@ -1,15 +1,16 @@
-import { Text } from '../components/AppText'
+import { MaterialIcons } from '@expo/vector-icons'
 import React from 'react'
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
-  
   TextInput,
   useWindowDimensions,
   View,
 } from 'react-native'
-import type { MerchantBookingRequest } from './19-BookingRequest'
+import { Text } from '../components/AppText'
+import type { MerchantBookedService, MerchantBookingRequest } from './19-BookingRequest'
 
 export interface MerchantBookingRequestDetails {
   clientNotes: string
@@ -31,77 +32,38 @@ export interface BookingRequestDecisionValue {
 }
 
 interface BookingRequestDetailsScreenProps {
+  completingBookingId?: string
   details?: Partial<MerchantBookingRequestDetails>
-  initialProviderNote?: string
-  isCompleting?: boolean
   onAccept?: (value: BookingRequestDecisionValue) => void
   onBack?: () => void
   onDecline?: (value: BookingRequestDecisionValue) => void
   onMarkCompleted?: (request: MerchantBookingRequest) => void
   onMessageClient?: (request: MerchantBookingRequest) => void
-  onProviderNoteChange?: (note: string) => void
-  processingAction?: BookingRequestDecision
+  processingBookingId?: string
   request?: MerchantBookingRequest
 }
 
-const defaultRequest: MerchantBookingRequest = {
-  amount: 3500,
-  clientName: 'Eleanor Vance',
+const emptyRequest: MerchantBookingRequest = {
+  amount: 0,
+  clientName: 'Client',
   currency: 'PHP',
-  eventDate: '2026-10-12',
-  id: 'eleanor-vance',
-  packageName: 'Premium Photography Package',
+  eventDate: '',
+  eventName: 'Event',
+  id: 'event',
+  packageName: 'Service request',
   status: 'new',
 }
 
-const defaultDetails: MerchantBookingRequestDetails = {
-  clientNotes:
-    'We would love a mix of candid moments and formal family portraits. The ceremony and reception are at the same venue.',
-  eventName: 'Vance Wedding',
-  eventType: 'Wedding',
-  guestCount: 120,
-  packageInclusions: [
-    'Up to 8 hours of event coverage',
-    'Two professional photographers',
-    'Edited high-resolution digital gallery',
-  ],
-  requestedTime: '3:00 PM',
-  submittedAt: '2026-08-30T14:30:00+08:00',
-  venue: 'The Ruins, Talisay City',
-}
-
-const BackIcon = () => (
-  <View style={styles.backIcon}>
-    <View style={styles.backIconHead} />
-    <View style={styles.backIconShaft} />
-  </View>
-)
-
-const MessageIcon = () => (
-  <View style={styles.messageIcon}>
-    <View style={styles.messageTail} />
-  </View>
-)
-
-const getInitials = (name: string) =>
-  name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part.charAt(0).toUpperCase())
-    .join('') || 'C'
-
-const formatPrice = (request: MerchantBookingRequest) =>
+const formatPrice = (amount: number) =>
   new Intl.NumberFormat('en-PH', {
-    currency: request.currency,
+    currency: 'PHP',
     maximumFractionDigits: 0,
     style: 'currency',
-  }).format(request.amount)
+  }).format(amount)
 
 const formatDate = (value: string) => {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
-  if (!match) return value
-
+  if (!match) return value || 'Date to be confirmed'
   const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
   return new Intl.DateTimeFormat('en-PH', {
     day: 'numeric',
@@ -111,74 +73,113 @@ const formatDate = (value: string) => {
   }).format(date)
 }
 
-const formatSubmittedAt = (value: string) => {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-
-  return new Intl.DateTimeFormat('en-PH', {
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }).format(date)
+const formatTime = (value?: string) => {
+  if (!value) return 'Time to be confirmed'
+  const match = /^(\d{2}):(\d{2})/.exec(value)
+  if (!match) return value
+  const hours = Number(match[1])
+  const minutes = Number(match[2])
+  const suffix = hours >= 12 ? 'PM' : 'AM'
+  return `${hours % 12 || 12}:${String(minutes).padStart(2, '0')} ${suffix}`
 }
 
 const statusLabels: Record<MerchantBookingRequest['status'], string> = {
-  new: 'New Request',
-  confirmed: 'Confirmed',
+  cancelled: 'Declined',
   completed: 'Completed',
-  cancelled: 'Cancelled',
+  confirmed: 'Confirmed',
+  new: 'New request',
 }
 
+const servicesFor = (request: MerchantBookingRequest): MerchantBookedService[] =>
+  request.services?.length
+    ? request.services
+    : [{
+        amount: request.amount,
+        clientNotes: request.clientNotes,
+        id: request.id,
+        instructions: request.instructions ?? [],
+        packageDescription: request.packageDescription,
+        packageInclusions: request.packageInclusions ?? [],
+        packageName: request.packageName,
+        requestedTime: request.requestedTime,
+        serviceCategory: request.serviceCategory,
+        serviceId: request.serviceId,
+        serviceName: request.serviceName || request.packageName,
+        status: request.status,
+        submittedAt: request.submittedAt,
+      }]
+
+const requestForService = (
+  eventRequest: MerchantBookingRequest,
+  service: MerchantBookedService
+): MerchantBookingRequest => ({
+  ...eventRequest,
+  amount: service.amount,
+  clientNotes: service.clientNotes,
+  id: service.id,
+  instructions: service.instructions,
+  packageDescription: service.packageDescription,
+  packageInclusions: service.packageInclusions,
+  packageName: service.packageName,
+  requestedTime: service.requestedTime,
+  serviceCategory: service.serviceCategory,
+  serviceId: service.serviceId,
+  serviceName: service.serviceName,
+  status: service.status,
+  submittedAt: service.submittedAt,
+})
+
+const hasEventDateArrived = (value: string) => {
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? new Date(`${value}T00:00:00`)
+    : new Date(value)
+  if (Number.isNaN(date.getTime())) return false
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return date <= today
+}
+
+const BackIcon = () => (
+  <View style={styles.backIcon}>
+    <View style={styles.backIconHead} />
+    <View style={styles.backIconShaft} />
+  </View>
+)
+
 export const BookingRequestDetailsScreen: React.FC<BookingRequestDetailsScreenProps> = ({
+  completingBookingId,
   details,
-  initialProviderNote = '',
-  isCompleting = false,
   onAccept,
   onBack,
   onDecline,
   onMarkCompleted,
   onMessageClient,
-  onProviderNoteChange,
-  processingAction,
-  request = defaultRequest,
+  processingBookingId,
+  request = emptyRequest,
 }) => {
   const { width } = useWindowDimensions()
-  const isWide = width >= 768
-  const value: MerchantBookingRequestDetails = { ...defaultDetails, ...details }
-  const [providerNote, setProviderNote] = React.useState(initialProviderNote)
-  const [showDeclineConfirmation, setShowDeclineConfirmation] = React.useState(false)
-  const [showCompletionConfirmation, setShowCompletionConfirmation] = React.useState(false)
-  const isProcessing = Boolean(processingAction) || isCompleting
-  const canReview = request.status === 'new'
-  const isConfirmed = request.status === 'confirmed'
-  const parsedEventDate = /^\d{4}-\d{2}-\d{2}$/.test(request.eventDate)
-    ? new Date(`${request.eventDate}T00:00:00`)
-    : new Date(request.eventDate)
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const eventDateHasArrived =
-    !Number.isNaN(parsedEventDate.getTime()) && parsedEventDate <= today
+  const isWide = width >= 820
+  const services = servicesFor(request)
+  const [providerNotes, setProviderNotes] = React.useState<Record<string, string>>({})
+  const venue =
+    details?.venue ||
+    [request.venue, request.location].filter(Boolean).join(', ') ||
+    'Venue to be confirmed'
+  const eventName = request.eventName || details?.eventName || 'Event'
+  const eventType = request.eventType || details?.eventType || 'Event'
+  const requestedTime = request.requestedTime || details?.requestedTime
+  const total = services.reduce((sum, service) => sum + service.amount, 0)
+  const eventDateHasArrived = hasEventDateArrived(request.eventDate)
 
-  const handleProviderNoteChange = (note: string) => {
-    setProviderNote(note)
-    onProviderNoteChange?.(note)
+  const decide = (service: MerchantBookedService, decision: BookingRequestDecision) => {
+    const value: BookingRequestDecisionValue = {
+      decision,
+      providerNote: providerNotes[service.id]?.trim() ?? '',
+      request: requestForService(request, service),
+    }
+    if (decision === 'accepted') onAccept?.(value)
+    else onDecline?.(value)
   }
-
-  const buildDecision = (
-    decision: BookingRequestDecision
-  ): BookingRequestDecisionValue => ({
-    decision,
-    providerNote: providerNote.trim(),
-    request: {
-      ...request,
-      status: decision === 'accepted' ? 'confirmed' : 'cancelled',
-    },
-  })
-
-  const handleAccept = () => onAccept?.(buildDecision('accepted'))
-  const handleDecline = () => onDecline?.(buildDecision('declined'))
 
   return (
     <View style={styles.screen}>
@@ -189,684 +190,395 @@ export const BookingRequestDetailsScreen: React.FC<BookingRequestDetailsScreenPr
             accessibilityRole="button"
             hitSlop={8}
             onPress={onBack}
-            style={({ pressed }) => [styles.backButton, pressed && styles.backButtonPressed]}
+            style={({ pressed }) => [styles.backButton, pressed && styles.pressedSurface]}
           >
             <BackIcon />
           </Pressable>
-          <Text numberOfLines={1} style={styles.headerTitle}>
-            Booking Request
-          </Text>
-          <View style={styles.headerSpacer} />
-        </View>
-      </View>
-
-      <ScrollView
-        contentContainerStyle={[
-          styles.content,
-          isWide ? styles.contentWide : styles.contentMobile,
-        ]}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.clientHeader}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{getInitials(request.clientName)}</Text>
-          </View>
-          <View style={styles.clientCopy}>
-            <View style={styles.clientNameRow}>
-              <Text numberOfLines={2} style={styles.clientName}>
-                {request.clientName}
-              </Text>
-              <View
-                style={[
-                  styles.statusBadge,
-                  request.status === 'confirmed' && styles.statusBadgeConfirmed,
-                  request.status === 'completed' && styles.statusBadgeCompleted,
-                  request.status === 'cancelled' && styles.statusBadgeCancelled,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.statusBadgeText,
-                    request.status === 'confirmed' && styles.statusTextConfirmed,
-                    request.status === 'completed' && styles.statusTextCompleted,
-                    request.status === 'cancelled' && styles.statusTextCancelled,
-                  ]}
-                >
-                  {statusLabels[request.status]}
-                </Text>
-              </View>
-            </View>
-            <Text style={styles.submittedText}>
-              Requested {formatSubmittedAt(value.submittedAt)}
-            </Text>
-          </View>
+          <Text numberOfLines={1} style={styles.headerTitle}>Event Booking</Text>
           <Pressable
             accessibilityLabel={`Message ${request.clientName}`}
             accessibilityRole="button"
             onPress={() => onMessageClient?.(request)}
-            style={({ pressed }) => [styles.messageButton, pressed && styles.messageButtonPressed]}
+            style={({ pressed }) => [styles.messageButton, pressed && styles.pressedSurface]}
           >
-            <MessageIcon />
-            <Text style={styles.messageButtonText}>Message</Text>
+            <MaterialIcons color={palette.primaryContainer} name="chat-bubble-outline" size={18} />
           </Pressable>
         </View>
+      </View>
 
-        <View style={[styles.detailsWorkspace, isWide && styles.detailsWorkspaceWide]}>
-          <View style={styles.primaryColumn}>
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Event Details</Text>
-              <DetailRow label="EVENT" value={value.eventName} />
-              <DetailRow label="EVENT TYPE" value={value.eventType} />
-              <DetailRow
-                label="DATE & TIME"
-                value={`${formatDate(request.eventDate)}\n${value.requestedTime}`}
-              />
-              <DetailRow label="VENUE" value={value.venue} />
-              <DetailRow
-                last
-                label="EXPECTED GUESTS"
-                value={value.guestCount ? `${value.guestCount} guests` : 'Not specified'}
-              />
+      <ScrollView
+        contentContainerStyle={[styles.content, isWide ? styles.contentWide : styles.contentMobile]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.eventHero}>
+          <View style={styles.eventHeroTop}>
+            <View style={styles.eventHeroCopy}>
+              <Text style={styles.eventEyebrow}>{eventType.toUpperCase()}</Text>
+              <Text style={styles.eventTitle}>{eventName}</Text>
+              <Text style={styles.organizerText}>Booked by {request.clientName}</Text>
             </View>
-
-            <View style={styles.notesCard}>
-              <Text style={styles.cardTitle}>Client Notes</Text>
-              <Text style={styles.clientNotes}>
-                {value.clientNotes.trim() || 'The client did not add any notes.'}
-              </Text>
+            <View style={styles.totalPill}>
+              <Text style={styles.totalLabel}>TOTAL BOOKED</Text>
+              <Text style={styles.totalValue}>{formatPrice(total)}</Text>
             </View>
-
-            {request.instructions && request.instructions.length > 0 ? (
-              <View style={styles.instructionBanner}>
-                <View style={styles.instructionHeading}>
-                  <View style={styles.instructionIcon}>
-                    <Text style={styles.instructionIconText}>!</Text>
-                  </View>
-                  <View style={styles.instructionHeadingCopy}>
-                    <Text style={styles.instructionEyebrow}>CLIENT INSTRUCTIONS</Text>
-                    <Text style={styles.instructionTitle}>Please review before accepting</Text>
-                  </View>
-                </View>
-                {request.instructions.map((instruction) => (
-                  <View key={instruction.id} style={styles.instructionItem}>
-                    <Text style={styles.instructionItemTitle}>{instruction.title}</Text>
-                    {instruction.body ? (
-                      <Text style={styles.instructionBody}>{instruction.body}</Text>
-                    ) : null}
-                    {instruction.tags.length > 0 ? (
-                      <View style={styles.instructionTags}>
-                        {instruction.tags.map((tag) => (
-                          <View key={`${instruction.id}-${tag}`} style={styles.instructionTag}>
-                            <Text style={styles.instructionTagText}>{tag}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    ) : null}
-                  </View>
-                ))}
-              </View>
-            ) : null}
           </View>
 
-          <View style={styles.secondaryColumn}>
-            <View style={styles.packageCard}>
-              <Text style={styles.cardEyebrow}>SELECTED PACKAGE</Text>
-              <Text style={styles.packageName}>{request.packageName}</Text>
-              <Text style={styles.packagePrice}>{formatPrice(request)}</Text>
+          <View style={[styles.eventFacts, isWide && styles.eventFactsWide]}>
+            <EventFact icon="event" label="DATE" value={formatDate(request.eventDate)} />
+            <EventFact icon="schedule" label="TIME" value={formatTime(requestedTime)} />
+            <EventFact icon="location-on" label="VENUE" value={venue} />
+            <EventFact
+              icon="groups"
+              label="GUESTS"
+              value={
+                request.guestCount || details?.guestCount
+                  ? `${request.guestCount || details?.guestCount} guests`
+                  : 'Not specified'
+              }
+            />
+          </View>
+        </View>
 
-              {value.packageInclusions.length > 0 ? (
-                <View style={styles.inclusionList}>
-                  {value.packageInclusions.map((inclusion, index) => (
-                    <View key={`${inclusion}-${index}`} style={styles.inclusionRow}>
-                      <View style={styles.inclusionCheck}>
-                        <Text style={styles.inclusionCheckText}>{'\u2713'}</Text>
-                      </View>
-                      <Text style={styles.inclusionText}>{inclusion}</Text>
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={styles.sectionEyebrow}>YOUR BUSINESS IN THIS EVENT</Text>
+            <Text style={styles.sectionTitle}>Booked services</Text>
+          </View>
+          <View style={styles.countBadge}>
+            <Text style={styles.countBadgeText}>{services.length}</Text>
+          </View>
+        </View>
+
+        <View style={styles.serviceList}>
+          {services.map((service, index) => {
+            const isProcessing = Boolean(processingBookingId) || Boolean(completingBookingId)
+            const isNew = service.status === 'new'
+            const isConfirmed = service.status === 'confirmed'
+
+            return (
+              <View key={service.id} style={styles.serviceCard}>
+                <View style={styles.serviceCardHeader}>
+                  <View style={styles.serviceNumber}>
+                    <Text style={styles.serviceNumberText}>{index + 1}</Text>
+                  </View>
+                  <View style={styles.serviceHeadingCopy}>
+                    <Text style={styles.serviceCategory}>
+                      {(service.serviceCategory || 'Booked service').toUpperCase()}
+                    </Text>
+                    <Text style={styles.serviceName}>{service.serviceName}</Text>
+                    {service.packageName !== service.serviceName ? (
+                      <Text style={styles.packageName}>{service.packageName}</Text>
+                    ) : null}
+                  </View>
+                  <View style={styles.serviceAside}>
+                    <Text style={styles.servicePrice}>{formatPrice(service.amount)}</Text>
+                    <View
+                      style={[
+                        styles.statusBadge,
+                        service.status === 'confirmed' && styles.statusConfirmed,
+                        service.status === 'completed' && styles.statusCompleted,
+                        service.status === 'cancelled' && styles.statusCancelled,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.statusText,
+                          service.status === 'confirmed' && styles.statusTextConfirmed,
+                          service.status === 'completed' && styles.statusTextCompleted,
+                          service.status === 'cancelled' && styles.statusTextCancelled,
+                        ]}
+                      >
+                        {statusLabels[service.status]}
+                      </Text>
                     </View>
-                  ))}
+                  </View>
                 </View>
-              ) : null}
-            </View>
 
-            {canReview ? (
-              <View style={styles.responseCard}>
-                <View style={styles.responseHeading}>
-                  <Text style={styles.cardTitle}>Response Note</Text>
-                  <Text style={styles.optionalText}>Optional</Text>
+                {service.packageDescription ? (
+                  <Text style={styles.packageDescription}>{service.packageDescription}</Text>
+                ) : null}
+
+                {service.packageInclusions.length ? (
+                  <View style={styles.inclusionsCard}>
+                    <Text style={styles.miniLabel}>PACKAGE INCLUSIONS</Text>
+                    {service.packageInclusions.map((inclusion, inclusionIndex) => (
+                      <View key={`${service.id}-${inclusionIndex}`} style={styles.inclusionRow}>
+                        <MaterialIcons color={palette.success} name="check-circle" size={16} />
+                        <Text style={styles.inclusionText}>{inclusion}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+
+                <View style={styles.noteCard}>
+                  <View style={styles.noteHeading}>
+                    <MaterialIcons color={palette.primaryContainer} name="notes" size={17} />
+                    <Text style={styles.noteTitle}>Client note for this service</Text>
+                  </View>
+                  <Text style={styles.noteBody}>
+                    {service.clientNotes?.trim() ||
+                      'The client did not add a separate note for this service.'}
+                  </Text>
                 </View>
-                <Text style={styles.responseHelp}>
-                  Share a short confirmation or explain any next steps to the client.
-                </Text>
-                <TextInput
-                  accessibilityLabel="Response note to client"
-                  maxLength={300}
-                  multiline
-                  onChangeText={handleProviderNoteChange}
-                  placeholder="Add a note for the client..."
-                  placeholderTextColor={palette.placeholder}
-                  style={styles.responseInput}
-                  textAlignVertical="top"
-                  value={providerNote}
-                />
-                <Text style={styles.characterCount}>{providerNote.length} / 300</Text>
+
+                <View style={styles.instructionsSection}>
+                  <View style={styles.noteHeading}>
+                    <MaterialIcons color="#9A6500" name="assignment" size={17} />
+                    <Text style={styles.instructionSectionTitle}>Service instructions</Text>
+                  </View>
+                  {service.instructions.length ? (
+                    service.instructions.map((instruction) => (
+                      <View key={instruction.id} style={styles.instructionItem}>
+                        <Text style={styles.instructionTitle}>{instruction.title}</Text>
+                        {instruction.body ? (
+                          <Text style={styles.instructionBody}>{instruction.body}</Text>
+                        ) : null}
+                        {instruction.tags.length ? (
+                          <View style={styles.tagRow}>
+                            {instruction.tags.map((tag) => (
+                              <View key={`${instruction.id}-${tag}`} style={styles.tag}>
+                                <Text style={styles.tagText}>{tag}</Text>
+                              </View>
+                            ))}
+                          </View>
+                        ) : null}
+                      </View>
+                    ))
+                  ) : (
+                    <Text style={styles.noInstructions}>
+                      No additional instructions were added for this service.
+                    </Text>
+                  )}
+                </View>
+
+                {isNew ? (
+                  <View style={styles.actionSection}>
+                    <Text style={styles.miniLabel}>RESPONSE NOTE (OPTIONAL)</Text>
+                    <TextInput
+                      accessibilityLabel={`Response note for ${service.serviceName}`}
+                      maxLength={300}
+                      multiline
+                      onChangeText={(note) =>
+                        setProviderNotes((current) => ({ ...current, [service.id]: note }))
+                      }
+                      placeholder="Add a short confirmation or next step..."
+                      placeholderTextColor={palette.placeholder}
+                      style={styles.responseInput}
+                      textAlignVertical="top"
+                      value={providerNotes[service.id] ?? ''}
+                    />
+                    <View style={styles.actionRow}>
+                      <Pressable
+                        accessibilityLabel={`Decline ${service.serviceName}`}
+                        disabled={isProcessing}
+                        onPress={() => decide(service, 'declined')}
+                        style={({ pressed }) => [
+                          styles.secondaryButton,
+                          pressed && styles.pressed,
+                          isProcessing && styles.disabled,
+                        ]}
+                      >
+                        <Text style={styles.secondaryButtonText}>Decline service</Text>
+                      </Pressable>
+                      <Pressable
+                        accessibilityLabel={`Accept ${service.serviceName}`}
+                        disabled={isProcessing}
+                        onPress={() => decide(service, 'accepted')}
+                        style={({ pressed }) => [
+                          styles.primaryButton,
+                          pressed && styles.pressed,
+                          isProcessing && styles.disabled,
+                        ]}
+                      >
+                        {processingBookingId === service.id ? (
+                          <ActivityIndicator color="#FFFFFF" size="small" />
+                        ) : null}
+                        <Text style={styles.primaryButtonText}>Accept service</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ) : isConfirmed ? (
+                  <View style={styles.completionSection}>
+                    <View style={styles.completionCopy}>
+                      <Text style={styles.completionTitle}>
+                        {eventDateHasArrived
+                          ? 'Has this service been delivered?'
+                          : 'Completion opens on the event date'}
+                      </Text>
+                      <Text style={styles.completionText}>
+                        {eventDateHasArrived
+                          ? 'Mark only this service as finished after delivery.'
+                          : `Available on ${formatDate(request.eventDate)}.`}
+                      </Text>
+                    </View>
+                    <Pressable
+                      accessibilityLabel={`Mark ${service.serviceName} finished`}
+                      disabled={!eventDateHasArrived || isProcessing}
+                      onPress={() => onMarkCompleted?.(requestForService(request, service))}
+                      style={({ pressed }) => [
+                        styles.finishButton,
+                        pressed && styles.pressed,
+                        (!eventDateHasArrived || isProcessing) && styles.disabled,
+                      ]}
+                    >
+                      {completingBookingId === service.id ? (
+                        <ActivityIndicator color="#FFFFFF" size="small" />
+                      ) : (
+                        <MaterialIcons color="#FFFFFF" name="done" size={17} />
+                      )}
+                      <Text style={styles.finishButtonText}>Mark finished</Text>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <View style={styles.closedNotice}>
+                    <MaterialIcons
+                      color={service.status === 'completed' ? palette.success : palette.secondary}
+                      name={service.status === 'completed' ? 'task-alt' : 'info-outline'}
+                      size={18}
+                    />
+                    <Text style={styles.closedNoticeText}>
+                      {service.status === 'completed'
+                        ? 'This service has been marked as delivered.'
+                        : 'This service request was declined.'}
+                    </Text>
+                  </View>
+                )}
               </View>
-            ) : (
-              <View style={styles.reviewedNotice}>
-                <Text style={styles.reviewedNoticeTitle}>
-                  This request is {statusLabels[request.status].toLowerCase()}.
-                </Text>
-                <Text style={styles.reviewedNoticeText}>
-                  You can still message the client to discuss event details.
-                </Text>
-              </View>
-            )}
-          </View>
+            )
+          })}
         </View>
-
-        {showDeclineConfirmation && canReview ? (
-          <View style={styles.declineConfirmation}>
-            <View style={styles.warningIcon}>
-              <Text style={styles.warningIconText}>!</Text>
-            </View>
-            <View style={styles.warningCopy}>
-              <Text style={styles.warningTitle}>Decline this booking request?</Text>
-              <Text style={styles.warningText}>
-                The client will be notified and this date will remain available for other requests.
-              </Text>
-            </View>
-          </View>
-        ) : null}
-
-        {isConfirmed ? (
-          <View style={styles.completionBanner}>
-            <View style={styles.completionIcon}>
-              <Text style={styles.completionIconText}>{eventDateHasArrived ? '\u2713' : '\u25F7'}</Text>
-            </View>
-            <View style={styles.completionCopy}>
-              <Text style={styles.completionEyebrow}>SERVICE COMPLETION</Text>
-              <Text style={styles.completionTitle}>
-                {eventDateHasArrived ? 'Has your booked service finished?' : 'Completion opens on the event date'}
-              </Text>
-              <Text style={styles.completionText}>
-                {eventDateHasArrived
-                  ? 'Confirm only after you have finished delivering this service. The client will be notified immediately.'
-                  : `You can mark this service finished on or after ${formatDate(request.eventDate)}.`}
-              </Text>
-            </View>
-          </View>
-        ) : null}
       </ScrollView>
-
-      {canReview ? (
-        <View style={styles.footer}>
-          <View style={[styles.footerContent, isWide && styles.wideHorizontalPadding]}>
-            {showDeclineConfirmation ? (
-              <>
-                <Pressable
-                  accessibilityRole="button"
-                  disabled={isProcessing}
-                  onPress={() => setShowDeclineConfirmation(false)}
-                  style={({ pressed }) => [
-                    styles.secondaryButton,
-                    isProcessing && styles.buttonDisabled,
-                    pressed && styles.secondaryButtonPressed,
-                  ]}
-                >
-                  <Text style={styles.secondaryButtonText}>Keep Request</Text>
-                </Pressable>
-                <Pressable
-                  accessibilityLabel="Confirm decline booking request"
-                  accessibilityRole="button"
-                  disabled={isProcessing}
-                  onPress={handleDecline}
-                  style={({ pressed }) => [
-                    styles.declineConfirmButton,
-                    isProcessing && styles.buttonDisabled,
-                    pressed && styles.declineConfirmButtonPressed,
-                  ]}
-                >
-                  <Text style={styles.declineConfirmButtonText}>
-                    {processingAction === 'declined' ? 'Declining...' : 'Confirm Decline'}
-                  </Text>
-                </Pressable>
-              </>
-            ) : (
-              <>
-                <Pressable
-                  accessibilityLabel="Decline booking request"
-                  accessibilityRole="button"
-                  disabled={isProcessing}
-                  onPress={() => setShowDeclineConfirmation(true)}
-                  style={({ pressed }) => [
-                    styles.secondaryButton,
-                    isProcessing && styles.buttonDisabled,
-                    pressed && styles.secondaryButtonPressed,
-                  ]}
-                >
-                  <Text style={styles.secondaryButtonText}>Decline</Text>
-                </Pressable>
-                <Pressable
-                  accessibilityLabel="Accept booking request"
-                  accessibilityRole="button"
-                  disabled={isProcessing}
-                  onPress={handleAccept}
-                  style={({ pressed }) => [
-                    styles.acceptButton,
-                    isProcessing && styles.buttonDisabled,
-                    pressed && styles.acceptButtonPressed,
-                  ]}
-                >
-                  <Text style={styles.acceptButtonText}>
-                    {processingAction === 'accepted' ? 'Accepting...' : 'Accept Request'}
-                  </Text>
-                </Pressable>
-              </>
-            )}
-          </View>
-        </View>
-      ) : null}
-
-      {isConfirmed ? (
-        <View style={styles.footer}>
-          <View style={[styles.footerContent, isWide && styles.wideHorizontalPadding]}>
-            {showCompletionConfirmation ? (
-              <>
-                <Pressable
-                  accessibilityRole="button"
-                  disabled={isCompleting}
-                  onPress={() => setShowCompletionConfirmation(false)}
-                  style={({ pressed }) => [
-                    styles.secondaryButton,
-                    isCompleting && styles.buttonDisabled,
-                    pressed && styles.secondaryButtonPressed,
-                  ]}
-                >
-                  <Text style={styles.secondaryButtonText}>Not Yet</Text>
-                </Pressable>
-                <Pressable
-                  accessibilityLabel="Confirm service is finished"
-                  accessibilityRole="button"
-                  disabled={isCompleting}
-                  onPress={() => onMarkCompleted?.(request)}
-                  style={({ pressed }) => [
-                    styles.acceptButton,
-                    isCompleting && styles.buttonDisabled,
-                    pressed && styles.acceptButtonPressed,
-                  ]}
-                >
-                  <Text style={styles.acceptButtonText}>
-                    {isCompleting ? 'Marking Finished...' : 'Yes, Service Is Finished'}
-                  </Text>
-                </Pressable>
-              </>
-            ) : (
-              <Pressable
-                accessibilityLabel={
-                  eventDateHasArrived
-                    ? 'Mark booked service as finished'
-                    : 'Service completion is not available before the event date'
-                }
-                accessibilityRole="button"
-                accessibilityState={{ disabled: !eventDateHasArrived }}
-                disabled={!eventDateHasArrived}
-                onPress={() => setShowCompletionConfirmation(true)}
-                style={({ pressed }) => [
-                  styles.acceptButton,
-                  !eventDateHasArrived && styles.buttonDisabled,
-                  pressed && styles.acceptButtonPressed,
-                ]}
-              >
-                <Text style={styles.acceptButtonText}>
-                  {eventDateHasArrived ? 'Mark Service as Finished' : 'Available on Event Date'}
-                </Text>
-              </Pressable>
-            )}
-          </View>
-        </View>
-      ) : null}
     </View>
   )
 }
 
-const DetailRow = ({
+const EventFact = ({
+  icon,
   label,
-  last = false,
   value,
 }: {
+  icon: React.ComponentProps<typeof MaterialIcons>['name']
   label: string
-  last?: boolean
   value: string
 }) => (
-  <View style={[styles.detailRow, !last && styles.detailRowBorder]}>
-    <Text style={styles.detailLabel}>{label}</Text>
-    <Text style={styles.detailValue}>{value}</Text>
+  <View style={styles.eventFact}>
+    <View style={styles.eventFactIcon}>
+      <MaterialIcons color={palette.primaryContainer} name={icon} size={18} />
+    </View>
+    <View style={styles.eventFactCopy}>
+      <Text style={styles.factLabel}>{label}</Text>
+      <Text numberOfLines={2} style={styles.factValue}>{value}</Text>
+    </View>
   </View>
 )
 
 const palette = {
   background: '#FAF9F9',
-  border: '#E3E2E2',
-  completed: '#145133',
+  border: '#E3DEDD',
+  cancelled: '#93000A',
+  cancelledSoft: '#FFDAD6',
   completedSoft: '#E7F3EB',
-  error: '#93000A',
-  errorSoft: '#FFDAD6',
-  onPrimary: '#FFFFFF',
-  placeholder: '#A8A8A9',
+  placeholder: '#9C9695',
   primary: '#4E061A',
   primaryContainer: '#6B1E2E',
   primarySoft: '#F5EDEF',
-  secondary: '#5D5F5F',
-  surfaceContainerLow: '#F5F3F3',
-  text: '#1B1C1C',
-  white: '#FFFFFF',
+  secondary: '#655E5D',
+  success: '#16603D',
+  surface: '#FFFFFF',
+  surfaceLow: '#F5F3F3',
+  text: '#201B1B',
+  warningSoft: '#FFF4DC',
 } as const
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.background },
-  topAppBar: {
-    zIndex: 30,
-    minHeight: 64,
-    justifyContent: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: palette.border,
-    backgroundColor: palette.background,
-  },
-  topAppBarContent: {
-    width: '100%',
-    maxWidth: 1024,
-    minHeight: 64,
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
+  topAppBar: { minHeight: 64, justifyContent: 'center', borderBottomWidth: 1, borderBottomColor: palette.border, backgroundColor: palette.surface },
+  topAppBarContent: { width: '100%', maxWidth: 1040, minHeight: 64, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16 },
   wideHorizontalPadding: { paddingHorizontal: 32 },
-  backButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 20,
-  },
-  backButtonPressed: { backgroundColor: palette.surfaceContainerLow, opacity: 0.72 },
+  backButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },
   backIcon: { width: 24, height: 24, justifyContent: 'center' },
-  backIconHead: {
-    position: 'absolute',
-    left: 4,
-    width: 10,
-    height: 10,
-    borderBottomWidth: 1.8,
-    borderLeftWidth: 1.8,
-    borderColor: palette.primary,
-    transform: [{ rotate: '45deg' }],
-  },
-  backIconShaft: {
-    width: 16,
-    height: 1.8,
-    marginLeft: 4,
-    borderRadius: 1,
-    backgroundColor: palette.primary,
-  },
-  headerTitle: {
-    minWidth: 0,
-    flex: 1,
-    color: palette.primary,
-    fontSize: 20,
-    lineHeight: 26,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  headerSpacer: { width: 40 },
-  content: { width: '100%', maxWidth: 1024, alignSelf: 'center' },
-  contentMobile: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 112 },
-  contentWide: { paddingHorizontal: 32, paddingTop: 32, paddingBottom: 120 },
-  clientHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: palette.border,
-    paddingBottom: 24,
-    marginBottom: 24,
-  },
-  avatar: {
-    width: 54,
-    height: 54,
-    flexShrink: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 27,
-    backgroundColor: palette.primarySoft,
-  },
-  avatarText: { color: palette.primaryContainer, fontSize: 18, lineHeight: 24, fontWeight: '700' },
-  clientCopy: { minWidth: 0, flex: 1 },
-  clientNameRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
-  clientName: { color: palette.text, fontSize: 20, lineHeight: 26, fontWeight: '700' },
-  submittedText: { color: palette.secondary, fontSize: 12, lineHeight: 17, marginTop: 3 },
-  statusBadge: { borderRadius: 999, backgroundColor: palette.primarySoft, paddingHorizontal: 9, paddingVertical: 4 },
-  statusBadgeConfirmed: { backgroundColor: palette.primarySoft },
-  statusBadgeCompleted: { backgroundColor: palette.completedSoft },
-  statusBadgeCancelled: { backgroundColor: palette.errorSoft },
-  statusBadgeText: { color: palette.primaryContainer, fontSize: 11, lineHeight: 15, fontWeight: '600' },
+  backIconHead: { position: 'absolute', left: 4, width: 10, height: 10, borderBottomWidth: 1.8, borderLeftWidth: 1.8, borderColor: palette.primary, transform: [{ rotate: '45deg' }] },
+  backIconShaft: { width: 16, height: 1.8, marginLeft: 4, borderRadius: 1, backgroundColor: palette.primary },
+  headerTitle: { minWidth: 0, flex: 1, color: palette.primary, fontSize: 19, lineHeight: 25, fontWeight: '700', textAlign: 'center' },
+  messageButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },
+  pressedSurface: { backgroundColor: palette.surfaceLow },
+  content: { width: '100%', maxWidth: 1040, alignSelf: 'center' },
+  contentMobile: { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 48 },
+  contentWide: { paddingHorizontal: 32, paddingTop: 30, paddingBottom: 64 },
+  eventHero: { borderWidth: 1, borderColor: '#DDCBCD', borderRadius: 14, backgroundColor: palette.surface, padding: 18, marginBottom: 28 },
+  eventHeroTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14, marginBottom: 20 },
+  eventHeroCopy: { minWidth: 0, flex: 1 },
+  eventEyebrow: { color: palette.primaryContainer, fontSize: 9, lineHeight: 13, fontWeight: '700', letterSpacing: 1 },
+  eventTitle: { color: palette.text, fontSize: 23, lineHeight: 29, fontWeight: '700', marginTop: 3 },
+  organizerText: { color: palette.secondary, fontSize: 11, lineHeight: 16, marginTop: 4 },
+  totalPill: { alignItems: 'flex-end', borderRadius: 10, backgroundColor: palette.primarySoft, paddingHorizontal: 11, paddingVertical: 8 },
+  totalLabel: { color: palette.secondary, fontSize: 7, lineHeight: 10, fontWeight: '700', letterSpacing: 0.6 },
+  totalValue: { color: palette.primaryContainer, fontSize: 15, lineHeight: 20, fontWeight: '700', marginTop: 1 },
+  eventFacts: { gap: 13 },
+  eventFactsWide: { flexDirection: 'row' },
+  eventFact: { minWidth: 0, flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  eventFactIcon: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: palette.primarySoft },
+  eventFactCopy: { minWidth: 0, flex: 1 },
+  factLabel: { color: palette.secondary, fontSize: 8, lineHeight: 11, fontWeight: '700', letterSpacing: 0.7 },
+  factValue: { color: palette.text, fontSize: 11, lineHeight: 16, fontWeight: '600', marginTop: 2 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: palette.border, paddingBottom: 10, marginBottom: 13 },
+  sectionEyebrow: { color: palette.primaryContainer, fontSize: 8, lineHeight: 11, fontWeight: '700', letterSpacing: 0.8 },
+  sectionTitle: { color: palette.text, fontSize: 19, lineHeight: 25, fontWeight: '700', marginTop: 2 },
+  countBadge: { minWidth: 26, height: 26, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.primaryContainer },
+  countBadgeText: { color: '#FFFFFF', fontSize: 11, lineHeight: 14, fontWeight: '700' },
+  serviceList: { gap: 16 },
+  serviceCard: { borderWidth: 1, borderColor: palette.border, borderRadius: 12, backgroundColor: palette.surface, padding: 16 },
+  serviceCardHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  serviceNumber: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: palette.primaryContainer },
+  serviceNumberText: { color: '#FFFFFF', fontSize: 11, lineHeight: 14, fontWeight: '700' },
+  serviceHeadingCopy: { minWidth: 0, flex: 1 },
+  serviceCategory: { color: palette.primaryContainer, fontSize: 8, lineHeight: 11, fontWeight: '700', letterSpacing: 0.7 },
+  serviceName: { color: palette.text, fontSize: 16, lineHeight: 21, fontWeight: '700', marginTop: 2 },
+  packageName: { color: palette.secondary, fontSize: 10, lineHeight: 15, marginTop: 2 },
+  serviceAside: { alignItems: 'flex-end', gap: 5 },
+  servicePrice: { color: palette.primaryContainer, fontSize: 14, lineHeight: 19, fontWeight: '700' },
+  statusBadge: { borderRadius: 999, backgroundColor: palette.primarySoft, paddingHorizontal: 8, paddingVertical: 4 },
+  statusConfirmed: { backgroundColor: palette.primarySoft },
+  statusCompleted: { backgroundColor: palette.completedSoft },
+  statusCancelled: { backgroundColor: palette.cancelledSoft },
+  statusText: { color: palette.primaryContainer, fontSize: 8, lineHeight: 11, fontWeight: '700' },
   statusTextConfirmed: { color: palette.primaryContainer },
-  statusTextCompleted: { color: palette.completed },
-  statusTextCancelled: { color: palette.error },
-  messageButton: {
-    minHeight: 40,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  messageButtonPressed: { backgroundColor: palette.surfaceContainerLow },
-  messageButtonText: { color: palette.primaryContainer, fontSize: 13, lineHeight: 18, fontWeight: '600' },
-  messageIcon: { width: 17, height: 14, borderWidth: 1.4, borderColor: palette.primaryContainer, borderRadius: 4 },
-  messageTail: {
-    position: 'absolute',
-    bottom: -4,
-    left: 2,
-    width: 6,
-    height: 6,
-    borderLeftWidth: 1.4,
-    borderBottomWidth: 1.4,
-    borderColor: palette.primaryContainer,
-    transform: [{ skewY: '-35deg' }],
-    backgroundColor: palette.background,
-  },
-  detailsWorkspace: { gap: 20 },
-  detailsWorkspaceWide: { flexDirection: 'row', alignItems: 'flex-start', gap: 24 },
-  primaryColumn: { minWidth: 0, flex: 1.15, gap: 20 },
-  secondaryColumn: { minWidth: 0, flex: 0.85, gap: 20 },
-  card: {
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 10,
-    backgroundColor: palette.white,
-    paddingHorizontal: 18,
-    paddingTop: 18,
-  },
-  cardTitle: { color: palette.text, fontSize: 17, lineHeight: 23, fontWeight: '600' },
-  detailRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 16, paddingVertical: 14 },
-  detailRowBorder: { borderBottomWidth: 1, borderBottomColor: palette.border },
-  detailLabel: { width: 112, color: palette.secondary, fontSize: 11, lineHeight: 16, fontWeight: '600', letterSpacing: 0.4 },
-  detailValue: { minWidth: 0, flex: 1, color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '500' },
-  notesCard: { borderRadius: 10, backgroundColor: palette.surfaceContainerLow, padding: 18 },
-  clientNotes: { color: palette.secondary, fontSize: 14, lineHeight: 21, marginTop: 10 },
-  instructionBanner: {
-    gap: 12,
-    borderWidth: 1,
-    borderColor: '#D9A441',
-    borderLeftWidth: 5,
-    borderRadius: 10,
-    backgroundColor: '#FFF7E5',
-    padding: 16,
-  },
-  instructionHeading: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  instructionIcon: {
-    width: 30,
-    height: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 15,
-    backgroundColor: '#D9A441',
-  },
-  instructionIconText: { color: palette.white, fontSize: 17, lineHeight: 20, fontWeight: '800' },
-  instructionHeadingCopy: { flex: 1 },
-  instructionEyebrow: { color: '#6E4B0D', fontSize: 10, lineHeight: 14, fontWeight: '800', letterSpacing: 0.9 },
-  instructionTitle: { color: palette.text, fontSize: 15, lineHeight: 21, fontWeight: '700', marginTop: 1 },
-  instructionItem: { borderTopWidth: 1, borderTopColor: '#ECD39F', paddingTop: 11 },
-  instructionItemTitle: { color: palette.text, fontSize: 13, lineHeight: 19, fontWeight: '700' },
-  instructionBody: { color: palette.secondary, fontSize: 13, lineHeight: 20, marginTop: 3 },
-  instructionTags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
-  instructionTag: { borderRadius: 999, backgroundColor: '#F3D99D', paddingHorizontal: 9, paddingVertical: 4 },
-  instructionTagText: { color: '#60420B', fontSize: 10, lineHeight: 14, fontWeight: '700' },
-  packageCard: {
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 10,
-    backgroundColor: palette.white,
-    padding: 18,
-  },
-  cardEyebrow: { color: palette.secondary, fontSize: 11, lineHeight: 16, fontWeight: '600', letterSpacing: 0.7 },
-  packageName: { color: palette.text, fontSize: 18, lineHeight: 24, fontWeight: '600', marginTop: 5 },
-  packagePrice: { color: palette.primaryContainer, fontSize: 22, lineHeight: 28, fontWeight: '700', marginTop: 6 },
-  inclusionList: { gap: 9, borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 15, marginTop: 16 },
-  inclusionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 9 },
-  inclusionCheck: {
-    width: 18,
-    height: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 9,
-    backgroundColor: palette.primarySoft,
-  },
-  inclusionCheckText: { color: palette.primaryContainer, fontSize: 10, lineHeight: 13, fontWeight: '700' },
-  inclusionText: { minWidth: 0, flex: 1, color: palette.secondary, fontSize: 12, lineHeight: 18 },
-  responseCard: { borderWidth: 1, borderColor: palette.border, borderRadius: 10, padding: 18 },
-  responseHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  optionalText: { color: palette.placeholder, fontSize: 11, lineHeight: 15 },
-  responseHelp: { color: palette.secondary, fontSize: 12, lineHeight: 18, marginTop: 5 },
-  responseInput: {
-    minHeight: 92,
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 8,
-    backgroundColor: palette.white,
-    color: palette.text,
-    fontSize: 13,
-    lineHeight: 19,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginTop: 12,
-  },
-  characterCount: { alignSelf: 'flex-end', color: palette.placeholder, fontSize: 11, lineHeight: 15, marginTop: 4 },
-  reviewedNotice: { borderRadius: 10, backgroundColor: palette.surfaceContainerLow, padding: 18 },
-  reviewedNoticeTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '600' },
-  reviewedNoticeText: { color: palette.secondary, fontSize: 12, lineHeight: 18, marginTop: 3 },
-  declineConfirmation: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    borderWidth: 1,
-    borderColor: '#E8A9A4',
-    borderRadius: 10,
-    backgroundColor: palette.errorSoft,
-    padding: 16,
-    marginTop: 20,
-  },
-  completionBanner: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    borderWidth: 1,
-    borderColor: '#B7D7C5',
-    borderLeftWidth: 5,
-    borderLeftColor: palette.completed,
-    borderRadius: 10,
-    backgroundColor: palette.completedSoft,
-    padding: 16,
-    marginTop: 20,
-  },
-  completionIcon: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 16,
-    backgroundColor: palette.completed,
-  },
-  completionIconText: { color: palette.white, fontSize: 17, lineHeight: 20, fontWeight: '800' },
+  statusTextCompleted: { color: palette.success },
+  statusTextCancelled: { color: palette.cancelled },
+  packageDescription: { color: palette.secondary, fontSize: 11, lineHeight: 17, marginTop: 12 },
+  inclusionsCard: { borderRadius: 9, backgroundColor: palette.surfaceLow, padding: 12, marginTop: 13, gap: 7 },
+  miniLabel: { color: palette.secondary, fontSize: 8, lineHeight: 11, fontWeight: '700', letterSpacing: 0.7, marginBottom: 2 },
+  inclusionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 7 },
+  inclusionText: { minWidth: 0, flex: 1, color: palette.text, fontSize: 10, lineHeight: 15 },
+  noteCard: { borderLeftWidth: 3, borderLeftColor: palette.primaryContainer, borderRadius: 8, backgroundColor: palette.primarySoft, padding: 12, marginTop: 13 },
+  noteHeading: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  noteTitle: { color: palette.primaryContainer, fontSize: 10, lineHeight: 14, fontWeight: '700' },
+  noteBody: { color: palette.text, fontSize: 10, lineHeight: 16, marginTop: 6 },
+  instructionsSection: { borderRadius: 8, backgroundColor: palette.warningSoft, padding: 12, marginTop: 10 },
+  instructionSectionTitle: { color: '#765000', fontSize: 10, lineHeight: 14, fontWeight: '700' },
+  instructionItem: { borderTopWidth: 1, borderTopColor: '#EBD8AE', paddingTop: 9, marginTop: 9 },
+  instructionTitle: { color: palette.text, fontSize: 10, lineHeight: 15, fontWeight: '700' },
+  instructionBody: { color: palette.secondary, fontSize: 10, lineHeight: 16, marginTop: 3 },
+  noInstructions: { color: palette.secondary, fontSize: 10, lineHeight: 16, marginTop: 7 },
+  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 7 },
+  tag: { borderRadius: 10, backgroundColor: '#F3DEB0', paddingHorizontal: 7, paddingVertical: 3 },
+  tagText: { color: '#765000', fontSize: 8, lineHeight: 11, fontWeight: '600' },
+  actionSection: { borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 14, marginTop: 14 },
+  responseInput: { minHeight: 66, borderWidth: 1, borderColor: palette.border, borderRadius: 8, backgroundColor: '#FCFBFB', color: palette.text, fontFamily: 'Inter_400Regular', fontSize: 11, lineHeight: 17, padding: 10, marginTop: 7 },
+  actionRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 10 },
+  secondaryButton: { minHeight: 38, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#D3BFC2', borderRadius: 8, paddingHorizontal: 12 },
+  secondaryButtonText: { color: palette.primaryContainer, fontSize: 10, lineHeight: 14, fontWeight: '700' },
+  primaryButton: { minHeight: 38, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 8, backgroundColor: palette.primaryContainer, paddingHorizontal: 14 },
+  primaryButtonText: { color: '#FFFFFF', fontSize: 10, lineHeight: 14, fontWeight: '700' },
+  completionSection: { flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 14, marginTop: 14 },
   completionCopy: { minWidth: 0, flex: 1 },
-  completionEyebrow: { color: palette.completed, fontSize: 10, lineHeight: 14, fontWeight: '800', letterSpacing: 0.9 },
-  completionTitle: { color: palette.text, fontSize: 15, lineHeight: 21, fontWeight: '700', marginTop: 2 },
-  completionText: { color: palette.secondary, fontSize: 12, lineHeight: 18, marginTop: 3 },
-  warningIcon: {
-    width: 24,
-    height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 12,
-    backgroundColor: palette.error,
-  },
-  warningIconText: { color: palette.onPrimary, fontSize: 13, lineHeight: 17, fontWeight: '700' },
-  warningCopy: { minWidth: 0, flex: 1 },
-  warningTitle: { color: palette.error, fontSize: 14, lineHeight: 20, fontWeight: '600' },
-  warningText: { color: palette.secondary, fontSize: 12, lineHeight: 18, marginTop: 2 },
-  footer: {
-    zIndex: 40,
-    width: '100%',
-    borderTopWidth: 1,
-    borderTopColor: palette.border,
-    backgroundColor: palette.background,
-  },
-  footerContent: {
-    width: '100%',
-    maxWidth: 1024,
-    alignSelf: 'center',
-    flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  secondaryButton: {
-    minWidth: 116,
-    minHeight: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: palette.primaryContainer,
-    borderRadius: 8,
-    paddingHorizontal: 20,
-  },
-  secondaryButtonPressed: { backgroundColor: palette.primarySoft },
-  secondaryButtonText: { color: palette.primaryContainer, fontSize: 15, lineHeight: 21, fontWeight: '600' },
-  acceptButton: {
-    minHeight: 50,
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 8,
-    backgroundColor: palette.primaryContainer,
-    paddingHorizontal: 20,
-  },
-  acceptButtonPressed: { opacity: 0.86 },
-  acceptButtonText: { color: palette.onPrimary, fontSize: 15, lineHeight: 21, fontWeight: '600' },
-  declineConfirmButton: {
-    minHeight: 50,
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 8,
-    backgroundColor: palette.error,
-    paddingHorizontal: 20,
-  },
-  declineConfirmButtonPressed: { opacity: 0.86 },
-  declineConfirmButtonText: { color: palette.onPrimary, fontSize: 15, lineHeight: 21, fontWeight: '600' },
-  buttonDisabled: { opacity: 0.5 },
+  completionTitle: { color: palette.text, fontSize: 11, lineHeight: 16, fontWeight: '700' },
+  completionText: { color: palette.secondary, fontSize: 9, lineHeight: 14, marginTop: 2 },
+  finishButton: { minHeight: 38, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderRadius: 8, backgroundColor: palette.success, paddingHorizontal: 12 },
+  finishButtonText: { color: '#FFFFFF', fontSize: 10, lineHeight: 14, fontWeight: '700' },
+  closedNotice: { flexDirection: 'row', alignItems: 'center', gap: 7, borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 13, marginTop: 13 },
+  closedNoticeText: { minWidth: 0, flex: 1, color: palette.secondary, fontSize: 10, lineHeight: 15 },
+  pressed: { opacity: 0.76, transform: [{ scale: 0.99 }] },
+  disabled: { opacity: 0.45 },
 })
