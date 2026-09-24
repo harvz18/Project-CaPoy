@@ -1,4 +1,5 @@
 import { Text } from '../components/AppText'
+import { MaterialCommunityIcons } from '@expo/vector-icons'
 import React from 'react'
 import {
   KeyboardAvoidingView,
@@ -11,12 +12,14 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native'
+import type { CateringServiceType } from '../lib/catalog'
 
 export type ServicePricingModel = 'fixed' | 'startingAt' | 'customQuote'
 export type ServicePricingUnit = 'event' | 'person' | 'hour' | 'day'
 
 export interface ServicePricingValue {
   amount?: number
+  cateringServiceTypes: CateringServiceType[]
   currency: 'PHP'
   details: string
   model: ServicePricingModel
@@ -24,10 +27,22 @@ export interface ServicePricingValue {
 }
 
 interface Step2PricingScreenProps {
+  categoryName?: string
   initialValue?: Partial<ServicePricingValue>
   onBack?: (draft?: ServicePricingValue) => void
   onNext?: (value: ServicePricingValue) => void
 }
+
+const cateringServiceTypes: Array<{
+  description: string
+  icon: React.ComponentProps<typeof MaterialCommunityIcons>['name']
+  id: CateringServiceType
+  label: string
+}> = [
+  { id: 'plated', icon: 'silverware-fork-knife', label: 'Plated', description: 'Individually served meals.' },
+  { id: 'buffet', icon: 'food-variant', label: 'Buffet', description: 'Self-service or staffed buffet.' },
+  { id: 'packed', icon: 'food-takeout-box-outline', label: 'Packed', description: 'Boxed or packed meals.' },
+]
 
 const pricingModels: Array<{
   description: string
@@ -79,6 +94,7 @@ const BackIcon = () => (
 )
 
 export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
+  categoryName = '',
   initialValue,
   onBack,
   onNext,
@@ -95,11 +111,16 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
     initialValue?.unit ?? 'event'
   )
   const [details, setDetails] = React.useState(initialValue?.details ?? '')
+  const [selectedCateringTypes, setSelectedCateringTypes] = React.useState<CateringServiceType[]>(
+    initialValue?.cateringServiceTypes ?? []
+  )
   const [submitted, setSubmitted] = React.useState(false)
 
+  const isCatering = categoryName.toLowerCase().includes('cater')
   const requiresAmount = model !== 'customQuote'
   const amount = parseAmount(amountInput)
   const amountMissing = submitted && requiresAmount && !amount
+  const cateringTypesMissing = submitted && isCatering && selectedCateringTypes.length === 0
 
   const handleModelChange = (nextModel: ServicePricingModel) => {
     setModel(nextModel)
@@ -108,10 +129,11 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
 
   const handleNext = () => {
     setSubmitted(true)
-    if (requiresAmount && !amount) return
+    if ((requiresAmount && !amount) || (isCatering && selectedCateringTypes.length === 0)) return
 
     onNext?.({
       amount: requiresAmount ? amount : undefined,
+      cateringServiceTypes: isCatering ? selectedCateringTypes : [],
       currency: 'PHP',
       details: details.trim(),
       model,
@@ -121,11 +143,21 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
 
   const buildDraft = (): ServicePricingValue => ({
     amount: requiresAmount ? amount : undefined,
+    cateringServiceTypes: isCatering ? selectedCateringTypes : [],
     currency: 'PHP',
     details: details.trim(),
     model,
     unit: requiresAmount ? unit : undefined,
   })
+
+  const toggleCateringType = (value: CateringServiceType) => {
+    setSubmitted(false)
+    setSelectedCateringTypes((current) =>
+      current.includes(value)
+        ? current.filter((item) => item !== value)
+        : [...current, value]
+    )
+  }
 
   return (
     <KeyboardAvoidingView
@@ -303,6 +335,57 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
               </Text>
             </View>
           )}
+
+          {isCatering ? (
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Available Catering Styles</Text>
+              <Text style={styles.helperText}>
+                Select at least one. Clients can only choose the styles enabled here.
+              </Text>
+              <View style={styles.cateringTypeGrid}>
+                {cateringServiceTypes.map((option) => {
+                  const selected = selectedCateringTypes.includes(option.id)
+
+                  return (
+                    <Pressable
+                      key={option.id}
+                      accessibilityLabel={`${option.label}. ${option.description}`}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: selected }}
+                      onPress={() => toggleCateringType(option.id)}
+                      style={({ pressed }) => [
+                        styles.cateringTypeCard,
+                        selected && styles.cateringTypeCardSelected,
+                        pressed && styles.pricingModelCardPressed,
+                      ]}
+                    >
+                      <MaterialCommunityIcons
+                        color={selected ? palette.primaryContainer : palette.secondary}
+                        name={option.icon}
+                        size={28}
+                      />
+                      <View style={styles.cateringTypeCopy}>
+                        <Text style={[styles.cateringTypeLabel, selected && styles.pricingModelLabelSelected]}>
+                          {option.label}
+                        </Text>
+                        <Text style={styles.pricingModelDescription}>{option.description}</Text>
+                      </View>
+                      <MaterialCommunityIcons
+                        color={selected ? palette.primaryContainer : palette.placeholder}
+                        name={selected ? 'checkbox-marked-circle' : 'checkbox-blank-circle-outline'}
+                        size={22}
+                      />
+                    </Pressable>
+                  )
+                })}
+              </View>
+              {cateringTypesMissing ? (
+                <Text accessibilityRole="alert" style={styles.errorText}>
+                  Select at least one catering style.
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
 
           <View style={styles.fieldGroup}>
             <View style={styles.detailsHeader}>
@@ -549,6 +632,22 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   quoteNoticeText: { minWidth: 0, flex: 1, color: palette.secondary, fontSize: 12, lineHeight: 18 },
+  cateringTypeGrid: { gap: 8, marginTop: 4 },
+  cateringTypeCard: {
+    minHeight: 70,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderColor: palette.surfaceContainerHigh,
+    borderRadius: 8,
+    backgroundColor: palette.inputBackground,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  cateringTypeCardSelected: { borderColor: palette.primaryContainer, backgroundColor: palette.primaryPill },
+  cateringTypeCopy: { minWidth: 0, flex: 1 },
+  cateringTypeLabel: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '600' },
   detailsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   optionalLabel: { color: palette.placeholder, fontSize: 12, lineHeight: 16 },
   input: {

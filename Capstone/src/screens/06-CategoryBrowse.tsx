@@ -74,7 +74,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   replacementContext,
   showBottomNavigation = true,
   searchValue,
-  sortLabel = 'Relevance',
+  sortLabel = 'Top rated',
   onBack,
   onChangeSearch,
   onOpenBudget,
@@ -342,12 +342,21 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                   useHorizontalCards && styles.imagePanelHorizontal,
                 ]}
               >
-                <Image
-                  accessibilityLabel={vendor.imageLabel}
-                  resizeMode="cover"
-                  source={{ uri: vendor.imageUrl }}
-                  style={styles.vendorImage}
-                />
+                {vendor.imageUrl ? (
+                  <Image
+                    accessibilityLabel={vendor.imageLabel}
+                    resizeMode="cover"
+                    source={{ uri: vendor.imageUrl }}
+                    style={styles.vendorImage}
+                  />
+                ) : (
+                  <View
+                    accessibilityLabel={`${vendor.name} has no uploaded photo`}
+                    style={styles.vendorImagePlaceholder}
+                  >
+                    <Text style={styles.vendorImagePlaceholderText}>{vendor.name}</Text>
+                  </View>
+                )}
               </View>
 
               <View
@@ -826,6 +835,21 @@ const styles = StyleSheet.create({
   vendorImage: {
     width: '100%',
     height: '100%',
+  },
+  vendorImagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    backgroundColor: palette.surfaceVariant,
+  },
+  vendorImagePlaceholderText: {
+    color: palette.secondary,
+    fontSize: 15,
+    lineHeight: 21,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   vendorCopy: {
     padding: 16,

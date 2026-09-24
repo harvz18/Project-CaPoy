@@ -1,7 +1,13 @@
 import { Text } from '../components/AppText'
+import { MaterialIcons } from '@expo/vector-icons'
 import React from 'react'
-import { Image, Pressable, ScrollView, StyleSheet,  View } from 'react-native'
+import { Image, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native'
 import type { BookingItem } from './11-BookingScreen'
+
+export interface BookingChangeActionResult {
+  message?: string
+  ok: boolean
+}
 
 export interface BookingDetailValue {
   confirmedDate: string
@@ -18,8 +24,12 @@ interface BookingDetailsScreenProps {
   booking?: BookingItem
   details?: Partial<BookingDetailValue>
   onBack?: () => void
-  onCancelOrReschedule?: () => void
+  onCancelBooking?: (reason: string) => Promise<BookingChangeActionResult>
   onMessageProvider?: () => void
+  onRescheduleBooking?: (value: {
+    date: string
+    time: string
+  }) => Promise<BookingChangeActionResult>
   onSubmitReview?: () => void
 }
 
@@ -49,14 +59,22 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
   booking,
   details,
   onBack,
-  onCancelOrReschedule,
+  onCancelBooking,
   onMessageProvider,
+  onRescheduleBooking,
   onSubmitReview,
 }) => {
   const provider = booking ?? defaultProvider
   const isConfirmed = booking?.status === 'confirmed' || booking?.status === 'completed'
   const isCompleted = booking?.status === 'completed'
+  const isCancelled = booking?.status === 'cancelled'
   const bookedServices = booking?.services ?? []
+  const [changeMode, setChangeMode] = React.useState<'cancel' | 'options' | 'reschedule'>()
+  const [changeError, setChangeError] = React.useState('')
+  const [cancelReason, setCancelReason] = React.useState('')
+  const [newDate, setNewDate] = React.useState(booking?.date ?? '')
+  const [newTime, setNewTime] = React.useState(booking?.requestedTime ?? '')
+  const [isSubmittingChange, setIsSubmittingChange] = React.useState(false)
   const value = {
     ...defaultDetails,
     ...(booking
@@ -71,6 +89,50 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
         }
       : {}),
     ...details,
+  }
+
+  React.useEffect(() => {
+    setChangeMode(undefined)
+    setChangeError('')
+    setCancelReason('')
+    setNewDate(booking?.date ?? '')
+    setNewTime(booking?.requestedTime ?? '')
+  }, [booking?.date, booking?.id, booking?.requestedTime])
+
+  const closeChangeModal = () => {
+    if (isSubmittingChange) return
+    setChangeMode(undefined)
+    setChangeError('')
+  }
+
+  const submitCancellation = async () => {
+    if (!onCancelBooking || isSubmittingChange) return
+    setIsSubmittingChange(true)
+    setChangeError('')
+    const result = await onCancelBooking(cancelReason)
+    setIsSubmittingChange(false)
+
+    if (!result.ok) {
+      setChangeError(result.message ?? 'Unable to cancel this booking.')
+      return
+    }
+
+    setChangeMode(undefined)
+  }
+
+  const submitReschedule = async () => {
+    if (!onRescheduleBooking || isSubmittingChange) return
+    setIsSubmittingChange(true)
+    setChangeError('')
+    const result = await onRescheduleBooking({ date: newDate, time: newTime })
+    setIsSubmittingChange(false)
+
+    if (!result.ok) {
+      setChangeError(result.message ?? 'Unable to reschedule this booking.')
+      return
+    }
+
+    setChangeMode(undefined)
   }
 
   return (
@@ -129,12 +191,22 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
             date={value.requestedDate}
             label="Requested"
           />
-          <TimelineStep
-            complete={isConfirmed}
-            date={isConfirmed ? value.confirmedDate : undefined}
-            label="Confirmed"
-          />
-          <TimelineStep complete={isCompleted} label="Completed" />
+          {isCancelled ? (
+            <TimelineStep
+              complete
+              date={booking?.updatedAt ? new Date(booking.updatedAt).toLocaleDateString('en-PH') : undefined}
+              label="Cancelled"
+            />
+          ) : (
+            <>
+              <TimelineStep
+                complete={isConfirmed}
+                date={isConfirmed ? value.confirmedDate : undefined}
+                label="Confirmed"
+              />
+              <TimelineStep complete={isCompleted} label="Completed" />
+            </>
+          )}
         </View>
 
         <View style={styles.detailsCard}>
@@ -183,7 +255,8 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                       style={[
                         styles.serviceStatus,
                         service.status === 'confirmed' && styles.serviceStatusConfirmed,
-                        service.status === 'declined' && styles.serviceStatusDeclined,
+                        (service.status === 'declined' || service.status === 'cancelled') &&
+                          styles.serviceStatusDeclined,
                       ]}
                     >
                       <Text style={styles.serviceStatusText}>
@@ -250,10 +323,13 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
             <Text style={styles.messageButtonText}>Message Provider</Text>
           </Pressable>
 
-          {!isCompleted ? (
+          {!isCompleted && !isCancelled ? (
             <Pressable
               accessibilityRole="button"
-              onPress={onCancelOrReschedule}
+              onPress={() => {
+                setChangeError('')
+                setChangeMode('options')
+              }}
               style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
             >
               <Text style={styles.secondaryButtonText}>CANCEL OR RESCHEDULE</Text>
@@ -261,6 +337,174 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
           ) : null}
         </View>
       </ScrollView>
+
+      <Modal
+        animationType="fade"
+        onRequestClose={closeChangeModal}
+        transparent
+        visible={Boolean(changeMode)}
+      >
+        <View style={styles.changeBackdrop}>
+          <View accessibilityViewIsModal style={styles.changeCard}>
+            <View style={styles.changeHeader}>
+              <View style={styles.changeHeaderCopy}>
+                <Text style={styles.changeTitle}>
+                  {changeMode === 'cancel'
+                    ? 'Cancel event booking?'
+                    : changeMode === 'reschedule'
+                      ? 'Choose a new schedule'
+                      : 'Manage booking'}
+                </Text>
+                <Text style={styles.changeSubtitle}>
+                  {changeMode === 'cancel'
+                    ? 'All active provider reservations for this event will be released.'
+                    : changeMode === 'reschedule'
+                      ? 'Every booked provider must be available before the schedule can change.'
+                      : 'This change applies to every provider booked for this event.'}
+                </Text>
+              </View>
+              <Pressable
+                accessibilityLabel="Close booking options"
+                accessibilityRole="button"
+                disabled={isSubmittingChange}
+                onPress={closeChangeModal}
+                style={styles.changeClose}
+              >
+                <MaterialIcons color={palette.muted} name="close" size={23} />
+              </Pressable>
+            </View>
+
+            {changeMode === 'options' ? (
+              <View style={styles.changeOptions}>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setChangeMode('reschedule')}
+                  style={({ pressed }) => [styles.changeOption, pressed && styles.pressed]}
+                >
+                  <View style={styles.changeOptionIcon}>
+                    <MaterialIcons color={palette.burgundy} name="event-repeat" size={25} />
+                  </View>
+                  <View style={styles.changeOptionCopy}>
+                    <Text style={styles.changeOptionTitle}>Reschedule Event</Text>
+                    <Text style={styles.changeOptionText}>Check providers and request a new date and time.</Text>
+                  </View>
+                  <MaterialIcons color={palette.muted} name="chevron-right" size={24} />
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setChangeMode('cancel')}
+                  style={({ pressed }) => [styles.changeOption, pressed && styles.pressed]}
+                >
+                  <View style={[styles.changeOptionIcon, styles.cancelOptionIcon]}>
+                    <MaterialIcons color={palette.error} name="event-busy" size={25} />
+                  </View>
+                  <View style={styles.changeOptionCopy}>
+                    <Text style={[styles.changeOptionTitle, styles.cancelText]}>Cancel Booking</Text>
+                    <Text style={styles.changeOptionText}>Release all providers from this event booking.</Text>
+                  </View>
+                  <MaterialIcons color={palette.muted} name="chevron-right" size={24} />
+                </Pressable>
+              </View>
+            ) : null}
+
+            {changeMode === 'reschedule' ? (
+              <View style={styles.changeForm}>
+                <View style={styles.changeField}>
+                  <Text style={styles.changeLabel}>NEW EVENT DATE</Text>
+                  <TextInput
+                    accessibilityLabel="New event date"
+                    autoCapitalize="none"
+                    onChangeText={setNewDate}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor="#9A9291"
+                    style={styles.changeInput}
+                    value={newDate}
+                  />
+                </View>
+                <View style={styles.changeField}>
+                  <Text style={styles.changeLabel}>NEW EVENT TIME</Text>
+                  <TextInput
+                    accessibilityLabel="New event time"
+                    onChangeText={setNewTime}
+                    placeholder="2:30 PM"
+                    placeholderTextColor="#9A9291"
+                    style={styles.changeInput}
+                    value={newTime}
+                  />
+                </View>
+                <View style={styles.changeNotice}>
+                  <MaterialIcons color={palette.muted} name="info-outline" size={19} />
+                  <Text style={styles.changeNoticeText}>
+                    Confirmed services return to Requested until each provider accepts the new schedule.
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+
+            {changeMode === 'cancel' ? (
+              <View style={styles.changeForm}>
+                <View style={styles.changeField}>
+                  <Text style={styles.changeLabel}>REASON (OPTIONAL)</Text>
+                  <TextInput
+                    accessibilityLabel="Cancellation reason"
+                    maxLength={500}
+                    multiline
+                    onChangeText={setCancelReason}
+                    placeholder="Tell the providers why the event booking is being cancelled"
+                    placeholderTextColor="#9A9291"
+                    style={[styles.changeInput, styles.reasonInput]}
+                    textAlignVertical="top"
+                    value={cancelReason}
+                  />
+                </View>
+                <View style={[styles.changeNotice, styles.cancelNotice]}>
+                  <MaterialIcons color={palette.error} name="warning-amber" size={19} />
+                  <Text style={styles.changeNoticeText}>
+                    Existing payments are preserved. Any refund must follow the provider's cancellation policy.
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+
+            {changeError ? <Text style={styles.changeError}>{changeError}</Text> : null}
+
+            {changeMode === 'reschedule' || changeMode === 'cancel' ? (
+              <View style={styles.changeActions}>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={isSubmittingChange}
+                  onPress={() => {
+                    setChangeError('')
+                    setChangeMode('options')
+                  }}
+                  style={({ pressed }) => [styles.changeBackButton, pressed && styles.pressed]}
+                >
+                  <Text style={styles.changeBackText}>Back</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={isSubmittingChange}
+                  onPress={() => void (changeMode === 'cancel' ? submitCancellation() : submitReschedule())}
+                  style={({ pressed }) => [
+                    styles.changeSubmit,
+                    changeMode === 'cancel' && styles.cancelSubmit,
+                    isSubmittingChange && styles.changeSubmitDisabled,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Text style={styles.changeSubmitText}>
+                    {isSubmittingChange
+                      ? 'Saving…'
+                      : changeMode === 'cancel'
+                        ? 'Confirm Cancellation'
+                        : 'Check & Reschedule'}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
     </View>
   )
 }
@@ -309,6 +553,7 @@ const palette = {
   burgundy: '#6B1E2E',
   card: '#EEEEEE',
   muted: '#5E5E5E',
+  error: '#B3261E',
   surface: '#FFFFFF',
   text: '#1A1C1C',
 } as const
@@ -606,5 +851,126 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 1.1,
   },
+  changeBackdrop: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(31, 20, 23, 0.55)',
+    padding: 20,
+  },
+  changeCard: {
+    width: '100%',
+    maxWidth: 500,
+    borderRadius: 18,
+    backgroundColor: palette.surface,
+    padding: 20,
+    shadowColor: '#210A10',
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.22,
+    shadowRadius: 28,
+    elevation: 10,
+  },
+  changeHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    marginBottom: 20,
+  },
+  changeHeaderCopy: { minWidth: 0, flex: 1 },
+  changeTitle: { color: palette.text, fontSize: 20, lineHeight: 27, fontWeight: '700' },
+  changeSubtitle: { color: palette.muted, fontSize: 13, lineHeight: 19, marginTop: 4 },
+  changeClose: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 18,
+    backgroundColor: palette.card,
+  },
+  changeOptions: { gap: 10 },
+  changeOption: {
+    minHeight: 82,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 12,
+    padding: 13,
+  },
+  changeOptionIcon: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 22,
+    backgroundColor: '#F8EDF0',
+  },
+  cancelOptionIcon: { backgroundColor: '#FCE9E7' },
+  changeOptionCopy: { minWidth: 0, flex: 1 },
+  changeOptionTitle: { color: palette.text, fontSize: 15, lineHeight: 21, fontWeight: '700' },
+  changeOptionText: { color: palette.muted, fontSize: 12, lineHeight: 18, marginTop: 2 },
+  cancelText: { color: palette.error },
+  changeForm: { gap: 14 },
+  changeField: { gap: 7 },
+  changeLabel: {
+    color: palette.muted,
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: '700',
+    letterSpacing: 0.9,
+  },
+  changeInput: {
+    minHeight: 48,
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 10,
+    backgroundColor: palette.background,
+    color: palette.text,
+    fontSize: 15,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+  },
+  reasonInput: { minHeight: 96 },
+  changeNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    borderRadius: 10,
+    backgroundColor: palette.card,
+    padding: 12,
+  },
+  cancelNotice: { backgroundColor: '#FCEFED' },
+  changeNoticeText: { minWidth: 0, flex: 1, color: palette.muted, fontSize: 12, lineHeight: 18 },
+  changeError: {
+    color: palette.error,
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: '600',
+    marginTop: 12,
+  },
+  changeActions: { flexDirection: 'row', gap: 10, marginTop: 18 },
+  changeBackButton: {
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 10,
+    paddingHorizontal: 18,
+  },
+  changeBackText: { color: palette.muted, fontSize: 14, fontWeight: '700' },
+  changeSubmit: {
+    minHeight: 48,
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    backgroundColor: palette.burgundy,
+    paddingHorizontal: 14,
+  },
+  cancelSubmit: { backgroundColor: palette.error },
+  changeSubmitDisabled: { opacity: 0.55 },
+  changeSubmitText: { color: palette.surface, fontSize: 14, fontWeight: '700', textAlign: 'center' },
   pressed: { opacity: 0.58 },
 })

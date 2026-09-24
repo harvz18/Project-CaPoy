@@ -12,6 +12,12 @@ type MessageResult = {
   error?: string
 }
 
+type OpenConversationResult = {
+  conversationId?: string
+  error?: string
+  ok: boolean
+}
+
 const getClient = () => {
   if (!supabase || !supabaseConfig.isConfigured) return null
   return supabase
@@ -92,18 +98,22 @@ export const fetchConversations = async (): Promise<ClientConversation[]> => {
   const providersByUser = new Map(
     (providerRows ?? []).map((row) => [row.user_id as string, row as Record<string, unknown>])
   )
-  const participantsByConversation = new Map(
-    (participantRows ?? []).map((row) => [
-      row.conversation_id as string,
-      row as Record<string, unknown>,
-    ])
-  )
+  const participantsByConversation = new Map<string, Array<Record<string, unknown>>>()
+  for (const row of participantRows ?? []) {
+    const conversationId = row.conversation_id as string
+    const participants = participantsByConversation.get(conversationId) ?? []
+    participants.push(row as Record<string, unknown>)
+    participantsByConversation.set(conversationId, participants)
+  }
 
   return (conversationRows ?? [])
     .map((row) => {
       const record = row as Record<string, unknown>
       const conversationId = textFrom(record.id)
-      const participant = participantsByConversation.get(conversationId)
+      const participants = participantsByConversation.get(conversationId) ?? []
+      const participant =
+        participants.find((candidate) => providersByUser.has(textFrom(candidate.user_id))) ??
+        participants[0]
       const profile = nested(participant?.profiles) as Record<string, unknown> | undefined
       const provider = providersByUser.get(textFrom(participant?.user_id))
       const booking = nested(record.bookings) as Record<string, unknown> | undefined
@@ -144,6 +154,30 @@ export const fetchConversations = async (): Promise<ClientConversation[]> => {
       (left, right) =>
         new Date(right.lastMessageAt).getTime() - new Date(left.lastMessageAt).getTime()
     )
+}
+
+export const openCoordinatorProviderConversation = async (
+  bookingId: string
+): Promise<OpenConversationResult> => {
+  const client = getClient()
+  if (!client || !bookingId) {
+    return { error: 'Unable to open this provider conversation.', ok: false }
+  }
+
+  const { data, error } = await client.rpc('open_coordinator_provider_conversation', {
+    target_booking_id: bookingId,
+  })
+
+  if (error) return { error: error.message, ok: false }
+
+  const payload = data && typeof data === 'object' && !Array.isArray(data)
+    ? (data as Record<string, unknown>)
+    : {}
+  const conversationId = textFrom(payload.conversation_id)
+
+  return conversationId
+    ? { conversationId, ok: true }
+    : { error: 'The provider conversation could not be opened.', ok: false }
 }
 
 export const fetchConversationMessages = async (

@@ -2,6 +2,47 @@ import { supabase, supabaseConfig } from './supabase'
 
 export type CoordinatorTaskStatus = 'blocked' | 'completed' | 'in_progress' | 'pending'
 
+export interface CoordinatorServiceInstruction {
+  body?: string
+  id: string
+  isRequired: boolean
+  status: string
+  tags: string[]
+  title: string
+  type: string
+}
+
+export interface CoordinatorBookedService {
+  amount: number
+  bookingId?: string
+  booked: boolean
+  categoryName: string
+  clientNotes?: string
+  id: string
+  instructions: CoordinatorServiceInstruction[]
+  providerEmail?: string
+  providerId?: string
+  providerName: string
+  providerPhone?: string
+  providerUserId?: string
+  serviceId?: string
+  serviceName: string
+  status: string
+}
+
+export interface CoordinatorInvitation {
+  clientName: string
+  date?: string
+  eventId: string
+  eventName: string
+  eventType?: string
+  guestCount?: number
+  location?: string
+  requestedAt?: string
+  time?: string
+  venue?: string
+}
+
 export interface CoordinatorEvent {
   bookingCount: number
   clientName: string
@@ -12,6 +53,7 @@ export interface CoordinatorEvent {
   id: string
   location?: string
   name: string
+  services: CoordinatorBookedService[]
   status: string
   taskCount: number
   time?: string
@@ -33,6 +75,7 @@ export interface CoordinatorTask {
 
 export interface CoordinatorDashboard {
   events: CoordinatorEvent[]
+  invitations: CoordinatorInvitation[]
   tasks: CoordinatorTask[]
 }
 
@@ -49,7 +92,11 @@ export interface CreateCoordinatorTaskInput {
   title: string
 }
 
-export const emptyCoordinatorDashboard = (): CoordinatorDashboard => ({ events: [], tasks: [] })
+export const emptyCoordinatorDashboard = (): CoordinatorDashboard => ({
+  events: [],
+  invitations: [],
+  tasks: [],
+})
 
 const recordFrom = (value: unknown): Record<string, unknown> =>
   value && typeof value === 'object' && !Array.isArray(value)
@@ -77,6 +124,7 @@ const taskStatusFrom = (value: unknown): CoordinatorTaskStatus => {
 const parseDashboard = (value: unknown): CoordinatorDashboard => {
   const payload = recordFrom(value)
   const eventRows = Array.isArray(payload.events) ? payload.events : []
+  const invitationRows = Array.isArray(payload.invitations) ? payload.invitations : []
   const taskRows = Array.isArray(payload.tasks) ? payload.tasks : []
 
   return {
@@ -85,6 +133,8 @@ const parseDashboard = (value: unknown): CoordinatorDashboard => {
       const id = textFrom(row.id)
       const name = textFrom(row.name)
       if (!id || !name) return []
+
+      const serviceRows = Array.isArray(row.services) ? row.services : []
 
       return [{
         bookingCount: numberFrom(row.booking_count),
@@ -96,11 +146,73 @@ const parseDashboard = (value: unknown): CoordinatorDashboard => {
         id,
         location: optionalText(row.location),
         name,
+        services: serviceRows.flatMap((entry) => {
+          const service = recordFrom(entry)
+          const serviceId = textFrom(service.id)
+          const serviceName = textFrom(service.service_name)
+          if (!serviceId || !serviceName) return []
+
+          const instructionRows = Array.isArray(service.instructions) ? service.instructions : []
+
+          return [{
+            amount: numberFrom(service.amount),
+            bookingId: optionalText(service.booking_id),
+            booked: service.booked === true,
+            categoryName: textFrom(service.category_name, 'Service'),
+            clientNotes: optionalText(service.client_notes),
+            id: serviceId,
+            instructions: instructionRows.flatMap((entry) => {
+              const instruction = recordFrom(entry)
+              const instructionId = textFrom(instruction.id)
+              const title = textFrom(instruction.title)
+              if (!instructionId || !title) return []
+
+              return [{
+                body: optionalText(instruction.body),
+                id: instructionId,
+                isRequired: instruction.is_required === true,
+                status: textFrom(instruction.status, 'saved'),
+                tags: Array.isArray(instruction.tags)
+                  ? instruction.tags.filter((tag): tag is string => typeof tag === 'string')
+                  : [],
+                title,
+                type: textFrom(instruction.type, 'note'),
+              }]
+            }),
+            providerEmail: optionalText(service.provider_email),
+            providerId: optionalText(service.provider_id),
+            providerName: textFrom(service.provider_name, 'Provider'),
+            providerPhone: optionalText(service.provider_phone),
+            providerUserId: optionalText(service.provider_user_id),
+            serviceId: optionalText(service.service_id),
+            serviceName,
+            status: textFrom(service.status, 'selected'),
+          }]
+        }),
         status: textFrom(row.status, 'planning'),
         taskCount: numberFrom(row.task_count),
         time: optionalText(row.event_time),
         totalBudget: row.total_budget == null ? undefined : numberFrom(row.total_budget),
         type: optionalText(row.event_type),
+        venue: optionalText(row.venue),
+      }]
+    }),
+    invitations: invitationRows.flatMap((entry) => {
+      const row = recordFrom(entry)
+      const eventId = textFrom(row.event_id)
+      const eventName = textFrom(row.event_name)
+      if (!eventId || !eventName) return []
+
+      return [{
+        clientName: textFrom(row.client_name, 'Client'),
+        date: optionalText(row.event_date),
+        eventId,
+        eventName,
+        eventType: optionalText(row.event_type),
+        guestCount: row.guest_count == null ? undefined : numberFrom(row.guest_count),
+        location: optionalText(row.location),
+        requestedAt: optionalText(row.requested_at),
+        time: optionalText(row.event_time),
         venue: optionalText(row.venue),
       }]
     }),
@@ -169,6 +281,22 @@ export const updateCoordinatorTaskStatus = async (
   const { error } = await supabase.rpc('update_coordination_task_status', {
     new_status: status,
     target_task_id: taskId,
+  })
+
+  return error ? { message: error.message, ok: false } : { ok: true }
+}
+
+export const respondToCoordinatorInvitation = async (
+  eventId: string,
+  accepted: boolean
+): Promise<CoordinatorResult> => {
+  if (!supabase || !supabaseConfig.isConfigured) {
+    return { message: unavailableMessage, ok: false }
+  }
+
+  const { error } = await supabase.rpc('respond_event_coordinator_assignment', {
+    accept_assignment: accepted,
+    target_event_id: eventId,
   })
 
   return error ? { message: error.message, ok: false } : { ok: true }

@@ -1,4 +1,6 @@
 import { Text } from '../components/AppText'
+import { MaterialCommunityIcons } from '@expo/vector-icons'
+import { LinearGradient } from 'expo-linear-gradient'
 import React from 'react'
 import {
   Image,
@@ -11,16 +13,21 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native'
-import { CatalogService, formatPeso, formatServicePrice } from '../lib/catalog'
+import {
+  CateringServiceType,
+  CatalogService,
+  formatPeso,
+  formatServicePrice,
+} from '../lib/catalog'
 import type { ReviewSentiment, ServiceReviewInsights } from '../lib/reviews'
 
-export type MealType = 'plated' | 'buffet' | 'packed'
+export type MealType = CateringServiceType
 
 export interface ServiceSelectionValue {
   attendeeCount: number
   budgetPerHead: number
   estimatedTotal: number
-  mealType: MealType
+  mealType?: MealType
   notes: string
   outsideFood: boolean
   service: CatalogService
@@ -31,20 +38,17 @@ interface ServiceDetailsScreenProps {
   mode?: 'explore' | 'planning'
   remainingBudget?: number
   service?: CatalogService
-  initialFavorite?: boolean
   onAddSelection?: (value: ServiceSelectionValue) => Promise<void> | void
   onBack?: () => void
-  onBrowseMenus?: () => void
-  onFavoriteChange?: (favorite: boolean) => void
   onReadAllReviews?: () => void
   reviewInsights?: ServiceReviewInsights
   reviewInsightsLoading?: boolean
 }
 
 const mealTypes = [
-  { id: 'plated' as const, icon: 'P', label: 'Plated' },
-  { id: 'buffet' as const, icon: 'B', label: 'Buffet' },
-  { id: 'packed' as const, icon: 'X', label: 'Packed' },
+  { id: 'plated' as const, icon: 'silverware-fork-knife' as const, label: 'Plated' },
+  { id: 'buffet' as const, icon: 'food-variant' as const, label: 'Buffet' },
+  { id: 'packed' as const, icon: 'food-takeout-box-outline' as const, label: 'Packed' },
 ] as const
 
 const ratingDistribution = [
@@ -98,10 +102,8 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   mode = 'planning',
   remainingBudget = 45000,
   service,
-  initialFavorite = true,
   onAddSelection,
   onBack,
-  onFavoriteChange,
   onReadAllReviews,
   reviewInsights,
   reviewInsightsLoading = false,
@@ -111,10 +113,9 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   const isExploreMode = mode === 'explore'
   const hasSetBudget = hasBudget ?? remainingBudget > 0
   const heroWidth = Math.min(width, 1200)
-  const heroHeight = Math.max(400, Math.min(560, height * 0.5))
+  const heroHeight = Math.max(280, Math.min(460, height * 0.42))
   const [heroIndex, setHeroIndex] = React.useState(0)
-  const [favorite, setFavorite] = React.useState(initialFavorite)
-  const [mealType, setMealType] = React.useState<MealType>('plated')
+  const [mealType, setMealType] = React.useState<MealType>()
   const [attendeeDigits, setAttendeeDigits] = React.useState('')
   const [budgetDigits, setBudgetDigits] = React.useState('')
   const [notes, setNotes] = React.useState('')
@@ -122,7 +123,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   const [isAddingSelection, setIsAddingSelection] = React.useState(false)
   const [expandedSentiment, setExpandedSentiment] = React.useState<ReviewSentiment>()
   const [selectedPackageId, setSelectedPackageId] = React.useState(
-    service?.packageId ?? service?.packages?.[0]?.id ?? ''
+    service?.packageId ?? ''
   )
   const serviceImages = React.useMemo(
     () =>
@@ -131,21 +132,24 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
         : service?.imageUrl
           ? [service.imageUrl]
           : []
-      ).map((uri, index) => ({
-        uri,
-        label:
-          index === 0
-            ? service?.imageLabel ?? 'Service photo'
-            : `${service?.name} photo ${index + 1}`,
-      })),
+      )
+        .filter((uri) => Boolean(uri))
+        .map((uri, index) => ({
+          uri,
+          label:
+            index === 0
+              ? service?.imageLabel ?? 'Service photo'
+              : `${service?.name} photo ${index + 1}`,
+        })),
     [service?.galleryUrls, service?.imageLabel, service?.imageUrl, service?.name]
   )
 
   React.useEffect(() => {
-    setSelectedPackageId(service?.packageId ?? service?.packages?.[0]?.id ?? '')
+    setSelectedPackageId(service?.packageId ?? '')
+    setMealType(service?.cateringServiceTypes?.[0])
     setHeroIndex(0)
     setExpandedSentiment(undefined)
-  }, [service?.id, service?.packageId, service?.packages])
+  }, [service?.cateringServiceTypes, service?.id, service?.packageId])
 
   if (!service) {
     return (
@@ -164,6 +168,9 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
 
   const attendeeCount = attendeeDigits ? Number(attendeeDigits) : 0
   const budgetPerHead = budgetDigits ? Number(budgetDigits) : 0
+  const isCatering = service.categoryId === 'catering'
+  const availableMealTypes = service.cateringServiceTypes ?? []
+  const cateringSelectionUnavailable = isCatering && !mealType
   const selectedPackage = service.packages?.find((item) => item.id === selectedPackageId)
   const selectedUnit = selectedPackage?.unit ?? service.pricingUnit ?? 'event'
   const selectedPrice = selectedPackage?.price ?? service.minPrice
@@ -179,14 +186,8 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
       ? 'Quote required'
       : `PHP ${formatCurrency(estimatedTotal)}`
 
-  const toggleFavorite = () => {
-    const nextFavorite = !favorite
-    setFavorite(nextFavorite)
-    onFavoriteChange?.(nextFavorite)
-  }
-
   const handleAddSelection = async () => {
-    if (!onAddSelection || isAddingSelection) return
+    if (!onAddSelection || isAddingSelection || cateringSelectionUnavailable) return
 
     setIsAddingSelection(true)
 
@@ -240,7 +241,12 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
             )}
           </ScrollView>
 
-          <View style={styles.heroShade} pointerEvents="none" />
+          <LinearGradient
+            colors={['rgba(18, 10, 12, 0)', 'rgba(18, 10, 12, 0.72)']}
+            locations={[0, 1]}
+            pointerEvents="none"
+            style={styles.heroShade}
+          />
 
           <View style={[styles.heroActions, isWide && styles.heroActionsWide]}>
             <Pressable
@@ -249,18 +255,22 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
               onPress={onBack}
               style={({ pressed }) => [styles.heroButton, pressed && styles.heroButtonPressed]}
             >
-              <Text style={styles.heroButtonIcon}>{'<'}</Text>
+              <MaterialCommunityIcons
+                color={palette.white}
+                name="arrow-left"
+                size={30}
+                style={styles.heroActionIcon}
+              />
             </Pressable>
 
-            <Pressable
-              accessibilityLabel={favorite ? 'Remove from favorites' : 'Add to favorites'}
-              accessibilityRole="button"
-              accessibilityState={{ selected: favorite }}
-              onPress={toggleFavorite}
-              style={({ pressed }) => [styles.heroButton, pressed && styles.heroButtonPressed]}
-            >
-              <Text style={styles.favoriteIcon}>{favorite ? '*' : 'o'}</Text>
-            </Pressable>
+            <View accessibilityLabel="More service options" style={styles.heroButton}>
+              <MaterialCommunityIcons
+                color={palette.white}
+                name="dots-vertical"
+                size={31}
+                style={styles.heroActionIcon}
+              />
+            </View>
           </View>
 
           <View style={[styles.pagination, isWide && styles.paginationWide]}>
@@ -272,29 +282,32 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
             ))}
           </View>
 
-          <View style={[styles.heroCopy, isWide && styles.contentPaddingWide]}>
+          <View pointerEvents="none" style={[styles.heroCopy, isWide && styles.heroCopyWide]}>
             <View style={styles.badgeRow}>
               <View style={styles.categoryBadge}>
                 <Text style={styles.categoryBadgeText}>{service.categoryName.toUpperCase()}</Text>
               </View>
               <View style={styles.ratingBadge}>
-                <Text style={styles.badgeStar}>*</Text>
+                <MaterialCommunityIcons color={palette.gold} name="star" size={17} />
                 <Text style={styles.ratingBadgeText}>{service.rating}</Text>
               </View>
             </View>
-            <Text style={styles.serviceTitle}>{service.name}</Text>
-            {!isExploreMode ? (
-              <View style={styles.heroBudgetBadge}>
-                <Text style={styles.walletIcon}>PHP</Text>
-                <Text style={styles.heroBudgetText}>
-                  {hasSetBudget
-                    ? `Remaining Budget: ${formatPeso(remainingBudget)}`
-                    : 'Pay actual service costs'}
-                </Text>
-              </View>
-            ) : null}
+            <Text numberOfLines={2} style={styles.serviceTitle}>{service.name}</Text>
           </View>
         </View>
+
+        {!isExploreMode ? (
+          <View style={[styles.heroSummary, isWide && styles.contentPaddingWide]}>
+            <View style={styles.heroBudgetBadge}>
+              <MaterialCommunityIcons color={palette.primary} name="wallet-outline" size={19} />
+              <Text style={styles.heroBudgetText}>
+                {hasSetBudget
+                  ? `Remaining Budget: ${formatPeso(remainingBudget)}`
+                  : 'Pay actual service costs'}
+                </Text>
+            </View>
+          </View>
+        ) : null}
 
         <View style={[styles.content, isWide && styles.contentPaddingWide]}>
           <View style={styles.descriptionSection}>
@@ -333,11 +346,13 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                   return (
                     <Pressable
                       key={item.id}
-                      accessibilityLabel={'Choose package ' + item.name}
-                      accessibilityRole={isExploreMode ? undefined : 'radio'}
+                      accessibilityLabel={`${isSelected ? 'Unselect' : 'Select'} package ${item.name}`}
+                      accessibilityRole={isExploreMode ? undefined : 'checkbox'}
                       accessibilityState={isExploreMode ? undefined : { checked: isSelected }}
                       disabled={isExploreMode}
-                      onPress={() => setSelectedPackageId(item.id)}
+                      onPress={() =>
+                        setSelectedPackageId((current) => current === item.id ? '' : item.id)
+                      }
                       style={({ pressed }) => [
                         styles.packageCard,
                         isSelected && !isExploreMode && styles.packageCardSelected,
@@ -345,7 +360,16 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                       ]}
                     >
                       <View style={styles.packageHeading}>
-                        <Text style={styles.packageName}>{item.name}</Text>
+                        <View style={styles.packageTitleRow}>
+                          {!isExploreMode ? (
+                            <MaterialCommunityIcons
+                              color={isSelected ? palette.primary : palette.secondaryFixedDim}
+                              name={isSelected ? 'checkbox-marked-circle' : 'checkbox-blank-circle-outline'}
+                              size={22}
+                            />
+                          ) : null}
+                          <Text style={styles.packageName}>{item.name}</Text>
+                        </View>
                         <Text style={styles.packagePrice}>
                           {formatPeso(item.price)}
                           {item.unit ? ` / ${pricingUnitLabel(item.unit)}` : ''}
@@ -383,30 +407,51 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
             {service.categoryId === 'catering' ? <View style={styles.mealTypeGrid}>
               {mealTypes.map((meal) => {
                 const isSelected = meal.id === mealType
+                const isAvailable = availableMealTypes.includes(meal.id)
 
                 return (
                   <Pressable
                     key={meal.id}
-                    accessibilityLabel={`${meal.label} meal type`}
+                    accessibilityLabel={`${meal.label} meal type${isAvailable ? '' : ', not offered by this provider'}`}
                     accessibilityRole="radio"
-                    accessibilityState={{ checked: isSelected }}
+                    accessibilityState={{ checked: isSelected, disabled: !isAvailable }}
+                    disabled={!isAvailable}
                     onPress={() => setMealType(meal.id)}
                     style={({ pressed }) => [
                       styles.mealCard,
                       isSelected && styles.mealCardSelected,
+                      !isAvailable && styles.mealCardDisabled,
                       pressed && styles.mealCardPressed,
                     ]}
                   >
-                    <Text style={[styles.mealIcon, isSelected && styles.mealSelectedContent]}>
-                      {meal.icon}
-                    </Text>
+                    <MaterialCommunityIcons
+                      color={
+                        !isAvailable
+                          ? palette.secondaryFixedDim
+                          : isSelected
+                            ? palette.primary
+                            : palette.secondary
+                      }
+                      name={meal.icon}
+                      size={30}
+                    />
                     <Text style={[styles.mealLabel, isSelected && styles.mealSelectedContent]}>
                       {meal.label}
                     </Text>
+                    {!isAvailable ? <Text style={styles.unavailableLabel}>Not offered</Text> : null}
                   </Pressable>
                 )
               })}
             </View> : null}
+
+            {isCatering && availableMealTypes.length === 0 ? (
+              <View style={styles.unavailableNotice}>
+                <MaterialCommunityIcons color={palette.secondary} name="information-outline" size={20} />
+                <Text style={styles.unavailableNoticeText}>
+                  This provider has not configured a catering style yet. The service cannot be selected until the listing is updated.
+                </Text>
+              </View>
+            ) : null}
 
             <View style={[styles.inputGrid, isWide && styles.inputGridWide]}>
               <View style={styles.inputGroup}>
@@ -700,18 +745,22 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                   : `Add to selection for ${formatCurrency(estimatedTotal)} pesos`
               }
               accessibilityRole="button"
-              accessibilityState={{ disabled: isAddingSelection }}
-              disabled={isAddingSelection}
+              accessibilityState={{ disabled: isAddingSelection || cateringSelectionUnavailable }}
+              disabled={isAddingSelection || cateringSelectionUnavailable}
               onPress={handleAddSelection}
               style={({ pressed }) => [
                 styles.addButton,
                 isWide && styles.addButtonWide,
-                isAddingSelection && styles.addButtonDisabled,
+                (isAddingSelection || cateringSelectionUnavailable) && styles.addButtonDisabled,
                 pressed && styles.addPressed,
               ]}
             >
               <Text style={styles.addButtonText}>
-                {isAddingSelection ? 'Adding...' : 'Add to Selection'}
+                {isAddingSelection
+                  ? 'Adding...'
+                  : cateringSelectionUnavailable
+                    ? 'Catering Options Unavailable'
+                    : 'Add to Selection'}
               </Text>
               {!isWide ? <Text style={styles.addDivider}>|</Text> : null}
               {!isWide ? (
@@ -739,6 +788,7 @@ const palette = {
   text: '#1A1C1C',
   white: '#FFFFFF',
   gold: '#FFD700',
+  goldDark: '#9A6A00',
 } as const
 
 const styles = StyleSheet.create({
@@ -799,14 +849,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 20,
   },
-  heroShade: {
-    position: 'absolute',
-    right: 0,
-    bottom: 0,
-    left: 0,
-    height: '68%',
-    backgroundColor: 'rgba(0, 0, 0, 0.58)',
-  },
   heroActions: {
     position: 'absolute',
     top: 16,
@@ -818,23 +860,30 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   heroActionsWide: { right: 24, left: 24 },
+  heroShade: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    left: 0,
+    height: '62%',
+  },
   heroButton: {
     width: 40,
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.28)',
+    backgroundColor: 'transparent',
   },
-  heroButtonPressed: { opacity: 0.7, transform: [{ scale: 0.95 }] },
-  heroButtonIcon: { color: palette.white, fontSize: 27, lineHeight: 29 },
-  favoriteIcon: { color: palette.white, fontSize: 25, lineHeight: 27 },
+  heroButtonPressed: { opacity: 0.65, transform: [{ translateX: -2 }] },
+  heroActionIcon: {
+    textShadowColor: 'rgba(0, 0, 0, 0.72)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
   pagination: {
     position: 'absolute',
     right: 20,
-    bottom: '22%',
+    bottom: 18,
     zIndex: 4,
     flexDirection: 'row',
     gap: 8,
@@ -849,18 +898,31 @@ const styles = StyleSheet.create({
   paginationDotActive: { backgroundColor: palette.white },
   heroCopy: {
     position: 'absolute',
-    right: 20,
-    bottom: 28,
+    right: 76,
+    bottom: 18,
     left: 20,
     zIndex: 3,
+  },
+  heroCopyWide: {
+    right: 88,
+    left: 24,
+  },
+  heroSummary: {
+    width: '100%',
+    maxWidth: 1200,
+    alignSelf: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: palette.surfaceVariant,
+    backgroundColor: palette.surfaceLowest,
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 14,
   },
   contentPaddingWide: { paddingHorizontal: 24 },
   badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 },
   categoryBadge: {
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 16,
-    backgroundColor: 'rgba(78, 6, 26, 0.9)',
+    backgroundColor: 'rgba(112, 27, 48, 0.94)',
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
@@ -875,22 +937,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 16,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    backgroundColor: 'rgba(25, 20, 20, 0.72)',
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
-  badgeStar: { color: palette.gold, fontSize: 16, lineHeight: 17 },
   ratingBadgeText: { color: palette.white, fontSize: 14, lineHeight: 18, fontWeight: '700' },
   serviceTitle: {
     color: palette.white,
-    fontSize: 36,
-    lineHeight: 42,
+    fontSize: 32,
+    lineHeight: 39,
     fontWeight: '700',
     letterSpacing: -0.5,
-    marginBottom: 8,
+    textShadowColor: 'rgba(0, 0, 0, 0.6)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 5,
   },
   heroBudgetBadge: {
     alignSelf: 'flex-start',
@@ -898,20 +959,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: palette.surfaceVariant,
     borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: palette.surfaceLow,
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
-  walletIcon: { color: palette.primaryFixedDim, fontSize: 18, lineHeight: 20, fontWeight: '700' },
-  heroBudgetText: { color: palette.white, fontSize: 13, lineHeight: 18, fontWeight: '600', letterSpacing: 0.4 },
+  heroBudgetText: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '600', letterSpacing: 0.2 },
   content: {
     width: '100%',
     maxWidth: 1200,
     alignSelf: 'center',
     paddingHorizontal: 20,
-    paddingTop: 32,
+    paddingTop: 24,
   },
   descriptionSection: { borderBottomWidth: 1, borderBottomColor: palette.surfaceVariant, paddingBottom: 32 },
   description: { maxWidth: 680, color: palette.secondary, fontSize: 18, lineHeight: 30 },
@@ -945,6 +1005,7 @@ const styles = StyleSheet.create({
   packageCardSelected: { borderWidth: 2, borderColor: palette.primary, backgroundColor: '#FCF5F6' },
   packageCardPressed: { opacity: 0.78, transform: [{ scale: 0.99 }] },
   packageHeading: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 },
+  packageTitleRow: { minWidth: 0, flex: 1, flexDirection: 'row', alignItems: 'center', gap: 9 },
   packageName: { minWidth: 0, flex: 1, color: palette.text, fontSize: 18, lineHeight: 24, fontWeight: '700' },
   packagePrice: { color: palette.primary, fontSize: 15, lineHeight: 21, fontWeight: '700', textAlign: 'right' },
   packageDescription: { color: palette.secondary, fontSize: 14, lineHeight: 22, marginTop: 10 },
@@ -968,10 +1029,22 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   mealCardSelected: { borderColor: palette.primary, backgroundColor: '#FCF5F6' },
+  mealCardDisabled: { borderColor: palette.surfaceVariant, backgroundColor: palette.surfaceLow, opacity: 0.58 },
   mealCardPressed: { opacity: 0.75, transform: [{ scale: 0.98 }] },
-  mealIcon: { color: palette.secondary, fontSize: 29, lineHeight: 32, fontWeight: '600' },
   mealLabel: { color: palette.secondary, fontSize: 15, lineHeight: 21, fontWeight: '600', textAlign: 'center' },
   mealSelectedContent: { color: palette.primary },
+  unavailableLabel: { color: palette.secondary, fontSize: 10, lineHeight: 14, fontWeight: '600' },
+  unavailableNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    borderRadius: 10,
+    backgroundColor: palette.surfaceLow,
+    marginTop: -16,
+    marginBottom: 28,
+    padding: 14,
+  },
+  unavailableNoticeText: { minWidth: 0, flex: 1, color: palette.secondary, fontSize: 12, lineHeight: 18 },
   inputGrid: { gap: 24, marginBottom: 40 },
   inputGridWide: { flexDirection: 'row' },
   inputGroup: { flex: 1, gap: 12 },

@@ -47,14 +47,21 @@ type ServiceSelectionInput = {
   attendeeCount: number
   budgetPerHead: number
   estimatedTotal: number
-  mealType: string
+  mealType?: string
   notes: string
   outsideFood: boolean
   service: CatalogService
 }
 
 export type ClientPlanningState = {
+  assignedCoordinator?: {
+    avatarUrl: string
+    id: string
+    name: string
+    status: 'accepted' | 'pending'
+  }
   event?: EventCreationValue
+  draftSummary?: ClientEventDraftSummary
   lastPayment?: {
     amount: number
     method: 'bankTransfer' | 'eWallet'
@@ -82,6 +89,19 @@ export type ClientPlanningState = {
     status: string
   }>
   totalBudget?: number
+}
+
+export type ClientEventDraftSummary = {
+  completedSteps: number
+  eventDate: string
+  id: string
+  location: string
+  name: string
+  nextStep: string
+  progressPercent: number
+  status: 'draft' | 'planning'
+  totalSteps: number
+  updatedAt: string
 }
 
 const defaultEventName = 'My Event Plan'
@@ -188,7 +208,7 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
   const { data: event } = await client
     .from('events')
     .select(
-      'id, name, event_type, event_date, event_time, guest_count, total_budget, venue_status, venue, location, status, updated_at'
+      'id, coordinator_id, pending_coordinator_id, coordinator_assignment_status, name, event_type, event_date, event_time, guest_count, total_budget, venue_status, venue, location, status, updated_at'
     )
     .eq('client_id', userId)
     .neq('status', 'cancelled')
@@ -198,6 +218,17 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
 
   if (!event?.id) return { selectedServices: [] }
 
+  const visibleCoordinatorId =
+    event.coordinator_assignment_status === 'pending'
+      ? event.pending_coordinator_id
+      : event.coordinator_id
+  const { data: coordinatorRows } = visibleCoordinatorId
+    ? await client.rpc('list_available_event_coordinators')
+    : { data: [] }
+  const assignedCoordinatorRow = Array.isArray(coordinatorRows)
+    ? coordinatorRows.find((row) => row?.id === visibleCoordinatorId)
+    : undefined
+
   const [{ data: selections }, { data: payments }, { data: scheduleChecks }] = await Promise.all([
     client
       .from('event_service_selections')
@@ -205,6 +236,7 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
         'id, service_id, service_name, category_name, estimated_amount, attendee_count, status, updated_at, selected_provider_snapshot, services(cover_image_url)'
       )
       .eq('event_id', event.id)
+      .not('status', 'in', '(declined,cancelled)')
       .order('created_at', { ascending: true }),
     client
       .from('payments')
@@ -221,7 +253,7 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
       .limit(1),
   ])
 
-  const latestPayment = payments?.[0]
+  const latestPayment = (selections ?? []).length > 0 ? payments?.[0] : undefined
   const latestScheduleCheck = scheduleChecks?.[0]
   const latestSelectionUpdate = Math.max(
     ...(selections ?? []).map((selection) => new Date(selection.updated_at).getTime())
@@ -254,8 +286,44 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
     latestPayment?.metadata && typeof latestPayment.metadata === 'object'
       ? (latestPayment.metadata as Record<string, unknown>)
       : {}
+  const inferredMaxPlanningStep = latestPayment
+    ? 5
+    : scheduleCheckIsCurrent && latestScheduleCheck?.status === 'available'
+      ? 5
+      : scheduleCheckIsCurrent && latestScheduleCheck
+        ? 4
+        : (selections ?? []).length > 0
+          ? 3
+          : Number(event.total_budget ?? 0) > 0
+            ? 3
+            : event.event_date
+              ? 2
+              : 1
+  const completedSteps = latestPayment ? 5 : Math.max(0, inferredMaxPlanningStep - 1)
+  const nextStepLabels = [
+    'Add event details',
+    'Set your budget',
+    'Choose services',
+    'Review schedule',
+    'Complete payment',
+  ]
 
   return {
+    assignedCoordinator: assignedCoordinatorRow
+      ? {
+          avatarUrl:
+            typeof assignedCoordinatorRow.avatar_url === 'string'
+              ? assignedCoordinatorRow.avatar_url
+              : '',
+          id: `coordinator:${assignedCoordinatorRow.id}`,
+          name:
+            typeof assignedCoordinatorRow.full_name === 'string'
+              ? assignedCoordinatorRow.full_name
+              : 'Event Coordinator',
+          status:
+            event.coordinator_assignment_status === 'pending' ? 'pending' : 'accepted',
+        }
+      : undefined,
     event: {
       date: event.event_date ?? '',
       eventName: event.name ?? defaultEventName,
@@ -270,6 +338,24 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
         ? (event.venue_status as VenueStatus)
         : 'searching',
     },
+    draftSummary:
+      event.status === 'draft' || event.status === 'planning'
+        ? {
+            completedSteps,
+            eventDate: event.event_date ?? '',
+            id: event.id,
+            location: event.venue || event.location || '',
+            name: event.name || defaultEventName,
+            nextStep:
+              completedSteps >= 5
+                ? 'Review your event plan'
+                : nextStepLabels[completedSteps] ?? 'Continue planning',
+            progressPercent: Math.round((completedSteps / 5) * 100),
+            status: event.status,
+            totalSteps: 5,
+            updatedAt: event.updated_at ?? '',
+          }
+        : undefined,
     lastPayment: latestPayment
       ? {
           amount: Number(latestPayment.amount ?? 0),
@@ -278,17 +364,7 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
           termsAccepted: paymentMetadata.termsAccepted === true,
         }
       : undefined,
-    maxPlanningStep: latestPayment
-      ? 5
-      : scheduleCheckIsCurrent && latestScheduleCheck?.status === 'available'
-        ? 5
-        : scheduleCheckIsCurrent && latestScheduleCheck
-          ? 4
-          : (selections ?? []).length > 0
-            ? 3
-            : event.event_date
-              ? 2
-              : 1,
+    maxPlanningStep: inferredMaxPlanningStep,
     scheduleProviders: (savedScheduleResults ?? []).map((result) => {
       const selection = Array.isArray(result.event_service_selections)
         ? result.event_service_selections[0]
@@ -463,6 +539,57 @@ const ensureDraftEvent = async (budget?: number, details?: EventDraftInput) => {
   }
 
   return { eventId: created.id as string, userId }
+}
+
+export const closeCurrentEventDraft = async (): Promise<PlanningResult> => {
+  try {
+    const client = getClient()
+    const userId = await getCurrentUserId()
+
+    if (!client || !userId) {
+      return { ok: false, message: 'Sign in with your client account to start a new event.' }
+    }
+
+    const { data: currentDrafts, error: loadError } = await client
+      .from('events')
+      .select('id, coordinator_id, pending_coordinator_id')
+      .eq('client_id', userId)
+      .in('status', ['draft', 'planning'])
+      .order('updated_at', { ascending: false })
+
+    if (loadError) {
+      throw new Error(`Unable to load your current draft: ${loadError.message}`)
+    }
+
+    if (!currentDrafts?.length) return { ok: true }
+
+    for (const draft of currentDrafts) {
+      if (!draft.coordinator_id && !draft.pending_coordinator_id) continue
+
+      const { error: coordinatorError } = await client.rpc('remove_event_coordinator', {
+        target_event_id: draft.id,
+      })
+
+      if (coordinatorError) {
+        throw new Error(`Unable to release the assigned coordinator: ${coordinatorError.message}`)
+      }
+    }
+
+    const draftIds = currentDrafts.map((draft) => draft.id)
+    const { error: closeError } = await client
+      .from('events')
+      .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+      .in('id', draftIds)
+      .eq('client_id', userId)
+
+    if (closeError) {
+      throw new Error(`Unable to close your current draft: ${closeError.message}`)
+    }
+
+    return { ok: true }
+  } catch (error) {
+    return { ok: false, message: toMessage(error) }
+  }
 }
 
 export const saveEventDraft = async (
@@ -736,6 +863,51 @@ export const savePlanningPayment = async (
   }
 }
 
+export const assignCoordinatorToEvent = async (
+  coordinator: CatalogService
+): Promise<PlanningResult> => {
+  try {
+    const client = getClient()
+    const event = await ensureDraftEvent()
+
+    if (!client || !event || !coordinator.coordinatorUserId) {
+      return { ok: false, message: 'Choose an available event coordinator first.' }
+    }
+
+    const { error } = await client.rpc('assign_event_coordinator', {
+      target_coordinator_id: coordinator.coordinatorUserId,
+      target_event_id: event.eventId,
+    })
+
+    return error
+      ? { ok: false, message: error.message }
+      : { ok: true, message: `Invitation sent to ${coordinator.name}. They must accept before receiving event access.` }
+  } catch (error) {
+    return { ok: false, message: toMessage(error) }
+  }
+}
+
+export const removeCoordinatorFromEvent = async (): Promise<PlanningResult> => {
+  try {
+    const client = getClient()
+    const event = await ensureDraftEvent()
+
+    if (!client || !event) {
+      return { ok: false, message: 'Unable to load your event plan.' }
+    }
+
+    const { error } = await client.rpc('remove_event_coordinator', {
+      target_event_id: event.eventId,
+    })
+
+    return error
+      ? { ok: false, message: error.message }
+      : { ok: true, message: 'The coordinator was removed from your event.' }
+  } catch (error) {
+    return { ok: false, message: toMessage(error) }
+  }
+}
+
 export const saveServiceSelection = async (
   value: ServiceSelectionInput
 ): Promise<PlanningResult> => {
@@ -762,7 +934,7 @@ export const saveServiceSelection = async (
       estimated_amount: value.estimatedTotal,
       attendee_count: value.attendeeCount || null,
       budget_per_head: value.budgetPerHead || null,
-      meal_type: value.mealType,
+      meal_type: value.mealType ?? null,
       outside_food: value.outsideFood,
       dietary_notes: value.notes,
       notes: value.notes,

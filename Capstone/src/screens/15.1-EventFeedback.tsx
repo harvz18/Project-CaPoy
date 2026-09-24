@@ -2,6 +2,7 @@ import { Text } from '../components/AppText'
 import React from 'react'
 import {
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -24,7 +25,7 @@ export interface EventFeedbackValue {
 
 interface EventFeedbackScreenProps {
   booking?: BookingItem
-  onBackToBookings?: () => void
+  onBackHome?: () => void
   onClose?: () => void
   onSubmit?: (value: EventFeedbackValue) => boolean | Promise<boolean>
 }
@@ -33,7 +34,7 @@ type Draft = { comment: string; rating: number }
 
 export const EventFeedbackScreen: React.FC<EventFeedbackScreenProps> = ({
   booking,
-  onBackToBookings,
+  onBackHome,
   onClose,
   onSubmit,
 }) => {
@@ -42,6 +43,18 @@ export const EventFeedbackScreen: React.FC<EventFeedbackScreenProps> = ({
   const [error, setError] = React.useState('')
   const [submitting, setSubmitting] = React.useState(false)
   const [submitted, setSubmitted] = React.useState(false)
+  const onBackHomeRef = React.useRef(onBackHome)
+
+  React.useEffect(() => {
+    onBackHomeRef.current = onBackHome
+  }, [onBackHome])
+
+  React.useEffect(() => {
+    if (!submitted) return
+
+    const returnTimer = setTimeout(() => onBackHomeRef.current?.(), 3000)
+    return () => clearTimeout(returnTimer)
+  }, [submitted])
 
   React.useEffect(() => {
     setDrafts(
@@ -72,44 +85,28 @@ export const EventFeedbackScreen: React.FC<EventFeedbackScreenProps> = ({
 
     setSubmitting(true)
     setError('')
-    const saved = await onSubmit?.({
-      eventId: booking?.eventId ?? booking?.id,
-      serviceReviews: services.map((service) => ({
-        bookingId: service.bookingId,
-        comment: (drafts[service.bookingId]?.comment ?? '').trim(),
-        rating: drafts[service.bookingId]?.rating ?? 0,
-      })),
-    })
-    setSubmitting(false)
 
-    if (saved === false) {
+    try {
+      const saved = await onSubmit?.({
+        eventId: booking?.eventId ?? booking?.id,
+        serviceReviews: services.map((service) => ({
+          bookingId: service.bookingId,
+          comment: (drafts[service.bookingId]?.comment ?? '').trim(),
+          rating: drafts[service.bookingId]?.rating ?? 0,
+        })),
+      })
+
+      if (!saved) {
+        setError('Unable to save your feedback. Please try again.')
+        return
+      }
+
+      setSubmitted(true)
+    } catch {
       setError('Unable to save your feedback. Please try again.')
-      return
+    } finally {
+      setSubmitting(false)
     }
-
-    setSubmitted(true)
-  }
-
-  if (submitted) {
-    return (
-      <View style={styles.successScreen}>
-        <View style={styles.successIcon}>
-          <Text style={styles.successCheck}>{'\u2713'}</Text>
-        </View>
-        <Text style={styles.successTitle}>Thank you for sharing</Text>
-        <Text style={styles.successCopy}>
-          Your service ratings were saved. Written comments are being grouped into positive and
-          negative feedback using the sentiment model.
-        </Text>
-        <Pressable
-          accessibilityRole="button"
-          onPress={onBackToBookings}
-          style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryButtonPressed]}
-        >
-          <Text style={styles.primaryButtonText}>BACK TO BOOKINGS</Text>
-        </Pressable>
-      </View>
-    )
   }
 
   return (
@@ -247,6 +244,40 @@ export const EventFeedbackScreen: React.FC<EventFeedbackScreenProps> = ({
           </Pressable>
         </View>
       </View>
+
+      <Modal
+        animationType="fade"
+        onRequestClose={onBackHome}
+        transparent
+        visible={submitted}
+      >
+        <View style={styles.successBackdrop}>
+          <View accessibilityViewIsModal style={styles.successCard}>
+            <View style={styles.successIcon}>
+              <Text style={styles.successCheck}>{'\u2713'}</Text>
+            </View>
+            <Text accessibilityRole="header" style={styles.successTitle}>
+              Thank you for your feedback!
+            </Text>
+            <Text accessibilityLiveRegion="polite" style={styles.successCopy}>
+              Your ratings and comments were submitted successfully. Your written feedback is
+              now being analyzed to help future clients choose with confidence. Returning you to
+              Home...
+            </Text>
+            <Pressable
+              accessibilityLabel="Return to home"
+              accessibilityRole="button"
+              onPress={onBackHome}
+              style={({ pressed }) => [
+                styles.primaryButton,
+                pressed && styles.primaryButtonPressed,
+              ]}
+            >
+              <Text style={styles.primaryButtonText}>BACK TO HOME</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   )
 }
@@ -302,7 +333,8 @@ const styles = StyleSheet.create({
   primaryButtonDisabled: { opacity: 0.42 },
   primaryButtonPressed: { opacity: 0.88, transform: [{ scale: 0.99 }] },
   primaryButtonText: { color: palette.background, fontSize: 12, lineHeight: 16, fontWeight: '800', letterSpacing: 1.1, textAlign: 'center' },
-  successScreen: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.background, paddingHorizontal: 24 },
+  successBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(26,28,28,0.55)', paddingHorizontal: 24 },
+  successCard: { width: '100%', maxWidth: 440, alignItems: 'center', borderRadius: 20, backgroundColor: palette.background, paddingHorizontal: 26, paddingVertical: 34 },
   successIcon: { width: 82, height: 82, alignItems: 'center', justifyContent: 'center', borderRadius: 41, backgroundColor: palette.burgundy, marginBottom: 24 },
   successCheck: { color: palette.background, fontSize: 34, lineHeight: 38, fontWeight: '800' },
   successTitle: { color: palette.burgundyDark, fontSize: 26, lineHeight: 34, fontWeight: '700', textAlign: 'center' },

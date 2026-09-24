@@ -95,12 +95,17 @@ const servicesFor = (request: MerchantBookingRequest): MerchantBookedService[] =
     ? request.services
     : [{
         amount: request.amount,
+        attendeeCount: request.attendeeCount,
+        budgetPerHead: request.budgetPerHead,
         clientNotes: request.clientNotes,
+        dietaryNotes: request.dietaryNotes,
         id: request.id,
         instructions: request.instructions ?? [],
         packageDescription: request.packageDescription,
         packageInclusions: request.packageInclusions ?? [],
         packageName: request.packageName,
+        mealType: request.mealType,
+        outsideFood: request.outsideFood,
         requestedTime: request.requestedTime,
         serviceCategory: request.serviceCategory,
         serviceId: request.serviceId,
@@ -115,12 +120,17 @@ const requestForService = (
 ): MerchantBookingRequest => ({
   ...eventRequest,
   amount: service.amount,
+  attendeeCount: service.attendeeCount,
+  budgetPerHead: service.budgetPerHead,
   clientNotes: service.clientNotes,
+  dietaryNotes: service.dietaryNotes,
   id: service.id,
   instructions: service.instructions,
   packageDescription: service.packageDescription,
   packageInclusions: service.packageInclusions,
   packageName: service.packageName,
+  mealType: service.mealType,
+  outsideFood: service.outsideFood,
   requestedTime: service.requestedTime,
   serviceCategory: service.serviceCategory,
   serviceId: service.serviceId,
@@ -308,6 +318,45 @@ export const BookingRequestDetailsScreen: React.FC<BookingRequestDetailsScreenPr
                         <Text style={styles.inclusionText}>{inclusion}</Text>
                       </View>
                     ))}
+                  </View>
+                ) : null}
+
+                {service.mealType || service.attendeeCount || service.budgetPerHead || service.outsideFood ? (
+                  <View style={styles.bookingDetailsCard}>
+                    <Text style={styles.miniLabel}>CLIENT BOOKING DETAILS</Text>
+                    <View style={styles.bookingDetailsGrid}>
+                      {service.mealType ? (
+                        <View style={styles.bookingDetailItem}>
+                          <MaterialIcons color={palette.primaryContainer} name="restaurant" size={17} />
+                          <Text style={styles.bookingDetailText}>
+                            {service.mealType.charAt(0).toUpperCase() + service.mealType.slice(1)} service
+                          </Text>
+                        </View>
+                      ) : null}
+                      {service.attendeeCount ? (
+                        <View style={styles.bookingDetailItem}>
+                          <MaterialIcons color={palette.primaryContainer} name="groups" size={17} />
+                          <Text style={styles.bookingDetailText}>{service.attendeeCount} attendees</Text>
+                        </View>
+                      ) : null}
+                      {service.budgetPerHead ? (
+                        <View style={styles.bookingDetailItem}>
+                          <MaterialIcons color={palette.primaryContainer} name="payments" size={17} />
+                          <Text style={styles.bookingDetailText}>
+                            {formatPrice(service.budgetPerHead)} per head budget
+                          </Text>
+                        </View>
+                      ) : null}
+                      {service.outsideFood ? (
+                        <View style={styles.bookingDetailItem}>
+                          <MaterialIcons color={palette.primaryContainer} name="takeout-dining" size={17} />
+                          <Text style={styles.bookingDetailText}>Bringing outside food or drinks</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    {service.dietaryNotes ? (
+                      <Text style={styles.dietaryNotes}>Dietary notes: {service.dietaryNotes}</Text>
+                    ) : null}
                   </View>
                 ) : null}
 
@@ -551,6 +600,11 @@ const styles = StyleSheet.create({
   miniLabel: { color: palette.secondary, fontSize: 8, lineHeight: 11, fontWeight: '700', letterSpacing: 0.7, marginBottom: 2 },
   inclusionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 7 },
   inclusionText: { minWidth: 0, flex: 1, color: palette.text, fontSize: 10, lineHeight: 15 },
+  bookingDetailsCard: { borderRadius: 9, backgroundColor: '#F7F1F2', padding: 12, marginTop: 13, gap: 8 },
+  bookingDetailsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  bookingDetailItem: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 8, backgroundColor: palette.surface, paddingHorizontal: 9, paddingVertical: 7 },
+  bookingDetailText: { color: palette.text, fontSize: 9, lineHeight: 14, fontWeight: '600' },
+  dietaryNotes: { color: palette.secondary, fontSize: 10, lineHeight: 16 },
   noteCard: { borderLeftWidth: 3, borderLeftColor: palette.primaryContainer, borderRadius: 8, backgroundColor: palette.primarySoft, padding: 12, marginTop: 13 },
   noteHeading: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   noteTitle: { color: palette.primaryContainer, fontSize: 10, lineHeight: 14, fontWeight: '700' },

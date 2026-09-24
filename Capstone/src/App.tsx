@@ -28,11 +28,14 @@ import {
   fallbackServiceCategories,
   fetchServiceCategories,
   loadClientCatalogServices,
-  mockCatalogServices,
   ServiceCategoryOption,
 } from './lib/catalog'
 import {
+  assignCoordinatorToEvent,
+  ClientEventDraftSummary,
+  closeCurrentEventDraft,
   fetchClientPlanningState,
+  removeCoordinatorFromEvent,
   removeServiceSelection,
   replaceServiceSelection,
   saveBudgetPlan,
@@ -44,17 +47,21 @@ import {
   saveServiceSelection,
 } from './lib/planning'
 import {
+  cancelClientEventBookings,
   changeMerchantPassword,
   clearMerchantServiceDraft,
   completeMerchantBooking,
+  deleteMerchantServiceListing,
   fetchClientBookings,
   fetchMerchantBookingRequests,
   fetchMerchantServices,
   loadMerchantServiceDraft,
+  loadMerchantServiceForEditing,
   MerchantServiceListing,
   markMerchantNotificationRead,
   markMerchantNotificationsRead,
   requestMerchantPayout,
+  rescheduleClientEventBookings,
   saveAvailabilityCalendar,
   saveBookingDecision,
   saveMerchantServiceDraft,
@@ -62,6 +69,7 @@ import {
   saveMerchantTransactionNote,
   saveNotificationPreferences,
   saveOperatingHours,
+  setMerchantServiceAvailability,
 } from './lib/merchant'
 import { colors } from './theme/tokens'
 import { ClientBottomNavigation } from './components/ClientBottomNavigation'
@@ -101,6 +109,7 @@ import {
 import { MerchantBookingDetailScreen } from './screens/20-BookingDetail'
 import { ReviewPerformanceScreen } from './screens/21-ReviewPerformance'
 import { MerchantProfileAction, MerchantProfileScreen } from './screens/22-MerchantProfile'
+import { AccountProfileScreen } from './screens/24-AccountProfile'
 import { OperatingHoursScreen } from './screens/22.1-OperatingHours'
 import { PayoutEarningsScreen, PayoutTransaction } from './screens/22.2-PayoutEarnings'
 import { TransactionDetailsScreen } from './screens/22.3-TransactionDetails'
@@ -127,6 +136,7 @@ import { CategoryBrowseScreen } from './screens/06-CategoryBrowse'
 import { CoordinatorDetailsScreen } from './screens/06.1-CoordinatorDetails'
 import { ServiceDetailsScreen } from './screens/08-ServiceDetails'
 import {
+  AssignedCoordinatorSummary,
   SelectedSummaryScreen,
   SelectedSummaryService,
 } from './screens/07-SelectedSummary'
@@ -164,16 +174,26 @@ import {
   fetchConversations,
   fetchNotifications,
   markConversationRead,
+  openCoordinatorProviderConversation,
   sendConversationMessage,
 } from './lib/messaging'
 import {
+  CoordinatorBookedService,
   CoordinatorDashboard,
+  CoordinatorEvent,
+  CoordinatorInvitation,
   CoordinatorTask,
   createCoordinatorTask,
   emptyCoordinatorDashboard,
   fetchCoordinatorDashboard,
+  respondToCoordinatorInvitation,
   updateCoordinatorTaskStatus,
 } from './lib/coordinator'
+import {
+  EditableAccountProfile,
+  loadEditableAccountProfile,
+  saveEditableAccountProfile,
+} from './lib/profile'
 
 type AppScreen =
   | 'onboarding'
@@ -208,6 +228,7 @@ type AppScreen =
   | 'providerTransactionDetails'
   | 'providerChangePassword'
   | 'providerNotifications'
+  | 'accountProfile'
   | 'coordinatorHome'
   | 'coordinatorNotifications'
   | 'adminHome'
@@ -234,7 +255,7 @@ type AppScreen =
 
 type LoginReturnScreen = 'roleSelection' | 'clientSignup' | 'merchantSignup'
 type VerificationReturnScreen = 'clientSignup' | 'merchantSignup'
-type VerificationNextScreen = 'clientHome' | 'pendingApproval'
+type VerificationNextScreen = 'clientHome' | 'pendingApproval' | 'coordinatorHome'
 type AccountRole =
   | 'client'
   | 'service_provider'
@@ -322,6 +343,7 @@ const DEFAULT_SERVICE_INFORMATION: ServiceInformationValue = {
 }
 
 const DEFAULT_SERVICE_PRICING: ServicePricingValue = {
+  cateringServiceTypes: [],
   currency: 'PHP',
   details: '',
   model: 'fixed',
@@ -363,6 +385,7 @@ export const App: React.FC = () => {
   const signupEntrance = React.useRef(new Animated.Value(0)).current
   const eventCreationEntrance = React.useRef(new Animated.Value(0)).current
   const budgetAllocationEntrance = React.useRef(new Animated.Value(0)).current
+  const categoryBrowseEntrance = React.useRef(new Animated.Value(0)).current
   const budgetTrackerEntrance = React.useRef(new Animated.Value(0)).current
   const eventCreationExit = React.useRef(new Animated.Value(1)).current
   const eventCreationExitTranslateY = React.useRef(new Animated.Value(0)).current
@@ -382,27 +405,33 @@ export const App: React.FC = () => {
   const [selectedBooking, setSelectedBooking] = React.useState<BookingItem>()
   const [selectedConversation, setSelectedConversation] =
     React.useState<ClientConversation>()
+  const [chatReturnScreen, setChatReturnScreen] = React.useState<AppScreen>('messages')
   const [conversations, setConversations] = React.useState<ClientConversation[]>([])
   const [conversationMessages, setConversationMessages] = React.useState<ChatMessage[]>([])
   const [notifications, setNotifications] = React.useState<MerchantNotification[]>([])
   const [isSendingMessage, setIsSendingMessage] = React.useState(false)
-  const [catalogServices, setCatalogServices] =
-    React.useState<CatalogService[]>(mockCatalogServices)
+  const [catalogServices, setCatalogServices] = React.useState<CatalogService[]>([])
   const [serviceCategories, setServiceCategories] =
     React.useState<ServiceCategoryOption[]>(fallbackServiceCategories)
   const [serviceBrowseMode, setServiceBrowseMode] =
     React.useState<'explore' | 'planning'>('planning')
   const [selectedCategory, setSelectedCategory] =
     React.useState<CatalogCategoryId>('catering')
-  const [currentServiceId, setCurrentServiceId] = React.useState(mockCatalogServices[0]?.id ?? '')
+  const [currentServiceId, setCurrentServiceId] = React.useState('')
   const [serviceReviewInsights, setServiceReviewInsights] =
     React.useState<ServiceReviewInsights>()
   const [serviceReviewInsightsLoading, setServiceReviewInsightsLoading] = React.useState(false)
   const [selectedServices, setSelectedServices] = React.useState<SelectedSummaryService[]>([])
+  const [assignedCoordinator, setAssignedCoordinator] =
+    React.useState<AssignedCoordinatorSummary>()
+  const [assigningCoordinatorId, setAssigningCoordinatorId] = React.useState('')
+  const [isRemovingCoordinator, setIsRemovingCoordinator] = React.useState(false)
   const [scheduleProviders, setScheduleProviders] = React.useState<ScheduleProvider[]>([])
   const [replacementTarget, setReplacementTarget] =
     React.useState<ScheduleConflictProvider>()
   const [maxPlanningStep, setMaxPlanningStep] = React.useState(1)
+  const [clientEventDraft, setClientEventDraft] =
+    React.useState<ClientEventDraftSummary>()
   const [clientBookings, setClientBookings] = React.useState<BookingItem[]>([])
   const [merchantRequests, setMerchantRequests] = React.useState<MerchantBookingRequest[]>([])
   const [merchantServices, setMerchantServices] = React.useState<MerchantServiceListing[]>([])
@@ -434,9 +463,18 @@ export const App: React.FC = () => {
   const [isCoordinatorLoading, setIsCoordinatorLoading] = React.useState(false)
   const [isCoordinatorRefreshing, setIsCoordinatorRefreshing] = React.useState(false)
   const [busyCoordinatorTaskId, setBusyCoordinatorTaskId] = React.useState('')
+  const [busyCoordinatorInvitationId, setBusyCoordinatorInvitationId] = React.useState('')
   const [removingServiceId, setRemovingServiceId] = React.useState('')
+  const [deletingMerchantServiceId, setDeletingMerchantServiceId] = React.useState('')
+  const [updatingAvailabilityServiceId, setUpdatingAvailabilityServiceId] = React.useState('')
+  const [editingMerchantServiceId, setEditingMerchantServiceId] = React.useState('')
   const [hasMerchantDraft, setHasMerchantDraft] = React.useState(false)
   const [toastMessage, setToastMessage] = React.useState('')
+  const [accountProfile, setAccountProfile] = React.useState<EditableAccountProfile>()
+  const [accountProfileError, setAccountProfileError] = React.useState('')
+  const [isLoadingAccountProfile, setIsLoadingAccountProfile] = React.useState(false)
+  const [isSavingAccountProfile, setIsSavingAccountProfile] = React.useState(false)
+  const [profileReturnScreen, setProfileReturnScreen] = React.useState<AppScreen>('clientHome')
 
   React.useEffect(() => {
     setIsClientNavigationVisible(true)
@@ -462,10 +500,20 @@ export const App: React.FC = () => {
     }).start()
   }
 
-  const openPlanningHub = () => {
+  const openPlanningHub = (direction?: 'forward' | 'back') => {
     setReplacementTarget(undefined)
     setServiceBrowseMode('planning')
+    const hasDirection = direction === 'forward' || direction === 'back'
+    if (hasDirection) categoryBrowseEntrance.setValue(direction === 'forward' ? width : -width)
     setScreen('categoryBrowse')
+    if (hasDirection) {
+      Animated.timing(categoryBrowseEntrance, {
+        toValue: 0,
+        duration: 360,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start()
+    }
   }
   const openSelectedPlan = () => setScreen('selectedSummary')
   const openEventCreation = () => {
@@ -487,6 +535,16 @@ export const App: React.FC = () => {
     setIsEventCreationExiting(false)
     setScreen('eventCreation')
     Animated.timing(eventCreationEntrance, {
+      toValue: 0,
+      duration: 360,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start()
+  }
+  const openBudgetAllocationFromServices = () => {
+    budgetAllocationEntrance.setValue(-width)
+    setScreen('budgetAllocation')
+    Animated.timing(budgetAllocationEntrance, {
       toValue: 0,
       duration: 360,
       easing: Easing.out(Easing.cubic),
@@ -530,6 +588,54 @@ export const App: React.FC = () => {
 
     return () => exitAnimation.stop()
   }, [clientHomePop, eventCreationEntrance, eventCreationExit, eventCreationExitTranslateY, height, isEventCreationExiting])
+  const refreshAccountProfile = React.useCallback(async () => {
+    setIsLoadingAccountProfile(true)
+    setAccountProfileError('')
+    const result = await loadEditableAccountProfile()
+    setIsLoadingAccountProfile(false)
+
+    if (!result.ok || !result.profile) {
+      setAccountProfileError(result.message ?? 'Unable to load your profile.')
+      return undefined
+    }
+
+    setAccountProfile(result.profile)
+    return result.profile
+  }, [])
+
+  const openAccountProfile = (returnScreen: AppScreen = 'clientHome') => {
+    setProfileReturnScreen(returnScreen)
+    setScreen('accountProfile')
+    void refreshAccountProfile()
+  }
+
+  const openProviderProfile = () => {
+    setScreen('providerProfile')
+    void refreshAccountProfile()
+  }
+
+  const saveAccountProfile = async (value: EditableAccountProfile) => {
+    if (isSavingAccountProfile) return
+    setIsSavingAccountProfile(true)
+    setAccountProfileError('')
+    const result = await saveEditableAccountProfile(value)
+    setIsSavingAccountProfile(false)
+
+    if (!result.ok || !result.profile) {
+      setAccountProfileError(result.message ?? 'Unable to save your profile.')
+      return
+    }
+
+    setAccountProfile(result.profile)
+    setUserName(
+      result.profile.role === 'service_provider'
+        ? result.profile.businessName
+        : result.profile.fullName
+    )
+    setToastMessage(result.message ?? 'Profile updated successfully.')
+    setScreen(profileReturnScreen)
+  }
+
   const openClientTab = (tab: ClientHomeTab) => {
     setHomeReturnScreen('clientHome')
     if (tab === 'home') setScreen('clientHome')
@@ -539,7 +645,7 @@ export const App: React.FC = () => {
     }
     if (tab === 'bookings') setScreen('bookings')
     if (tab === 'messages') setScreen('messages')
-    if (tab === 'profile') setScreen('selectedSummary')
+    if (tab === 'profile') openAccountProfile('clientHome')
   }
   const openMerchantTab = (tab: MerchantHomeTab) => {
     setHomeReturnScreen('providerHome')
@@ -547,7 +653,7 @@ export const App: React.FC = () => {
     if (tab === 'services') setScreen('providerServices')
     if (tab === 'bookings') setScreen('providerBookingRequests')
     if (tab === 'messages') setScreen('messages')
-    if (tab === 'profile') setScreen('providerProfile')
+    if (tab === 'profile') openProviderProfile()
   }
   const openMessageTab = (tab: ClientHomeTab | MerchantHomeTab) => {
     if (homeReturnScreen === 'providerHome') {
@@ -735,13 +841,12 @@ export const App: React.FC = () => {
     setServiceCategories(categories)
     if (planningState.event) setEventDetails(planningState.event)
     if (planningState.totalBudget !== undefined) setTotalBudget(planningState.totalBudget)
+    setAssignedCoordinator(planningState.assignedCoordinator)
+    setClientEventDraft(planningState.draftSummary)
     setSelectedServices(planningState.selectedServices)
     setLastPayment(planningState.lastPayment)
     setScheduleProviders(planningState.scheduleProviders ?? [])
-    setMaxPlanningStep((current) => {
-      const inferredStep = planningState.maxPlanningStep ?? 1
-      return Math.max(current, inferredStep)
-    })
+    setMaxPlanningStep(planningState.maxPlanningStep ?? 1)
     setCurrentServiceId((current) =>
       services.some((service) => service.id === current) ? current : services[0]?.id ?? ''
     )
@@ -752,9 +857,18 @@ export const App: React.FC = () => {
     if (draft?.packages) setMerchantPackages(draft.packages)
   }, [])
 
-  const loadCoordinatorWorkspace = React.useCallback(async (refreshing = false) => {
-    if (refreshing) setIsCoordinatorRefreshing(true)
-    else setIsCoordinatorLoading(true)
+  React.useEffect(() => {
+    if (screen === 'clientHome') void refreshLiveData()
+  }, [refreshLiveData, screen])
+
+  const loadCoordinatorWorkspace = React.useCallback(async (
+    refreshing = false,
+    silent = false
+  ) => {
+    if (!silent) {
+      if (refreshing) setIsCoordinatorRefreshing(true)
+      else setIsCoordinatorLoading(true)
+    }
 
     const result = await fetchCoordinatorDashboard()
     if (result.ok && result.data) {
@@ -764,13 +878,25 @@ export const App: React.FC = () => {
       setCoordinatorError(result.message ?? 'Unable to load the coordinator workspace.')
     }
 
-    setIsCoordinatorLoading(false)
-    setIsCoordinatorRefreshing(false)
+    if (!silent) {
+      setIsCoordinatorLoading(false)
+      setIsCoordinatorRefreshing(false)
+    }
   }, [])
 
   React.useEffect(() => {
     if (screen !== 'coordinatorHome') return
     void loadCoordinatorWorkspace()
+  }, [loadCoordinatorWorkspace, screen])
+
+  React.useEffect(() => {
+    if (screen !== 'coordinatorHome') return undefined
+
+    const refreshTimer = setInterval(() => {
+      void loadCoordinatorWorkspace(false, true)
+    }, 12000)
+
+    return () => clearInterval(refreshTimer)
   }, [loadCoordinatorWorkspace, screen])
 
   const handleCoordinatorTaskToggle = React.useCallback(
@@ -849,9 +975,20 @@ export const App: React.FC = () => {
 
       const { data } = await supabase
         .from('profiles')
-        .select('full_name, default_role')
+        .select('full_name, default_role, account_status')
         .eq('id', userId)
         .maybeSingle()
+
+      if (data?.account_status === 'suspended' || data?.account_status === 'disabled') {
+        setToastMessage(
+          data.account_status === 'suspended'
+            ? 'This account is temporarily suspended.'
+            : 'This account has been disabled.'
+        )
+        await supabase.auth.signOut()
+        setScreen('login')
+        return
+      }
 
       const profileName = data?.full_name?.trim()
       const metadataName = getMetadataName(metadata)
@@ -898,7 +1035,13 @@ export const App: React.FC = () => {
       if (!session?.user) {
         if (event === 'SIGNED_OUT') {
           setUserName('Planner')
+          setAccountProfile(undefined)
+          setAccountProfileError('')
           setMaxPlanningStep(1)
+          setClientEventDraft(undefined)
+          setAssignedCoordinator(undefined)
+          setAssigningCoordinatorId('')
+          setIsRemovingCoordinator(false)
           setReplacementTarget(undefined)
           setScheduleProviders([])
           setScreen('roleSelection')
@@ -982,7 +1125,7 @@ export const App: React.FC = () => {
 
     setTotalBudget(budget)
     setMaxPlanningStep((current) => Math.max(current, 3))
-    openPlanningHub()
+    openPlanningHub('forward')
   }
 
   const handleEventContinue = async (value: EventCreationValue, nextScreen: AppScreen) => {
@@ -1217,6 +1360,51 @@ export const App: React.FC = () => {
     setScreen('selectedSummary')
   }
 
+  const handleAssignCoordinator = async () => {
+    if (
+      !currentService?.coordinatorUserId ||
+      assigningCoordinatorId ||
+      assignedCoordinator?.id === currentService.id
+    ) {
+      return
+    }
+
+    setAssigningCoordinatorId(currentService.id)
+    const result = await assignCoordinatorToEvent(currentService)
+    setAssigningCoordinatorId('')
+
+    if (!result.ok) {
+      setToastMessage(result.message ?? 'Unable to assign this coordinator.')
+      return
+    }
+
+    setAssignedCoordinator({
+      avatarUrl: currentService.imageUrl,
+      id: currentService.id,
+      name: currentService.name,
+    })
+    setToastMessage(result.message ?? `${currentService.name} is now assigned to your event.`)
+    await refreshLiveData()
+    setScreen('selectedSummary')
+  }
+
+  const handleRemoveCoordinator = async () => {
+    if (isRemovingCoordinator || !assignedCoordinator) return
+
+    setIsRemovingCoordinator(true)
+    const result = await removeCoordinatorFromEvent()
+    setIsRemovingCoordinator(false)
+
+    if (!result.ok) {
+      setToastMessage(result.message ?? 'Unable to remove this coordinator.')
+      return
+    }
+
+    setAssignedCoordinator(undefined)
+    setToastMessage(result.message ?? 'The coordinator was removed from your event.')
+    await refreshLiveData()
+  }
+
   const handleRemoveSelection = async (service: SelectedSummaryService) => {
     if (removingServiceId) return
 
@@ -1288,9 +1476,9 @@ export const App: React.FC = () => {
     }
 
     const result =
-      status === 'draft'
+      status === 'draft' && !editingMerchantServiceId
         ? await saveMerchantServiceDraft(value)
-        : await saveMerchantServiceListing(value, status)
+        : await saveMerchantServiceListing(value, status, editingMerchantServiceId || undefined)
 
     setIsPublishingService(false)
     setIsSavingServiceDraft(false)
@@ -1313,7 +1501,14 @@ export const App: React.FC = () => {
         })
       }
       setHasMerchantDraft(status === 'draft')
-      setToastMessage(status === 'active' ? 'Service published successfully.' : 'Draft saved.')
+      setEditingMerchantServiceId('')
+      setToastMessage(
+        status === 'active'
+          ? 'Service submitted for review.'
+          : editingMerchantServiceId
+            ? 'Service changes saved as a draft.'
+            : 'Draft saved.'
+      )
       setScreen('providerServices')
     } else if (result.message) {
       setToastMessage(result.message)
@@ -1321,12 +1516,70 @@ export const App: React.FC = () => {
   }
 
   const startNewMerchantListing = () => {
+    setEditingMerchantServiceId('')
     setMerchantServiceInfo(DEFAULT_SERVICE_INFORMATION)
     setMerchantServicePricing(DEFAULT_SERVICE_PRICING)
     setMerchantPackages([])
     setHasMerchantDraft(false)
     void clearMerchantServiceDraft()
     setScreen('providerServiceInfo')
+  }
+
+  const editMerchantService = async (service: MerchantServiceListing) => {
+    const value = await loadMerchantServiceForEditing(service.id)
+    if (!value) {
+      setToastMessage('Unable to load this service for editing.')
+      return
+    }
+
+    setEditingMerchantServiceId(service.id)
+    setMerchantServiceInfo(value.information)
+    setMerchantServicePricing(value.pricing)
+    setMerchantPackages(value.packages)
+    setHasMerchantDraft(false)
+    setScreen('providerServiceReview')
+  }
+
+  const deleteMerchantService = async (service: MerchantServiceListing) => {
+    if (deletingMerchantServiceId) return
+    setDeletingMerchantServiceId(service.id)
+    const result = await deleteMerchantServiceListing(service.id)
+    setDeletingMerchantServiceId('')
+
+    if (!result.ok) {
+      setToastMessage(result.message ?? 'Unable to delete this service.')
+      return
+    }
+
+    setMerchantServices((current) => current.filter((item) => item.id !== service.id))
+    if (editingMerchantServiceId === service.id) setEditingMerchantServiceId('')
+    setToastMessage('Service deleted. Existing booking history was preserved.')
+    await refreshLiveData()
+  }
+
+  const updateMerchantServiceAvailability = async (
+    service: MerchantServiceListing,
+    isAvailable: boolean
+  ) => {
+    if (updatingAvailabilityServiceId) return
+    setUpdatingAvailabilityServiceId(service.id)
+    const result = await setMerchantServiceAvailability(service.id, isAvailable)
+    setUpdatingAvailabilityServiceId('')
+
+    if (!result.ok) {
+      setToastMessage(result.message ?? 'Unable to update service availability.')
+      return
+    }
+
+    setMerchantServices((current) =>
+      current.map((item) => item.id === service.id ? { ...item, isAvailable } : item)
+    )
+    setToastMessage(
+      isAvailable
+        ? `${service.name} is live and bookable again.`
+        : `${service.name} is now marked not available.`
+    )
+    await refreshLiveData()
   }
 
   const handleBookingDecision = async (
@@ -1402,6 +1655,32 @@ export const App: React.FC = () => {
     setScreen('providerBookingRequestDetails')
   }
 
+  const handleClientBookingCancellation = async (reason: string) => {
+    const eventId = selectedBooking?.eventId ?? selectedBooking?.id
+    if (!eventId) return { ok: false, message: 'This event booking could not be identified.' }
+
+    const result = await cancelClientEventBookings(eventId, reason)
+    if (!result.ok) return result
+
+    setToastMessage(result.message ?? 'Booking cancelled.')
+    await refreshLiveData()
+    setScreen('bookings')
+    return result
+  }
+
+  const handleClientBookingReschedule = async (value: { date: string; time: string }) => {
+    const eventId = selectedBooking?.eventId ?? selectedBooking?.id
+    if (!eventId) return { ok: false, message: 'This event booking could not be identified.' }
+
+    const result = await rescheduleClientEventBookings(eventId, value)
+    if (!result.ok) return result
+
+    setToastMessage(result.message ?? 'The booking schedule was updated.')
+    await refreshLiveData()
+    setScreen('bookings')
+    return result
+  }
+
   const pickMerchantServicePhotos = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync()
 
@@ -1423,14 +1702,43 @@ export const App: React.FC = () => {
     return result.assets.map((asset) => asset.uri).filter(Boolean)
   }
 
+  const startNewClientEvent = async () => {
+    if (clientEventDraft) {
+      const result = await closeCurrentEventDraft()
+      if (!result.ok) {
+        setToastMessage(result.message ?? 'Unable to start a new event right now.')
+        return false
+      }
+    }
+
+    setEventDetails({ ...DEFAULT_EVENT })
+    setTotalBudget(DEFAULT_BUDGET)
+    setSelectedServices([])
+    setAssignedCoordinator(undefined)
+    setScheduleProviders([])
+    setReplacementTarget(undefined)
+    setLastPayment(undefined)
+    setMaxPlanningStep(1)
+    setClientEventDraft(undefined)
+    setServiceBrowseMode('planning')
+    openEventCreation()
+    return true
+  }
+
+  const continueClientDraft = () => {
+    handlePlanningStepPress(Math.max(1, maxPlanningStep))
+  }
+
   const renderClientHome = () => (
     <ClientHomeScreen
+      draftEvent={clientEventDraft}
       userName={userName}
       remainingBudget={remainingBudget}
       selectedServiceCount={selectedServices.length}
       totalBudget={totalBudget}
-      onOpenActiveEvent={() => setScreen('selectedSummary')}
-      onOpenProfile={() => setScreen('selectedSummary')}
+      onOpenActiveEvent={continueClientDraft}
+      onStartNewEvent={startNewClientEvent}
+      onOpenProfile={() => openAccountProfile('clientHome')}
       onOpenNotifications={() => {
         setHomeReturnScreen('clientHome')
         setScreen('notifications')
@@ -1440,14 +1748,14 @@ export const App: React.FC = () => {
       }}
       onSeeAllVenues={openPlanningHub}
       onSelectAction={(action) => {
-        if (action === 'newEvent') openEventCreation()
+        if (action === 'newEvent') void startNewClientEvent()
         if (action === 'budget') setScreen('budgetAllocation')
         if (action === 'vendors') openPlanningHub()
         if (action === 'ledger') setScreen('eventLedger')
         if (action === 'tasks') setScreen('selectedSummary')
       }}
       onSelectRecommendation={() => {
-        const recommendedService = catalogServices[0] ?? mockCatalogServices[0]
+        const recommendedService = catalogServices[0]
         if (recommendedService?.id) {
           setCurrentServiceId(recommendedService.id)
           setScreen('serviceDetails')
@@ -1537,9 +1845,15 @@ export const App: React.FC = () => {
             <MerchantSignupScreen
               onBack={openRoleSelectionFromSignup}
               onLogIn={() => openLogin('merchantSignup')}
-              onSignUp={(email, needsVerification) => {
+              onSignUp={(email, needsVerification, accountRole) => {
                 if (needsVerification) {
-                  openVerification(email, 'merchantSignup', 'pendingApproval')
+                  openVerification(
+                    email,
+                    'merchantSignup',
+                    accountRole === 'event_coordinator'
+                      ? 'coordinatorHome'
+                      : 'pendingApproval'
+                  )
                   return
                 }
 
@@ -1702,6 +2016,7 @@ export const App: React.FC = () => {
         return (
 
           <ProviderServicesScreen
+            deletingServiceId={deletingMerchantServiceId}
             hasDraft={hasMerchantDraft}
             services={merchantServices}
             onAddService={() => {
@@ -1709,8 +2024,15 @@ export const App: React.FC = () => {
             }}
             onBack={() => setScreen('providerHome')}
             onContinueDraft={() => setScreen('providerServiceReview')}
+            onDeleteService={(service) => void deleteMerchantService(service)}
+            onEditService={(service) => void editMerchantService(service)}
             onOpenAccount={() => setScreen('providerProfile')}
+            onSelectService={(service) => void editMerchantService(service)}
+            onSetAvailability={(service, isAvailable) =>
+              void updateMerchantServiceAvailability(service, isAvailable)
+            }
             onSelectTab={openMerchantTab}
+            updatingAvailabilityServiceId={updatingAvailabilityServiceId}
           />
         )
       case 'providerServiceReview':
@@ -1764,6 +2086,7 @@ export const App: React.FC = () => {
       case 'providerServicePricing':
         return (
           <Step2PricingScreen
+            categoryName={merchantServiceInfo.category}
             initialValue={merchantServicePricing}
             onBack={(draft) => {
               const pricing = draft ?? merchantServicePricing
@@ -1945,13 +2268,30 @@ export const App: React.FC = () => {
       case 'providerProfile':
         return (
           <MerchantProfileScreen
-            profile={{ businessName: userName }}
+            profile={{
+              businessName: accountProfile?.businessName || userName,
+              contactEmail: accountProfile?.contactEmail || '',
+              contactPhone: accountProfile?.contactPhone || '',
+              description: accountProfile?.businessDescription || '',
+              location: accountProfile?.businessLocation || '',
+            }}
             onBack={() => setScreen('providerHome')}
-            onEditProfile={() => setScreen('merchantSignup')}
+            onEditProfile={() => openAccountProfile('providerProfile')}
             onOpenNotifications={() => setScreen('providerNotifications')}
             onSelectAction={handleMerchantAction}
             onSelectTab={openMerchantTab}
             onViewPublicProfile={() => setScreen('providerServices')}
+          />
+        )
+      case 'accountProfile':
+        return (
+          <AccountProfileScreen
+            error={accountProfileError}
+            isLoading={isLoadingAccountProfile}
+            isSaving={isSavingAccountProfile}
+            onBack={() => setScreen(profileReturnScreen)}
+            onSave={(value) => void saveAccountProfile(value)}
+            profile={accountProfile}
           />
         )
       case 'providerOperatingHours':
@@ -2106,7 +2446,7 @@ export const App: React.FC = () => {
               onBack={() => setScreen('budgetAllocation')}
               onOpenBudget={() => setScreen('budgetAllocation')}
               onOpenMenu={openSelectedPlan}
-              onOpenProfile={() => setScreen('selectedSummary')}
+              onOpenProfile={() => openAccountProfile('budgetTracker')}
               onSelectCategory={(category) => {
                 setServiceBrowseMode('planning')
                 setSelectedCategory(category)
@@ -2123,7 +2463,10 @@ export const App: React.FC = () => {
         )
       case 'categoryBrowse':
         return (
-          <CategoryBrowseScreen
+          <Animated.View
+            style={[styles.screenTransition, { transform: [{ translateX: categoryBrowseEntrance }] }]}
+          >
+            <CategoryBrowseScreen
             categories={serviceCategories}
             categoryName={catalogCategoryName(selectedCategory)}
             mode={serviceBrowseMode}
@@ -2150,7 +2493,7 @@ export const App: React.FC = () => {
               if (replacementTarget) {
                 setReplacementTarget(undefined)
                 setScreen('scheduleConflict')
-              } else if (serviceBrowseMode === 'planning') setScreen('budgetAllocation')
+              } else if (serviceBrowseMode === 'planning') openBudgetAllocationFromServices()
               else setScreen('clientHome')
             }}
             onConfirmReplacement={handleProviderReplacement}
@@ -2166,7 +2509,7 @@ export const App: React.FC = () => {
               setCurrentServiceId(vendorId)
               const selectedVendor = catalogServices.find((service) => service.id === vendorId)
               setScreen(
-                selectedVendor?.categoryName.toLowerCase().includes('coordinator')
+                selectedVendor?.kind === 'coordinator'
                   ? 'coordinatorDetails'
                   : 'serviceDetails'
               )
@@ -2176,18 +2519,18 @@ export const App: React.FC = () => {
               else if (tab === 'vendors') openClientTab('explore')
               else openClientTab(tab)
             }}
-          />
+            />
+          </Animated.View>
         )
       case 'coordinatorDetails':
         return (
           <CoordinatorDetailsScreen
+            assigning={assigningCoordinatorId === currentService?.id}
+            isAssigned={assignedCoordinator?.id === currentService?.id}
             mode={serviceBrowseMode}
             onBack={() => setScreen('categoryBrowse')}
-            onMessage={() => {
-              setHomeReturnScreen('clientHome')
-              setScreen('messages')
-            }}
-            onSelectProvider={() => setScreen('selectedSummary')}
+            onSelectProvider={() => void handleAssignCoordinator()}
+            service={currentService}
           />
         )
       case 'serviceDetails':
@@ -2199,7 +2542,6 @@ export const App: React.FC = () => {
             remainingBudget={remainingBudget}
             onAddSelection={handleAddSelection}
             onBack={() => setScreen('categoryBrowse')}
-            onBrowseMenus={() => setScreen('categoryBrowse')}
             onReadAllReviews={() => setScreen('serviceDetails')}
             reviewInsights={serviceReviewInsights}
             reviewInsightsLoading={serviceReviewInsightsLoading}
@@ -2208,7 +2550,9 @@ export const App: React.FC = () => {
       case 'selectedSummary':
         return (
           <SelectedSummaryScreen
+            assignedCoordinator={assignedCoordinator}
             budget={totalBudget}
+            removingCoordinator={isRemovingCoordinator}
             removingServiceId={removingServiceId}
             selectedServices={selectedServices}
             showBottomNavigation={false}
@@ -2216,15 +2560,11 @@ export const App: React.FC = () => {
             onAddService={openPlanningHub}
             onBack={openPlanningHub}
             onOpenMenu={() => setScreen('clientHome')}
+            onRemoveCoordinator={() => void handleRemoveCoordinator()}
             onRemoveService={handleRemoveSelection}
             onSelectService={(service) => {
               setCurrentServiceId(service)
-              const selectedService = selectedServices.find((item) => item.id === service)
-              setScreen(
-                selectedService?.category.toLowerCase().includes('coordinator')
-                  ? 'coordinatorDetails'
-                  : 'serviceDetails'
-              )
+              setScreen('serviceDetails')
             }}
             onSelectTab={(tab) => {
               if (tab === 'plan') {
@@ -2320,9 +2660,9 @@ export const App: React.FC = () => {
             }}
             onOpenNotifications={() => setScreen('notifications')}
             onOpenProfile={() =>
-              setScreen(
-                homeReturnScreen === 'providerHome' ? 'providerProfile' : 'selectedSummary'
-              )
+              homeReturnScreen === 'providerHome'
+                ? openProviderProfile()
+                : openAccountProfile('messages')
             }
             onSelectConversation={(conversation) => {
               setSelectedConversation(conversation)
@@ -2499,7 +2839,7 @@ export const App: React.FC = () => {
             eventName={eventDisplayName}
             showBottomNavigation={false}
             onOpenMenu={() => setScreen('clientHome')}
-            onOpenProfile={() => setScreen('clientHome')}
+            onOpenProfile={() => openAccountProfile('bookings')}
             onSelectEvent={() => setScreen('selectedSummary')}
             onSelectBooking={(booking) => {
               setSelectedBooking(booking)
@@ -2526,8 +2866,9 @@ export const App: React.FC = () => {
               time: selectedBooking?.requestedTime ?? eventDisplayTime,
             }}
             onBack={() => setScreen('bookings')}
-            onCancelOrReschedule={() => setScreen('scheduleNoConflict')}
+            onCancelBooking={handleClientBookingCancellation}
             onMessageProvider={() => setScreen('messages')}
+            onRescheduleBooking={handleClientBookingReschedule}
             onSubmitReview={
               selectedBooking?.status === 'completed' && !selectedBooking.hasFeedback
                 ? () => setScreen('eventFeedback')
@@ -2539,7 +2880,7 @@ export const App: React.FC = () => {
         return (
           <EventFeedbackScreen
             booking={selectedBooking}
-            onBackToBookings={() => setScreen('bookings')}
+            onBackHome={() => setScreen('clientHome')}
             onClose={() => setScreen('bookingDetails')}
             onSubmit={async (value) => {
               const result = await saveEventFeedback(value)
@@ -2548,9 +2889,11 @@ export const App: React.FC = () => {
                 return false
               }
 
-              await refreshLiveData()
               setSelectedBooking((current) => current ? { ...current, hasFeedback: true } : current)
               if (result.message) setToastMessage(result.message)
+              void refreshLiveData().catch(() => {
+                setToastMessage('Feedback saved. Live data will refresh shortly.')
+              })
               return true
             }}
           />

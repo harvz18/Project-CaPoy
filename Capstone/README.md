@@ -67,6 +67,22 @@ Apply `19_event_coordinator_workspace.sql` to enable the role-scoped coordinator
 event summaries, and secure task creation/status updates. See
 [`docs/EVENT_COORDINATOR_IMPLEMENTATION.md`](docs/EVENT_COORDINATOR_IMPLEMENTATION.md) for account
 assignment and app testing steps.
+Apply `20_admin_web_access.sql`, `21_service_moderation_workflow.sql`, and
+`22_platform_audit_and_provider_service_crud.sql` to enable the staff web console, moderated service
+publishing, expanded audit history, and provider-safe service deletion. Then apply
+`23_service_revision_comparison.sql` so updated services preserve their last approved version for
+the admin/superadmin before-and-after review. Apply `24_provider_service_availability.sql` to give
+providers a separately confirmed Live / Not live control without changing moderation status.
+Apply `25_client_coordinator_assignment.sql` so clients can browse active coordinators under Event
+Organizer, assign or replace one on their event, and share that event's selected and booked services
+with the coordinator workspace.
+Apply `26_catering_service_types.sql` so catering providers can declare whether they offer plated,
+buffet, and/or packed meals and clients can only select the configured booking options.
+Apply `27_client_booking_changes.sql` so clients can cancel active event bookings or request a new
+date and time after provider availability and schedule conflicts are checked.
+The provider signup form also supports direct event-coordinator registration without requesting a
+service category. See
+[`docs/EVENT_COORDINATOR_SIGNUP.md`](docs/EVENT_COORDINATOR_SIGNUP.md) for role behavior and testing.
 Provider booking requests are grouped by event while preserving individual service actions, notes,
 instructions, and statuses. See
 [`docs/MERCHANT_EVENT_BOOKING_GROUPING.md`](docs/MERCHANT_EVENT_BOOKING_GROUPING.md) for the mapping

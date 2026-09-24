@@ -50,6 +50,7 @@ const defaultInformation: ServiceInformationValue = {
 
 const defaultPricing: ServicePricingValue = {
   amount: 2500,
+  cateringServiceTypes: [],
   currency: 'PHP',
   details: '',
   model: 'startingAt',
@@ -146,7 +147,11 @@ export const Step3ReviewListingsScreen: React.FC<Step3ReviewListingsScreenProps>
   const previewItems: Array<string | undefined> = photos.length > 0 ? photos : [undefined]
   const [activePhotoIndex, setActivePhotoIndex] = React.useState(0)
   const reviewValue: ServiceListingReviewValue = { information, packages, pricing }
-  const actionsDisabled = isPublishing || isSavingDraft
+  const actionsBusy = isPublishing || isSavingDraft
+  const cateringOptionsMissing =
+    information.category.toLowerCase().includes('cater') &&
+    !(pricing.cateringServiceTypes?.length)
+  const publishDisabled = actionsBusy || cateringOptionsMissing
 
   React.useEffect(() => {
     setActivePhotoIndex((current) => Math.min(current, previewItems.length - 1))
@@ -172,6 +177,17 @@ export const Step3ReviewListingsScreen: React.FC<Step3ReviewListingsScreenProps>
       section: 'pricing',
       value: formatPrice(pricing),
     },
+    ...(information.category.toLowerCase().includes('cater')
+      ? [{
+          label: 'Catering Styles',
+          section: 'pricing' as const,
+          value: pricing.cateringServiceTypes?.length
+            ? pricing.cateringServiceTypes
+                .map((item) => item.charAt(0).toUpperCase() + item.slice(1))
+                .join(', ')
+            : 'None selected',
+        }]
+      : []),
     {
       label: 'Total Packages',
       section: 'packages',
@@ -282,7 +298,7 @@ export const Step3ReviewListingsScreen: React.FC<Step3ReviewListingsScreenProps>
             <View style={styles.summaryCard}>
               {summaryRows.map((row, index) => (
                 <Pressable
-                  key={row.section}
+                  key={`${row.section}-${row.label}`}
                   accessibilityLabel={`Edit ${row.label}. Current value: ${row.value}`}
                   accessibilityRole="button"
                   onPress={() => onEditSection?.(row.section)}
@@ -302,6 +318,18 @@ export const Step3ReviewListingsScreen: React.FC<Step3ReviewListingsScreenProps>
                 </Pressable>
               ))}
             </View>
+            {cateringOptionsMissing ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => onEditSection?.('pricing')}
+                style={({ pressed }) => [styles.validationCard, pressed && styles.summaryRowPressed]}
+              >
+                <Text style={styles.validationTitle}>Choose at least one catering style</Text>
+                <Text style={styles.validationCopy}>
+                  Open Pricing and select Plated, Buffet, or Packed before submitting this listing.
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
         </View>
       </ScrollView>
@@ -309,31 +337,31 @@ export const Step3ReviewListingsScreen: React.FC<Step3ReviewListingsScreenProps>
       <View style={styles.footer}>
         <View style={[styles.footerContent, isWide && styles.wideHorizontalPadding]}>
           <Pressable
-            accessibilityLabel="Publish service"
+            accessibilityLabel="Submit service for review"
             accessibilityRole="button"
-            accessibilityState={{ disabled: actionsDisabled }}
-            disabled={actionsDisabled}
+            accessibilityState={{ disabled: publishDisabled }}
+            disabled={publishDisabled}
             onPress={() => onPublish?.(reviewValue)}
             style={({ pressed }) => [
               styles.publishButton,
-              actionsDisabled && styles.buttonDisabled,
+              publishDisabled && styles.buttonDisabled,
               pressed && styles.publishButtonPressed,
             ]}
           >
             <Text style={styles.publishButtonText}>
-              {isPublishing ? 'Publishing...' : 'Publish Service'}
+              {isPublishing ? 'Submitting...' : 'Submit for Review'}
             </Text>
           </Pressable>
 
           <Pressable
             accessibilityLabel="Save service as draft"
             accessibilityRole="button"
-            accessibilityState={{ disabled: actionsDisabled }}
-            disabled={actionsDisabled}
+            accessibilityState={{ disabled: actionsBusy }}
+            disabled={actionsBusy}
             onPress={() => onSaveDraft?.(reviewValue)}
             style={({ pressed }) => [
               styles.draftButton,
-              actionsDisabled && styles.buttonDisabled,
+              actionsBusy && styles.buttonDisabled,
               pressed && styles.draftButtonPressed,
             ]}
           >
@@ -532,6 +560,17 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: palette.background,
   },
+  validationCard: {
+    gap: 4,
+    borderWidth: 1,
+    borderColor: '#E8BCC2',
+    borderRadius: 8,
+    backgroundColor: '#FFF3F4',
+    marginTop: 12,
+    padding: 14,
+  },
+  validationTitle: { color: palette.primaryContainer, fontSize: 13, lineHeight: 18, fontWeight: '700' },
+  validationCopy: { color: palette.secondary, fontSize: 12, lineHeight: 18 },
   summaryRow: {
     minHeight: 72,
     flexDirection: 'row',

@@ -1,6 +1,7 @@
 import React from 'react'
 import {
   Image,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,12 +15,17 @@ import type { MerchantHomeTab } from './16-MerchantHome'
 
 interface ProviderServicesScreenProps {
   hasDraft?: boolean
+  deletingServiceId?: string
+  updatingAvailabilityServiceId?: string
   services?: MerchantServiceListing[]
   onAddService?: () => void
   onBack?: () => void
   onContinueDraft?: () => void
+  onDeleteService?: (service: MerchantServiceListing) => void
+  onEditService?: (service: MerchantServiceListing) => void
   onOpenAccount?: () => void
   onSelectService?: (service: MerchantServiceListing) => void
+  onSetAvailability?: (service: MerchantServiceListing, isAvailable: boolean) => void
   onSelectTab?: (tab: MerchantHomeTab) => void
 }
 
@@ -29,11 +35,13 @@ const formatPrice = (value: number) => {
   return `PHP ${Math.round(value).toLocaleString('en-US')}`
 }
 
-const formatStatus = (status: string) => {
+const formatApprovalStatus = (status: string) => {
   const normalized = status.trim().toLowerCase()
 
-  if (normalized === 'active') return 'Live'
+  if (normalized === 'active') return 'Approved'
   if (normalized === 'draft') return 'Draft'
+  if (normalized === 'pending_review') return 'Awaiting review'
+  if (normalized === 'rejected') return 'Needs changes'
   if (normalized === 'inactive') return 'Hidden'
 
   return normalized.length > 0 ? normalized : 'Draft'
@@ -41,16 +49,23 @@ const formatStatus = (status: string) => {
 
 export const ProviderServicesScreen: React.FC<ProviderServicesScreenProps> = ({
   hasDraft = false,
+  deletingServiceId = '',
+  updatingAvailabilityServiceId = '',
   services = [],
   onAddService,
   onBack,
   onContinueDraft,
+  onDeleteService,
+  onEditService,
   onOpenAccount,
   onSelectService,
+  onSetAvailability,
   onSelectTab,
 }) => {
   const { width } = useWindowDimensions()
   const isWide = width >= 768
+  const [deleteTarget, setDeleteTarget] = React.useState<MerchantServiceListing>()
+  const [availabilityTarget, setAvailabilityTarget] = React.useState<MerchantServiceListing>()
 
   return (
     <View style={styles.screen}>
@@ -129,12 +144,9 @@ export const ProviderServicesScreen: React.FC<ProviderServicesScreenProps> = ({
         ) : (
           <View style={styles.serviceList}>
             {services.map((service) => (
-              <Pressable
+              <View
                 key={service.id}
-                accessibilityLabel={`Open ${service.name}`}
-                accessibilityRole="button"
-                onPress={() => onSelectService?.(service)}
-                style={({ pressed }) => [styles.serviceCard, pressed && styles.serviceCardPressed]}
+                style={styles.serviceCard}
               >
                 {service.coverImageUrl ? (
                   <Image
@@ -156,19 +168,42 @@ export const ProviderServicesScreen: React.FC<ProviderServicesScreenProps> = ({
                     <Text numberOfLines={1} style={styles.serviceName}>
                       {service.name}
                     </Text>
+                  </View>
+                  <View style={styles.statusRow}>
                     <View
                       style={[
                         styles.statusPill,
-                        service.status === 'active' && styles.statusLive,
+                        service.status === 'active' && styles.statusApproved,
                       ]}
                     >
                       <Text
                         style={[
                           styles.statusText,
-                          service.status === 'active' && styles.statusLiveText,
+                          service.status === 'active' && styles.statusApprovedText,
                         ]}
                       >
-                        {formatStatus(service.status)}
+                        {formatApprovalStatus(service.status)}
+                      </Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.visibilityPill,
+                        service.status === 'active' && service.isAvailable && styles.visibilityLive,
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.visibilityDot,
+                          service.status === 'active' && service.isAvailable && styles.visibilityDotLive,
+                        ]}
+                      />
+                      <Text
+                        style={[
+                          styles.visibilityText,
+                          service.status === 'active' && service.isAvailable && styles.visibilityTextLive,
+                        ]}
+                      >
+                        {service.status === 'active' && service.isAvailable ? 'Live' : 'Not available'}
                       </Text>
                     </View>
                   </View>
@@ -184,8 +219,64 @@ export const ProviderServicesScreen: React.FC<ProviderServicesScreenProps> = ({
                       {service.packageCount} {service.packageCount === 1 ? 'package' : 'packages'}
                     </Text>
                   </View>
+                  <View style={styles.cardActions}>
+                    {service.status === 'active' ? (
+                      <Pressable
+                        accessibilityLabel={`${service.isAvailable ? 'Mark' : 'Make'} ${service.name} ${service.isAvailable ? 'not available' : 'live'}`}
+                        accessibilityRole="switch"
+                        accessibilityState={{
+                          checked: service.isAvailable,
+                          disabled: updatingAvailabilityServiceId === service.id,
+                        }}
+                        disabled={updatingAvailabilityServiceId === service.id}
+                        onPress={() => setAvailabilityTarget(service)}
+                        style={({ pressed }) => [
+                          styles.availabilityButton,
+                          pressed && styles.serviceCardPressed,
+                        ]}
+                      >
+                        <View style={[styles.toggleTrack, service.isAvailable && styles.toggleTrackOn]}>
+                          <View style={[styles.toggleThumb, service.isAvailable && styles.toggleThumbOn]} />
+                        </View>
+                        <Text style={styles.availabilityButtonText}>
+                          {updatingAvailabilityServiceId === service.id
+                            ? 'Updating...'
+                            : service.isAvailable
+                              ? 'Set N/A'
+                              : 'Go live'}
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                    <Pressable
+                      accessibilityLabel={`Edit ${service.name}`}
+                      accessibilityRole="button"
+                      onPress={() => onEditService?.(service)}
+                      style={({ pressed }) => [styles.editButton, pressed && styles.serviceCardPressed]}
+                    >
+                      <Text style={styles.editButtonText}>Edit</Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityLabel={`Delete ${service.name}`}
+                      accessibilityRole="button"
+                      disabled={deletingServiceId === service.id}
+                      onPress={() => setDeleteTarget(service)}
+                      style={({ pressed }) => [styles.deleteButton, pressed && styles.serviceCardPressed]}
+                    >
+                      <Text style={styles.deleteButtonText}>
+                        {deletingServiceId === service.id ? 'Deleting...' : 'Delete'}
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityLabel={`Open ${service.name}`}
+                      accessibilityRole="button"
+                      onPress={() => onSelectService?.(service)}
+                      style={({ pressed }) => [styles.viewButton, pressed && styles.serviceCardPressed]}
+                    >
+                      <Text style={styles.viewButtonText}>Details</Text>
+                    </Pressable>
+                  </View>
                 </View>
-              </Pressable>
+              </View>
             ))}
           </View>
         )}
@@ -194,6 +285,90 @@ export const ProviderServicesScreen: React.FC<ProviderServicesScreenProps> = ({
       {!isWide ? (
         <MerchantBottomNavigation activeTab="services" onSelectTab={onSelectTab} />
       ) : null}
+
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setDeleteTarget(undefined)}
+        transparent
+        visible={Boolean(deleteTarget)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.confirmationCard}>
+            <Text style={styles.confirmationTitle}>Delete this service?</Text>
+            <Text style={styles.confirmationCopy}>
+              {deleteTarget?.name} will be removed from your service list. Existing booking history will be preserved.
+            </Text>
+            <View style={styles.confirmationActions}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setDeleteTarget(undefined)}
+                style={({ pressed }) => [styles.cancelButton, pressed && styles.pressed]}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  if (deleteTarget) onDeleteService?.(deleteTarget)
+                  setDeleteTarget(undefined)
+                }}
+                style={({ pressed }) => [styles.confirmDeleteButton, pressed && styles.pressed]}
+              >
+                <Text style={styles.confirmDeleteText}>Delete service</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setAvailabilityTarget(undefined)}
+        transparent
+        visible={Boolean(availabilityTarget)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.confirmationCard}>
+            <Text style={styles.confirmationTitle}>
+              {availabilityTarget?.isAvailable
+                ? 'Mark this service not available?'
+                : 'Make this service live?'}
+            </Text>
+            <Text style={styles.confirmationCopy}>
+              {availabilityTarget?.isAvailable
+                ? `${availabilityTarget.name} will be hidden from the client marketplace and cannot receive new bookings. Existing bookings are not affected.`
+                : `${availabilityTarget?.name} will be visible and bookable by clients again.`}
+            </Text>
+            <View style={styles.confirmationActions}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setAvailabilityTarget(undefined)}
+                style={({ pressed }) => [styles.cancelButton, pressed && styles.pressed]}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  if (availabilityTarget) {
+                    onSetAvailability?.(availabilityTarget, !availabilityTarget.isAvailable)
+                  }
+                  setAvailabilityTarget(undefined)
+                }}
+                style={({ pressed }) => [
+                  styles.confirmAvailabilityButton,
+                  availabilityTarget?.isAvailable && styles.confirmUnavailableButton,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text style={styles.confirmAvailabilityText}>
+                  {availabilityTarget?.isAvailable ? 'Yes, mark N/A' : 'Yes, go live'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   )
 }
@@ -398,6 +573,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
+  statusRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 7 },
   serviceName: {
     minWidth: 0,
     flex: 1,
@@ -412,14 +588,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
-  statusLive: { backgroundColor: '#EAF6EE' },
+  statusApproved: { backgroundColor: '#EAF6EE' },
   statusText: {
     color: palette.muted,
     fontSize: 11,
     fontWeight: '700',
     lineHeight: 15,
   },
-  statusLiveText: { color: '#176339' },
+  statusApprovedText: { color: '#176339' },
+  visibilityPill: {
+    alignItems: 'center',
+    backgroundColor: '#F5EDEE',
+    borderRadius: 8,
+    flexDirection: 'row',
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  visibilityLive: { backgroundColor: '#E8F5EC' },
+  visibilityDot: { backgroundColor: '#9A6A72', borderRadius: 3, height: 6, width: 6 },
+  visibilityDotLive: { backgroundColor: '#24814C' },
+  visibilityText: { color: '#7D4F57', fontSize: 11, fontWeight: '700', lineHeight: 15 },
+  visibilityTextLive: { color: '#176339' },
   serviceDescription: {
     color: palette.muted,
     fontSize: 13,
@@ -444,4 +634,89 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
   },
+  cardActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    gap: 8,
+    marginTop: 12,
+  },
+  availabilityButton: {
+    minHeight: 34,
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 7,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#D8B9BE',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+  },
+  availabilityButtonText: { color: palette.primary, fontSize: 12, fontWeight: '700' },
+  toggleTrack: {
+    backgroundColor: '#C8BEC0',
+    borderRadius: 7,
+    height: 14,
+    padding: 2,
+    width: 25,
+  },
+  toggleTrackOn: { backgroundColor: '#3B8C5E' },
+  toggleThumb: { backgroundColor: palette.surface, borderRadius: 5, height: 10, width: 10 },
+  toggleThumbOn: { transform: [{ translateX: 11 }] },
+  editButton: {
+    minHeight: 34,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#D8B9BE',
+    borderRadius: 8,
+    paddingHorizontal: 13,
+  },
+  editButtonText: { color: palette.primary, fontSize: 12, fontWeight: '700' },
+  deleteButton: {
+    minHeight: 34,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E7C9CD',
+    borderRadius: 8,
+    paddingHorizontal: 13,
+  },
+  deleteButtonText: { color: '#A33142', fontSize: 12, fontWeight: '700' },
+  viewButton: { minHeight: 34, justifyContent: 'center', paddingHorizontal: 8 },
+  viewButtonText: { color: palette.muted, fontSize: 12, fontWeight: '700' },
+  modalBackdrop: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(33, 17, 22, 0.54)',
+    padding: 24,
+  },
+  confirmationCard: {
+    width: '100%',
+    maxWidth: 420,
+    borderRadius: 16,
+    backgroundColor: palette.surface,
+    padding: 24,
+  },
+  confirmationTitle: { color: palette.text, fontSize: 20, fontWeight: '700' },
+  confirmationCopy: { color: palette.muted, fontSize: 14, lineHeight: 21, marginTop: 8 },
+  confirmationActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 24 },
+  cancelButton: { minHeight: 42, justifyContent: 'center', paddingHorizontal: 16 },
+  cancelButtonText: { color: palette.muted, fontSize: 14, fontWeight: '700' },
+  confirmDeleteButton: {
+    minHeight: 42,
+    justifyContent: 'center',
+    borderRadius: 8,
+    backgroundColor: '#A33142',
+    paddingHorizontal: 16,
+  },
+  confirmDeleteText: { color: palette.surface, fontSize: 14, fontWeight: '700' },
+  confirmAvailabilityButton: {
+    minHeight: 42,
+    justifyContent: 'center',
+    borderRadius: 8,
+    backgroundColor: '#277647',
+    paddingHorizontal: 16,
+  },
+  confirmUnavailableButton: { backgroundColor: palette.primary },
+  confirmAvailabilityText: { color: palette.surface, fontSize: 14, fontWeight: '700' },
 })

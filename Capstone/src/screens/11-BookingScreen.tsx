@@ -11,7 +11,7 @@ import {
 } from 'react-native'
 import { ClientBottomNavigation, ClientMainTab } from '../components/ClientBottomNavigation'
 
-export type BookingStatus = 'all' | 'confirmed' | 'requested' | 'completed'
+export type BookingStatus = 'all' | 'confirmed' | 'requested' | 'completed' | 'cancelled'
 export type BookingTab = ClientMainTab | 'merchants'
 
 export interface BookingServiceItem {
@@ -25,7 +25,7 @@ export interface BookingServiceItem {
   rawStatus: string
   serviceId: string
   serviceName: string
-  status: 'confirmed' | 'declined' | 'requested' | 'completed'
+  status: 'confirmed' | 'declined' | 'requested' | 'completed' | 'cancelled'
   updatedAt: string
 }
 
@@ -71,6 +71,7 @@ const filterOptions = [
   { id: 'requested' as const, label: 'REQUESTED' },
   { id: 'confirmed' as const, label: 'CONFIRMED' },
   { id: 'completed' as const, label: 'COMPLETED' },
+  { id: 'cancelled' as const, label: 'CANCELLED' },
 ]
 
 const categoryIcons: Record<string, string> = {
@@ -240,7 +241,9 @@ export const BookingScreen: React.FC<BookingScreenProps> = ({
                               ? styles.confirmedDot
                               : booking.status === 'requested'
                                 ? styles.pendingDot
-                                : styles.completedDot,
+                                : booking.status === 'cancelled'
+                                  ? styles.cancelledDot
+                                  : styles.completedDot,
                           ]}
                         />
                         <Text style={styles.statusText}>{booking.status.toUpperCase()}</Text>
@@ -301,6 +304,7 @@ const palette = {
   green: '#4CAF50',
   muted: '#5E5E5E',
   orange: '#FF9800',
+  error: '#B3261E',
   pill: '#FFD9DC',
   surface: '#FFFFFF',
   text: '#1A1C1C',
@@ -462,6 +466,7 @@ const styles = StyleSheet.create({
   statusDot: { width: 6, height: 6, borderRadius: 3 },
   confirmedDot: { backgroundColor: palette.green },
   pendingDot: { backgroundColor: palette.orange },
+  cancelledDot: { backgroundColor: palette.error },
   completedDot: { backgroundColor: palette.green },
   statusText: {
     color: palette.textVariant,

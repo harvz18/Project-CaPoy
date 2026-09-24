@@ -2,7 +2,9 @@ import { supabase, supabaseConfig } from './supabase'
 import * as AuthSession from 'expo-auth-session'
 import * as WebBrowser from 'expo-web-browser'
 
-type UserRole = 'client' | 'service_provider'
+type UserRole = 'client' | 'service_provider' | 'event_coordinator'
+
+export type ProviderSignupRole = 'service_provider' | 'event_coordinator'
 
 type AuthResult = {
   ok: boolean
@@ -18,9 +20,10 @@ type ClientSignupInput = {
 }
 
 type MerchantSignupInput = {
+  accountRole: ProviderSignupRole
   businessName: string
   contactName: string
-  serviceCategory: string
+  serviceCategory?: string
   email: string
   phoneNumber: string
   password: string
@@ -217,13 +220,33 @@ export const signInWithEmail = async (
     return { ok: false, message: notConfiguredMessage }
   }
 
-  const { error } = await client.auth.signInWithPassword({
+  const { data, error } = await client.auth.signInWithPassword({
     email: email.trim().toLowerCase(),
     password,
   })
 
   if (error) {
     return { ok: false, message: error.message }
+  }
+
+  if (data.user) {
+    const { data: profile } = await client
+      .from('profiles')
+      .select('account_status')
+      .eq('id', data.user.id)
+      .maybeSingle()
+    const accountStatus = String(profile?.account_status ?? '')
+
+    if (accountStatus === 'suspended' || accountStatus === 'disabled') {
+      await client.auth.signOut()
+      return {
+        ok: false,
+        message:
+          accountStatus === 'suspended'
+            ? 'This account is temporarily suspended. Contact MULTIVENT support for assistance.'
+            : 'This account has been disabled. Contact MULTIVENT support for assistance.',
+      }
+    }
   }
 
   return { ok: true }
@@ -283,6 +306,7 @@ export const signUpClient = async ({
 }
 
 export const signUpMerchant = async ({
+  accountRole,
   businessName,
   contactName,
   serviceCategory,
@@ -295,10 +319,14 @@ export const signUpMerchant = async ({
   const normalizedBusinessName = businessName.trim()
   const normalizedContactName = contactName.trim()
   const normalizedPhone = phoneNumber.trim()
-  const normalizedCategory = serviceCategory.trim()
+  const normalizedCategory = serviceCategory?.trim() ?? ''
 
   if (!client) {
     return { ok: false, message: notConfiguredMessage }
+  }
+
+  if (accountRole === 'service_provider' && !normalizedCategory) {
+    return { ok: false, message: 'Select a service category to create a provider account.' }
   }
 
   try {
@@ -309,9 +337,11 @@ export const signUpMerchant = async ({
         emailRedirectTo,
         data: {
           full_name: normalizedContactName,
-          default_role: 'service_provider',
+          default_role: accountRole,
           business_name: normalizedBusinessName,
-          service_category: normalizedCategory,
+          ...(accountRole === 'service_provider'
+            ? { service_category: normalizedCategory }
+            : { coordinator_name: normalizedBusinessName }),
           phone: normalizedPhone,
         },
       },
@@ -327,16 +357,18 @@ export const signUpMerchant = async ({
         fullName: normalizedContactName,
         email: normalizedEmail,
         phone: normalizedPhone,
-        role: 'service_provider',
+        role: accountRole,
       })
 
-      await syncProviderProfile({
-        userId: data.user.id,
-        businessName: normalizedBusinessName,
-        contactEmail: normalizedEmail,
-        contactPhone: normalizedPhone,
-        serviceCategory: normalizedCategory,
-      })
+      if (accountRole === 'service_provider') {
+        await syncProviderProfile({
+          userId: data.user.id,
+          businessName: normalizedBusinessName,
+          contactEmail: normalizedEmail,
+          contactPhone: normalizedPhone,
+          serviceCategory: normalizedCategory,
+        })
+      }
     }
 
     if (!data.session) {

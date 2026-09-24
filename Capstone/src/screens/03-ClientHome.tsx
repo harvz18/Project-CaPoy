@@ -3,6 +3,7 @@ import React from 'react'
 import { MaterialIcons } from '@expo/vector-icons'
 import {
   Image,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,12 +12,14 @@ import {
   View,
 } from 'react-native'
 import { ClientMainTab } from '../components/ClientBottomNavigation'
+import type { ClientEventDraftSummary } from '../lib/planning'
 
 export type ClientHomeAction = 'newEvent' | 'budget' | 'vendors' | 'ledger' | 'tasks'
 export type ClientHomeTab = ClientMainTab
 export type ClientHomeRecommendation = 'glasshouse' | 'aesthete'
 
 interface ClientHomeScreenProps {
+  draftEvent?: ClientEventDraftSummary
   remainingBudget?: number
   selectedServiceCount?: number
   totalBudget?: number
@@ -24,6 +27,7 @@ interface ClientHomeScreenProps {
   searchValue?: string
   onChangeSearch?: (value: string) => void
   onOpenActiveEvent?: () => void
+  onStartNewEvent?: () => Promise<boolean | void> | boolean | void
   onOpenNotifications?: () => void
   onOpenProfile?: () => void
   onScrollDirectionChange?: (direction: 'down' | 'up') => void
@@ -58,7 +62,32 @@ const recommendations = [
   },
 ] as const
 
+const formatDraftDate = (value: string) => {
+  if (!value) return 'Date not set'
+
+  const date = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(date.getTime())) return value
+
+  return date.toLocaleDateString('en-PH', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+const getDaysLeft = (value: string) => {
+  if (!value) return null
+
+  const eventDate = new Date(`${value}T00:00:00`)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  if (Number.isNaN(eventDate.getTime())) return null
+  return Math.max(0, Math.ceil((eventDate.getTime() - today.getTime()) / 86_400_000))
+}
+
 export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
+  draftEvent,
   onOpenActiveEvent,
   onOpenNotifications,
   onOpenProfile,
@@ -66,6 +95,7 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   onSeeAllVenues,
   onSelectAction,
   onSelectRecommendation,
+  onStartNewEvent,
   remainingBudget,
   totalBudget,
   userName,
@@ -75,6 +105,26 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   const budget = remainingBudget ?? 0
   const hasSetBudget = (totalBudget ?? 0) > 0
   const lastScrollY = React.useRef(0)
+  const [isDraftPromptVisible, setIsDraftPromptVisible] = React.useState(false)
+  const [isStartingNewEvent, setIsStartingNewEvent] = React.useState(false)
+  const daysLeft = draftEvent ? getDaysLeft(draftEvent.eventDate) : null
+
+  const handleCreateEventPress = () => {
+    if (draftEvent) {
+      setIsDraftPromptVisible(true)
+      return
+    }
+
+    void onStartNewEvent?.()
+  }
+
+  const handleStartNewEvent = async () => {
+    if (isStartingNewEvent) return
+    setIsStartingNewEvent(true)
+    const started = await onStartNewEvent?.()
+    setIsStartingNewEvent(false)
+    if (started !== false) setIsDraftPromptVisible(false)
+  }
 
   return (
     <View style={styles.referenceScreen}>
@@ -133,7 +183,7 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
             <Pressable
               accessibilityLabel="Begin setup"
               accessibilityRole="button"
-              onPress={() => onSelectAction?.('newEvent')}
+              onPress={handleCreateEventPress}
               style={({ pressed }) => [styles.heroButton, pressed && styles.referencePressed]}
             >
               <Text style={styles.heroButtonText}>Create Event</Text>
@@ -143,42 +193,55 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
         </View>
 
         <View style={styles.referenceSection}>
-          <Pressable
-            accessibilityLabel="Open active event"
-            accessibilityRole="button"
-            onPress={onOpenActiveEvent}
-            style={({ pressed }) => [styles.activeEventCard, pressed && styles.referencePressed]}
-          >
-            <View style={styles.activeEventHeader}>
-              <View style={styles.activeEventHeading}>
-                <Text style={styles.activeEventEyebrow}>• IN PROGRESS</Text>
-                <Text style={styles.activeEventTitle}>Santos–Valdez Nuptials</Text>
-                <Text style={styles.activeEventMeta}>⌖ Baguio Country Club · Dec 18, 2025</Text>
-              </View>
-              <View style={styles.daysBadge}>
-                <Text style={styles.daysValue}>142</Text>
-                <Text style={styles.daysLabel}>DAYS LEFT</Text>
-              </View>
-            </View>
-            <View style={styles.milestoneRow}>
-              <Text style={styles.milestoneLabel}>Milestones</Text>
-              <Text style={styles.milestoneValue}>65% <Text style={styles.milestoneMuted}>(13 of 20 tasks)</Text></Text>
-            </View>
-            <View style={styles.milestoneTrack}>
-              <View style={styles.milestoneFill} />
-            </View>
-            <View style={styles.nextTaskRow}>
-              <Text style={styles.nextTask}>Next: Finalize Floral Designer</Text>
-              <Text style={styles.nextTaskLink}>Continue Planning <Text style={styles.nextTaskArrow}>→</Text></Text>
-            </View>
-          </Pressable>
-        </View>
- 
-        <View style={styles.referenceSection}>
           <View style={styles.referenceSectionHeader}>
             <Text style={styles.referenceSectionTitle}>QUICK TOOLS<Text style={styles.sectionDot}></Text></Text>
             <Text style={styles.liveSync}>Live Sync</Text>
           </View>
+          {draftEvent ? (
+            <Pressable
+              accessibilityLabel={`Continue planning ${draftEvent.name}`}
+              accessibilityRole="button"
+              onPress={onOpenActiveEvent}
+              style={({ pressed }) => [
+                styles.activeEventCard,
+                styles.draftEventCard,
+                pressed && styles.referencePressed,
+              ]}
+            >
+              <View style={styles.activeEventHeader}>
+                <View style={styles.activeEventHeading}>
+                  <Text style={styles.activeEventEyebrow}>• DRAFT IN PROGRESS</Text>
+                  <Text numberOfLines={1} style={styles.activeEventTitle}>{draftEvent.name}</Text>
+                  <View style={styles.activeEventMetaRow}>
+                    <MaterialIcons name="location-on" size={14} color="#7C7271" />
+                    <Text numberOfLines={1} style={styles.activeEventMeta}>
+                      {draftEvent.location || 'Venue not set'} · {formatDraftDate(draftEvent.eventDate)}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.daysBadge}>
+                  <Text style={styles.daysValue}>{daysLeft ?? '—'}</Text>
+                  <Text style={styles.daysLabel}>{daysLeft === 1 ? 'DAY LEFT' : 'DAYS LEFT'}</Text>
+                </View>
+              </View>
+              <View style={styles.milestoneRow}>
+                <Text style={styles.milestoneLabel}>Planning progress</Text>
+                <Text style={styles.milestoneValue}>
+                  {draftEvent.progressPercent}%{' '}
+                  <Text style={styles.milestoneMuted}>
+                    ({draftEvent.completedSteps} of {draftEvent.totalSteps} steps)
+                  </Text>
+                </Text>
+              </View>
+              <View style={styles.milestoneTrack}>
+                <View style={[styles.milestoneFill, { width: `${draftEvent.progressPercent}%` }]} />
+              </View>
+              <View style={styles.nextTaskRow}>
+                <Text numberOfLines={1} style={styles.nextTask}>Next: {draftEvent.nextStep}</Text>
+                <Text style={styles.nextTaskLink}>Continue <Text style={styles.nextTaskArrow}>→</Text></Text>
+              </View>
+            </Pressable>
+          ) : null}
           <View style={styles.financeGrid}>
             <Pressable
               accessibilityLabel="Open budget"
@@ -250,6 +313,53 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
         </View>
 
       </ScrollView>
+
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setIsDraftPromptVisible(false)}
+        transparent
+        visible={isDraftPromptVisible}
+      >
+        <View style={styles.draftPromptBackdrop}>
+          <View accessibilityViewIsModal style={styles.draftPromptCard}>
+            <View style={styles.draftPromptIcon}>
+              <MaterialIcons name="event-note" size={25} color={palette.primary} />
+            </View>
+            <Text style={styles.draftPromptTitle}>You have an event draft</Text>
+            <Text style={styles.draftPromptCopy}>
+              Continue {draftEvent?.name || 'your saved event'}, or start fresh. Starting a new
+              event will close the current draft.
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                setIsDraftPromptVisible(false)
+                onOpenActiveEvent?.()
+              }}
+              style={({ pressed }) => [styles.draftPromptPrimary, pressed && styles.referencePressed]}
+            >
+              <Text style={styles.draftPromptPrimaryText}>Continue Draft</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              disabled={isStartingNewEvent}
+              onPress={() => void handleStartNewEvent()}
+              style={({ pressed }) => [styles.draftPromptSecondary, pressed && styles.referencePressed]}
+            >
+              <Text style={styles.draftPromptSecondaryText}>
+                {isStartingNewEvent ? 'Starting…' : 'Start New Event'}
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setIsDraftPromptVisible(false)}
+              style={styles.draftPromptCancel}
+            >
+              <Text style={styles.draftPromptCancelText}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
 
     </View>
   )
@@ -461,6 +571,9 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 1,
   },
+  draftEventCard: {
+    marginBottom: 10,
+  },
   activeEventHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -484,9 +597,17 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   activeEventMeta: {
+    minWidth: 0,
+    flex: 1,
     color: '#7C7271',
     fontSize: 12,
     lineHeight: 16,
+  },
+  activeEventMetaRow: {
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
     marginTop: 2,
   },
   daysBadge: {
@@ -584,6 +705,90 @@ const styles = StyleSheet.create({
   financeGrid: {
     flexDirection: 'row',
     gap: 8,
+  },
+  draftPromptBackdrop: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(30, 18, 21, 0.52)',
+    padding: 24,
+  },
+  draftPromptCard: {
+    width: '100%',
+    maxWidth: 420,
+    alignItems: 'center',
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 22,
+    paddingTop: 24,
+    paddingBottom: 18,
+    shadowColor: '#2B1018',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  draftPromptIcon: {
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 24,
+    backgroundColor: '#F8EDEF',
+    marginBottom: 12,
+  },
+  draftPromptTitle: {
+    color: '#241E1E',
+    fontSize: 19,
+    lineHeight: 25,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  draftPromptCopy: {
+    color: '#6F6463',
+    fontSize: 14,
+    lineHeight: 21,
+    textAlign: 'center',
+    marginTop: 7,
+    marginBottom: 18,
+  },
+  draftPromptPrimary: {
+    width: '100%',
+    minHeight: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    backgroundColor: '#701B30',
+  },
+  draftPromptPrimaryText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  draftPromptSecondary: {
+    width: '100%',
+    minHeight: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#8A2944',
+    borderRadius: 10,
+    marginTop: 10,
+  },
+  draftPromptSecondaryText: {
+    color: '#701B30',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  draftPromptCancel: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    marginTop: 4,
+  },
+  draftPromptCancelText: {
+    color: '#7C7271',
+    fontSize: 13,
+    fontWeight: '600',
   },
   financeCard: {
     minWidth: 0,

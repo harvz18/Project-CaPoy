@@ -79,6 +79,7 @@ export type {
   ReviewSentiment,
 } from './21-ReviewPerformance'
 export { MerchantProfileScreen } from './22-MerchantProfile'
+export { AccountProfileScreen } from './24-AccountProfile'
 export type {
   MerchantProfileAction,
   MerchantProfileMediaTarget,

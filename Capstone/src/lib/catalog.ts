@@ -10,6 +10,8 @@ export type CatalogCategoryId =
   | 'hosts'
   | 'soundLights'
 
+export type CateringServiceType = 'plated' | 'buffet' | 'packed'
+
 export interface ServiceCategoryOption {
   id: string
   name: string
@@ -30,16 +32,19 @@ export interface CatalogService {
   bookingPackageId?: string
   bookingProviderId?: string
   bookingServiceId?: string
+  coordinatorUserId?: string
   id: string
   categoryId: CatalogCategoryId
   categoryDbId?: string
   categoryName: string
+  cateringServiceTypes?: CateringServiceType[]
   description: string
   detail: string
   galleryUrls?: string[]
   imageLabel: string
   imageUrl: string
   isMock?: boolean
+  kind?: 'coordinator' | 'service'
   location?: string
   maxPrice?: number
   minPrice: number
@@ -62,74 +67,6 @@ export interface CatalogService {
   reviewCount: number
   tags: string[]
 }
-
-const mockImage =
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuCrR-HGww7wZlPKqJYg84-Q4OmoBTnamXaWB4_X69QkVMLbfzF0hC8Df4DlHffg8X2G2_rVvyMbvVsJyNJUhX2qqVrP0pceiOrdgsKwkhToaw3SGbqBg2eWnHOL0Dw1wnoaVRl_s8knmcJOGDREikONMrRGNWPQZkFwATgr-IusvatHnK0grCwm8sV7GefP26X4JlIw_zQU-vuWnzbN2QL5BpsiP-I9m-B3kZb2IzaHPhFiTQDnotiivg'
-
-export const mockCatalogServices: CatalogService[] = [
-  {
-    id: 'grandBuffet',
-    categoryId: 'catering',
-    categoryName: 'Catering',
-    description:
-      'Award-winning culinary experiences tailored for elegant celebrations with buffet, plated, and custom menu options.',
-    detail: 'Buffet packages',
-    imageLabel: 'Elegant wedding buffet setup',
-    imageUrl: mockImage,
-    isMock: true,
-    maxPrice: 800,
-    minPrice: 450,
-    name: 'Grand Buffet Catering',
-    providerName: 'Grand Buffet Catering',
-    pricingModel: 'startingAt',
-    pricingUnit: 'person',
-    rating: '4.8',
-    reviewCount: 120,
-    tags: ['BUFFET', 'FILIPINO'],
-  },
-  {
-    id: 'elitePlated',
-    categoryId: 'catering',
-    categoryName: 'Catering',
-    description:
-      'Premium plated service with international menus, formal table service, and custom tasting sessions.',
-    detail: 'Plated dinner service',
-    imageLabel: 'Fine dining plated steak',
-    imageUrl:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuDacsYIzBiVKm-sxb0LhAMveTcicHFQln13pVhHJinV6XDw5q_ywtMS609VmszF_uhXXGNZBjWNyaCccrIW-Whan2-6yrALhKymnyUBH6_Vp2ZLoVZW4tKgDUAEXL0DcYVdi5EMTXfnZ2Oe6n6d6ajLP2IF1rNTIon43H4FN8BqkzIlEp3gO-_N9dffA3O5sB_GvXtin6BwTaok-8R17gdbwNEDX_MPWGCJXkwbc5Lim2F2QAf_yCeIYw',
-    isMock: true,
-    maxPrice: 2500,
-    minPrice: 1200,
-    name: 'Elite Plated Service',
-    providerName: 'Elite Plated Service',
-    pricingModel: 'startingAt',
-    pricingUnit: 'person',
-    rating: '4.9',
-    reviewCount: 85,
-    tags: ['PLATED', 'INTERNATIONAL'],
-  },
-  {
-    id: 'budgetBites',
-    categoryId: 'catering',
-    categoryName: 'Catering',
-    description:
-      'Practical buffet and finger-food packages for intimate celebrations and budget-conscious events.',
-    detail: 'Finger food and buffet',
-    imageLabel: 'Elegant cocktail appetizers',
-    imageUrl:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuC-7oTJe0reSXcvQJdYLb9JvhmQHJOewSkNxZiSrKixchByIe0ecPcpCGqWz-Js56Lb7L1PdE0RDj3dfYgVQuRtDEacJeaBCNH2NhQtXcbN-iY0fcF36BkecQ22sknkdJ1ELQTiPEFIr1Edqp62W6B3yTmZnYxplXVcaARDZf3iuJd3p65NKmItYT0WlWPLCbDRcwpabjIB34mcTulaDZkGrlboJhxhx2kMOqeMb7R9OiqbXpecRWNcnA',
-    isMock: true,
-    maxPrice: 400,
-    minPrice: 250,
-    name: 'Budget Bites',
-    providerName: 'Budget Bites',
-    pricingModel: 'startingAt',
-    pricingUnit: 'person',
-    rating: '4.5',
-    reviewCount: 210,
-    tags: ['BUFFET', 'FINGER FOOD'],
-  },
-]
 
 export const categoryNameToId = (name: string): CatalogCategoryId => {
   const normalized = name.toLowerCase()
@@ -231,6 +168,15 @@ export const formatServicePrice = (service: CatalogService) => {
   return `${prefix}${formatPeso(service.minPrice)}${unit}`
 }
 
+const getCateringServiceTypes = (value: unknown): CateringServiceType[] => {
+  if (!Array.isArray(value)) return []
+
+  return value.filter(
+    (item): item is CateringServiceType =>
+      item === 'plated' || item === 'buffet' || item === 'packed'
+  )
+}
+
 export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
   if (!supabase || !supabaseConfig.isConfigured) {
     return []
@@ -239,22 +185,22 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
   const baseSelection =
     'id, provider_id, category_id, name, description, base_price, location, cover_image_url, provider_profiles(id, business_name), service_categories(id, name), service_packages(id, name, description, price, inclusions), reviews(rating)'
   const detailedSelection =
-    'id, provider_id, category_id, name, description, base_price, location, cover_image_url, gallery_urls, pricing_model, pricing_unit, pricing_details, provider_profiles(id, business_name), service_categories(id, name), service_packages(id, name, description, price, inclusions, pricing_unit), reviews(rating)'
+    'id, provider_id, category_id, name, description, base_price, location, cover_image_url, gallery_urls, pricing_model, pricing_unit, pricing_details, catering_service_types, provider_profiles(id, business_name), service_categories(id, name), service_packages(id, name, description, price, inclusions, pricing_unit), reviews(rating)'
 
   const detailedResult = await supabase
     .from('services')
     .select(detailedSelection)
     .eq('status', 'active')
-    .order('updated_at', { ascending: false })
-    .limit(50)
+    .eq('is_available', true)
+    .limit(1000)
 
   const fallbackResult = detailedResult.error
     ? await supabase
       .from('services')
       .select(baseSelection)
       .eq('status', 'active')
-      .order('updated_at', { ascending: false })
-      .limit(50)
+      .eq('is_available', true)
+      .limit(1000)
     : null
 
   const data = (fallbackResult?.data ?? detailedResult.data) as unknown[] | null
@@ -271,13 +217,13 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
     const name = textFrom(record.name, providerName)
     const packages = getPackages(record.service_packages)
     const minPrice = numberFrom(record.base_price, packages[0]?.price ?? 0)
-    const coverImageUrl = usableImageUrl(record.cover_image_url) || mockImage
+    const coverImageUrl = usableImageUrl(record.cover_image_url)
     const galleryUrls = Array.isArray(record.gallery_urls)
       ? record.gallery_urls
           .map(usableImageUrl)
           .filter((url): url is string => Boolean(url))
       : []
-    const serviceImages = Array.from(new Set([coverImageUrl, ...galleryUrls]))
+    const serviceImages = Array.from(new Set([coverImageUrl, ...galleryUrls].filter(Boolean)))
     const reviewRows = Array.isArray(record.reviews)
       ? (record.reviews as Array<Record<string, unknown>>)
       : []
@@ -303,16 +249,17 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
       categoryId: categoryNameToId(categoryName),
       categoryDbId: getNestedId(record.service_categories, textFrom(record.category_id, '')),
       categoryName,
+      cateringServiceTypes: getCateringServiceTypes(record.catering_service_types),
       description: textFrom(record.description, `${name} service package.`),
       detail: categoryName,
       galleryUrls: serviceImages,
       imageLabel: name,
       imageUrl: coverImageUrl,
       isMock: false,
+      kind: 'service',
       location: textFrom(record.location, ''),
       minPrice,
       name,
-      packageId: packages[0]?.id,
       packages,
       pricingDetails: textFrom(record.pricing_details, ''),
       pricingModel,
@@ -325,7 +272,52 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
     } satisfies CatalogService
   })
 
-  return services
+  return services.sort((left, right) => {
+    const leftRating = Number.parseFloat(left.rating) || 0
+    const rightRating = Number.parseFloat(right.rating) || 0
+
+    return (
+      rightRating - leftRating ||
+      right.reviewCount - left.reviewCount ||
+      left.name.localeCompare(right.name)
+    )
+  })
+}
+
+export const fetchAvailableCoordinators = async (): Promise<CatalogService[]> => {
+  if (!supabase || !supabaseConfig.isConfigured) return []
+
+  const { data, error } = await supabase.rpc('list_available_event_coordinators')
+  if (error || !Array.isArray(data)) return []
+
+  return data.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return []
+
+    const row = entry as Record<string, unknown>
+    const coordinatorUserId = textFrom(row.id, '')
+    const name = textFrom(row.full_name, 'Event Coordinator')
+    if (!coordinatorUserId) return []
+
+    return [{
+      categoryId: 'eventOrganizers' as const,
+      categoryName: 'Event Organizer',
+      coordinatorUserId,
+      description: `${name} can coordinate your event plan and keep your booked services organized.`,
+      detail: 'Event Coordinator',
+      id: `coordinator:${coordinatorUserId}`,
+      imageLabel: `${name}, Event Coordinator`,
+      imageUrl: usableImageUrl(row.avatar_url),
+      isMock: false,
+      kind: 'coordinator' as const,
+      minPrice: 0,
+      name,
+      pricingModel: 'customQuote' as const,
+      providerName: name,
+      rating: 'New',
+      reviewCount: 0,
+      tags: ['EVENT ORGANIZER', 'COORDINATOR'],
+    }]
+  })
 }
 
 export const fetchServiceCategories = async (): Promise<ServiceCategoryOption[]> => {
@@ -343,44 +335,29 @@ export const fetchServiceCategories = async (): Promise<ServiceCategoryOption[]>
     return fallbackServiceCategories
   }
 
-  return data.flatMap((row) => {
+  const categories = data.flatMap((row) => {
     const id = textFrom(row.id, '')
     const name = textFrom(row.name, '')
 
     return id && name ? [{ id, name }] : []
   })
+
+  if (!categories.some((category) => categoryNameToId(category.name) === 'eventOrganizers')) {
+    categories.push({ id: 'eventOrganizers', name: 'Event Organizer' })
+  }
+
+  return categories.sort((left, right) => left.name.localeCompare(right.name))
 }
 
-// Keep examples while the marketplace is being populated. Published provider services are
-// always appended; change this to true when the client should show only live listings.
-export const USE_LIVE_CLIENT_CATALOG = false
-
 export const loadClientCatalogServices = async (): Promise<CatalogService[]> => {
-  const liveServices = await fetchCatalogServices()
+  const [services, coordinators] = await Promise.all([
+    fetchCatalogServices(),
+    fetchAvailableCoordinators(),
+  ])
 
-  if (USE_LIVE_CLIENT_CATALOG) {
-    return liveServices.length > 0 ? liveServices : mockCatalogServices
-  }
-
-  if (liveServices.length === 0) {
-    return mockCatalogServices
-  }
-
-  const backedExamples = mockCatalogServices.map((example, index) => {
-    const matchingServices = liveServices.filter(
-      (service) => service.categoryId === example.categoryId
-    )
-    const candidates = matchingServices.length > 0 ? matchingServices : liveServices
-    const backingService = candidates[index % candidates.length]
-
-    return {
-      ...example,
-      bookingPackageId: backingService.packageId,
-      bookingProviderId: backingService.providerId,
-      bookingServiceId: backingService.id,
-      categoryDbId: backingService.categoryDbId,
-    }
+  return [...services, ...coordinators].sort((left, right) => {
+    const leftRating = Number.parseFloat(left.rating) || 0
+    const rightRating = Number.parseFloat(right.rating) || 0
+    return rightRating - leftRating || right.reviewCount - left.reviewCount || left.name.localeCompare(right.name)
   })
-
-  return [...backedExamples, ...liveServices]
 }

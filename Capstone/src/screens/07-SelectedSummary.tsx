@@ -27,8 +27,17 @@ export interface SelectedSummaryService {
   status: string
 }
 
+export interface AssignedCoordinatorSummary {
+  avatarUrl: string
+  id: string
+  name: string
+  status: 'accepted' | 'pending'
+}
+
 interface SelectedSummaryScreenProps {
+  assignedCoordinator?: AssignedCoordinatorSummary
   budget?: number
+  removingCoordinator?: boolean
   removingServiceId?: string
   selectedServices?: SelectedSummaryService[]
   showBottomNavigation?: boolean
@@ -36,6 +45,7 @@ interface SelectedSummaryScreenProps {
   onAddService?: () => void
   onBack?: () => void
   onOpenMenu?: () => void
+  onRemoveCoordinator?: () => void
   onRemoveService?: (service: SelectedSummaryService) => void
   onSelectService?: (service: SelectedServiceId) => void
   onSelectTab?: (tab: SelectedSummaryTab) => void
@@ -45,7 +55,9 @@ const formatCurrency = (value: number) =>
   Math.max(0, Math.floor(value)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 
 export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
+  assignedCoordinator,
   budget = 40000,
+  removingCoordinator = false,
   removingServiceId = '',
   selectedServices = [],
   showBottomNavigation = true,
@@ -53,6 +65,7 @@ export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
   onAddService,
   onBack,
   onOpenMenu,
+  onRemoveCoordinator,
   onRemoveService,
   onSelectService,
   onSelectTab,
@@ -122,6 +135,50 @@ export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.sectionHeading}>Selected Services</Text>
+
+        {assignedCoordinator ? (
+          <View style={styles.coordinatorCard}>
+            {assignedCoordinator.avatarUrl ? (
+              <Image
+                accessibilityLabel={`${assignedCoordinator.name}, assigned event coordinator`}
+                source={{ uri: assignedCoordinator.avatarUrl }}
+                style={styles.coordinatorAvatar}
+              />
+            ) : (
+              <View style={styles.coordinatorAvatarFallback}>
+                <MaterialCommunityIcons color={palette.white} name="account-tie" size={25} />
+              </View>
+            )}
+            <View style={styles.coordinatorCopy}>
+              <Text style={styles.coordinatorEyebrow}>
+                {assignedCoordinator.status === 'pending'
+                  ? 'COORDINATOR INVITATION PENDING'
+                  : 'ASSIGNED EVENT COORDINATOR'}
+              </Text>
+              <Text style={styles.coordinatorName}>{assignedCoordinator.name}</Text>
+              <Text style={styles.coordinatorDetail}>
+                {assignedCoordinator.status === 'pending'
+                  ? 'Access begins only after the coordinator accepts your invitation.'
+                  : 'Has access to this event, booked services, and your provider instructions.'}
+              </Text>
+            </View>
+            <Pressable
+              accessibilityLabel={`Remove ${assignedCoordinator.name} from this event`}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: removingCoordinator }}
+              disabled={removingCoordinator}
+              hitSlop={8}
+              onPress={onRemoveCoordinator}
+              style={({ pressed }) => [styles.coordinatorRemove, pressed && styles.removeButtonPressed]}
+            >
+              <MaterialCommunityIcons
+                color={palette.primaryContainer}
+                name={removingCoordinator ? 'progress-clock' : 'close'}
+                size={20}
+              />
+            </Pressable>
+          </View>
+        ) : null}
 
         <View style={styles.serviceGrid}>
           {selectedServices.length === 0 ? (
@@ -257,6 +314,39 @@ const palette = {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.background },
+  coordinatorCard: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 13,
+    marginBottom: 18,
+    borderWidth: 1,
+    borderColor: palette.outlineVariant,
+    borderRadius: 16,
+    backgroundColor: palette.surfaceLowest,
+    padding: 15,
+  },
+  coordinatorAvatar: { width: 50, height: 50, borderRadius: 25 },
+  coordinatorAvatarFallback: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: palette.primaryContainer,
+  },
+  coordinatorCopy: { flex: 1, gap: 3 },
+  coordinatorEyebrow: { color: palette.primaryContainer, fontSize: 9, fontWeight: '700', letterSpacing: 0.8 },
+  coordinatorName: { color: palette.text, fontSize: 15, fontWeight: '700' },
+  coordinatorDetail: { color: palette.secondary, fontSize: 11, lineHeight: 16 },
+  coordinatorRemove: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 18,
+    backgroundColor: '#F8EFF1',
+  },
   topAppBar: {
     zIndex: 40,
     height: 64,

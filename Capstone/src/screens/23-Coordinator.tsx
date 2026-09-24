@@ -2,6 +2,7 @@ import { MaterialIcons } from '@expo/vector-icons'
 import React from 'react'
 import {
   ActivityIndicator,
+  Linking,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -12,8 +13,10 @@ import {
 } from 'react-native'
 import { Text } from '../components/AppText'
 import type {
+  CoordinatorBookedService,
   CoordinatorDashboard,
   CoordinatorEvent,
+  CoordinatorInvitation,
   CoordinatorResult,
   CoordinatorTask,
   CreateCoordinatorTaskInput,
@@ -24,21 +27,24 @@ type TaskFilter = 'all' | 'due' | 'open'
 type DueChoice = 'event' | 'none' | 'today' | 'tomorrow'
 
 interface CoordinatorScreenProps {
+  busyInvitationId?: string
   busyTaskId?: string
   dashboard?: CoordinatorDashboard
   errorMessage?: string
   isLoading?: boolean
   isRefreshing?: boolean
   onCreateTask?: (input: CreateCoordinatorTaskInput) => Promise<CoordinatorResult>
+  onMessageProvider?: (event: CoordinatorEvent, service: CoordinatorBookedService) => void
   onOpenNotifications?: () => void
   onRefresh?: () => void
+  onRespondInvitation?: (invitation: CoordinatorInvitation, accepted: boolean) => void
   onSignOut?: () => void
   onToggleTask?: (task: CoordinatorTask) => void
   unreadNotificationCount?: number
   userName?: string
 }
 
-const emptyDashboard: CoordinatorDashboard = { events: [], tasks: [] }
+const emptyDashboard: CoordinatorDashboard = { events: [], invitations: [], tasks: [] }
 
 const startOfDay = (value: Date) => {
   const date = new Date(value)
@@ -86,6 +92,9 @@ const statusLabel = (value: string) =>
     .replaceAll('_', ' ')
     .replace(/\b\w/g, (letter) => letter.toUpperCase())
 
+const pesoLabel = (value: number) =>
+  `PHP ${Math.max(0, Math.floor(value)).toLocaleString('en-PH')}`
+
 const taskIsOverdue = (task: CoordinatorTask) => {
   if (!task.dueAt || task.status === 'completed') return false
   return new Date(task.dueAt).getTime() < Date.now()
@@ -116,7 +125,10 @@ const todayHeading = () =>
     weekday: 'long',
   })
 
-const EventCard: React.FC<{ event: CoordinatorEvent }> = ({ event }) => {
+const EventCard: React.FC<{
+  event: CoordinatorEvent
+  onMessageProvider?: (event: CoordinatorEvent, service: CoordinatorBookedService) => void
+}> = ({ event, onMessageProvider }) => {
   const progress = eventProgress(event)
   const venue = event.venue || event.location || 'Venue to be confirmed'
 
@@ -168,10 +180,152 @@ const EventCard: React.FC<{ event: CoordinatorEvent }> = ({ event }) => {
             {event.confirmedBookingCount}/{event.bookingCount} providers secured
           </Text>
         </View>
+
+        <View style={styles.servicesBlock}>
+          <View style={styles.servicesHeader}>
+            <Text style={styles.servicesLabel}>BOOKED &amp; SELECTED SERVICES</Text>
+            <Text style={styles.servicesCount}>{event.services.length}</Text>
+          </View>
+          {event.services.length ? event.services.map((service) => (
+            <View key={service.id} style={styles.serviceRow}>
+              <View style={styles.serviceSummaryRow}>
+                <View style={styles.serviceIcon}>
+                  <MaterialIcons color={palette.primaryContainer} name="business-center" size={15} />
+                </View>
+                <View style={styles.serviceCopy}>
+                  <Text numberOfLines={1} style={styles.serviceName}>{service.serviceName}</Text>
+                  <Text numberOfLines={1} style={styles.serviceProvider}>
+                    {service.providerName} · {service.categoryName}
+                  </Text>
+                </View>
+                <View style={styles.serviceAside}>
+                  <Text style={styles.serviceAmount}>{pesoLabel(service.amount)}</Text>
+                  <Text style={[styles.serviceStatus, service.booked && styles.serviceStatusBooked]}>
+                    {statusLabel(service.status)}
+                  </Text>
+                </View>
+              </View>
+              {service.clientNotes ? (
+                <View style={styles.clientNote}>
+                  <MaterialIcons color={palette.primaryContainer} name="notes" size={14} />
+                  <View style={styles.instructionCopy}>
+                    <Text style={styles.instructionLabel}>CLIENT BOOKING NOTE</Text>
+                    <Text style={styles.instructionBody}>{service.clientNotes}</Text>
+                  </View>
+                </View>
+              ) : null}
+              {service.instructions.map((instruction) => (
+                <View key={instruction.id} style={styles.instructionRow}>
+                  <MaterialIcons
+                    color={instruction.isRequired ? palette.danger : palette.secondary}
+                    name={instruction.isRequired ? 'priority-high' : 'assignment'}
+                    size={14}
+                  />
+                  <View style={styles.instructionCopy}>
+                    <Text style={styles.instructionTitle}>
+                      {instruction.title}{instruction.isRequired ? ' · Required' : ''}
+                    </Text>
+                    {instruction.body ? <Text style={styles.instructionBody}>{instruction.body}</Text> : null}
+                    {instruction.tags.length ? (
+                      <Text style={styles.instructionTags}>{instruction.tags.join(' · ')}</Text>
+                    ) : null}
+                  </View>
+                </View>
+              ))}
+              {service.booked ? (
+                <View style={styles.providerActions}>
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={!service.bookingId}
+                    onPress={() => onMessageProvider?.(event, service)}
+                    style={({ pressed }) => [styles.providerAction, !service.bookingId && styles.disabled, pressed && styles.pressed]}
+                  >
+                    <MaterialIcons color={palette.primaryContainer} name="chat-bubble-outline" size={15} />
+                    <Text style={styles.providerActionText}>Message</Text>
+                  </Pressable>
+                  {service.providerPhone ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => void Linking.openURL(`tel:${service.providerPhone}`)}
+                      style={({ pressed }) => [styles.providerAction, pressed && styles.pressed]}
+                    >
+                      <MaterialIcons color={palette.primaryContainer} name="phone" size={15} />
+                      <Text style={styles.providerActionText}>Call</Text>
+                    </Pressable>
+                  ) : null}
+                  {service.providerEmail ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => void Linking.openURL(`mailto:${service.providerEmail}`)}
+                      style={({ pressed }) => [styles.providerAction, pressed && styles.pressed]}
+                    >
+                      <MaterialIcons color={palette.primaryContainer} name="email" size={15} />
+                      <Text style={styles.providerActionText}>Email</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : null}
+            </View>
+          )) : (
+            <Text style={styles.noServicesText}>No services have been selected for this event yet.</Text>
+          )}
+        </View>
       </View>
     </View>
   )
 }
+
+const InvitationCard: React.FC<{
+  busy?: boolean
+  invitation: CoordinatorInvitation
+  onRespond?: (invitation: CoordinatorInvitation, accepted: boolean) => void
+}> = ({ busy, invitation, onRespond }) => (
+  <View style={styles.invitationCard}>
+    <View style={styles.invitationHeader}>
+      <View style={styles.invitationIcon}>
+        <MaterialIcons color={palette.primaryContainer} name="mark-email-unread" size={21} />
+      </View>
+      <View style={styles.invitationCopy}>
+        <Text style={styles.invitationEyebrow}>EVENT COORDINATION INVITATION</Text>
+        <Text style={styles.invitationTitle}>{invitation.eventName}</Text>
+        <Text style={styles.invitationClient}>Invited by {invitation.clientName}</Text>
+      </View>
+    </View>
+    <View style={styles.invitationMeta}>
+      <Text style={styles.invitationMetaText}>{dateLabel(invitation.date)}</Text>
+      <Text style={styles.invitationMetaText}>
+        {invitation.venue || invitation.location || 'Venue to be confirmed'}
+      </Text>
+      {invitation.guestCount ? (
+        <Text style={styles.invitationMetaText}>{invitation.guestCount} guests</Text>
+      ) : null}
+    </View>
+    <Text style={styles.invitationNotice}>
+      Accept to unlock the booked services, client instructions, tasks, and provider conversations for this event.
+    </Text>
+    <View style={styles.invitationActions}>
+      <Pressable
+        accessibilityRole="button"
+        disabled={busy}
+        onPress={() => onRespond?.(invitation, false)}
+        style={({ pressed }) => [styles.declineButton, pressed && styles.pressed, busy && styles.disabled]}
+      >
+        <Text style={styles.declineButtonText}>Decline</Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        disabled={busy}
+        onPress={() => onRespond?.(invitation, true)}
+        style={({ pressed }) => [styles.acceptButton, pressed && styles.addButtonPressed, busy && styles.disabled]}
+      >
+        {busy ? <ActivityIndicator color="#FFFFFF" size="small" /> : (
+          <MaterialIcons color="#FFFFFF" name="check" size={17} />
+        )}
+        <Text style={styles.acceptButtonText}>{busy ? 'Responding...' : 'Accept assignment'}</Text>
+      </Pressable>
+    </View>
+  </View>
+)
 
 const TaskRow: React.FC<{
   busy?: boolean
@@ -242,14 +396,17 @@ const dueAtFrom = (
 }
 
 export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
+  busyInvitationId,
   busyTaskId,
   dashboard = emptyDashboard,
   errorMessage,
   isLoading = false,
   isRefreshing = false,
   onCreateTask,
+  onMessageProvider,
   onOpenNotifications,
   onRefresh,
+  onRespondInvitation,
   onSignOut,
   onToggleTask,
   unreadNotificationCount = 0,
@@ -556,6 +713,28 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
           </View>
         ) : null}
 
+        {dashboard.invitations.length ? (
+          <View style={styles.invitationsBlock}>
+            <View style={styles.sectionHeader}>
+              <View>
+                <Text style={styles.sectionEyebrow}>AWAITING YOUR RESPONSE</Text>
+                <Text style={styles.sectionTitle}>Event invitations</Text>
+              </View>
+              <Text style={styles.sectionCount}>{dashboard.invitations.length} pending</Text>
+            </View>
+            <View style={styles.invitationList}>
+              {dashboard.invitations.map((invitation) => (
+                <InvitationCard
+                  key={invitation.eventId}
+                  busy={busyInvitationId === invitation.eventId}
+                  invitation={invitation}
+                  onRespond={onRespondInvitation}
+                />
+              ))}
+            </View>
+          </View>
+        ) : null}
+
         {isLoading ? (
           <View style={styles.loadingState}>
             <ActivityIndicator color={palette.primaryContainer} size="large" />
@@ -567,10 +746,10 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
             <View style={styles.emptyIcon}>
               <MaterialIcons color={palette.primaryContainer} name="event-busy" size={34} />
             </View>
-            <Text style={styles.emptyTitle}>No events assigned yet</Text>
+            <Text style={styles.emptyTitle}>No accepted events yet</Text>
             <Text style={styles.emptyText}>
-              When an administrator assigns an event to your coordinator account, its schedule,
-              providers, and task queue will appear here automatically.
+              Client invitations appear above. Event schedules, booked services, instructions,
+              and tasks become available only after you accept an invitation.
             </Text>
             <Pressable onPress={onRefresh} style={({ pressed }) => [styles.refreshButton, pressed && styles.pressed]}>
               <MaterialIcons color={palette.primaryContainer} name="refresh" size={18} />
@@ -610,7 +789,10 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
                     <Pressable onPress={() => setActiveView('events')}><Text style={styles.sectionLink}>View all</Text></Pressable>
                   ) : null}
                 </View>
-                <EventCard event={activeEvents[0] ?? dashboard.events[0]} />
+                <EventCard
+                  event={activeEvents[0] ?? dashboard.events[0]}
+                  onMessageProvider={onMessageProvider}
+                />
               </View>
 
               <View style={styles.overviewColumn}>
@@ -652,7 +834,7 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
             <View style={[styles.eventList, isWide && styles.eventListWide]}>
               {dashboard.events.map((event) => (
                 <View key={event.id} style={isWide ? styles.eventCardWide : undefined}>
-                  <EventCard event={event} />
+                  <EventCard event={event} onMessageProvider={onMessageProvider} />
                 </View>
               ))}
             </View>
@@ -834,6 +1016,23 @@ const styles = StyleSheet.create({
   sectionTitle: { color: palette.text, fontSize: 17, lineHeight: 23, fontWeight: '700', marginTop: 2 },
   sectionLink: { color: palette.primaryContainer, fontSize: 10, lineHeight: 14, fontWeight: '700' },
   sectionCount: { color: palette.secondary, fontSize: 10, lineHeight: 14, fontWeight: '600' },
+  invitationsBlock: { marginBottom: 24 },
+  invitationList: { gap: 10 },
+  invitationCard: { borderWidth: 1, borderColor: '#D9C4C8', borderRadius: 13, backgroundColor: palette.surface, padding: 14 },
+  invitationHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  invitationIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19, backgroundColor: palette.primarySoft },
+  invitationCopy: { minWidth: 0, flex: 1 },
+  invitationEyebrow: { color: palette.primaryContainer, fontSize: 8, lineHeight: 11, fontWeight: '700', letterSpacing: 0.7 },
+  invitationTitle: { color: palette.text, fontSize: 15, lineHeight: 20, fontWeight: '700', marginTop: 2 },
+  invitationClient: { color: palette.secondary, fontSize: 10, lineHeight: 14, marginTop: 1 },
+  invitationMeta: { gap: 3, borderTopWidth: 1, borderTopColor: palette.border, marginTop: 12, paddingTop: 10 },
+  invitationMetaText: { color: palette.secondary, fontSize: 10, lineHeight: 15 },
+  invitationNotice: { color: palette.secondary, fontSize: 9, lineHeight: 14, marginTop: 10 },
+  invitationActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 13 },
+  declineButton: { minHeight: 38, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#D8C5C8', borderRadius: 9, paddingHorizontal: 15 },
+  declineButtonText: { color: palette.primaryContainer, fontSize: 10, lineHeight: 14, fontWeight: '700' },
+  acceptButton: { minHeight: 38, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 9, backgroundColor: palette.primaryContainer, paddingHorizontal: 15 },
+  acceptButtonText: { color: '#FFFFFF', fontSize: 10, lineHeight: 14, fontWeight: '700' },
   eventList: { gap: 12 },
   eventListWide: { flexDirection: 'row', flexWrap: 'wrap' },
   eventCardWide: { width: '49%' },
@@ -860,6 +1059,31 @@ const styles = StyleSheet.create({
   progressFill: { height: '100%', borderRadius: 3, backgroundColor: palette.primaryContainer },
   eventFooter: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginTop: 8 },
   eventFooterText: { color: palette.secondary, fontSize: 8, lineHeight: 12 },
+  servicesBlock: { borderTopWidth: 1, borderTopColor: palette.border, marginTop: 13, paddingTop: 12, gap: 8 },
+  servicesHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  servicesLabel: { color: palette.secondary, fontSize: 7, lineHeight: 11, fontWeight: '700', letterSpacing: 0.7 },
+  servicesCount: { minWidth: 20, color: palette.primaryContainer, fontSize: 8, lineHeight: 12, fontWeight: '700', textAlign: 'right' },
+  serviceRow: { gap: 8, borderRadius: 8, backgroundColor: palette.surfaceLow, padding: 8 },
+  serviceSummaryRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  serviceIcon: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: palette.primarySoft },
+  serviceCopy: { minWidth: 0, flex: 1 },
+  serviceName: { color: palette.text, fontSize: 9, lineHeight: 13, fontWeight: '700' },
+  serviceProvider: { color: palette.secondary, fontSize: 8, lineHeight: 12, marginTop: 1 },
+  serviceAside: { alignItems: 'flex-end' },
+  serviceAmount: { color: palette.text, fontSize: 8, lineHeight: 12, fontWeight: '600' },
+  serviceStatus: { color: palette.secondary, fontSize: 7, lineHeight: 11, fontWeight: '700', marginTop: 1 },
+  serviceStatusBooked: { color: palette.success },
+  clientNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 7, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border, paddingTop: 8 },
+  instructionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 7, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border, paddingTop: 8 },
+  instructionCopy: { minWidth: 0, flex: 1 },
+  instructionLabel: { color: palette.primaryContainer, fontSize: 7, lineHeight: 10, fontWeight: '700', letterSpacing: 0.5 },
+  instructionTitle: { color: palette.text, fontSize: 9, lineHeight: 13, fontWeight: '700' },
+  instructionBody: { color: palette.secondary, fontSize: 8, lineHeight: 13, marginTop: 2 },
+  instructionTags: { color: palette.primaryContainer, fontSize: 7, lineHeight: 11, fontWeight: '600', marginTop: 3 },
+  providerActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border, paddingTop: 8 },
+  providerAction: { minHeight: 32, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderWidth: 1, borderColor: '#D8C5C8', borderRadius: 8, backgroundColor: palette.surface, paddingHorizontal: 10 },
+  providerActionText: { color: palette.primaryContainer, fontSize: 9, lineHeight: 13, fontWeight: '700' },
+  noServicesText: { color: palette.muted, fontSize: 8, lineHeight: 13, fontStyle: 'italic' },
   taskListCard: { overflow: 'hidden', borderWidth: 1, borderColor: palette.border, borderRadius: 12, backgroundColor: palette.surface },
   taskRow: { minHeight: 76, flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border, padding: 12 },
   taskRowCompleted: { backgroundColor: '#FBFAFA' },
