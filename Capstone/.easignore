@@ -1,0 +1,20 @@
+# Dependencies and generated output
+node_modules/
+.expo/
+dist/
+*.log
+.cloudflared.*
+
+# Local environment files; EAS environments provide these values
+.env
+.env.*
+!.env.example
+
+# Separate deployments and backend source are not part of the native binary
+web/
+database/
+supabase/
+docs/
+
+# Local-only documentation
+MULTIVENT_Mobile_UI_UX_Design_Guide.md
