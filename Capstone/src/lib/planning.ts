@@ -60,6 +60,7 @@ export type ClientPlanningState = {
     name: string
     status: 'accepted' | 'pending'
   }
+  coordinatorAssignmentStatus?: 'accepted' | 'pending' | 'awaiting_assignment'
   event?: EventCreationValue
   draftSummary?: ClientEventDraftSummary
   lastPayment?: {
@@ -309,6 +310,11 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
   ]
 
   return {
+    coordinatorAssignmentStatus: ['accepted', 'pending', 'awaiting_assignment'].includes(
+      String(event.coordinator_assignment_status)
+    )
+      ? (event.coordinator_assignment_status as 'accepted' | 'pending' | 'awaiting_assignment')
+      : undefined,
     assignedCoordinator: assignedCoordinatorRow
       ? {
           avatarUrl:

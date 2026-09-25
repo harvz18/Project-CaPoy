@@ -390,14 +390,7 @@ export const fetchServiceCategories = async (): Promise<ServiceCategoryOption[]>
 }
 
 export const loadClientCatalogServices = async (): Promise<CatalogService[]> => {
-  const [services, coordinators] = await Promise.all([
-    fetchCatalogServices(),
-    fetchAvailableCoordinators(),
-  ])
-
-  return [...services, ...coordinators].sort((left, right) => {
-    const leftRating = Number.parseFloat(left.rating) || 0
-    const rightRating = Number.parseFloat(right.rating) || 0
-    return rightRating - leftRating || right.reviewCount - left.reviewCount || left.name.localeCompare(right.name)
-  })
+  // Coordinators are MULTIVENT employees assigned by workforce scheduling.
+  // Only marketplace service listings belong in client browsing.
+  return fetchCatalogServices()
 }

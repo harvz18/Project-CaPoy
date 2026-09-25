@@ -16,6 +16,7 @@ import {
 import { MdiIcon } from '@/components/icons'
 import { EmptyState, formatDate, formatMoney, InlineError, StatusBadge, TableSkeleton } from '@/components/ui'
 import { getSupabase } from '@/lib/supabase'
+import { useStaff } from '@/components/dashboard-shell'
 
 type ServicePackage = {
   id: string
@@ -62,6 +63,7 @@ const serviceSelection = `
 `
 
 export function ServicesScreen() {
+  const { can } = useStaff()
   const [services, setServices] = useState<Service[]>([])
   const [selected, setSelected] = useState<Service | null>(null)
   const [decision, setDecision] = useState<Decision | null>(null)
@@ -187,6 +189,8 @@ export function ServicesScreen() {
 
       {selected && (
         <ServiceDetailModal
+          canApprove={can('services.approve')}
+          canReject={can('services.reject')}
           service={selected}
           onClose={() => setSelected(null)}
           onDecision={requestDecision}
@@ -212,7 +216,7 @@ export function ServicesScreen() {
   )
 }
 
-function ServiceDetailModal({ service, onClose, onDecision }: { service: Service; onClose: () => void; onDecision: (decision: Decision) => void }) {
+function ServiceDetailModal({ service, canApprove, canReject, onClose, onDecision }: { service: Service; canApprove: boolean; canReject: boolean; onClose: () => void; onDecision: (decision: Decision) => void }) {
   const provider = nestedRecord(service.provider_profiles)
   const category = nestedRecord(service.service_categories)
   const packages = service.service_packages || []
@@ -262,7 +266,7 @@ function ServiceDetailModal({ service, onClose, onDecision }: { service: Service
             </aside>
           </div>
         </div>
-        <footer><button className="secondary-button" onClick={onClose}>Close</button>{canReview && <div><button className="decline-button" onClick={() => onDecision('declined')}><MdiIcon path={mdiClose} /> Decline</button><button className="approve-button" onClick={() => onDecision('approved')}><MdiIcon path={mdiCheck} /> Approve service</button></div>}</footer>
+        <footer><button className="secondary-button" onClick={onClose}>Close</button>{canReview && (canApprove || canReject) && <div>{canReject && <button className="decline-button" onClick={() => onDecision('declined')}><MdiIcon path={mdiClose} /> Decline</button>}{canApprove && <button className="approve-button" onClick={() => onDecision('approved')}><MdiIcon path={mdiCheck} /> Approve service</button>}</div>}</footer>
       </section>
     </div>
   )

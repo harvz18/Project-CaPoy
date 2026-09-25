@@ -18,6 +18,7 @@ type AccountProfileScreenProps = {
   isLoading?: boolean
   isSaving?: boolean
   onBack: () => void
+  onOpenSupport?: () => void
   onSave: (value: EditableAccountProfile) => void
   profile?: EditableAccountProfile
 }
@@ -40,6 +41,7 @@ export const AccountProfileScreen: React.FC<AccountProfileScreenProps> = ({
   isLoading = false,
   isSaving = false,
   onBack,
+  onOpenSupport,
   onSave,
   profile,
 }) => {
@@ -113,6 +115,11 @@ export const AccountProfileScreen: React.FC<AccountProfileScreenProps> = ({
             >
               {isSaving ? <ActivityIndicator color={colors.textInverse} /> : <Text style={styles.saveText}>Save changes</Text>}
             </Pressable>
+            {onOpenSupport ? (
+              <Pressable accessibilityRole="button" onPress={onOpenSupport} style={styles.supportButton}>
+                <Text style={styles.supportText}>Contact MULTIVENT Support</Text>
+              </Pressable>
+            ) : null}
           </View>
         )}
       </ScrollView>
@@ -165,6 +172,8 @@ const styles = StyleSheet.create({
   saveButtonDisabled: { opacity: 0.55 },
   saveButtonPressed: { backgroundColor: colors.primaryDark },
   saveText: { color: colors.textInverse, fontFamily: 'Inter_700Bold', fontSize: 15 },
+  supportButton: { alignItems: 'center', borderColor: colors.primary, borderRadius: 11, borderWidth: 1, justifyContent: 'center', marginTop: 10, minHeight: 48 },
+  supportText: { color: colors.primaryDark, fontFamily: 'Inter_700Bold', fontSize: 14 },
   screen: { backgroundColor: colors.backgroundSecondary, flex: 1 },
   sectionTitle: { color: colors.primaryDark, fontFamily: 'Inter_700Bold', fontSize: 16, marginBottom: 16 },
   textarea: { minHeight: 112, textAlignVertical: 'top' },

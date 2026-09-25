@@ -151,6 +151,7 @@ export type {
   SelectedSummaryTab,
 } from './07-SelectedSummary'
 export { RoleHomePlaceholderScreen } from './RoleHomePlaceholder'
+export { SupportScreen } from './25-Support'
 export { InstructionModuleScreen } from './10-InstructionModule'
 export type { InstructionModuleService, InstructionModuleValue } from './10-InstructionModule'
 export { ScheduleNoConflictScreen } from './09-Schedule(No-Conflict)'

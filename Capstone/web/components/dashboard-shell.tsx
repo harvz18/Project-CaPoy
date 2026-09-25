@@ -7,6 +7,7 @@ import {
   mdiAccountGroupOutline,
   mdiBellOutline,
   mdiBookOpenPageVariantOutline,
+  mdiCashMultiple,
   mdiChevronDown,
   mdiClipboardTextClockOutline,
   mdiCogOutline,
@@ -26,6 +27,8 @@ import { getSupabase } from '@/lib/supabase'
 import type { StaffProfile } from '@/lib/types'
 
 type StaffContextValue = {
+  can: (permission: string) => boolean
+  permissions: string[]
   profile: StaffProfile
 }
 
@@ -38,24 +41,42 @@ export function useStaff() {
 }
 
 const baseNavigation = [
-  { href: '/dashboard', label: 'Overview', icon: mdiViewDashboardOutline },
-  { href: '/dashboard/users', label: 'User management', icon: mdiAccountGroupOutline },
-  { href: '/dashboard/providers', label: 'Provider approvals', icon: mdiStorefrontOutline },
-  { href: '/dashboard/services', label: 'Service approvals', icon: mdiStoreCheckOutline },
-  { href: '/dashboard/bookings', label: 'Bookings', icon: mdiBookOpenPageVariantOutline },
-  { href: '/dashboard/payments', label: 'Payments', icon: mdiCreditCardOutline },
-  { href: '/dashboard/reviews', label: 'Reviews', icon: mdiStarOutline },
+  { href: '/dashboard', label: 'Overview', icon: mdiViewDashboardOutline, permission: null },
+  { href: '/dashboard/users', label: 'Users', icon: mdiAccountGroupOutline, permission: 'users.view' },
+  { href: '/dashboard/providers', label: 'Provider applications', icon: mdiStorefrontOutline, permission: 'providers.view' },
+  { href: '/dashboard/services', label: 'Service applications', icon: mdiStoreCheckOutline, permission: 'services.view' },
+  { href: '/dashboard/bookings', label: 'Events & bookings', icon: mdiBookOpenPageVariantOutline, permission: 'events.view' },
+  { href: '/dashboard/coordinators', label: 'Coordinator queue', icon: mdiShieldAccountOutline, permission: 'coordinators.view' },
+  { href: '/dashboard/support', label: 'Customer support', icon: mdiBellOutline, permission: 'support.view' },
+  { href: '/dashboard/payments', label: 'Payments', icon: mdiCreditCardOutline, permission: 'cashflow.view' },
+  { href: '/dashboard/revenue', label: 'Revenue', icon: mdiStarOutline, permission: 'revenue.view' },
+  { href: '/dashboard/cashflow', label: 'Cash flow', icon: mdiCreditCardOutline, permission: 'cashflow.view' },
+  { href: '/dashboard/remittances', label: 'Remittances', icon: mdiCashMultiple, permission: 'remittance.view' },
+  { href: '/dashboard/reviews', label: 'Reviews', icon: mdiStarOutline, permission: 'providers.view' },
 ]
 
 const governanceNavigation = [
-  { href: '/dashboard/audit', label: 'Audit log', icon: mdiClipboardTextClockOutline },
-  { href: '/dashboard/settings', label: 'System settings', icon: mdiCogOutline },
+  { href: '/dashboard/permissions', label: 'Staff & permissions', icon: mdiShieldCrownOutline, permission: ['users.permissions.manage', 'users.create', 'coordinators.create'] },
+  { href: '/dashboard/audit', label: 'Audit log', icon: mdiClipboardTextClockOutline, permission: 'system.audit_logs' },
+  { href: '/dashboard/settings', label: 'System settings', icon: mdiCogOutline, permission: 'system.settings' },
+]
+
+const legacyAdminPermissions = [
+  'dashboard.view',
+  'users.view',
+  'providers.view',
+  'providers.approve',
+  'services.view',
+  'services.approve',
+  'events.view',
+  'cashflow.view',
 ]
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
   const [profile, setProfile] = useState<StaffProfile | null>(null)
+  const [permissions, setPermissions] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [mobileOpen, setMobileOpen] = useState(false)
 
@@ -75,20 +96,38 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         return
       }
 
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, full_name, email, default_role, account_status')
-        .eq('id', authData.user.id)
-        .single()
+      const { data, error } = await supabase.rpc('get_my_staff_access')
+      let access = data as { profile?: StaffProfile; permissions?: string[] } | null
 
-      if (error || !data || !['admin', 'superadmin'].includes(data.default_role) || data.account_status !== 'active') {
+      // Keep the existing Admin/Superadmin portal usable while migration 30 is
+      // being rolled out. Once the RBAC RPC exists, it remains authoritative.
+      if (error) {
+        const { data: legacyProfile } = await supabase
+          .from('profiles')
+          .select('id, full_name, email, default_role, account_status')
+          .eq('id', authData.user.id)
+          .maybeSingle()
+        const legacyStaff = legacyProfile as StaffProfile | null
+        if (
+          legacyStaff?.account_status === 'active'
+          && (legacyStaff.default_role === 'admin' || legacyStaff.default_role === 'superadmin')
+        ) {
+          access = {
+            profile: legacyStaff,
+            permissions: legacyStaff.default_role === 'superadmin' ? ['*'] : legacyAdminPermissions,
+          }
+        }
+      }
+
+      if (!access?.profile || access.profile.account_status !== 'active') {
         await supabase.auth.signOut()
         router.replace('/?error=unauthorized')
         return
       }
 
       if (active) {
-        setProfile(data as StaffProfile)
+        setProfile(access.profile)
+        setPermissions(Array.isArray(access.permissions) ? access.permissions : [])
         setLoading(false)
       }
     }
@@ -116,20 +155,33 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const initials = (profile.full_name || profile.email || 'MV')
     .split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()
 
+  const can = (permission: string) =>
+    profile.default_role === 'superadmin' || permissions.includes(permission)
+  const canNavigate = (permission: string | string[] | null) => !permission
+    || (Array.isArray(permission) ? permission.some(can) : can(permission))
+  const visibleBaseNavigation = baseNavigation.filter((item) => canNavigate(item.permission))
+  const visibleGovernanceNavigation = governanceNavigation.filter((item) => canNavigate(item.permission))
+  const roleLabel = ({
+    admin: 'Administrator',
+    superadmin: 'Superadmin',
+    assistant: 'Assistant',
+    customer_service: 'Customer Service',
+  } as const)[profile.default_role]
+
   return (
-    <StaffContext.Provider value={{ profile }}>
+    <StaffContext.Provider value={{ can, permissions, profile }}>
       <div className="dashboard-layout">
         <aside className={`sidebar ${mobileOpen ? 'sidebar--open' : ''}`}>
           <div className="sidebar__brand"><Brand compact /></div>
           <nav aria-label="Main navigation">
             <p>WORKSPACE</p>
-            {baseNavigation.map((item) => (
+            {visibleBaseNavigation.map((item) => (
               <NavLink key={item.href} {...item} pathname={pathname} onNavigate={() => setMobileOpen(false)} />
             ))}
-            {profile.default_role === 'superadmin' && (
+            {visibleGovernanceNavigation.length > 0 && (
               <>
                 <p className="nav-group">GOVERNANCE</p>
-                {governanceNavigation.map((item) => (
+                {visibleGovernanceNavigation.map((item) => (
                   <NavLink key={item.href} {...item} pathname={pathname} onNavigate={() => setMobileOpen(false)} />
                 ))}
               </>
@@ -138,7 +190,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           <div className="sidebar__bottom">
             <div className="role-card">
               <MdiIcon path={profile.default_role === 'superadmin' ? mdiShieldCrownOutline : mdiShieldAccountOutline} />
-              <div><span>Signed in as</span><strong>{profile.default_role === 'superadmin' ? 'Superadmin' : 'Administrator'}</strong></div>
+              <div><span>Signed in as</span><strong>{roleLabel}</strong></div>
             </div>
             <button className="signout-button" onClick={signOut}><MdiIcon path={mdiLogout} /><span>Sign out</span></button>
           </div>

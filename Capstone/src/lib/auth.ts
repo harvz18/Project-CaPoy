@@ -2,9 +2,9 @@ import { supabase, supabaseConfig } from './supabase'
 import * as AuthSession from 'expo-auth-session'
 import * as WebBrowser from 'expo-web-browser'
 
-type UserRole = 'client' | 'service_provider' | 'event_coordinator'
+type UserRole = 'client' | 'service_provider'
 
-export type ProviderSignupRole = 'service_provider' | 'event_coordinator'
+export type ProviderSignupRole = 'service_provider'
 
 type AuthResult = {
   ok: boolean
@@ -20,7 +20,6 @@ type ClientSignupInput = {
 }
 
 type MerchantSignupInput = {
-  accountRole: ProviderSignupRole
   businessName: string
   contactName: string
   serviceCategory?: string
@@ -169,6 +168,8 @@ const syncProviderProfile = async ({
       contact_email: contactEmail,
       contact_phone: contactPhone,
       verification_status: 'pending',
+      terms_accepted: true,
+      terms_version: '2026-09-25-commission-v1',
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'user_id' }
@@ -306,7 +307,6 @@ export const signUpClient = async ({
 }
 
 export const signUpMerchant = async ({
-  accountRole,
   businessName,
   contactName,
   serviceCategory,
@@ -325,7 +325,7 @@ export const signUpMerchant = async ({
     return { ok: false, message: notConfiguredMessage }
   }
 
-  if (accountRole === 'service_provider' && !normalizedCategory) {
+  if (!normalizedCategory) {
     return { ok: false, message: 'Select a service category to create a provider account.' }
   }
 
@@ -337,11 +337,11 @@ export const signUpMerchant = async ({
         emailRedirectTo,
         data: {
           full_name: normalizedContactName,
-          default_role: accountRole,
+          default_role: 'service_provider',
           business_name: normalizedBusinessName,
-          ...(accountRole === 'service_provider'
-            ? { service_category: normalizedCategory }
-            : { coordinator_name: normalizedBusinessName }),
+          service_category: normalizedCategory,
+          provider_terms_accepted: true,
+          provider_terms_version: '2026-09-25-commission-v1',
           phone: normalizedPhone,
         },
       },
@@ -357,18 +357,16 @@ export const signUpMerchant = async ({
         fullName: normalizedContactName,
         email: normalizedEmail,
         phone: normalizedPhone,
-        role: accountRole,
+        role: 'service_provider',
       })
 
-      if (accountRole === 'service_provider') {
-        await syncProviderProfile({
-          userId: data.user.id,
-          businessName: normalizedBusinessName,
-          contactEmail: normalizedEmail,
-          contactPhone: normalizedPhone,
-          serviceCategory: normalizedCategory,
-        })
-      }
+      await syncProviderProfile({
+        userId: data.user.id,
+        businessName: normalizedBusinessName,
+        contactEmail: normalizedEmail,
+        contactPhone: normalizedPhone,
+        serviceCategory: normalizedCategory,
+      })
     }
 
     if (!data.session) {

@@ -1,4 +1,4 @@
-export type StaffRole = 'admin' | 'superadmin'
+export type StaffRole = 'admin' | 'superadmin' | 'assistant' | 'customer_service'
 
 export type StaffProfile = {
   id: string
@@ -15,6 +15,12 @@ export type SectionKey =
   | 'services'
   | 'bookings'
   | 'payments'
+  | 'revenue'
+  | 'cashflow'
+  | 'remittances'
+  | 'coordinators'
+  | 'support'
+  | 'permissions'
   | 'reviews'
   | 'audit'
   | 'settings'

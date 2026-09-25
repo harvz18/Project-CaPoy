@@ -2,7 +2,11 @@ import { notFound } from 'next/navigation'
 import { OperationsScreen } from '@/components/screens/operations-screen'
 import type { SectionKey } from '@/lib/types'
 
-const sections: SectionKey[] = ['users', 'providers', 'services', 'bookings', 'payments', 'reviews', 'audit', 'settings']
+const sections: SectionKey[] = [
+  'users', 'providers', 'services', 'bookings', 'payments', 'reviews',
+  'revenue', 'cashflow', 'remittances', 'coordinators', 'support',
+  'permissions', 'audit', 'settings',
+]
 
 export function generateStaticParams() {
   return sections.map((section) => ({ section }))

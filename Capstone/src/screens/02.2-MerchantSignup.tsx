@@ -2,16 +2,13 @@ import { Text } from '../components/AppText'
 import React, { useEffect, useRef, useState } from 'react'
 import {
   Animated,
-  Easing,
   Image,
   Keyboard,
   KeyboardAvoidingView,
-  LayoutAnimation,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
-  UIManager,
   useWindowDimensions,
   View,
 } from 'react-native'
@@ -19,7 +16,6 @@ import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { Button } from '../components/Button'
 import { TextInput } from '../components/TextInput'
 import { signUpMerchant } from '../lib/auth'
-import type { ProviderSignupRole } from '../lib/auth'
 import { colors, radius, spacing } from '../theme/tokens'
 import { typography } from '../theme/typography'
 
@@ -28,7 +24,7 @@ interface MerchantSignupScreenProps {
   onSignUp: (
     email: string,
     needsVerification: boolean,
-    accountRole: ProviderSignupRole
+    accountRole: 'service_provider'
   ) => void
   onLogIn?: () => void
 }
@@ -45,16 +41,11 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
   const sheetScroll = useRef<ScrollView>(null)
   const categoryFieldRef = useRef<View>(null)
   const categoryDropdownEntrance = useRef(new Animated.Value(0)).current
-  const roleContentVisibility = useRef(new Animated.Value(1)).current
-  const roleIndicatorPosition = useRef(new Animated.Value(0)).current
   const categoryOptionEntrances = useRef(
     serviceCategories.map(() => new Animated.Value(0))
   ).current
   const [businessName, setBusinessName] = useState('')
   const [contactName, setContactName] = useState('')
-  const [accountRole, setAccountRole] = useState<ProviderSignupRole>('service_provider')
-  const [isRoleTransitioning, setIsRoleTransitioning] = useState(false)
-  const [roleSelectorWidth, setRoleSelectorWidth] = useState(0)
   const [serviceCategory, setServiceCategory] = useState('')
   const [isCategoryPickerVisible, setIsCategoryPickerVisible] = useState(false)
   const [categoryPickerDirection, setCategoryPickerDirection] = useState<'down' | 'up'>('down')
@@ -73,12 +64,6 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
     sheetEntrance.setValue(1)
     Animated.timing(sheetEntrance, { toValue: 0, duration: 420, useNativeDriver: true }).start()
   }, [sheetEntrance])
-
-  useEffect(() => {
-    if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-      UIManager.setLayoutAnimationEnabledExperimental(true)
-    }
-  }, [])
 
   useEffect(() => {
     const keyboardHideSubscription = Keyboard.addListener('keyboardDidHide', () => {
@@ -118,53 +103,12 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
   const hasRequiredFields =
     businessName.trim().length > 0 &&
     contactName.trim().length > 0 &&
-    (accountRole === 'event_coordinator' || serviceCategory.trim().length > 0) &&
+    serviceCategory.trim().length > 0 &&
     emailIsValid &&
     phoneNumber.trim().length > 0 &&
     password.length >= 8 &&
     confirmPassword.length > 0
   const canSubmit = hasRequiredFields && passwordsMatch && acceptedTerms
-  const roleIndicatorWidth = Math.max(0, (roleSelectorWidth - 8 - spacing.sm) / 2)
-
-  const switchAccountRole = (nextRole: ProviderSignupRole) => {
-    if (nextRole === accountRole || isRoleTransitioning || isLoading) return
-
-    setIsRoleTransitioning(true)
-    setIsCategoryPickerVisible(false)
-    setAuthError('')
-
-    Animated.timing(roleIndicatorPosition, {
-      toValue: nextRole === 'event_coordinator' ? 1 : 0,
-      duration: 300,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start()
-
-    Animated.timing(roleContentVisibility, {
-      toValue: 0,
-      duration: 110,
-      easing: Easing.in(Easing.quad),
-      useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (!finished) {
-        setIsRoleTransitioning(false)
-        return
-      }
-
-      if (Platform.OS !== 'web') {
-        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)
-      }
-      setAccountRole(nextRole)
-
-      Animated.timing(roleContentVisibility, {
-        toValue: 1,
-        duration: 230,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }).start(() => setIsRoleTransitioning(false))
-    })
-  }
-
   const handleSignUp = async () => {
     setSubmitted(true)
     setAuthError('')
@@ -172,7 +116,6 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
 
     setIsLoading(true)
     const result = await signUpMerchant({
-      accountRole,
       businessName,
       contactName,
       serviceCategory,
@@ -183,13 +126,13 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
     setIsLoading(false)
 
     if (result.ok) {
-      onSignUp(normalizedEmail, result.needsVerification ?? true, accountRole)
+      onSignUp(normalizedEmail, result.needsVerification ?? true, 'service_provider')
       return
     }
 
     setAuthError(
       result.message ??
-        `Unable to create your ${accountRole === 'event_coordinator' ? 'coordinator' : 'merchant'} account. Please try again.`
+        'Unable to create your merchant account. Please try again.'
     )
   }
 
@@ -249,25 +192,7 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
             },
           ]}
         >
-          <Animated.View
-            style={{
-              opacity: roleContentVisibility,
-              transform: [
-                {
-                  translateY: roleContentVisibility.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [5, 0],
-                  }),
-                },
-              ],
-            }}
-          >
-            <Text style={styles.title}>
-              {accountRole === 'event_coordinator'
-                ? 'Set up Your Coordinator Profile'
-                : 'Set up Your Business'}
-            </Text>
-          </Animated.View>
+          <Text style={styles.title}>Set up Your Business</Text>
           <View style={styles.loginPrompt}>
             <Text style={styles.loginPromptText}>Already Have An Account? </Text>
             <Pressable accessibilityRole="button" disabled={!onLogIn} onPress={onLogIn}>
@@ -285,118 +210,28 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
             style={styles.formScroll}
           >
             <View style={styles.roleSelectorBlock}>
-              <Text style={styles.roleSelectorLabel}>WHAT ARE YOU SIGNING UP AS?</Text>
-              <View
-                accessibilityRole="tablist"
-                onLayout={(event) => setRoleSelectorWidth(event.nativeEvent.layout.width)}
-                style={styles.roleSelector}
-              >
-                {roleIndicatorWidth > 0 && (
-                  <Animated.View
-                    pointerEvents="none"
-                    style={[
-                      styles.roleSelectionIndicator,
-                      {
-                        transform: [
-                          {
-                            translateX: roleIndicatorPosition.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [0, roleIndicatorWidth + spacing.sm],
-                            }),
-                          },
-                        ],
-                        width: roleIndicatorWidth,
-                      },
-                    ]}
-                  />
-                )}
-                {([
-                  {
-                    icon: 'storefront-outline' as const,
-                    label: 'Service Provider',
-                    role: 'service_provider' as const,
-                  },
-                  {
-                    icon: 'account-tie-outline' as const,
-                    label: 'Event Coordinator',
-                    role: 'event_coordinator' as const,
-                  },
-                ]).map((option) => {
-                  const isSelected = accountRole === option.role
-
-                  return (
-                    <Pressable
-                      accessibilityRole="tab"
-                      accessibilityState={{
-                        disabled: isRoleTransitioning || isLoading,
-                        selected: isSelected,
-                      }}
-                      disabled={isRoleTransitioning || isLoading}
-                      key={option.role}
-                      onPress={() => switchAccountRole(option.role)}
-                      style={({ pressed }) => [
-                        styles.roleOption,
-                        pressed && styles.roleOptionPressed,
-                      ]}
-                    >
-                      <MaterialCommunityIcons
-                        color={isSelected ? colors.textInverse : colors.primaryDark}
-                        name={option.icon}
-                        size={18}
-                      />
-                      <Text
-                        numberOfLines={1}
-                        style={[
-                          styles.roleOptionText,
-                          isSelected && styles.roleOptionTextSelected,
-                        ]}
-                      >
-                        {option.label}
-                      </Text>
-                    </Pressable>
-                  )
-                })}
-              </View>
-              <Animated.View
-                style={{
-                  opacity: roleContentVisibility,
-                  transform: [
-                    {
-                      translateY: roleContentVisibility.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [6, 0],
-                      }),
-                    },
-                  ],
-                }}
-              >
-                <Text style={styles.roleHelperText}>
-                  {accountRole === 'event_coordinator'
-                    ? 'Coordinate assigned events, schedules, and event-day tasks in one workspace.'
-                    : 'List your services, manage bookings, and connect with clients.'}
-                </Text>
-              </Animated.View>
+              <Text style={styles.roleSelectorLabel}>SERVICE PROVIDER APPLICATION</Text>
+              <Text style={styles.roleHelperText}>
+                List your services, manage bookings, and connect with clients.
+              </Text>
             </View>
 
             <Animated.View
               style={[
                 styles.roleFields,
                 {
-                  opacity: roleContentVisibility,
+                  opacity: 1,
                   transform: [
                     {
-                      translateY: roleContentVisibility.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [10, 0],
-                      }),
+                      translateY: 0,
                     },
                   ],
                 },
               ]}
             >
-            <TextInput autoCapitalize="words" icon={<MaterialCommunityIcons color={colors.primaryDark} name={accountRole === 'event_coordinator' ? 'account-group-outline' : 'office-building-outline'} size={20} />} onChangeText={setBusinessName} placeholder={accountRole === 'event_coordinator' ? 'Coordinator or team name' : 'Business name'} returnKeyType="next" style={[styles.input, styles.inputWithIcon]} value={businessName} />
-            <TextInput autoCapitalize="words" autoComplete="name" icon={<MaterialCommunityIcons color={colors.primaryDark} name="account-circle-outline" size={20} />} onChangeText={setContactName} placeholder={accountRole === 'event_coordinator' ? 'Full name' : 'Contact person'} returnKeyType="next" style={[styles.input, styles.inputWithIcon]} value={contactName} />
-            {accountRole === 'service_provider' && <View ref={categoryFieldRef} style={styles.dropdownContainer}>
+            <TextInput autoCapitalize="words" icon={<MaterialCommunityIcons color={colors.primaryDark} name="office-building-outline" size={20} />} onChangeText={setBusinessName} placeholder="Business name" returnKeyType="next" style={[styles.input, styles.inputWithIcon]} value={businessName} />
+            <TextInput autoCapitalize="words" autoComplete="name" icon={<MaterialCommunityIcons color={colors.primaryDark} name="account-circle-outline" size={20} />} onChangeText={setContactName} placeholder="Contact person" returnKeyType="next" style={[styles.input, styles.inputWithIcon]} value={contactName} />
+            <View ref={categoryFieldRef} style={styles.dropdownContainer}>
               <Pressable
                 accessibilityLabel="Service category"
                 accessibilityRole="button"
@@ -484,21 +319,21 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
                 ))}
                 </Animated.View>
               )}
-            </View>}
-            <TextInput autoCapitalize="none" autoComplete="email" error={submitted && !emailIsValid} helperText={submitted && !emailIsValid ? `Enter a valid ${accountRole === 'event_coordinator' ? 'email' : 'business email'}.` : undefined} icon={<MaterialCommunityIcons color={colors.primaryDark} name="at" size={20} />} inputMode="email" keyboardType="email-address" onChangeText={setEmail} placeholder={accountRole === 'event_coordinator' ? 'Email address' : 'Business email'} returnKeyType="next" style={[styles.input, styles.inputWithIcon]} value={email} />
+            </View>
+            <TextInput autoCapitalize="none" autoComplete="email" error={submitted && !emailIsValid} helperText={submitted && !emailIsValid ? 'Enter a valid business email.' : undefined} icon={<MaterialCommunityIcons color={colors.primaryDark} name="at" size={20} />} inputMode="email" keyboardType="email-address" onChangeText={setEmail} placeholder="Business email" returnKeyType="next" style={[styles.input, styles.inputWithIcon]} value={email} />
             <TextInput autoComplete="tel" icon={<MaterialCommunityIcons color={colors.primaryDark} name="cellphone" size={20} />} inputMode="tel" keyboardType="phone-pad" onChangeText={setPhoneNumber} placeholder="Phone number" returnKeyType="next" style={[styles.input, styles.inputWithIcon]} value={phoneNumber} />
             <TextInput autoCapitalize="none" autoComplete="new-password" icon={<MaterialCommunityIcons color={colors.primaryDark} name="lock-outline" size={20} />} onChangeText={setPassword} onFocus={() => sheetScroll.current?.scrollTo({ y: 260, animated: true })} placeholder="Password" returnKeyType="next" rightIcon={visibilityIcon(isPasswordVisible, 'password', () => setIsPasswordVisible((visible) => !visible))} secureTextEntry={!isPasswordVisible} style={[styles.input, styles.inputWithIcon]} value={password} />
             <TextInput autoCapitalize="none" autoComplete="new-password" error={submitted && confirmPassword.length > 0 && !passwordsMatch} helperText={submitted && confirmPassword.length > 0 && !passwordsMatch ? 'Passwords do not match.' : undefined} icon={<MaterialCommunityIcons color={colors.primaryDark} name="lock-outline" size={20} />} onChangeText={setConfirmPassword} onFocus={() => setTimeout(() => sheetScroll.current?.scrollToEnd({ animated: true }), 100)} onSubmitEditing={handleSignUp} placeholder="Confirm password" returnKeyType="done" rightIcon={visibilityIcon(isConfirmPasswordVisible, 'confirm password', () => setIsConfirmPasswordVisible((visible) => !visible))} secureTextEntry={!isConfirmPasswordVisible} style={[styles.input, styles.inputWithIcon]} value={confirmPassword} />
 
-            {submitted && !canSubmit && <Text accessibilityRole="alert" style={styles.formError}>{accountRole === 'service_provider' ? 'Complete your profile, select a service category, use a valid email, use at least 8 password characters, and accept the terms.' : 'Complete your profile, use a valid email, use at least 8 password characters, and accept the terms.'}</Text>}
+            {submitted && !canSubmit && <Text accessibilityRole="alert" style={styles.formError}>Complete your profile, select a service category, use a valid email, use at least 8 password characters, and accept the terms.</Text>}
             {authError.length > 0 && <Text accessibilityRole="alert" style={styles.formError}>{authError}</Text>}
             <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: acceptedTerms }} onPress={() => setAcceptedTerms((accepted) => !accepted)} style={styles.termsRow}>
               <View style={[styles.checkbox, acceptedTerms && styles.checkboxChecked]}>
                 {acceptedTerms && <MaterialCommunityIcons color={colors.textInverse} name="check" size={14} />}
               </View>
-              <Text style={styles.termsText}>I agree to the {accountRole === 'event_coordinator' ? 'Coordinator' : 'Merchant'} Terms and Privacy Policy.</Text>
+              <Text style={styles.termsText}>I agree to the Provider Terms, Privacy Policy, and MULTIVENT commission policy (currently 10%).</Text>
             </Pressable>
-            <Button accessibilityLabel={accountRole === 'event_coordinator' ? 'Create event coordinator account' : 'Create service provider account'} disabled={!canSubmit} isFullWidth isLoading={isLoading} onPress={handleSignUp} size="lg" style={styles.submitButton} textStyle={styles.buttonText}>{accountRole === 'event_coordinator' ? 'CREATE COORDINATOR ACCOUNT' : 'CREATE MERCHANT ACCOUNT'}</Button>
+            <Button accessibilityLabel="Create service provider account" disabled={!canSubmit} isFullWidth isLoading={isLoading} onPress={handleSignUp} size="lg" style={styles.submitButton} textStyle={styles.buttonText}>CREATE MERCHANT ACCOUNT</Button>
             </Animated.View>
           </ScrollView>
         </Animated.View>

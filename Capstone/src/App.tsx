@@ -35,7 +35,6 @@ import {
   ClientEventDraftSummary,
   closeCurrentEventDraft,
   fetchClientPlanningState,
-  removeCoordinatorFromEvent,
   removeServiceSelection,
   replaceServiceSelection,
   saveBudgetPlan,
@@ -110,6 +109,7 @@ import { MerchantBookingDetailScreen } from './screens/20-BookingDetail'
 import { ReviewPerformanceScreen } from './screens/21-ReviewPerformance'
 import { MerchantProfileAction, MerchantProfileScreen } from './screens/22-MerchantProfile'
 import { AccountProfileScreen } from './screens/24-AccountProfile'
+import { SupportScreen } from './screens/25-Support'
 import { OperatingHoursScreen } from './screens/22.1-OperatingHours'
 import { PayoutEarningsScreen, PayoutTransaction } from './screens/22.2-PayoutEarnings'
 import { TransactionDetailsScreen } from './screens/22.3-TransactionDetails'
@@ -229,6 +229,7 @@ type AppScreen =
   | 'providerChangePassword'
   | 'providerNotifications'
   | 'accountProfile'
+  | 'support'
   | 'coordinatorHome'
   | 'coordinatorNotifications'
   | 'adminHome'
@@ -424,8 +425,10 @@ export const App: React.FC = () => {
   const [selectedServices, setSelectedServices] = React.useState<SelectedSummaryService[]>([])
   const [assignedCoordinator, setAssignedCoordinator] =
     React.useState<AssignedCoordinatorSummary>()
+  const [coordinatorAssignmentStatus, setCoordinatorAssignmentStatus] = React.useState<
+    'accepted' | 'pending' | 'awaiting_assignment' | undefined
+  >()
   const [assigningCoordinatorId, setAssigningCoordinatorId] = React.useState('')
-  const [isRemovingCoordinator, setIsRemovingCoordinator] = React.useState(false)
   const [scheduleProviders, setScheduleProviders] = React.useState<ScheduleProvider[]>([])
   const [replacementTarget, setReplacementTarget] =
     React.useState<ScheduleConflictProvider>()
@@ -858,6 +861,7 @@ export const App: React.FC = () => {
     if (planningState.event) setEventDetails(planningState.event)
     if (planningState.totalBudget !== undefined) setTotalBudget(planningState.totalBudget)
     setAssignedCoordinator(planningState.assignedCoordinator)
+    setCoordinatorAssignmentStatus(planningState.coordinatorAssignmentStatus)
     setClientEventDraft(planningState.draftSummary)
     setSelectedServices(planningState.selectedServices)
     setLastPayment(planningState.lastPayment)
@@ -1113,8 +1117,8 @@ export const App: React.FC = () => {
           setMaxPlanningStep(1)
           setClientEventDraft(undefined)
           setAssignedCoordinator(undefined)
+          setCoordinatorAssignmentStatus(undefined)
           setAssigningCoordinatorId('')
-          setIsRemovingCoordinator(false)
           setReplacementTarget(undefined)
           setScheduleProviders([])
           setScreen('roleSelection')
@@ -1462,23 +1466,6 @@ export const App: React.FC = () => {
     setScreen('selectedSummary')
   }
 
-  const handleRemoveCoordinator = async () => {
-    if (isRemovingCoordinator || !assignedCoordinator) return
-
-    setIsRemovingCoordinator(true)
-    const result = await removeCoordinatorFromEvent()
-    setIsRemovingCoordinator(false)
-
-    if (!result.ok) {
-      setToastMessage(result.message ?? 'Unable to remove this coordinator.')
-      return
-    }
-
-    setAssignedCoordinator(undefined)
-    setToastMessage(result.message ?? 'The coordinator was removed from your event.')
-    await refreshLiveData()
-  }
-
   const handleRemoveSelection = async (service: SelectedSummaryService) => {
     if (removingServiceId) return
 
@@ -1789,6 +1776,7 @@ export const App: React.FC = () => {
     setTotalBudget(DEFAULT_BUDGET)
     setSelectedServices([])
     setAssignedCoordinator(undefined)
+    setCoordinatorAssignmentStatus(undefined)
     setScheduleProviders([])
     setReplacementTarget(undefined)
     setLastPayment(undefined)
@@ -1919,15 +1907,9 @@ export const App: React.FC = () => {
             <MerchantSignupScreen
               onBack={openRoleSelectionFromSignup}
               onLogIn={() => openLogin('merchantSignup')}
-              onSignUp={(email, needsVerification, accountRole) => {
+              onSignUp={(email, needsVerification) => {
                 if (needsVerification) {
-                  openVerification(
-                    email,
-                    'merchantSignup',
-                    accountRole === 'event_coordinator'
-                      ? 'coordinatorHome'
-                      : 'pendingApproval'
-                  )
+                  openVerification(email, 'merchantSignup', 'pendingApproval')
                   return
                 }
 
@@ -2364,10 +2346,13 @@ export const App: React.FC = () => {
             isLoading={isLoadingAccountProfile}
             isSaving={isSavingAccountProfile}
             onBack={() => setScreen(profileReturnScreen)}
+            onOpenSupport={() => setScreen('support')}
             onSave={(value) => void saveAccountProfile(value)}
             profile={accountProfile}
           />
         )
+      case 'support':
+        return <SupportScreen onBack={() => setScreen('accountProfile')} />
       case 'providerOperatingHours':
         return (
           <OperatingHoursScreen
@@ -2631,8 +2616,8 @@ export const App: React.FC = () => {
         return (
           <SelectedSummaryScreen
             assignedCoordinator={assignedCoordinator}
+            coordinatorAssignmentStatus={coordinatorAssignmentStatus}
             budget={totalBudget}
-            removingCoordinator={isRemovingCoordinator}
             removingServiceId={removingServiceId}
             selectedServices={selectedServices}
             showBottomNavigation={false}
@@ -2640,7 +2625,6 @@ export const App: React.FC = () => {
             onAddService={openPlanningHub}
             onBack={openPlanningHub}
             onOpenMenu={() => setScreen('clientHome')}
-            onRemoveCoordinator={() => void handleRemoveCoordinator()}
             onRemoveService={handleRemoveSelection}
             onSelectService={(service) => {
               setCurrentServiceId(service)

@@ -36,8 +36,8 @@ export interface AssignedCoordinatorSummary {
 
 interface SelectedSummaryScreenProps {
   assignedCoordinator?: AssignedCoordinatorSummary
+  coordinatorAssignmentStatus?: 'accepted' | 'pending' | 'awaiting_assignment'
   budget?: number
-  removingCoordinator?: boolean
   removingServiceId?: string
   selectedServices?: SelectedSummaryService[]
   showBottomNavigation?: boolean
@@ -45,7 +45,6 @@ interface SelectedSummaryScreenProps {
   onAddService?: () => void
   onBack?: () => void
   onOpenMenu?: () => void
-  onRemoveCoordinator?: () => void
   onRemoveService?: (service: SelectedSummaryService) => void
   onSelectService?: (service: SelectedServiceId) => void
   onSelectTab?: (tab: SelectedSummaryTab) => void
@@ -56,8 +55,8 @@ const formatCurrency = (value: number) =>
 
 export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
   assignedCoordinator,
+  coordinatorAssignmentStatus,
   budget = 40000,
-  removingCoordinator = false,
   removingServiceId = '',
   selectedServices = [],
   showBottomNavigation = true,
@@ -65,7 +64,6 @@ export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
   onAddService,
   onBack,
   onOpenMenu,
-  onRemoveCoordinator,
   onRemoveService,
   onSelectService,
   onSelectTab,
@@ -162,21 +160,19 @@ export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
                   : 'Has access to this event, booked services, and your provider instructions.'}
               </Text>
             </View>
-            <Pressable
-              accessibilityLabel={`Remove ${assignedCoordinator.name} from this event`}
-              accessibilityRole="button"
-              accessibilityState={{ disabled: removingCoordinator }}
-              disabled={removingCoordinator}
-              hitSlop={8}
-              onPress={onRemoveCoordinator}
-              style={({ pressed }) => [styles.coordinatorRemove, pressed && styles.removeButtonPressed]}
-            >
-              <MaterialCommunityIcons
-                color={palette.primaryContainer}
-                name={removingCoordinator ? 'progress-clock' : 'close'}
-                size={20}
-              />
-            </Pressable>
+          </View>
+        ) : coordinatorAssignmentStatus === 'awaiting_assignment' ? (
+          <View style={styles.coordinatorCard}>
+            <View style={styles.coordinatorAvatarFallback}>
+              <MaterialCommunityIcons color={palette.white} name="account-search" size={25} />
+            </View>
+            <View style={styles.coordinatorCopy}>
+              <Text style={styles.coordinatorEyebrow}>COORDINATOR ASSIGNMENT PENDING</Text>
+              <Text style={styles.coordinatorName}>MULTIVENT is finding your coordinator</Text>
+              <Text style={styles.coordinatorDetail}>
+                We are matching an available coordinator to your event. You will be notified when the assignment is confirmed.
+              </Text>
+            </View>
           </View>
         ) : null}
 
