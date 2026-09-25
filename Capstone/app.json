@@ -8,7 +8,11 @@
     "userInterfaceStyle": "light",
     "backgroundColor": "#FFFFFF",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.intelink.multivent",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "predictiveBackGestureEnabled": false,
@@ -21,7 +25,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow MULTIVENT to select service photos from your device."
+          "photosPermission": "Allow MULTIVENT to select service photos from your device.",
+          "microphonePermission": false
         }
       ],
       "expo-web-browser"
