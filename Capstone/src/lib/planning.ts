@@ -1167,7 +1167,11 @@ export const saveProviderInstructions = async (
 
     if (selectionsError) return { ok: false, message: selectionsError.message }
 
-    const rows = value.requests.flatMap((request) => {
+    const providerRequests = value.requests.filter((request) => !request.coordinatorId)
+    const coordinatorRequests = value.requests.filter(
+      (request) => isUuid(request.coordinatorId)
+    )
+    const rows = providerRequests.flatMap((request) => {
       const selection = (selections ?? []).find(
         (item) =>
           (isUuid(request.serviceId) && item.service_id === request.serviceId) ||
@@ -1236,6 +1240,20 @@ export const saveProviderInstructions = async (
       }]
     }).filter((row) => row.body.trim().length > 0 || row.tags.length > 0)
 
+    const { error: coordinatorDeleteError } = await client
+      .from('event_coordinator_instructions')
+      .delete()
+      .eq('event_id', event.eventId)
+
+    if (coordinatorDeleteError) {
+      return {
+        ok: false,
+        message: coordinatorDeleteError.message.toLowerCase().includes('event_coordinator_instructions')
+          ? 'Coordinator instructions are not installed yet. Apply database/29_coordinator_lifecycle_instructions_reviews.sql.'
+          : coordinatorDeleteError.message,
+      }
+    }
+
     const { error: deleteError } = await client
       .from('event_provider_instructions')
       .delete()
@@ -1245,8 +1263,25 @@ export const saveProviderInstructions = async (
 
     if (rows.length > 0) {
       const { error } = await client.from('event_provider_instructions').insert(rows)
+      if (error) return { ok: false, message: error.message }
+    }
 
-      return { ok: !error, message: error?.message }
+    const coordinatorRows = coordinatorRequests
+      .map((request) => ({
+        body: request.notes.trim() || null,
+        coordinator_id: request.coordinatorId,
+        event_id: event.eventId,
+        status: 'saved',
+        tags: request.selectedTags,
+        title: 'Planning and coordination notes',
+      }))
+      .filter((row) => Boolean(row.body) || row.tags.length > 0)
+
+    if (coordinatorRows.length > 0) {
+      const { error } = await client
+        .from('event_coordinator_instructions')
+        .insert(coordinatorRows)
+      if (error) return { ok: false, message: error.message }
     }
 
     return { ok: true }
@@ -1434,6 +1469,7 @@ export const saveClientReview = async ({
 }
 
 export const saveEventFeedback = async ({
+  coordinatorReview,
   eventId,
   serviceReviews,
 }: EventFeedbackValue): Promise<PlanningResult> => {
@@ -1458,7 +1494,20 @@ export const saveEventFeedback = async ({
       return { ok: false, message: 'Rate every service from 1 to 5 stars.' }
     }
 
-    const { data, error } = await client.rpc('submit_event_service_feedback', {
+    if (
+      coordinatorReview && (
+        !Number.isInteger(coordinatorReview.rating) ||
+        coordinatorReview.rating < 1 ||
+        coordinatorReview.rating > 5 ||
+        coordinatorReview.comment.trim().length > 4000
+      )
+    ) {
+      return { ok: false, message: 'Rate the coordinator from 1 to 5 stars.' }
+    }
+
+    const { data, error } = await client.rpc('submit_event_feedback_v2', {
+      coordinator_comment: coordinatorReview?.comment.trim() || null,
+      coordinator_rating: coordinatorReview?.rating ?? null,
       service_reviews: serviceReviews.map((review) => ({
         booking_id: review.bookingId,
         comment: review.comment.trim() || null,
@@ -1468,7 +1517,12 @@ export const saveEventFeedback = async ({
     })
 
     if (error) {
-      return { ok: false, message: error.message ?? 'Unable to save service feedback.' }
+      return {
+        ok: false,
+        message: error.message.toLowerCase().includes('submit_event_feedback_v2')
+          ? 'Coordinator feedback is not installed yet. Apply database/29_coordinator_lifecycle_instructions_reviews.sql.'
+          : error.message ?? 'Unable to save event feedback.',
+      }
     }
 
     const result = data as

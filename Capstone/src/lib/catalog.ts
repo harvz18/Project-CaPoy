@@ -17,6 +17,14 @@ export interface ServiceCategoryOption {
   name: string
 }
 
+export interface CoordinatorReview {
+  comment: string
+  createdAt: string
+  eventType: string
+  id: string
+  rating: number
+}
+
 export const fallbackServiceCategories: ServiceCategoryOption[] = [
   { id: 'attire', name: 'Attire' },
   { id: 'catering', name: 'Catering' },
@@ -33,6 +41,7 @@ export interface CatalogService {
   bookingProviderId?: string
   bookingServiceId?: string
   coordinatorUserId?: string
+  coordinatorReviews?: CoordinatorReview[]
   id: string
   categoryId: CatalogCategoryId
   categoryDbId?: string
@@ -287,8 +296,18 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
 export const fetchAvailableCoordinators = async (): Promise<CatalogService[]> => {
   if (!supabase || !supabaseConfig.isConfigured) return []
 
-  const { data, error } = await supabase.rpc('list_available_event_coordinators')
+  const [{ data, error }, { data: reviewData }] = await Promise.all([
+    supabase.rpc('list_available_event_coordinators'),
+    supabase.rpc('list_event_coordinator_review_data'),
+  ])
   if (error || !Array.isArray(data)) return []
+
+  const reviewRows = new Map(
+    (Array.isArray(reviewData) ? reviewData : []).map((entry) => {
+      const row = entry as Record<string, unknown>
+      return [textFrom(row.coordinator_id, ''), row]
+    })
+  )
 
   return data.flatMap((entry) => {
     if (!entry || typeof entry !== 'object') return []
@@ -297,11 +316,30 @@ export const fetchAvailableCoordinators = async (): Promise<CatalogService[]> =>
     const coordinatorUserId = textFrom(row.id, '')
     const name = textFrom(row.full_name, 'Event Coordinator')
     if (!coordinatorUserId) return []
+    const reviewRow = reviewRows.get(coordinatorUserId)
+    const averageRating = Number(reviewRow?.average_rating ?? 0)
+    const reviewCount = Number(reviewRow?.review_count ?? 0)
+    const reviews = Array.isArray(reviewRow?.reviews)
+      ? reviewRow.reviews.flatMap((reviewEntry) => {
+          const review = reviewEntry as Record<string, unknown>
+          const reviewId = textFrom(review.id, '')
+          const rating = Number(review.rating)
+          if (!reviewId || !Number.isInteger(rating) || rating < 1 || rating > 5) return []
+          return [{
+            comment: textFrom(review.comment, ''),
+            createdAt: textFrom(review.created_at, ''),
+            eventType: textFrom(review.event_type, 'Completed event'),
+            id: reviewId,
+            rating,
+          }]
+        })
+      : []
 
     return [{
       categoryId: 'eventOrganizers' as const,
       categoryName: 'Event Organizer',
       coordinatorUserId,
+      coordinatorReviews: reviews,
       description: `${name} can coordinate your event plan and keep your booked services organized.`,
       detail: 'Event Coordinator',
       id: `coordinator:${coordinatorUserId}`,
@@ -313,8 +351,10 @@ export const fetchAvailableCoordinators = async (): Promise<CatalogService[]> =>
       name,
       pricingModel: 'customQuote' as const,
       providerName: name,
-      rating: 'New',
-      reviewCount: 0,
+      rating: reviewCount > 0 && Number.isFinite(averageRating)
+        ? averageRating.toFixed(1)
+        : 'New',
+      reviewCount,
       tags: ['EVENT ORGANIZER', 'COORDINATOR'],
     }]
   })

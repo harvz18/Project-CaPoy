@@ -36,6 +36,10 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
   const isWide = width >= 768
   const name = service?.name ?? 'Event Coordinator'
   const canAssign = mode === 'planning' && Boolean(service?.coordinatorUserId)
+  const reviews = service?.coordinatorReviews ?? []
+  const averageRating = reviews.length
+    ? reviews.reduce((total, review) => total + review.rating, 0) / reviews.length
+    : 0
 
   return (
     <View style={styles.screen}>
@@ -121,6 +125,59 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
             </Text>
           </View>
         </View>
+
+        <View style={styles.reviewsSection}>
+          <View style={styles.reviewsHeading}>
+            <View>
+              <Text style={styles.reviewsEyebrow}>VERIFIED CLIENT FEEDBACK</Text>
+              <Text style={styles.reviewsTitle}>Reviews &amp; feedback</Text>
+            </View>
+            <View style={styles.ratingSummary}>
+              <Text style={styles.ratingValue}>{reviews.length ? averageRating.toFixed(1) : 'New'}</Text>
+              <Text style={styles.ratingCount}>
+                {reviews.length} {reviews.length === 1 ? 'review' : 'reviews'}
+              </Text>
+            </View>
+          </View>
+
+          {reviews.length ? (
+            <View style={styles.reviewList}>
+              {reviews.map((review) => (
+                <View key={review.id} style={styles.reviewCard}>
+                  <View style={styles.reviewHeader}>
+                    <View>
+                      <Text style={styles.reviewerName}>Verified client</Text>
+                      <Text style={styles.reviewEvent}>{review.eventType}</Text>
+                    </View>
+                    <Text accessibilityLabel={`${review.rating} out of 5 stars`} style={styles.reviewStars}>
+                      {'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}
+                    </Text>
+                  </View>
+                  {review.comment ? (
+                    <Text style={styles.reviewComment}>{review.comment}</Text>
+                  ) : (
+                    <Text style={styles.reviewCommentMuted}>Rating submitted without a comment.</Text>
+                  )}
+                  {review.createdAt ? (
+                    <Text style={styles.reviewDate}>
+                      {new Date(review.createdAt).toLocaleDateString('en-PH', {
+                        day: 'numeric', month: 'short', year: 'numeric',
+                      })}
+                    </Text>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.emptyReviews}>
+              <MaterialCommunityIcons color={palette.muted} name="star-outline" size={27} />
+              <Text style={styles.emptyReviewsTitle}>No coordinator reviews yet</Text>
+              <Text style={styles.emptyReviewsCopy}>
+                Ratings from clients appear here after coordinated events are completed.
+              </Text>
+            </View>
+          )}
+        </View>
       </ScrollView>
 
       {canAssign ? (
@@ -195,6 +252,25 @@ const styles = StyleSheet.create({
   privacyCopy: { flex: 1, gap: 4 },
   privacyTitle: { color: palette.success, fontSize: 14, fontWeight: '700' },
   privacyText: { color: '#486052', fontSize: 13, lineHeight: 19 },
+  reviewsSection: { borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 22, gap: 15 },
+  reviewsHeading: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 },
+  reviewsEyebrow: { color: palette.primaryContainer, fontSize: 9, lineHeight: 13, fontWeight: '700', letterSpacing: 0.9 },
+  reviewsTitle: { color: palette.text, fontSize: 21, lineHeight: 28, fontWeight: '700', marginTop: 3 },
+  ratingSummary: { alignItems: 'flex-end' },
+  ratingValue: { color: palette.primaryContainer, fontSize: 24, lineHeight: 29, fontWeight: '700' },
+  ratingCount: { color: palette.muted, fontSize: 10, lineHeight: 14 },
+  reviewList: { gap: 10 },
+  reviewCard: { borderWidth: 1, borderColor: palette.border, borderRadius: 14, backgroundColor: palette.surface, padding: 15 },
+  reviewHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
+  reviewerName: { color: palette.text, fontSize: 12, lineHeight: 17, fontWeight: '700' },
+  reviewEvent: { color: palette.muted, fontSize: 10, lineHeight: 14, marginTop: 1, textTransform: 'capitalize' },
+  reviewStars: { color: '#D19A20', fontSize: 16, lineHeight: 20 },
+  reviewComment: { color: palette.text, fontSize: 13, lineHeight: 20, marginTop: 12 },
+  reviewCommentMuted: { color: palette.muted, fontSize: 12, lineHeight: 18, fontStyle: 'italic', marginTop: 12 },
+  reviewDate: { color: palette.muted, fontSize: 9, lineHeight: 13, marginTop: 10 },
+  emptyReviews: { alignItems: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 14, backgroundColor: palette.surface, padding: 24 },
+  emptyReviewsTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '700', marginTop: 8 },
+  emptyReviewsCopy: { maxWidth: 420, color: palette.muted, fontSize: 11, lineHeight: 17, textAlign: 'center', marginTop: 3 },
   actionBar: { position: 'absolute', left: 0, right: 0, bottom: 0, borderTopWidth: 1, borderTopColor: palette.border, backgroundColor: palette.surface, paddingHorizontal: 20, paddingVertical: 14 },
   assignButton: { width: '100%', maxWidth: 520, alignSelf: 'center', minHeight: 50, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, backgroundColor: palette.primaryContainer, paddingHorizontal: 20 },
   assignButtonDisabled: { backgroundColor: '#8F7A80' },

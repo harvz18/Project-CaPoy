@@ -15,6 +15,7 @@ import { PlanningScreenHeader } from '../components/PlanningScreenHeader'
 
 export interface InstructionModuleService {
   category: string
+  coordinatorId?: string
   id: string
   imageLabel: string
   imageUrl: string
@@ -30,6 +31,7 @@ export interface InstructionModuleValue {
     dietaryRestrictions: string
     mustHaveShots: string
     notes: string
+    coordinatorId?: string
     providerId?: string
     selectedTags: string[]
     serviceId?: string
@@ -144,6 +146,7 @@ export const InstructionModuleScreen: React.FC<InstructionModuleScreenProps> = (
         requests: services.map((service) => ({
           category: service.category,
           ...(drafts[service.id] ?? emptyDraft()),
+          coordinatorId: service.coordinatorId,
           providerId: service.providerId,
           serviceId: service.serviceId,
           serviceKey: service.id,

@@ -741,20 +741,36 @@ export const App: React.FC = () => {
             price: 0,
           },
         ]
-  const instructionServices: InstructionModuleService[] = selectedServices.map((selected) => {
-    const catalogService = catalogServices.find((service) => service.id === selected.id)
+  const instructionServices: InstructionModuleService[] = [
+    ...selectedServices.map((selected) => {
+      const catalogService = catalogServices.find((service) => service.id === selected.id)
 
-    return {
-      category: catalogService?.categoryName ?? selected.category,
-      id: selected.id,
-      imageLabel: selected.imageLabel,
-      imageUrl: selected.imageUrl,
-      name: selected.name,
-      providerId: catalogService?.bookingProviderId ?? catalogService?.providerId,
-      providerName: catalogService?.providerName ?? selected.name,
-      serviceId: catalogService?.bookingServiceId ?? catalogService?.id,
-    }
-  })
+      return {
+        category: catalogService?.categoryName ?? selected.category,
+        id: selected.id,
+        imageLabel: selected.imageLabel,
+        imageUrl: selected.imageUrl,
+        name: selected.name,
+        providerId: catalogService?.bookingProviderId ?? catalogService?.providerId,
+        providerName: catalogService?.providerName ?? selected.name,
+        serviceId: catalogService?.bookingServiceId ?? catalogService?.id,
+      }
+    }),
+    ...(assignedCoordinator
+      ? [{
+          category: 'Event Organizer',
+          coordinatorId: assignedCoordinator.id.replace(/^coordinator:/, ''),
+          id: assignedCoordinator.id,
+          imageLabel: `${assignedCoordinator.name}, Event Coordinator`,
+          imageUrl: assignedCoordinator.avatarUrl,
+          name: assignedCoordinator.name,
+          providerName:
+            assignedCoordinator.status === 'pending'
+              ? 'Coordinator invitation pending'
+              : 'Assigned event coordinator',
+        }]
+      : []),
+  ]
   const paymentEvent: PaymentEventDetails = {
     date: eventDisplayDate,
     guestCount: eventDetails.guestCount,
@@ -917,6 +933,7 @@ export const App: React.FC = () => {
             )
             return { ...event, completedTaskCount }
           }),
+          invitations: current.invitations,
           tasks: current.tasks.map((item) =>
             item.id === task.id ? { ...item, status: nextStatus } : item
           ),
@@ -941,6 +958,62 @@ export const App: React.FC = () => {
       return result
     },
     [loadCoordinatorWorkspace]
+  )
+
+  const handleCoordinatorInvitationResponse = React.useCallback(
+    async (invitation: CoordinatorInvitation, accepted: boolean) => {
+      if (busyCoordinatorInvitationId) return
+
+      setBusyCoordinatorInvitationId(invitation.eventId)
+      const result = await respondToCoordinatorInvitation(invitation.eventId, accepted)
+
+      if (result.ok) {
+        setToastMessage(
+          accepted
+            ? `${invitation.eventName} is now in your coordinator workspace.`
+            : `Invitation for ${invitation.eventName} declined.`
+        )
+        await loadCoordinatorWorkspace(true)
+        await refreshLiveData()
+      } else {
+        setToastMessage(result.message ?? 'Unable to respond to this invitation.')
+      }
+
+      setBusyCoordinatorInvitationId('')
+    },
+    [busyCoordinatorInvitationId, loadCoordinatorWorkspace, refreshLiveData]
+  )
+
+  const handleCoordinatorMessageProvider = React.useCallback(
+    async (_event: CoordinatorEvent, service: CoordinatorBookedService) => {
+      if (!service.bookingId) {
+        setToastMessage('A provider conversation becomes available after this service is booked.')
+        return
+      }
+
+      const result = await openCoordinatorProviderConversation(service.bookingId)
+      if (!result.ok || !result.conversationId) {
+        setToastMessage(result.error ?? 'Unable to open the provider conversation.')
+        return
+      }
+
+      const latestConversations = await fetchConversations()
+      const conversation = latestConversations.find((item) => item.id === result.conversationId)
+      if (!conversation) {
+        setToastMessage('The conversation was opened, but it could not be loaded yet. Pull to refresh and try again.')
+        return
+      }
+
+      setConversations(latestConversations)
+      setSelectedConversation(conversation)
+      setConversationMessages([])
+      setChatReturnScreen('coordinatorHome')
+      setScreen('chatThread')
+      const messages = await fetchConversationMessages(conversation.id)
+      setConversationMessages(messages)
+      await markConversationRead(conversation.id)
+    },
+    []
   )
 
   const routeForRole = React.useCallback((role?: AccountRole | string | null) => {
@@ -1382,8 +1455,9 @@ export const App: React.FC = () => {
       avatarUrl: currentService.imageUrl,
       id: currentService.id,
       name: currentService.name,
+      status: 'pending',
     })
-    setToastMessage(result.message ?? `${currentService.name} is now assigned to your event.`)
+    setToastMessage(result.message ?? `Invitation sent to ${currentService.name}.`)
     await refreshLiveData()
     setScreen('selectedSummary')
   }
@@ -2365,14 +2439,20 @@ export const App: React.FC = () => {
       case 'coordinatorHome':
         return (
           <CoordinatorScreen
+            busyInvitationId={busyCoordinatorInvitationId}
             busyTaskId={busyCoordinatorTaskId}
             dashboard={coordinatorDashboard}
             errorMessage={coordinatorError}
             isLoading={isCoordinatorLoading}
             isRefreshing={isCoordinatorRefreshing}
             onCreateTask={handleCreateCoordinatorTask}
+            onMessageProvider={(event, service) => void handleCoordinatorMessageProvider(event, service)}
             onOpenNotifications={() => setScreen('coordinatorNotifications')}
+            onOpenProfile={() => openAccountProfile('coordinatorHome')}
             onRefresh={() => void loadCoordinatorWorkspace(true)}
+            onRespondInvitation={(invitation, accepted) =>
+              void handleCoordinatorInvitationResponse(invitation, accepted)
+            }
             onSignOut={() => {
               void supabase?.auth.signOut()
               setCoordinatorDashboard(emptyCoordinatorDashboard())
@@ -2667,6 +2747,7 @@ export const App: React.FC = () => {
             onSelectConversation={(conversation) => {
               setSelectedConversation(conversation)
               setConversationMessages([])
+              setChatReturnScreen('messages')
               setScreen('chatThread')
               void Promise.all([
                 fetchConversationMessages(conversation.id),
@@ -2717,11 +2798,13 @@ export const App: React.FC = () => {
             }
             onBack={() => {
               void refreshLiveData()
-              setScreen('messages')
+              setScreen(chatReturnScreen)
             }}
             onOpenBooking={() =>
               setScreen(
-                homeReturnScreen === 'providerHome'
+                chatReturnScreen === 'coordinatorHome'
+                  ? 'coordinatorHome'
+                  : homeReturnScreen === 'providerHome'
                   ? 'providerBookingRequests'
                   : 'bookings'
               )

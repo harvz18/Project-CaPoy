@@ -33,6 +33,9 @@ export interface BookingItem {
   amount?: number
   category: string
   createdAt?: string
+  coordinatorAvatarUrl?: string
+  coordinatorName?: string
+  coordinatorUserId?: string
   date: string
   eventId?: string
   hasFeedback?: boolean

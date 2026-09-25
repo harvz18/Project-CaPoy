@@ -19,6 +19,11 @@ export interface ServiceFeedbackValue {
 }
 
 export interface EventFeedbackValue {
+  coordinatorReview?: {
+    comment: string
+    coordinatorId: string
+    rating: number
+  }
   eventId?: string
   serviceReviews: ServiceFeedbackValue[]
 }
@@ -40,6 +45,7 @@ export const EventFeedbackScreen: React.FC<EventFeedbackScreenProps> = ({
 }) => {
   const services = React.useMemo(() => booking?.services ?? [], [booking?.services])
   const [drafts, setDrafts] = React.useState<Record<string, Draft>>({})
+  const [coordinatorDraft, setCoordinatorDraft] = React.useState<Draft>({ comment: '', rating: 0 })
   const [error, setError] = React.useState('')
   const [submitting, setSubmitting] = React.useState(false)
   const [submitted, setSubmitted] = React.useState(false)
@@ -63,11 +69,19 @@ export const EventFeedbackScreen: React.FC<EventFeedbackScreenProps> = ({
       )
     )
     setError('')
+    setCoordinatorDraft({ comment: '', rating: 0 })
     setSubmitted(false)
   }, [booking?.id, services])
 
   const ratedCount = services.filter((service) => (drafts[service.bookingId]?.rating ?? 0) > 0).length
-  const canSubmit = services.length > 0 && ratedCount === services.length && !submitting
+  const hasCoordinator = Boolean(booking?.coordinatorUserId)
+  const totalReviewCount = services.length + (hasCoordinator ? 1 : 0)
+  const completedReviewCount = ratedCount + (hasCoordinator && coordinatorDraft.rating > 0 ? 1 : 0)
+  const canSubmit =
+    services.length > 0 &&
+    ratedCount === services.length &&
+    (!hasCoordinator || coordinatorDraft.rating > 0) &&
+    !submitting
 
   const updateDraft = (bookingId: string, update: Partial<Draft>) => {
     setDrafts((current) => {
@@ -79,7 +93,7 @@ export const EventFeedbackScreen: React.FC<EventFeedbackScreenProps> = ({
 
   const handleSubmit = async () => {
     if (!canSubmit) {
-      setError('Please choose a star rating for every service.')
+      setError('Please choose a star rating for every service and the event coordinator.')
       return
     }
 
@@ -89,6 +103,14 @@ export const EventFeedbackScreen: React.FC<EventFeedbackScreenProps> = ({
     try {
       const saved = await onSubmit?.({
         eventId: booking?.eventId ?? booking?.id,
+        coordinatorReview:
+          booking?.coordinatorUserId
+            ? {
+                comment: coordinatorDraft.comment.trim(),
+                coordinatorId: booking.coordinatorUserId,
+                rating: coordinatorDraft.rating,
+              }
+            : undefined,
         serviceReviews: services.map((service) => ({
           bookingId: service.bookingId,
           comment: (drafts[service.bookingId]?.comment ?? '').trim(),
@@ -125,7 +147,7 @@ export const EventFeedbackScreen: React.FC<EventFeedbackScreenProps> = ({
           >
             <Text style={styles.backIcon}>{'<'}</Text>
           </Pressable>
-          <Text style={styles.headerTitle}>SERVICE FEEDBACK</Text>
+          <Text style={styles.headerTitle}>EVENT FEEDBACK</Text>
           <View style={styles.headerButton} />
         </View>
       </View>
@@ -139,15 +161,19 @@ export const EventFeedbackScreen: React.FC<EventFeedbackScreenProps> = ({
           <Text style={styles.eventEyebrow}>COMPLETED EVENT</Text>
           <Text style={styles.eventName}>{booking?.name ?? 'Your event'}</Text>
           <Text style={styles.eventMeta}>
-            {[booking?.date, `${services.length} booked services`].filter(Boolean).join('  ·  ')}
+            {[
+              booking?.date,
+              `${services.length} booked services`,
+              booking?.coordinatorUserId ? '1 event coordinator' : '',
+            ].filter(Boolean).join('  ·  ')}
           </Text>
         </View>
 
         <View style={styles.introSection}>
-          <Text style={styles.title}>Rate each service</Text>
+          <Text style={styles.title}>Rate your event team</Text>
           <Text style={styles.subtitle}>
-            Star ratings are required. Comments are optional and help future clients understand
-            what went well and what could improve.
+            Rate every booked service and your coordinator. Comments are optional and help
+            future clients understand what went well and what could improve.
           </Text>
         </View>
 
@@ -214,18 +240,81 @@ export const EventFeedbackScreen: React.FC<EventFeedbackScreenProps> = ({
               </View>
             )
           })}
+
+          {booking?.coordinatorUserId ? (
+            <View style={[styles.serviceCard, styles.coordinatorCard]}>
+              <View style={styles.serviceHeading}>
+                <View style={styles.categoryChip}>
+                  <Text style={styles.categoryChipText}>EVENT COORDINATOR</Text>
+                </View>
+                <Text style={styles.serviceNumber}>COORDINATION FEEDBACK</Text>
+              </View>
+              <Text style={styles.serviceName}>{booking.coordinatorName ?? 'Event Coordinator'}</Text>
+              <Text style={styles.providerName}>Planning and event coordination</Text>
+
+              <View style={styles.ratingHeading}>
+                <Text style={styles.fieldLabel}>YOUR RATING</Text>
+                <Text style={styles.requiredLabel}>Required</Text>
+              </View>
+              <View
+                accessibilityLabel={`${coordinatorDraft.rating || 'No'} stars selected for the event coordinator`}
+                accessibilityRole="radiogroup"
+                style={styles.starRow}
+              >
+                {[1, 2, 3, 4, 5].map((rating) => (
+                  <Pressable
+                    key={rating}
+                    accessibilityLabel={`${rating} star${rating === 1 ? '' : 's'}`}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: coordinatorDraft.rating === rating }}
+                    hitSlop={4}
+                    onPress={() => setCoordinatorDraft((current) => ({ ...current, rating }))}
+                    style={({ pressed }) => [styles.starButton, pressed && styles.pressed]}
+                  >
+                    <Text style={[styles.star, rating <= coordinatorDraft.rating && styles.starSelected]}>
+                      {rating <= coordinatorDraft.rating ? '\u2605' : '\u2606'}
+                    </Text>
+                  </Pressable>
+                ))}
+                <Text style={styles.ratingValue}>
+                  {coordinatorDraft.rating ? `${coordinatorDraft.rating}/5` : 'Select'}
+                </Text>
+              </View>
+
+              <View style={styles.commentHeading}>
+                <Text style={styles.fieldLabel}>COMMENT</Text>
+                <Text style={styles.optionalLabel}>Optional</Text>
+              </View>
+              <View style={styles.inputShell}>
+                <TextInput
+                  accessibilityLabel="Comment for the event coordinator"
+                  maxLength={4000}
+                  multiline
+                  onChangeText={(comment) => setCoordinatorDraft((current) => ({ ...current, comment }))}
+                  placeholder="How was the coordination, communication, and planning?"
+                  placeholderTextColor={palette.placeholder}
+                  style={styles.input}
+                  textAlignVertical="top"
+                  value={coordinatorDraft.comment}
+                />
+                <Text style={styles.characterCount}>{coordinatorDraft.comment.length} / 4000</Text>
+              </View>
+            </View>
+          ) : null}
         </View>
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
         <Text style={styles.privacyNote}>
-          Comments are analyzed individually by the LDA + RAG sentiment pipeline. Ratings are
-          stored as ratings and are not used to change the model's sentiment decision.
+          Service comments are analyzed individually by the feedback pipeline. Coordinator
+          ratings and comments appear as verified feedback on the coordinator profile.
         </Text>
       </ScrollView>
 
       <View style={styles.footer}>
         <View style={styles.footerContent}>
-          <Text style={styles.progressText}>{ratedCount} OF {services.length} SERVICES RATED</Text>
+          <Text style={styles.progressText}>
+            {completedReviewCount} OF {totalReviewCount} RATINGS COMPLETED
+          </Text>
           <Pressable
             accessibilityLabel="Submit service feedback"
             accessibilityRole="button"
@@ -260,9 +349,8 @@ export const EventFeedbackScreen: React.FC<EventFeedbackScreenProps> = ({
               Thank you for your feedback!
             </Text>
             <Text accessibilityLiveRegion="polite" style={styles.successCopy}>
-              Your ratings and comments were submitted successfully. Your written feedback is
-              now being analyzed to help future clients choose with confidence. Returning you to
-              Home...
+              Your service and coordinator feedback was submitted successfully. It will help
+              future clients choose their event team with confidence. Returning you to Home...
             </Text>
             <Pressable
               accessibilityLabel="Return to home"
@@ -305,6 +393,7 @@ const styles = StyleSheet.create({
   subtitle: { maxWidth: 560, color: palette.placeholder, fontSize: 15, lineHeight: 23, textAlign: 'center', marginTop: 8 },
   serviceList: { gap: 18 },
   serviceCard: { borderWidth: 1, borderColor: palette.border, borderRadius: 16, backgroundColor: palette.background, padding: 18 },
+  coordinatorCard: { borderColor: palette.burgundy, backgroundColor: '#FFF9FA' },
   serviceHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   categoryChip: { borderRadius: 999, backgroundColor: palette.soft, paddingHorizontal: 10, paddingVertical: 5 },
   categoryChipText: { color: palette.burgundy, fontSize: 9, lineHeight: 13, fontWeight: '800', letterSpacing: 0.7 },

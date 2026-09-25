@@ -51,6 +51,7 @@ export interface CoordinatorEvent {
   date?: string
   guestCount?: number
   id: string
+  instructions: CoordinatorServiceInstruction[]
   location?: string
   name: string
   services: CoordinatorBookedService[]
@@ -144,6 +145,7 @@ const parseDashboard = (value: unknown): CoordinatorDashboard => {
         date: optionalText(row.event_date),
         guestCount: row.guest_count == null ? undefined : numberFrom(row.guest_count),
         id,
+        instructions: [],
         location: optionalText(row.location),
         name,
         services: serviceRows.flatMap((entry) => {
@@ -245,12 +247,59 @@ export const fetchCoordinatorDashboard = async (): Promise<CoordinatorResult<Coo
     return { data: emptyCoordinatorDashboard(), message: unavailableMessage, ok: false }
   }
 
-  const { data, error } = await supabase.rpc('get_coordinator_dashboard')
+  const [{ data, error }, { data: instructionData, error: instructionError }] =
+    await Promise.all([
+      supabase.rpc('get_coordinator_dashboard'),
+      supabase.rpc('get_my_coordinator_instructions'),
+    ])
   if (error) {
     return { data: emptyCoordinatorDashboard(), message: error.message, ok: false }
   }
 
-  return { data: parseDashboard(data), ok: true }
+  if (instructionError) {
+    return {
+      data: emptyCoordinatorDashboard(),
+      message: instructionError.message.toLowerCase().includes('get_my_coordinator_instructions')
+        ? 'Coordinator instructions are not installed yet. Apply database/29_coordinator_lifecycle_instructions_reviews.sql.'
+        : instructionError.message,
+      ok: false,
+    }
+  }
+
+  const dashboard = parseDashboard(data)
+  const instructionsByEvent = new Map<string, CoordinatorServiceInstruction[]>()
+  for (const entry of Array.isArray(instructionData) ? instructionData : []) {
+    const row = recordFrom(entry)
+    const eventId = textFrom(row.event_id)
+    const id = textFrom(row.id)
+    const title = textFrom(row.title)
+    if (!eventId || !id || !title) continue
+
+    const instructions = instructionsByEvent.get(eventId) ?? []
+    instructions.push({
+      body: optionalText(row.body),
+      id,
+      isRequired: false,
+      status: textFrom(row.status, 'saved'),
+      tags: Array.isArray(row.tags)
+        ? row.tags.filter((tag): tag is string => typeof tag === 'string')
+        : [],
+      title,
+      type: 'coordination',
+    })
+    instructionsByEvent.set(eventId, instructions)
+  }
+
+  return {
+    data: {
+      ...dashboard,
+      events: dashboard.events.map((event) => ({
+        ...event,
+        instructions: instructionsByEvent.get(event.id) ?? [],
+      })),
+    },
+    ok: true,
+  }
 }
 
 export const createCoordinatorTask = async (

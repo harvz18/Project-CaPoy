@@ -585,7 +585,10 @@ export const cancelClientEventBookings = async (
       }
     }
 
-    return { ok: true, message: 'The booking was cancelled and the providers were notified.' }
+    return {
+      ok: true,
+      message: 'The event was cancelled. Its providers and coordinator were notified and released.',
+    }
   } catch (error) {
     return { ok: false, message: toMessage(error, 'Unable to cancel this booking.') }
   }
@@ -761,7 +764,7 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
   const { data, error } = await client
     .from('bookings')
     .select(
-      'id, event_id, provider_id, service_id, amount, status, requested_date, requested_time, created_at, updated_at, events(id, name, event_type, event_date, event_time, guest_count, venue, location, status), services(name, cover_image_url, service_categories(name)), provider_profiles(business_name), payments!inner(status, amount, paid_at, metadata)'
+      'id, event_id, provider_id, service_id, amount, status, requested_date, requested_time, created_at, updated_at, events(id, coordinator_id, name, event_type, event_date, event_time, guest_count, venue, location, status), services(name, cover_image_url, service_categories(name)), provider_profiles(business_name), payments!inner(status, amount, paid_at, metadata)'
     )
     .eq('client_id', userId)
     .neq('status', 'payment_required')
@@ -773,14 +776,44 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
   const bookingIds = data
     .map((row) => textFrom((row as Record<string, unknown>).id))
     .filter(Boolean)
-  const { data: reviewRows } = bookingIds.length
-    ? await client
-        .from('reviews')
-        .select('booking_id')
-        .eq('reviewer_id', userId)
-        .in('booking_id', bookingIds)
-    : { data: [] }
+  const eventIds = Array.from(new Set(data.map((row) => textFrom(row.event_id)).filter(Boolean)))
+  const coordinatorIds = Array.from(new Set(data.flatMap((row) => {
+    const event = nested((row as unknown as Record<string, unknown>).events) as Record<string, unknown> | undefined
+    const coordinatorId = textFrom(event?.coordinator_id)
+    return coordinatorId ? [coordinatorId] : []
+  })))
+  const [{ data: reviewRows }, { data: coordinatorProfiles }, { data: coordinatorReviewRows }] =
+    await Promise.all([
+      bookingIds.length
+        ? client
+            .from('reviews')
+            .select('booking_id')
+            .eq('reviewer_id', userId)
+            .in('booking_id', bookingIds)
+        : Promise.resolve({ data: [] }),
+      coordinatorIds.length
+        ? client.rpc('list_available_event_coordinators')
+        : Promise.resolve({ data: [] }),
+      eventIds.length
+        ? client
+            .from('coordinator_reviews')
+            .select('event_id')
+            .eq('reviewer_id', userId)
+            .in('event_id', eventIds)
+        : Promise.resolve({ data: [] }),
+    ])
   const reviewedBookingIds = new Set((reviewRows ?? []).map((row) => textFrom(row.booking_id)))
+  const reviewedCoordinatorEventIds = new Set(
+    (coordinatorReviewRows ?? []).map((row) => textFrom(row.event_id))
+  )
+  const coordinatorProfileRows = Array.isArray(coordinatorProfiles)
+    ? (coordinatorProfiles as Array<Record<string, unknown>>)
+    : []
+  const coordinatorProfilesById = new Map(
+    coordinatorProfileRows
+      .filter((profile) => coordinatorIds.includes(textFrom(profile.id)))
+      .map((profile) => [textFrom(profile.id), profile])
+  )
   const grouped = new Map<string, BookingItem>()
 
   data.forEach((row) => {
@@ -823,6 +856,8 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
     }
 
     const eventName = textFrom(event?.name, 'Event booking')
+    const coordinatorId = textFrom(event?.coordinator_id)
+    const coordinator = coordinatorProfilesById.get(coordinatorId)
     const metadata =
       latestPayment?.metadata && typeof latestPayment.metadata === 'object'
         ? (latestPayment.metadata as Record<string, unknown>)
@@ -833,6 +868,11 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
       amount: serviceItem.amount,
       category: textFrom(event?.event_type, 'Event'),
       createdAt: textFrom(record.created_at),
+      coordinatorAvatarUrl: textFrom(coordinator?.avatar_url) || undefined,
+      coordinatorName: coordinatorId
+        ? textFrom(coordinator?.full_name, 'Event Coordinator')
+        : undefined,
+      coordinatorUserId: coordinatorId || undefined,
       date: toIsoDate(event?.event_date ?? record.requested_date),
       eventId,
       hasFeedback: false,
@@ -861,7 +901,8 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
       ...booking,
       hasFeedback:
         services.length > 0 &&
-        services.every((service) => reviewedBookingIds.has(service.bookingId)),
+        services.every((service) => reviewedBookingIds.has(service.bookingId)) &&
+        (!booking.coordinatorUserId || reviewedCoordinatorEventIds.has(booking.eventId ?? booking.id)),
       status:
         statuses.length > 0 && statuses.every((status) => status === 'completed')
           ? 'completed'

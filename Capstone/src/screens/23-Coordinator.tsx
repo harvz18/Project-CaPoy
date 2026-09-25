@@ -36,6 +36,7 @@ interface CoordinatorScreenProps {
   onCreateTask?: (input: CreateCoordinatorTaskInput) => Promise<CoordinatorResult>
   onMessageProvider?: (event: CoordinatorEvent, service: CoordinatorBookedService) => void
   onOpenNotifications?: () => void
+  onOpenProfile?: () => void
   onRefresh?: () => void
   onRespondInvitation?: (invitation: CoordinatorInvitation, accepted: boolean) => void
   onSignOut?: () => void
@@ -131,21 +132,44 @@ const EventCard: React.FC<{
 }> = ({ event, onMessageProvider }) => {
   const progress = eventProgress(event)
   const venue = event.venue || event.location || 'Venue to be confirmed'
+  const [expanded, setExpanded] = React.useState(false)
+  const [expandedServiceIds, setExpandedServiceIds] = React.useState<string[]>([])
+
+  const toggleService = (serviceId: string) => {
+    setExpandedServiceIds((current) =>
+      current.includes(serviceId)
+        ? current.filter((id) => id !== serviceId)
+        : [...current, serviceId]
+    )
+  }
 
   return (
     <View style={styles.eventCard}>
       <View style={styles.eventAccent} />
       <View style={styles.eventCardBody}>
-        <View style={styles.eventCardHeader}>
+        <Pressable
+          accessibilityLabel={`${expanded ? 'Hide' : 'Show'} details for ${event.name}`}
+          accessibilityRole="button"
+          accessibilityState={{ expanded }}
+          onPress={() => setExpanded((current) => !current)}
+          style={({ pressed }) => [styles.eventCardHeader, pressed && styles.pressedSurface]}
+        >
           <View style={styles.eventHeadingCopy}>
             <Text style={styles.eventType}>{statusLabel(event.type || 'Event')}</Text>
             <Text numberOfLines={2} style={styles.eventName}>{event.name}</Text>
             <Text style={styles.clientName}>For {event.clientName}</Text>
           </View>
-          <View style={styles.statusPill}>
-            <Text style={styles.statusPillText}>{statusLabel(event.status)}</Text>
+          <View style={styles.eventHeaderAside}>
+            <View style={styles.statusPill}>
+              <Text style={styles.statusPillText}>{statusLabel(event.status)}</Text>
+            </View>
+            <MaterialIcons
+              color={palette.primaryContainer}
+              name={expanded ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
+              size={23}
+            />
           </View>
-        </View>
+        </Pressable>
 
         <View style={styles.eventMetaGrid}>
           <View style={styles.eventMetaItem}>
@@ -165,111 +189,187 @@ const EventCard: React.FC<{
           </View>
         </View>
 
-        <View style={styles.progressHeader}>
-          <Text style={styles.progressLabel}>Coordination progress</Text>
-          <Text style={styles.progressValue}>{progress}%</Text>
-        </View>
-        <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${progress}%` }]} />
-        </View>
-        <View style={styles.eventFooter}>
-          <Text style={styles.eventFooterText}>
-            {event.completedTaskCount}/{event.taskCount} tasks complete
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setExpanded((current) => !current)}
+          style={({ pressed }) => [styles.disclosureHint, pressed && styles.pressed]}
+        >
+          <Text style={styles.disclosureHintText}>
+            {expanded ? 'Hide event details' : 'View event details and booked services'}
           </Text>
-          <Text style={styles.eventFooterText}>
-            {event.confirmedBookingCount}/{event.bookingCount} providers secured
-          </Text>
-        </View>
+          <MaterialIcons
+            color={palette.primaryContainer}
+            name={expanded ? 'expand-less' : 'expand-more'}
+            size={18}
+          />
+        </Pressable>
 
-        <View style={styles.servicesBlock}>
-          <View style={styles.servicesHeader}>
-            <Text style={styles.servicesLabel}>BOOKED &amp; SELECTED SERVICES</Text>
-            <Text style={styles.servicesCount}>{event.services.length}</Text>
-          </View>
-          {event.services.length ? event.services.map((service) => (
-            <View key={service.id} style={styles.serviceRow}>
-              <View style={styles.serviceSummaryRow}>
-                <View style={styles.serviceIcon}>
-                  <MaterialIcons color={palette.primaryContainer} name="business-center" size={15} />
-                </View>
-                <View style={styles.serviceCopy}>
-                  <Text numberOfLines={1} style={styles.serviceName}>{service.serviceName}</Text>
-                  <Text numberOfLines={1} style={styles.serviceProvider}>
-                    {service.providerName} · {service.categoryName}
-                  </Text>
-                </View>
-                <View style={styles.serviceAside}>
-                  <Text style={styles.serviceAmount}>{pesoLabel(service.amount)}</Text>
-                  <Text style={[styles.serviceStatus, service.booked && styles.serviceStatusBooked]}>
-                    {statusLabel(service.status)}
-                  </Text>
-                </View>
-              </View>
-              {service.clientNotes ? (
-                <View style={styles.clientNote}>
-                  <MaterialIcons color={palette.primaryContainer} name="notes" size={14} />
+        {expanded ? (
+          <View style={styles.eventExpandedContent}>
+            <View style={styles.progressHeader}>
+              <Text style={styles.progressLabel}>Coordination progress</Text>
+              <Text style={styles.progressValue}>{progress}%</Text>
+            </View>
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressFill, { width: `${progress}%` }]} />
+            </View>
+            <View style={styles.eventFooter}>
+              <Text style={styles.eventFooterText}>
+                {event.completedTaskCount}/{event.taskCount} tasks complete
+              </Text>
+              <Text style={styles.eventFooterText}>
+                {event.confirmedBookingCount}/{event.bookingCount} providers secured
+              </Text>
+            </View>
+
+            {event.instructions.length ? (
+              <View style={styles.coordinatorInstructionsBlock}>
+                <View style={styles.coordinatorInstructionsHeading}>
+                  <MaterialIcons color={palette.primaryContainer} name="assignment-ind" size={17} />
                   <View style={styles.instructionCopy}>
-                    <Text style={styles.instructionLabel}>CLIENT BOOKING NOTE</Text>
-                    <Text style={styles.instructionBody}>{service.clientNotes}</Text>
+                    <Text style={styles.instructionLabel}>CLIENT NOTES FOR YOUR COORDINATION</Text>
+                    <Text style={styles.coordinatorInstructionsCaption}>
+                      Instructions addressed directly to you by the client.
+                    </Text>
                   </View>
                 </View>
-              ) : null}
-              {service.instructions.map((instruction) => (
-                <View key={instruction.id} style={styles.instructionRow}>
-                  <MaterialIcons
-                    color={instruction.isRequired ? palette.danger : palette.secondary}
-                    name={instruction.isRequired ? 'priority-high' : 'assignment'}
-                    size={14}
-                  />
-                  <View style={styles.instructionCopy}>
-                    <Text style={styles.instructionTitle}>
-                      {instruction.title}{instruction.isRequired ? ' · Required' : ''}
-                    </Text>
-                    {instruction.body ? <Text style={styles.instructionBody}>{instruction.body}</Text> : null}
-                    {instruction.tags.length ? (
-                      <Text style={styles.instructionTags}>{instruction.tags.join(' · ')}</Text>
+                {event.instructions.map((instruction) => (
+                  <View key={instruction.id} style={styles.instructionRow}>
+                    <MaterialIcons color={palette.primaryContainer} name="sticky-note-2" size={14} />
+                    <View style={styles.instructionCopy}>
+                      <Text style={styles.instructionTitle}>{instruction.title}</Text>
+                      {instruction.body ? (
+                        <Text style={styles.instructionBody}>{instruction.body}</Text>
+                      ) : null}
+                      {instruction.tags.length ? (
+                        <Text style={styles.instructionTags}>{instruction.tags.join(' · ')}</Text>
+                      ) : null}
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
+            <View style={styles.servicesBlock}>
+              <View style={styles.servicesHeader}>
+                <Text style={styles.servicesLabel}>BOOKED &amp; SELECTED SERVICES</Text>
+                <Text style={styles.servicesCount}>{event.services.length}</Text>
+              </View>
+              {event.services.length ? event.services.map((service) => {
+                const serviceExpanded = expandedServiceIds.includes(service.id)
+                const instructionCount = service.instructions.length + (service.clientNotes ? 1 : 0)
+
+                return (
+                  <View key={service.id} style={styles.serviceRow}>
+                    <Pressable
+                      accessibilityLabel={`${serviceExpanded ? 'Hide' : 'Show'} instructions for ${service.serviceName}`}
+                      accessibilityRole="button"
+                      accessibilityState={{ expanded: serviceExpanded }}
+                      onPress={() => toggleService(service.id)}
+                      style={({ pressed }) => [styles.serviceSummaryRow, pressed && styles.pressedSurface]}
+                    >
+                      <View style={styles.serviceIcon}>
+                        <MaterialIcons color={palette.primaryContainer} name="business-center" size={15} />
+                      </View>
+                      <View style={styles.serviceCopy}>
+                        <Text numberOfLines={1} style={styles.serviceName}>{service.serviceName}</Text>
+                        <Text numberOfLines={1} style={styles.serviceProvider}>
+                          {service.providerName} · {service.categoryName}
+                        </Text>
+                        <Text style={styles.serviceInstructionCount}>
+                          {instructionCount
+                            ? `${instructionCount} client ${instructionCount === 1 ? 'instruction' : 'instructions'}`
+                            : 'No client instructions'}
+                        </Text>
+                      </View>
+                      <View style={styles.serviceAside}>
+                        <Text style={styles.serviceAmount}>{pesoLabel(service.amount)}</Text>
+                        <Text style={[styles.serviceStatus, service.booked && styles.serviceStatusBooked]}>
+                          {statusLabel(service.status)}
+                        </Text>
+                        <MaterialIcons
+                          color={palette.primaryContainer}
+                          name={serviceExpanded ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
+                          size={19}
+                        />
+                      </View>
+                    </Pressable>
+
+                    {serviceExpanded ? (
+                      <View style={styles.serviceExpandedContent}>
+                        {service.clientNotes ? (
+                          <View style={styles.clientNote}>
+                            <MaterialIcons color={palette.primaryContainer} name="notes" size={14} />
+                            <View style={styles.instructionCopy}>
+                              <Text style={styles.instructionLabel}>CLIENT BOOKING NOTE</Text>
+                              <Text style={styles.instructionBody}>{service.clientNotes}</Text>
+                            </View>
+                          </View>
+                        ) : null}
+                        {service.instructions.map((instruction) => (
+                          <View key={instruction.id} style={styles.instructionRow}>
+                            <MaterialIcons
+                              color={instruction.isRequired ? palette.danger : palette.secondary}
+                              name={instruction.isRequired ? 'priority-high' : 'assignment'}
+                              size={14}
+                            />
+                            <View style={styles.instructionCopy}>
+                              <Text style={styles.instructionTitle}>
+                                {instruction.title}{instruction.isRequired ? ' · Required' : ''}
+                              </Text>
+                              {instruction.body ? <Text style={styles.instructionBody}>{instruction.body}</Text> : null}
+                              {instruction.tags.length ? (
+                                <Text style={styles.instructionTags}>{instruction.tags.join(' · ')}</Text>
+                              ) : null}
+                            </View>
+                          </View>
+                        ))}
+                        {!instructionCount ? (
+                          <Text style={styles.noServicesText}>The client has not added instructions for this service.</Text>
+                        ) : null}
+                        {service.booked ? (
+                          <View style={styles.providerActions}>
+                            <Pressable
+                              accessibilityRole="button"
+                              disabled={!service.bookingId}
+                              onPress={() => onMessageProvider?.(event, service)}
+                              style={({ pressed }) => [styles.providerAction, !service.bookingId && styles.disabled, pressed && styles.pressed]}
+                            >
+                              <MaterialIcons color={palette.primaryContainer} name="chat-bubble-outline" size={15} />
+                              <Text style={styles.providerActionText}>Message provider</Text>
+                            </Pressable>
+                            {service.providerPhone ? (
+                              <Pressable
+                                accessibilityRole="button"
+                                onPress={() => void Linking.openURL(`tel:${service.providerPhone}`)}
+                                style={({ pressed }) => [styles.providerAction, pressed && styles.pressed]}
+                              >
+                                <MaterialIcons color={palette.primaryContainer} name="phone" size={15} />
+                                <Text style={styles.providerActionText}>Call</Text>
+                              </Pressable>
+                            ) : null}
+                            {service.providerEmail ? (
+                              <Pressable
+                                accessibilityRole="button"
+                                onPress={() => void Linking.openURL(`mailto:${service.providerEmail}`)}
+                                style={({ pressed }) => [styles.providerAction, pressed && styles.pressed]}
+                              >
+                                <MaterialIcons color={palette.primaryContainer} name="email" size={15} />
+                                <Text style={styles.providerActionText}>Email</Text>
+                              </Pressable>
+                            ) : null}
+                          </View>
+                        ) : null}
+                      </View>
                     ) : null}
                   </View>
-                </View>
-              ))}
-              {service.booked ? (
-                <View style={styles.providerActions}>
-                  <Pressable
-                    accessibilityRole="button"
-                    disabled={!service.bookingId}
-                    onPress={() => onMessageProvider?.(event, service)}
-                    style={({ pressed }) => [styles.providerAction, !service.bookingId && styles.disabled, pressed && styles.pressed]}
-                  >
-                    <MaterialIcons color={palette.primaryContainer} name="chat-bubble-outline" size={15} />
-                    <Text style={styles.providerActionText}>Message</Text>
-                  </Pressable>
-                  {service.providerPhone ? (
-                    <Pressable
-                      accessibilityRole="button"
-                      onPress={() => void Linking.openURL(`tel:${service.providerPhone}`)}
-                      style={({ pressed }) => [styles.providerAction, pressed && styles.pressed]}
-                    >
-                      <MaterialIcons color={palette.primaryContainer} name="phone" size={15} />
-                      <Text style={styles.providerActionText}>Call</Text>
-                    </Pressable>
-                  ) : null}
-                  {service.providerEmail ? (
-                    <Pressable
-                      accessibilityRole="button"
-                      onPress={() => void Linking.openURL(`mailto:${service.providerEmail}`)}
-                      style={({ pressed }) => [styles.providerAction, pressed && styles.pressed]}
-                    >
-                      <MaterialIcons color={palette.primaryContainer} name="email" size={15} />
-                      <Text style={styles.providerActionText}>Email</Text>
-                    </Pressable>
-                  ) : null}
-                </View>
-              ) : null}
+                )
+              }) : (
+                <Text style={styles.noServicesText}>No services have been selected for this event yet.</Text>
+              )}
             </View>
-          )) : (
-            <Text style={styles.noServicesText}>No services have been selected for this event yet.</Text>
-          )}
-        </View>
+          </View>
+        ) : null}
       </View>
     </View>
   )
@@ -405,6 +505,7 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
   onCreateTask,
   onMessageProvider,
   onOpenNotifications,
+  onOpenProfile,
   onRefresh,
   onRespondInvitation,
   onSignOut,
@@ -573,7 +674,7 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
           ) : null}
         </View>
 
-        <View style={styles.tabBar} accessibilityRole="tablist">
+        {isWide ? <View style={styles.tabBar} accessibilityRole="tablist">
           {tabs.map((tab) => {
             const selected = activeView === tab.id
             return (
@@ -598,7 +699,7 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
               </Pressable>
             )
           })}
-        </View>
+        </View> : null}
 
         {showComposer ? (
           <View style={styles.composerCard}>
@@ -760,21 +861,16 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
           <>
             <View style={styles.statsGrid}>
               <View style={styles.statCard}>
-                <View style={styles.statIcon}><MaterialIcons color={palette.primaryContainer} name="event" size={19} /></View>
-                <Text style={styles.statValue}>{activeEvents.length}</Text>
                 <Text style={styles.statLabel}>Active events</Text>
+                <Text style={styles.statValue}>{activeEvents.length}</Text>
               </View>
               <View style={styles.statCard}>
-                <View style={[styles.statIcon, attentionTasks.length > 0 && styles.statIconAttention]}>
-                  <MaterialIcons color={attentionTasks.length ? palette.danger : palette.primaryContainer} name="schedule" size={19} />
-                </View>
-                <Text style={[styles.statValue, attentionTasks.length > 0 && styles.statValueAttention]}>{attentionTasks.length}</Text>
                 <Text style={styles.statLabel}>Need attention</Text>
+                <Text style={[styles.statValue, attentionTasks.length > 0 && styles.statValueAttention]}>{attentionTasks.length}</Text>
               </View>
               <View style={styles.statCard}>
-                <View style={styles.statIcon}><MaterialIcons color={palette.primaryContainer} name="task-alt" size={19} /></View>
-                <Text style={styles.statValue}>{completedTasks}</Text>
                 <Text style={styles.statLabel}>Tasks completed</Text>
+                <Text style={styles.statValue}>{completedTasks}</Text>
               </View>
             </View>
 
@@ -889,31 +985,72 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
           </Text>
         </View>
       </ScrollView>
+
+      {!isWide ? (
+        <View style={styles.bottomNavigation}>
+          <View style={styles.bottomNavigationContent}>
+            {tabs.map((tab) => {
+              const selected = activeView === tab.id
+              return (
+                <Pressable
+                  key={tab.id}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected }}
+                  onPress={() => setActiveView(tab.id)}
+                  style={({ pressed }) => [styles.bottomNavItem, pressed && styles.pressed]}
+                >
+                  <View style={[styles.bottomNavIcon, selected && styles.bottomNavIconSelected]}>
+                    <MaterialIcons
+                      color={selected ? '#FFFFFF' : palette.secondary}
+                      name={tab.id === 'overview' ? 'home' : tab.icon}
+                      size={20}
+                    />
+                  </View>
+                  <Text style={[styles.bottomNavLabel, selected && styles.bottomNavLabelSelected]}>
+                    {tab.id === 'overview' ? 'Home' : tab.label}
+                  </Text>
+                </Pressable>
+              )
+            })}
+            <Pressable
+              accessibilityRole="tab"
+              onPress={onOpenProfile}
+              style={({ pressed }) => [styles.bottomNavItem, pressed && styles.pressed]}
+            >
+              <View style={styles.bottomNavIcon}>
+                <MaterialIcons color={palette.secondary} name="person-outline" size={20} />
+              </View>
+              <Text style={styles.bottomNavLabel}>Profile</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
     </View>
   )
 }
 
 const palette = {
-  background: '#F8F6F3',
-  border: '#E3DDDA',
+  background: '#FFFFFF',
+  border: '#DFE0E0',
   danger: '#A12C40',
   dangerSoft: '#FBECEF',
   muted: '#9B9290',
   primary: '#4E061A',
   primaryContainer: '#6B1E2E',
   primarySoft: '#F5E9EB',
-  secondary: '#696160',
+  secondary: '#5D5F5F',
   success: '#1D6B4A',
   successSoft: '#EAF5EF',
   surface: '#FFFFFF',
-  surfaceLow: '#F3F0EE',
-  text: '#241F1F',
+  surfaceLow: '#F5F3F3',
+  text: '#1B1C1C',
 } as const
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.background },
   topBar: {
-    minHeight: 68,
+    zIndex: 20,
+    minHeight: 64,
     justifyContent: 'center',
     borderBottomWidth: 1,
     borderBottomColor: palette.border,
@@ -921,25 +1058,26 @@ const styles = StyleSheet.create({
   },
   topBarContent: {
     width: '100%',
-    maxWidth: 1080,
-    minHeight: 68,
+    maxWidth: 1024,
+    minHeight: 64,
     alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 18,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
   },
   wideHorizontalPadding: { paddingHorizontal: 32 },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   brandMark: {
-    width: 36,
-    height: 36,
+    width: 32,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 18,
-    backgroundColor: palette.primarySoft,
+    borderRadius: 16,
+    backgroundColor: '#E9E8E8',
   },
-  brand: { color: palette.primary, fontSize: 18, lineHeight: 22, fontWeight: '700', letterSpacing: 0.4 },
+  brand: { color: palette.primary, fontSize: 22, lineHeight: 28, fontWeight: '700', letterSpacing: 0.2 },
   roleLabel: { color: palette.secondary, fontSize: 8, lineHeight: 12, fontWeight: '700', letterSpacing: 1.1 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   iconButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },
@@ -950,14 +1088,14 @@ const styles = StyleSheet.create({
   notificationBadgeText: { color: '#FFFFFF', fontSize: 8, lineHeight: 10, fontWeight: '700' },
   avatarButton: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18, backgroundColor: palette.primary },
   avatarText: { color: '#FFFFFF', fontSize: 11, lineHeight: 14, fontWeight: '700' },
-  content: { width: '100%', maxWidth: 1080, alignSelf: 'center' },
-  contentMobile: { paddingHorizontal: 16, paddingTop: 22, paddingBottom: 48 },
-  contentWide: { paddingHorizontal: 32, paddingTop: 30, paddingBottom: 56 },
+  content: { width: '100%', maxWidth: 768, alignSelf: 'center' },
+  contentMobile: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 112 },
+  contentWide: { paddingHorizontal: 32, paddingTop: 32, paddingBottom: 48 },
   welcomeRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, marginBottom: 22 },
   welcomeCopy: { minWidth: 0, flex: 1 },
   eyebrow: { color: palette.primaryContainer, fontSize: 9, lineHeight: 13, fontWeight: '700', letterSpacing: 1.1, marginBottom: 5 },
-  greeting: { color: palette.text, fontSize: 24, lineHeight: 30, fontWeight: '700' },
-  greetingSubtitle: { color: palette.secondary, fontSize: 13, lineHeight: 19, marginTop: 4 },
+  greeting: { color: palette.text, fontSize: 22, lineHeight: 28, fontWeight: '700' },
+  greetingSubtitle: { color: palette.secondary, fontSize: 14, lineHeight: 20, marginTop: 4 },
   addButton: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 10, backgroundColor: palette.primaryContainer, paddingHorizontal: 14 },
   addButtonPressed: { opacity: 0.82, transform: [{ scale: 0.98 }] },
   addButtonText: { color: '#FFFFFF', fontSize: 12, lineHeight: 16, fontWeight: '700' },
@@ -1000,16 +1138,16 @@ const styles = StyleSheet.create({
   emptyText: { maxWidth: 480, color: palette.secondary, fontSize: 12, lineHeight: 19, textAlign: 'center', marginTop: 7 },
   refreshButton: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#D8C5C8', borderRadius: 9, paddingHorizontal: 14, marginTop: 20 },
   refreshButtonText: { color: palette.primaryContainer, fontSize: 11, lineHeight: 15, fontWeight: '700' },
-  statsGrid: { flexDirection: 'row', gap: 10, marginBottom: 26 },
-  statCard: { minWidth: 0, flex: 1, borderWidth: 1, borderColor: palette.border, borderRadius: 12, backgroundColor: palette.surface, padding: 12 },
+  statsGrid: { flexDirection: 'row', gap: 16, marginBottom: 32 },
+  statCard: { minWidth: 0, minHeight: 88, flex: 1, justifyContent: 'space-between', borderWidth: 1, borderColor: '#E3E2E2', borderRadius: 8, backgroundColor: palette.surface, padding: 16 },
   statIcon: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: palette.primarySoft, marginBottom: 12 },
   statIconAttention: { backgroundColor: palette.dangerSoft },
-  statValue: { color: palette.text, fontSize: 22, lineHeight: 27, fontWeight: '700' },
+  statValue: { color: palette.text, fontSize: 18, lineHeight: 24, fontWeight: '600' },
   statValueAttention: { color: palette.danger },
-  statLabel: { color: palette.secondary, fontSize: 9, lineHeight: 13, fontWeight: '600', marginTop: 2 },
+  statLabel: { minHeight: 32, color: palette.secondary, fontSize: 12, lineHeight: 16, marginBottom: 8 },
   overviewGrid: { gap: 26 },
-  overviewGridWide: { flexDirection: 'row', alignItems: 'flex-start' },
-  overviewColumn: { minWidth: 0, flex: 1 },
+  overviewGridWide: { alignItems: 'stretch' },
+  overviewColumn: { minWidth: 0, width: '100%' },
   sectionBlock: { marginBottom: 18 },
   sectionHeader: { minHeight: 42, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, borderBottomWidth: 1, borderBottomColor: palette.border, paddingBottom: 9, marginBottom: 12 },
   sectionEyebrow: { color: palette.primaryContainer, fontSize: 8, lineHeight: 11, fontWeight: '700', letterSpacing: 0.9 },
@@ -1041,6 +1179,7 @@ const styles = StyleSheet.create({
   eventCardBody: { minWidth: 0, flex: 1, padding: 14 },
   eventCardHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 14 },
   eventHeadingCopy: { minWidth: 0, flex: 1 },
+  eventHeaderAside: { alignItems: 'flex-end', gap: 5 },
   eventType: { color: palette.primaryContainer, fontSize: 8, lineHeight: 11, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
   eventName: { color: palette.text, fontSize: 16, lineHeight: 21, fontWeight: '700', marginTop: 2 },
   clientName: { color: palette.secondary, fontSize: 10, lineHeight: 15, marginTop: 2 },
@@ -1052,6 +1191,9 @@ const styles = StyleSheet.create({
   metaLabel: { color: palette.muted, fontSize: 7, lineHeight: 10, fontWeight: '700', letterSpacing: 0.6 },
   metaValue: { color: palette.text, fontSize: 10, lineHeight: 14, fontWeight: '600', marginTop: 2 },
   metaSubvalue: { color: palette.secondary, fontSize: 9, lineHeight: 13 },
+  disclosureHint: { minHeight: 34, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 9 },
+  disclosureHintText: { color: palette.primaryContainer, fontSize: 9, lineHeight: 13, fontWeight: '700' },
+  eventExpandedContent: { borderTopWidth: 1, borderTopColor: palette.border, marginTop: 4, paddingTop: 12 },
   progressHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
   progressLabel: { color: palette.secondary, fontSize: 9, lineHeight: 13 },
   progressValue: { color: palette.primaryContainer, fontSize: 9, lineHeight: 13, fontWeight: '700' },
@@ -1059,6 +1201,9 @@ const styles = StyleSheet.create({
   progressFill: { height: '100%', borderRadius: 3, backgroundColor: palette.primaryContainer },
   eventFooter: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginTop: 8 },
   eventFooterText: { color: palette.secondary, fontSize: 8, lineHeight: 12 },
+  coordinatorInstructionsBlock: { gap: 8, borderWidth: 1, borderColor: '#D9C4C8', borderRadius: 9, backgroundColor: palette.primarySoft, marginTop: 13, padding: 10 },
+  coordinatorInstructionsHeading: { flexDirection: 'row', alignItems: 'flex-start', gap: 7 },
+  coordinatorInstructionsCaption: { color: palette.secondary, fontSize: 8, lineHeight: 12, marginTop: 2 },
   servicesBlock: { borderTopWidth: 1, borderTopColor: palette.border, marginTop: 13, paddingTop: 12, gap: 8 },
   servicesHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   servicesLabel: { color: palette.secondary, fontSize: 7, lineHeight: 11, fontWeight: '700', letterSpacing: 0.7 },
@@ -1069,10 +1214,12 @@ const styles = StyleSheet.create({
   serviceCopy: { minWidth: 0, flex: 1 },
   serviceName: { color: palette.text, fontSize: 9, lineHeight: 13, fontWeight: '700' },
   serviceProvider: { color: palette.secondary, fontSize: 8, lineHeight: 12, marginTop: 1 },
+  serviceInstructionCount: { color: palette.primaryContainer, fontSize: 7, lineHeight: 11, fontWeight: '600', marginTop: 2 },
   serviceAside: { alignItems: 'flex-end' },
   serviceAmount: { color: palette.text, fontSize: 8, lineHeight: 12, fontWeight: '600' },
   serviceStatus: { color: palette.secondary, fontSize: 7, lineHeight: 11, fontWeight: '700', marginTop: 1 },
   serviceStatusBooked: { color: palette.success },
+  serviceExpandedContent: { gap: 8 },
   clientNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 7, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border, paddingTop: 8 },
   instructionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 7, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border, paddingTop: 8 },
   instructionCopy: { minWidth: 0, flex: 1 },
@@ -1109,6 +1256,13 @@ const styles = StyleSheet.create({
   filterTextSelected: { color: palette.primaryContainer, fontWeight: '700' },
   securityNote: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 30, paddingVertical: 12 },
   securityText: { color: palette.secondary, fontSize: 9, lineHeight: 14, textAlign: 'center' },
+  bottomNavigation: { position: 'absolute', right: 0, bottom: 0, left: 0, zIndex: 40, minHeight: 76, justifyContent: 'center', borderTopWidth: 1, borderTopColor: palette.border, backgroundColor: '#FAF9F9', paddingTop: 6, paddingBottom: 8 },
+  bottomNavigationContent: { width: '100%', maxWidth: 560, alignSelf: 'center', flexDirection: 'row', justifyContent: 'space-around', paddingHorizontal: 8 },
+  bottomNavItem: { width: 68, minHeight: 58, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  bottomNavIcon: { width: 50, height: 30, alignItems: 'center', justifyContent: 'center', borderRadius: 15 },
+  bottomNavIconSelected: { backgroundColor: palette.primaryContainer },
+  bottomNavLabel: { color: palette.secondary, fontSize: 9, lineHeight: 13 },
+  bottomNavLabelSelected: { color: palette.primaryContainer, fontWeight: '700' },
   pressed: { opacity: 0.65 },
   pressedSurface: { backgroundColor: palette.surfaceLow },
   disabled: { opacity: 0.45 },
