@@ -4,6 +4,7 @@
     "slug": "multivent-mobile",
     "scheme": "multivent",
     "version": "1.0.0",
+    "icon": "./assets/multivent-icon.png",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "backgroundColor": "#FFFFFF",
@@ -16,10 +17,15 @@
     },
     "android": {
       "predictiveBackGestureEnabled": false,
-      "package": "com.intelink.multivent"
+      "package": "com.intelink.multivent",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/multivent-mark-transparent.png",
+        "backgroundColor": "#FFF8F1"
+      }
     },
     "web": {
-      "bundler": "metro"
+      "bundler": "metro",
+      "favicon": "./assets/multivent-icon.png"
     },
     "plugins": [
       [
@@ -29,13 +35,23 @@
           "microphonePermission": false
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FFF8F1",
+          "image": "./assets/multivent-mark-transparent.png",
+          "imageWidth": 200,
+          "resizeMode": "contain"
+        }
+      ],
+      "expo-video"
     ],
     "extra": {
       "eas": {
-        "projectId": "1eec28bc-ce22-43f4-b877-ad1763539a85"
+        "projectId": "0e44b632-3118-4aeb-bb74-017a9d0866b1"
       }
     },
-    "owner": "shaolin18"
+    "owner": "harvz1827"
   }
 }
