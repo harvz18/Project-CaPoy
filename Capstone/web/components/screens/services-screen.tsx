@@ -70,6 +70,7 @@ export function ServicesScreen() {
   const [note, setNote] = useState('')
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('pending_review')
+  const [categoryFilter, setCategoryFilter] = useState('all')
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -108,14 +109,17 @@ export function ServicesScreen() {
     const needle = search.trim().toLowerCase()
     return services.filter((service) => {
       const provider = nestedRecord(service.provider_profiles)
+      const category = nestedRecord(service.service_categories)
       const matchesStatus = status === 'all' || service.status === status
+      const matchesCategory = categoryFilter === 'all' || String(category?.name || '') === categoryFilter
       const matchesSearch = !needle || [service.name, service.description, provider?.business_name]
         .some((value) => String(value || '').toLowerCase().includes(needle))
-      return matchesStatus && matchesSearch
+      return matchesStatus && matchesCategory && matchesSearch
     })
-  }, [search, services, status])
+  }, [categoryFilter, search, services, status])
 
   const pendingCount = services.filter((service) => service.status === 'pending_review').length
+  const categories = Array.from(new Set(services.map((service) => String(nestedRecord(service.service_categories)?.name || '')).filter(Boolean))).sort()
 
   function requestDecision(nextDecision: Decision) {
     setNote('')
@@ -163,6 +167,7 @@ export function ServicesScreen() {
               <button key={value} className={status === value ? 'active' : ''} onClick={() => setStatus(value)}>{label}</button>
             ))}
           </div>
+          <select className="inline-select" value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} aria-label="Filter services by category"><option value="all">All categories</option>{categories.map((category) => <option key={category} value={category}>{category}</option>)}</select>
         </div>
         {error && <InlineError message={`${error} Apply database migrations 21 through 23 if service moderation is not installed yet.`} onClose={() => setError('')} />}
         {loading ? <TableSkeleton /> : visibleServices.length === 0 ? <EmptyState title="No matching services" copy={status === 'pending_review' ? 'The review queue is clear.' : 'Try another filter or search term.'} /> : (

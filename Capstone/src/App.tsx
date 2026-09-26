@@ -232,6 +232,8 @@ type AppScreen =
   | 'support'
   | 'coordinatorHome'
   | 'coordinatorNotifications'
+  | 'assistantHome'
+  | 'customerServiceHome'
   | 'adminHome'
   | 'superadminHome'
   | 'budgetAllocation'
@@ -261,6 +263,8 @@ type AccountRole =
   | 'client'
   | 'service_provider'
   | 'event_coordinator'
+  | 'assistant'
+  | 'customer_service'
   | 'admin'
   | 'superadmin'
 
@@ -1032,6 +1036,12 @@ export const App: React.FC = () => {
         return
       case 'event_coordinator':
         setScreen('coordinatorHome')
+        return
+      case 'assistant':
+        setScreen('assistantHome')
+        return
+      case 'customer_service':
+        setScreen('customerServiceHome')
         return
       case 'admin':
         setScreen('adminHome')
@@ -2470,20 +2480,64 @@ export const App: React.FC = () => {
       case 'adminHome':
         return (
           <RoleHomePlaceholderScreen
-            description="The admin dashboard will support user management, provider reviews, platform activity, and operations tools."
-            onBackToRoleSelection={() => setScreen('roleSelection')}
+            actionLabel="SIGN OUT"
+            cardTitle="Continue on the web"
+            description="Business analytics, revenue, cash flow, and view-only user information are available in the secure MULTIVENT Operations web console."
+            onBackToRoleSelection={() => {
+              void supabase?.auth.signOut()
+              setUserName('Planner')
+              setScreen('roleSelection')
+            }}
             roleLabel="Admin"
-            title="Your admin workspace is being prepared."
+            title="Your management workspace is ready on the web."
             userName={userName}
           />
         )
       case 'superadminHome':
         return (
           <RoleHomePlaceholderScreen
-            description="The superadmin dashboard will support system settings, permissions, governance, and high-level controls."
-            onBackToRoleSelection={() => setScreen('roleSelection')}
+            actionLabel="SIGN OUT"
+            cardTitle="Continue on the web"
+            description="Permissions, internal accounts, audit logs, system settings, and governance tools are available in the secure MULTIVENT Operations web console."
+            onBackToRoleSelection={() => {
+              void supabase?.auth.signOut()
+              setUserName('Planner')
+              setScreen('roleSelection')
+            }}
             roleLabel="Superadmin"
-            title="Your superadmin workspace is being prepared."
+            title="Your governance workspace is ready on the web."
+            userName={userName}
+          />
+        )
+      case 'assistantHome':
+        return (
+          <RoleHomePlaceholderScreen
+            actionLabel="SIGN OUT"
+            cardTitle="Continue on the web"
+            description="Provider reviews, service approvals, coordinator operations, and remittance tools are available according to your permissions in the MULTIVENT Operations web console."
+            onBackToRoleSelection={() => {
+              void supabase?.auth.signOut()
+              setUserName('Planner')
+              setScreen('roleSelection')
+            }}
+            roleLabel="Assistant"
+            title="Your operations workspace is ready on the web."
+            userName={userName}
+          />
+        )
+      case 'customerServiceHome':
+        return (
+          <RoleHomePlaceholderScreen
+            actionLabel="SIGN OUT"
+            cardTitle="Continue on the web"
+            description="Support tickets and the user, booking, event, and payment details needed to resolve platform concerns are available in the MULTIVENT Operations web console."
+            onBackToRoleSelection={() => {
+              void supabase?.auth.signOut()
+              setUserName('Planner')
+              setScreen('roleSelection')
+            }}
+            roleLabel="Customer Service"
+            title="Your support workspace is ready on the web."
             userName={userName}
           />
         )

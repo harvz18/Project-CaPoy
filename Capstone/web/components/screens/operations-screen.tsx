@@ -9,6 +9,7 @@ import {
   mdiClose,
   mdiDownloadOutline,
   mdiDotsHorizontal,
+  mdiEyeOutline,
   mdiFilterVariant,
   mdiMagnify,
   mdiRefresh,
@@ -86,7 +87,7 @@ const columns: Record<LegacyTableSection, { key: string; label: string; render?:
 
 const queries: Record<LegacyTableSection, { table: string; select: string; order: string }> = {
   users: { table: 'profiles', select: 'id,full_name,email,default_role,account_status,created_at', order: 'created_at' },
-  providers: { table: 'provider_profiles', select: 'id,user_id,business_name,description,contact_email,location,verification_status,terms_accepted,created_at', order: 'created_at' },
+  providers: { table: 'provider_profiles', select: 'id,user_id,business_name,description,contact_email,contact_phone,location,verification_status,terms_accepted,terms_version,terms_accepted_at,rejection_reason,reviewed_at,reviewed_by,created_at,updated_at,profiles!provider_profiles_user_id_fkey(full_name,email,phone,account_status)', order: 'created_at' },
   bookings: { table: 'bookings', select: 'id,requested_date,amount,status,created_at', order: 'created_at' },
   payments: { table: 'payments', select: 'id,provider_reference,provider,amount,status,created_at', order: 'created_at' },
   reviews: { table: 'reviews', select: 'id,rating,comment,sentiment_label,created_at', order: 'created_at' },
@@ -125,6 +126,7 @@ function TableScreen({ section, copy }: { section: LegacyTableSection; copy: typ
   const [filter, setFilter] = useState('all')
   const [busyId, setBusyId] = useState('')
   const [confirmation, setConfirmation] = useState<ConfirmationAction | null>(null)
+  const [selectedProvider, setSelectedProvider] = useState<Row | null>(null)
 
   const loadRows = useCallback(async () => {
     const supabase = getSupabase()
@@ -184,6 +186,7 @@ function TableScreen({ section, copy }: { section: LegacyTableSection; copy: typ
     if (actionError) setError(actionError.message)
     else {
       setConfirmation(null)
+      setSelectedProvider(null)
       void loadRows()
     }
   }
@@ -216,7 +219,7 @@ function TableScreen({ section, copy }: { section: LegacyTableSection; copy: typ
                 <tr key={String(row.id)}>
                   {columns[section].map((column) => <td key={column.key} data-label={column.label}>{column.render ? column.render(row) : String(row[column.key] ?? '—')}</td>)}
                   {section === 'users' && can('users.update') && <td className="row-actions">{canManageUser(row) && <button disabled={busyId === row.id} title="Manage account status" onClick={() => setConfirmation({ id: String(row.id), action: String(row.account_status), currentStatus: String(row.account_status), name: String(row.full_name || row.email || 'this user'), kind: 'user', reason: '' })}><MdiIcon path={mdiDotsHorizontal} /></button>}</td>}
-                  {section === 'providers' && can('providers.review') && <td className="row-actions">{row.verification_status === 'pending' && <>{can('providers.approve') && <button className="approve" disabled={busyId === row.id} title="Approve provider" onClick={() => setConfirmation({ id: String(row.id), action: 'verified', currentStatus: 'pending', name: String(row.business_name || 'this provider'), kind: 'provider', reason: '' })}><MdiIcon path={mdiCheck} /></button>}{can('providers.reject') && <button disabled={busyId === row.id} title="Reject provider" onClick={() => setConfirmation({ id: String(row.id), action: 'disabled', currentStatus: 'pending', name: String(row.business_name || 'this provider'), kind: 'provider', reason: '' })}><MdiIcon path={mdiClose} /></button>}</>}</td>}
+                  {section === 'providers' && can('providers.review') && <td className="row-actions"><button className="review-button" disabled={busyId === row.id} title="Inspect provider application" onClick={() => setSelectedProvider(row)}><MdiIcon path={mdiEyeOutline} /> Review</button></td>}
                 </tr>
               ))}</tbody>
             </table>
@@ -233,6 +236,62 @@ function TableScreen({ section, copy }: { section: LegacyTableSection; copy: typ
           onConfirm={() => void moderate(confirmation.id, confirmation.action)}
         />
       )}
+      {section === 'providers' && selectedProvider && (
+        <ProviderApplicationModal
+          provider={selectedProvider}
+          canApprove={can('providers.approve')}
+          canReject={can('providers.reject')}
+          onClose={() => setSelectedProvider(null)}
+          onDecision={(action) => setConfirmation({
+            id: String(selectedProvider.id),
+            action,
+            currentStatus: String(selectedProvider.verification_status),
+            name: String(selectedProvider.business_name || 'this provider'),
+            kind: 'provider',
+            reason: '',
+          })}
+        />
+      )}
+    </div>
+  )
+}
+
+function ProviderApplicationModal({ provider, canApprove, canReject, onClose, onDecision }: {
+  provider: Row
+  canApprove: boolean
+  canReject: boolean
+  onClose: () => void
+  onDecision: (action: 'verified' | 'disabled') => void
+}) {
+  const profileValue = Array.isArray(provider.profiles) ? provider.profiles[0] : provider.profiles
+  const profile = profileValue && typeof profileValue === 'object' ? profileValue as Row : {}
+  const reviewable = ['pending', 'disabled'].includes(String(provider.verification_status))
+  const termsCurrent = provider.terms_accepted && provider.terms_version === '2026-09-25-commission-v1'
+
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
+      <section className="service-detail-modal provider-application-modal" role="dialog" aria-modal="true" aria-labelledby="provider-application-title">
+        <header><button onClick={onClose} aria-label="Close provider application"><MdiIcon path={mdiChevronLeft} /></button><div><span className="eyebrow">PROVIDER APPLICATION</span><h2 id="provider-application-title">{String(provider.business_name || 'Unnamed business')}</h2></div><StatusBadge value={String(provider.verification_status)} /></header>
+        <div className="service-detail-modal__body provider-application-body">
+          <section className="provider-application-summary">
+            <div><span>Applicant</span><strong>{String(profile.full_name || 'Not supplied')}</strong><small>{String(profile.email || provider.contact_email || 'No email')}</small></div>
+            <div><span>Submitted</span><strong>{formatDate(String(provider.created_at || ''))}</strong><small>{provider.reviewed_at ? `Last reviewed ${formatDate(String(provider.reviewed_at))}` : 'Not reviewed yet'}</small></div>
+            <div><span>Commission agreement</span><StatusBadge value={termsCurrent ? 'accepted' : 'missing'} /><small>{provider.terms_version ? String(provider.terms_version) : 'Current terms not accepted'}</small></div>
+          </section>
+          <div className="provider-application-grid">
+            <section><span className="detail-label">BUSINESS DESCRIPTION</span><p>{String(provider.description || 'No business description was supplied.')}</p></section>
+            <dl>
+              <div><dt>Contact email</dt><dd>{String(provider.contact_email || profile.email || 'Not supplied')}</dd></div>
+              <div><dt>Contact phone</dt><dd>{String(provider.contact_phone || profile.phone || 'Not supplied')}</dd></div>
+              <div><dt>Location</dt><dd>{String(provider.location || 'Not supplied')}</dd></div>
+              <div><dt>Account standing</dt><dd><StatusBadge value={String(profile.account_status || provider.verification_status)} /></dd></div>
+            </dl>
+          </div>
+          {Boolean(provider.rejection_reason) && <section className="previous-note"><strong>Previous rejection reason</strong><p>{String(provider.rejection_reason)}</p></section>}
+          {!termsCurrent && <div className="inline-warning"><MdiIcon path={mdiAlertOutline} /><span>This application cannot be approved until the provider accepts the current commission agreement.</span></div>}
+        </div>
+        <footer><button className="secondary-button" onClick={onClose}>Close</button>{reviewable && (canApprove || canReject) && <div>{canReject && <button className="decline-button" onClick={() => onDecision('disabled')}><MdiIcon path={mdiClose} /> Reject</button>}{canApprove && <button className="approve-button" disabled={!termsCurrent} onClick={() => onDecision('verified')}><MdiIcon path={mdiCheck} /> Approve provider</button>}</div>}</footer>
+      </section>
     </div>
   )
 }
@@ -307,7 +366,7 @@ function unwrapValue(value: unknown) {
 
 function ModerationDialog({ value, busy, onChange, onCancel, onConfirm }: { value: ConfirmationAction; busy: boolean; onChange: (value: ConfirmationAction) => void; onCancel: () => void; onConfirm: () => void }) {
   const isUser = value.kind === 'user'
-  const actionLabel = value.action === 'active' ? 'Activate' : value.action === 'verified' ? 'Approve' : value.action === 'suspended' ? 'Suspend' : 'Disable'
+  const actionLabel = value.action === 'active' ? 'Activate' : value.action === 'verified' ? 'Approve' : value.action === 'suspended' ? 'Suspend' : isUser ? 'Disable' : 'Reject'
   const copy = isUser
     ? `${actionLabel} ${value.name}'s account? Their access will change immediately and this action will be recorded in the audit log.`
     : value.action === 'verified'
@@ -318,7 +377,7 @@ function ModerationDialog({ value, busy, onChange, onCancel, onConfirm }: { valu
     <div className="modal-backdrop modal-backdrop--front">
       <section className="confirmation-dialog account-dialog" role="alertdialog" aria-modal="true" aria-labelledby="moderation-title">
         <span className={`confirmation-dialog__icon ${value.action === 'active' || value.action === 'verified' ? 'confirmation-dialog__icon--approved' : 'confirmation-dialog__icon--declined'}`}><MdiIcon path={value.action === 'active' || value.action === 'verified' ? mdiCheck : mdiAlertOutline} /></span>
-        <h2 id="moderation-title">Confirm account change</h2>
+        <h2 id="moderation-title">{isUser ? 'Confirm account change' : 'Confirm provider decision'}</h2>
         {isUser && <div className="status-choice" role="radiogroup" aria-label="New account status">{[
           ['active', 'Active', 'Normal account access'],
           ['suspended', 'Suspended', 'Temporary access restriction'],
@@ -326,7 +385,7 @@ function ModerationDialog({ value, busy, onChange, onCancel, onConfirm }: { valu
         ].map(([status, title, detail]) => <button key={status} role="radio" aria-checked={value.action === status} className={value.action === status ? 'selected' : ''} onClick={() => onChange({ ...value, action: status })}><i /> <span><strong>{title}</strong><small>{detail}</small></span></button>)}</div>}
         <p>{copy}</p>
         {(value.action === 'disabled' || (isUser && value.action === 'suspended')) && <label className="decision-note account-reason"><span>{isUser ? 'Reason for this restriction' : 'Provider rejection reason'}</span><textarea value={value.reason} onChange={(event) => onChange({ ...value, reason: event.target.value })} placeholder="Briefly explain the decision…" /></label>}
-        <div className="confirmation-dialog__actions"><button className="secondary-button" disabled={busy} onClick={onCancel}>Cancel</button><button className={value.action === 'active' || value.action === 'verified' ? 'confirm-button confirm-button--approve' : 'confirm-button confirm-button--decline'} disabled={busy || (isUser && value.action === value.currentStatus) || ((value.action === 'suspended' || value.action === 'disabled') && !value.reason.trim())} onClick={onConfirm}>{busy ? 'Applying…' : `${actionLabel} account`}</button></div>
+        <div className="confirmation-dialog__actions"><button className="secondary-button" disabled={busy} onClick={onCancel}>Cancel</button><button className={value.action === 'active' || value.action === 'verified' ? 'confirm-button confirm-button--approve' : 'confirm-button confirm-button--decline'} disabled={busy || (isUser && value.action === value.currentStatus) || ((value.action === 'suspended' || value.action === 'disabled') && !value.reason.trim())} onClick={onConfirm}>{busy ? 'Applying…' : `${actionLabel} ${isUser ? 'account' : 'application'}`}</button></div>
       </section>
     </div>
   )

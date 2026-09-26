@@ -200,7 +200,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <div className="dashboard-main">
           <header className="topbar">
             <button className="mobile-menu" onClick={() => setMobileOpen(true)} aria-label="Open menu"><MdiIcon path={mdiMenu} /></button>
-            <div className="topbar__status"><span className="status-dot" /> All systems operational</div>
+            <div className="topbar__status"><span className="status-dot" /> Secure staff workspace</div>
             <div className="topbar__actions">
               <button className="notification-button" aria-label="Notifications"><MdiIcon path={mdiBellOutline} /><i /></button>
               <button className="profile-button">

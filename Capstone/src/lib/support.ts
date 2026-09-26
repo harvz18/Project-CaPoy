@@ -12,6 +12,27 @@ export type SupportTicket = {
 
 export type SupportMessage = { body: string; createdAt: string; id: string; mine: boolean }
 
+export type SupportContext = {
+  eventId: string
+  id: string
+  label: string
+  type: 'event' | 'booking'
+}
+
+export const fetchMySupportContext = async (): Promise<{ data: SupportContext[]; message?: string }> => {
+  if (!supabase || !supabaseConfig.isConfigured) return { data: [], message: 'Supabase is not configured.' }
+  const { data, error } = await supabase.rpc('list_my_support_context')
+  if (error) return { data: [], message: error.message }
+  return {
+    data: (Array.isArray(data) ? data : []).map((row) => ({
+      eventId: String(row.event_id || ''),
+      id: String(row.id),
+      label: String(row.label || 'MULTIVENT record'),
+      type: row.context_type === 'booking' ? 'booking' : 'event',
+    })),
+  }
+}
+
 export const fetchMySupportTickets = async (): Promise<{ data: SupportTicket[]; message?: string }> => {
   if (!supabase || !supabaseConfig.isConfigured) return { data: [], message: 'Supabase is not configured.' }
   const { data: authData } = await supabase.auth.getUser()
@@ -26,12 +47,14 @@ export const fetchMySupportTickets = async (): Promise<{ data: SupportTicket[]; 
   })) }
 }
 
-export const createSupportTicket = async (value: { category: string; description: string; subject: string }) => {
+export const createSupportTicket = async (value: { category: string; context?: SupportContext; description: string; subject: string }) => {
   if (!supabase || !supabaseConfig.isConfigured) return { ok: false, message: 'Supabase is not configured.' }
   const { data: authData } = await supabase.auth.getUser()
   if (!authData.user) return { ok: false, message: 'Sign in to contact support.' }
   const { error } = await supabase.from('support_tickets').insert({
     user_id: authData.user.id,
+    event_id: value.context?.eventId || null,
+    booking_id: value.context?.type === 'booking' ? value.context.id : null,
     category: value.category,
     subject: value.subject.trim(),
     description: value.description.trim(),

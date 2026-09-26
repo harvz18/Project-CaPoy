@@ -6,6 +6,8 @@ import { colors, radius, spacing } from '../theme/tokens'
 import { typography } from '../theme/typography'
 
 interface RoleHomePlaceholderScreenProps {
+  actionLabel?: string
+  cardTitle?: string
   description: string
   onBackToRoleSelection: () => void
   roleLabel: string
@@ -24,6 +26,8 @@ const getFirstName = (name: string) => {
 }
 
 export const RoleHomePlaceholderScreen: React.FC<RoleHomePlaceholderScreenProps> = ({
+  actionLabel = 'BACK TO ROLE SELECTION',
+  cardTitle = 'Home page coming soon',
   description,
   onBackToRoleSelection,
   roleLabel,
@@ -46,7 +50,7 @@ export const RoleHomePlaceholderScreen: React.FC<RoleHomePlaceholderScreenProps>
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Home page coming soon</Text>
+        <Text style={styles.cardTitle}>{cardTitle}</Text>
         <Text style={styles.cardText}>{description}</Text>
       </View>
 
@@ -57,7 +61,7 @@ export const RoleHomePlaceholderScreen: React.FC<RoleHomePlaceholderScreenProps>
         size="lg"
         style={styles.button}
       >
-        BACK TO ROLE SELECTION
+        {actionLabel}
       </Button>
     </ScrollView>
   )

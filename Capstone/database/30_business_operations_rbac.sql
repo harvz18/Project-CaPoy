@@ -78,8 +78,7 @@ with defaults(role_name, permission_code) as (
     ('assistant', 'remittance.create'),
     ('customer_service', 'support.view'),
     ('customer_service', 'support.respond'),
-    ('customer_service', 'support.resolve'),
-    ('event_coordinator', 'events.view')
+    ('customer_service', 'support.resolve')
 )
 insert into public.role_permissions (role_id, permission_id)
 select role.id, permission.id

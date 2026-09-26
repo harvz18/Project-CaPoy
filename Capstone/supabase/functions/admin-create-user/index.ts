@@ -12,6 +12,7 @@ type CreateUserInput = {
   password?: string
   role?: string
   account_status?: string
+  permission_overrides?: Record<string, boolean>
 }
 
 Deno.serve(async (request) => {
@@ -30,13 +31,43 @@ Deno.serve(async (request) => {
     const { data: authData, error: authError } = await callerClient.auth.getUser()
     if (authError || !authData.user) return json({ error: 'Authentication is required.' }, 401)
 
+    const { data: callerProfile, error: callerProfileError } = await adminClient
+      .from('profiles')
+      .select('default_role,account_status')
+      .eq('id', authData.user.id)
+      .single()
+    if (callerProfileError || callerProfile?.account_status !== 'active') {
+      return json({ error: 'An active MULTIVENT staff account is required.' }, 403)
+    }
+
     const input = await request.json() as CreateUserInput
     const role = String(input.role || '')
     const accountStatus = String(input.account_status || 'active')
+    const rawOverrides = input.permission_overrides
     const allowedRoles = ['event_coordinator', 'assistant', 'customer_service', 'admin']
     if (!allowedRoles.includes(role)) return json({ error: 'Unsupported internal role.' }, 400)
     if (!['active', 'suspended', 'disabled'].includes(accountStatus)) {
       return json({ error: 'Unsupported account status.' }, 400)
+    }
+    if (role === 'admin' && callerProfile.default_role !== 'superadmin') {
+      return json({ error: 'Only a Superadmin can create an Admin account.' }, 403)
+    }
+
+    if (
+      rawOverrides !== undefined
+      && (rawOverrides === null || Array.isArray(rawOverrides) || typeof rawOverrides !== 'object')
+    ) {
+      return json({ error: 'Permission overrides must be a permission-to-boolean object.' }, 400)
+    }
+    const permissionOverrides = Object.entries(rawOverrides || {})
+    if (permissionOverrides.some(([code, granted]) => !code.trim() || typeof granted !== 'boolean')) {
+      return json({ error: 'Every permission override must contain a code and a boolean value.' }, 400)
+    }
+    if (permissionOverrides.length > 100) {
+      return json({ error: 'Too many permission overrides were supplied.' }, 400)
+    }
+    if (role === 'event_coordinator' && permissionOverrides.length > 0) {
+      return json({ error: 'Event Coordinator access is assignment-scoped and cannot receive global staff overrides.' }, 400)
     }
 
     const requiredPermission = role === 'event_coordinator' ? 'coordinators.create' : 'users.create'
@@ -44,20 +75,35 @@ Deno.serve(async (request) => {
       target_permission: requiredPermission,
     })
     if (permissionError || !permitted) return json({ error: 'You do not have permission to create this account.' }, 403)
+    if (permissionOverrides.length > 0) {
+      const { data: canManagePermissions, error: overridePermissionError } = await callerClient.rpc('has_permission', {
+        target_permission: 'users.permissions.manage',
+      })
+      if (overridePermissionError || !canManagePermissions) {
+        return json({ error: 'Permission-management access is required to customize this account.' }, 403)
+      }
+    }
 
     const fullName = String(input.full_name || '').trim()
     const email = String(input.email || '').trim().toLowerCase()
     const phone = String(input.phone || '').trim()
     const password = String(input.password || '')
-    if (!fullName || !/^\S+@\S+\.\S+$/.test(email) || password.length < 8) {
-      return json({ error: 'Name, valid email, and an 8-character password are required.' }, 400)
+    if (
+      !fullName
+      || fullName.length > 160
+      || !/^\S+@\S+\.\S+$/.test(email)
+      || email.length > 320
+      || phone.length > 50
+      || password.length < 8
+      || password.length > 128
+    ) {
+      return json({ error: 'Enter a valid name, email, contact number, and password of 8 to 128 characters.' }, 400)
     }
 
     const { data: created, error: createError } = await adminClient.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
-      phone: phone || undefined,
       // Create through the ordinary client path first. Only this service-role
       // function promotes the profile to the requested internal role below.
       user_metadata: { full_name: fullName, phone, default_role: 'client', requested_internal_role: role },
@@ -95,8 +141,32 @@ Deno.serve(async (request) => {
       return json({ error: assignmentError.message }, 400)
     }
 
-    const { data: callerProfile } = await adminClient.from('profiles').select('default_role').eq('id', authData.user.id).single()
-    await adminClient.from('audit_logs').insert({
+    if (permissionOverrides.length > 0) {
+      const permissionCodes = permissionOverrides.map(([code]) => code)
+      const { data: permissionRows, error: permissionsError } = await adminClient
+        .from('permissions')
+        .select('id,code')
+        .in('code', permissionCodes)
+      if (permissionsError || !permissionRows || permissionRows.length !== permissionCodes.length) {
+        await adminClient.auth.admin.deleteUser(created.user.id)
+        return json({ error: 'One or more selected permissions are unavailable.' }, 400)
+      }
+
+      const { error: overrideError } = await adminClient.from('user_permissions').insert(
+        permissionRows.map((permission) => ({
+          user_id: created.user.id,
+          permission_id: permission.id,
+          granted: permissionOverrides.find(([code]) => code === permission.code)?.[1] ?? false,
+          assigned_by: authData.user.id,
+        }))
+      )
+      if (overrideError) {
+        await adminClient.auth.admin.deleteUser(created.user.id)
+        return json({ error: overrideError.message }, 400)
+      }
+    }
+
+    const { error: auditError } = await adminClient.from('audit_logs').insert({
       actor_id: authData.user.id,
       actor_role: callerProfile?.default_role || 'superadmin',
       action: 'internal_user.created',
@@ -104,8 +174,15 @@ Deno.serve(async (request) => {
       resource_id: created.user.id,
       new_state: { full_name: fullName, email, role, account_status: accountStatus },
       result: 'success',
-      metadata: { created_via: 'admin-create-user' },
+      metadata: {
+        created_via: 'admin-create-user',
+        permission_overrides: Object.fromEntries(permissionOverrides),
+      },
     })
+    if (auditError) {
+      await adminClient.auth.admin.deleteUser(created.user.id)
+      return json({ error: 'The account was not created because its audit record could not be saved.' }, 500)
+    }
 
     return json({ user_id: created.user.id, role, account_status: accountStatus }, 201)
   } catch (error) {

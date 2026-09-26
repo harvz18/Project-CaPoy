@@ -343,10 +343,23 @@ export const respondToCoordinatorInvitation = async (
     return { message: unavailableMessage, ok: false }
   }
 
-  const { error } = await supabase.rpc('respond_event_coordinator_assignment', {
+  const { data, error } = await supabase.rpc('respond_event_coordinator_assignment', {
     accept_assignment: accepted,
     target_event_id: eventId,
   })
 
-  return error ? { message: error.message, ok: false } : { ok: true }
+  if (error) return { message: error.message, ok: false }
+
+  const response = recordFrom(data)
+  if (accepted && response.accepted === false) {
+    return {
+      message: textFrom(
+        response.reason,
+        'Your availability changed, so MULTIVENT is matching another coordinator.'
+      ),
+      ok: false,
+    }
+  }
+
+  return { ok: true }
 }
