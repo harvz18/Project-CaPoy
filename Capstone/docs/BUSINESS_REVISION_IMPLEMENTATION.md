@@ -97,6 +97,34 @@ Phase 6 requires migration `35`, a new Render deployment, and a new Expo build/r
 
 Phase 7 requires migration `36` and a new Render deployment. It does not require an Edge Function or Expo redeploy.
 
+## Phase 8 status: implementation complete
+
+- Kept the established payment-derived ledger and added indexed, server-side revenue and cash-flow reporting instead of creating a second source of truth.
+- Preserved the configured commission rate on each recognized ledger row so later rate changes do not rewrite historical commission.
+- Added validation that limits `commission_rate` to a JSON numeric value from zero through one and records a dedicated configuration audit action.
+- Rebuilds a payment's allocation when its amount, association, method, or verification timestamps change, and removes recognized amounts when a payment leaves a paid or verified state.
+- Added 12-month gross and commission trends, current-versus-prior-month commission, payment-channel totals, and provider contribution totals.
+- Added a separate cash-flow report with date, classification, and status filters plus gross, commission, provider net, received, released, and net-movement totals.
+- Added transaction references and joined event, service, and provider context without giving the browser unrestricted ledger-write access.
+- Removed migration-time payment rewrites; installing the reporting migration does not mutate historical payment status rows.
+
+Phase 8 requires migration `37` and a new Render deployment. It does not require an Expo or Edge Function deployment.
+
+## Phase 9 status: implementation complete
+
+- Made audit history append-only to application roles and retained an explicit service-role maintenance escape hatch for controlled retention procedures.
+- Rebuilt automatic auditing across operational, coordinator, finance, payment, booking, and workforce tables while avoiding duplicate decision records already written by guarded RPCs.
+- Redacted contact details, message bodies, support descriptions, payment references, free-form remittance notes, and private payloads from automatic before/after snapshots.
+- Added permission-scoped, server-filtered audit queries and a governance summary for recent permission, finance, and coordinator changes.
+- Revoked direct application writes to RBAC grants, system settings, financial transactions, cash remittances, and audit history; existing guarded RPCs remain the supported write boundary.
+- Restricted provider payout requests to owner read/create access. Providers can no longer approve, rewrite, cancel, or delete a submitted request themselves.
+- Removed the created user's email address from the immutable internal-account audit snapshot; authorized viewers can still resolve the linked profile.
+- Retained backend RLS and dynamic permission checks as the authoritative controls; navigation visibility is only a user-interface convenience.
+
+Phase 9 requires migration `38`, a redeploy of `admin-create-user`, and a new Render deployment. It does not require an Expo rebuild.
+
+The completed control review and remaining deployment responsibilities are documented in `docs/PHASE_9_SECURITY_REVIEW.md`.
+
 ## Implemented foundation
 
 - Dynamic role permissions through the existing `roles`, `permissions`, and `role_permissions` tables, plus per-user overrides.
@@ -129,14 +157,16 @@ The budget allocation slider redesign in Requirement 25 is not implemented. The 
 5. Apply `database/34_assistant_operations.sql` after migration `33`.
 6. Apply `database/35_customer_service_ticket_management.sql` after migration `34`.
 7. Apply `database/36_admin_business_analytics.sql` after migration `35`.
-8. Deploy the account-provisioning function:
+8. Apply `database/37_revenue_commission_cashflow.sql` after migration `36`.
+9. Apply `database/38_audit_security_hardening.sql` after migration `37`.
+10. Deploy the account-provisioning function:
 
    ```powershell
    npx supabase functions deploy admin-create-user --project-ref YOUR_PROJECT_REF
    ```
 
-9. Deploy the `web` application.
-10. Build/release the Expo application.
+11. Deploy the `web` application.
+12. Build/release the Expo application only when mobile changes from earlier phases have not yet been released.
 
 The Edge Function uses Supabase-provided `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` values. Never place the service-role key in the web or Expo environment files.
 
@@ -222,3 +252,24 @@ These values are stored in `system_settings` and can be changed by a Superadmin.
 - Confirm category and event-type rankings reflect existing services, bookings, and events.
 - Sign in as a staff account without `dashboard.analytics.view` and confirm analytics are hidden while its permitted action queues remain usable.
 - Revoke `dashboard.analytics.view`, call `get_business_dashboard` directly as that account, and confirm the database returns an authorization error.
+
+## Phase 8 smoke tests
+
+- Verify a paid or verified payment creates ledger rows whose gross amount equals commission plus provider net, subject only to cent-level allocation rounding.
+- Change a payment amount or payment method and confirm its ledger allocation is rebuilt without duplicate rows.
+- Move a recognized payment back to a non-recognized status and confirm gross, commission, provider net, received, and released amounts are no longer counted as revenue.
+- Change the commission setting to a valid decimal and confirm new/reprocessed payments use it while unchanged historical rows retain their captured rate.
+- Attempt to save a negative commission rate, a rate above one, or a nonnumeric value and confirm the setting RPC rejects it.
+- Compare Revenue totals, payment-channel totals, provider contributions, and monthly trends against paid/verified ledger rows.
+- Exercise Today, This week, This month, Custom, classification, and status cash-flow filters and confirm totals and rows use the same server-side scope.
+- Sign in without `revenue.view` or `cashflow.view` and confirm both reporting RPCs reject the request.
+
+## Phase 9 smoke tests
+
+- Create or change a role permission, review a provider/service, change a coordinator assignment, record a remittance, and resolve a support ticket; confirm the expected decision/action records have the correct actor and resource without duplicate decision-specific entries.
+- Inspect automatic snapshots and confirm profile contact fields, message bodies, support descriptions, payment references, remittance notes, and private draft payloads are absent.
+- Attempt direct insert, update, and delete operations against audit history, RBAC grants, financial transactions, cash remittances, and system settings as an authenticated user; confirm they are denied.
+- Attempt to update or delete a submitted payout request as its provider and confirm it is denied while a new valid request remains insertable.
+- Sign in without `system.audit_logs` and call both audit RPCs directly; confirm the database rejects them.
+- Filter audit history by search, resource, result, Today, This week, This month, and Custom dates; confirm the matching count and visible rows agree.
+- Confirm the account-provisioning Edge Function still creates an authorized internal user and records a linked audit entry without embedding the new user's email in the audit snapshot.

@@ -24,6 +24,34 @@ const formatDateTime = (value: unknown) => {
     : date.toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })
 }
 
+const formatReportMonth = (value: string) => {
+  const parsed = new Date(`${value}-01T00:00:00Z`)
+  return Number.isNaN(parsed.getTime())
+    ? value
+    : new Intl.DateTimeFormat('en-PH', { month: 'short', year: 'numeric', timeZone: 'UTC' }).format(parsed)
+}
+
+const cashFlowRange = (filter: string, custom: { start: string; end: string }) => {
+  if (filter === 'all') return { start: null, end: null }
+  if (filter === 'custom') return {
+    start: custom.start ? new Date(`${custom.start}T00:00:00`).toISOString() : null,
+    end: custom.end ? new Date(`${custom.end}T23:59:59.999`).toISOString() : null,
+  }
+
+  const now = new Date()
+  const start = new Date(now)
+  if (filter === 'today') start.setHours(0, 0, 0, 0)
+  else if (filter === 'week') {
+    const day = start.getDay()
+    start.setDate(start.getDate() - (day === 0 ? 6 : day - 1))
+    start.setHours(0, 0, 0, 0)
+  } else {
+    start.setDate(1)
+    start.setHours(0, 0, 0, 0)
+  }
+  return { start: start.toISOString(), end: now.toISOString() }
+}
+
 const formatSupportPayment = (bookingValue: unknown) => {
   const booking = Array.isArray(bookingValue) ? bookingValue[0] as Row | undefined : bookingValue as Row | null
   if (!booking) return 'No booking or payment details'
@@ -44,6 +72,7 @@ const copy: Record<BusinessSection, { eyebrow: string; title: string; descriptio
 
 export function BusinessOperationsScreen({ section }: { section: BusinessSection }) {
   if (section === 'revenue') return <RevenueScreen />
+  if (section === 'cashflow') return <CashFlowScreen />
   if (section === 'permissions') return <PermissionsScreen />
   return <OperationalQueue section={section} />
 }
@@ -67,6 +96,7 @@ function RevenueScreen() {
     const supabase = getSupabase()
     if (!supabase) return
     setLoading(true)
+    setError('')
     const { data: result, error: queryError } = await supabase.rpc('get_revenue_dashboard')
     if (queryError) setError(queryError.message)
     else setData((result || {}) as Row)
@@ -78,7 +108,13 @@ function RevenueScreen() {
   }, [load])
 
   const monthly = Array.isArray(data.monthly) ? data.monthly as Row[] : []
+  const paymentMethods = Array.isArray(data.payment_methods) ? data.payment_methods as Row[] : []
+  const topProviders = Array.isArray(data.top_providers) ? data.top_providers as Row[] : []
+  const currentMonth = data.current_month && typeof data.current_month === 'object' ? data.current_month as Row : {}
   const maximum = Math.max(1, ...monthly.map((item) => Number(item.gross || 0)))
+  const commissionChange = currentMonth.percent_change == null
+    ? 'No prior-month baseline'
+    : `${Number(currentMonth.percent_change) > 0 ? '+' : ''}${Number(currentMonth.percent_change).toFixed(1)}% from last month`
   return (
     <div className="screen-stack">
       <Heading section="revenue" onRefresh={() => void load()} />
@@ -87,25 +123,92 @@ function RevenueScreen() {
         <section className="stat-grid">
           {[
             ['Gross transaction value', data.gross_amount, 'Before commission'],
-            ['Commission revenue', data.commission_amount, 'MULTIVENT income'],
+            ['Commission revenue', data.commission_amount, `${Number(data.commission_rate ?? 0.10) * 100}% configured rate`],
             ['Provider net amount', data.provider_net_amount, 'Payable to providers'],
-            ['Transactions', data.transaction_count, 'Recorded payments'],
+            ['This month', currentMonth.commission, commissionChange],
           ].map(([label, value, detail], index) => (
             <article className="stat-card" key={String(label)}>
               <span className={`stat-card__icon stat-card__icon--${index === 1 ? 'green' : 'wine'}`}><MdiIcon path={index === 3 ? mdiCashCheck : mdiChartLine} /></span>
-              <div><p>{String(label)}</p><strong>{index === 3 ? Number(value || 0).toLocaleString() : formatMoney(Number(value || 0))}</strong><small>{String(detail)}</small></div>
+              <div><p>{String(label)}</p><strong>{formatMoney(Number(value || 0))}</strong><small>{String(detail)}</small></div>
             </article>
           ))}
         </section>
         <section className="panel business-panel">
           <header><div><span className="eyebrow">LAST 12 MONTHS</span><h2>Gross value and commission</h2></div></header>
           {monthly.length === 0 ? <EmptyState title="No recognized revenue yet" copy="Paid and verified provider transactions will appear here." /> : (
-            <div className="revenue-bars">{monthly.map((item) => <div key={String(item.month)}><span>{String(item.month)}</span><i style={{ width: `${Math.max(2, Number(item.gross || 0) / maximum * 100)}%` }} /><strong>{formatMoney(Number(item.commission || 0))}</strong></div>)}</div>
+            <div className="revenue-bars">{monthly.map((item) => {
+              const gross = Number(item.gross || 0)
+              return <div key={String(item.month)}><span>{formatReportMonth(String(item.month))}</span><i style={{ width: `${gross === 0 ? 0 : Math.max(2, gross / maximum * 100)}%` }} /><strong>{formatMoney(Number(item.commission || 0))}</strong></div>
+            })}</div>
           )}
+        </section>
+        <section className="finance-breakdown-grid">
+          <article className="panel ranking-panel"><header><div><span className="eyebrow">PAYMENT CHANNELS</span><h2>Revenue by method</h2></div></header>{paymentMethods.length ? paymentMethods.map((item, index) => <div className="ranking-row ranking-row--detailed" key={String(item.method)}><b>{index + 1}</b><span><strong>{String(item.method)}</strong><small>{Number(item.transactions || 0)} transactions · {formatMoney(Number(item.gross || 0))} gross</small></span><em>{formatMoney(Number(item.commission || 0))}</em></div>) : <EmptyState title="No payment data" copy="Payment channels appear after revenue is recognized." />}</article>
+          <article className="panel ranking-panel"><header><div><span className="eyebrow">COMMISSION SOURCES</span><h2>Provider contribution</h2></div></header>{topProviders.length ? topProviders.map((item, index) => <div className="ranking-row ranking-row--detailed" key={String(item.id)}><b>{index + 1}</b><span><strong>{String(item.name)}</strong><small>{Number(item.transactions || 0)} transactions · {formatMoney(Number(item.gross || 0))} gross</small></span><em>{formatMoney(Number(item.commission || 0))}</em></div>) : <EmptyState title="No provider revenue" copy="Provider contribution appears after recognized payments." />}</article>
         </section>
       </>}
     </div>
   )
+}
+
+function CashFlowScreen() {
+  const [data, setData] = useState<Row>({})
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [dateFilter, setDateFilter] = useState('month')
+  const [transactionType, setTransactionType] = useState('all')
+  const [status, setStatus] = useState('all')
+  const [customDates, setCustomDates] = useState({ start: '', end: '' })
+
+  const load = useCallback(async () => {
+    const supabase = getSupabase()
+    if (!supabase) return
+    setLoading(true)
+    setError('')
+    const range = cashFlowRange(dateFilter, customDates)
+    const { data: result, error: queryError } = await supabase.rpc('get_cash_flow_report', {
+      range_start: range.start,
+      range_end: range.end,
+      target_type: transactionType,
+      target_status: status,
+      page_limit: 500,
+      page_offset: 0,
+    })
+    if (queryError) setError(queryError.message)
+    else setData((result || {}) as Row)
+    setLoading(false)
+  }, [customDates, dateFilter, status, transactionType])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void load(), 0)
+    return () => window.clearTimeout(timer)
+  }, [load])
+
+  const summary = data.summary && typeof data.summary === 'object' ? data.summary as Row : {}
+  const rows = Array.isArray(data.rows) ? data.rows as Row[] : []
+  return <div className="screen-stack">
+    <Heading section="cashflow" onRefresh={() => void load()} />
+    {error && <InlineError message={error} />}
+    <section className="stat-grid finance-stat-grid">
+      {[
+        ['Amount received', summary.amount_received, 'Recorded inflows'],
+        ['Amount released', summary.amount_released, 'Recorded outflows'],
+        ['Net cash movement', summary.net_cash_movement, 'Received less released'],
+        ['Commission revenue', summary.commission_revenue, 'Recognized MULTIVENT income'],
+        ['Provider payable', summary.provider_payable, 'Recognized provider net'],
+        ['Refunds', summary.refunds, 'Released through refunds'],
+      ].map(([label, value, detail], index) => <article className="stat-card" key={String(label)}><span className={`stat-card__icon stat-card__icon--${index === 2 || index === 3 ? 'green' : 'wine'}`}><MdiIcon path={index === 1 || index === 5 ? mdiCashCheck : mdiChartLine} /></span><div><p>{String(label)}</p><strong>{formatMoney(Number(value || 0))}</strong><small>{String(detail)}</small></div></article>)}
+    </section>
+    <section className="panel data-panel">
+      <div className="cashflow-filter-grid">
+        <div className="business-filter"><span>Date range</span>{[['today','Today'],['week','This week'],['month','This month'],['custom','Custom'],['all','All']].map(([value,label]) => <button type="button" key={value} className={dateFilter === value ? 'selected' : ''} onClick={() => setDateFilter(value)}>{label}</button>)}</div>
+        <div className="cashflow-selects"><label>Type<select value={transactionType} onChange={(event) => setTransactionType(event.target.value)}><option value="all">All classifications</option><option value="booking_payment">Cash inflow</option><option value="provider_remittance">Office cash remittance</option><option value="refund">Refund</option><option value="provider_payable">Provider payable</option><option value="commission_revenue">Commission revenue</option><option value="adjustment">Adjustment</option></select></label><label>Status<select value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">All statuses</option>{['pending','processing','paid','verified','partially_remitted','remitted','disputed','refunded','failed','cancelled'].map((value) => <option value={value} key={value}>{value.replaceAll('_',' ')}</option>)}</select></label></div>
+        {dateFilter === 'custom' && <div className="cashflow-custom-dates"><label>From<input aria-label="Cash-flow start date" type="date" value={customDates.start} onChange={(event) => setCustomDates({...customDates,start:event.target.value})}/></label><label>Through<input aria-label="Cash-flow end date" type="date" value={customDates.end} min={customDates.start || undefined} onChange={(event) => setCustomDates({...customDates,end:event.target.value})}/></label></div>}
+      </div>
+      {loading ? <TableSkeleton /> : rows.length === 0 ? <EmptyState title="No cash-flow records" copy="No financial movement matches the selected filters." /> : <div className="table-scroll"><table className="data-table"><thead><tr><th>Date</th><th>Reference</th><th>Event / service</th><th>Provider</th><th>Classification</th><th>Method</th><th>Gross</th><th>Commission</th><th>Provider net</th><th>Received</th><th>Released</th><th>Status</th></tr></thead><tbody>{rows.map((row) => <tr key={String(row.id)}><td data-label="Date">{formatDate(String(row.transaction_at))}</td><td data-label="Reference"><strong className="record-id">{String(row.transaction_reference)}</strong></td><td data-label="Event / service"><strong>{String(row.event_name)}</strong><small className="table-subtitle">{String(row.service_name)}</small></td><td data-label="Provider">{String(row.provider_name)}</td><td data-label="Classification"><strong>{String(row.classification)}</strong><small className="table-subtitle">{String(row.cash_direction).replaceAll('_',' ')}</small></td><td data-label="Method">{String(row.payment_method || '—')}</td><td data-label="Gross">{formatMoney(Number(row.gross_amount))}</td><td data-label="Commission">{formatMoney(Number(row.commission_amount))}</td><td data-label="Provider net">{formatMoney(Number(row.provider_net_amount))}</td><td data-label="Received">{formatMoney(Number(row.amount_received))}</td><td data-label="Released">{formatMoney(Number(row.amount_released))}</td><td data-label="Status"><StatusBadge value={String(row.status)} /></td></tr>)}</tbody></table></div>}
+      <footer className="table-footer"><span>Showing {rows.length} of {Number(data.total_count || 0).toLocaleString()} matching records</span><small>Read-only financial reporting</small></footer>
+    </section>
+  </div>
 }
 
 function OperationalQueue({ section }: { section: Exclude<BusinessSection, 'revenue' | 'permissions'> }) {

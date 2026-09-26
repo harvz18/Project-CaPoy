@@ -172,7 +172,9 @@ Deno.serve(async (request) => {
       action: 'internal_user.created',
       resource_type: 'profile',
       resource_id: created.user.id,
-      new_state: { full_name: fullName, email, role, account_status: accountStatus },
+      // Keep governance context without retaining contact details in the
+      // immutable audit snapshot. Authorized viewers can resolve the profile.
+      new_state: { full_name: fullName, role, account_status: accountStatus },
       result: 'success',
       metadata: {
         created_via: 'admin-create-user',
