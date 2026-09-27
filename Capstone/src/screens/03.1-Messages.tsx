@@ -48,6 +48,7 @@ interface MessagesScreenProps {
   navigationVariant?: 'client' | 'merchant'
   onSelectTab?: (tab: ClientHomeTab | MerchantHomeTab) => void
   searchValue?: string
+  userAvatarUrl?: string
   userName?: string
 }
 
@@ -169,6 +170,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
   onSelectConversation,
   onSelectTab,
   searchValue,
+  userAvatarUrl,
   userName = 'Planner',
 }) => {
   const { width } = useWindowDimensions()
@@ -218,30 +220,52 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
 
   return (
     <View style={styles.screen}>
-      <View style={styles.topAppBar}>
+      <View style={[
+        styles.topAppBar,
+        navigationVariant === 'client' && styles.clientTopAppBar,
+      ]}>
         <View style={[styles.topAppBarContent, isWide && styles.horizontalPaddingWide]}>
-          <Pressable
-            accessibilityLabel="Open profile"
-            accessibilityRole="button"
-            hitSlop={8}
-            onPress={onOpenProfile}
-            style={({ pressed }) => pressed && styles.surfacePressed}
-          >
-            <View style={styles.userAvatar}>
-              <Text style={styles.userAvatarText}>{getInitials(userName).charAt(0)}</Text>
-            </View>
-          </Pressable>
-          <Text style={styles.brand}>MULTIVENT</Text>
-          <Pressable
-            accessibilityLabel="Open notifications"
-            accessibilityRole="button"
-            hitSlop={8}
-            onPress={onOpenNotifications}
-            style={({ pressed }) => [styles.notificationButton, pressed && styles.surfacePressed]}
-          >
-            <BellIcon />
-            {hasUnreadNotifications ? <View style={styles.notificationDot} /> : null}
-          </Pressable>
+          {navigationVariant === 'client' ? (
+            <>
+              <View style={styles.clientHeaderButton} />
+              <Text style={styles.clientHeaderTitle}>MESSAGES</Text>
+              <View style={styles.clientHeaderButton} />
+            </>
+          ) : (
+            <>
+              <Pressable
+                accessibilityLabel="Open profile"
+                accessibilityRole="button"
+                hitSlop={8}
+                onPress={onOpenProfile}
+                style={({ pressed }) => pressed && styles.surfacePressed}
+              >
+                <View style={styles.userAvatar}>
+                  {userAvatarUrl ? (
+                    <Image
+                      accessibilityLabel={`${userName} profile photo`}
+                      resizeMode="cover"
+                      source={{ uri: userAvatarUrl }}
+                      style={styles.userAvatarImage}
+                    />
+                  ) : (
+                    <Text style={styles.userAvatarText}>{getInitials(userName).charAt(0)}</Text>
+                  )}
+                </View>
+              </Pressable>
+              <Text style={styles.brand}>MULTIVENT</Text>
+              <Pressable
+                accessibilityLabel="Open notifications"
+                accessibilityRole="button"
+                hitSlop={8}
+                onPress={onOpenNotifications}
+                style={({ pressed }) => [styles.notificationButton, pressed && styles.surfacePressed]}
+              >
+                <BellIcon />
+                {hasUnreadNotifications ? <View style={styles.notificationDot} /> : null}
+              </Pressable>
+            </>
+          )}
         </View>
       </View>
 
@@ -496,9 +520,13 @@ const palette = {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.background },
   topAppBar: { zIndex: 30, minHeight: 64, justifyContent: 'center', borderBottomWidth: 1, borderBottomColor: palette.border, backgroundColor: palette.background },
-  topAppBarContent: { width: '100%', maxWidth: 820, minHeight: 64, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20 },
-  horizontalPaddingWide: { paddingHorizontal: 32 },
+  clientTopAppBar: { borderBottomColor: palette.primary, backgroundColor: palette.primaryContainer },
+  topAppBarContent: { width: '100%', maxWidth: 1200, minHeight: 64, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 8 },
+  horizontalPaddingWide: { paddingHorizontal: 64 },
+  clientHeaderButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },
+  clientHeaderTitle: { color: palette.white, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 1.2, textAlign: 'center' },
   userAvatar: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19, backgroundColor: palette.primaryContainer },
+  userAvatarImage: { width: '100%', height: '100%', borderRadius: 19 },
   userAvatarText: { color: palette.onPrimary, fontSize: 13, lineHeight: 18, fontWeight: '700' },
   brand: { color: palette.primary, fontSize: 17, lineHeight: 23, fontWeight: '800', letterSpacing: 2.3 },
   notificationButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19 },

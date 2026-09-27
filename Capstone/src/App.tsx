@@ -206,6 +206,7 @@ import {
   EditableAccountProfile,
   loadEditableAccountProfile,
   saveEditableAccountProfile,
+  uploadEditableAccountPhoto,
 } from './lib/profile'
 
 type AppScreen =
@@ -555,9 +556,12 @@ export const App: React.FC = () => {
   const [activeGuardedActionCount, setActiveGuardedActionCount] = React.useState(0)
   const guardedActionsRef = React.useRef(new Set<string>())
   const [accountProfile, setAccountProfile] = React.useState<EditableAccountProfile>()
+  const [userAvatarUrl, setUserAvatarUrl] = React.useState('')
   const [accountProfileError, setAccountProfileError] = React.useState('')
   const [isLoadingAccountProfile, setIsLoadingAccountProfile] = React.useState(false)
   const [isSavingAccountProfile, setIsSavingAccountProfile] = React.useState(false)
+  const [isSigningOut, setIsSigningOut] = React.useState(false)
+  const [isUploadingProfilePhoto, setIsUploadingProfilePhoto] = React.useState(false)
   const [profileReturnScreen, setProfileReturnScreen] = React.useState<AppScreen>('clientHome')
 
   const runOnce = React.useCallback(async <T,>(
@@ -700,6 +704,7 @@ export const App: React.FC = () => {
     }
 
     setAccountProfile(result.profile)
+    setUserAvatarUrl(result.profile.avatarUrl)
     return result.profile
   }, [])
 
@@ -727,6 +732,7 @@ export const App: React.FC = () => {
     }
 
     setAccountProfile(result.profile)
+    setUserAvatarUrl(result.profile.avatarUrl)
     setUserName(
       result.profile.role === 'service_provider'
         ? result.profile.businessName
@@ -734,6 +740,65 @@ export const App: React.FC = () => {
     )
     setToastMessage(result.message ?? 'Profile updated successfully.')
     setScreen(profileReturnScreen)
+  }
+
+  const handleSignOut = async () => {
+    if (isSigningOut) return
+
+    setIsSigningOut(true)
+    const result = supabase ? await supabase.auth.signOut() : undefined
+    if (result?.error) {
+      setToastMessage(result.error.message || 'Unable to log out. Please try again.')
+      setIsSigningOut(false)
+      return
+    }
+
+    setAccountProfile(undefined)
+    setUserAvatarUrl('')
+    setAccountProfileError('')
+    setCoordinatorDashboard(emptyCoordinatorDashboard())
+    setUserName('Planner')
+    setScreen('roleSelection')
+    setIsSigningOut(false)
+  }
+
+  const chooseAccountProfilePhoto = async () => {
+    if (isUploadingProfilePhoto) return undefined
+
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync()
+    if (!permission.granted) {
+      setToastMessage('Photo-library access is needed to choose a profile photo.')
+      return undefined
+    }
+
+    const selection = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: true,
+      aspect: [1, 1],
+      mediaTypes: ['images'],
+      quality: 0.82,
+    })
+    if (selection.canceled || !selection.assets[0]) return undefined
+
+    setIsUploadingProfilePhoto(true)
+    const asset = selection.assets[0]
+    const result = await uploadEditableAccountPhoto({
+      fileName: asset.fileName,
+      mimeType: asset.mimeType,
+      uri: asset.uri,
+    })
+    setIsUploadingProfilePhoto(false)
+
+    if (!result.ok || !result.avatarUrl) {
+      setToastMessage(result.message ?? 'Unable to upload your profile photo.')
+      return undefined
+    }
+
+    setAccountProfile((current) => current
+      ? { ...current, avatarUrl: result.avatarUrl ?? current.avatarUrl }
+      : current)
+    setUserAvatarUrl(result.avatarUrl)
+    setToastMessage('Profile photo updated.')
+    return result.avatarUrl
   }
 
   const openClientTab = (tab: ClientHomeTab) => {
@@ -1256,7 +1321,7 @@ export const App: React.FC = () => {
 
       const { data } = await supabase
         .from('profiles')
-        .select('full_name, default_role, account_status')
+        .select('full_name, avatar_url, default_role, account_status')
         .eq('id', userId)
         .maybeSingle()
 
@@ -1278,6 +1343,7 @@ export const App: React.FC = () => {
       if (profileName || metadataName) {
         setUserName(profileName || metadataName)
       }
+      setUserAvatarUrl(data?.avatar_url ?? '')
 
       const metadataBusinessName =
         typeof metadata.business_name === 'string' ? metadata.business_name.trim() : ''
@@ -1317,6 +1383,7 @@ export const App: React.FC = () => {
         if (event === 'SIGNED_OUT') {
           setUserName('Planner')
           setAccountProfile(undefined)
+          setUserAvatarUrl('')
           setAccountProfileError('')
           setMaxPlanningStep(1)
           setClientEventDraft(undefined)
@@ -1723,9 +1790,7 @@ export const App: React.FC = () => {
     if (action === 'verification') setScreen('pendingApproval')
     if (action === 'help' || action === 'terms') setScreen('providerProfile')
     if (action === 'logout') {
-      void supabase?.auth.signOut()
-      setUserName('Planner')
-      setScreen('roleSelection')
+      void handleSignOut()
     }
   }
 
@@ -2013,6 +2078,7 @@ export const App: React.FC = () => {
   const renderClientHome = () => (
     <ClientHomeScreen
       draftEvent={clientEventDraft}
+      userAvatarUrl={userAvatarUrl}
       userName={userName}
       remainingBudget={remainingBudget}
       selectedServiceCount={selectedServices.length}
@@ -2548,6 +2614,7 @@ export const App: React.FC = () => {
       case 'providerProfile':
         return (
           <MerchantProfileScreen
+            isLoggingOut={isSigningOut}
             profile={{
               businessName: accountProfile?.businessName || userName,
               contactEmail: accountProfile?.contactEmail || '',
@@ -2570,9 +2637,13 @@ export const App: React.FC = () => {
             error={accountProfileError}
             isLoading={isLoadingAccountProfile}
             isSaving={isSavingAccountProfile}
+            isSigningOut={isSigningOut}
+            isUploadingPhoto={isUploadingProfilePhoto}
             onBack={() => setScreen(profileReturnScreen)}
+            onChoosePhoto={chooseAccountProfilePhoto}
             onOpenSupport={() => setScreen('support')}
             onSave={(value) => void saveAccountProfile(value)}
+            onSignOut={() => void handleSignOut()}
             profile={accountProfile}
           />
         )
@@ -2656,6 +2727,7 @@ export const App: React.FC = () => {
       case 'coordinatorHome':
         return (
           <CoordinatorScreen
+            avatarUrl={userAvatarUrl}
             busyInvitationId={busyCoordinatorInvitationId}
             busyTaskId={busyCoordinatorTaskId}
             dashboard={coordinatorDashboard}
@@ -2671,10 +2743,7 @@ export const App: React.FC = () => {
               void handleCoordinatorInvitationResponse(invitation, accepted)
             }
             onSignOut={() => {
-              void supabase?.auth.signOut()
-              setCoordinatorDashboard(emptyCoordinatorDashboard())
-              setUserName('Planner')
-              setScreen('roleSelection')
+              void handleSignOut()
             }}
             onToggleTask={(task) => void handleCoordinatorTaskToggle(task)}
             unreadNotificationCount={notifications.filter((notification) => !notification.isRead).length}
@@ -2805,6 +2874,7 @@ export const App: React.FC = () => {
           >
             <BudgetTrackerScreen
               remainingBudget={remainingBudget}
+              userAvatarUrl={userAvatarUrl}
               showBottomNavigation={false}
               onBack={() => setScreen('budgetAllocation')}
               onOpenBudget={() => setScreen('budgetAllocation')}
@@ -3051,6 +3121,7 @@ export const App: React.FC = () => {
             }}
             onSelectTab={openMessageTab}
             userName={userName}
+            userAvatarUrl={userAvatarUrl}
           />
         )
       case 'chatThread':

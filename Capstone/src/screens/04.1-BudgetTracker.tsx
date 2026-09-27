@@ -1,4 +1,5 @@
 import { Text } from '../components/AppText'
+import { MaterialIcons } from '@expo/vector-icons'
 import React from 'react'
 import {
   Image,
@@ -25,6 +26,7 @@ export type BudgetTrackerTab = ClientMainTab | 'vendors' | 'planner' | 'chat'
 interface BudgetTrackerScreenProps {
   remainingBudget?: number
   showBottomNavigation?: boolean
+  userAvatarUrl?: string
   onBack?: () => void
   onOpenBudget?: () => void
   onOpenMenu?: () => void
@@ -32,9 +34,6 @@ interface BudgetTrackerScreenProps {
   onSelectCategory?: (category: MerchantCategory) => void
   onSelectTab?: (tab: BudgetTrackerTab) => void
 }
-
-const PROFILE_IMAGE =
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuDudR_GFQ-ULKyh539LFLZ7-7iwyr9tbAaRCanoXn_RXRvDHm6ovtT4dtZOU_ALWUQM-j1x0m3EpLiOcGXV-Bpz8MDN6ehTCZk1nv6rSCJyzbPyuDoVRL1MmrMBsYVdM_j20XJosRm49XNB95u8HWAKP9H3J4ulqflbM9VySKeMebhUVkTdk03kOt5jXOrig6f1s4fTgWhGx1cDDDHSMtPe0B4h7gOTTWEPWPHgCL0iL1Nv-tiDt74GcQ'
 
 const merchantCategories = [
   {
@@ -124,6 +123,7 @@ const formatCurrency = (value: number) =>
 export const BudgetTrackerScreen: React.FC<BudgetTrackerScreenProps> = ({
   remainingBudget = 45000,
   showBottomNavigation = true,
+  userAvatarUrl,
   onBack,
   onOpenBudget,
   onOpenMenu,
@@ -158,11 +158,17 @@ export const BudgetTrackerScreen: React.FC<BudgetTrackerScreenProps> = ({
             onPress={onOpenProfile}
             style={({ pressed }) => pressed && styles.pressed}
           >
-            <Image
-              accessibilityLabel="User profile photo"
-              source={{ uri: PROFILE_IMAGE }}
-              style={styles.avatar}
-            />
+            {userAvatarUrl ? (
+              <Image
+                accessibilityLabel="User profile photo"
+                source={{ uri: userAvatarUrl }}
+                style={styles.avatar}
+              />
+            ) : (
+              <View style={styles.avatarFallback}>
+                <MaterialIcons color={palette.primaryContainer} name="person" size={22} />
+              </View>
+            )}
           </Pressable>
         </View>
       </View>
@@ -316,6 +322,16 @@ const styles = StyleSheet.create({
     borderColor: palette.outlineVariant,
     borderRadius: 20,
     backgroundColor: palette.surfaceVariant,
+  },
+  avatarFallback: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: palette.outlineVariant,
+    borderRadius: 20,
+    backgroundColor: palette.surface,
   },
   stepWrapper: {
     zIndex: 20,

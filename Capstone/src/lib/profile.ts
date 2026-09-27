@@ -19,6 +19,18 @@ export type ProfileResult = {
   profile?: EditableAccountProfile
 }
 
+export type ProfilePhotoResult = {
+  avatarUrl?: string
+  message?: string
+  ok: boolean
+}
+
+export type ProfilePhotoUpload = {
+  fileName?: string | null
+  mimeType?: string | null
+  uri: string
+}
+
 const emptyProfile: EditableAccountProfile = {
   avatarUrl: '',
   businessDescription: '',
@@ -114,6 +126,7 @@ export async function saveEditableAccountProfile(
   const { error: accountError } = await supabase
     .from('profiles')
     .update({
+      avatar_url: cleaned.avatarUrl || null,
       full_name: cleaned.fullName,
       phone: cleaned.phone || null,
       updated_at: new Date().toISOString(),
@@ -154,6 +167,104 @@ export async function saveEditableAccountProfile(
   }
 
   return { ok: true, profile: cleaned }
+}
+
+export async function uploadEditableAccountPhoto(
+  upload: ProfilePhotoUpload
+): Promise<ProfilePhotoResult> {
+  if (!supabase) {
+    return { message: 'Connect Supabase to upload your profile photo.', ok: false }
+  }
+
+  const { data: authData, error: authError } = await supabase.auth.getUser()
+  if (authError || !authData.user) {
+    return { message: authError?.message ?? 'Sign in to update your profile photo.', ok: false }
+  }
+
+  let imageBody: ArrayBuffer
+  try {
+    const response = await fetch(upload.uri)
+    if (!response.ok) throw new Error('The selected image could not be opened.')
+    imageBody = await response.arrayBuffer()
+  } catch (error) {
+    return {
+      message: error instanceof Error ? error.message : 'The selected image could not be opened.',
+      ok: false,
+    }
+  }
+
+  const contentType = normalizedImageType(upload.mimeType)
+    ?? imageTypeFromName(upload.fileName || upload.uri)
+  if (!contentType) {
+    return { message: 'Choose a JPEG, PNG, or WebP image.', ok: false }
+  }
+  if (imageBody.byteLength > 5 * 1024 * 1024) {
+    return { message: 'Profile photos must be 5 MB or smaller.', ok: false }
+  }
+
+  const extension = contentType === 'image/jpeg'
+    ? 'jpg'
+    : contentType === 'image/png'
+      ? 'png'
+      : 'webp'
+  const objectPath = `${authData.user.id}/avatar-${Date.now()}.${extension}`
+  const { error: uploadError } = await supabase.storage
+    .from('profile-photos')
+    .upload(objectPath, imageBody, { contentType, upsert: false })
+
+  if (uploadError) return { message: uploadError.message, ok: false }
+
+  const { data: publicUrlData } = supabase.storage
+    .from('profile-photos')
+    .getPublicUrl(objectPath)
+  const avatarUrl = publicUrlData.publicUrl
+  const { data: currentProfile } = await supabase
+    .from('profiles')
+    .select('avatar_url')
+    .eq('id', authData.user.id)
+    .maybeSingle()
+  const { error: profileError } = await supabase
+    .from('profiles')
+    .update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() })
+    .eq('id', authData.user.id)
+
+  if (profileError) {
+    await supabase.storage.from('profile-photos').remove([objectPath])
+    return { message: profileError.message, ok: false }
+  }
+
+  const previousPath = profilePhotoPath(currentProfile?.avatar_url, authData.user.id)
+  if (previousPath && previousPath !== objectPath) {
+    await supabase.storage.from('profile-photos').remove([previousPath])
+  }
+
+  return { avatarUrl, ok: true }
+}
+
+function normalizedImageType(value?: string | null) {
+  const normalized = value?.toLowerCase()
+  if (normalized === 'image/jpg' || normalized === 'image/jpeg') return 'image/jpeg'
+  if (normalized === 'image/png') return 'image/png'
+  if (normalized === 'image/webp') return 'image/webp'
+  return undefined
+}
+
+function imageTypeFromName(value?: string | null) {
+  const normalized = value?.split('?')[0].toLowerCase()
+  if (normalized?.endsWith('.jpg') || normalized?.endsWith('.jpeg')) return 'image/jpeg'
+  if (normalized?.endsWith('.png')) return 'image/png'
+  if (normalized?.endsWith('.webp')) return 'image/webp'
+  return undefined
+}
+
+function profilePhotoPath(value: unknown, userId: string) {
+  if (typeof value !== 'string' || !value) return undefined
+  const marker = '/storage/v1/object/public/profile-photos/'
+  const markerIndex = value.indexOf(marker)
+  if (markerIndex < 0) return undefined
+
+  const path = decodeURIComponent(value.slice(markerIndex + marker.length))
+  return path.startsWith(`${userId}/`) ? path : undefined
 }
 
 function normalizeEditableRole(value: unknown): EditableAccountProfile['role'] {

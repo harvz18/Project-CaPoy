@@ -23,6 +23,7 @@ interface ClientHomeScreenProps {
   remainingBudget?: number
   selectedServiceCount?: number
   totalBudget?: number
+  userAvatarUrl?: string
   userName?: string
   searchValue?: string
   onChangeSearch?: (value: string) => void
@@ -98,6 +99,7 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   onStartNewEvent,
   remainingBudget,
   totalBudget,
+  userAvatarUrl,
   userName,
 }) => {
   const { width } = useWindowDimensions()
@@ -153,7 +155,16 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
             style={({ pressed }) => [styles.referenceHeaderIdentity, pressed && styles.referencePressed]}
           >
             <View style={styles.referenceAvatar}>
-              <MaterialIcons name="account-circle" size={34} color="#8A2944" />
+              {userAvatarUrl ? (
+                <Image
+                  accessibilityLabel={`${userName || 'User'} profile photo`}
+                  resizeMode="cover"
+                  source={{ uri: userAvatarUrl }}
+                  style={styles.referenceAvatarImage}
+                />
+              ) : (
+                <MaterialIcons name="account-circle" size={34} color="#8A2944" />
+              )}
             </View>
             <View>
               <View style={styles.referenceNameRow}>
@@ -420,6 +431,7 @@ const styles = StyleSheet.create({
     borderRadius: 19,
     backgroundColor: '#F8EDEF',
   },
+  referenceAvatarImage: { width: '100%', height: '100%', borderRadius: 19 },
   referenceNameRow: {
     flexDirection: 'row',
     alignItems: 'center',

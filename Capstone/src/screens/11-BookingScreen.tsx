@@ -66,9 +66,6 @@ interface BookingScreenProps {
   onSelectTab?: (tab: BookingTab) => void
 }
 
-const profileImage =
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuDFKwwMGKf49MfjiaUPbQKbEV8NAm7-Ac8OP_SHq6vcWQCN3Re793zWxivgmVCo6QuLCp-8HNm2S3W_Jbcm_WlaTPpN3nkd1TbURID3kM0AnFd9X4OJgEKc9msJGzYFIL8ktk08fD82kYaDWMjXh9IoyXG1ywt7ZvE7-g9w4pkB-O6wa1DVpBOd3v0EeR1P5T0L2gWhclnG-gntgBi9HLC4WSyJdhGoetVg7jKhT0XK1HGBWLpevDqSXQ'
-
 const filterOptions = [
   { id: 'all' as const, label: 'ALL EVENTS' },
   { id: 'requested' as const, label: 'REQUESTED' },
@@ -87,8 +84,6 @@ export const BookingScreen: React.FC<BookingScreenProps> = ({
   bookings = [],
   eventName = 'Sarah & James Wedding',
   showBottomNavigation = true,
-  onOpenMenu,
-  onOpenProfile,
   onSelectBooking,
   onSelectEvent,
   onSelectTab,
@@ -111,34 +106,9 @@ export const BookingScreen: React.FC<BookingScreenProps> = ({
     <View style={styles.screen}>
       <View style={styles.topAppBar}>
         <View style={[styles.topAppBarContent, isWide && styles.wideHorizontalPadding]}>
-          <Pressable
-            accessibilityLabel="Open menu"
-            accessibilityRole="button"
-            hitSlop={8}
-            onPress={onOpenMenu}
-            style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}
-          >
-            <View style={styles.menuLine} />
-            <View style={styles.menuLine} />
-            <View style={styles.menuLine} />
-          </Pressable>
-
-          <Text style={[styles.brand, isWide && styles.brandWide]}>MULTIVENT</Text>
-
-          <Pressable
-            accessibilityLabel="Open profile"
-            accessibilityRole="button"
-            hitSlop={8}
-            onPress={onOpenProfile}
-            style={({ pressed }) => [styles.profileButton, pressed && styles.pressed]}
-          >
-            <Image
-              accessibilityLabel="User profile photo"
-              resizeMode="cover"
-              source={{ uri: profileImage }}
-              style={styles.profileImage}
-            />
-          </Pressable>
+          <View style={styles.headerButton} />
+          <Text style={styles.headerTitle}>MY BOOKINGS</Text>
+          <View style={styles.headerButton} />
         </View>
       </View>
 
@@ -318,22 +288,20 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.background },
   topAppBar: {
     zIndex: 40,
-    backgroundColor: palette.background,
-    shadowColor: palette.burgundy,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.06,
-    shadowRadius: 15,
-    elevation: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: palette.burgundyDark,
+    backgroundColor: palette.burgundy,
   },
   topAppBarContent: {
     width: '100%',
     maxWidth: 1200,
-    minHeight: 80,
+    minHeight: 64,
     alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
+    paddingVertical: 8,
   },
   wideHorizontalPadding: { paddingHorizontal: 64 },
   headerButton: {
@@ -341,27 +309,16 @@ const styles = StyleSheet.create({
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
-  },
-  menuLine: { width: 22, height: 2, borderRadius: 1, backgroundColor: palette.burgundyDark },
-  brand: {
-    color: palette.burgundyDark,
-    fontSize: 32,
-    lineHeight: 40,
-    fontWeight: '700',
-    letterSpacing: -0.4,
-  },
-  brandWide: { fontSize: 40, lineHeight: 48 },
-  profileButton: {
-    width: 40,
-    height: 40,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: palette.border,
     borderRadius: 20,
-    backgroundColor: palette.surface,
   },
-  profileImage: { width: '100%', height: '100%' },
+  headerTitle: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    textAlign: 'center',
+  },
   scrollContent: { flexGrow: 1, paddingBottom: 96 },
   scrollContentWide: { paddingBottom: 40 },
   mainContent: {

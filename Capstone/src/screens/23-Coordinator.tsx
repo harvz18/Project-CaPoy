@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
+  Image,
   Linking,
   Pressable,
   RefreshControl,
@@ -29,6 +30,7 @@ type TaskFilter = 'all' | 'due' | 'open'
 type DueChoice = 'event' | 'none' | 'today' | 'tomorrow'
 
 interface CoordinatorScreenProps {
+  avatarUrl?: string
   busyInvitationId?: string
   busyTaskId?: string
   dashboard?: CoordinatorDashboard
@@ -498,6 +500,7 @@ const dueAtFrom = (
 }
 
 export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
+  avatarUrl,
   busyInvitationId,
   busyTaskId,
   dashboard = emptyDashboard,
@@ -660,7 +663,16 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
               ) : null}
             </Pressable>
             <View style={styles.avatarButton}>
-              <Text style={styles.avatarText}>{initialsFrom(userName)}</Text>
+              {avatarUrl ? (
+                <Image
+                  accessibilityLabel={`${userName} profile photo`}
+                  resizeMode="cover"
+                  source={{ uri: avatarUrl }}
+                  style={styles.avatarImage}
+                />
+              ) : (
+                <Text style={styles.avatarText}>{initialsFrom(userName)}</Text>
+              )}
             </View>
             <Pressable
               accessibilityLabel="Sign out"
@@ -1149,6 +1161,7 @@ const styles = StyleSheet.create({
   },
   notificationBadgeText: { color: '#FFFFFF', fontSize: 8, lineHeight: 10, fontWeight: '700' },
   avatarButton: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18, backgroundColor: palette.primary },
+  avatarImage: { width: '100%', height: '100%', borderRadius: 18 },
   avatarText: { color: '#FFFFFF', fontSize: 11, lineHeight: 14, fontWeight: '700' },
   content: { width: '100%', maxWidth: 768, alignSelf: 'center' },
   contentMobile: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 112 },
