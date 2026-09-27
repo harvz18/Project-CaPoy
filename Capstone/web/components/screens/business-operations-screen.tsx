@@ -6,6 +6,7 @@ import {
   mdiCashCheck,
   mdiChartLine,
   mdiCheck,
+  mdiMinus,
   mdiRefresh,
   mdiShieldKeyOutline,
 } from '@mdi/js'
@@ -16,6 +17,63 @@ import { getSupabase } from '@/lib/supabase'
 
 export type BusinessSection = 'revenue' | 'cashflow' | 'remittances' | 'coordinators' | 'support' | 'permissions'
 type Row = Record<string, unknown>
+type PermissionChoice = 'inherit' | 'grant' | 'deny'
+type PermissionGroupState = 'off' | 'partial' | 'on'
+type PermissionGroup = {
+  key: string
+  label: string
+  description: string
+  permissions: Row[]
+}
+
+const permissionGroupDefinitions = [
+  { key: 'analytics', label: 'Business dashboard', description: 'View business totals, trends, provider performance, and operational summaries.', codes: ['dashboard.analytics.view'] },
+  { key: 'users-view', label: 'User directory', description: 'View registered user profiles and account standing.', codes: ['users.view'] },
+  { key: 'users-create', label: 'Create staff accounts', description: 'Create Assistant and Customer Service accounts. Admin creation remains Superadmin-only.', codes: ['users.create'] },
+  { key: 'users-update', label: 'Manage account status', description: 'Suspend, reactivate, or disable eligible user accounts.', codes: ['users.update'] },
+  { key: 'permissions', label: 'Roles and feature access', description: 'Change role defaults and individual staff access.', codes: ['users.permissions.manage'] },
+  { key: 'providers', label: 'Provider approvals', description: 'View and review provider applications, then approve or reject them.', codes: ['providers.view', 'providers.review', 'providers.approve', 'providers.reject'] },
+  { key: 'services', label: 'Service approvals', description: 'View and review service submissions, then approve or decline them.', codes: ['services.view', 'services.review', 'services.approve', 'services.reject'] },
+  { key: 'coordinators-create', label: 'Create coordinators', description: 'Create employed Event Coordinator accounts.', codes: ['coordinators.create'] },
+  { key: 'coordinators', label: 'Coordinator assignments', description: 'View the coordinator workforce and assign or replace event coordinators.', codes: ['coordinators.view', 'coordinators.assign', 'coordinators.reassign'] },
+  { key: 'events', label: 'Event operations', description: 'View bookings and events and manage their operational workflow.', codes: ['events.view', 'events.manage'] },
+  { key: 'finance', label: 'Revenue and cash flow', description: 'View commission revenue, transaction records, and platform cash movement.', codes: ['revenue.view', 'cashflow.view'] },
+  { key: 'payments', label: 'Payment verification', description: 'Verify payment records when the payment workflow requires staff review.', codes: ['payment.verify'] },
+  { key: 'remittance', label: 'Cash remittances', description: 'View and record coordinator cash handoffs, including verification and disputes.', codes: ['remittance.view', 'remittance.create', 'remittance.verify'] },
+  { key: 'support', label: 'Customer support', description: 'View, assign, respond to, resolve, and close support tickets.', codes: ['support.view', 'support.assign', 'support.respond', 'support.resolve'] },
+  { key: 'settings', label: 'System settings', description: 'Change protected platform configuration, including commission settings.', codes: ['system.settings'] },
+  { key: 'audit', label: 'Audit history', description: 'View privileged records of administrative and security-sensitive changes.', codes: ['system.audit_logs'] },
+] as const
+
+function buildPermissionGroups(permissions: Row[]): PermissionGroup[] {
+  const byCode = new Map(permissions.map((permission) => [String(permission.code), permission]))
+  return permissionGroupDefinitions.map((definition) => ({
+    key: definition.key,
+    label: definition.label,
+    description: definition.description,
+    permissions: definition.codes.map((code) => byCode.get(code)).filter((permission): permission is Row => Boolean(permission)),
+  })).filter((group) => group.permissions.length > 0)
+}
+
+function booleanGroupState(group: PermissionGroup, enabledIds: Set<string>): PermissionGroupState {
+  const enabledCount = group.permissions.filter((permission) => enabledIds.has(String(permission.id))).length
+  if (enabledCount === 0) return 'off'
+  if (enabledCount === group.permissions.length) return 'on'
+  return 'partial'
+}
+
+function overrideGroupChoice(group: PermissionGroup, overrides: Map<string, boolean>): PermissionChoice | 'mixed' {
+  const choices = group.permissions.map((permission) => {
+    const permissionId = String(permission.id)
+    return overrides.has(permissionId) ? (overrides.get(permissionId) ? 'grant' : 'deny') : 'inherit'
+  })
+  return choices.every((choice) => choice === choices[0]) ? choices[0] : 'mixed'
+}
+
+function creationGroupChoice(group: PermissionGroup, overrides: Record<string, PermissionChoice>): PermissionChoice | 'mixed' {
+  const choices = group.permissions.map((permission) => overrides[String(permission.code)] || 'inherit')
+  return choices.every((choice) => choice === choices[0]) ? choices[0] : 'mixed'
+}
 
 const formatDateTime = (value: unknown) => {
   const date = new Date(String(value || ''))
@@ -497,7 +555,7 @@ function PermissionsScreen() {
   const [busy, setBusy] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState({ full_name: '', email: '', phone: '', role: 'event_coordinator', account_status: 'active', password: '' })
-  const [createOverrides, setCreateOverrides] = useState<Record<string, 'inherit' | 'grant' | 'deny'>>({})
+  const [createOverrides, setCreateOverrides] = useState<Record<string, PermissionChoice>>({})
 
   const load = useCallback(async () => {
     const supabase = getSupabase(); if (!supabase) return
@@ -551,26 +609,57 @@ function PermissionsScreen() {
       .filter((grant) => String(grant.role_id) === String(creationRole?.id))
       .map((grant) => String(grant.permission_id))
   ), [creationRole, grants])
+  const permissionGroups = useMemo(() => buildPermissionGroups(permissions), [permissions])
 
-  async function toggle(permission: Row) {
+  async function toggleGroup(group: PermissionGroup) {
     const supabase = getSupabase(); if (!supabase) return
-    const code = String(permission.code); setBusy(`role:${code}`)
-    const { error: actionError } = await supabase.rpc('superadmin_set_role_permission', { target_role: selectedRole, target_permission: code, enabled: !enabled.has(String(permission.id)) })
-    setBusy(''); if (actionError) setError(actionError.message); else void load()
+    const nextEnabled = booleanGroupState(group, enabled) !== 'on'
+    const changedPermissions = group.permissions.filter((permission) => enabled.has(String(permission.id)) !== nextEnabled)
+    if (changedPermissions.length === 0) return
+    setBusy(`role-group:${group.key}`)
+    setError('')
+    const results = await Promise.all(changedPermissions.map((permission) => supabase.rpc('superadmin_set_role_permission', {
+      target_role: selectedRole,
+      target_permission: String(permission.code),
+      enabled: nextEnabled,
+    })))
+    setBusy('')
+    const actionError = results.find((result) => result.error)?.error
+    if (actionError) setError(`${actionError.message} Some access rules may already have changed; refresh before trying again.`)
+    else void load()
   }
 
-  async function setUserPermission(permission: Row, choice: 'inherit' | 'grant' | 'deny') {
+  async function setUserPermissionGroup(group: PermissionGroup, choice: PermissionChoice) {
     const supabase = getSupabase(); if (!supabase || !selectedUserId) return
-    const code = String(permission.code)
-    setBusy(`user:${selectedUserId}:${code}`)
-    const { error: actionError } = await supabase.rpc('superadmin_set_user_permission', {
-      target_user_id: selectedUserId,
-      target_permission: code,
-      granted: choice === 'inherit' ? null : choice === 'grant',
+    const changedPermissions = group.permissions.filter((permission) => {
+      const permissionId = String(permission.id)
+      if (choice === 'inherit') return selectedUserOverrides.has(permissionId)
+      return !selectedUserOverrides.has(permissionId) || selectedUserOverrides.get(permissionId) !== (choice === 'grant')
     })
+    if (changedPermissions.length === 0) return
+    setBusy(`user-group:${selectedUserId}:${group.key}`)
+    setError('')
+    const results = await Promise.all(changedPermissions.map((permission) => supabase.rpc('superadmin_set_user_permission', {
+      target_user_id: selectedUserId,
+      target_permission: String(permission.code),
+      granted: choice === 'inherit' ? null : choice === 'grant',
+    })))
     setBusy('')
-    if (actionError) setError(actionError.message)
+    const actionError = results.find((result) => result.error)?.error
+    if (actionError) setError(`${actionError.message} Some access rules may already have changed; refresh before trying again.`)
     else void load()
+  }
+
+  function setCreationPermissionGroup(group: PermissionGroup, choice: PermissionChoice) {
+    setCreateOverrides((current) => {
+      const next = { ...current }
+      group.permissions.forEach((permission) => {
+        const code = String(permission.code)
+        if (choice === 'inherit') delete next[code]
+        else next[code] = choice
+      })
+      return next
+    })
   }
 
   function openCreateDialog() {
@@ -628,28 +717,54 @@ function PermissionsScreen() {
     </section>
     {canManagePermissions && <>
       <section className="panel permission-panel">
-        <header><div><span className="eyebrow">DEFAULT ACCESS</span><h2>{selectedRole.replaceAll('_',' ')} permissions</h2></div><MdiIcon path={mdiShieldKeyOutline} /></header>
-        <div className="permission-grid">{permissions.map((permission) => {
-          const code = String(permission.code)
-          const checked = enabled.has(String(permission.id))
-          return <button key={String(permission.id)} disabled={busy === `role:${code}`} className={checked ? 'permission-card permission-card--on' : 'permission-card'} onClick={() => void toggle(permission)}><i>{checked && <MdiIcon path={mdiCheck} />}</i><span><strong>{code}</strong><small>{String(permission.description || '')}</small></span></button>
+        <header><div><span className="eyebrow">DEFAULT ACCESS</span><h2>{selectedRole.replaceAll('_',' ')} feature access</h2><p>Select a card to grant or remove a complete work area. A gold minus means only part of that feature is currently enabled.</p></div><MdiIcon path={mdiShieldKeyOutline} /></header>
+        <div className="permission-grid">{permissionGroups.map((group) => {
+          const state = booleanGroupState(group, enabled)
+          const stateLabel = state === 'on' ? 'Enabled' : state === 'partial' ? 'Partially enabled' : 'Not enabled'
+          return <button key={group.key} type="button" aria-pressed={state === 'on'} disabled={busy === `role-group:${group.key}`} className={`permission-card${state === 'on' ? ' permission-card--on' : ''}${state === 'partial' ? ' permission-card--partial' : ''}`} onClick={() => void toggleGroup(group)}><i>{state === 'on' ? <MdiIcon path={mdiCheck} /> : state === 'partial' ? <MdiIcon path={mdiMinus} /> : null}</i><span><strong>{group.label}</strong><small>{group.description}</small><em>{stateLabel} · {group.permissions.length} related {group.permissions.length === 1 ? 'action' : 'actions'}</em></span></button>
         })}</div>
       </section>
       <section className="panel permission-panel">
-        <header><div><span className="eyebrow">INDIVIDUAL ACCESS</span><h2>User-specific overrides</h2></div><MdiIcon path={mdiShieldKeyOutline} /></header>
+        <header><div><span className="eyebrow">INDIVIDUAL ACCESS</span><h2>Staff-specific access</h2><p>Use an override only when this person needs different access from their role.</p></div><MdiIcon path={mdiShieldKeyOutline} /></header>
         <div className="permission-user-toolbar">
           <label>Staff account<select value={selectedUserId} onChange={(event) => setSelectedUserId(event.target.value)}><option value="">Select a staff account</option>{staffUsers.map((user) => <option key={String(user.id)} value={String(user.id)}>{String(user.full_name || user.email || 'Unnamed staff')} · {String(user.default_role).replaceAll('_', ' ')}</option>)}</select></label>
           {selectedUser && <span><StatusBadge value={String(selectedUser.account_status)} /> Role defaults: {String(selectedUser.default_role).replaceAll('_', ' ')}</span>}
         </div>
-        {selectedUserId ? <div className="permission-override-grid">{permissions.map((permission) => {
-          const permissionId = String(permission.id)
-          const code = String(permission.code)
-          const override = selectedUserOverrides.has(permissionId) ? (selectedUserOverrides.get(permissionId) ? 'grant' : 'deny') : 'inherit'
-          const inherited = selectedUserDefaults.has(permissionId)
-          return <label className="permission-override-row" key={permissionId}><span><strong>{code}</strong><small>{String(permission.description || '')}</small></span><em>{inherited ? 'Role allows' : 'Role blocks'}</em><select disabled={busy === `user:${selectedUserId}:${code}`} value={override} onChange={(event) => void setUserPermission(permission, event.target.value as 'inherit' | 'grant' | 'deny')}><option value="inherit">Inherit role</option><option value="grant">Allow</option><option value="deny">Deny</option></select></label>
+        {selectedUserId ? <div className="permission-override-grid">{permissionGroups.map((group) => {
+          const override = overrideGroupChoice(group, selectedUserOverrides)
+          const defaultState = booleanGroupState(group, selectedUserDefaults)
+          const defaultLabel = defaultState === 'on' ? 'Role allows this feature' : defaultState === 'partial' ? 'Role allows part of this feature' : 'Role does not allow this feature'
+          return <label className="permission-override-row" key={group.key}><span><strong>{group.label}</strong><small>{group.description}</small></span><em>{defaultLabel} · {group.permissions.length} related {group.permissions.length === 1 ? 'action' : 'actions'}</em><select disabled={busy === `user-group:${selectedUserId}:${group.key}`} value={override} onChange={(event) => void setUserPermissionGroup(group, event.target.value as PermissionChoice)}>{override === 'mixed' && <option value="mixed" disabled>Mixed overrides</option>}<option value="inherit">Use role default</option><option value="grant">Allow full feature</option><option value="deny">Block full feature</option></select></label>
         })}</div> : <EmptyState title="Select a staff account" copy="Choose an internal staff member to inspect or customize their access." />}
       </section>
     </>}
-    {showCreate && <div className="modal-backdrop modal-backdrop--front"><form className="confirmation-dialog staff-create-dialog" onSubmit={createUser}><h2>Create internal account</h2><p>Accounts created here are managed MULTIVENT personnel and cannot be self-registered.</p><input required maxLength={160} placeholder="Full name" value={form.full_name} onChange={(event) => setForm({...form, full_name:event.target.value})}/><input required maxLength={320} type="email" placeholder="Email" value={form.email} onChange={(event) => setForm({...form, email:event.target.value})}/><input maxLength={50} placeholder="Contact number" value={form.phone} onChange={(event) => setForm({...form, phone:event.target.value})}/><select aria-label="Internal role" value={form.role} onChange={(event) => { setForm({...form, role:event.target.value}); setCreateOverrides({}) }}>{canCreateCoordinator && <option value="event_coordinator">Event coordinator</option>}{canCreateAnyStaff && <><option value="assistant">Assistant</option><option value="customer_service">Customer service</option>{profile.default_role === 'superadmin' && <option value="admin">Admin</option>}</>}</select><select aria-label="Initial account status" value={form.account_status} onChange={(event) => setForm({...form, account_status:event.target.value})}><option value="active">Active</option><option value="suspended">Suspended</option><option value="disabled">Disabled</option></select><input required minLength={8} maxLength={128} type="password" placeholder="Temporary password (8–128 characters)" value={form.password} onChange={(event) => setForm({...form, password:event.target.value})}/>{canManagePermissions && form.role !== 'event_coordinator' && <div className="create-permission-overrides"><span>Custom access (optional)</span><small>Leave a permission on “Inherit” to use the selected role default.</small>{permissions.map((permission) => { const code = String(permission.code); const permissionId = String(permission.id); return <label key={permissionId}><span><strong>{code}</strong><small>{creationDefaults.has(permissionId) ? 'Role allows' : 'Role blocks'}</small></span><select value={createOverrides[code] || 'inherit'} onChange={(event) => setCreateOverrides((current) => ({...current, [code]: event.target.value as 'inherit' | 'grant' | 'deny'}))}><option value="inherit">Inherit</option><option value="grant">Allow</option><option value="deny">Deny</option></select></label> })}</div>}<div className="confirmation-dialog__actions"><button type="button" className="secondary-button" onClick={() => setShowCreate(false)}>Cancel</button><button className="confirm-button confirm-button--approve" disabled={busy === 'create-user'}>{busy === 'create-user' ? 'Creating…' : 'Create account'}</button></div></form></div>}
+    {showCreate && <div className="modal-backdrop modal-backdrop--front">
+      <form className="confirmation-dialog staff-create-dialog" onSubmit={createUser}>
+        <h2>Create internal account</h2>
+        <p>Accounts created here are managed MULTIVENT personnel and cannot be self-registered.</p>
+        <input required maxLength={160} placeholder="Full name" value={form.full_name} onChange={(event) => setForm({...form, full_name:event.target.value})}/>
+        <input required maxLength={320} type="email" placeholder="Email" value={form.email} onChange={(event) => setForm({...form, email:event.target.value})}/>
+        <input maxLength={50} placeholder="Contact number" value={form.phone} onChange={(event) => setForm({...form, phone:event.target.value})}/>
+        <select aria-label="Internal role" value={form.role} onChange={(event) => { setForm({...form, role:event.target.value}); setCreateOverrides({}) }}>
+          {canCreateCoordinator && <option value="event_coordinator">Event coordinator</option>}
+          {canCreateAnyStaff && <><option value="assistant">Assistant</option><option value="customer_service">Customer service</option>{profile.default_role === 'superadmin' && <option value="admin">Admin</option>}</>}
+        </select>
+        <select aria-label="Initial account status" value={form.account_status} onChange={(event) => setForm({...form, account_status:event.target.value})}>
+          <option value="active">Active</option><option value="suspended">Suspended</option><option value="disabled">Disabled</option>
+        </select>
+        <input required minLength={8} maxLength={128} type="password" placeholder="Temporary password (8–128 characters)" value={form.password} onChange={(event) => setForm({...form, password:event.target.value})}/>
+        {canManagePermissions && form.role !== 'event_coordinator' && <div className="create-permission-overrides">
+          <span>Custom feature access (optional)</span>
+          <small>Keep “Use role default” unless this new staff member needs different access.</small>
+          {permissionGroups.map((group) => {
+            const choice = creationGroupChoice(group, createOverrides)
+            const defaultState = booleanGroupState(group, creationDefaults)
+            const defaultLabel = defaultState === 'on' ? 'Role allows this feature' : defaultState === 'partial' ? 'Role allows part of this feature' : 'Role does not allow this feature'
+            return <label key={group.key}><span><strong>{group.label}</strong><small>{group.description}</small><em>{defaultLabel}</em></span><select value={choice} onChange={(event) => setCreationPermissionGroup(group, event.target.value as PermissionChoice)}>{choice === 'mixed' && <option value="mixed" disabled>Mixed settings</option>}<option value="inherit">Use role default</option><option value="grant">Allow full feature</option><option value="deny">Block full feature</option></select></label>
+          })}
+        </div>}
+        <div className="confirmation-dialog__actions"><button type="button" className="secondary-button" onClick={() => setShowCreate(false)}>Cancel</button><button className="confirm-button confirm-button--approve" disabled={busy === 'create-user'}>{busy === 'create-user' ? 'Creating…' : 'Create account'}</button></div>
+      </form>
+    </div>}
   </div>
 }

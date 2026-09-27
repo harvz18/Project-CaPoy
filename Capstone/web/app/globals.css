@@ -522,14 +522,19 @@ a { color: inherit; text-decoration: none; }
 .permission-toolbar select, .staff-create-dialog input, .staff-create-dialog select { width: 100%; height: 40px; padding: 0 11px; color: #443a3d; border: 1px solid var(--line); border-radius: 9px; background: white; font-size: 10px; }
 .primary-button { display: inline-flex; min-height: 40px; align-items: center; justify-content: center; gap: 7px; padding: 0 14px; color: white; border: 0; border-radius: 9px; background: var(--wine-700); font-size: 9px; font-weight: 700; }
 .permission-panel > header > svg { color: var(--wine-600); }
+.permission-panel > header p { max-width: 680px; margin: 6px 0 0; color: var(--muted); font-size: 8px; line-height: 1.5; }
 .permission-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; padding: 20px; }
-.permission-card { display: flex; min-height: 72px; align-items: flex-start; gap: 11px; padding: 13px; color: #554b4e; border: 1px solid var(--line); border-radius: 10px; background: white; text-align: left; }
+.permission-card { display: flex; min-height: 94px; align-items: flex-start; gap: 11px; padding: 14px; color: #554b4e; border: 1px solid var(--line); border-radius: 10px; background: white; text-align: left; }
 .permission-card > i { display: grid; width: 18px; height: 18px; flex: 0 0 auto; place-items: center; color: white; border: 1px solid #cfc6c8; border-radius: 5px; }
 .permission-card--on { border-color: #cbaab4; background: var(--wine-50); }
 .permission-card--on > i { border-color: var(--wine-600); background: var(--wine-600); }
+.permission-card--partial { border-color: #dccb9d; background: #fffaf0; }
+.permission-card--partial > i { color: white; border-color: #b38a2e; background: #b38a2e; }
 .permission-card span { min-width: 0; }
-.permission-card strong { display: block; color: #453b3e; font-size: 9px; }
+.permission-card strong { display: block; color: #453b3e; font-size: 10px; }
 .permission-card small { display: block; margin-top: 5px; color: var(--muted); font-size: 8px; line-height: 1.45; }
+.permission-card em { display: block; margin-top: 8px; color: var(--soft); font-size: 7px; font-style: normal; font-weight: 700; text-transform: uppercase; }
+.permission-card:disabled { cursor: wait; opacity: .6; }
 .permission-user-toolbar { display: flex; align-items: end; justify-content: space-between; gap: 16px; padding: 17px 20px; border-bottom: 1px solid var(--line); }
 .permission-user-toolbar label { display: flex; min-width: min(420px, 100%); flex-direction: column; gap: 7px; color: var(--soft); font-size: 8px; font-weight: 700; letter-spacing: .7px; text-transform: uppercase; }
 .permission-user-toolbar select { width: 100%; height: 40px; padding: 0 11px; color: #443a3d; border: 1px solid var(--line); border-radius: 9px; background: white; font-size: 10px; }
@@ -540,7 +545,7 @@ a { color: inherit; text-decoration: none; }
 .permission-override-row strong { display: block; overflow: hidden; color: #453b3e; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .permission-override-row small { display: block; margin-top: 4px; color: var(--muted); font-size: 8px; line-height: 1.4; }
 .permission-override-row em { color: var(--soft); font-size: 7px; font-style: normal; }
-.permission-override-row select { grid-row: 1 / 3; grid-column: 2; width: 110px; height: 34px; padding: 0 8px; color: #4f4548; border: 1px solid var(--line); border-radius: 8px; background: white; font-size: 8px; }
+.permission-override-row select { grid-row: 1 / 3; grid-column: 2; width: 145px; height: 34px; padding: 0 8px; color: #4f4548; border: 1px solid var(--line); border-radius: 8px; background: white; font-size: 8px; }
 .success-notice { padding: 12px 15px; color: #24633c; border: 1px solid #b9dcc6; border-radius: 10px; background: var(--green-bg); font-size: 9px; }
 .staff-create-dialog { display: flex; width: min(680px, 100%); max-height: 90vh; overflow-y: auto; flex-direction: column; gap: 10px; text-align: left; }
 .staff-create-dialog h2, .staff-create-dialog > p { text-align: center; }
@@ -548,11 +553,12 @@ a { color: inherit; text-decoration: none; }
 .create-permission-overrides { display: flex; max-height: 300px; overflow-y: auto; flex-direction: column; gap: 7px; margin-top: 4px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #fbf9fa; }
 .create-permission-overrides > span { color: #453b3e; font-size: 9px; font-weight: 700; }
 .create-permission-overrides > small { margin-bottom: 3px; color: var(--muted); font-size: 8px; }
-.create-permission-overrides label { display: grid; grid-template-columns: minmax(0, 1fr) 105px; align-items: center; gap: 10px; padding: 8px; border-radius: 8px; background: white; }
+.create-permission-overrides label { display: grid; grid-template-columns: minmax(0, 1fr) 145px; align-items: center; gap: 10px; padding: 10px; border-radius: 8px; background: white; }
 .create-permission-overrides label span { min-width: 0; }
 .create-permission-overrides label strong, .create-permission-overrides label small { display: block; }
-.create-permission-overrides label strong { overflow: hidden; color: #4b4144; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.create-permission-overrides label strong { overflow: hidden; color: #4b4144; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .create-permission-overrides label small { margin-top: 3px; color: var(--soft); font-size: 7px; }
+.create-permission-overrides label em { display: block; margin-top: 5px; color: var(--muted); font-size: 7px; font-style: normal; }
 
 .app-loader { display: flex; min-height: 100vh; align-items: center; justify-content: center; flex-direction: column; color: var(--wine-800); background: white; }
 .app-loader .brand { color: var(--wine-800); }
@@ -661,6 +667,9 @@ a { color: inherit; text-decoration: none; }
   .permission-user-toolbar { align-items: stretch; flex-direction: column; }
   .permission-user-toolbar label { min-width: 0; }
   .permission-override-grid { grid-template-columns: 1fr; padding: 14px; }
+  .permission-override-row { grid-template-columns: 1fr; }
+  .permission-override-row select { grid-row: auto; grid-column: 1; width: 100%; }
+  .create-permission-overrides label { grid-template-columns: 1fr; }
   .revenue-bars > div { grid-template-columns: 62px minmax(60px, 1fr) 90px; }
   .finance-breakdown-grid, .finance-stat-grid { grid-template-columns: 1fr; }
   .cashflow-filter-grid .business-filter { align-items: stretch; overflow-x: auto; }

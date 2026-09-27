@@ -30,6 +30,7 @@ Phase 2 still requires deployment verification against the live Supabase project
 - Added a consolidated permission-management RPC that returns only configurable internal roles and staff accounts.
 - Limited role-default editing to Admin, Assistant, and Customer Service; public roles and assignment-scoped Event Coordinators cannot receive global staff access through this interface.
 - Added per-user permission overrides with three states: inherit the role default, explicitly allow, or explicitly deny.
+- Presented related low-level permissions as readable feature bundles in the Superadmin UI; the database still stores and enforces every individual permission within each bundle.
 - Added optional permission overrides to the internal-account creation form and Edge Function.
 - Kept Admin creation exclusive to Superadmins while allowing Coordinator creation through `coordinators.create`.
 - Added input limits, clearer function errors, and rollback cleanup when role, override, or audit creation fails.
