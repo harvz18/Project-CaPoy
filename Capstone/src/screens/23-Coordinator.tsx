@@ -2,6 +2,8 @@ import { MaterialIcons } from '@expo/vector-icons'
 import React from 'react'
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   Linking,
   Pressable,
   RefreshControl,
@@ -524,6 +526,10 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
   const [dueChoice, setDueChoice] = React.useState<DueChoice>('event')
   const [composerError, setComposerError] = React.useState('')
   const [isCreating, setIsCreating] = React.useState(false)
+  const contentSlide = React.useRef(new Animated.Value(1)).current
+  const activeIndicatorX = React.useRef(new Animated.Value(0)).current
+  const initializedIndicator = React.useRef(false)
+  const [navigationWidth, setNavigationWidth] = React.useState(0)
 
   const activeEvents = dashboard.events.filter(
     (event) => event.status !== 'completed' && event.status !== 'cancelled'
@@ -552,6 +558,20 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
       setSelectedEventId(selectableEvents[0]?.id ?? '')
     }
   }, [selectableEvents, selectedEventId])
+
+  const selectView = React.useCallback((nextView: CoordinatorView) => {
+    if (nextView === activeView) return
+
+    contentSlide.stopAnimation()
+    contentSlide.setValue(0)
+    setActiveView(nextView)
+    Animated.timing(contentSlide, {
+      duration: 240,
+      easing: Easing.out(Easing.cubic),
+      toValue: 1,
+      useNativeDriver: true,
+    }).start()
+  }, [activeView, contentSlide])
 
   const submitTask = async () => {
     const normalizedTitle = taskTitle.trim()
@@ -584,15 +604,31 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
     setTaskDescription('')
     setDueChoice('event')
     setShowComposer(false)
-    setActiveView('tasks')
+    selectView('tasks')
     setTaskFilter('open')
   }
 
   const tabs: Array<{ icon: React.ComponentProps<typeof MaterialIcons>['name']; id: CoordinatorView; label: string }> = [
-    { icon: 'dashboard', id: 'overview', label: 'Overview' },
-    { icon: 'event-note', id: 'events', label: 'Events' },
-    { icon: 'checklist', id: 'tasks', label: 'Tasks' },
+    { icon: 'home', id: 'overview', label: 'Home' },
+    { icon: 'event-available', id: 'events', label: 'Events' },
+    { icon: 'check-circle', id: 'tasks', label: 'Tasks' },
   ]
+  const activeTabIndex = Math.max(0, tabs.findIndex((tab) => tab.id === activeView))
+  const indicatorPosition = (availableWidth: number, index: number) => {
+    const slotWidth = availableWidth / 4
+    return index * slotWidth + (slotWidth - 64) / 2
+  }
+
+  React.useEffect(() => {
+    if (!navigationWidth) return
+    activeIndicatorX.stopAnimation()
+    Animated.timing(activeIndicatorX, {
+      duration: 300,
+      easing: Easing.out(Easing.cubic),
+      toValue: indicatorPosition(navigationWidth, activeTabIndex),
+      useNativeDriver: true,
+    }).start()
+  }, [activeIndicatorX, activeTabIndex, navigationWidth])
 
   return (
     <View style={styles.screen}>
@@ -638,11 +674,19 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
         </View>
       </View>
 
-      <ScrollView
+      <Animated.ScrollView
         contentContainerStyle={[
           styles.content,
           isWide ? styles.contentWide : styles.contentMobile,
         ]}
+        style={{
+          transform: [{
+            translateX: contentSlide.interpolate({
+              inputRange: [0, 1],
+              outputRange: [18, 0],
+            }),
+          }],
+        }}
         refreshControl={
           <RefreshControl
             colors={[palette.primaryContainer]}
@@ -683,7 +727,7 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
                 accessibilityLabel={`Open ${tab.label}`}
                 accessibilityRole="tab"
                 accessibilityState={{ selected }}
-                onPress={() => setActiveView(tab.id)}
+                onPress={() => selectView(tab.id)}
                 style={({ pressed }) => [
                   styles.tab,
                   selected && styles.tabSelected,
@@ -882,7 +926,7 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
                     <Text style={styles.sectionTitle}>Upcoming event</Text>
                   </View>
                   {dashboard.events.length > 1 ? (
-                    <Pressable onPress={() => setActiveView('events')}><Text style={styles.sectionLink}>View all</Text></Pressable>
+                    <Pressable onPress={() => selectView('events')}><Text style={styles.sectionLink}>View all</Text></Pressable>
                   ) : null}
                 </View>
                 <EventCard
@@ -897,7 +941,7 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
                     <Text style={styles.sectionEyebrow}>PRIORITY QUEUE</Text>
                     <Text style={styles.sectionTitle}>Next actions</Text>
                   </View>
-                  <Pressable onPress={() => setActiveView('tasks')}><Text style={styles.sectionLink}>View all</Text></Pressable>
+                  <Pressable onPress={() => selectView('tasks')}><Text style={styles.sectionLink}>View all</Text></Pressable>
                 </View>
                 <View style={styles.taskListCard}>
                   {overviewTasks.length ? overviewTasks.map((task) => (
@@ -984,11 +1028,29 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
             This workspace only shows events assigned to your coordinator account.
           </Text>
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
 
       {!isWide ? (
         <View style={styles.bottomNavigation}>
-          <View style={styles.bottomNavigationContent}>
+          <View
+            onLayout={(event) => {
+              const measuredWidth = event.nativeEvent.layout.width
+              setNavigationWidth(measuredWidth)
+              if (!initializedIndicator.current) {
+                activeIndicatorX.setValue(indicatorPosition(measuredWidth, activeTabIndex))
+                initializedIndicator.current = true
+              }
+            }}
+            style={styles.bottomNavigationContent}
+          >
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.bottomNavActiveIndicator,
+                { opacity: navigationWidth ? 1 : 0 },
+                { transform: [{ translateX: activeIndicatorX }] },
+              ]}
+            />
             {tabs.map((tab) => {
               const selected = activeView === tab.id
               return (
@@ -996,18 +1058,18 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
                   key={tab.id}
                   accessibilityRole="tab"
                   accessibilityState={{ selected }}
-                  onPress={() => setActiveView(tab.id)}
+                  onPress={() => selectView(tab.id)}
                   style={({ pressed }) => [styles.bottomNavItem, pressed && styles.pressed]}
                 >
-                  <View style={[styles.bottomNavIcon, selected && styles.bottomNavIconSelected]}>
+                  <View style={styles.bottomNavIcon}>
                     <MaterialIcons
-                      color={selected ? '#FFFFFF' : palette.secondary}
-                      name={tab.id === 'overview' ? 'home' : tab.icon}
-                      size={20}
+                      color={selected ? palette.primary : palette.secondary}
+                      name={tab.icon}
+                      size={21}
                     />
                   </View>
                   <Text style={[styles.bottomNavLabel, selected && styles.bottomNavLabelSelected]}>
-                    {tab.id === 'overview' ? 'Home' : tab.label}
+                    {tab.label}
                   </Text>
                 </Pressable>
               )
@@ -1018,9 +1080,9 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
               style={({ pressed }) => [styles.bottomNavItem, pressed && styles.pressed]}
             >
               <View style={styles.bottomNavIcon}>
-                <MaterialIcons color={palette.secondary} name="person-outline" size={20} />
+                <MaterialIcons color={palette.secondary} name="person" size={21} />
               </View>
-              <Text style={styles.bottomNavLabel}>Profile</Text>
+              <Text style={styles.bottomNavLabel}>Account</Text>
             </Pressable>
           </View>
         </View>
@@ -1256,13 +1318,62 @@ const styles = StyleSheet.create({
   filterTextSelected: { color: palette.primaryContainer, fontWeight: '700' },
   securityNote: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 30, paddingVertical: 12 },
   securityText: { color: palette.secondary, fontSize: 9, lineHeight: 14, textAlign: 'center' },
-  bottomNavigation: { position: 'absolute', right: 0, bottom: 0, left: 0, zIndex: 40, minHeight: 76, justifyContent: 'center', borderTopWidth: 1, borderTopColor: palette.border, backgroundColor: '#FAF9F9', paddingTop: 6, paddingBottom: 8 },
-  bottomNavigationContent: { width: '100%', maxWidth: 560, alignSelf: 'center', flexDirection: 'row', justifyContent: 'space-around', paddingHorizontal: 8 },
-  bottomNavItem: { width: 68, minHeight: 58, alignItems: 'center', justifyContent: 'center', gap: 2 },
-  bottomNavIcon: { width: 50, height: 30, alignItems: 'center', justifyContent: 'center', borderRadius: 15 },
-  bottomNavIconSelected: { backgroundColor: palette.primaryContainer },
-  bottomNavLabel: { color: palette.secondary, fontSize: 9, lineHeight: 13 },
-  bottomNavLabelSelected: { color: palette.primaryContainer, fontWeight: '700' },
+  bottomNavigation: {
+    position: 'absolute',
+    right: 20,
+    bottom: 20,
+    left: 20,
+    zIndex: 50,
+    height: 60,
+    justifyContent: 'center',
+    borderRadius: 28,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    elevation: 10,
+  },
+  bottomNavigationContent: {
+    width: '100%',
+    maxWidth: 600,
+    height: 52,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  bottomNavActiveIndicator: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    width: 64,
+    borderRadius: 28,
+    backgroundColor: 'rgba(226, 226, 226, 0.6)',
+  },
+  bottomNavItem: {
+    minWidth: 0,
+    height: '100%',
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bottomNavIcon: {
+    width: 40,
+    height: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 13,
+    marginBottom: 2,
+  },
+  bottomNavLabel: {
+    color: palette.secondary,
+    fontSize: 9,
+    lineHeight: 12,
+    fontWeight: '700',
+    opacity: 0.8,
+  },
+  bottomNavLabelSelected: { color: palette.primary, fontWeight: '700', opacity: 1 },
   pressed: { opacity: 0.65 },
   pressedSurface: { backgroundColor: palette.surfaceLow },
   disabled: { opacity: 0.45 },

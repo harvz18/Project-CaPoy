@@ -1,4 +1,5 @@
 import { Text } from '../components/AppText'
+import { MerchantBottomNavigation } from '../components/MerchantBottomNavigation'
 import React from 'react'
 import {
   Image,
@@ -106,22 +107,6 @@ const filterOptions: Array<{ id: ClientConversationFilter; label: string }> = [
   { id: 'bookings', label: 'Bookings' },
 ]
 
-const clientNavigationTabs: Array<{ glyph: string; id: ClientHomeTab; label: string }> = [
-  { glyph: '\u2302', id: 'home', label: 'Home' },
-  { glyph: '\u25C7', id: 'explore', label: 'Explore' },
-  { glyph: '\u25A6', id: 'bookings', label: 'Bookings' },
-  { glyph: '\u2709', id: 'messages', label: 'Messages' },
-  { glyph: '\u25CB', id: 'profile', label: 'Profile' },
-]
-
-const merchantNavigationTabs: Array<{ glyph: string; id: MerchantHomeTab; label: string }> = [
-  { glyph: '\u2302', id: 'home', label: 'Home' },
-  { glyph: '\u2637', id: 'services', label: 'Services' },
-  { glyph: '\u25A6', id: 'bookings', label: 'Bookings' },
-  { glyph: '\u2709', id: 'messages', label: 'Messages' },
-  { glyph: '\u25CB', id: 'profile', label: 'Profile' },
-]
-
 const getInitials = (name: string) =>
   name
     .trim()
@@ -214,9 +199,6 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
 
     return matchesFilter && matchesSearch
   })
-  const navigationTabs =
-    navigationVariant === 'merchant' ? merchantNavigationTabs : clientNavigationTabs
-
   const changeSearch = (value: string) => {
     if (searchValue === undefined) setInternalSearch(value)
     onSearchChange?.(value)
@@ -401,34 +383,12 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
         )}
       </ScrollView>
 
-      {navigationVariant === 'client' || !showBottomNavigation ? null : (
-        <View style={styles.bottomNavigation}>
-          <View style={[styles.bottomNavigationContent, isWide && styles.horizontalPaddingWide]}>
-            {navigationTabs.map((tab) => {
-              const selected = tab.id === 'messages'
-              return (
-                <Pressable
-                  key={tab.id}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected }}
-                  onPress={() => onSelectTab?.(tab.id)}
-                  style={({ pressed }) => [styles.tabButton, pressed && styles.tabPressed]}
-                >
-                  <View style={[styles.tabIconWrap, selected && styles.tabIconWrapSelected]}>
-                    <Text style={[styles.tabGlyph, selected && styles.tabGlyphSelected]}>
-                      {tab.glyph}
-                    </Text>
-                    {tab.id === 'messages' && unreadCount ? <View style={styles.tabBadge} /> : null}
-                  </View>
-                  <Text style={[styles.tabLabel, selected && styles.tabLabelSelected]}>
-                    {tab.label}
-                  </Text>
-                </Pressable>
-              )
-            })}
-          </View>
-        </View>
-      )}
+      {navigationVariant === 'merchant' && showBottomNavigation && !isWide ? (
+        <MerchantBottomNavigation
+          activeTab="messages"
+          onSelectTab={(tab) => onSelectTab?.(tab)}
+        />
+      ) : null}
     </View>
   )
 }
@@ -608,15 +568,4 @@ const styles = StyleSheet.create({
   emptyText: { maxWidth: 380, color: palette.secondary, fontSize: 10, lineHeight: 16, textAlign: 'center', marginTop: 4 },
   emptyButton: { minHeight: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 999, backgroundColor: palette.primaryContainer, paddingHorizontal: 17, marginTop: 17 },
   emptyButtonText: { color: palette.onPrimary, fontSize: 10, lineHeight: 15, fontWeight: '700' },
-  bottomNavigation: { zIndex: 40, width: '100%', borderTopWidth: 1, borderTopColor: palette.border, backgroundColor: palette.background },
-  bottomNavigationContent: { width: '100%', maxWidth: 820, minHeight: 72, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 7 },
-  tabButton: { minWidth: 0, flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2 },
-  tabPressed: { opacity: 0.58 },
-  tabIconWrap: { minWidth: 38, height: 29, alignItems: 'center', justifyContent: 'center', borderRadius: 15 },
-  tabIconWrapSelected: { backgroundColor: palette.primarySoft },
-  tabGlyph: { color: palette.secondary, fontSize: 16, lineHeight: 20 },
-  tabGlyphSelected: { color: palette.primaryContainer, fontWeight: '700' },
-  tabBadge: { position: 'absolute', width: 7, height: 7, top: 3, right: 6, borderRadius: 4, backgroundColor: palette.primaryContainer },
-  tabLabel: { color: palette.secondary, fontSize: 8, lineHeight: 11, fontWeight: '500' },
-  tabLabelSelected: { color: palette.primaryContainer, fontWeight: '700' },
 })

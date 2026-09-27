@@ -1,94 +1,45 @@
+import { MaterialIcons } from '@expo/vector-icons'
 import React from 'react'
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native'
 import type { MerchantHomeTab } from '../screens/16-MerchantHome'
+import { Text } from './AppText'
 
 interface MerchantBottomNavigationProps {
   activeTab: MerchantHomeTab
   onSelectTab?: (tab: MerchantHomeTab) => void
 }
 
-const tabs: Array<{ id: MerchantHomeTab; label: string }> = [
-  { id: 'home', label: 'Home' },
-  { id: 'services', label: 'Services' },
-  { id: 'bookings', label: 'Bookings' },
-  { id: 'messages', label: 'Messages' },
-  { id: 'profile', label: 'Profile' },
+const tabs: Array<{
+  icon: React.ComponentProps<typeof MaterialIcons>['name']
+  id: MerchantHomeTab
+  label: string
+}> = [
+  { id: 'home', icon: 'home', label: 'Home' },
+  { id: 'services', icon: 'storefront', label: 'Services' },
+  { id: 'bookings', icon: 'event-available', label: 'Bookings' },
+  { id: 'messages', icon: 'chat', label: 'Messages' },
+  { id: 'profile', icon: 'person', label: 'Account' },
 ]
-
-const NavIcon = ({ name, selected }: { name: MerchantHomeTab; selected: boolean }) => {
-  const color = selected ? palette.primaryContainer : palette.secondary
-
-  if (name === 'home') {
-    return (
-      <View style={styles.homeIcon}>
-        <View style={[styles.homeRoofLeft, { backgroundColor: color }]} />
-        <View style={[styles.homeRoofRight, { backgroundColor: color }]} />
-        <View style={[styles.homeBase, { borderColor: color }]} />
-      </View>
-    )
-  }
-
-  if (name === 'services') {
-    return (
-      <View style={styles.servicesIcon}>
-        {[0, 1, 2].map((item) => (
-          <View key={item} style={styles.servicesLine}>
-            <View style={[styles.servicesDot, { backgroundColor: color }]} />
-            <View style={[styles.servicesBar, { backgroundColor: color }]} />
-          </View>
-        ))}
-      </View>
-    )
-  }
-
-  if (name === 'bookings') {
-    return (
-      <View style={[styles.bookingIcon, { borderColor: color }]}>
-        <View style={[styles.bookingRingLeft, { backgroundColor: color }]} />
-        <View style={[styles.bookingRingRight, { backgroundColor: color }]} />
-        <View style={[styles.bookingLine, { backgroundColor: color }]} />
-        <View style={[styles.bookingLineShort, { backgroundColor: color }]} />
-      </View>
-    )
-  }
-
-  if (name === 'messages') {
-    return (
-      <View style={[styles.messageIcon, { borderColor: color }]}>
-        <View style={[styles.messageFlapLeft, { backgroundColor: color }]} />
-        <View style={[styles.messageFlapRight, { backgroundColor: color }]} />
-      </View>
-    )
-  }
-
-  return (
-    <View style={styles.profileIcon}>
-      <View style={[styles.profileHead, { borderColor: color }]} />
-      <View style={[styles.profileShoulders, { borderColor: color }]} />
-    </View>
-  )
-}
 
 export const MerchantBottomNavigation: React.FC<MerchantBottomNavigationProps> = ({
   activeTab,
   onSelectTab,
 }) => {
-  const activeIndex = tabs.findIndex((tab) => tab.id === activeTab)
+  const activeIndex = Math.max(0, tabs.findIndex((tab) => tab.id === activeTab))
   const activeIndicatorX = React.useRef(new Animated.Value(0)).current
   const initialized = React.useRef(false)
   const [contentWidth, setContentWidth] = React.useState(0)
 
   const indicatorPosition = (width: number, index: number) => {
-    const horizontalPadding = 8
-    const slotWidth = (width - horizontalPadding * 2) / tabs.length
-    return horizontalPadding + index * slotWidth + (slotWidth - 50) / 2
+    const slotWidth = width / tabs.length
+    return index * slotWidth + (slotWidth - 64) / 2
   }
 
   React.useEffect(() => {
     if (!contentWidth) return
     activeIndicatorX.stopAnimation()
     Animated.timing(activeIndicatorX, {
-      duration: 260,
+      duration: 300,
       easing: Easing.out(Easing.cubic),
       toValue: indicatorPosition(contentWidth, activeIndex),
       useNativeDriver: true,
@@ -129,7 +80,11 @@ export const MerchantBottomNavigation: React.FC<MerchantBottomNavigationProps> =
               style={({ pressed }) => [styles.navItem, pressed && styles.navItemPressed]}
             >
               <View style={styles.navIconContainer}>
-                <NavIcon name={tab.id} selected={selected} />
+                <MaterialIcons
+                  color={selected ? palette.primary : palette.secondary}
+                  name={tab.icon}
+                  size={21}
+                />
               </View>
               <Text style={[styles.navLabel, selected && styles.navLabelSelected]}>
                 {tab.label}
@@ -143,148 +98,72 @@ export const MerchantBottomNavigation: React.FC<MerchantBottomNavigationProps> =
 }
 
 const palette = {
-  background: '#FAF9F9',
-  border: '#DFE0E0',
-  primaryContainer: '#6B1E2E',
-  secondary: '#5D5F5F',
+  primary: '#4E061A',
+  secondary: '#5E5E5E',
+  white: '#FFFFFF',
 } as const
 
 const styles = StyleSheet.create({
   bottomNavigation: {
     position: 'absolute',
-    right: 0,
-    bottom: 0,
-    left: 0,
-    zIndex: 40,
-    minHeight: 76,
+    right: 20,
+    bottom: 20,
+    left: 20,
+    zIndex: 50,
+    height: 60,
     justifyContent: 'center',
-    borderTopWidth: 1,
-    borderTopColor: palette.border,
-    backgroundColor: palette.background,
-    paddingTop: 6,
-    paddingBottom: 8,
+    borderRadius: 28,
+    backgroundColor: palette.white,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    elevation: 10,
   },
   bottomNavigationContent: {
     width: '100%',
-    maxWidth: 560,
+    maxWidth: 600,
+    height: 52,
     alignSelf: 'center',
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingHorizontal: 8,
+    alignItems: 'center',
   },
   activeIndicator: {
     position: 'absolute',
-    top: 7,
+    top: 0,
+    bottom: 0,
     left: 0,
-    width: 50,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: 'rgba(218, 192, 194, 0.55)',
+    width: 64,
+    borderRadius: 28,
+    backgroundColor: 'rgba(226, 226, 226, 0.6)',
   },
   navItem: {
-    width: 68,
-    minHeight: 58,
+    minWidth: 0,
+    height: '100%',
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 2,
   },
   navItemPressed: {
     opacity: 0.58,
-    transform: [{ scale: 0.94 }],
   },
   navIconContainer: {
-    width: 50,
-    height: 30,
+    width: 40,
+    height: 26,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 15,
-  },
-  homeIcon: { width: 22, height: 21, alignItems: 'center', justifyContent: 'flex-end' },
-  homeRoofLeft: {
-    position: 'absolute',
-    top: 6,
-    left: 4,
-    width: 11,
-    height: 2,
-    borderRadius: 1,
-    transform: [{ rotate: '-42deg' }],
-  },
-  homeRoofRight: {
-    position: 'absolute',
-    top: 6,
-    right: 4,
-    width: 11,
-    height: 2,
-    borderRadius: 1,
-    transform: [{ rotate: '42deg' }],
-  },
-  homeBase: {
-    width: 15,
-    height: 11,
-    borderWidth: 1.8,
-    borderTopWidth: 0,
-    borderRadius: 2,
-  },
-  servicesIcon: { width: 23, height: 19, justifyContent: 'space-between' },
-  servicesLine: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  servicesDot: { width: 4, height: 4, borderRadius: 2 },
-  servicesBar: { width: 15, height: 2, borderRadius: 1 },
-  bookingIcon: {
-    width: 20,
-    height: 20,
-    justifyContent: 'center',
-    borderWidth: 1.8,
-    borderRadius: 4,
-    paddingHorizontal: 4,
-  },
-  bookingRingLeft: { position: 'absolute', top: -3, left: 4, width: 2, height: 6, borderRadius: 1 },
-  bookingRingRight: { position: 'absolute', top: -3, right: 4, width: 2, height: 6, borderRadius: 1 },
-  bookingLine: { width: 10, height: 2, borderRadius: 1, marginBottom: 3 },
-  bookingLineShort: { width: 7, height: 2, borderRadius: 1 },
-  messageIcon: {
-    width: 22,
-    height: 16,
-    overflow: 'hidden',
-    borderWidth: 1.8,
-    borderRadius: 4,
-  },
-  messageFlapLeft: {
-    position: 'absolute',
-    left: 2,
-    bottom: 5,
-    width: 11,
-    height: 2,
-    borderRadius: 1,
-    transform: [{ rotate: '32deg' }],
-  },
-  messageFlapRight: {
-    position: 'absolute',
-    right: 2,
-    bottom: 5,
-    width: 11,
-    height: 2,
-    borderRadius: 1,
-    transform: [{ rotate: '-32deg' }],
-  },
-  profileIcon: { width: 22, height: 22, alignItems: 'center' },
-  profileHead: { width: 8, height: 8, borderWidth: 1.8, borderRadius: 4, marginTop: 2 },
-  profileShoulders: {
-    position: 'absolute',
-    bottom: 2,
-    width: 16,
-    height: 8,
-    borderWidth: 1.8,
-    borderBottomWidth: 0,
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
+    borderRadius: 13,
+    marginBottom: 2,
   },
   navLabel: {
     color: palette.secondary,
     fontSize: 9,
-    lineHeight: 13,
+    lineHeight: 12,
+    fontWeight: '700',
+    opacity: 0.8,
   },
   navLabelSelected: {
-    color: palette.primaryContainer,
-    fontWeight: '700',
+    color: palette.primary,
+    opacity: 1,
   },
 })
