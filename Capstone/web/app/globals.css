@@ -512,6 +512,15 @@ a { color: inherit; text-decoration: none; }
 .remittance-review-actions button { min-height: 28px; padding: 0 8px; color: var(--wine-700); border: 1px solid var(--line); border-radius: 7px; background: white; font-size: 8px; font-weight: 700; }
 .remittance-review-actions button svg { width: 13px; }
 .remittance-review-actions button:disabled { cursor: not-allowed; opacity: .42; }
+.remittance-breakdown-row:hover { background: transparent !important; }
+.remittance-breakdown-row > td { padding: 0 18px 16px; white-space: normal; }
+.remittance-event-breakdown { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #fffafa; }
+.remittance-event-breakdown article { display: grid; grid-template-columns: minmax(180px, 1fr) auto auto auto; align-items: center; gap: 10px 18px; padding: 10px 12px; border-radius: 8px; background: white; }
+.remittance-event-breakdown article > div:first-child { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.remittance-event-breakdown article > div:first-child strong { overflow: hidden; color: #493f42; text-overflow: ellipsis; }
+.remittance-event-breakdown article > div:first-child small,
+.remittance-event-breakdown article > small { color: var(--muted); font-size: 8px; }
+.remittance-event-breakdown article > span { color: var(--wine-700); font-weight: 700; }
 .remittance-notes { grid-column: 1 / 4; }
 .availability-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 0 21px 18px; color: var(--muted); font-size: 8px; }
 .availability-summary article { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 5px 10px; padding: 10px; border: 1px solid var(--line); border-radius: 9px; background: #fffafa; }
@@ -716,6 +725,10 @@ a { color: inherit; text-decoration: none; }
   .remittance-expectations { grid-template-columns: 1fr; }
   .remittance-expectations article { grid-template-columns: 1fr; }
   .remittance-expectations button { grid-column: 1; grid-row: auto; }
+  .remittance-breakdown-row { padding: 0 !important; }
+  .remittance-breakdown-row > td { display: block; padding: 0 0 12px; }
+  .remittance-event-breakdown article { grid-template-columns: 1fr auto; }
+  .remittance-event-breakdown .remittance-review-actions { grid-column: 1 / -1; }
   .support-queue-filters, .support-ticket-controls, .support-context-grid { grid-template-columns: 1fr; }
   .filter-strip { align-items: stretch; overflow-x: auto; flex-direction: column; }
   .support-thread > footer { align-items: stretch; flex-direction: column; }

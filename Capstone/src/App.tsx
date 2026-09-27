@@ -74,6 +74,7 @@ import {
 } from './lib/merchant'
 import { colors } from './theme/tokens'
 import { ClientBottomNavigation } from './components/ClientBottomNavigation'
+import { NonBlockingActivityBar, ScreenMotionFrame } from './components/MotionFeedback'
 import { ClientHomeScreen, ClientHomeTab } from './screens/03-ClientHome'
 import { ClientConversation, MessagesScreen } from './screens/03.1-Messages'
 import { ChatMessage, ChatThreadScreen } from './screens/03.2-ChatThread'
@@ -123,6 +124,7 @@ import { TransactionDetailsScreen } from './screens/22.3-TransactionDetails'
 import { ChangePasswordScreen } from './screens/22.4-ChangePassword'
 import { MerchantNotification, NotificationScreen } from './screens/22.5-Notification'
 import { CoordinatorScreen } from './screens/23-Coordinator'
+import { CoordinatorRemittanceDetailsScreen } from './screens/23.1-CoordinatorRemittanceDetails'
 import { OnboardingScreen } from './screens/01-Onboarding'
 import { LoginScreen } from './screens/01.1-Login'
 import { ForgotPasswordScreen } from './screens/01.1.1-ForgotPassword'
@@ -189,10 +191,13 @@ import {
   CoordinatorDashboard,
   CoordinatorEvent,
   CoordinatorInvitation,
+  CoordinatorRemittanceDetails,
   CoordinatorTask,
   createCoordinatorTask,
   emptyCoordinatorDashboard,
+  emptyCoordinatorRemittanceDetails,
   fetchCoordinatorDashboard,
+  fetchCoordinatorRemittanceDetails,
   respondToCoordinatorInvitation,
   updateCoordinatorTaskStatus,
 } from './lib/coordinator'
@@ -239,6 +244,7 @@ type AppScreen =
   | 'support'
   | 'coordinatorHome'
   | 'coordinatorNotifications'
+  | 'coordinatorRemittanceDetails'
   | 'assistantHome'
   | 'customerServiceHome'
   | 'adminHome'
@@ -274,6 +280,17 @@ type AccountRole =
   | 'customer_service'
   | 'admin'
   | 'superadmin'
+
+const screensWithOwnEntrance = new Set<AppScreen>([
+  'onboarding',
+  'roleSelection',
+  'clientSignupIntro',
+  'merchantSignup',
+  'eventCreation',
+  'budgetAllocation',
+  'budgetTracker',
+  'categoryBrowse',
+])
 
 type UserMetadata = {
   business_name?: unknown
@@ -391,7 +408,53 @@ export const App: React.FC = () => {
     Inter_700Bold,
   })
   const { height, width } = useWindowDimensions()
-  const [screen, setScreen] = React.useState<AppScreen>('onboarding')
+  const [screen, commitScreen] = React.useState<AppScreen>('onboarding')
+  const [isScreenTransitioning, setIsScreenTransitioning] = React.useState(false)
+  const screenTransitionProgress = React.useRef(new Animated.Value(1)).current
+  const screenTransitionDirection = React.useRef<-1 | 1>(1)
+  const screenRef = React.useRef<AppScreen>('onboarding')
+  const screenHistoryRef = React.useRef<AppScreen[]>(['onboarding'])
+  const navigationLockedRef = React.useRef(false)
+  const screenTransitionAnimation = React.useRef<Animated.CompositeAnimation | null>(null)
+
+  const setScreen = React.useCallback((nextScreen: AppScreen) => {
+    const currentScreen = screenRef.current
+    if (nextScreen === currentScreen || navigationLockedRef.current) return
+
+    const history = screenHistoryRef.current
+    const previousIndex = history.lastIndexOf(nextScreen)
+    if (previousIndex >= 0 && previousIndex < history.length - 1) {
+      screenTransitionDirection.current = -1
+      screenHistoryRef.current = history.slice(0, previousIndex + 1)
+    } else {
+      screenTransitionDirection.current = 1
+      screenHistoryRef.current = [...history.slice(-24), nextScreen]
+    }
+
+    navigationLockedRef.current = true
+    setIsScreenTransitioning(true)
+    screenTransitionAnimation.current?.stop()
+    screenTransitionProgress.setValue(0)
+    screenRef.current = nextScreen
+    commitScreen(nextScreen)
+
+    requestAnimationFrame(() => {
+      const animation = Animated.timing(screenTransitionProgress, {
+        duration: screensWithOwnEntrance.has(nextScreen) ? 360 : 280,
+        easing: Easing.out(Easing.cubic),
+        toValue: 1,
+        useNativeDriver: true,
+      })
+      screenTransitionAnimation.current = animation
+      animation.start(({ finished }) => {
+        if (!finished || screenRef.current !== nextScreen) return
+        navigationLockedRef.current = false
+        setIsScreenTransitioning(false)
+      })
+    })
+  }, [screenTransitionProgress])
+
+  React.useEffect(() => () => screenTransitionAnimation.current?.stop(), [])
   const [isClientNavigationVisible, setIsClientNavigationVisible] = React.useState(true)
   const roleSelectionEntrance = React.useRef(new Animated.Value(0)).current
   const signupEntrance = React.useRef(new Animated.Value(0)).current
@@ -486,6 +549,12 @@ export const App: React.FC = () => {
   const [coordinatorError, setCoordinatorError] = React.useState('')
   const [isCoordinatorLoading, setIsCoordinatorLoading] = React.useState(false)
   const [isCoordinatorRefreshing, setIsCoordinatorRefreshing] = React.useState(false)
+  const [coordinatorRemittanceDetails, setCoordinatorRemittanceDetails] =
+    React.useState<CoordinatorRemittanceDetails>(emptyCoordinatorRemittanceDetails())
+  const [coordinatorRemittanceEventId, setCoordinatorRemittanceEventId] = React.useState('')
+  const [coordinatorRemittanceError, setCoordinatorRemittanceError] = React.useState('')
+  const [isCoordinatorRemittanceLoading, setIsCoordinatorRemittanceLoading] = React.useState(false)
+  const [isCoordinatorRemittanceRefreshing, setIsCoordinatorRemittanceRefreshing] = React.useState(false)
   const [busyCoordinatorTaskId, setBusyCoordinatorTaskId] = React.useState('')
   const [busyCoordinatorInvitationId, setBusyCoordinatorInvitationId] = React.useState('')
   const [removingServiceId, setRemovingServiceId] = React.useState('')
@@ -494,11 +563,29 @@ export const App: React.FC = () => {
   const [editingMerchantServiceId, setEditingMerchantServiceId] = React.useState('')
   const [hasMerchantDraft, setHasMerchantDraft] = React.useState(false)
   const [toastMessage, setToastMessage] = React.useState('')
+  const [activeGuardedActionCount, setActiveGuardedActionCount] = React.useState(0)
+  const guardedActionsRef = React.useRef(new Set<string>())
   const [accountProfile, setAccountProfile] = React.useState<EditableAccountProfile>()
   const [accountProfileError, setAccountProfileError] = React.useState('')
   const [isLoadingAccountProfile, setIsLoadingAccountProfile] = React.useState(false)
   const [isSavingAccountProfile, setIsSavingAccountProfile] = React.useState(false)
   const [profileReturnScreen, setProfileReturnScreen] = React.useState<AppScreen>('clientHome')
+
+  const runOnce = React.useCallback(async <T,>(
+    actionKey: string,
+    action: () => Promise<T>
+  ): Promise<T | undefined> => {
+    if (guardedActionsRef.current.has(actionKey)) return undefined
+
+    guardedActionsRef.current.add(actionKey)
+    setActiveGuardedActionCount((current) => current + 1)
+    try {
+      return await action()
+    } finally {
+      guardedActionsRef.current.delete(actionKey)
+      setActiveGuardedActionCount((current) => Math.max(0, current - 1))
+    }
+  }, [])
 
   React.useEffect(() => {
     setIsClientNavigationVisible(true)
@@ -611,7 +698,7 @@ export const App: React.FC = () => {
     })
 
     return () => exitAnimation.stop()
-  }, [clientHomePop, eventCreationEntrance, eventCreationExit, eventCreationExitTranslateY, height, isEventCreationExiting])
+  }, [clientHomePop, eventCreationEntrance, eventCreationExit, eventCreationExitTranslateY, height, isEventCreationExiting, setScreen])
   const refreshAccountProfile = React.useCallback(async () => {
     setIsLoadingAccountProfile(true)
     setAccountProfileError('')
@@ -936,6 +1023,35 @@ export const App: React.FC = () => {
     void loadCoordinatorWorkspace()
   }, [loadCoordinatorWorkspace, screen])
 
+  const loadCoordinatorRemittance = React.useCallback(async (
+    eventId: string,
+    refreshing = false
+  ) => {
+    if (!eventId) return
+    if (refreshing) setIsCoordinatorRemittanceRefreshing(true)
+    else {
+      setCoordinatorRemittanceDetails(emptyCoordinatorRemittanceDetails())
+      setCoordinatorRemittanceError('')
+      setIsCoordinatorRemittanceLoading(true)
+    }
+
+    const result = await fetchCoordinatorRemittanceDetails(eventId)
+    if (result.ok && result.data) {
+      setCoordinatorRemittanceDetails(result.data)
+      setCoordinatorRemittanceError('')
+    } else {
+      setCoordinatorRemittanceError(result.message ?? 'Unable to load the remittance breakdown.')
+    }
+
+    setIsCoordinatorRemittanceLoading(false)
+    setIsCoordinatorRemittanceRefreshing(false)
+  }, [])
+
+  React.useEffect(() => {
+    if (screen !== 'coordinatorRemittanceDetails' || !coordinatorRemittanceEventId) return
+    void loadCoordinatorRemittance(coordinatorRemittanceEventId)
+  }, [coordinatorRemittanceEventId, loadCoordinatorRemittance, screen])
+
   const loadMerchantPayouts = React.useCallback(async (
     period: PayoutEarningsPeriod,
     refreshing = false,
@@ -1110,7 +1226,7 @@ export const App: React.FC = () => {
       setConversationMessages(messages)
       await markConversationRead(conversation.id)
     },
-    []
+    [setScreen]
   )
 
   const routeForRole = React.useCallback((role?: AccountRole | string | null) => {
@@ -1141,7 +1257,7 @@ export const App: React.FC = () => {
       default:
         setScreen('roleSelection')
     }
-  }, [])
+  }, [setScreen])
 
   const loadProfileAndRoute = React.useCallback(
     async (userId: string, metadata: UserMetadata = {}) => {
@@ -1183,7 +1299,7 @@ export const App: React.FC = () => {
 
       routeForRole(resolvedRole)
     },
-    [routeForRole]
+    [routeForRole, setScreen]
   )
 
   React.useEffect(() => {
@@ -1238,7 +1354,7 @@ export const App: React.FC = () => {
       isMounted = false
       subscription.unsubscribe()
     }
-  }, [loadProfileAndRoute, refreshLiveData])
+  }, [loadProfileAndRoute, refreshLiveData, setScreen])
 
   const handleAuthenticatedUser = React.useCallback(async () => {
     if (!supabase) {
@@ -1258,7 +1374,7 @@ export const App: React.FC = () => {
       email: data.user.email,
     })
     void refreshLiveData()
-  }, [loadProfileAndRoute, refreshLiveData])
+  }, [loadProfileAndRoute, refreshLiveData, setScreen])
 
   const openLogin = (returnScreen: LoginReturnScreen) => {
     setLoginReturnScreen(returnScreen)
@@ -1292,59 +1408,66 @@ export const App: React.FC = () => {
   }
 
   const handleBudgetContinue = async (budget: number, priorities: string[]) => {
-    const result = await saveBudgetPlan({ budget, priorities })
+    await runOnce('save-budget-plan', async () => {
+      const result = await saveBudgetPlan({ budget, priorities })
 
-    if (!result.ok) {
-      setToastMessage(result.message ?? 'Unable to save your budget preferences.')
-      return
-    }
+      if (!result.ok) {
+        setToastMessage(result.message ?? 'Unable to save your budget preferences.')
+        return
+      }
 
-    setTotalBudget(budget)
-    setMaxPlanningStep((current) => Math.max(current, 3))
-    openPlanningHub('forward')
+      setTotalBudget(budget)
+      setMaxPlanningStep((current) => Math.max(current, 3))
+      openPlanningHub('forward')
+    })
   }
 
   const handleEventContinue = async (value: EventCreationValue, nextScreen: AppScreen) => {
-    setEventDetails(value)
-    setScheduleProviders([])
+    await runOnce('save-event-details', async () => {
+      setEventDetails(value)
+      setScheduleProviders([])
 
-    const result = await saveEventDraft(value)
-    if (!result.ok) {
-      setToastMessage(result.message ?? 'Unable to save your event details.')
-      return
-    }
+      const result = await saveEventDraft(value)
+      if (!result.ok) {
+        setToastMessage(result.message ?? 'Unable to save your event details.')
+        return
+      }
 
-    if (nextScreen === 'budgetAllocation') {
-      setMaxPlanningStep((current) => Math.min(4, Math.max(current, 2)))
-      budgetAllocationEntrance.setValue(width)
+      if (nextScreen === 'budgetAllocation') {
+        setMaxPlanningStep((current) => Math.min(4, Math.max(current, 2)))
+        budgetAllocationEntrance.setValue(width)
+        setScreen(nextScreen)
+        Animated.timing(budgetAllocationEntrance, {
+          toValue: 0,
+          duration: 360,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }).start()
+        return
+      }
+
       setScreen(nextScreen)
-      Animated.timing(budgetAllocationEntrance, {
-        toValue: 0,
-        duration: 360,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }).start()
-      return
-    }
-
-    setScreen(nextScreen)
+    })
   }
 
   const runScheduleCheck = async () => {
-    const scheduleResult = await saveScheduleCheck()
+    const completed = await runOnce('check-provider-schedule', async () => {
+      const scheduleResult = await saveScheduleCheck()
 
-    if (!scheduleResult.ok) {
-      setToastMessage(scheduleResult.message ?? 'Unable to check provider availability.')
-      return false
-    }
+      if (!scheduleResult.ok) {
+        setToastMessage(scheduleResult.message ?? 'Unable to check provider availability.')
+        return false
+      }
 
-    setScheduleProviders(scheduleResult.providers ?? [])
-    const hasConflict = scheduleResult.status === 'conflict'
-    setMaxPlanningStep((current) =>
-      hasConflict ? Math.min(current, 4) : Math.max(current, 5)
-    )
-    setScreen(hasConflict ? 'scheduleConflict' : 'scheduleNoConflict')
-    return true
+      setScheduleProviders(scheduleResult.providers ?? [])
+      const hasConflict = scheduleResult.status === 'conflict'
+      setMaxPlanningStep((current) =>
+        hasConflict ? Math.min(current, 4) : Math.max(current, 5)
+      )
+      setScreen(hasConflict ? 'scheduleConflict' : 'scheduleNoConflict')
+      return true
+    })
+    return completed ?? false
   }
 
   const handlePlanningStepPress = (step: number) => {
@@ -2075,6 +2198,7 @@ export const App: React.FC = () => {
               >
                 <EventCreationScreen
                   initialValue={eventDetails}
+                  isProcessing={activeGuardedActionCount > 0}
                   onClose={closeEventCreation}
                   onContinue={(value) => handleEventContinue(value, 'budgetAllocation')}
                   onSaveExit={(value) => handleEventContinue(value, 'clientHome')}
@@ -2092,6 +2216,7 @@ export const App: React.FC = () => {
           >
             <EventCreationScreen
               initialValue={eventDetails}
+              isProcessing={activeGuardedActionCount > 0}
               onClose={closeEventCreation}
               onContinue={(value) => handleEventContinue(value, 'budgetAllocation')}
               onSaveExit={(value) => handleEventContinue(value, 'clientHome')}
@@ -2576,9 +2701,30 @@ export const App: React.FC = () => {
             }}
             onSelectNotification={(notification) => {
               void markMerchantNotificationRead(notification).then(() => refreshLiveData())
-              setScreen('coordinatorHome')
+              if (
+                notification.resourceType === 'event_cash_remittance'
+                && notification.resourceId
+              ) {
+                setCoordinatorRemittanceEventId(notification.resourceId)
+                setScreen('coordinatorRemittanceDetails')
+              } else {
+                setScreen('coordinatorHome')
+              }
             }}
             variant="coordinator"
+          />
+        )
+      case 'coordinatorRemittanceDetails':
+        return (
+          <CoordinatorRemittanceDetailsScreen
+            data={coordinatorRemittanceDetails}
+            errorMessage={coordinatorRemittanceError}
+            isLoading={isCoordinatorRemittanceLoading}
+            isRefreshing={isCoordinatorRemittanceRefreshing}
+            onBack={() => setScreen('coordinatorNotifications')}
+            onRefresh={() =>
+              void loadCoordinatorRemittance(coordinatorRemittanceEventId, true)
+            }
           />
         )
       case 'adminHome':
@@ -2652,6 +2798,7 @@ export const App: React.FC = () => {
           >
             <BudgetAllocationScreen
               initialBudget={totalBudget}
+              isProcessing={activeGuardedActionCount > 0}
               onBack={openEventCreationFromBudget}
               onContinue={(value) => handleBudgetContinue(value.budget, value.priorities)}
               onSkip={() => handleBudgetContinue(0, [])}
@@ -3146,6 +3293,36 @@ export const App: React.FC = () => {
             ? 'messages'
           : null
 
+  const hasVisibleActivity = Boolean(
+    isScreenTransitioning
+      || activeGuardedActionCount > 0
+      || isEventCreationExiting
+      || isSendingMessage
+      || serviceReviewInsightsLoading
+      || isMerchantPayoutLoading
+      || isMerchantPayoutRefreshing
+      || isRequestingMerchantPayout
+      || isSavingMerchantPayoutAccount
+      || isPublishingService
+      || isSavingServiceDraft
+      || isSavingAvailability
+      || isFinalizingPayment
+      || isCoordinatorLoading
+      || isCoordinatorRefreshing
+      || isCoordinatorRemittanceLoading
+      || isCoordinatorRemittanceRefreshing
+      || isLoadingAccountProfile
+      || isSavingAccountProfile
+      || Boolean(assigningCoordinatorId)
+      || Boolean(processingMerchantBookingId)
+      || Boolean(completingBookingId)
+      || Boolean(busyCoordinatorTaskId)
+      || Boolean(busyCoordinatorInvitationId)
+      || Boolean(removingServiceId)
+      || Boolean(deletingMerchantServiceId)
+      || Boolean(updatingAvailabilityServiceId)
+  )
+
   if (!fontsLoaded) {
     return null
   }
@@ -3154,12 +3331,21 @@ export const App: React.FC = () => {
     <SafeAreaProvider>
       <StatusBar style={screen === 'clientHome' ? 'light' : 'dark'} />
       <SafeAreaView style={[styles.container, isHome && styles.homeContainer]}>
-        <PlanningStepNavigationProvider
-          maxReachableStep={maxPlanningStep}
-          onStepPress={handlePlanningStepPress}
+        <ScreenMotionFrame
+          direction={screenTransitionDirection.current}
+          disabled={screensWithOwnEntrance.has(screen)}
+          isLocked={isScreenTransitioning}
+          progress={screenTransitionProgress}
         >
-          {renderScreen()}
-        </PlanningStepNavigationProvider>
+          <PlanningStepNavigationProvider
+            maxReachableStep={maxPlanningStep}
+            onStepPress={handlePlanningStepPress}
+          >
+            {renderScreen()}
+          </PlanningStepNavigationProvider>
+        </ScreenMotionFrame>
+
+        <NonBlockingActivityBar visible={hasVisibleActivity} />
 
         {toastMessage ? (
           <View pointerEvents="none" style={styles.toastOverlay}>

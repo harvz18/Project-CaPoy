@@ -80,6 +80,36 @@ export interface CoordinatorDashboard {
   tasks: CoordinatorTask[]
 }
 
+export interface CoordinatorRemittanceItem {
+  amountExpected: number
+  amountReceived: number
+  bookingId?: string
+  id: string
+  providerName: string
+  recordedAt?: string
+  recordedBy: string
+  referenceNumber?: string
+  serviceName: string
+  status: string
+}
+
+export interface CoordinatorRemittanceDetails {
+  breakdown: CoordinatorRemittanceItem[]
+  event: {
+    eventDate?: string
+    id: string
+    name: string
+    status: string
+  }
+  summary: {
+    amountExpected: number
+    amountReceived: number
+    recordedAt?: string
+    serviceCount: number
+    status: string
+  }
+}
+
 export interface CoordinatorResult<T = undefined> {
   data?: T
   message?: string
@@ -97,6 +127,12 @@ export const emptyCoordinatorDashboard = (): CoordinatorDashboard => ({
   events: [],
   invitations: [],
   tasks: [],
+})
+
+export const emptyCoordinatorRemittanceDetails = (): CoordinatorRemittanceDetails => ({
+  breakdown: [],
+  event: { id: '', name: 'Event remittance', status: 'completed' },
+  summary: { amountExpected: 0, amountReceived: 0, serviceCount: 0, status: 'pending' },
 })
 
 const recordFrom = (value: unknown): Record<string, unknown> =>
@@ -297,6 +333,62 @@ export const fetchCoordinatorDashboard = async (): Promise<CoordinatorResult<Coo
         ...event,
         instructions: instructionsByEvent.get(event.id) ?? [],
       })),
+    },
+    ok: true,
+  }
+}
+
+export const fetchCoordinatorRemittanceDetails = async (
+  eventId: string
+): Promise<CoordinatorResult<CoordinatorRemittanceDetails>> => {
+  if (!supabase || !supabaseConfig.isConfigured || !eventId) {
+    return { data: emptyCoordinatorRemittanceDetails(), message: unavailableMessage, ok: false }
+  }
+
+  const { data, error } = await supabase.rpc('get_my_event_remittance_details', {
+    target_event_id: eventId,
+  })
+  if (error) {
+    return { data: emptyCoordinatorRemittanceDetails(), message: error.message, ok: false }
+  }
+
+  const payload = recordFrom(data)
+  const event = recordFrom(payload.event)
+  const summary = recordFrom(payload.summary)
+  const rows = Array.isArray(payload.breakdown) ? payload.breakdown : []
+
+  return {
+    data: {
+      breakdown: rows.flatMap((entry) => {
+        const row = recordFrom(entry)
+        const id = textFrom(row.id)
+        if (!id) return []
+        return [{
+          amountExpected: numberFrom(row.amountExpected),
+          amountReceived: numberFrom(row.amountReceived),
+          bookingId: optionalText(row.bookingId),
+          id,
+          providerName: textFrom(row.providerName, 'Service provider'),
+          recordedAt: optionalText(row.recordedAt),
+          recordedBy: textFrom(row.recordedBy, 'MULTIVENT staff'),
+          referenceNumber: optionalText(row.referenceNumber),
+          serviceName: textFrom(row.serviceName, 'Service'),
+          status: textFrom(row.status, 'pending'),
+        }]
+      }),
+      event: {
+        eventDate: optionalText(event.eventDate),
+        id: textFrom(event.id),
+        name: textFrom(event.name, 'Event remittance'),
+        status: textFrom(event.status, 'completed'),
+      },
+      summary: {
+        amountExpected: numberFrom(summary.amountExpected),
+        amountReceived: numberFrom(summary.amountReceived),
+        recordedAt: optionalText(summary.recordedAt),
+        serviceCount: numberFrom(summary.serviceCount),
+        status: textFrom(summary.status, 'pending'),
+      },
     },
     ok: true,
   }

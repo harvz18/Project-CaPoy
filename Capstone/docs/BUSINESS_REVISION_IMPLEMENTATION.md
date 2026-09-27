@@ -182,14 +182,15 @@ The budget allocation slider redesign in Requirement 25 is not implemented. The 
 11. Apply `database/40_automatic_commission_remittance.sql` after migration `39`.
 12. Apply `database/41_all_services_remittance.sql` after migration `40`.
 13. Apply `database/42_live_provider_earnings.sql` after migration `41`.
-14. Deploy the account-provisioning function:
+14. Apply `database/43_event_remittance_notifications.sql` after migration `42`.
+15. Deploy the account-provisioning function:
 
    ```powershell
    npx supabase functions deploy admin-create-user --project-ref YOUR_PROJECT_REF
    ```
 
-15. Deploy the `web` application.
-16. Build/release the Expo application.
+16. Deploy the `web` application.
+17. Build/release the Expo application.
 
 The Edge Function uses Supabase-provided `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` values. Never place the service-role key in the web or Expo environment files.
 
@@ -332,3 +333,11 @@ These values are stored in `system_settings` and can be changed by a Superadmin.
 - Attempt a payout before confirming a destination, above the available balance, and with sub-cent precision; confirm every request is rejected by the RPC.
 - Submit a valid payout, confirm it appears as pending in recent transactions, and confirm the requested amount is immediately reserved from the available balance.
 - Mark the payout request paid through the authorized financial workflow and confirm the transaction becomes completed without altering prior booking earnings.
+
+## Event remittance notification smoke tests
+
+- Record **All services** for an event and confirm the coordinator receives exactly one notification containing the Assistant's real name and the complete event handoff amount.
+- Record a single-service handoff and confirm its notification uses the same event-level wording and links to the event remittance details.
+- Tap the notification as the assigned coordinator and confirm the total and every service-level amount, provider, reference, recorder, and status match the stored remittance rows.
+- Attempt to open another coordinator's event remittance through the RPC and confirm access is denied.
+- Confirm the Assistant remittance history shows one event row with an expandable per-service breakdown while verification and dispute actions still operate on individual accounting records.

@@ -119,6 +119,7 @@ export type {
   MerchantNotificationPreferences,
 } from './22.5-Notification'
 export { CoordinatorScreen } from './23-Coordinator'
+export { CoordinatorRemittanceDetailsScreen } from './23.1-CoordinatorRemittanceDetails'
 export { OnboardingScreen } from './01-Onboarding'
 export { LoginScreen } from './01.1-Login'
 export { ForgotPasswordScreen } from './01.1.1-ForgotPassword'

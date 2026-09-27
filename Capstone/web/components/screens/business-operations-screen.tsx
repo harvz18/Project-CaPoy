@@ -32,6 +32,69 @@ function sumRemittanceRemaining(expectations: Row[]) {
   ) / 100
 }
 
+type RemittanceEventGroup = {
+  amountExpected: number
+  amountReceived: number
+  coordinatorName: string
+  eventDate: string
+  eventId: string
+  eventName: string
+  latestRecordedAt: string
+  recordedBy: string
+  rows: Row[]
+  status: string
+}
+
+function groupRemittancesByEvent(rows: Row[]): RemittanceEventGroup[] {
+  const groups = new Map<string, RemittanceEventGroup>()
+  for (const row of rows) {
+    const eventId = String(row.event_id || '')
+    if (!eventId) continue
+    const existing = groups.get(eventId)
+    const event = row.events as Row | null
+    const recordedAt = String(row.received_at || row.created_at || '')
+    if (!existing) {
+      groups.set(eventId, {
+        amountExpected: String(row.status) === 'disputed' ? 0 : Number(row.amount_expected || 0),
+        amountReceived: String(row.status) === 'disputed' ? 0 : Number(row.amount_received || 0),
+        coordinatorName: String((row.coordinator as Row | null)?.full_name || 'Coordinator'),
+        eventDate: String(event?.event_date || ''),
+        eventId,
+        eventName: String(event?.name || eventId.slice(0, 8)),
+        latestRecordedAt: recordedAt,
+        recordedBy: String((row.receiver as Row | null)?.full_name || 'MULTIVENT staff'),
+        rows: [row],
+        status: String(row.status || 'pending'),
+      })
+      continue
+    }
+    if (String(row.status) !== 'disputed') {
+      existing.amountExpected += Number(row.amount_expected || 0)
+      existing.amountReceived += Number(row.amount_received || 0)
+    }
+    existing.rows.push(row)
+    if (new Date(recordedAt).getTime() > new Date(existing.latestRecordedAt).getTime()) {
+      existing.latestRecordedAt = recordedAt
+      existing.recordedBy = String((row.receiver as Row | null)?.full_name || 'MULTIVENT staff')
+    }
+    const statuses = existing.rows.map((item) => String(item.status))
+    const activeStatuses = statuses.filter((status) => status !== 'disputed')
+    existing.status = activeStatuses.length === 0
+      ? 'disputed'
+      : activeStatuses.every((status) => status === 'verified')
+      ? 'verified'
+        : activeStatuses.every((status) => ['remitted', 'verified'].includes(status))
+          ? 'remitted'
+          : activeStatuses.some((status) => status === 'partially_remitted')
+            ? 'partially_remitted'
+            : 'pending'
+  }
+
+  return [...groups.values()].sort(
+    (left, right) => new Date(right.latestRecordedAt).getTime() - new Date(left.latestRecordedAt).getTime(),
+  )
+}
+
 const permissionGroupDefinitions = [
   { key: 'analytics', label: 'Business dashboard', description: 'View business totals, trends, provider performance, and operational summaries.', codes: ['dashboard.analytics.view'] },
   { key: 'users-view', label: 'User directory', description: 'View registered user profiles and account standing.', codes: ['users.view'] },
@@ -341,6 +404,7 @@ function OperationalQueue({ section }: { section: Exclude<BusinessSection, 'reve
   const [supportAssignment, setSupportAssignment] = useState('all')
   const [dateFilter, setDateFilter] = useState('all')
   const [remittanceStatus, setRemittanceStatus] = useState('all')
+  const [expandedRemittanceEventId, setExpandedRemittanceEventId] = useState('')
   const [customDates, setCustomDates] = useState({ start: '', end: '' })
 
   const load = useCallback(async () => {
@@ -369,7 +433,7 @@ function OperationalQueue({ section }: { section: Exclude<BusinessSection, 'reve
       if (agentResult.error) setError(agentResult.error.message)
     } else if (section === 'remittances') {
       const [remittanceResult, eventResult] = await Promise.all([
-        supabase.from('cash_remittances').select('id,event_id,booking_id,coordinator_id,amount_expected,amount_received,received_at,received_by,status,reference_number,notes,verified_at,verified_by,dispute_reason,created_at,events!cash_remittances_event_id_fkey(name,event_date),coordinator:profiles!cash_remittances_coordinator_id_fkey(full_name),receiver:profiles!cash_remittances_received_by_fkey(full_name),verifier:profiles!cash_remittances_verified_by_fkey(full_name)').order('created_at', { ascending: false }).limit(200),
+        supabase.from('cash_remittances').select('id,event_id,booking_id,coordinator_id,amount_expected,amount_received,received_at,received_by,status,reference_number,notes,verified_at,verified_by,dispute_reason,created_at,events!cash_remittances_event_id_fkey(name,event_date),bookings!cash_remittances_booking_id_fkey(services(name),provider_profiles(business_name)),coordinator:profiles!cash_remittances_coordinator_id_fkey(full_name),receiver:profiles!cash_remittances_received_by_fkey(full_name),verifier:profiles!cash_remittances_verified_by_fkey(full_name)').order('created_at', { ascending: false }).limit(200),
         supabase.from('events').select('id,name,coordinator_id,event_date,status,coordinator:profiles!events_coordinator_id_fkey(full_name)').not('coordinator_id', 'is', null).in('status', ['confirmed', 'in_progress', 'completed']).order('event_date', { ascending: false }).limit(100),
       ])
       result = remittanceResult
@@ -613,6 +677,13 @@ function OperationalQueue({ section }: { section: Exclude<BusinessSection, 'reve
     return rows.filter((row) => new Date(String(row.transaction_at)).getTime() >= start.getTime())
   }, [customDates.end, customDates.start, dateFilter, remittanceStatus, rows, section, supportAssignment, supportPriority, supportSearch, supportStatus])
 
+  const remittanceGroups = useMemo(() => {
+    const groups = groupRemittancesByEvent(rows)
+    return remittanceStatus === 'all'
+      ? groups
+      : groups.filter((group) => group.rows.some((row) => String(row.status) === remittanceStatus))
+  }, [remittanceStatus, rows])
+
   const selectedEvent = remittanceEvents.find((item) => String(item.id) === remittance.eventId)
   const selectedExpectation = remittanceExpectations.find((item) => String(item.booking_id) === remittance.bookingId)
   const allServicesSelected = remittance.bookingId === 'all'
@@ -745,11 +816,36 @@ function OperationalQueue({ section }: { section: Exclude<BusinessSection, 'reve
         {section === 'support' && <><div className="support-queue-filters"><input value={supportSearch} onChange={(event) => setSupportSearch(event.target.value)} placeholder="Search ticket, user, category, or description…" aria-label="Search support tickets"/><select value={supportPriority} onChange={(event) => setSupportPriority(event.target.value)} aria-label="Filter support priority"><option value="all">All priorities</option>{['urgent','high','normal','low'].map((priority) => <option key={priority} value={priority}>{priority}</option>)}</select><select value={supportAssignment} onChange={(event) => setSupportAssignment(event.target.value)} aria-label="Filter support assignment"><option value="all">All assignments</option><option value="unassigned">Unassigned</option>{supportAgents.map((agent) => <option key={String(agent.id)} value={String(agent.id)}>{String(agent.full_name)}</option>)}</select></div><div className="filter-strip"><span>Status</span><SegmentedFilter ariaLabel="Filter support tickets by status" value={supportStatus} onChange={setSupportStatus} options={[["all", "All"], ["active", "Active queue"], ["open", "Open"], ["in_progress", "In progress"], ["waiting_for_user", "Waiting for user"], ["resolved", "Resolved"], ["closed", "Closed"]]} /></div></>}
         {section === 'remittances' && <div className="filter-strip"><span>Status</span><SegmentedFilter ariaLabel="Filter cash remittances by status" value={remittanceStatus} onChange={setRemittanceStatus} options={[["all", "All"], ["pending", "Pending"], ["partially_remitted", "Partial"], ["remitted", "Remitted"], ["verified", "Verified"], ["disputed", "Disputed"]]} /></div>}
         {section === 'cashflow' && <div className="filter-strip"><span>Date range</span><SegmentedFilter ariaLabel="Filter cash flow by date" value={dateFilter} onChange={setDateFilter} options={[["all", "All"], ["today", "Today"], ["week", "This week"], ["month", "This month"], ["custom", "Custom"]]} />{dateFilter === 'custom' && <><input aria-label="Cash-flow start date" type="date" value={customDates.start} onChange={(event) => setCustomDates({...customDates,start:event.target.value})}/><input aria-label="Cash-flow end date" type="date" value={customDates.end} min={customDates.start || undefined} onChange={(event) => setCustomDates({...customDates,end:event.target.value})}/></>}</div>}
-        {loading ? <TableSkeleton /> : visibleRows.length === 0 ? <EmptyState title={`No ${copy[section].title.toLowerCase()} found`} copy="There is nothing requiring attention right now." /> : (
+        {section === 'remittances' ? (
+          loading ? <TableSkeleton /> : remittanceGroups.length === 0
+            ? <EmptyState title="No cash remittances found" copy="There is nothing requiring attention right now." />
+            : <div className="table-scroll"><table className="data-table remittance-event-table"><thead><tr><th>Event</th><th>Coordinator</th><th>Services</th><th>Expected</th><th>Received</th><th>Recorded</th><th>Status / details</th></tr></thead><tbody>
+              {remittanceGroups.map((group) => [
+                <tr key={group.eventId}>
+                  <td data-label="Event"><strong>{group.eventName}</strong><small className="table-subtitle">{formatDate(group.eventDate)}</small></td>
+                  <td data-label="Coordinator">{group.coordinatorName}</td>
+                  <td data-label="Services">{new Set(group.rows.filter((row) => String(row.status) !== 'disputed').map((row) => String(row.booking_id))).size}</td>
+                  <td data-label="Expected">{formatMoney(group.amountExpected)}</td>
+                  <td data-label="Received"><strong>{formatMoney(group.amountReceived)}</strong></td>
+                  <td data-label="Recorded"><strong>{group.recordedBy}</strong><small className="table-subtitle">{formatDate(group.latestRecordedAt)}</small></td>
+                  <td data-label="Status / details"><div className="remittance-review-actions"><StatusBadge value={group.status} /><button type="button" onClick={() => setExpandedRemittanceEventId((current) => current === group.eventId ? '' : group.eventId)}><MdiIcon path={mdiChevronDown} /> {expandedRemittanceEventId === group.eventId ? 'Hide breakdown' : 'View breakdown'}</button></div></td>
+                </tr>,
+                expandedRemittanceEventId === group.eventId ? <tr className="remittance-breakdown-row" key={`${group.eventId}:details`}><td colSpan={7}>
+                  <div className="remittance-event-breakdown">
+                    {group.rows.map((row) => <article key={String(row.id)}>
+                      <div><strong>{String(((row.bookings as Row | null)?.services as Row | null)?.name || `Booking ${String(row.booking_id || '').slice(0, 8)}`)}</strong><small>{String(((row.bookings as Row | null)?.provider_profiles as Row | null)?.business_name || 'Service provider')}</small></div>
+                      <span>{formatMoney(Number(row.amount_received))}</span>
+                      <small>{String(row.reference_number || String(row.id).slice(0, 8)).toUpperCase()}</small>
+                      <div className="remittance-review-actions"><StatusBadge value={String(row.status)} />{can('remittance.verify') && !['verified','disputed'].includes(String(row.status)) && <><button type="button" disabled={busy === row.id || String(row.status) !== 'remitted'} onClick={() => void reviewRemittance(String(row.id), 'verified')}><MdiIcon path={mdiCheck} /> Verify</button><button type="button" disabled={busy === row.id} onClick={() => void reviewRemittance(String(row.id), 'disputed')}>Dispute</button></>}</div>
+                    </article>)}
+                  </div>
+                </td></tr> : null,
+              ])}
+            </tbody></table></div>
+        ) : loading ? <TableSkeleton /> : visibleRows.length === 0 ? <EmptyState title={`No ${copy[section].title.toLowerCase()} found`} copy="There is nothing requiring attention right now." /> : (
           <div className="table-scroll"><table className="data-table"><thead><tr>
             {section === 'coordinators' ? <><th>Event</th><th>Schedule</th><th>Client</th><th>Reason</th><th>Assignment</th></> :
              section === 'support' ? <><th>Ticket</th><th>Concern</th><th>User</th><th>Priority</th><th>Assigned</th><th>Status</th><th>Updated</th></> :
-             section === 'remittances' ? <><th>Reference</th><th>Event / booking</th><th>Coordinator</th><th>Expected</th><th>Received</th><th>Recorded</th><th>Status</th></> :
              <><th>Date</th><th>Type</th><th>Method</th><th>Gross</th><th>Commission</th><th>Provider net</th><th>Received</th><th>Released</th><th>Status</th></>}
           </tr></thead><tbody>{visibleRows.map((row) => <tr key={String(row.id)}>
             {section === 'coordinators' ? <>
@@ -762,8 +858,6 @@ function OperationalQueue({ section }: { section: Exclude<BusinessSection, 'reve
               <td data-label="Concern"><button className="table-link" onClick={() => void openTicket(row)}><strong>{String(row.subject)}</strong><small className="table-subtitle">{String(row.category).replaceAll('_', ' ')}</small></button></td>
               <td data-label="User">{String((row.profiles as Row | null)?.full_name || (row.profiles as Row | null)?.email || 'MULTIVENT user')}</td>
               <td data-label="Priority"><StatusBadge value={String(row.priority)} /></td><td data-label="Assigned">{String((row.assignee as Row | null)?.full_name || 'Unassigned')}</td><td data-label="Status"><StatusBadge value={String(row.status)} /></td><td data-label="Updated">{formatDate(String(row.last_message_at || row.updated_at))}</td>
-            </> : section === 'remittances' ? <>
-              <td data-label="Reference"><strong>{String(row.reference_number || String(row.id).slice(0, 8)).toUpperCase()}</strong>{Boolean(row.dispute_reason) && <small className="table-subtitle">{String(row.dispute_reason)}</small>}</td><td data-label="Event / booking"><strong>{String((row.events as Row | null)?.name || String(row.event_id).slice(0, 8))}</strong><small className="table-subtitle">{row.booking_id ? `Booking ${String(row.booking_id).slice(0,8)}` : 'Whole event'}</small></td><td data-label="Coordinator">{String((row.coordinator as Row | null)?.full_name || 'Coordinator')}</td><td data-label="Expected">{formatMoney(Number(row.amount_expected))}</td><td data-label="Received">{formatMoney(Number(row.amount_received))}</td><td data-label="Recorded"><strong>{String((row.receiver as Row | null)?.full_name || 'MULTIVENT staff')}</strong><small className="table-subtitle">{formatDate(String(row.received_at || row.created_at))}</small></td><td data-label="Status"><div className="remittance-review-actions"><StatusBadge value={String(row.status)} />{can('remittance.verify') && !['verified','disputed'].includes(String(row.status)) && <><button type="button" disabled={busy === row.id || String(row.status) !== 'remitted'} onClick={() => void reviewRemittance(String(row.id), 'verified')}><MdiIcon path={mdiCheck} /> Verify</button><button type="button" disabled={busy === row.id} onClick={() => void reviewRemittance(String(row.id), 'disputed')}>Dispute</button></>}</div></td>
             </> : <>
               <td data-label="Date">{formatDate(String(row.transaction_at))}</td><td data-label="Type">{String(row.transaction_type).replaceAll('_',' ')}</td><td data-label="Method">{String(row.payment_method || '—')}</td><td data-label="Gross">{formatMoney(Number(row.gross_amount))}</td><td data-label="Commission">{formatMoney(Number(row.commission_amount))}</td><td data-label="Provider net">{formatMoney(Number(row.provider_net_amount))}</td><td data-label="Received">{formatMoney(Number(row.amount_received))}</td><td data-label="Released">{formatMoney(Number(row.amount_released))}</td><td data-label="Status"><StatusBadge value={String(row.status)} /></td>
             </>}

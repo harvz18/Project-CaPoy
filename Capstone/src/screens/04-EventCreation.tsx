@@ -1,6 +1,7 @@
 import { Text } from '../components/AppText'
 import React from 'react'
 import {
+  ActivityIndicator,
   Animated,
   Easing,
   FlatList,
@@ -46,6 +47,7 @@ interface VenueMapValue {
 
 interface EventCreationScreenProps {
   initialValue?: Partial<EventCreationValue>
+  isProcessing?: boolean
   onClose?: () => void
   onContinue?: (value: EventCreationValue) => void
   onSaveExit?: (value: EventCreationValue) => void
@@ -202,6 +204,7 @@ const isPastDateTime = (dateValue: string, timeValue: string, now = new Date()) 
 
 export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
   initialValue,
+  isProcessing = false,
   onClose,
   onContinue,
 }) => {
@@ -333,8 +336,8 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
       <PlanningScreenHeader
         currentStep={1}
         label="Basics"
-        nextEnabled={isStepComplete}
-        onBack={onClose}
+        nextEnabled={isStepComplete && !isProcessing}
+        onBack={isProcessing ? undefined : onClose}
         onNext={handleContinue}
         title="Create Event"
       />
@@ -629,18 +632,21 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
         <View style={[styles.footerContent, isWide && styles.horizontalPaddingWide]}>
           <Pressable
             accessibilityRole="button"
-            accessibilityState={{ disabled: !isStepComplete }}
-            disabled={!isStepComplete}
+            accessibilityState={{ busy: isProcessing, disabled: !isStepComplete || isProcessing }}
+            disabled={!isStepComplete || isProcessing}
             onPress={handleContinue}
             style={({ pressed }) => [
               styles.continueButton,
               isWide && styles.continueButtonWide,
-              !isStepComplete && styles.continueDisabled,
+              (!isStepComplete || isProcessing) && styles.continueDisabled,
               pressed && styles.continuePressed,
             ]}
           >
-            <Text style={styles.continueText}>{isWide ? 'CONTINUE' : 'NEXT STEP'}</Text>
-            <Text style={styles.continueArrow}>{'\u2192'}</Text>
+            {isProcessing ? <ActivityIndicator color="#FFFFFF" size="small" /> : null}
+            <Text style={styles.continueText}>
+              {isProcessing ? 'SAVING…' : isWide ? 'CONTINUE' : 'NEXT STEP'}
+            </Text>
+            {!isProcessing ? <Text style={styles.continueArrow}>{'\u2192'}</Text> : null}
           </Pressable>
         </View>
       </View>

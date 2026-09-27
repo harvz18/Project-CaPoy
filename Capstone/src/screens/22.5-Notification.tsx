@@ -25,6 +25,8 @@ export interface MerchantNotification {
   id: string
   isRead: boolean
   message: string
+  resourceId?: string
+  resourceType?: string
   title: string
 }
 

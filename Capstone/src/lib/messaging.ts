@@ -50,6 +50,7 @@ const toNotificationCategory = (value: unknown): MerchantNotificationCategory =>
   if (category.includes('booking')) return 'booking'
   if (category.includes('message') || category.includes('conversation')) return 'message'
   if (category.includes('payment') || category.includes('payout')) return 'payment'
+  if (category.includes('remittance')) return 'payment'
   if (category.includes('review')) return 'review'
   return 'system'
 }
@@ -281,7 +282,7 @@ export const fetchNotifications = async (): Promise<MerchantNotification[]> => {
 
   const { data, error } = await client
     .from('notifications')
-    .select('id, title, body, resource_type, status, created_at')
+    .select('id, title, body, resource_type, resource_id, status, created_at')
     .eq('user_id', userId)
     .neq('status', 'archived')
     .order('created_at', { ascending: false })
@@ -295,6 +296,8 @@ export const fetchNotifications = async (): Promise<MerchantNotification[]> => {
     id: row.id,
     isRead: row.status === 'read',
     message: textFrom(row.body),
+    resourceId: textFrom(row.resource_id) || undefined,
+    resourceType: textFrom(row.resource_type) || undefined,
     title: row.title,
   }))
 }

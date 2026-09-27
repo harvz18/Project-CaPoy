@@ -1,6 +1,7 @@
 import { Text } from '../components/AppText'
 import React from 'react'
 import {
+  ActivityIndicator,
   Animated,
   KeyboardAvoidingView,
   Platform,
@@ -35,6 +36,7 @@ export interface BudgetAllocationValue {
 interface BudgetAllocationScreenProps {
   initialBudget?: number
   initialPriorities?: BudgetPriority[]
+  isProcessing?: boolean
   onBack?: () => void
   onBudgetChange?: (budget: number) => void
   onContinue?: (value: BudgetAllocationValue) => void
@@ -57,6 +59,7 @@ const formatBudget = (digits: string) => digits.replace(/\B(?=(\d{3})+(?!\d))/g,
 export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
   initialBudget,
   initialPriorities = [],
+  isProcessing = false,
   onBack,
   onBudgetChange,
   onContinue,
@@ -144,8 +147,8 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
       <PlanningScreenHeader
         currentStep={2}
         label="Budget"
-        nextEnabled
-        onBack={onBack}
+        nextEnabled={!isProcessing}
+        onBack={isProcessing ? undefined : onBack}
         onNext={handleContinue}
         title="Budget"
       />
@@ -274,6 +277,8 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
           <Pressable
             accessibilityLabel="Decide budget priorities later"
             accessibilityRole="button"
+            accessibilityState={{ busy: isProcessing, disabled: isProcessing }}
+            disabled={isProcessing}
             hitSlop={6}
             onPress={onSkip}
             style={({ pressed }) => [styles.skipButton, pressed && styles.subtlePressed]}
@@ -284,15 +289,21 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
           <Pressable
             accessibilityLabel="Continue to the next step"
             accessibilityRole="button"
+            accessibilityState={{ busy: isProcessing, disabled: isProcessing }}
+            disabled={isProcessing}
             onPress={handleContinue}
             style={({ pressed }) => [
               styles.continueButton,
               isWide && styles.continueButtonWide,
-              pressed && styles.continuePressed,
+              isProcessing && styles.continueDisabled,
+              pressed && !isProcessing && styles.continuePressed,
             ]}
           >
-            <Text style={styles.continueText}>{isWide ? 'CONTINUE' : 'NEXT STEP'}</Text>
-            <MaterialIcons color={palette.white} name="arrow-forward" size={18} />
+            {isProcessing ? <ActivityIndicator color={palette.white} size="small" /> : null}
+            <Text style={styles.continueText}>
+              {isProcessing ? 'SAVING…' : isWide ? 'CONTINUE' : 'NEXT STEP'}
+            </Text>
+            {!isProcessing ? <MaterialIcons color={palette.white} name="arrow-forward" size={18} /> : null}
           </Pressable>
         </View>
       </View>
@@ -628,6 +639,7 @@ const styles = StyleSheet.create({
     opacity: 0.9,
     transform: [{ scale: 0.98 }],
   },
+  continueDisabled: { opacity: 0.56, shadowOpacity: 0, elevation: 0 },
   subtlePressed: {
     opacity: 0.55,
   },

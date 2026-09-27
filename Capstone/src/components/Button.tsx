@@ -1,10 +1,11 @@
 import { Text } from './AppText'
 import React from 'react'
 import {
+  ActivityIndicator,
+  GestureResponderEvent,
   Pressable,
   PressableProps,
   StyleSheet,
-  
   StyleProp,
   TextStyle,
   ViewStyle,
@@ -16,6 +17,7 @@ interface ButtonProps extends Omit<PressableProps, 'children' | 'style'> {
   size?: 'sm' | 'md' | 'lg'
   isFullWidth?: boolean
   isLoading?: boolean
+  loadingLabel?: string
   style?: StyleProp<ViewStyle>
   textStyle?: StyleProp<TextStyle>
   children?: React.ReactNode
@@ -26,12 +28,25 @@ export const Button: React.FC<ButtonProps> = ({
   size = 'md',
   isFullWidth = false,
   isLoading = false,
+  loadingLabel = 'Please wait…',
   children,
+  accessibilityState,
   disabled,
+  onPress,
   style,
   textStyle,
   ...props
 }) => {
+  const lastPressAt = React.useRef(0)
+  const unavailable = Boolean(disabled || isLoading)
+
+  const handlePress = React.useCallback((event: GestureResponderEvent) => {
+    const pressedAt = Date.now()
+    if (pressedAt - lastPressAt.current < 450) return
+    lastPressAt.current = pressedAt
+    onPress?.(event)
+  }, [onPress])
+
   const variantStyles = (() => {
     switch (variant) {
       case 'primary':
@@ -71,22 +86,29 @@ export const Button: React.FC<ButtonProps> = ({
     }
   })()
 
+  const loadingColor = variant === 'secondary' || variant === 'tertiary'
+    ? colors.primary
+    : colors.textInverse
+
   return (
     <Pressable
-      disabled={disabled || isLoading}
+      {...props}
+      accessibilityState={{ ...accessibilityState, busy: isLoading, disabled: unavailable }}
+      disabled={unavailable}
+      onPress={handlePress}
       style={({ pressed }) => [
         styles.base,
         variantStyles,
         sizeStyles,
         isFullWidth && styles.fullWidth,
-        disabled || isLoading ? styles.disabled : null,
-        pressed && !disabled && !isLoading ? styles.pressed : null,
+        unavailable ? styles.disabled : null,
+        pressed && !unavailable ? styles.pressed : null,
         style,
       ]}
-      {...props}
     >
+      {isLoading ? <ActivityIndicator color={loadingColor} size="small" /> : null}
       <Text style={[styles.label, textVariantStyle, textStyle]}>
-        {isLoading ? 'Loading...' : children}
+        {isLoading ? loadingLabel : children}
       </Text>
     </Pressable>
   )
@@ -98,6 +120,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
+    gap: spacing.sm,
   },
   primary: {
     backgroundColor: colors.primary,
@@ -133,6 +156,7 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.9,
+    transform: [{ scale: 0.985 }],
   },
   label: {
     fontWeight: '600',
