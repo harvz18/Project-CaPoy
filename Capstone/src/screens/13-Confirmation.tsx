@@ -54,7 +54,6 @@ export const ConfirmationScreen: React.FC<ConfirmationScreenProps> = ({
   const iconOpacity = React.useRef(new Animated.Value(0)).current
   const iconScale = React.useRef(new Animated.Value(0.8)).current
   const totalPaid = receipt.items.reduce((total, item) => total + item.price, 0)
-    + receipt.serviceFee
 
   React.useEffect(() => {
     Animated.parallel([
@@ -115,7 +114,7 @@ export const ConfirmationScreen: React.FC<ConfirmationScreenProps> = ({
             ))}
 
             <View style={styles.serviceFeeRow}>
-              <Text style={styles.serviceFeeText}>Service Fee</Text>
+              <Text style={styles.serviceFeeText}>MULTIVENT Fee (Included)</Text>
               <Text style={styles.serviceFeeText}>
                 {formatMoney(receipt.currencySymbol, receipt.serviceFee)}
               </Text>

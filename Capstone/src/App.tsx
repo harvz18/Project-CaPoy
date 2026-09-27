@@ -732,10 +732,13 @@ export const App: React.FC = () => {
       )
     : visibleCatalogServices
   const paymentItems: PaymentOrderItem[] = selectedServices.map((service) => ({
+    commissionAmount: service.commissionAmount,
+    commissionRate: service.commissionRate,
     description: service.detail,
     id: service.id,
     name: service.name,
     price: service.price,
+    providerPrice: service.providerPrice,
   }))
   const payableItems =
     paymentItems.length > 0
@@ -743,9 +746,12 @@ export const App: React.FC = () => {
       : [
           {
             description: 'Add services first to build a real order.',
+            commissionAmount: 0,
+            commissionRate: 0.1,
             id: 'empty-plan',
             name: 'No selected services yet',
             price: 0,
+            providerPrice: 0,
           },
         ]
   const instructionServices: InstructionModuleService[] = [
@@ -1420,14 +1426,22 @@ export const App: React.FC = () => {
       return
     }
 
+    const providerPrice = value.service.pricingUnit === 'person' && value.attendeeCount > 0
+      ? value.service.providerMinPrice * value.attendeeCount
+      : value.service.providerMinPrice
     const nextSelection: SelectedSummaryService = {
       id: value.service.id,
       category: value.service.categoryName.toUpperCase(),
+      commissionAmount: Math.round(
+        Math.max(0, value.estimatedTotal - providerPrice) * 100
+      ) / 100,
+      commissionRate: value.service.commissionRate,
       detail: value.attendeeCount > 0 ? `${value.attendeeCount} Guests` : value.service.detail,
       imageLabel: value.service.imageLabel,
       imageUrl: value.service.imageUrl,
       name: value.service.name,
       price: value.estimatedTotal,
+      providerPrice,
       status: 'Selected',
     }
 
@@ -2947,7 +2961,14 @@ export const App: React.FC = () => {
                     : item.price,
               })),
               referenceNumber: `MV-${Date.now().toString().slice(-8)}`,
-              serviceFee: 0,
+              serviceFee: payableItems.reduce(
+                (total, item) => total + (
+                  lastPayment?.paymentType === 'deposit'
+                    ? Math.round(item.commissionAmount * 0.3)
+                    : item.commissionAmount
+                ),
+                0
+              ),
             } satisfies ConfirmationReceipt}
             onBackHome={() => setScreen('clientHome')}
             onViewBookings={() => setScreen('bookings')}

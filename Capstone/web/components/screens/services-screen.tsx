@@ -14,7 +14,7 @@ import {
   mdiStorefrontOutline,
 } from '@mdi/js'
 import { MdiIcon } from '@/components/icons'
-import { EmptyState, formatDate, formatMoney, InlineError, StatusBadge, TableSkeleton } from '@/components/ui'
+import { EmptyState, formatDate, formatMoney, InlineError, SegmentedFilter, StatusBadge, TableSkeleton } from '@/components/ui'
 import { getSupabase } from '@/lib/supabase'
 import { useStaff } from '@/components/dashboard-shell'
 
@@ -69,7 +69,7 @@ export function ServicesScreen() {
   const [decision, setDecision] = useState<Decision | null>(null)
   const [note, setNote] = useState('')
   const [search, setSearch] = useState('')
-  const [status, setStatus] = useState('pending_review')
+  const [status, setStatus] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -162,11 +162,12 @@ export function ServicesScreen() {
       <section className="panel data-panel">
         <div className="table-toolbar service-toolbar">
           <label className="search-box"><MdiIcon path={mdiMagnify} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search services or providers…" /></label>
-          <div className="segmented-filter" role="group" aria-label="Filter services by status">
-            {[['pending_review', 'For review'], ['active', 'Approved'], ['rejected', 'Declined'], ['all', 'All']].map(([value, label]) => (
-              <button key={value} className={status === value ? 'active' : ''} onClick={() => setStatus(value)}>{label}</button>
-            ))}
-          </div>
+          <SegmentedFilter
+            ariaLabel="Filter services by status"
+            value={status}
+            onChange={setStatus}
+            options={[["all", "All"], ["pending_review", "For review"], ["active", "Approved"], ["rejected", "Declined"]]}
+          />
           <select className="inline-select" value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} aria-label="Filter services by category"><option value="all">All categories</option>{categories.map((category) => <option key={category} value={category}>{category}</option>)}</select>
         </div>
         {error && <InlineError message={`${error} Apply database migrations 21 through 23 if service moderation is not installed yet.`} onClose={() => setError('')} />}
@@ -183,7 +184,7 @@ export function ServicesScreen() {
                     <p>{String(provider?.business_name || 'Unknown provider')} · {String(category?.name || 'Uncategorized')}</p>
                     <small>{service.description || 'No service description provided.'}</small>
                   </div>
-                  <div className="service-review-row__meta"><span>Starting price</span><strong>{service.base_price ? formatMoney(service.base_price) : 'Custom quote'}</strong><small>Submitted {formatDate(service.updated_at)}</small></div>
+                  <div className="service-review-row__meta"><span>Provider price</span><strong>{service.base_price ? formatMoney(service.base_price) : 'Custom quote'}</strong><small>Submitted {formatDate(service.updated_at)}</small></div>
                   <button className="review-button" onClick={() => setSelected(service)}><MdiIcon path={mdiEyeOutline} /> Review details</button>
                 </article>
               )
@@ -261,7 +262,7 @@ function ServiceDetailModal({ service, canApprove, canReject, onClose, onDecisio
           <div className="service-detail-grid">
             <main>
               <section className="detail-section"><span className="detail-label">DESCRIPTION</span><p>{service.description || 'The provider did not include a description.'}</p></section>
-              <section className="detail-section"><span className="detail-label">PRICING</span><div className="price-summary"><strong>{service.base_price ? formatMoney(service.base_price) : 'Custom quote'}</strong><span>{formatPricing(service)}</span></div>{service.pricing_details && <p>{service.pricing_details}</p>}</section>
+              <section className="detail-section"><span className="detail-label">PROVIDER PRICING</span><div className="price-summary"><strong>{service.base_price ? formatMoney(service.base_price) : 'Custom quote'}</strong><span>{formatPricing(service)}</span></div><p>MULTIVENT adds the configured commission on top when showing the client-facing price.</p>{service.pricing_details && <p>{service.pricing_details}</p>}</section>
               <section className="detail-section"><span className="detail-label">PACKAGES ({packages.length})</span>{packages.length ? <div className="package-review-list">{packages.map((item) => <article key={item.id}><span><MdiIcon path={mdiPackageVariantClosed} /></span><div><strong>{item.name}</strong><p>{item.description || formatInclusions(item.inclusions)}</p></div><b>{item.price ? formatMoney(item.price) : 'Quote'}</b></article>)}</div> : <p>No packages were added.</p>}</section>
             </main>
             <aside>

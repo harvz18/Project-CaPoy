@@ -10,7 +10,6 @@ import {
   mdiDownloadOutline,
   mdiDotsHorizontal,
   mdiEyeOutline,
-  mdiFilterVariant,
   mdiMagnify,
   mdiRefresh,
   mdiShieldLockOutline,
@@ -18,7 +17,7 @@ import {
 } from '@mdi/js'
 import { MdiIcon } from '@/components/icons'
 import { useStaff } from '@/components/dashboard-shell'
-import { EmptyState, formatDate, formatMoney, InlineError, StatusBadge, TableSkeleton } from '@/components/ui'
+import { EmptyState, formatDate, formatMoney, InlineError, SegmentedFilter, StatusBadge, TableSkeleton } from '@/components/ui'
 import { getSupabase } from '@/lib/supabase'
 import type { SectionKey } from '@/lib/types'
 import { ServicesScreen } from './services-screen'
@@ -30,6 +29,20 @@ type BusinessSection = 'revenue' | 'cashflow' | 'remittances' | 'coordinators' |
 type LegacyTableSection = Exclude<OperationSection, 'settings' | 'services' | 'audit' | BusinessSection>
 type Row = Record<string, unknown>
 type ConfirmationAction = { id: string; action: string; currentStatus: string; name: string; kind: 'user' | 'provider'; reason: string }
+
+function paymentDisplayStatus(row: Row): 'fully_paid' | 'deposit_paid' {
+  const metadata = row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata)
+    ? row.metadata as Row
+    : {}
+  if (metadata.paymentType === 'deposit') return 'deposit_paid'
+  if (metadata.paymentType === 'full') return 'fully_paid'
+
+  const bookingValue = Array.isArray(row.bookings) ? row.bookings[0] : row.bookings
+  const booking = bookingValue && typeof bookingValue === 'object' ? bookingValue as Row : null
+  const bookingAmount = Number(booking?.amount || 0)
+  const paymentAmount = Number(row.amount || 0)
+  return bookingAmount > 0 && paymentAmount < bookingAmount ? 'deposit_paid' : 'fully_paid'
+}
 
 const pageCopy: Record<OperationSection, { eyebrow: string; title: string; description: string }> = {
   users: { eyebrow: 'COMMUNITY', title: 'User management', description: 'View accounts, access roles, and account standing.' },
@@ -74,7 +87,7 @@ const columns: Record<LegacyTableSection, { key: string; label: string; render?:
     { key: 'provider_reference', label: 'Reference', render: (row) => <strong className="record-id">{String(row.provider_reference || String(row.id).slice(0, 8)).toUpperCase()}</strong> },
     { key: 'provider', label: 'Method' },
     { key: 'amount', label: 'Amount', render: (row) => <strong>{formatMoney(row.amount as number)}</strong> },
-    { key: 'status', label: 'Status', render: (row) => <StatusBadge value={String(row.status)} /> },
+    { key: 'status', label: 'Payment status', render: (row) => <StatusBadge value={paymentDisplayStatus(row)} /> },
     { key: 'created_at', label: 'Created', render: (row) => formatDate(String(row.created_at || '')) },
   ],
   reviews: [
@@ -89,7 +102,7 @@ const queries: Record<LegacyTableSection, { table: string; select: string; order
   users: { table: 'profiles', select: 'id,full_name,email,default_role,account_status,created_at', order: 'created_at' },
   providers: { table: 'provider_profiles', select: 'id,user_id,business_name,description,contact_email,contact_phone,location,verification_status,terms_accepted,terms_version,terms_accepted_at,rejection_reason,reviewed_at,reviewed_by,created_at,updated_at,profiles!provider_profiles_user_id_fkey(full_name,email,phone,account_status)', order: 'created_at' },
   bookings: { table: 'bookings', select: 'id,requested_date,amount,status,created_at', order: 'created_at' },
-  payments: { table: 'payments', select: 'id,provider_reference,provider,amount,status,created_at', order: 'created_at' },
+  payments: { table: 'payments', select: 'id,booking_id,provider_reference,provider,amount,status,metadata,created_at,bookings(amount)', order: 'created_at' },
   reviews: { table: 'reviews', select: 'id,rating,comment,sentiment_label,created_at', order: 'created_at' },
 }
 
@@ -162,16 +175,25 @@ function TableScreen({ section, copy }: { section: LegacyTableSection; copy: typ
       const matchesFilter = filter === 'all'
         || (section === 'users' && filter === 'internal' && ['admin', 'superadmin', 'assistant', 'customer_service', 'event_coordinator'].includes(role))
         || (section === 'users' && role === filter)
-        || (section === 'providers' && (String(row.verification_status) === filter || String(row.description || '').toLowerCase() === filter))
+        || (section === 'providers' && String(row.verification_status) === filter)
+        || (section === 'bookings' && String(row.status) === filter)
+        || (section === 'payments' && paymentDisplayStatus(row) === filter)
+        || (section === 'reviews' && String(row.sentiment_label || 'published') === filter)
       return matchesSearch && matchesFilter
     })
   }, [filter, rows, search, section])
 
-  const filterOptions = section === 'users'
-    ? [['all', 'All users'], ['client', 'Clients'], ['service_provider', 'Service providers'], ['event_coordinator', 'Event coordinators'], ['internal', 'Internal staff']]
+  const filterOptions: Array<[string, string]> = section === 'users'
+    ? [['all', 'All'], ['client', 'Clients'], ['service_provider', 'Service providers'], ['event_coordinator', 'Event coordinators'], ['internal', 'Internal staff']]
     : section === 'providers'
-      ? [['all', 'All providers'], ['pending', 'Pending'], ['verified', 'Approved'], ['disabled', 'Rejected'], ...Array.from(new Set(rows.map((row) => String(row.description || '').trim()).filter(Boolean))).map((value) => [value.toLowerCase(), value])]
-      : []
+      ? [['all', 'All'], ['pending', 'For review'], ['verified', 'Approved'], ['disabled', 'Declined']]
+      : section === 'bookings'
+        ? [['all', 'All'], ['requested', 'Requested'], ['approved', 'Approved'], ['payment_required', 'Payment required'], ['paid', 'Paid'], ['confirmed', 'Confirmed'], ['completed', 'Completed'], ['cancelled', 'Cancelled'], ['expired', 'Expired'], ['rejected', 'Rejected']]
+        : section === 'payments'
+          ? [['all', 'All'], ['fully_paid', 'Fully paid'], ['deposit_paid', '30% paid']]
+          : section === 'reviews'
+            ? [['all', 'All'], ['positive', 'Positive'], ['neutral', 'Neutral'], ['negative', 'Negative'], ['published', 'Unclassified']]
+            : []
 
   async function moderate(id: string, action: string) {
     const supabase = getSupabase()
@@ -208,7 +230,8 @@ function TableScreen({ section, copy }: { section: LegacyTableSection; copy: typ
       <section className="panel data-panel">
         <div className="table-toolbar">
           <label className="search-box"><MdiIcon path={mdiMagnify} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`Search ${copy.title.toLowerCase()}…`} /><kbd>⌘ K</kbd></label>
-          <div>{filterOptions.length > 0 && <select className="inline-select" value={filter} onChange={(event) => setFilter(event.target.value)} aria-label="Filter records">{filterOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>}<button className="tool-button"><MdiIcon path={mdiFilterVariant} /> Filter</button><button className="tool-button"><MdiIcon path={mdiDownloadOutline} /> Export</button></div>
+          {filterOptions.length > 0 && <SegmentedFilter ariaLabel={`Filter ${copy.title.toLowerCase()}`} options={filterOptions} value={filter} onChange={setFilter} />}
+          <div><button className="tool-button"><MdiIcon path={mdiDownloadOutline} /> Export</button></div>
         </div>
         {error && <InlineError message={`${error} Apply database/20_admin_web_access.sql if staff access policies are not installed yet.`} onClose={() => setError('')} />}
         {loading ? <TableSkeleton /> : visibleRows.length === 0 ? <EmptyState title={`No ${copy.title.toLowerCase()} found`} copy={search ? 'Try a different search term.' : 'Records will appear here when they become available.'} /> : (

@@ -1,5 +1,9 @@
 import { supabase, supabaseConfig } from './supabase'
 import { CatalogService } from './catalog'
+import {
+  customerPriceFromProviderPrice,
+  normalizeCommissionRate,
+} from './pricing'
 import type { SubmitReviewValue } from '../screens'
 import type { EventFeedbackValue } from '../screens/15.1-EventFeedback'
 import type { InstructionModuleValue } from '../screens/10-InstructionModule'
@@ -81,12 +85,15 @@ export type ClientPlanningState = {
   }>
   selectedServices: Array<{
     category: string
+    commissionAmount: number
+    commissionRate: number
     detail: string
     id: string
     imageLabel: string
     imageUrl: string
     name: string
     price: number
+    providerPrice: number
     status: string
   }>
   totalBudget?: number
@@ -399,6 +406,8 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
 
       return {
         category: selection.category_name || 'SERVICE',
+        commissionAmount: Number(snapshot.commissionAmount ?? 0),
+        commissionRate: Number(snapshot.commissionRate ?? 0),
         detail: selection.attendee_count
           ? `${selection.attendee_count} Guests`
           : selection.category_name || 'Service',
@@ -410,6 +419,7 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
         imageUrl: service?.cover_image_url || '',
         name,
         price: Number(selection.estimated_amount ?? 0),
+        providerPrice: Number(snapshot.providerAmount ?? selection.estimated_amount ?? 0),
         status:
           selection.status === 'confirmed'
             ? 'Confirmed'
@@ -654,7 +664,14 @@ export const savePlanningPayment = async (
     paymentType: string
     termsAccepted: boolean
   },
-  items: Array<{ id: string; name: string; price: number }>
+  items: Array<{
+    commissionAmount?: number
+    commissionRate?: number
+    id: string
+    name: string
+    price: number
+    providerPrice?: number
+  }>
 ): Promise<PlanningResult> => {
   try {
     const client = getClient()
@@ -678,7 +695,7 @@ export const savePlanningPayment = async (
         client
           .from('event_service_selections')
           .select(
-            'id, provider_id, service_id, package_id, estimated_amount, notes, service_name, status, provider_profiles(user_id)'
+            'id, provider_id, service_id, package_id, estimated_amount, notes, service_name, status, selected_provider_snapshot, provider_profiles(user_id)'
           )
           .eq('event_id', event.eventId)
           .eq('client_id', event.userId)
@@ -702,14 +719,29 @@ export const savePlanningPayment = async (
     const now = new Date().toISOString()
     const bookingRows: Array<{
       amount: number
+      commissionAmount: number
+      commissionRate: number
       id: string
       isNew: boolean
+      providerAmount: number
       providerUserId?: string
       selectionId: string
       serviceName: string
     }> = []
 
     for (const selection of requestableSelections) {
+      const snapshot = selection.selected_provider_snapshot && typeof selection.selected_provider_snapshot === 'object'
+        ? selection.selected_provider_snapshot as Record<string, unknown>
+        : {}
+      const commissionRate = normalizeCommissionRate(snapshot.commissionRate)
+      const hasMarkupSnapshot = snapshot.commissionModel === 'added_to_customer'
+      const providerAmount = hasMarkupSnapshot
+        ? Number(snapshot.providerAmount ?? selection.estimated_amount ?? 0)
+        : Number(selection.estimated_amount ?? 0)
+      const amount = hasMarkupSnapshot
+        ? Number(selection.estimated_amount ?? 0)
+        : customerPriceFromProviderPrice(providerAmount, commissionRate)
+      const commissionAmount = Math.round(Math.max(0, amount - providerAmount) * 100) / 100
       const { data: existingBooking, error: existingBookingError } = await client
         .from('bookings')
         .select('id')
@@ -727,12 +759,16 @@ export const savePlanningPayment = async (
       }
 
       const bookingPayload = {
-        amount: Number(selection.estimated_amount ?? 0),
+        amount,
         client_id: event.userId,
         client_notes: selection.notes,
+        commission_amount: commissionAmount,
+        commission_model: 'added_to_customer',
+        commission_rate: commissionRate,
         event_id: event.eventId,
         package_id: selection.package_id,
         provider_id: selection.provider_id,
+        provider_amount: providerAmount,
         requested_date: eventRow.event_date,
         requested_time: eventRow.event_time,
         service_id: selection.service_id,
@@ -761,9 +797,12 @@ export const savePlanningPayment = async (
         : selection.provider_profiles
 
       bookingRows.push({
-        amount: Number(selection.estimated_amount ?? 0),
+        amount,
+        commissionAmount,
+        commissionRate,
         id: bookingResult.data.id as string,
         isNew,
+        providerAmount,
         providerUserId: provider?.user_id as string | undefined,
         selectionId: selection.id as string,
         serviceName: selection.service_name || 'Service',
@@ -774,15 +813,19 @@ export const savePlanningPayment = async (
     const paymentRows = bookingRows.map((booking) => ({
       amount:
         value.paymentType === 'deposit'
-          ? Math.round(booking.amount * 0.3)
+          ? Math.round(booking.providerAmount * 0.3 * 100) / 100
           : booking.amount,
       booking_id: booking.id,
       currency: 'PHP',
       event_id: event.eventId,
       metadata: {
+        commissionAmount: booking.commissionAmount,
+        commissionModel: 'added_to_customer',
+        commissionRate: booking.commissionRate,
         eventName: eventRow.name,
         items,
         paymentType: value.paymentType,
+        providerAmount: booking.providerAmount,
         termsAccepted: value.termsAccepted,
       },
       paid_at: now,
@@ -928,6 +971,12 @@ export const saveServiceSelection = async (
     const providerId = value.service.bookingProviderId ?? value.service.providerId
     const serviceId = value.service.bookingServiceId ?? value.service.id
     const packageId = value.service.bookingPackageId ?? value.service.packageId
+    const providerAmount = value.service.pricingUnit === 'person' && value.attendeeCount > 0
+      ? value.service.providerMinPrice * value.attendeeCount
+      : value.service.providerMinPrice
+    const commissionAmount = Math.round(
+      Math.max(0, value.estimatedTotal - providerAmount) * 100
+    ) / 100
     const selectionPayload = {
       event_id: event.eventId,
       client_id: event.userId,
@@ -946,7 +995,11 @@ export const saveServiceSelection = async (
       notes: value.notes,
       status: 'selected',
       selected_provider_snapshot: {
+        commissionAmount,
+        commissionModel: 'added_to_customer',
+        commissionRate: value.service.commissionRate,
         mockServiceId: value.service.id,
+        providerAmount,
         providerName: value.service.providerName,
         rating: value.service.rating,
         remainingBudgetCurrency: 'PHP',
@@ -1101,10 +1154,14 @@ export const replaceServiceSelection = async ({
     }
 
     const attendeeCount = Number(current.attendee_count ?? 0)
-    const estimatedAmount =
+    const providerAmount =
       service.pricingUnit === 'person' && attendeeCount > 0
-        ? service.minPrice * attendeeCount
-        : service.minPrice
+        ? service.providerMinPrice * attendeeCount
+        : service.providerMinPrice
+    const estimatedAmount = customerPriceFromProviderPrice(
+      providerAmount,
+      service.commissionRate
+    )
 
     const { error } = await client
       .from('event_service_selections')
@@ -1115,7 +1172,13 @@ export const replaceServiceSelection = async ({
         package_id: isUuid(packageId) ? packageId : null,
         provider_id: providerId,
         selected_provider_snapshot: {
+          commissionAmount: Math.round(
+            Math.max(0, estimatedAmount - providerAmount) * 100
+          ) / 100,
+          commissionModel: 'added_to_customer',
+          commissionRate: service.commissionRate,
           mockServiceId: service.id,
+          providerAmount,
           providerName: service.providerName,
           rating: service.rating,
           remainingBudgetCurrency: 'PHP',

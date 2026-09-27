@@ -1,4 +1,9 @@
 import { supabase, supabaseConfig } from './supabase'
+import {
+  customerPriceFromProviderPrice,
+  DEFAULT_COMMISSION_RATE,
+  normalizeCommissionRate,
+} from './pricing'
 
 export type CatalogCategoryId =
   | 'venues'
@@ -47,6 +52,7 @@ export interface CatalogService {
   categoryDbId?: string
   categoryName: string
   cateringServiceTypes?: CateringServiceType[]
+  commissionRate: number
   description: string
   detail: string
   galleryUrls?: string[]
@@ -57,6 +63,7 @@ export interface CatalogService {
   location?: string
   maxPrice?: number
   minPrice: number
+  providerMinPrice: number
   name: string
   packageId?: string
   packages?: Array<{
@@ -65,6 +72,7 @@ export interface CatalogService {
     inclusions: string[]
     name: string
     price: number
+    providerPrice: number
     unit?: 'event' | 'person' | 'hour' | 'day'
   }>
   pricingDetails?: string
@@ -127,7 +135,7 @@ const getNestedId = (value: unknown, fallback = '') => {
   return textFrom((source as Record<string, unknown>).id, fallback ?? '')
 }
 
-const getPackages = (value: unknown) => {
+const getPackages = (value: unknown, commissionRate: number) => {
   if (!Array.isArray(value)) return []
 
   return value.flatMap((item) => {
@@ -136,7 +144,7 @@ const getPackages = (value: unknown) => {
     const record = item as Record<string, unknown>
     const id = textFrom(record.id, '')
     const name = textFrom(record.name, '')
-    const price = numberFrom(record.price, 0)
+    const providerPrice = numberFrom(record.price, 0)
 
     if (!id || !name) return []
 
@@ -150,7 +158,8 @@ const getPackages = (value: unknown) => {
             )
           : [],
         name,
-        price,
+        price: customerPriceFromProviderPrice(providerPrice, commissionRate),
+        providerPrice,
         unit: ['event', 'person', 'hour', 'day'].includes(String(record.pricing_unit))
           ? (record.pricing_unit as 'event' | 'person' | 'hour' | 'day')
           : undefined,
@@ -196,12 +205,19 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
   const detailedSelection =
     'id, provider_id, category_id, name, description, base_price, location, cover_image_url, gallery_urls, pricing_model, pricing_unit, pricing_details, catering_service_types, provider_profiles(id, business_name), service_categories(id, name), service_packages(id, name, description, price, inclusions, pricing_unit), reviews(rating)'
 
-  const detailedResult = await supabase
-    .from('services')
-    .select(detailedSelection)
-    .eq('status', 'active')
-    .eq('is_available', true)
-    .limit(1000)
+  const [detailedResult, commissionResult] = await Promise.all([
+    supabase
+      .from('services')
+      .select(detailedSelection)
+      .eq('status', 'active')
+      .eq('is_available', true)
+      .limit(1000),
+    supabase.rpc('get_public_commission_rate'),
+  ])
+  const commissionRate = normalizeCommissionRate(
+    commissionResult.data,
+    DEFAULT_COMMISSION_RATE
+  )
 
   const fallbackResult = detailedResult.error
     ? await supabase
@@ -224,8 +240,12 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
     const categoryName = getNestedText(record.service_categories, 'name', 'Catering')
     const providerName = getNestedText(record.provider_profiles, 'business_name', 'Provider')
     const name = textFrom(record.name, providerName)
-    const packages = getPackages(record.service_packages)
-    const minPrice = numberFrom(record.base_price, packages[0]?.price ?? 0)
+    const packages = getPackages(record.service_packages, commissionRate)
+    const providerMinPrice = numberFrom(
+      record.base_price,
+      packages[0]?.providerPrice ?? 0
+    )
+    const minPrice = customerPriceFromProviderPrice(providerMinPrice, commissionRate)
     const coverImageUrl = usableImageUrl(record.cover_image_url)
     const galleryUrls = Array.isArray(record.gallery_urls)
       ? record.gallery_urls
@@ -259,6 +279,7 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
       categoryDbId: getNestedId(record.service_categories, textFrom(record.category_id, '')),
       categoryName,
       cateringServiceTypes: getCateringServiceTypes(record.catering_service_types),
+      commissionRate,
       description: textFrom(record.description, `${name} service package.`),
       detail: categoryName,
       galleryUrls: serviceImages,
@@ -273,6 +294,7 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
       pricingDetails: textFrom(record.pricing_details, ''),
       pricingModel,
       pricingUnit,
+      providerMinPrice,
       providerId: textFrom(record.provider_id, getNestedId(record.provider_profiles, '')),
       providerName,
       rating: averageRating > 0 ? averageRating.toFixed(1) : 'New',
@@ -338,6 +360,7 @@ export const fetchAvailableCoordinators = async (): Promise<CatalogService[]> =>
     return [{
       categoryId: 'eventOrganizers' as const,
       categoryName: 'Event Organizer',
+      commissionRate: 0,
       coordinatorUserId,
       coordinatorReviews: reviews,
       description: `${name} can coordinate your event plan and keep your booked services organized.`,
@@ -350,6 +373,7 @@ export const fetchAvailableCoordinators = async (): Promise<CatalogService[]> =>
       minPrice: 0,
       name,
       pricingModel: 'customQuote' as const,
+      providerMinPrice: 0,
       providerName: name,
       rating: reviewCount > 0 && Number.isFinite(averageRating)
         ? averageRating.toFixed(1)

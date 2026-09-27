@@ -84,7 +84,7 @@ const defaultTrend: EarningsDataPoint[] = [
 
 const defaultTransactions: PayoutTransaction[] = [
   {
-    amount: 24500,
+    amount: 26000,
     createdAt: '2026-09-02T10:30:00+08:00',
     id: 'transaction-1048',
     label: 'Premium Floral Design',

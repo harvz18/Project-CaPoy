@@ -331,7 +331,7 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
               <View style={[styles.checkbox, acceptedTerms && styles.checkboxChecked]}>
                 {acceptedTerms && <MaterialCommunityIcons color={colors.textInverse} name="check" size={14} />}
               </View>
-              <Text style={styles.termsText}>I agree to the Provider Terms, Privacy Policy, and MULTIVENT commission policy (currently 10%).</Text>
+              <Text style={styles.termsText}>I agree to the Provider Terms, Privacy Policy, and MULTIVENT commission policy. The current 10% service fee is added above my provider price for clients.</Text>
             </Pressable>
             <Button accessibilityLabel="Create service provider account" disabled={!canSubmit} isFullWidth isLoading={isLoading} onPress={handleSignUp} size="lg" style={styles.submitButton} textStyle={styles.buttonText}>CREATE MERCHANT ACCOUNT</Button>
             </Animated.View>

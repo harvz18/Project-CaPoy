@@ -41,11 +41,10 @@ interface TransactionDetailsScreenProps {
 }
 
 const defaultTransaction: MerchantTransactionDetails = {
-  amount: 24500,
+  amount: 26000,
   breakdown: [
-    { amount: 26000, label: 'Client payment' },
-    { amount: -1300, label: 'Multivent service fee' },
-    { amount: -200, label: 'Payment processing fee' },
+    { amount: 28600, label: 'Client payment' },
+    { amount: -2600, label: 'MULTIVENT fee paid by client' },
   ],
   createdAt: '2026-09-02T10:30:00+08:00',
   currency: 'PHP',

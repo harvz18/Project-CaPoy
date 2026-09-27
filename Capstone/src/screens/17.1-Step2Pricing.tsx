@@ -293,7 +293,7 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
                     Enter an amount greater than zero.
                   </Text>
                 ) : (
-                  <Text style={styles.helperText}>Clients will see this amount on your listing.</Text>
+                  <Text style={styles.helperText}>This is the amount you receive. MULTIVENT adds its service fee on top for the client-facing price.</Text>
                 )}
               </View>
 

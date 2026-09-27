@@ -5,11 +5,42 @@ import { MdiIcon } from './icons'
 
 export function StatusBadge({ value }: { value: string | null | undefined }) {
   const normalized = (value || 'unknown').toLowerCase()
-  const positive = ['active', 'verified', 'paid', 'confirmed', 'completed', 'approved', 'published'].includes(normalized)
-  const caution = ['pending', 'pending_review', 'processing', 'requested', 'payment_required', 'planning'].includes(normalized)
+  const positive = ['active', 'verified', 'paid', 'fully_paid', 'confirmed', 'completed', 'approved', 'published'].includes(normalized)
+  const caution = ['pending', 'pending_review', 'deposit_paid', 'processing', 'requested', 'payment_required', 'planning'].includes(normalized)
   const negative = ['suspended', 'disabled', 'rejected', 'failed', 'cancelled', 'expired'].includes(normalized)
   const tone = positive ? 'positive' : caution ? 'caution' : negative ? 'negative' : 'neutral'
-  return <span className={`status-badge status-badge--${tone}`}><i />{normalized.replaceAll('_', ' ')}</span>
+  const label = normalized === 'deposit_paid' ? '30% paid' : normalized.replaceAll('_', ' ')
+  return <span className={`status-badge status-badge--${tone}`}><i />{label}</span>
+}
+
+export function SegmentedFilter({
+  ariaLabel,
+  options,
+  value,
+  onChange,
+  className = '',
+}: {
+  ariaLabel: string
+  options: ReadonlyArray<readonly [value: string, label: string]>
+  value: string
+  onChange: (value: string) => void
+  className?: string
+}) {
+  return (
+    <div className={`segmented-filter ${className}`.trim()} role="group" aria-label={ariaLabel}>
+      {options.map(([optionValue, label]) => (
+        <button
+          type="button"
+          key={optionValue}
+          className={value === optionValue ? 'active' : ''}
+          aria-pressed={value === optionValue}
+          onClick={() => onChange(optionValue)}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  )
 }
 
 export function EmptyState({ title, copy }: { title: string; copy: string }) {

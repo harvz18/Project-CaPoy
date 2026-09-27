@@ -18,12 +18,15 @@ export type SelectedSummaryTab = ClientMainTab | 'plan' | 'guestList' | 'budget'
 
 export interface SelectedSummaryService {
   category: string
+  commissionAmount: number
+  commissionRate: number
   detail: string
   id: string
   imageLabel: string
   imageUrl: string
   name: string
   price: number
+  providerPrice: number
   status: string
 }
 

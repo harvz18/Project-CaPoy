@@ -11,7 +11,7 @@ import {
   mdiShieldKeyOutline,
 } from '@mdi/js'
 import { MdiIcon } from '@/components/icons'
-import { EmptyState, formatDate, formatMoney, InlineError, StatusBadge, TableSkeleton } from '@/components/ui'
+import { EmptyState, formatDate, formatMoney, InlineError, SegmentedFilter, StatusBadge, TableSkeleton } from '@/components/ui'
 import { useStaff } from '@/components/dashboard-shell'
 import { getSupabase } from '@/lib/supabase'
 
@@ -223,9 +223,9 @@ function RevenueScreen() {
       {loading ? <TableSkeleton rows={4} /> : <>
         <section className="stat-grid">
           {[
-            ['Gross transaction value', data.gross_amount, 'Before commission'],
-            ['Commission revenue', data.commission_amount, `${Number(data.commission_rate ?? 0.10) * 100}% configured rate`],
-            ['Provider net amount', data.provider_net_amount, 'Payable to providers'],
+            ['Client payment value', data.gross_amount, 'Includes MULTIVENT commission'],
+            ['Commission revenue', data.commission_amount, `${Number(data.commission_rate ?? 0.10) * 100}% added to provider prices`],
+            ['Provider service value', data.provider_net_amount, 'Provider-listed amount payable'],
             ['This month', currentMonth.commission, commissionChange],
           ].map(([label, value, detail], index) => (
             <article className="stat-card" key={String(label)}>
@@ -235,7 +235,7 @@ function RevenueScreen() {
           ))}
         </section>
         <section className="panel business-panel">
-          <header><div><span className="eyebrow">LAST 12 MONTHS</span><h2>Gross value and commission</h2></div></header>
+          <header><div><span className="eyebrow">LAST 12 MONTHS</span><h2>Client payments and commission</h2></div></header>
           {monthly.length === 0 ? <EmptyState title="No recognized revenue yet" copy="Paid and verified provider transactions will appear here." /> : (
             <div className="revenue-bars">{monthly.map((item) => {
               const gross = Number(item.gross || 0)
@@ -256,7 +256,7 @@ function CashFlowScreen() {
   const [data, setData] = useState<Row>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [dateFilter, setDateFilter] = useState('month')
+  const [dateFilter, setDateFilter] = useState('all')
   const [transactionType, setTransactionType] = useState('all')
   const [status, setStatus] = useState('all')
   const [customDates, setCustomDates] = useState({ start: '', end: '' })
@@ -302,7 +302,7 @@ function CashFlowScreen() {
     </section>
     <section className="panel data-panel">
       <div className="cashflow-filter-grid">
-        <div className="business-filter"><span>Date range</span>{[['today','Today'],['week','This week'],['month','This month'],['custom','Custom'],['all','All']].map(([value,label]) => <button type="button" key={value} className={dateFilter === value ? 'selected' : ''} onClick={() => setDateFilter(value)}>{label}</button>)}</div>
+        <div className="filter-strip"><span>Date range</span><SegmentedFilter ariaLabel="Filter cash flow by date" value={dateFilter} onChange={setDateFilter} options={[["all", "All"], ["today", "Today"], ["week", "This week"], ["month", "This month"], ["custom", "Custom"]]} /></div>
         <div className="cashflow-selects"><label>Type<select value={transactionType} onChange={(event) => setTransactionType(event.target.value)}><option value="all">All classifications</option><option value="booking_payment">Cash inflow</option><option value="provider_remittance">Office cash remittance</option><option value="refund">Refund</option><option value="provider_payable">Provider payable</option><option value="commission_revenue">Commission revenue</option><option value="adjustment">Adjustment</option></select></label><label>Status<select value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">All statuses</option>{['pending','processing','paid','verified','partially_remitted','remitted','disputed','refunded','failed','cancelled'].map((value) => <option value={value} key={value}>{value.replaceAll('_',' ')}</option>)}</select></label></div>
         {dateFilter === 'custom' && <div className="cashflow-custom-dates"><label>From<input aria-label="Cash-flow start date" type="date" value={customDates.start} onChange={(event) => setCustomDates({...customDates,start:event.target.value})}/></label><label>Through<input aria-label="Cash-flow end date" type="date" value={customDates.end} min={customDates.start || undefined} onChange={(event) => setCustomDates({...customDates,end:event.target.value})}/></label></div>}
       </div>
@@ -318,7 +318,7 @@ function OperationalQueue({ section }: { section: Exclude<BusinessSection, 'reve
   const [coordinators, setCoordinators] = useState<Row[]>([])
   const [supportAgents, setSupportAgents] = useState<Row[]>([])
   const [remittanceEvents, setRemittanceEvents] = useState<Row[]>([])
-  const [remittanceBookings, setRemittanceBookings] = useState<Row[]>([])
+  const [remittanceExpectations, setRemittanceExpectations] = useState<Row[]>([])
   const [availabilityRows, setAvailabilityRows] = useState<Row[]>([])
   const [availability, setAvailability] = useState({ coordinatorId: '', startsAt: '', endsAt: '', status: 'unavailable', reason: '' })
   const [remittance, setRemittance] = useState({ eventId: '', bookingId: '', expected: '', received: '', reference: '', notes: '' })
@@ -330,10 +330,10 @@ function OperationalQueue({ section }: { section: Exclude<BusinessSection, 'reve
   const [reply, setReply] = useState('')
   const [internalReply, setInternalReply] = useState(false)
   const [supportSearch, setSupportSearch] = useState('')
-  const [supportStatus, setSupportStatus] = useState('active')
+  const [supportStatus, setSupportStatus] = useState('all')
   const [supportPriority, setSupportPriority] = useState('all')
   const [supportAssignment, setSupportAssignment] = useState('all')
-  const [dateFilter, setDateFilter] = useState('month')
+  const [dateFilter, setDateFilter] = useState('all')
   const [remittanceStatus, setRemittanceStatus] = useState('all')
   const [customDates, setCustomDates] = useState({ start: '', end: '' })
 
@@ -362,15 +362,13 @@ function OperationalQueue({ section }: { section: Exclude<BusinessSection, 'reve
       setSupportAgents(Array.isArray(agentResult.data) ? agentResult.data as Row[] : [])
       if (agentResult.error) setError(agentResult.error.message)
     } else if (section === 'remittances') {
-      const [remittanceResult, eventResult, bookingResult] = await Promise.all([
+      const [remittanceResult, eventResult] = await Promise.all([
         supabase.from('cash_remittances').select('id,event_id,booking_id,coordinator_id,amount_expected,amount_received,received_at,received_by,status,reference_number,notes,verified_at,verified_by,dispute_reason,created_at,events!cash_remittances_event_id_fkey(name,event_date),coordinator:profiles!cash_remittances_coordinator_id_fkey(full_name),receiver:profiles!cash_remittances_received_by_fkey(full_name),verifier:profiles!cash_remittances_verified_by_fkey(full_name)').order('created_at', { ascending: false }).limit(200),
-        supabase.from('events').select('id,name,coordinator_id,event_date,status,coordinator:profiles!events_coordinator_id_fkey(full_name)').not('coordinator_id', 'is', null).eq('status', 'completed').order('event_date', { ascending: false }).limit(100),
-        supabase.from('bookings').select('id,event_id,amount,status,services(name),provider_profiles(business_name)').not('status', 'in', '(rejected,cancelled,expired)').order('created_at', { ascending: false }).limit(500),
+        supabase.from('events').select('id,name,coordinator_id,event_date,status,coordinator:profiles!events_coordinator_id_fkey(full_name)').not('coordinator_id', 'is', null).in('status', ['confirmed', 'in_progress', 'completed']).order('event_date', { ascending: false }).limit(100),
       ])
       result = remittanceResult
       setRemittanceEvents(eventResult.data || [])
-      setRemittanceBookings(bookingResult.data || [])
-      const remittanceError = eventResult.error || bookingResult.error
+      const remittanceError = eventResult.error
       if (remittanceError) setError(remittanceError.message)
     } else {
       result = await supabase.from('financial_transactions').select('id,payment_id,booking_id,event_id,provider_id,transaction_type,payment_method,gross_amount,commission_amount,provider_net_amount,amount_received,amount_released,status,transaction_at').order('transaction_at', { ascending: false }).limit(250)
@@ -440,21 +438,78 @@ function OperationalQueue({ section }: { section: Exclude<BusinessSection, 'reve
     else { setReply(''); setInternalReply(false); await load(); await openTicket(selectedTicket) }
   }
 
+  async function loadRemittanceExpectations(eventId: string, selectedBookingId = '') {
+    const supabase = getSupabase()
+    if (!supabase || !eventId) {
+      setRemittanceExpectations([])
+      return
+    }
+    setBusy('expectations')
+    const { data, error: expectationError } = await supabase.rpc('get_event_remittance_expectations', {
+      target_event_id: eventId,
+    })
+    setBusy('')
+    if (expectationError) {
+      setError(expectationError.message)
+      setRemittanceExpectations([])
+      return
+    }
+    const expectations = Array.isArray(data) ? data as Row[] : []
+    setRemittanceExpectations(expectations)
+    if (selectedBookingId) {
+      const selected = expectations.find((item) => String(item.booking_id) === selectedBookingId)
+      setRemittance((current) => ({
+        ...current,
+        expected: selected ? String(selected.amount_expected || 0) : '',
+      }))
+    }
+  }
+
+  async function recordProviderDirectPayment(bookingId: string) {
+    const supabase = getSupabase()
+    if (!supabase || !remittance.eventId) return
+    const expectation = remittanceExpectations.find((item) => String(item.booking_id) === bookingId)
+    if (!expectation || Number(expectation.provider_outstanding || 0) <= 0) return
+    const confirmed = window.confirm(
+      `Confirm that ${String(expectation.provider_name)} received ${formatMoney(Number(expectation.provider_outstanding))} directly? This will leave only unpaid MULTIVENT commission in the remittance calculation.`,
+    )
+    if (!confirmed) return
+
+    setBusy(`provider-payment:${bookingId}`)
+    const { error: actionError } = await supabase.rpc('record_provider_direct_payment', {
+      target_booking_id: bookingId,
+      reference_number: null,
+      notes: 'Provider payment confirmed from the remittance workspace.',
+    })
+    setBusy('')
+    if (actionError) setError(actionError.message)
+    else await loadRemittanceExpectations(remittance.eventId, remittance.bookingId)
+  }
+
   async function recordRemittance(event: React.FormEvent) {
     event.preventDefault()
     const supabase = getSupabase(); if (!supabase) return
     const eventRow = remittanceEvents.find((item) => String(item.id) === remittance.eventId)
-    if (!eventRow?.coordinator_id) return
+    const expectation = remittanceExpectations.find((item) => String(item.booking_id) === remittance.bookingId)
+    if (!eventRow?.coordinator_id || !expectation) return
+    if (eventRow.status !== 'completed') {
+      setError('Coordinator cash remittance can only be recorded after the event is completed.')
+      return
+    }
     setBusy('remittance')
     const { error: actionError } = await supabase.rpc('record_cash_remittance', {
-      target_event_id: remittance.eventId, target_booking_id: remittance.bookingId || null,
+      target_event_id: remittance.eventId, target_booking_id: remittance.bookingId,
       target_coordinator_id: eventRow.coordinator_id,
-      expected_amount: Number(remittance.expected), received_amount: Number(remittance.received),
+      expected_amount: Number(expectation.amount_expected), received_amount: Number(remittance.received),
       reference_number: remittance.reference.trim() || null, notes: remittance.notes.trim() || null,
     })
     setBusy('')
     if (actionError) setError(actionError.message)
-    else { setRemittance({ eventId: '', bookingId: '', expected: '', received: '', reference: '', notes: '' }); void load() }
+    else {
+      setRemittance((current) => ({ ...current, received: '', reference: '', notes: '' }))
+      await loadRemittanceExpectations(remittance.eventId, remittance.bookingId)
+      void load()
+    }
   }
 
   async function reviewRemittance(id: string, status: 'verified' | 'disputed') {
@@ -538,19 +593,123 @@ function OperationalQueue({ section }: { section: Exclude<BusinessSection, 'reve
   }, [customDates.end, customDates.start, dateFilter, remittanceStatus, rows, section, supportAssignment, supportPriority, supportSearch, supportStatus])
 
   const selectedEvent = remittanceEvents.find((item) => String(item.id) === remittance.eventId)
-  const eventBookings = remittanceBookings.filter((item) => String(item.event_id) === remittance.eventId)
+  const selectedExpectation = remittanceExpectations.find((item) => String(item.booking_id) === remittance.bookingId)
   const activeTicket = selectedTicket ? rows.find((row) => String(row.id) === String(selectedTicket.id)) || selectedTicket : null
 
   return (
     <div className="screen-stack">
       <Heading section={section} onRefresh={() => void load()} />
       {error && <InlineError message={error} onClose={() => setError('')} />}
-      {section === 'remittances' && can('remittance.create') && <form className="panel remittance-form" onSubmit={recordRemittance}><header><div><span className="eyebrow">RECORD CASH HANDOFF</span><h2>New remittance</h2><p>Only completed events are eligible. A later handoff is safely added to the same open remittance.</p></div></header><div><label>Completed event<select required value={remittance.eventId} onChange={(event) => setRemittance({...remittance,eventId:event.target.value,bookingId:'',expected:'',received:''})}><option value="">Select completed event</option>{remittanceEvents.map((item) => <option key={String(item.id)} value={String(item.id)}>{String(item.name)} · {formatDate(String(item.event_date))}</option>)}</select></label><label>Booking (optional)<select value={remittance.bookingId} disabled={!remittance.eventId} onChange={(event) => { const booking = eventBookings.find((item) => String(item.id) === event.target.value); setRemittance({...remittance,bookingId:event.target.value,expected:booking?.amount ? String(booking.amount) : remittance.expected}) }}><option value="">Whole event / no booking</option>{eventBookings.map((item) => <option key={String(item.id)} value={String(item.id)}>{String((item.services as Row | null)?.name || 'Booking')} · {String((item.provider_profiles as Row | null)?.business_name || String(item.id).slice(0,8))}</option>)}</select></label><label>Coordinator<input readOnly value={String((selectedEvent?.coordinator as Row | null)?.full_name || (selectedEvent ? 'Assigned coordinator' : ''))} placeholder="Selected automatically" /></label><label>Amount expected<input required min="0.01" step="0.01" type="number" value={remittance.expected} onChange={(event) => setRemittance({...remittance,expected:event.target.value})}/></label><label>Received this handoff<input required min="0" max={remittance.expected || undefined} step="0.01" type="number" value={remittance.received} onChange={(event) => setRemittance({...remittance,received:event.target.value})}/></label><label>Reference<input maxLength={120} value={remittance.reference} onChange={(event) => setRemittance({...remittance,reference:event.target.value})}/></label><label className="remittance-notes">Notes<input maxLength={1000} value={remittance.notes} onChange={(event) => setRemittance({...remittance,notes:event.target.value})}/></label><button className="primary-button" disabled={busy === 'remittance'}>{busy === 'remittance' ? 'Recording…' : 'Record remittance'}</button></div></form>}
+      {section === 'remittances' && can('remittance.create') && (
+        <form className="panel remittance-form" onSubmit={recordRemittance}>
+          <header>
+            <div>
+              <span className="eyebrow">RECORD CASH HANDOFF</span>
+              <h2>New remittance</h2>
+              <p>Provider payments can be acknowledged on the event day. Coordinator cash handoffs become available after completion.</p>
+            </div>
+          </header>
+          <div>
+            <label>
+              Event
+              <select
+                required
+                value={remittance.eventId}
+                onChange={(event) => {
+                  const eventId = event.target.value
+                  setRemittance({ ...remittance, eventId, bookingId: '', expected: '', received: '' })
+                  void loadRemittanceExpectations(eventId)
+                }}
+              >
+                <option value="">Select event</option>
+                {remittanceEvents.map((item) => <option key={String(item.id)} value={String(item.id)}>{String(item.name)} · {formatDate(String(item.event_date))} · {String(item.status).replaceAll('_', ' ')}</option>)}
+              </select>
+            </label>
+            <label>
+              Service booking
+              <select
+                required
+                value={remittance.bookingId}
+                disabled={!remittance.eventId || busy === 'expectations'}
+                onChange={(event) => {
+                  const bookingId = event.target.value
+                  const expectation = remittanceExpectations.find((item) => String(item.booking_id) === bookingId)
+                  setRemittance({
+                    ...remittance,
+                    bookingId,
+                    expected: expectation ? String(expectation.amount_expected || 0) : '',
+                    received: '',
+                  })
+                }}
+              >
+                <option value="">{busy === 'expectations' ? 'Calculating…' : 'Select service booking'}</option>
+                {remittanceExpectations.map((item) => (
+                  <option key={String(item.booking_id)} value={String(item.booking_id)}>
+                    {String(item.service_name)} · {String(item.provider_name)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Coordinator
+              <input readOnly value={String((selectedEvent?.coordinator as Row | null)?.full_name || (selectedEvent ? 'Assigned coordinator' : ''))} placeholder="Selected automatically" />
+            </label>
+            <label>
+              Amount expected (automatic)
+              <input readOnly value={selectedExpectation ? formatMoney(Number(selectedExpectation.amount_remaining)) : ''} placeholder="Select a service" />
+            </label>
+            <label>
+              Received this handoff
+              <input required min="0.01" max={selectedExpectation ? Number(selectedExpectation.amount_remaining) : undefined} step="0.01" type="number" value={remittance.received} onChange={(event) => setRemittance({ ...remittance, received: event.target.value })} />
+            </label>
+            <label>
+              Reference
+              <input maxLength={120} value={remittance.reference} onChange={(event) => setRemittance({ ...remittance, reference: event.target.value })} />
+            </label>
+            <label className="remittance-notes">
+              Notes
+              <input maxLength={1000} value={remittance.notes} onChange={(event) => setRemittance({ ...remittance, notes: event.target.value })} />
+            </label>
+            <button className="primary-button" disabled={busy === 'remittance' || selectedEvent?.status !== 'completed' || !selectedExpectation || Number(selectedExpectation.amount_remaining) <= 0}>
+              {selectedEvent && selectedEvent.status !== 'completed' ? 'Available after event completion' : busy === 'remittance' ? 'Recording…' : 'Record remittance'}
+            </button>
+          </div>
+          {remittanceExpectations.length > 0 && (
+            <footer className="remittance-expectations">
+              {remittanceExpectations.map((item) => {
+                const bookingId = String(item.booking_id)
+                const providerOutstanding = Number(item.provider_outstanding || 0)
+                return (
+                  <article key={bookingId}>
+                    <div>
+                      <strong>{String(item.service_name)}</strong>
+                      <span>{String(item.provider_name)}</span>
+                    </div>
+                    <dl>
+                      <div><dt>Provider received</dt><dd>{formatMoney(Number(item.provider_received))}</dd></div>
+                      <div><dt>Provider balance</dt><dd>{formatMoney(providerOutstanding)}</dd></div>
+                      <div><dt>MULTIVENT commission</dt><dd>{formatMoney(Number(item.commission_outstanding))}</dd></div>
+                      <div><dt>Remaining remittance</dt><dd>{formatMoney(Number(item.amount_remaining))}</dd></div>
+                    </dl>
+                    <button
+                      type="button"
+                      disabled={providerOutstanding <= 0 || busy === `provider-payment:${bookingId}` || Number(item.amount_remitted || 0) > 0}
+                      onClick={() => void recordProviderDirectPayment(bookingId)}
+                    >
+                      {providerOutstanding <= 0 ? 'Provider fully paid' : busy === `provider-payment:${bookingId}` ? 'Recording…' : 'Mark provider paid directly'}
+                    </button>
+                  </article>
+                )
+              })}
+            </footer>
+          )}
+        </form>
+      )}
       {section === 'coordinators' && can('coordinators.assign') && <form className="panel remittance-form" onSubmit={addAvailability}><header><div><span className="eyebrow">WORKFORCE CALENDAR</span><h2>Add leave or availability record</h2><p>Blocking records immediately recheck future assignments. Overlapping records are rejected.</p></div></header><div><label>Coordinator<select required value={availability.coordinatorId} onChange={(event) => setAvailability({...availability,coordinatorId:event.target.value})}><option value="">Select coordinator</option>{coordinators.map((person) => <option key={String(person.id)} value={String(person.id)}>{String(person.full_name)}</option>)}</select></label><label>Starts<input required type="datetime-local" value={availability.startsAt} onChange={(event) => setAvailability({...availability,startsAt:event.target.value})}/></label><label>Ends<input required type="datetime-local" value={availability.endsAt} min={availability.startsAt || undefined} onChange={(event) => setAvailability({...availability,endsAt:event.target.value})}/></label><label>Status<select value={availability.status} onChange={(event) => setAvailability({...availability,status:event.target.value})}><option value="unavailable">Unavailable</option><option value="on_leave">On leave</option><option value="available">Available</option></select></label><label className="remittance-notes">Reason<input maxLength={500} value={availability.reason} onChange={(event) => setAvailability({...availability,reason:event.target.value})}/></label><button className="primary-button" disabled={busy === 'availability'}>{busy === 'availability' ? 'Saving…' : 'Save availability'}</button></div>{availabilityRows.length > 0 && <footer className="availability-summary">{availabilityRows.slice(0,10).map((item) => { const coordinator = coordinators.find((person) => String(person.id) === String(item.coordinator_id)); return <article key={String(item.id)}><div><StatusBadge value={String(item.status)} /><strong>{String(coordinator?.full_name || 'Coordinator')}</strong></div><span>{formatDateTime(item.starts_at)} – {formatDateTime(item.ends_at)}</span>{Boolean(item.reason) && <small>{String(item.reason)}</small>}<button type="button" disabled={busy === `availability:${String(item.id)}`} onClick={() => void removeAvailability(String(item.id))}>{busy === `availability:${String(item.id)}` ? 'Removing…' : 'Remove'}</button></article> })}</footer>}</form>}
       <section className="panel data-panel">
-        {section === 'support' && <div className="support-queue-filters"><input value={supportSearch} onChange={(event) => setSupportSearch(event.target.value)} placeholder="Search ticket, user, category, or description…" aria-label="Search support tickets"/><select value={supportStatus} onChange={(event) => setSupportStatus(event.target.value)} aria-label="Filter support status"><option value="active">Active queue</option><option value="open">Open</option><option value="in_progress">In progress</option><option value="waiting_for_user">Waiting for user</option><option value="resolved">Resolved</option><option value="closed">Closed</option><option value="all">All statuses</option></select><select value={supportPriority} onChange={(event) => setSupportPriority(event.target.value)} aria-label="Filter support priority"><option value="all">All priorities</option>{['urgent','high','normal','low'].map((priority) => <option key={priority} value={priority}>{priority}</option>)}</select><select value={supportAssignment} onChange={(event) => setSupportAssignment(event.target.value)} aria-label="Filter support assignment"><option value="all">All assignments</option><option value="unassigned">Unassigned</option>{supportAgents.map((agent) => <option key={String(agent.id)} value={String(agent.id)}>{String(agent.full_name)}</option>)}</select></div>}
-        {section === 'remittances' && <div className="business-filter"><span>Status</span>{[['all','All'],['pending','Pending'],['partially_remitted','Partial'],['remitted','Remitted'],['verified','Verified'],['disputed','Disputed']].map(([value,label]) => <button key={value} className={remittanceStatus === value ? 'selected' : ''} onClick={() => setRemittanceStatus(value)}>{label}</button>)}</div>}
-        {section === 'cashflow' && <div className="business-filter"><span>Date range</span>{[['today','Today'],['week','This week'],['month','This month'],['custom','Custom'],['all','All']].map(([value,label]) => <button key={value} className={dateFilter === value ? 'selected' : ''} onClick={() => setDateFilter(value)}>{label}</button>)}{dateFilter === 'custom' && <><input aria-label="Cash-flow start date" type="date" value={customDates.start} onChange={(event) => setCustomDates({...customDates,start:event.target.value})}/><input aria-label="Cash-flow end date" type="date" value={customDates.end} min={customDates.start || undefined} onChange={(event) => setCustomDates({...customDates,end:event.target.value})}/></>}</div>}
+        {section === 'support' && <><div className="support-queue-filters"><input value={supportSearch} onChange={(event) => setSupportSearch(event.target.value)} placeholder="Search ticket, user, category, or description…" aria-label="Search support tickets"/><select value={supportPriority} onChange={(event) => setSupportPriority(event.target.value)} aria-label="Filter support priority"><option value="all">All priorities</option>{['urgent','high','normal','low'].map((priority) => <option key={priority} value={priority}>{priority}</option>)}</select><select value={supportAssignment} onChange={(event) => setSupportAssignment(event.target.value)} aria-label="Filter support assignment"><option value="all">All assignments</option><option value="unassigned">Unassigned</option>{supportAgents.map((agent) => <option key={String(agent.id)} value={String(agent.id)}>{String(agent.full_name)}</option>)}</select></div><div className="filter-strip"><span>Status</span><SegmentedFilter ariaLabel="Filter support tickets by status" value={supportStatus} onChange={setSupportStatus} options={[["all", "All"], ["active", "Active queue"], ["open", "Open"], ["in_progress", "In progress"], ["waiting_for_user", "Waiting for user"], ["resolved", "Resolved"], ["closed", "Closed"]]} /></div></>}
+        {section === 'remittances' && <div className="filter-strip"><span>Status</span><SegmentedFilter ariaLabel="Filter cash remittances by status" value={remittanceStatus} onChange={setRemittanceStatus} options={[["all", "All"], ["pending", "Pending"], ["partially_remitted", "Partial"], ["remitted", "Remitted"], ["verified", "Verified"], ["disputed", "Disputed"]]} /></div>}
+        {section === 'cashflow' && <div className="filter-strip"><span>Date range</span><SegmentedFilter ariaLabel="Filter cash flow by date" value={dateFilter} onChange={setDateFilter} options={[["all", "All"], ["today", "Today"], ["week", "This week"], ["month", "This month"], ["custom", "Custom"]]} />{dateFilter === 'custom' && <><input aria-label="Cash-flow start date" type="date" value={customDates.start} onChange={(event) => setCustomDates({...customDates,start:event.target.value})}/><input aria-label="Cash-flow end date" type="date" value={customDates.end} min={customDates.start || undefined} onChange={(event) => setCustomDates({...customDates,end:event.target.value})}/></>}</div>}
         {loading ? <TableSkeleton /> : visibleRows.length === 0 ? <EmptyState title={`No ${copy[section].title.toLowerCase()} found`} copy="There is nothing requiring attention right now." /> : (
           <div className="table-scroll"><table className="data-table"><thead><tr>
             {section === 'coordinators' ? <><th>Event</th><th>Schedule</th><th>Client</th><th>Reason</th><th>Assignment</th></> :

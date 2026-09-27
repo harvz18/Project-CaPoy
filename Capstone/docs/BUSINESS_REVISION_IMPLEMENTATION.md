@@ -119,8 +119,26 @@ Phase 8 requires migration `37` and a new Render deployment. It does not require
 - Added permission-scoped, server-filtered audit queries and a governance summary for recent permission, finance, and coordinator changes.
 - Revoked direct application writes to RBAC grants, system settings, financial transactions, cash remittances, and audit history; existing guarded RPCs remain the supported write boundary.
 - Restricted provider payout requests to owner read/create access. Providers can no longer approve, rewrite, cancel, or delete a submitted request themselves.
+
+## Commission markup adjustment
+
+- Provider-entered service and package prices now represent the full amount payable to the provider.
+- The configured commission is added on top to produce the client-facing catalog, booking, and payment total.
+- New bookings snapshot provider amount, commission rate, commission amount, and pricing model so later configuration changes do not alter agreed prices.
+- Existing bookings and recognized ledger rows retain the former deduction model and are not silently recalculated.
+- Payment and confirmation screens disclose the included MULTIVENT fee while keeping the displayed total unchanged.
 - Removed the created user's email address from the immutable internal-account audit snapshot; authorized viewers can still resolve the linked profile.
 - Retained backend RLS and dynamic permission checks as the authoritative controls; navigation visibility is only a user-interface convenience.
+
+## Automatic provider settlement and remittance
+
+- The required deposit is now 30% of the provider-entered amount, not 30% of the client total that includes MULTIVENT's fee.
+- Paid deposits are recorded as money released to the provider; MULTIVENT commission remains outstanding until it is actually collected.
+- Added append-only acknowledgements for provider balances paid directly by the client on the event day.
+- The remittance workspace calculates each service's provider balance, unpaid commission, prior handoffs, and remaining expected amount on the server.
+- After a provider's remaining balance is acknowledged as paid directly, the coordinator's expected remittance automatically falls to the unpaid MULTIVENT commission.
+- Coordinator handoffs can only be recorded after event completion, cannot exceed the calculated balance, and enter recognized booking revenue only after verification.
+- Existing deduction-model bookings remain outside the new automatic calculation so historical agreements are not silently reinterpreted.
 
 Phase 9 requires migration `38`, a redeploy of `admin-create-user`, and a new Render deployment. It does not require an Expo rebuild.
 
@@ -160,14 +178,16 @@ The budget allocation slider redesign in Requirement 25 is not implemented. The 
 7. Apply `database/36_admin_business_analytics.sql` after migration `35`.
 8. Apply `database/37_revenue_commission_cashflow.sql` after migration `36`.
 9. Apply `database/38_audit_security_hardening.sql` after migration `37`.
-10. Deploy the account-provisioning function:
+10. Apply `database/39_commission_markup_pricing.sql` after migration `38`.
+11. Apply `database/40_automatic_commission_remittance.sql` after migration `39`.
+12. Deploy the account-provisioning function:
 
    ```powershell
    npx supabase functions deploy admin-create-user --project-ref YOUR_PROJECT_REF
    ```
 
-11. Deploy the `web` application.
-12. Build/release the Expo application only when mobile changes from earlier phases have not yet been released.
+13. Deploy the `web` application.
+14. Build/release the Expo application.
 
 The Edge Function uses Supabase-provided `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` values. Never place the service-role key in the web or Expo environment files.
 
@@ -269,8 +289,31 @@ These values are stored in `system_settings` and can be changed by a Superadmin.
 
 - Create or change a role permission, review a provider/service, change a coordinator assignment, record a remittance, and resolve a support ticket; confirm the expected decision/action records have the correct actor and resource without duplicate decision-specific entries.
 - Inspect automatic snapshots and confirm profile contact fields, message bodies, support descriptions, payment references, remittance notes, and private draft payloads are absent.
+
+## Commission markup smoke tests
+
+- Publish a provider service priced at PHP 10,000 with a 10% commission rate and confirm the provider editor retains PHP 10,000 while the client catalog shows PHP 11,000.
+- Add that service to a plan and confirm the selection, checkout, booking, and full-payment amount remain PHP 11,000.
+- Confirm checkout identifies PHP 10,000 as provider services and PHP 1,000 as the included MULTIVENT fee.
+- Confirm the resulting booking snapshots PHP 10,000 provider amount, PHP 1,000 commission, and PHP 11,000 client total.
+- Confirm a paid PHP 11,000 booking creates a ledger row with PHP 1,000 commission and PHP 10,000 provider net.
+- Confirm a 30% deposit charges PHP 3,000, releases PHP 3,000 to the provider, and recognizes no commission from that deposit.
+- Confirm existing paid bookings and ledger rows retain their original amounts after migration `39`.
 - Attempt direct insert, update, and delete operations against audit history, RBAC grants, financial transactions, cash remittances, and system settings as an authenticated user; confirm they are denied.
 - Attempt to update or delete a submitted payout request as its provider and confirm it is denied while a new valid request remains insertable.
 - Sign in without `system.audit_logs` and call both audit RPCs directly; confirm the database rejects them.
 - Filter audit history by search, resource, result, Today, This week, This month, and Custom dates; confirm the matching count and visible rows agree.
 - Confirm the account-provisioning Edge Function still creates an authorized internal user and records a linked audit entry without embedding the new user's email in the audit snapshot.
+
+## Automatic remittance smoke tests
+
+- For a PHP 10,000 provider price plus PHP 1,000 commission, confirm the initial deposit is PHP 3,000 and the automatic post-deposit balance is PHP 8,000.
+- On a confirmed or in-progress event, mark the remaining PHP 7,000 provider balance as paid directly and confirm the automatic expected remittance becomes PHP 1,000.
+- Confirm the direct provider receipt appears as a verified `direct_to_provider` booking-ledger entry with equal received and released amounts and zero commission.
+- Confirm the UI does not allow a coordinator cash handoff before event completion, and confirm the RPC rejects the same attempt when called directly.
+- After event completion, record the PHP 1,000 commission handoff and confirm a larger amount is rejected by the server.
+- Verify the completed handoff and confirm it becomes recognized booking revenue with PHP 1,000 commission and no provider net.
+- Repeat without marking the provider paid directly and confirm the automatic remittance is PHP 8,000: PHP 7,000 provider balance plus PHP 1,000 commission.
+- Record a partial handoff, confirm the remaining amount decreases without creating another open remittance row, then complete and verify it.
+- Dispute a handoff and confirm its amount no longer reduces the automatic remaining balance or recognized revenue.
+- Confirm a historical `deducted_from_provider` booking and its ledger rows are unchanged and excluded from the new automatic-remittance RPC.

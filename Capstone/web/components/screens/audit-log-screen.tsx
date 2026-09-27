@@ -13,7 +13,7 @@ import {
   mdiShieldCheckOutline,
 } from '@mdi/js'
 import { MdiIcon } from '@/components/icons'
-import { EmptyState, formatDate, InlineError, StatusBadge, TableSkeleton } from '@/components/ui'
+import { EmptyState, formatDate, InlineError, SegmentedFilter, StatusBadge, TableSkeleton } from '@/components/ui'
 import { getSupabase } from '@/lib/supabase'
 
 type AuditEntry = {
@@ -65,7 +65,7 @@ export function AuditLogScreen() {
   const [search, setSearch] = useState('')
   const [resourceFilter, setResourceFilter] = useState('all')
   const [resultFilter, setResultFilter] = useState('all')
-  const [dateFilter, setDateFilter] = useState('month')
+  const [dateFilter, setDateFilter] = useState('all')
   const [customDates, setCustomDates] = useState({ start: '', end: '' })
 
   const loadEntries = useCallback(async () => {
@@ -133,7 +133,7 @@ export function AuditLogScreen() {
             <select aria-label="Filter by resource" value={resourceFilter} onChange={(event) => setResourceFilter(event.target.value)}><option value="all">All resources</option>{resources.map((resource) => <option key={resource} value={resource}>{humanize(resource)}</option>)}</select>
             <select aria-label="Filter by result" value={resultFilter} onChange={(event) => setResultFilter(event.target.value)}><option value="all">All results</option><option value="success">Success</option><option value="completed">Completed</option><option value="failed">Failed</option></select>
           </div>
-          <div className="business-filter"><span>Date range</span>{[['today','Today'],['week','This week'],['month','This month'],['custom','Custom'],['all','All']].map(([value,label]) => <button type="button" key={value} className={dateFilter === value ? 'selected' : ''} onClick={() => setDateFilter(value)}>{label}</button>)}</div>
+          <div className="filter-strip"><span>Date range</span><SegmentedFilter ariaLabel="Filter audit history by date" value={dateFilter} onChange={setDateFilter} options={[["all", "All"], ["today", "Today"], ["week", "This week"], ["month", "This month"], ["custom", "Custom"]]} /></div>
           {dateFilter === 'custom' && <div className="audit-custom-dates"><label>From<input aria-label="Audit start date" type="date" value={customDates.start} onChange={(event) => setCustomDates({...customDates,start:event.target.value})}/></label><label>Through<input aria-label="Audit end date" type="date" min={customDates.start || undefined} value={customDates.end} onChange={(event) => setCustomDates({...customDates,end:event.target.value})}/></label></div>}
         </div>
         {error && <InlineError message={`${error} Apply database/38_audit_security_hardening.sql after Phase 8.`} />}

@@ -925,7 +925,7 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
   const { data, error } = await context.client
     .from('bookings')
     .select(
-      'id, event_id, service_id, amount, status, requested_date, requested_time, client_notes, created_at, profiles(full_name, email), events(name, event_type, event_date, event_time, guest_count, venue, location), services(name, description, service_categories(name)), service_packages(name, description, inclusions), payments!inner(status)'
+      'id, event_id, service_id, amount, provider_amount, status, requested_date, requested_time, client_notes, created_at, profiles(full_name, email), events(name, event_type, event_date, event_time, guest_count, venue, location), services(name, description, service_categories(name)), service_packages(name, description, inclusions), payments!inner(status)'
     )
     .eq('provider_id', context.providerId)
     .neq('status', 'payment_required')
@@ -987,7 +987,7 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
       .filter((instruction) => instruction.body.length > 0 || instruction.tags.length > 0)
 
     return {
-      amount: numberFrom(record.amount),
+      amount: numberFrom(record.provider_amount, numberFrom(record.amount)),
       attendeeCount: bookingDetails?.attendee_count == null
         ? undefined
         : numberFrom(bookingDetails.attendee_count),

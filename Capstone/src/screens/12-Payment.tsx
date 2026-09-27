@@ -22,10 +22,13 @@ export interface PaymentEventDetails {
 }
 
 export interface PaymentOrderItem {
+  commissionAmount: number
+  commissionRate: number
   description: string
   id: string
   name: string
   price: number
+  providerPrice: number
 }
 
 export interface PaymentValue {
@@ -58,18 +61,27 @@ const defaultItems: PaymentOrderItem[] = [
     name: 'Venue Rental',
     description: 'Grand Hall & Gardens',
     price: 250000,
+    providerPrice: 227272.73,
+    commissionAmount: 22727.27,
+    commissionRate: 0.1,
   },
   {
     id: 'catering',
     name: 'Catering Package',
     description: 'Premium 4-Course (150 pax)',
     price: 180000,
+    providerPrice: 163636.36,
+    commissionAmount: 16363.64,
+    commissionRate: 0.1,
   },
   {
     id: 'photoVideo',
     name: 'Photography & Videography',
     description: 'Full Day Coverage',
     price: 85000,
+    providerPrice: 77272.73,
+    commissionAmount: 7727.27,
+    commissionRate: 0.1,
   },
 ]
 
@@ -98,7 +110,13 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
   const [termsAccepted, setTermsAccepted] = React.useState(false)
   const [showTermsError, setShowTermsError] = React.useState(false)
   const subtotal = items.reduce((total, item) => total + item.price, 0)
-  const deposit = Math.round(subtotal * 0.3)
+  const providerSubtotal = items.reduce((total, item) => total + item.providerPrice, 0)
+  const serviceFee = items.reduce((total, item) => total + item.commissionAmount, 0)
+  const commissionRates = Array.from(new Set(items.map((item) => item.commissionRate)))
+  const feeLabel = commissionRates.length === 1
+    ? `MULTIVENT Service Fee (${Math.round(commissionRates[0] * 100)}%)`
+    : 'MULTIVENT Service Fee'
+  const deposit = Math.round(providerSubtotal * 0.3 * 100) / 100
   const amountDue = paymentType === 'deposit' ? deposit : subtotal
   const remainingBalance = Math.max(0, subtotal - amountDue)
 
@@ -177,7 +195,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
           <Text style={styles.sectionTitle}>How much would you like to pay?</Text>
           <View style={[styles.paymentTypeGrid, isWide && styles.paymentTypeGridWide]}>
             <PaymentTypeCard
-              description="Reserves your date immediately."
+              description="Paid to your selected providers to reserve their services."
               detail="30%"
               label="Pay Deposit"
               onPress={() => setPaymentType('deposit')}
@@ -196,8 +214,8 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
 
         <View style={styles.breakdownCard}>
           <Text style={styles.breakdownTitle}>Payment Breakdown</Text>
-          <BreakdownRow label="Subtotal" value={formatCurrency(subtotal)} />
-          <BreakdownRow muted label="Service Fee (Included)" value={formatCurrency(0)} />
+          <BreakdownRow label="Provider Services" value={formatCurrency(providerSubtotal)} />
+          <BreakdownRow muted label={`${feeLabel} (Included)`} value={formatCurrency(serviceFee)} />
           <View style={styles.breakdownDivider} />
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>
@@ -207,7 +225,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
           </View>
           {paymentType === 'deposit' && (
             <Text style={styles.balanceText}>
-              Remaining balance of {formatCurrency(remainingBalance)} due by Sep 24, 2024
+              Remaining provider balance and MULTIVENT service fee: {formatCurrency(remainingBalance)}
             </Text>
           )}
         </View>

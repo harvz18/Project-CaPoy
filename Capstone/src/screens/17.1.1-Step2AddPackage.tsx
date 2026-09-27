@@ -268,7 +268,9 @@ export const Step2AddPackageScreen: React.FC<Step2AddPackageScreenProps> = ({
               <Text accessibilityRole="alert" style={styles.errorText}>
                 Enter an amount greater than zero.
               </Text>
-            ) : null}
+            ) : (
+              <Text style={styles.helperText}>This is the amount you receive. MULTIVENT adds its service fee on top for clients.</Text>
+            )}
           </View>
 
           <View style={styles.fieldGroup}>
@@ -514,6 +516,7 @@ const styles = StyleSheet.create({
   },
   inputError: { borderColor: palette.error },
   errorText: { color: palette.error, fontSize: 12, lineHeight: 16 },
+  helperText: { color: palette.secondary, fontSize: 12, lineHeight: 17 },
   amountField: {
     minHeight: 48,
     flexDirection: 'row',
