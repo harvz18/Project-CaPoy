@@ -25,9 +25,9 @@ export interface TransactionDetailItem {
 }
 
 export interface MerchantTransactionDetails extends PayoutTransaction {
-  breakdown: TransactionBreakdownItem[]
+  breakdown?: TransactionBreakdownItem[]
   currency: string
-  details: TransactionDetailItem[]
+  details?: TransactionDetailItem[]
   processedAt?: string
 }
 
@@ -40,27 +40,17 @@ interface TransactionDetailsScreenProps {
   transaction?: Partial<MerchantTransactionDetails>
 }
 
-const defaultTransaction: MerchantTransactionDetails = {
-  amount: 26000,
-  breakdown: [
-    { amount: 28600, label: 'Client payment' },
-    { amount: -2600, label: 'MULTIVENT fee paid by client' },
-  ],
-  createdAt: '2026-09-02T10:30:00+08:00',
+const emptyTransaction: MerchantTransactionDetails = {
+  amount: 0,
+  breakdown: [],
+  createdAt: new Date(0).toISOString(),
   currency: 'PHP',
-  details: [
-    { label: 'Booking', value: '#MV-1048' },
-    { label: 'Client', value: 'Maria Santos' },
-    { label: 'Service', value: 'Premium Floral Design' },
-    { label: 'Event date', value: 'September 12, 2026' },
-    { label: 'Payment method', value: 'GCash' },
-  ],
-  id: 'transaction-1048',
-  label: 'Premium Floral Design',
-  processedAt: '2026-09-02T10:32:00+08:00',
-  reference: 'Booking #MV-1048',
-  status: 'completed',
-  type: 'booking',
+  details: [],
+  id: '',
+  label: 'Transaction unavailable',
+  reference: '',
+  status: 'pending',
+  type: 'adjustment',
 }
 
 const typeLabels: Record<PayoutTransactionType, string> = {
@@ -137,11 +127,14 @@ export const TransactionDetailsScreen: React.FC<TransactionDetailsScreenProps> =
   const { width } = useWindowDimensions()
   const isWide = width >= 760
   const value: MerchantTransactionDetails = {
-    ...defaultTransaction,
+    ...emptyTransaction,
     ...transaction,
-    breakdown: transaction?.breakdown ?? defaultTransaction.breakdown,
-    details: transaction?.details ?? defaultTransaction.details,
+    breakdown: transaction?.breakdown ?? emptyTransaction.breakdown,
+    currency: transaction?.currency ?? emptyTransaction.currency,
+    details: transaction?.details ?? emptyTransaction.details,
   }
+  const breakdown = value.breakdown ?? []
+  const details = value.details ?? []
   const isCredit = value.amount >= 0
   const status = statusContent[value.status]
   const relatedRecordLabel = relatedRecordLabels[value.type]
@@ -236,7 +229,7 @@ export const TransactionDetailsScreen: React.FC<TransactionDetailsScreenProps> =
                 <Text style={styles.reference}>{value.reference}</Text>
               </View>
               <View style={styles.breakdownList}>
-                {value.breakdown.map((item, index) => (
+                {breakdown.map((item, index) => (
                   <View key={`${item.label}-${index}`} style={styles.breakdownRow}>
                     <Text style={styles.breakdownLabel}>{item.label}</Text>
                     <Text
@@ -250,6 +243,9 @@ export const TransactionDetailsScreen: React.FC<TransactionDetailsScreenProps> =
                     </Text>
                   </View>
                 ))}
+                {breakdown.length === 0 ? (
+                  <Text style={styles.emptyRecordText}>No recorded amount breakdown is available.</Text>
+                ) : null}
               </View>
               <View style={styles.totalRow}>
                 <View>
@@ -269,14 +265,17 @@ export const TransactionDetailsScreen: React.FC<TransactionDetailsScreenProps> =
                 <Text style={styles.sectionTitle}>Transaction information</Text>
               </View>
               <View style={styles.informationList}>
-                {value.details.map((detail, index) => (
+                {details.map((detail, index) => (
                   <InformationRow
                     key={`${detail.label}-${index}`}
                     label={detail.label}
-                    last={index === value.details.length - 1}
+                    last={index === details.length - 1}
                     value={detail.value}
                   />
                 ))}
+                {details.length === 0 ? (
+                  <Text style={styles.emptyRecordText}>No recorded transaction information is available.</Text>
+                ) : null}
               </View>
             </View>
           </View>
@@ -321,12 +320,14 @@ export const TransactionDetailsScreen: React.FC<TransactionDetailsScreenProps> =
                 <Text style={styles.sectionTitle}>Actions</Text>
               </View>
               <View style={styles.actionList}>
-                <ActionButton
-                  glyph={<ReceiptIcon />}
-                  label={isDownloadingReceipt ? 'Preparing receipt...' : 'Download receipt'}
-                  disabled={isDownloadingReceipt}
-                  onPress={() => onDownloadReceipt?.(value)}
-                />
+                {onDownloadReceipt ? (
+                  <ActionButton
+                    glyph={<ReceiptIcon />}
+                    label={isDownloadingReceipt ? 'Preparing receipt...' : 'Download receipt'}
+                    disabled={isDownloadingReceipt}
+                    onPress={() => onDownloadReceipt(value)}
+                  />
+                ) : null}
                 {relatedRecordLabel ? (
                   <ActionButton
                     glyph={<Text style={styles.actionGlyph}>{'\u25A3'}</Text>}
@@ -573,6 +574,7 @@ const styles = StyleSheet.create({
   breakdownLabel: { minWidth: 0, flex: 1, color: palette.secondary, fontSize: 11, lineHeight: 16 },
   breakdownValue: { color: palette.text, fontSize: 11, lineHeight: 16, fontWeight: '600' },
   breakdownFee: { color: palette.secondary },
+  emptyRecordText: { color: palette.muted, fontSize: 10, lineHeight: 16, paddingVertical: 10 },
   totalRow: {
     flexDirection: 'row',
     alignItems: 'center',

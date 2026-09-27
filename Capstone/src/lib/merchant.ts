@@ -11,6 +11,10 @@ import type {
   MerchantNotificationPreferences,
   MerchantBookingRequest,
   OperatingHoursValue,
+  PayoutAccount,
+  PayoutAccountInput,
+  PayoutEarningsPeriod,
+  PayoutEarningsSummary,
   PayoutTransaction,
   ServiceListingReviewValue,
   ServicePricingUnit,
@@ -34,6 +38,32 @@ export interface MerchantServiceListing {
   status: string
   updatedAt: string
 }
+
+export interface MerchantPayoutDashboard {
+  earningsTrend: Array<{ amount: number; label: string }>
+  payoutAccount: PayoutAccount | null
+  summary: PayoutEarningsSummary
+  transactions: PayoutTransaction[]
+}
+
+export interface MerchantPayoutDashboardResult {
+  data?: MerchantPayoutDashboard
+  message?: string
+  ok: boolean
+}
+
+export const emptyMerchantPayoutDashboard = (): MerchantPayoutDashboard => ({
+  earningsTrend: [],
+  payoutAccount: null,
+  summary: {
+    availableBalance: 0,
+    currency: 'PHP',
+    lifetimeEarnings: 0,
+    pendingBalance: 0,
+    periodEarnings: 0,
+  },
+  transactions: [],
+})
 
 const notReady =
   'Supabase is not configured, no user is signed in, or this account is not a service-provider account.'
@@ -1267,6 +1297,125 @@ export const completeMerchantBooking = async (bookingId: string): Promise<Mercha
   }
 }
 
+export const fetchMerchantPayoutDashboard = async (
+  period: PayoutEarningsPeriod = '30d'
+): Promise<MerchantPayoutDashboardResult> => {
+  try {
+    const context = await getMerchantContext()
+
+    if (!context) {
+      return { ok: false, message: notReady }
+    }
+
+    const { data, error } = await context.client.rpc('get_my_provider_earnings', {
+      target_period: period,
+    })
+
+    if (error) {
+      return { ok: false, message: error.message }
+    }
+
+    const payload = (data ?? {}) as Record<string, unknown>
+    const summaryRow = (payload.summary ?? {}) as Record<string, unknown>
+    const accountRow = payload.payoutAccount as Record<string, unknown> | null | undefined
+    const trendRows = Array.isArray(payload.earningsTrend) ? payload.earningsTrend : []
+    const transactionRows = Array.isArray(payload.transactions) ? payload.transactions : []
+
+    const payoutAccount = accountRow
+      ? {
+          accountName: textFrom(accountRow.accountName),
+          accountNumberLast4: textFrom(accountRow.accountNumberLast4),
+          accountType:
+            accountRow.accountType === 'e_wallet' ? ('e_wallet' as const) : ('bank_transfer' as const),
+          bankName: textFrom(accountRow.bankName),
+          isVerified: accountRow.isVerified === true,
+        }
+      : null
+
+    const transactions = transactionRows.map((row) => {
+      const record = row as Record<string, unknown>
+      const type = ['booking', 'payout', 'refund', 'adjustment'].includes(String(record.type))
+        ? (String(record.type) as PayoutTransaction['type'])
+        : 'adjustment'
+      const status = ['completed', 'pending', 'failed'].includes(String(record.status))
+        ? (String(record.status) as PayoutTransaction['status'])
+        : 'pending'
+      const breakdown = Array.isArray(record.breakdown)
+        ? record.breakdown.map((item) => {
+            const detail = item as Record<string, unknown>
+            return { amount: numberFrom(detail.amount), label: textFrom(detail.label, 'Amount') }
+          })
+        : []
+      const details = Array.isArray(record.details)
+        ? record.details.map((item) => {
+            const detail = item as Record<string, unknown>
+            return { label: textFrom(detail.label, 'Detail'), value: textFrom(detail.value, 'Not available') }
+          })
+        : []
+
+      return {
+        amount: numberFrom(record.amount),
+        breakdown,
+        createdAt: textFrom(record.createdAt, new Date(0).toISOString()),
+        currency: textFrom(record.currency, 'PHP'),
+        details,
+        id: textFrom(record.id),
+        label: textFrom(record.label, 'Recorded transaction'),
+        processedAt: textFrom(record.processedAt) || undefined,
+        reference: textFrom(record.reference, 'Recorded transaction'),
+        relatedRecordId: textFrom(record.relatedRecordId) || undefined,
+        status,
+        type,
+      } satisfies PayoutTransaction
+    })
+
+    return {
+      ok: true,
+      data: {
+        earningsTrend: trendRows.map((row) => {
+          const record = row as Record<string, unknown>
+          return { amount: numberFrom(record.amount), label: textFrom(record.label) }
+        }),
+        payoutAccount,
+        summary: {
+          availableBalance: numberFrom(summaryRow.availableBalance),
+          currency: textFrom(summaryRow.currency, 'PHP'),
+          lifetimeEarnings: numberFrom(summaryRow.lifetimeEarnings),
+          pendingBalance: numberFrom(summaryRow.pendingBalance),
+          periodEarnings: numberFrom(summaryRow.periodEarnings),
+        },
+        transactions,
+      },
+    }
+  } catch (error) {
+    return { ok: false, message: toMessage(error, 'Unable to load provider earnings.') }
+  }
+}
+
+export const saveMerchantPayoutAccount = async (
+  value: PayoutAccountInput
+): Promise<MerchantResult> => {
+  try {
+    const context = await getMerchantContext()
+
+    if (!context) {
+      return { ok: false, message: notReady }
+    }
+
+    const { error } = await context.client.rpc('save_my_provider_payout_account', {
+      confirm_ownership: value.confirmOwnership,
+      new_account_name: value.accountName,
+      new_account_number: value.accountNumber,
+      new_account_type: value.accountType,
+      new_institution_name: value.institutionName,
+    })
+
+    return { ok: !error, message: error?.message }
+  } catch (error) {
+    return { ok: false, message: toMessage(error, 'Unable to save the payout account.') }
+  }
+}
+
 export const requestMerchantPayout = async (amount: number): Promise<MerchantResult> => {
   try {
     const context = await getMerchantContext()
@@ -1275,11 +1424,8 @@ export const requestMerchantPayout = async (amount: number): Promise<MerchantRes
       return { ok: false, message: notReady }
     }
 
-    const { error } = await context.client.from('provider_payout_requests').insert({
-      amount,
-      currency: 'PHP',
-      provider_id: context.providerId,
-      status: 'requested',
+    const { error } = await context.client.rpc('request_my_provider_payout', {
+      requested_amount: amount,
     })
 
     return { ok: !error, message: error?.message }
@@ -1360,31 +1506,4 @@ export const changeMerchantPassword = async ({
   const { error } = await client.auth.updateUser({ password: newPassword })
 
   return { ok: !error, message: error?.message }
-}
-
-export const saveMerchantTransactionNote = async (
-  transaction: PayoutTransaction,
-  action: string
-): Promise<MerchantResult> => {
-  try {
-    const context = await getMerchantContext()
-
-    if (!context) {
-      return { ok: false, message: notReady }
-    }
-
-    const { error } = await context.client.from('audit_logs').insert({
-      action,
-      actor_id: context.userId,
-      actor_role: 'service_provider',
-      metadata: { transaction },
-      resource_id: null,
-      resource_type: 'merchant_transaction',
-      result: 'recorded',
-    })
-
-    return { ok: !error, message: error?.message }
-  } catch (error) {
-    return { ok: false, message: toMessage(error) }
-  }
 }

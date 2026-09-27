@@ -51,8 +51,10 @@ import {
   clearMerchantServiceDraft,
   completeMerchantBooking,
   deleteMerchantServiceListing,
+  emptyMerchantPayoutDashboard,
   fetchClientBookings,
   fetchMerchantBookingRequests,
+  fetchMerchantPayoutDashboard,
   fetchMerchantServices,
   loadMerchantServiceDraft,
   loadMerchantServiceForEditing,
@@ -65,7 +67,7 @@ import {
   saveBookingDecision,
   saveMerchantServiceDraft,
   saveMerchantServiceListing,
-  saveMerchantTransactionNote,
+  saveMerchantPayoutAccount,
   saveNotificationPreferences,
   saveOperatingHours,
   setMerchantServiceAvailability,
@@ -111,7 +113,12 @@ import { MerchantProfileAction, MerchantProfileScreen } from './screens/22-Merch
 import { AccountProfileScreen } from './screens/24-AccountProfile'
 import { SupportScreen } from './screens/25-Support'
 import { OperatingHoursScreen } from './screens/22.1-OperatingHours'
-import { PayoutEarningsScreen, PayoutTransaction } from './screens/22.2-PayoutEarnings'
+import {
+  PayoutAccountInput,
+  PayoutEarningsPeriod,
+  PayoutEarningsScreen,
+  PayoutTransaction,
+} from './screens/22.2-PayoutEarnings'
 import { TransactionDetailsScreen } from './screens/22.3-TransactionDetails'
 import { ChangePasswordScreen } from './screens/22.4-ChangePassword'
 import { MerchantNotification, NotificationScreen } from './screens/22.5-Notification'
@@ -456,6 +463,16 @@ export const App: React.FC = () => {
     React.useState<MerchantBookingRequest>()
   const [selectedPayoutTransaction, setSelectedPayoutTransaction] =
     React.useState<PayoutTransaction>()
+  const [merchantPayoutDashboard, setMerchantPayoutDashboard] = React.useState(
+    emptyMerchantPayoutDashboard()
+  )
+  const [merchantPayoutPeriod, setMerchantPayoutPeriod] =
+    React.useState<PayoutEarningsPeriod>('30d')
+  const [merchantPayoutError, setMerchantPayoutError] = React.useState('')
+  const [isMerchantPayoutLoading, setIsMerchantPayoutLoading] = React.useState(false)
+  const [isMerchantPayoutRefreshing, setIsMerchantPayoutRefreshing] = React.useState(false)
+  const [isRequestingMerchantPayout, setIsRequestingMerchantPayout] = React.useState(false)
+  const [isSavingMerchantPayoutAccount, setIsSavingMerchantPayoutAccount] = React.useState(false)
   const [merchantRequestStatus, setMerchantRequestStatus] =
     React.useState<BookingRequestStatus>('new')
   const [isPublishingService, setIsPublishingService] = React.useState(false)
@@ -918,6 +935,72 @@ export const App: React.FC = () => {
     if (screen !== 'coordinatorHome') return
     void loadCoordinatorWorkspace()
   }, [loadCoordinatorWorkspace, screen])
+
+  const loadMerchantPayouts = React.useCallback(async (
+    period: PayoutEarningsPeriod,
+    refreshing = false,
+    silent = false
+  ) => {
+    if (!silent) {
+      if (refreshing) setIsMerchantPayoutRefreshing(true)
+      else setIsMerchantPayoutLoading(true)
+    }
+
+    const result = await fetchMerchantPayoutDashboard(period)
+    if (result.ok && result.data) {
+      setMerchantPayoutDashboard(result.data)
+      setMerchantPayoutError('')
+    } else {
+      setMerchantPayoutError(result.message ?? 'Unable to load recorded earnings.')
+    }
+
+    if (!silent) {
+      setIsMerchantPayoutLoading(false)
+      setIsMerchantPayoutRefreshing(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    if (screen !== 'providerPayouts') return
+    void loadMerchantPayouts(merchantPayoutPeriod)
+  }, [loadMerchantPayouts, merchantPayoutPeriod, screen])
+
+  React.useEffect(() => {
+    if (screen !== 'providerPayouts') return undefined
+    const refreshTimer = setInterval(() => {
+      void loadMerchantPayouts(merchantPayoutPeriod, false, true)
+    }, 15000)
+    return () => clearInterval(refreshTimer)
+  }, [loadMerchantPayouts, merchantPayoutPeriod, screen])
+
+  const handleMerchantPayoutRequest = React.useCallback(async (amount: number) => {
+    if (isRequestingMerchantPayout) return
+    setIsRequestingMerchantPayout(true)
+    const result = await requestMerchantPayout(amount)
+    setIsRequestingMerchantPayout(false)
+    if (!result.ok) {
+      setMerchantPayoutError(result.message ?? 'Unable to request the payout.')
+      return
+    }
+    setToastMessage('Payout request submitted for processing.')
+    await loadMerchantPayouts(merchantPayoutPeriod)
+  }, [isRequestingMerchantPayout, loadMerchantPayouts, merchantPayoutPeriod])
+
+  const handleSaveMerchantPayoutAccount = React.useCallback(async (
+    value: PayoutAccountInput
+  ) => {
+    if (isSavingMerchantPayoutAccount) return false
+    setIsSavingMerchantPayoutAccount(true)
+    const result = await saveMerchantPayoutAccount(value)
+    setIsSavingMerchantPayoutAccount(false)
+    if (!result.ok) {
+      setMerchantPayoutError(result.message ?? 'Unable to save the payout account.')
+      return false
+    }
+    setToastMessage('Payout account saved.')
+    await loadMerchantPayouts(merchantPayoutPeriod)
+    return true
+  }, [isSavingMerchantPayoutAccount, loadMerchantPayouts, merchantPayoutPeriod])
 
   React.useEffect(() => {
     if (screen !== 'coordinatorHome') return undefined
@@ -2391,13 +2474,25 @@ export const App: React.FC = () => {
       case 'providerPayouts':
         return (
           <PayoutEarningsScreen
+            earningsTrend={merchantPayoutDashboard.earningsTrend}
+            errorMessage={merchantPayoutError}
+            initialPeriod={merchantPayoutPeriod}
+            isLoading={isMerchantPayoutLoading}
+            isRefreshing={isMerchantPayoutRefreshing}
+            isRequestingPayout={isRequestingMerchantPayout}
+            isSavingPayoutAccount={isSavingMerchantPayoutAccount}
             onBack={() => setScreen('providerProfile')}
-            onManagePayoutAccount={() => setScreen('providerProfile')}
-            onRequestPayout={(amount) => void requestMerchantPayout(amount)}
+            onPeriodChange={setMerchantPayoutPeriod}
+            onRefresh={() => void loadMerchantPayouts(merchantPayoutPeriod, true)}
+            onRequestPayout={(amount) => void handleMerchantPayoutRequest(amount)}
+            onSavePayoutAccount={handleSaveMerchantPayoutAccount}
             onSelectTransaction={(transaction) => {
               setSelectedPayoutTransaction(transaction)
               setScreen('providerTransactionDetails')
             }}
+            payoutAccount={merchantPayoutDashboard.payoutAccount}
+            summary={merchantPayoutDashboard.summary}
+            transactions={merchantPayoutDashboard.transactions}
           />
         )
       case 'providerTransactionDetails':
@@ -2405,12 +2500,7 @@ export const App: React.FC = () => {
           <TransactionDetailsScreen
             transaction={selectedPayoutTransaction}
             onBack={() => setScreen('providerPayouts')}
-            onContactSupport={(transaction) =>
-              void saveMerchantTransactionNote(transaction, 'contact_support')
-            }
-            onDownloadReceipt={(transaction) =>
-              void saveMerchantTransactionNote(transaction, 'download_receipt')
-            }
+            onContactSupport={() => setScreen('support')}
             onOpenRelatedRecord={() => setScreen('providerBookingRequests')}
           />
         )

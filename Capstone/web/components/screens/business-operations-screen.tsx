@@ -26,6 +26,12 @@ type PermissionGroup = {
   permissions: Row[]
 }
 
+function sumRemittanceRemaining(expectations: Row[]) {
+  return Math.round(
+    expectations.reduce((total, item) => total + Number(item.amount_remaining || 0), 0) * 100,
+  ) / 100
+}
+
 const permissionGroupDefinitions = [
   { key: 'analytics', label: 'Business dashboard', description: 'View business totals, trends, provider performance, and operational summaries.', codes: ['dashboard.analytics.view'] },
   { key: 'users-view', label: 'User directory', description: 'View registered user profiles and account standing.', codes: ['users.view'] },
@@ -457,10 +463,15 @@ function OperationalQueue({ section }: { section: Exclude<BusinessSection, 'reve
     const expectations = Array.isArray(data) ? data as Row[] : []
     setRemittanceExpectations(expectations)
     if (selectedBookingId) {
-      const selected = expectations.find((item) => String(item.booking_id) === selectedBookingId)
+      const selected = selectedBookingId === 'all'
+        ? null
+        : expectations.find((item) => String(item.booking_id) === selectedBookingId)
+      const expected = selectedBookingId === 'all'
+        ? sumRemittanceRemaining(expectations)
+        : Number(selected?.amount_remaining || 0)
       setRemittance((current) => ({
         ...current,
-        expected: selected ? String(selected.amount_expected || 0) : '',
+        expected: String(expected),
       }))
     }
   }
@@ -490,19 +501,29 @@ function OperationalQueue({ section }: { section: Exclude<BusinessSection, 'reve
     event.preventDefault()
     const supabase = getSupabase(); if (!supabase) return
     const eventRow = remittanceEvents.find((item) => String(item.id) === remittance.eventId)
+    const allServices = remittance.bookingId === 'all'
     const expectation = remittanceExpectations.find((item) => String(item.booking_id) === remittance.bookingId)
-    if (!eventRow?.coordinator_id || !expectation) return
+    const automaticTotal = sumRemittanceRemaining(remittanceExpectations)
+    if (!eventRow?.coordinator_id || (!allServices && !expectation) || (allServices && automaticTotal <= 0)) return
     if (eventRow.status !== 'completed') {
       setError('Coordinator cash remittance can only be recorded after the event is completed.')
       return
     }
     setBusy('remittance')
-    const { error: actionError } = await supabase.rpc('record_cash_remittance', {
-      target_event_id: remittance.eventId, target_booking_id: remittance.bookingId,
-      target_coordinator_id: eventRow.coordinator_id,
-      expected_amount: Number(expectation.amount_expected), received_amount: Number(remittance.received),
-      reference_number: remittance.reference.trim() || null, notes: remittance.notes.trim() || null,
-    })
+    const { error: actionError } = allServices
+      ? await supabase.rpc('record_all_cash_remittances', {
+          target_event_id: remittance.eventId,
+          target_coordinator_id: eventRow.coordinator_id,
+          received_amount: Number(remittance.received),
+          reference_number: remittance.reference.trim() || null,
+          notes: remittance.notes.trim() || null,
+        })
+      : await supabase.rpc('record_cash_remittance', {
+          target_event_id: remittance.eventId, target_booking_id: remittance.bookingId,
+          target_coordinator_id: eventRow.coordinator_id,
+          expected_amount: Number(expectation?.amount_expected), received_amount: Number(remittance.received),
+          reference_number: remittance.reference.trim() || null, notes: remittance.notes.trim() || null,
+        })
     setBusy('')
     if (actionError) setError(actionError.message)
     else {
@@ -594,6 +615,14 @@ function OperationalQueue({ section }: { section: Exclude<BusinessSection, 'reve
 
   const selectedEvent = remittanceEvents.find((item) => String(item.id) === remittance.eventId)
   const selectedExpectation = remittanceExpectations.find((item) => String(item.booking_id) === remittance.bookingId)
+  const allServicesSelected = remittance.bookingId === 'all'
+  const allServicesRemaining = sumRemittanceRemaining(remittanceExpectations)
+  const selectedRemaining = allServicesSelected
+    ? allServicesRemaining
+    : Number(selectedExpectation?.amount_remaining || 0)
+  const validRemittanceSelection = allServicesSelected
+    ? allServicesRemaining > 0
+    : Boolean(selectedExpectation) && selectedRemaining > 0
   const activeTicket = selectedTicket ? rows.find((row) => String(row.id) === String(selectedTicket.id)) || selectedTicket : null
 
   return (
@@ -634,18 +663,24 @@ function OperationalQueue({ section }: { section: Exclude<BusinessSection, 'reve
                 onChange={(event) => {
                   const bookingId = event.target.value
                   const expectation = remittanceExpectations.find((item) => String(item.booking_id) === bookingId)
+                  const expected = bookingId === 'all'
+                    ? sumRemittanceRemaining(remittanceExpectations)
+                    : Number(expectation?.amount_remaining || 0)
                   setRemittance({
                     ...remittance,
                     bookingId,
-                    expected: expectation ? String(expectation.amount_expected || 0) : '',
+                    expected: bookingId ? String(expected) : '',
                     received: '',
                   })
                 }}
               >
                 <option value="">{busy === 'expectations' ? 'Calculating…' : 'Select service booking'}</option>
+                {allServicesRemaining > 0 && (
+                  <option value="all">All services · {formatMoney(allServicesRemaining)}</option>
+                )}
                 {remittanceExpectations.map((item) => (
-                  <option key={String(item.booking_id)} value={String(item.booking_id)}>
-                    {String(item.service_name)} · {String(item.provider_name)}
+                  <option key={String(item.booking_id)} value={String(item.booking_id)} disabled={Number(item.amount_remaining || 0) <= 0}>
+                    {String(item.service_name)} · {String(item.provider_name)}{Number(item.amount_remaining || 0) <= 0 ? ' · settled' : ''}
                   </option>
                 ))}
               </select>
@@ -656,11 +691,11 @@ function OperationalQueue({ section }: { section: Exclude<BusinessSection, 'reve
             </label>
             <label>
               Amount expected (automatic)
-              <input readOnly value={selectedExpectation ? formatMoney(Number(selectedExpectation.amount_remaining)) : ''} placeholder="Select a service" />
+              <input readOnly value={validRemittanceSelection ? formatMoney(selectedRemaining) : ''} placeholder="Select a service or all services" />
             </label>
             <label>
-              Received this handoff
-              <input required min="0.01" max={selectedExpectation ? Number(selectedExpectation.amount_remaining) : undefined} step="0.01" type="number" value={remittance.received} onChange={(event) => setRemittance({ ...remittance, received: event.target.value })} />
+              {allServicesSelected ? 'Received this handoff (complete total)' : 'Received this handoff'}
+              <input required min="0.01" max={validRemittanceSelection ? selectedRemaining : undefined} step="0.01" type="number" value={remittance.received} onChange={(event) => setRemittance({ ...remittance, received: event.target.value })} />
             </label>
             <label>
               Reference
@@ -670,7 +705,7 @@ function OperationalQueue({ section }: { section: Exclude<BusinessSection, 'reve
               Notes
               <input maxLength={1000} value={remittance.notes} onChange={(event) => setRemittance({ ...remittance, notes: event.target.value })} />
             </label>
-            <button className="primary-button" disabled={busy === 'remittance' || selectedEvent?.status !== 'completed' || !selectedExpectation || Number(selectedExpectation.amount_remaining) <= 0}>
+            <button className="primary-button" disabled={busy === 'remittance' || selectedEvent?.status !== 'completed' || !validRemittanceSelection}>
               {selectedEvent && selectedEvent.status !== 'completed' ? 'Available after event completion' : busy === 'remittance' ? 'Recording…' : 'Record remittance'}
             </button>
           </div>

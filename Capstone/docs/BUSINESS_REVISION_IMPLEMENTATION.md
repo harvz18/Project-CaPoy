@@ -180,14 +180,16 @@ The budget allocation slider redesign in Requirement 25 is not implemented. The 
 9. Apply `database/38_audit_security_hardening.sql` after migration `37`.
 10. Apply `database/39_commission_markup_pricing.sql` after migration `38`.
 11. Apply `database/40_automatic_commission_remittance.sql` after migration `39`.
-12. Deploy the account-provisioning function:
+12. Apply `database/41_all_services_remittance.sql` after migration `40`.
+13. Apply `database/42_live_provider_earnings.sql` after migration `41`.
+14. Deploy the account-provisioning function:
 
    ```powershell
    npx supabase functions deploy admin-create-user --project-ref YOUR_PROJECT_REF
    ```
 
-13. Deploy the `web` application.
-14. Build/release the Expo application.
+15. Deploy the `web` application.
+16. Build/release the Expo application.
 
 The Edge Function uses Supabase-provided `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` values. Never place the service-role key in the web or Expo environment files.
 
@@ -317,3 +319,16 @@ These values are stored in `system_settings` and can be changed by a Superadmin.
 - Record a partial handoff, confirm the remaining amount decreases without creating another open remittance row, then complete and verify it.
 - Dispute a handoff and confirm its amount no longer reduces the automatic remaining balance or recognized revenue.
 - Confirm a historical `deducted_from_provider` booking and its ledger rows are unchanged and excluded from the new automatic-remittance RPC.
+- Select **All services** and confirm the displayed expected amount equals the sum of every service's remaining remittance.
+- Enter anything other than the complete combined balance for **All services** and confirm the database rejects it without recording any service; use an individual service for partial handoffs.
+- Record the complete **All services** balance and confirm every outstanding service receives its own remittance and ledger allocation in one atomic operation.
+
+## Live provider earnings smoke tests
+
+- Sign in as a provider with no financial activity and confirm earnings, chart, and transaction sections show zero or empty states instead of sample values.
+- Complete paid/verified booking, direct-provider, and remittance flows; confirm the provider earnings screen reflects the corresponding recorded ledger rows after refresh.
+- Open a transaction and confirm its amount, payment reference, event, service, client, payment method, and status match the stored transaction rather than example invoice data.
+- Save a payout destination and confirm the app only receives its last four account digits; confirm the full account number is absent from audit logs and direct table reads are denied.
+- Attempt a payout before confirming a destination, above the available balance, and with sub-cent precision; confirm every request is rejected by the RPC.
+- Submit a valid payout, confirm it appears as pending in recent transactions, and confirm the requested amount is immediately reserved from the available balance.
+- Mark the payout request paid through the authorized financial workflow and confirm the transaction becomes completed without altering prior booking earnings.

@@ -1,10 +1,13 @@
 import { Text } from '../components/AppText'
 import React from 'react'
 import {
+  ActivityIndicator,
+  Modal,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
-  
+  TextInput,
   useWindowDimensions,
   View,
 } from 'react-native'
@@ -16,8 +19,17 @@ export type PayoutTransactionType = 'booking' | 'payout' | 'refund' | 'adjustmen
 export interface PayoutAccount {
   accountName: string
   accountNumberLast4: string
+  accountType?: 'bank_transfer' | 'e_wallet'
   bankName: string
   isVerified: boolean
+}
+
+export interface PayoutAccountInput {
+  accountName: string
+  accountNumber: string
+  accountType: 'bank_transfer' | 'e_wallet'
+  confirmOwnership: boolean
+  institutionName: string
 }
 
 export interface EarningsDataPoint {
@@ -36,22 +48,32 @@ export interface PayoutEarningsSummary {
 
 export interface PayoutTransaction {
   amount: number
+  breakdown?: Array<{ amount: number; label: string }>
   createdAt: string
+  currency?: string
+  details?: Array<{ label: string; value: string }>
   id: string
   label: string
+  processedAt?: string
   reference: string
+  relatedRecordId?: string
   status: PayoutTransactionStatus
   type: PayoutTransactionType
 }
 
 interface PayoutEarningsScreenProps {
   earningsTrend?: EarningsDataPoint[]
+  errorMessage?: string
   initialPeriod?: PayoutEarningsPeriod
+  isLoading?: boolean
+  isRefreshing?: boolean
   isRequestingPayout?: boolean
+  isSavingPayoutAccount?: boolean
   onBack?: () => void
-  onManagePayoutAccount?: () => void
   onPeriodChange?: (period: PayoutEarningsPeriod) => void
+  onRefresh?: () => void
   onRequestPayout?: (amount: number) => void
+  onSavePayoutAccount?: (value: PayoutAccountInput) => Promise<boolean>
   onSelectTransaction?: (transaction: PayoutTransaction) => void
   payoutAccount?: PayoutAccount | null
   summary?: Partial<PayoutEarningsSummary>
@@ -59,67 +81,12 @@ interface PayoutEarningsScreenProps {
 }
 
 const defaultSummary: PayoutEarningsSummary = {
-  availableBalance: 32750,
+  availableBalance: 0,
   currency: 'PHP',
-  lifetimeEarnings: 286500,
-  nextPayoutDate: '2026-09-06',
-  pendingBalance: 15500,
-  periodEarnings: 48250,
+  lifetimeEarnings: 0,
+  pendingBalance: 0,
+  periodEarnings: 0,
 }
-
-const defaultAccount: PayoutAccount = {
-  accountName: 'Floral Arts',
-  accountNumberLast4: '4821',
-  bankName: 'BDO Unibank',
-  isVerified: true,
-}
-
-const defaultTrend: EarningsDataPoint[] = [
-  { amount: 7200, label: 'Aug 4' },
-  { amount: 10600, label: 'Aug 11' },
-  { amount: 8400, label: 'Aug 18' },
-  { amount: 12600, label: 'Aug 25' },
-  { amount: 9450, label: 'Sep 1' },
-]
-
-const defaultTransactions: PayoutTransaction[] = [
-  {
-    amount: 26000,
-    createdAt: '2026-09-02T10:30:00+08:00',
-    id: 'transaction-1048',
-    label: 'Premium Floral Design',
-    reference: 'Booking #MV-1048',
-    status: 'completed',
-    type: 'booking',
-  },
-  {
-    amount: -30000,
-    createdAt: '2026-08-29T09:00:00+08:00',
-    id: 'transaction-po-184',
-    label: 'Payout to BDO •••• 4821',
-    reference: 'Payout #PO-184',
-    status: 'completed',
-    type: 'payout',
-  },
-  {
-    amount: 18750,
-    createdAt: '2026-08-25T16:15:00+08:00',
-    id: 'transaction-1031',
-    label: 'Intimate Wedding Package',
-    reference: 'Booking #MV-1031',
-    status: 'pending',
-    type: 'booking',
-  },
-  {
-    amount: -5000,
-    createdAt: '2026-08-21T13:45:00+08:00',
-    id: 'transaction-rf-092',
-    label: 'Client refund',
-    reference: 'Refund #RF-092',
-    status: 'completed',
-    type: 'refund',
-  },
-]
 
 const periodOptions: Array<{ id: PayoutEarningsPeriod; label: string }> = [
   { id: '7d', label: '7 days' },
@@ -165,22 +132,28 @@ const WalletIcon = () => (
 )
 
 export const PayoutEarningsScreen: React.FC<PayoutEarningsScreenProps> = ({
-  earningsTrend = defaultTrend,
+  earningsTrend = [],
+  errorMessage,
   initialPeriod = '30d',
+  isLoading = false,
+  isRefreshing = false,
   isRequestingPayout = false,
+  isSavingPayoutAccount = false,
   onBack,
-  onManagePayoutAccount,
   onPeriodChange,
+  onRefresh,
   onRequestPayout,
+  onSavePayoutAccount,
   onSelectTransaction,
-  payoutAccount = defaultAccount,
+  payoutAccount = null,
   summary,
-  transactions = defaultTransactions,
+  transactions = [],
 }) => {
   const { width } = useWindowDimensions()
   const isWide = width >= 820
   const isCompact = width < 390
   const [period, setPeriod] = React.useState<PayoutEarningsPeriod>(initialPeriod)
+  const [isAccountModalVisible, setIsAccountModalVisible] = React.useState(false)
   const value = { ...defaultSummary, ...summary }
   const maxTrendAmount = Math.max(...earningsTrend.map((point) => point.amount), 1)
   const canRequestPayout =
@@ -216,8 +189,26 @@ export const PayoutEarningsScreen: React.FC<PayoutEarningsScreenProps> = ({
           styles.content,
           isWide ? styles.contentWide : styles.contentMobile,
         ]}
+        refreshControl={
+          <RefreshControl
+            onRefresh={onRefresh}
+            refreshing={isRefreshing}
+            tintColor={palette.primary}
+          />
+        }
         showsVerticalScrollIndicator={false}
       >
+        {errorMessage ? (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorBannerText}>{errorMessage}</Text>
+          </View>
+        ) : null}
+        {isLoading ? (
+          <View style={styles.loadingPanel}>
+            <ActivityIndicator color={palette.primary} />
+            <Text style={styles.loadingText}>Loading recorded earnings...</Text>
+          </View>
+        ) : null}
         <View style={styles.intro}>
           <Text style={styles.title}>Your earnings</Text>
           <Text style={styles.subtitle}>
@@ -244,7 +235,7 @@ export const PayoutEarningsScreen: React.FC<PayoutEarningsScreenProps> = ({
             </View>
           </View>
           <Text style={styles.balanceCaption}>
-            Cleared earnings can be transferred to your verified payout account.
+            Cleared earnings can be transferred to your confirmed payout account.
           </Text>
           <Pressable
             accessibilityRole="button"
@@ -288,7 +279,7 @@ export const PayoutEarningsScreen: React.FC<PayoutEarningsScreenProps> = ({
               <View style={styles.earningsHeader}>
                 <View>
                   <Text style={styles.sectionTitle}>Earnings overview</Text>
-                  <Text style={styles.sectionSubtitle}>Gross earnings before completed payouts</Text>
+                  <Text style={styles.sectionSubtitle}>Provider earnings recorded for this period</Text>
                 </View>
                 <Text style={styles.periodTotal}>
                   {formatCurrency(value.periodEarnings, value.currency)}
@@ -355,7 +346,7 @@ export const PayoutEarningsScreen: React.FC<PayoutEarningsScreenProps> = ({
                 account={payoutAccount}
                 currency={value.currency}
                 nextPayoutDate={value.nextPayoutDate}
-                onManage={onManagePayoutAccount}
+                onManage={() => setIsAccountModalVisible(true)}
               />
             ) : null}
 
@@ -398,7 +389,7 @@ export const PayoutEarningsScreen: React.FC<PayoutEarningsScreenProps> = ({
                 account={payoutAccount}
                 currency={value.currency}
                 nextPayoutDate={value.nextPayoutDate}
-                onManage={onManagePayoutAccount}
+                onManage={() => setIsAccountModalVisible(true)}
               />
               <PayoutNotice />
             </View>
@@ -407,7 +398,168 @@ export const PayoutEarningsScreen: React.FC<PayoutEarningsScreenProps> = ({
 
         {!isWide ? <PayoutNotice /> : null}
       </ScrollView>
+      <PayoutAccountModal
+        account={payoutAccount}
+        isSaving={isSavingPayoutAccount}
+        onClose={() => setIsAccountModalVisible(false)}
+        onSave={async (accountValue) => (await onSavePayoutAccount?.(accountValue)) ?? false}
+        visible={isAccountModalVisible}
+      />
     </View>
+  )
+}
+
+const PayoutAccountModal = ({
+  account,
+  isSaving,
+  onClose,
+  onSave,
+  visible,
+}: {
+  account: PayoutAccount | null
+  isSaving: boolean
+  onClose: () => void
+  onSave: (value: PayoutAccountInput) => Promise<boolean>
+  visible: boolean
+}) => {
+  const [accountType, setAccountType] = React.useState<'bank_transfer' | 'e_wallet'>(
+    account?.accountType ?? 'bank_transfer'
+  )
+  const [institutionName, setInstitutionName] = React.useState(account?.bankName ?? '')
+  const [accountName, setAccountName] = React.useState(account?.accountName ?? '')
+  const [accountNumber, setAccountNumber] = React.useState('')
+  const [confirmOwnership, setConfirmOwnership] = React.useState(false)
+
+  React.useEffect(() => {
+    if (!visible) return
+    setAccountType(account?.accountType ?? 'bank_transfer')
+    setInstitutionName(account?.bankName ?? '')
+    setAccountName(account?.accountName ?? '')
+    setAccountNumber('')
+    setConfirmOwnership(false)
+  }, [account, visible])
+
+  const canSave =
+    institutionName.trim().length >= 2 &&
+    accountName.trim().length >= 2 &&
+    accountNumber.replace(/\s/g, '').length >= 4 &&
+    confirmOwnership &&
+    !isSaving
+
+  return (
+    <Modal animationType="fade" onRequestClose={onClose} transparent visible={visible}>
+      <View style={styles.modalBackdrop}>
+        <View style={styles.modalCard}>
+          <View style={styles.modalHeader}>
+            <View style={styles.modalHeaderCopy}>
+              <Text style={styles.modalTitle}>
+                {account ? 'Update payout account' : 'Add payout account'}
+              </Text>
+              <Text style={styles.modalSubtitle}>
+                Enter the account that should receive your approved payouts.
+              </Text>
+            </View>
+            <Pressable accessibilityLabel="Close" accessibilityRole="button" onPress={onClose}>
+              <Text style={styles.modalClose}>×</Text>
+            </Pressable>
+          </View>
+
+          <Text style={styles.inputLabel}>ACCOUNT TYPE</Text>
+          <View style={styles.accountTypeRow}>
+            {([
+              ['bank_transfer', 'Bank account'],
+              ['e_wallet', 'E-wallet'],
+            ] as const).map(([id, label]) => (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ selected: accountType === id }}
+                key={id}
+                onPress={() => setAccountType(id)}
+                style={[
+                  styles.accountTypeButton,
+                  accountType === id && styles.accountTypeButtonSelected,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.accountTypeText,
+                    accountType === id && styles.accountTypeTextSelected,
+                  ]}
+                >
+                  {label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Text style={styles.inputLabel}>
+            {accountType === 'e_wallet' ? 'E-WALLET PROVIDER' : 'BANK NAME'}
+          </Text>
+          <TextInput
+            autoCapitalize="words"
+            onChangeText={setInstitutionName}
+            placeholder={accountType === 'e_wallet' ? 'Example: GCash' : 'Example: BDO Unibank'}
+            placeholderTextColor={palette.muted}
+            style={styles.accountInput}
+            value={institutionName}
+          />
+          <Text style={styles.inputLabel}>ACCOUNT NAME</Text>
+          <TextInput
+            autoCapitalize="words"
+            onChangeText={setAccountName}
+            placeholder="Name registered on the account"
+            placeholderTextColor={palette.muted}
+            style={styles.accountInput}
+            value={accountName}
+          />
+          <Text style={styles.inputLabel}>ACCOUNT NUMBER</Text>
+          <TextInput
+            keyboardType="number-pad"
+            onChangeText={setAccountNumber}
+            placeholder={account ? `Re-enter account ending in ${account.accountNumberLast4}` : 'Account number'}
+            placeholderTextColor={palette.muted}
+            style={styles.accountInput}
+            value={accountNumber}
+          />
+          <Pressable
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: confirmOwnership }}
+            onPress={() => setConfirmOwnership((current) => !current)}
+            style={styles.confirmationRow}
+          >
+            <View style={[styles.checkbox, confirmOwnership && styles.checkboxChecked]}>
+              {confirmOwnership ? <Text style={styles.checkboxMark}>✓</Text> : null}
+            </View>
+            <Text style={styles.confirmationText}>
+              I confirm this payout account belongs to me or my registered business.
+            </Text>
+          </Pressable>
+
+          <View style={styles.modalActions}>
+            <Pressable onPress={onClose} style={styles.cancelButton}>
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              accessibilityState={{ busy: isSaving, disabled: !canSave }}
+              disabled={!canSave}
+              onPress={async () => {
+                const saved = await onSave({
+                  accountName: accountName.trim(),
+                  accountNumber: accountNumber.trim(),
+                  accountType,
+                  confirmOwnership,
+                  institutionName: institutionName.trim(),
+                })
+                if (saved) onClose()
+              }}
+              style={[styles.saveButton, !canSave && styles.saveButtonDisabled]}
+            >
+              <Text style={styles.saveButtonText}>{isSaving ? 'Saving...' : 'Save account'}</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
   )
 }
 
@@ -451,7 +603,7 @@ const PayoutDestination = ({
       <Text style={styles.sectionTitle}>Payout destination</Text>
       {account?.isVerified ? (
         <View style={styles.verifiedBadge}>
-          <Text style={styles.verifiedBadgeText}>VERIFIED</Text>
+          <Text style={styles.verifiedBadgeText}>CONFIRMED</Text>
         </View>
       ) : null}
     </View>
@@ -459,7 +611,7 @@ const PayoutDestination = ({
     {account ? (
       <View style={styles.bankAccount}>
         <View style={styles.bankIcon}>
-          <Text style={styles.bankIconText}>B</Text>
+          <Text style={styles.bankIconText}>{account.accountType === 'e_wallet' ? 'E' : 'B'}</Text>
         </View>
         <View style={styles.bankDetails}>
           <Text style={styles.bankName}>{account.bankName}</Text>
@@ -671,6 +823,25 @@ const styles = StyleSheet.create({
   content: { width: '100%', maxWidth: 980, alignSelf: 'center' },
   contentMobile: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 48 },
   contentWide: { paddingHorizontal: 32, paddingTop: 32, paddingBottom: 56 },
+  errorBanner: {
+    borderWidth: 1,
+    borderColor: '#E8B4AE',
+    borderRadius: 9,
+    backgroundColor: palette.errorSoft,
+    padding: 12,
+    marginBottom: 14,
+  },
+  errorBannerText: { color: palette.error, fontSize: 11, lineHeight: 17 },
+  loadingPanel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderRadius: 9,
+    backgroundColor: palette.surfaceContainerLow,
+    padding: 12,
+    marginBottom: 14,
+  },
+  loadingText: { color: palette.secondary, fontSize: 11, lineHeight: 17 },
   intro: { marginBottom: 20 },
   title: { color: palette.text, fontSize: 22, lineHeight: 28, fontWeight: '700' },
   subtitle: {
@@ -941,4 +1112,79 @@ const styles = StyleSheet.create({
   infoCopy: { minWidth: 0, flex: 1 },
   infoTitle: { color: palette.primaryContainer, fontSize: 11, lineHeight: 16, fontWeight: '700' },
   infoText: { color: palette.secondary, fontSize: 9, lineHeight: 15, marginTop: 2 },
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: 'center',
+    backgroundColor: 'rgba(27, 28, 28, 0.48)',
+    padding: 20,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 520,
+    alignSelf: 'center',
+    borderRadius: 14,
+    backgroundColor: palette.white,
+    padding: 20,
+  },
+  modalHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 18 },
+  modalHeaderCopy: { minWidth: 0, flex: 1 },
+  modalTitle: { color: palette.text, fontSize: 18, lineHeight: 24, fontWeight: '700' },
+  modalSubtitle: { color: palette.secondary, fontSize: 11, lineHeight: 17, marginTop: 3 },
+  modalClose: { color: palette.secondary, fontSize: 28, lineHeight: 30 },
+  inputLabel: {
+    color: palette.muted,
+    fontSize: 8,
+    lineHeight: 12,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    marginBottom: 5,
+  },
+  accountTypeRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
+  accountTypeButton: {
+    flex: 1,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 8,
+    padding: 10,
+  },
+  accountTypeButtonSelected: { borderColor: palette.primaryContainer, backgroundColor: palette.primarySoft },
+  accountTypeText: { color: palette.secondary, fontSize: 11, lineHeight: 16, fontWeight: '600' },
+  accountTypeTextSelected: { color: palette.primaryContainer },
+  accountInput: {
+    minHeight: 44,
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 8,
+    color: palette.text,
+    fontSize: 12,
+    paddingHorizontal: 12,
+    marginBottom: 13,
+  },
+  confirmationRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 9, marginTop: 2 },
+  checkbox: {
+    width: 19,
+    height: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 4,
+  },
+  checkboxChecked: { borderColor: palette.primaryContainer, backgroundColor: palette.primaryContainer },
+  checkboxMark: { color: palette.white, fontSize: 12, lineHeight: 15, fontWeight: '700' },
+  confirmationText: { minWidth: 0, flex: 1, color: palette.secondary, fontSize: 10, lineHeight: 16 },
+  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 9, marginTop: 20 },
+  cancelButton: { minHeight: 42, justifyContent: 'center', paddingHorizontal: 16 },
+  cancelButtonText: { color: palette.secondary, fontSize: 12, lineHeight: 17, fontWeight: '600' },
+  saveButton: {
+    minHeight: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    backgroundColor: palette.primaryContainer,
+    paddingHorizontal: 18,
+  },
+  saveButtonDisabled: { opacity: 0.45 },
+  saveButtonText: { color: palette.white, fontSize: 12, lineHeight: 17, fontWeight: '700' },
 })

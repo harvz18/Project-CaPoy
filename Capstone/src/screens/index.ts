@@ -96,6 +96,7 @@ export { PayoutEarningsScreen } from './22.2-PayoutEarnings'
 export type {
   EarningsDataPoint,
   PayoutAccount,
+  PayoutAccountInput,
   PayoutEarningsPeriod,
   PayoutEarningsSummary,
   PayoutTransaction,
