@@ -1,5 +1,5 @@
 import React from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native'
 import type { MerchantHomeTab } from '../screens/16-MerchantHome'
 
 interface MerchantBottomNavigationProps {
@@ -16,7 +16,7 @@ const tabs: Array<{ id: MerchantHomeTab; label: string }> = [
 ]
 
 const NavIcon = ({ name, selected }: { name: MerchantHomeTab; selected: boolean }) => {
-  const color = selected ? palette.onPrimary : palette.secondary
+  const color = selected ? palette.primaryContainer : palette.secondary
 
   if (name === 'home') {
     return (
@@ -72,38 +72,79 @@ const NavIcon = ({ name, selected }: { name: MerchantHomeTab; selected: boolean 
 export const MerchantBottomNavigation: React.FC<MerchantBottomNavigationProps> = ({
   activeTab,
   onSelectTab,
-}) => (
-  <View style={styles.bottomNavigation}>
-    <View style={styles.bottomNavigationContent}>
-      {tabs.map((tab) => {
-        const selected = tab.id === activeTab
+}) => {
+  const activeIndex = tabs.findIndex((tab) => tab.id === activeTab)
+  const activeIndicatorX = React.useRef(new Animated.Value(0)).current
+  const initialized = React.useRef(false)
+  const [contentWidth, setContentWidth] = React.useState(0)
 
-        return (
-          <Pressable
-            key={tab.id}
-            accessibilityLabel={`Open ${tab.label}`}
-            accessibilityRole="tab"
-            accessibilityState={{ selected }}
-            onPress={() => onSelectTab?.(tab.id)}
-            style={({ pressed }) => [styles.navItem, pressed && styles.navItemPressed]}
-          >
-            <View style={[styles.navIconContainer, selected && styles.navIconSelected]}>
-              <NavIcon name={tab.id} selected={selected} />
-            </View>
-            <Text style={[styles.navLabel, selected && styles.navLabelSelected]}>
-              {tab.label}
-            </Text>
-          </Pressable>
-        )
-      })}
+  const indicatorPosition = (width: number, index: number) => {
+    const horizontalPadding = 8
+    const slotWidth = (width - horizontalPadding * 2) / tabs.length
+    return horizontalPadding + index * slotWidth + (slotWidth - 50) / 2
+  }
+
+  React.useEffect(() => {
+    if (!contentWidth) return
+    activeIndicatorX.stopAnimation()
+    Animated.timing(activeIndicatorX, {
+      duration: 260,
+      easing: Easing.out(Easing.cubic),
+      toValue: indicatorPosition(contentWidth, activeIndex),
+      useNativeDriver: true,
+    }).start()
+  }, [activeIndex, activeIndicatorX, contentWidth])
+
+  return (
+    <View style={styles.bottomNavigation}>
+      <View
+        onLayout={(event) => {
+          const width = event.nativeEvent.layout.width
+          setContentWidth(width)
+          if (!initialized.current) {
+            activeIndicatorX.setValue(indicatorPosition(width, activeIndex))
+            initialized.current = true
+          }
+        }}
+        style={styles.bottomNavigationContent}
+      >
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.activeIndicator,
+            { opacity: contentWidth ? 1 : 0 },
+            { transform: [{ translateX: activeIndicatorX }] },
+          ]}
+        />
+        {tabs.map((tab) => {
+          const selected = tab.id === activeTab
+
+          return (
+            <Pressable
+              key={tab.id}
+              accessibilityLabel={`Open ${tab.label}`}
+              accessibilityRole="tab"
+              accessibilityState={{ selected }}
+              onPress={() => onSelectTab?.(tab.id)}
+              style={({ pressed }) => [styles.navItem, pressed && styles.navItemPressed]}
+            >
+              <View style={styles.navIconContainer}>
+                <NavIcon name={tab.id} selected={selected} />
+              </View>
+              <Text style={[styles.navLabel, selected && styles.navLabelSelected]}>
+                {tab.label}
+              </Text>
+            </Pressable>
+          )
+        })}
+      </View>
     </View>
-  </View>
-)
+  )
+}
 
 const palette = {
   background: '#FAF9F9',
   border: '#DFE0E0',
-  onPrimary: '#FFFFFF',
   primaryContainer: '#6B1E2E',
   secondary: '#5D5F5F',
 } as const
@@ -131,6 +172,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     paddingHorizontal: 8,
   },
+  activeIndicator: {
+    position: 'absolute',
+    top: 7,
+    left: 0,
+    width: 50,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(218, 192, 194, 0.55)',
+  },
   navItem: {
     width: 68,
     minHeight: 58,
@@ -148,9 +198,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 15,
-  },
-  navIconSelected: {
-    backgroundColor: palette.primaryContainer,
   },
   homeIcon: { width: 22, height: 21, alignItems: 'center', justifyContent: 'flex-end' },
   homeRoofLeft: {

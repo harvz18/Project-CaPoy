@@ -30,6 +30,7 @@ export interface MerchantScheduleItem {
 interface MerchantHomeScreenProps {
   businessName?: string
   hasUnreadNotifications?: boolean
+  showBottomNavigation?: boolean
   scheduleItems?: MerchantScheduleItem[]
   stats?: MerchantHomeStats
   onOpenNotifications?: () => void
@@ -229,6 +230,7 @@ const getBusinessName = (name: string) => {
 export const MerchantHomeScreen: React.FC<MerchantHomeScreenProps> = ({
   businessName = 'Floral Arts',
   hasUnreadNotifications = true,
+  showBottomNavigation = true,
   scheduleItems = defaultScheduleItems,
   stats = defaultStats,
   onOpenNotifications,
@@ -377,7 +379,7 @@ export const MerchantHomeScreen: React.FC<MerchantHomeScreenProps> = ({
         </View>
       </ScrollView>
 
-      {!isWide ? (
+      {showBottomNavigation && !isWide ? (
         <MerchantBottomNavigation activeTab="home" onSelectTab={onSelectTab} />
       ) : null}
     </View>

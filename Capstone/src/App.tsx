@@ -74,6 +74,7 @@ import {
 } from './lib/merchant'
 import { colors } from './theme/tokens'
 import { ClientBottomNavigation } from './components/ClientBottomNavigation'
+import { MerchantBottomNavigation } from './components/MerchantBottomNavigation'
 import { NonBlockingActivityBar, ScreenMotionFrame } from './components/MotionFeedback'
 import { ClientHomeScreen, ClientHomeTab } from './screens/03-ClientHome'
 import { ClientConversation, MessagesScreen } from './screens/03.1-Messages'
@@ -411,25 +412,13 @@ export const App: React.FC = () => {
   const [screen, commitScreen] = React.useState<AppScreen>('onboarding')
   const [isScreenTransitioning, setIsScreenTransitioning] = React.useState(false)
   const screenTransitionProgress = React.useRef(new Animated.Value(1)).current
-  const screenTransitionDirection = React.useRef<-1 | 1>(1)
   const screenRef = React.useRef<AppScreen>('onboarding')
-  const screenHistoryRef = React.useRef<AppScreen[]>(['onboarding'])
   const navigationLockedRef = React.useRef(false)
   const screenTransitionAnimation = React.useRef<Animated.CompositeAnimation | null>(null)
 
   const setScreen = React.useCallback((nextScreen: AppScreen) => {
     const currentScreen = screenRef.current
     if (nextScreen === currentScreen || navigationLockedRef.current) return
-
-    const history = screenHistoryRef.current
-    const previousIndex = history.lastIndexOf(nextScreen)
-    if (previousIndex >= 0 && previousIndex < history.length - 1) {
-      screenTransitionDirection.current = -1
-      screenHistoryRef.current = history.slice(0, previousIndex + 1)
-    } else {
-      screenTransitionDirection.current = 1
-      screenHistoryRef.current = [...history.slice(-24), nextScreen]
-    }
 
     navigationLockedRef.current = true
     setIsScreenTransitioning(true)
@@ -2228,6 +2217,7 @@ export const App: React.FC = () => {
           <MerchantHomeScreen
             businessName={userName}
             hasUnreadNotifications={notifications.some((notification) => !notification.isRead)}
+            showBottomNavigation={false}
             scheduleItems={merchantRequests
               .filter((request) => request.status === 'confirmed')
               .slice(0, 4)
@@ -2306,6 +2296,7 @@ export const App: React.FC = () => {
           <ProviderServicesScreen
             deletingServiceId={deletingMerchantServiceId}
             hasDraft={hasMerchantDraft}
+            showBottomNavigation={false}
             services={merchantServices}
             onAddService={() => {
               setScreen(hasMerchantDraft ? 'providerDraftChoice' : 'providerServiceInfo')
@@ -2467,6 +2458,7 @@ export const App: React.FC = () => {
           <BookingRequestScreen
             initialStatus={merchantRequestStatus}
             requests={merchantRequests}
+            showBottomNavigation={false}
             onBack={() => setScreen('providerHome')}
             onSelectNavigationTab={(tab) => {
               if (tab === 'events') setScreen('providerHome')
@@ -2569,6 +2561,7 @@ export const App: React.FC = () => {
             onSelectAction={handleMerchantAction}
             onSelectTab={openMerchantTab}
             onViewPublicProfile={() => setScreen('providerServices')}
+            showBottomNavigation={false}
           />
         )
       case 'accountProfile':
@@ -3019,6 +3012,7 @@ export const App: React.FC = () => {
             conversations={conversations}
             hasUnreadNotifications={notifications.some((notification) => !notification.isRead)}
             navigationVariant={homeReturnScreen === 'providerHome' ? 'merchant' : 'client'}
+            showBottomNavigation={false}
             onMarkRead={(conversation) => {
               setConversations((current) =>
                 current.map((item) =>
@@ -3293,6 +3287,19 @@ export const App: React.FC = () => {
             ? 'messages'
           : null
 
+  const providerMainTab: MerchantHomeTab | null =
+    screen === 'providerHome'
+      ? 'home'
+      : screen === 'providerServices'
+        ? 'services'
+        : screen === 'providerBookingRequests'
+          ? 'bookings'
+          : screen === 'messages' && homeReturnScreen === 'providerHome'
+            ? 'messages'
+            : screen === 'providerProfile'
+              ? 'profile'
+              : null
+
   const hasVisibleActivity = Boolean(
     isScreenTransitioning
       || activeGuardedActionCount > 0
@@ -3332,7 +3339,6 @@ export const App: React.FC = () => {
       <StatusBar style={screen === 'clientHome' ? 'light' : 'dark'} />
       <SafeAreaView style={[styles.container, isHome && styles.homeContainer]}>
         <ScreenMotionFrame
-          direction={screenTransitionDirection.current}
           disabled={screensWithOwnEntrance.has(screen)}
           isLocked={isScreenTransitioning}
           progress={screenTransitionProgress}
@@ -3359,6 +3365,12 @@ export const App: React.FC = () => {
             activeTab={clientMainTab}
             isVisible={isClientNavigationVisible}
             onSelectTab={openClientTab}
+          />
+        ) : null}
+        {width < 768 && providerMainTab ? (
+          <MerchantBottomNavigation
+            activeTab={providerMainTab}
+            onSelectTab={openMerchantTab}
           />
         ) : null}
       </SafeAreaView>

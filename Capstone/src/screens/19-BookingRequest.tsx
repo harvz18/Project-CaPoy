@@ -77,6 +77,7 @@ export interface MerchantBookingRequest {
 
 interface BookingRequestScreenProps {
   initialStatus?: BookingRequestStatus
+  showBottomNavigation?: boolean
   onBack?: () => void
   onSelectMerchantTab?: (tab: MerchantHomeTab) => void
   onSelectNavigationTab?: (tab: BookingRequestNavigationTab) => void
@@ -138,6 +139,7 @@ const completionIsAvailable = (value: string) => {
 
 export const BookingRequestScreen: React.FC<BookingRequestScreenProps> = ({
   initialStatus = 'new',
+  showBottomNavigation = true,
   onBack,
   onSelectMerchantTab,
   onSelectNavigationTab,
@@ -296,7 +298,7 @@ export const BookingRequestScreen: React.FC<BookingRequestScreenProps> = ({
         </View>
       </ScrollView>
 
-      {!isWide ? (
+      {showBottomNavigation && !isWide ? (
         <MerchantBottomNavigation
           activeTab="bookings"
           onSelectTab={(tab) => {

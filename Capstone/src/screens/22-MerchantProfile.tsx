@@ -48,6 +48,7 @@ export interface MerchantProfileValue {
 interface MerchantProfileScreenProps {
   hasUnreadNotifications?: boolean
   isLoggingOut?: boolean
+  showBottomNavigation?: boolean
   onBack?: () => void
   onEditMedia?: (target: MerchantProfileMediaTarget) => void
   onEditProfile?: () => void
@@ -149,6 +150,7 @@ const getInitials = (name: string) =>
 export const MerchantProfileScreen: React.FC<MerchantProfileScreenProps> = ({
   hasUnreadNotifications = true,
   isLoggingOut = false,
+  showBottomNavigation = true,
   onBack,
   onEditMedia,
   onEditProfile,
@@ -443,7 +445,7 @@ export const MerchantProfileScreen: React.FC<MerchantProfileScreenProps> = ({
         </View>
       </ScrollView>
 
-      {!isWide ? (
+      {showBottomNavigation && !isWide ? (
         <MerchantBottomNavigation activeTab="profile" onSelectTab={onSelectTab} />
       ) : null}
     </View>

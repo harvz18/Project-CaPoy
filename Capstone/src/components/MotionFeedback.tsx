@@ -10,7 +10,6 @@ import { colors } from '../theme/tokens'
 
 interface ScreenMotionFrameProps {
   children: React.ReactNode
-  direction: -1 | 1
   disabled?: boolean
   isLocked?: boolean
   progress: Animated.Value
@@ -18,7 +17,6 @@ interface ScreenMotionFrameProps {
 
 export const ScreenMotionFrame: React.FC<ScreenMotionFrameProps> = ({
   children,
-  direction,
   disabled = false,
   isLocked = false,
   progress,
@@ -26,48 +24,17 @@ export const ScreenMotionFrame: React.FC<ScreenMotionFrameProps> = ({
   const { width } = useWindowDimensions()
   const distance = Math.min(Math.max(width * 0.16, 36), 72)
 
-  const motionStyle = disabled
-    ? {
-        opacity: progress.interpolate({
-          inputRange: [0, 0.3, 1],
-          outputRange: [0.88, 1, 1],
-        }),
-        transform: [
-          {
-            translateY: progress.interpolate({
-              inputRange: [0, 1],
-              outputRange: [8, 0],
-            }),
-          },
-        ],
-      }
-    : {
-        opacity: progress.interpolate({
-          inputRange: [0, 0.35, 1],
-          outputRange: [0.76, 1, 1],
-        }),
-        transform: [
-          {
-            translateX: progress.interpolate({
-              inputRange: [0, 1],
-              outputRange: [direction * distance, 0],
-            }),
-          },
-          {
-            scale: progress.interpolate({
-              inputRange: [0, 1],
-              outputRange: [0.992, 1],
-            }),
-          },
-        ],
-      }
+  const translateX = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [disabled ? 18 : distance, 0],
+  })
 
   return (
     <Animated.View
       pointerEvents={isLocked ? 'none' : 'auto'}
       renderToHardwareTextureAndroid={isLocked}
       shouldRasterizeIOS={isLocked}
-      style={[styles.screen, motionStyle]}
+      style={[styles.screen, { transform: [{ translateX }] }]}
     >
       {children}
     </Animated.View>

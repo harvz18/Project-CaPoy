@@ -15,6 +15,7 @@ import type { MerchantHomeTab } from './16-MerchantHome'
 
 interface ProviderServicesScreenProps {
   hasDraft?: boolean
+  showBottomNavigation?: boolean
   deletingServiceId?: string
   updatingAvailabilityServiceId?: string
   services?: MerchantServiceListing[]
@@ -49,6 +50,7 @@ const formatApprovalStatus = (status: string) => {
 
 export const ProviderServicesScreen: React.FC<ProviderServicesScreenProps> = ({
   hasDraft = false,
+  showBottomNavigation = true,
   deletingServiceId = '',
   updatingAvailabilityServiceId = '',
   services = [],
@@ -282,7 +284,7 @@ export const ProviderServicesScreen: React.FC<ProviderServicesScreenProps> = ({
         )}
       </ScrollView>
 
-      {!isWide ? (
+      {showBottomNavigation && !isWide ? (
         <MerchantBottomNavigation activeTab="services" onSelectTab={onSelectTab} />
       ) : null}
 

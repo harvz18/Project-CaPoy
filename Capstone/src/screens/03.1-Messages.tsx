@@ -37,6 +37,7 @@ interface MessagesScreenProps {
   conversations?: ClientConversation[]
   hasUnreadNotifications?: boolean
   initialFilter?: ClientConversationFilter
+  showBottomNavigation?: boolean
   onMarkRead?: (conversation: ClientConversation) => void
   onNewMessage?: () => void
   onOpenNotifications?: () => void
@@ -174,6 +175,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
   hasUnreadNotifications = false,
   initialFilter = 'all',
   navigationVariant = 'client',
+  showBottomNavigation = true,
   onMarkRead,
   onNewMessage,
   onOpenNotifications,
@@ -399,7 +401,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
         )}
       </ScrollView>
 
-      {navigationVariant === 'client' ? null : (
+      {navigationVariant === 'client' || !showBottomNavigation ? null : (
         <View style={styles.bottomNavigation}>
           <View style={[styles.bottomNavigationContent, isWide && styles.horizontalPaddingWide]}>
             {navigationTabs.map((tab) => {
