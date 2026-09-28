@@ -161,6 +161,7 @@ function TableScreen({ section, copy }: { section: LegacyTableSection; copy: typ
   const [filter, setFilter] = useState('all')
   const [busyId, setBusyId] = useState('')
   const [notice, setNotice] = useState('')
+  const [bulkRetry, setBulkRetry] = useState<{ completed: number; total: number } | null>(null)
   const [confirmation, setConfirmation] = useState<ConfirmationAction | null>(null)
   const [selectedProvider, setSelectedProvider] = useState<Row | null>(null)
 
@@ -236,7 +237,10 @@ function TableScreen({ section, copy }: { section: LegacyTableSection; copy: typ
         || (section === 'providers' && String(row.verification_status) === filter)
         || (section === 'bookings' && String(row.status) === filter)
         || (section === 'payments' && paymentDisplayStatus(row) === filter)
-        || (section === 'reviews' && String(row.analysis_status || 'not_requested') === filter)
+        || (section === 'reviews' && (
+          String(row.analysis_status || 'not_requested') === filter
+          || (['positive', 'negative'].includes(filter) && String(row.sentiment_label) === filter)
+        ))
       return matchesSearch && matchesFilter
     })
   }, [filter, rows, search, section])
@@ -250,44 +254,102 @@ function TableScreen({ section, copy }: { section: LegacyTableSection; copy: typ
         : section === 'payments'
           ? [['all', 'All'], ['fully_paid', 'Fully paid'], ['deposit_paid', '30% paid']]
           : section === 'reviews'
-            ? [['all', 'All'], ['failed', 'Needs retry'], ['pending', 'Waiting'], ['processing', 'Analyzing'], ['processed', 'Analyzed'], ['not_requested', 'Rating only']]
+            ? [['all', 'All'], ['positive', 'Positive'], ['negative', 'Negative'], ['failed', 'Needs retry'], ['pending', 'Waiting'], ['processing', 'Analyzing'], ['processed', 'Analyzed'], ['not_requested', 'Rating only']]
             : []
 
-  async function retryAnalysis(row: Row) {
+  const retryableRows = useMemo(
+    () => section === 'reviews' ? rows.filter(isAnalysisRetryable) : [],
+    [rows, section],
+  )
+
+  async function invokeAnalysis(row: Row) {
     const supabase = getSupabase()
-    if (!supabase || !isAnalysisRetryable(row)) return
+    if (!supabase) return { error: 'Supabase is not configured.', status: '' }
+
+    const isEventFeedback = row.analysis_kind === 'event_feedback'
+    try {
+      const { data, error: actionError } = await supabase.functions.invoke(
+        isEventFeedback ? 'analyze-feedback' : 'analyze-review',
+        { body: isEventFeedback ? { feedbackId: row.id } : { reviewId: row.id } },
+      )
+
+      if (actionError) {
+        let message = actionError.message
+        const context = (actionError as { context?: Response }).context
+        if (context) {
+          try {
+            const payload = await context.clone().json() as { error?: unknown }
+            if (typeof payload.error === 'string') message = payload.error
+          } catch {
+            // Keep the standard functions error when no JSON body is available.
+          }
+        }
+        return { error: message, status: 'failed' }
+      }
+
+      return { error: '', status: String(data?.status || 'processed') }
+    } catch (invokeError) {
+      return {
+        error: invokeError instanceof Error ? invokeError.message : 'Unexpected analysis failure.',
+        status: 'failed',
+      }
+    }
+  }
+
+  async function retryAnalysis(row: Row) {
+    if (!isAnalysisRetryable(row) || bulkRetry) return
 
     const rowKey = `${String(row.analysis_kind)}:${String(row.id)}`
-    const isEventFeedback = row.analysis_kind === 'event_feedback'
     setBusyId(rowKey)
     setError('')
     setNotice('')
 
-    const { data, error: actionError } = await supabase.functions.invoke(
-      isEventFeedback ? 'analyze-feedback' : 'analyze-review',
-      { body: isEventFeedback ? { feedbackId: row.id } : { reviewId: row.id } },
-    )
-
-    if (actionError) {
-      let message = actionError.message
-      const context = (actionError as { context?: Response }).context
-      if (context) {
-        try {
-          const payload = await context.clone().json() as { error?: unknown }
-          if (typeof payload.error === 'string') message = payload.error
-        } catch {
-          // Keep the standard functions error when no JSON body is available.
-        }
-      }
-      await loadRows()
-      setError(`Analysis retry failed: ${message}`)
+    const result = await invokeAnalysis(row)
+    await loadRows()
+    if (result.error) {
+      setError(`Analysis retry failed: ${result.error}`)
     } else {
-      await loadRows()
-      setNotice(data?.status === 'processing'
+      setNotice(result.status === 'processing'
         ? 'The feedback is already being analyzed. Its status will update when processing finishes.'
         : 'Sentiment analysis completed successfully.')
     }
     setBusyId('')
+  }
+
+  async function retryAllAnalysis() {
+    if (bulkRetry || retryableRows.length === 0) return
+
+    const targets = [...retryableRows]
+    let completed = 0
+    let failed = 0
+    let firstFailure = ''
+    setBusyId('')
+    setError('')
+    setNotice('')
+    setBulkRetry({ completed: 0, total: targets.length })
+
+    // Small batches avoid overwhelming the model service or duplicating work.
+    for (let index = 0; index < targets.length; index += 3) {
+      const results = await Promise.all(targets.slice(index, index + 3).map(invokeAnalysis))
+      for (const result of results) {
+        completed += 1
+        if (result.error) {
+          failed += 1
+          firstFailure ||= result.error
+        }
+      }
+      setBulkRetry({ completed, total: targets.length })
+    }
+
+    await loadRows()
+    const succeeded = targets.length - failed
+    if (succeeded > 0) {
+      setNotice(`${succeeded} feedback ${succeeded === 1 ? 'item was' : 'items were'} analyzed successfully.`)
+    }
+    if (failed > 0) {
+      setError(`${failed} of ${targets.length} retries failed. ${firstFailure}`)
+    }
+    setBulkRetry(null)
   }
 
   async function moderate(id: string, action: string) {
@@ -319,7 +381,10 @@ function TableScreen({ section, copy }: { section: LegacyTableSection; copy: typ
     <div className="screen-stack">
       <section className="page-heading page-heading--with-action">
         <div><span className="eyebrow">{copy.eyebrow}</span><h1>{copy.title}</h1><p>{copy.description}</p></div>
-        <button className="secondary-button" onClick={() => void loadRows()}><MdiIcon path={mdiRefresh} /> Refresh</button>
+        <div className="heading-actions">
+          {section === 'reviews' && can('reviews.analysis.retry') && <button className="primary-button" disabled={Boolean(bulkRetry) || retryableRows.length === 0} onClick={() => void retryAllAnalysis()}><MdiIcon path={mdiRefresh} />{bulkRetry ? `Retrying ${bulkRetry.completed}/${bulkRetry.total}` : `Retry all${retryableRows.length > 0 ? ` (${retryableRows.length})` : ''}`}</button>}
+          <button className="secondary-button" disabled={Boolean(bulkRetry)} onClick={() => void loadRows()}><MdiIcon path={mdiRefresh} /> Refresh</button>
+        </div>
       </section>
 
       <section className="panel data-panel">
@@ -339,7 +404,7 @@ function TableScreen({ section, copy }: { section: LegacyTableSection; copy: typ
                   {columns[section].map((column) => <td key={column.key} data-label={column.label}>{column.render ? column.render(row) : String(row[column.key] ?? '—')}</td>)}
                   {section === 'users' && can('users.update') && <td className="row-actions">{canManageUser(row) && <button disabled={busyId === row.id} title="Manage account status" onClick={() => setConfirmation({ id: String(row.id), action: String(row.account_status), currentStatus: String(row.account_status), name: String(row.full_name || row.email || 'this user'), kind: 'user', reason: '' })}><MdiIcon path={mdiDotsHorizontal} /></button>}</td>}
                   {section === 'providers' && can('providers.review') && <td className="row-actions"><button className="review-button" disabled={busyId === row.id} title="Inspect provider application" onClick={() => setSelectedProvider(row)}><MdiIcon path={mdiEyeOutline} /> Review</button></td>}
-                  {section === 'reviews' && can('reviews.analysis.retry') && <td className="row-actions">{isAnalysisRetryable(row) ? <button className="sentiment-retry-button" disabled={busyId === `${String(row.analysis_kind)}:${String(row.id)}`} title="Retry sentiment analysis" onClick={() => void retryAnalysis(row)}><MdiIcon path={mdiRefresh} />{busyId === `${String(row.analysis_kind)}:${String(row.id)}` ? 'Retrying…' : 'Retry'}</button> : <span className="table-muted">—</span>}</td>}
+                  {section === 'reviews' && can('reviews.analysis.retry') && <td className="row-actions">{isAnalysisRetryable(row) ? <button className="sentiment-retry-button" disabled={Boolean(bulkRetry) || busyId === `${String(row.analysis_kind)}:${String(row.id)}`} title="Retry sentiment analysis" onClick={() => void retryAnalysis(row)}><MdiIcon path={mdiRefresh} />{busyId === `${String(row.analysis_kind)}:${String(row.id)}` ? 'Retrying…' : 'Retry'}</button> : <span className="table-muted">—</span>}</td>}
                 </tr>
               ))}</tbody>
             </table>
