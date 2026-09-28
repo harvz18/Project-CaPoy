@@ -265,6 +265,12 @@ a { color: inherit; text-decoration: none; }
 .heading-actions { display: flex; align-items: center; gap: 9px; }
 .queue-count { display: inline-flex; min-height: 38px; align-items: center; gap: 8px; padding: 0 12px; color: var(--amber); border: 1px solid #ead9c3; border-radius: 10px; background: var(--amber-bg); font-size: 9px; font-weight: 600; }
 .queue-count i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.approval-type-tabs { display: flex; gap: 6px; padding: 12px 18px 0; border-bottom: 1px solid #eee7e9; }
+.approval-type-tabs button { display: inline-flex; min-height: 42px; align-items: center; gap: 8px; padding: 0 15px; color: var(--muted); border: 0; border-bottom: 3px solid transparent; background: transparent; font-size: 10px; font-weight: 700; }
+.approval-type-tabs button.active { color: var(--wine-700); border-bottom-color: var(--wine-700); }
+.approval-type-tabs button span { display: inline-grid; min-width: 20px; height: 20px; place-items: center; padding: 0 5px; border-radius: 999px; background: #f2eff0; font-size: 8px; }
+.approval-type-tabs button.active span { color: white; background: var(--wine-600); }
+.approval-type-tabs button:focus-visible { outline: 2px solid var(--wine-600); outline-offset: -2px; }
 .service-toolbar { align-items: center; }
 .segmented-filter { display: inline-flex !important; max-width: 100%; overflow-x: auto; gap: 3px !important; padding: 3px; border-radius: 10px; background: #f2eff0; scrollbar-width: thin; }
 .segmented-filter button { min-height: 32px; padding: 0 11px; color: var(--muted); border: 0; border-radius: 8px; background: transparent; font-size: 9px; font-weight: 600; }
@@ -274,6 +280,7 @@ a { color: inherit; text-decoration: none; }
 .service-review-row { display: grid; grid-template-columns: 74px minmax(230px, 1fr) 140px 118px; align-items: center; gap: 16px; padding: 15px 0; border-bottom: 1px solid #f0eced; }
 .service-review-row:last-child { border-bottom: 0; }
 .service-review-image { display: grid; width: 74px; height: 58px; place-items: center; color: var(--wine-600); border-radius: 10px; background-color: var(--wine-100); background-position: center; background-size: cover; font-family: Georgia, serif; font-size: 20px; }
+.service-review-image--package svg { width: 25px; height: 25px; }
 .service-review-row__main { min-width: 0; }
 .service-review-row__main > div { display: flex; align-items: center; gap: 9px; }
 .service-review-row__main > div > strong { overflow: hidden; color: #3e3538; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }

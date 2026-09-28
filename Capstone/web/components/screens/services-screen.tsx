@@ -190,7 +190,7 @@ export function ServicesScreen() {
         || actionError.message.toLowerCase().includes('admin_review_service')
           && actionError.message.toLowerCase().includes('schema cache')
       setError(moderationFunctionMissing
-        ? 'Service moderation is not installed in this database. Apply migrations 21 through 48, then refresh the page.'
+        ? 'Listing moderation is not installed in this database. Apply migrations through 50, then refresh the page.'
         : actionError.message)
       setDecision(null)
       return
@@ -215,9 +215,9 @@ export function ServicesScreen() {
           <button type="button" role="tab" aria-selected={collection === 'packages'} className={collection === 'packages' ? 'active' : ''} onClick={() => setCollection('packages')}>Packages <span>{packages.length}</span></button>
         </div>
         <div className="table-toolbar service-toolbar">
-          <label className="search-box"><MdiIcon path={mdiMagnify} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search services or providers…" /></label>
+          <label className="search-box"><MdiIcon path={mdiMagnify} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`Search ${collection} or providers…`} /></label>
           <SegmentedFilter
-            ariaLabel="Filter services by status"
+            ariaLabel={`Filter ${collection} by status`}
             value={status}
             onChange={setStatus}
             options={[["all", "All"], ["pending_review", "For review"], ["active", "Approved"], ["rejected", "Declined"]]}
@@ -294,7 +294,7 @@ export function ServicesScreen() {
                   : `${selected.name} will immediately become visible and bookable by clients.`
               : `${selectedPackage?.name || selected.name} will remain hidden. The provider will receive your feedback.`}</p>
             <label className="decision-note"><span>{decision === 'approved' ? 'Note to provider (optional)' : 'Reason for declining'}</span><textarea autoFocus={decision === 'declined'} value={note} onChange={(event) => setNote(event.target.value)} placeholder={decision === 'declined' ? 'Explain what needs to be corrected before resubmission…' : 'Add a short approval note…'} /></label>
-            <div className="confirmation-dialog__actions"><button className="secondary-button" disabled={submitting} onClick={() => setDecision(null)}>Cancel</button><button className={decision === 'approved' ? 'confirm-button confirm-button--approve' : 'confirm-button confirm-button--decline'} disabled={submitting || (decision === 'declined' && !note.trim())} onClick={() => void submitDecision()}>{submitting ? 'Saving decision…' : decision === 'approved' ? 'Yes, approve service' : 'Yes, decline service'}</button></div>
+            <div className="confirmation-dialog__actions"><button className="secondary-button" disabled={submitting} onClick={() => setDecision(null)}>Cancel</button><button className={decision === 'approved' ? 'confirm-button confirm-button--approve' : 'confirm-button confirm-button--decline'} disabled={submitting || (decision === 'declined' && !note.trim())} onClick={() => void submitDecision()}>{submitting ? 'Saving decision…' : decision === 'approved' ? `Yes, approve ${selectedPackage ? 'package' : 'service'}` : `Yes, decline ${selectedPackage ? 'package' : 'service'}`}</button></div>
           </section>
         </div>
       )}
@@ -302,10 +302,11 @@ export function ServicesScreen() {
   )
 }
 
-function ServiceDetailModal({ service, canApprove, canReject, onClose, onDecision }: { service: Service; canApprove: boolean; canReject: boolean; onClose: () => void; onDecision: (decision: Decision) => void }) {
+function ServiceDetailModal({ service, canApprove, canReject, reviewTarget, selectedPackageId, onClose, onDecision }: { service: Service; canApprove: boolean; canReject: boolean; reviewTarget: 'service' | 'package'; selectedPackageId?: string; onClose: () => void; onDecision: (decision: Decision) => void }) {
   const provider = nestedRecord(service.provider_profiles)
   const category = nestedRecord(service.service_categories)
-  const packages = service.service_packages || []
+  const packages = (service.service_packages || []).filter((item) => !item.is_deleted)
+  const focusedPackage = packages.find((item) => item.id === selectedPackageId)
   const gallery = Array.isArray(service.gallery_urls) ? service.gallery_urls.filter((item): item is string => typeof item === 'string') : []
   const canReview = service.status === 'pending_review' || service.status === 'rejected'
   const changes = buildServiceChanges(service)
@@ -313,14 +314,14 @@ function ServiceDetailModal({ service, canApprove, canReject, onClose, onDecisio
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
       <section className="service-detail-modal" role="dialog" aria-modal="true" aria-labelledby="service-detail-title">
-        <header><button onClick={onClose} aria-label="Close service details"><MdiIcon path={mdiArrowLeft} /></button><div><span className="eyebrow">SERVICE REVIEW</span><h2 id="service-detail-title">{service.name}</h2></div><StatusBadge value={service.status} /></header>
+        <header><button onClick={onClose} aria-label="Close listing details"><MdiIcon path={mdiArrowLeft} /></button><div><span className="eyebrow">{reviewTarget === 'package' ? 'PACKAGE REVIEW' : 'SERVICE REVIEW'}</span><h2 id="service-detail-title">{focusedPackage?.name || service.name}</h2></div><StatusBadge value={service.status} /></header>
         <div className="service-detail-modal__body">
           <section className={`revision-summary revision-summary--${service.submission_kind}`}>
             <div className="revision-summary__heading">
               <SubmissionBadge kind={service.submission_kind} />
               <div>
-                <strong>{service.submission_kind === 'updated' ? 'Updated service submission' : 'New service submission'}</strong>
-                <p>{service.submission_kind === 'updated' ? 'Compare these changes with the last approved version before deciding.' : 'This listing has not been approved before.'}</p>
+                <strong>{service.submission_kind === 'updated' ? `Updated ${reviewTarget} submission` : `New ${reviewTarget} submission`}</strong>
+                <p>{service.submission_kind === 'updated' ? 'Compare these changes with the last approved version before deciding.' : `This ${reviewTarget} has not been approved before.`}</p>
               </div>
             </div>
             {service.submission_kind === 'updated' && (
@@ -363,7 +364,7 @@ function ServiceDetailModal({ service, canApprove, canReject, onClose, onDecisio
             </aside>
           </div>
         </div>
-        <footer><button className="secondary-button" onClick={onClose}>Close</button>{canReview && (canApprove || canReject) && <div>{canReject && <button className="decline-button" onClick={() => onDecision('declined')}><MdiIcon path={mdiClose} /> Decline</button>}{canApprove && <button className="approve-button" onClick={() => onDecision('approved')}><MdiIcon path={mdiCheck} /> Approve service</button>}</div>}</footer>
+        <footer><button className="secondary-button" onClick={onClose}>Close</button>{canReview && (canApprove || canReject) && <div>{canReject && <button className="decline-button" onClick={() => onDecision('declined')}><MdiIcon path={mdiClose} /> Decline</button>}{canApprove && <button className="approve-button" onClick={() => onDecision('approved')}><MdiIcon path={mdiCheck} /> Approve {reviewTarget}</button>}</div>}</footer>
       </section>
     </div>
   )
