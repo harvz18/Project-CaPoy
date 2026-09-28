@@ -149,7 +149,12 @@ import { BudgetTrackerScreen } from './screens/04.1-BudgetTracker'
 import { CategoryBrowseScreen } from './screens/06-CategoryBrowse'
 import { CoordinatorDetailsScreen } from './screens/06.1-CoordinatorDetails'
 import { ServiceDetailsScreen } from './screens/08-ServiceDetails'
-import { emptyCategoryDetails, normalizeCategoryDetails } from './lib/service-category-details'
+import {
+  emptyCategoryDetails,
+  isLegacyCategoryDetails,
+  normalizeCategoryDetails,
+  validateCategoryDetails,
+} from './lib/service-category-details'
 import {
   AssignedCoordinatorSummary,
   SelectedSummaryScreen,
@@ -1864,6 +1869,18 @@ export const App: React.FC = () => {
     value: ServiceListingReviewValue,
     status: 'draft' | 'active'
   ) => {
+    const shouldValidateCategoryDetails =
+      !editingMerchantServiceId || !isLegacyCategoryDetails(value.information.categoryDetails)
+    const categoryErrors = status === 'active' && shouldValidateCategoryDetails
+      ? validateCategoryDetails(value.information.category, value.information.categoryDetails)
+      : []
+
+    if (categoryErrors.length > 0) {
+      setToastMessage(categoryErrors[0])
+      setScreen('providerServiceInfo')
+      return
+    }
+
     if (!supabase) {
       setToastMessage('Supabase is not configured. Check the app environment settings.')
       return

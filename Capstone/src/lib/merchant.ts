@@ -1,6 +1,11 @@
 import { supabase, supabaseConfig } from './supabase'
 import type { CateringServiceType } from './catalog'
-import { normalizeCategoryDetails } from './service-category-details'
+import {
+  categoryDetailsForStorage,
+  isLegacyCategoryDetails,
+  normalizeCategoryDetails,
+  type ServiceCategoryDetails,
+} from './service-category-details'
 import type {
   AvailabilityCalendarValue,
   BookingItem,
@@ -565,7 +570,7 @@ export const saveMerchantServiceListing = async (
     }
     const detailedServicePayload = {
       ...servicePayload,
-      category_details: normalizeCategoryDetails(
+      category_details: categoryDetailsForStorage(
         value.information.category,
         value.information.categoryDetails
       ),
@@ -840,10 +845,12 @@ export const loadMerchantServiceForEditing = async (
   return {
     information: {
       category: textFrom(category?.name, 'Service'),
-      categoryDetails: normalizeCategoryDetails(
-        textFrom(category?.name, 'Service'),
-        record.category_details
-      ),
+      categoryDetails: isLegacyCategoryDetails(record.category_details)
+        ? {} as ServiceCategoryDetails
+        : normalizeCategoryDetails(
+            textFrom(category?.name, 'Service'),
+            record.category_details
+          ),
       categoryId: textFrom(record.category_id),
       description: textFrom(record.description),
       photos: Array.from(new Set([coverImage, ...gallery].filter(Boolean))),

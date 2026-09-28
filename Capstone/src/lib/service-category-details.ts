@@ -70,6 +70,15 @@ export const hasEnteredCategoryDetails = (value: unknown) => {
   })
 }
 
+export const isLegacyCategoryDetails = (value: unknown) =>
+  Object.keys(asObject(value)).length === 0
+
+export const categoryDetailsForStorage = (
+  categoryName: string,
+  value: unknown
+): Record<string, unknown> =>
+  isLegacyCategoryDetails(value) ? {} : normalizeCategoryDetails(categoryName, value)
+
 const requirePositive = (errors: string[], value: unknown, message: string, minimum = 0) => {
   if (number(value) <= minimum) errors.push(message)
 }

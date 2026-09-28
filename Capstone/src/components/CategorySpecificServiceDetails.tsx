@@ -210,6 +210,7 @@ const TagField = ({ label, onChange, options = [], value }: {
   value: unknown
 }) => {
   const selected = asList(value)
+  const customSelected = selected.filter((item) => !options.includes(item))
   const [draft, setDraft] = React.useState('')
   const add = () => {
     const item = draft.trim()
@@ -234,7 +235,7 @@ const TagField = ({ label, onChange, options = [], value }: {
         />
         <Pressable onPress={add} style={styles.smallButton}><Text style={styles.smallButtonText}>Add</Text></Pressable>
       </View>
-      {selected.length ? <View style={styles.selectedTags}>{selected.map((item) => <Pressable accessibilityLabel={`Remove ${item}`} key={item} onPress={() => onChange(selected.filter((value) => value !== item))} style={styles.selectedTag}><Text style={styles.selectedTagText}>{item}  ×</Text></Pressable>)}</View> : null}
+      {customSelected.length ? <View style={styles.selectedTags}>{customSelected.map((item) => <Pressable accessibilityLabel={`Remove ${item}`} key={item} onPress={() => onChange(selected.filter((value) => value !== item))} style={styles.selectedTag}><Text style={styles.selectedTagText}>{item}  ×</Text></Pressable>)}</View> : null}
     </Field>
   )
 }
@@ -500,7 +501,7 @@ const styles = StyleSheet.create({
   sectionHeading: { gap: 4 },
   sectionTitle: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: '800', letterSpacing: 1 },
   sectionDescription: { color: palette.secondary, fontSize: 12, lineHeight: 18 },
-  field: { minWidth: 0, flex: 1, gap: 7 },
+  field: { width: '100%', minWidth: 0, flexShrink: 0, gap: 7 },
   label: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '600' },
   helper: { color: palette.secondary, fontSize: 11, lineHeight: 16 },
   input: { minHeight: 46, borderWidth: 1, borderColor: palette.border, borderRadius: 8, backgroundColor: palette.input, color: palette.text, fontSize: 14, paddingHorizontal: 13, paddingVertical: 10 },
@@ -534,7 +535,7 @@ const styles = StyleSheet.create({
   addButtonText: { color: palette.primary, fontSize: 13, fontWeight: '700' },
   removeButton: { alignSelf: 'flex-start', paddingVertical: 5 },
   removeText: { color: palette.error, fontSize: 12, fontWeight: '700' },
-  twoColumns: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  twoColumns: { width: '100%', gap: 12 },
   disabled: { opacity: 0.45 },
   integrationNote: { color: palette.secondary, fontSize: 12, lineHeight: 18, borderRadius: 8, backgroundColor: palette.primarySoft, padding: 12 },
   errorCard: { gap: 4, borderWidth: 1, borderColor: '#F2B8BE', borderRadius: 10, backgroundColor: palette.errorBackground, padding: 12 },
