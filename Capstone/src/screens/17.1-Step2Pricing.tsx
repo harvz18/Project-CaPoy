@@ -178,14 +178,14 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
             </Pressable>
 
             <View style={styles.progressBlock}>
-              <Text style={styles.stepCaption}>Step 2 of 3</Text>
+              <Text style={styles.stepCaption}>Step 2 of 2</Text>
               <View
-                accessibilityLabel="Step 2 of 3"
+                accessibilityLabel="Step 2 of 2"
                 accessibilityRole="progressbar"
-                accessibilityValue={{ max: 3, min: 1, now: 2 }}
+                accessibilityValue={{ max: 2, min: 1, now: 2 }}
                 style={styles.progressRow}
               >
-                {[0, 1, 2].map((step) => (
+                {[0, 1].map((step) => (
                   <View
                     key={step}
                     style={[
@@ -410,12 +410,12 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
 
       <View style={[styles.footer, isWide && styles.wideHorizontalPadding]}>
         <Pressable
-          accessibilityLabel="Continue to availability"
+          accessibilityLabel="Review service"
           accessibilityRole="button"
           onPress={handleNext}
           style={({ pressed }) => [styles.nextButton, pressed && styles.nextButtonPressed]}
         >
-          <Text style={styles.nextButtonText}>Next</Text>
+          <Text style={styles.nextButtonText}>Review Service</Text>
         </Pressable>
       </View>
     </KeyboardAvoidingView>

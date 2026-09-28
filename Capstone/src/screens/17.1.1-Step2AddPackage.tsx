@@ -3,6 +3,7 @@ import React from 'react'
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -34,6 +35,7 @@ export interface ServicePackageValue {
 export type PackageDiscountType = 'none' | 'percentage' | 'fixed'
 
 export interface PackageServiceOption {
+  categoryName?: string
   id: string
   name: string
   price: number
@@ -44,10 +46,12 @@ interface Step2AddPackageScreenProps {
   availableServices?: PackageServiceOption[]
   commissionRate?: number
   initialValue?: Partial<ServicePackageValue>
+  isDeleting?: boolean
   isSaving?: boolean
   maxInclusions?: number
   mode?: 'listing' | 'standalone'
   onBack?: (draft?: ServicePackageValue) => void
+  onDelete?: () => void
   onSave?: (value: ServicePackageValue) => void
   onSkip?: () => void
   requiredServiceId?: string
@@ -83,10 +87,12 @@ export const Step2AddPackageScreen: React.FC<Step2AddPackageScreenProps> = ({
   availableServices = [],
   commissionRate = 0.1,
   initialValue,
+  isDeleting = false,
   isSaving = false,
   maxInclusions = 10,
   mode = 'listing',
   onBack,
+  onDelete,
   onSave,
   onSkip,
   requiredServiceId,
@@ -120,14 +126,13 @@ export const Step2AddPackageScreen: React.FC<Step2AddPackageScreenProps> = ({
     return initialInclusions?.length ? initialInclusions : ['']
   })
   const [submitted, setSubmitted] = React.useState(false)
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = React.useState(false)
 
   const normalizedName = name.trim()
   const selectedServices = selectedServiceIds.flatMap((serviceId) => {
     const service = availableServices.find((option) => option.id === serviceId)
     return service ? [service] : []
   })
-  const unit = selectedServices[0]?.unit ?? initialValue?.unit ?? 'event'
-  const hasMixedUnits = selectedServices.some((service) => service.unit !== unit)
   const subtotal = selectedServices.reduce((sum, service) => sum + service.price, 0)
   const discountValue = discountType === 'none' ? 0 : parseAmount(discountInput)
   const discountAmount = discountType === 'percentage'
@@ -189,7 +194,6 @@ export const Step2AddPackageScreen: React.FC<Step2AddPackageScreenProps> = ({
       isSaving
       || !normalizedName
       || selectedServices.length === 0
-      || hasMixedUnits
       || price <= 0
       || isDiscountInvalid
     ) return
@@ -208,12 +212,12 @@ export const Step2AddPackageScreen: React.FC<Step2AddPackageScreenProps> = ({
       serviceIds: selectedServices.map((service) => service.id),
       services: selectedServices,
       subtotal,
-      unit,
+      unit: 'event',
     })
   }
 
   const buildDraft = (): ServicePackageValue | undefined => {
-    if (!normalizedName || selectedServices.length === 0 || hasMixedUnits || price <= 0) {
+    if (!normalizedName || selectedServices.length === 0 || price <= 0) {
       return undefined
     }
 
@@ -231,7 +235,7 @@ export const Step2AddPackageScreen: React.FC<Step2AddPackageScreenProps> = ({
       serviceIds: selectedServices.map((service) => service.id),
       services: selectedServices,
       subtotal,
-      unit,
+      unit: 'event',
     }
   }
 
@@ -346,26 +350,25 @@ export const Step2AddPackageScreen: React.FC<Step2AddPackageScreenProps> = ({
               <Text style={styles.characterCount}>{selectedServices.length} selected</Text>
             </View>
             <Text style={styles.helperText}>
-              Only your services with a set price are shown. Services must use the same charging unit.
+              Your approved, priced services from every category are available. The completed
+              bundle is offered at one fixed price per event.
               {mode === 'standalone' ? ' Your first selection becomes the package\'s primary listing.' : ''}
             </Text>
             <View style={[styles.serviceList, servicesMissing && styles.serviceListError]}>
               {availableServices.length > 0 ? availableServices.map((service) => {
                 const selected = selectedServiceIds.includes(service.id)
                 const required = service.id === requiredServiceId
-                const incompatible = selectedServices.length > 0 && service.unit !== unit && !selected
 
                 return (
                   <Pressable
                     key={service.id}
                     accessibilityRole="checkbox"
-                    accessibilityState={{ checked: selected, disabled: required || incompatible }}
-                    disabled={required || incompatible}
+                    accessibilityState={{ checked: selected, disabled: required }}
+                    disabled={required}
                     onPress={() => toggleService(service.id)}
                     style={({ pressed }) => [
                       styles.serviceOption,
                       selected && styles.serviceOptionSelected,
-                      incompatible && styles.serviceOptionDisabled,
                       pressed && styles.serviceOptionPressed,
                     ]}
                   >
@@ -375,6 +378,7 @@ export const Step2AddPackageScreen: React.FC<Step2AddPackageScreenProps> = ({
                     <View style={styles.serviceCopy}>
                       <Text style={styles.serviceName}>{service.name}</Text>
                       <Text style={styles.serviceMeta}>
+                        {service.categoryName ? `${service.categoryName} · ` : ''}
                         {money(service.price)} per {unitLabel(service.unit)}{required ? ' · Required' : ''}
                       </Text>
                     </View>
@@ -389,11 +393,6 @@ export const Step2AddPackageScreen: React.FC<Step2AddPackageScreenProps> = ({
             </View>
             {servicesMissing ? (
               <Text accessibilityRole="alert" style={styles.errorText}>Select at least one service.</Text>
-            ) : null}
-            {hasMixedUnits ? (
-              <Text accessibilityRole="alert" style={styles.errorText}>
-                Selected services must use the same charging unit.
-              </Text>
             ) : null}
           </View>
 
@@ -562,6 +561,24 @@ export const Step2AddPackageScreen: React.FC<Step2AddPackageScreenProps> = ({
 
       <View style={[styles.footer, isWide && styles.wideHorizontalPadding]}>
         <View style={styles.footerContent}>
+          {isEditing && onDelete ? (
+            <Pressable
+              accessibilityLabel="Delete this package"
+              accessibilityRole="button"
+              accessibilityState={{ disabled: isDeleting || isSaving }}
+              disabled={isDeleting || isSaving}
+              onPress={() => setShowDeleteConfirmation(true)}
+              style={({ pressed }) => [
+                styles.deletePackageButton,
+                (isDeleting || isSaving) && styles.saveButtonDisabled,
+                pressed && styles.cancelButtonPressed,
+              ]}
+            >
+              <Text style={styles.deletePackageButtonText}>
+                {isDeleting ? 'Deleting...' : 'Delete'}
+              </Text>
+            </Pressable>
+          ) : null}
           <Pressable
             accessibilityLabel="Cancel package changes"
             accessibilityRole="button"
@@ -589,6 +606,43 @@ export const Step2AddPackageScreen: React.FC<Step2AddPackageScreenProps> = ({
           </Pressable>
         </View>
       </View>
+
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setShowDeleteConfirmation(false)}
+        transparent
+        visible={showDeleteConfirmation}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.confirmationCard}>
+            <Text style={styles.confirmationTitle}>Delete this package?</Text>
+            <Text style={styles.confirmationCopy}>
+              {normalizedName || 'This package'} will move to Deleted and immediately disappear from client listings. Existing booking records will stay intact.
+            </Text>
+            <View style={styles.confirmationActions}>
+              <Pressable
+                accessibilityRole="button"
+                disabled={isDeleting}
+                onPress={() => setShowDeleteConfirmation(false)}
+                style={({ pressed }) => [styles.confirmationCancel, pressed && styles.cancelButtonPressed]}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                disabled={isDeleting}
+                onPress={() => {
+                  setShowDeleteConfirmation(false)
+                  onDelete?.()
+                }}
+                style={({ pressed }) => [styles.confirmationDelete, pressed && styles.saveButtonPressed]}
+              >
+                <Text style={styles.confirmationDeleteText}>Delete package</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   )
 }
@@ -768,7 +822,6 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
   },
   serviceOptionSelected: { backgroundColor: palette.primaryPill },
-  serviceOptionDisabled: { opacity: 0.45 },
   serviceOptionPressed: { opacity: 0.72 },
   serviceCheck: {
     width: 22,
@@ -877,6 +930,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
   },
+  deletePackageButton: {
+    minHeight: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: palette.error,
+    borderRadius: 999,
+    paddingHorizontal: 18,
+  },
+  deletePackageButtonText: { color: palette.error, fontSize: 15, lineHeight: 22, fontWeight: '600' },
   cancelButton: {
     minWidth: 104,
     minHeight: 52,
@@ -916,5 +979,40 @@ const styles = StyleSheet.create({
   saveButtonDisabled: { opacity: 0.65 },
   saveButtonPressed: { opacity: 0.9, transform: [{ scale: 0.98 }] },
   saveButtonText: { color: palette.onPrimary, fontSize: 16, lineHeight: 24, fontWeight: '600' },
+  modalBackdrop: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(27, 28, 28, 0.48)',
+    padding: 20,
+  },
+  confirmationCard: {
+    width: '100%',
+    maxWidth: 440,
+    borderRadius: 18,
+    backgroundColor: palette.inputBackground,
+    padding: 22,
+  },
+  confirmationTitle: { color: palette.text, fontSize: 20, lineHeight: 26, fontWeight: '700' },
+  confirmationCopy: { color: palette.secondary, fontSize: 14, lineHeight: 21, marginTop: 8 },
+  confirmationActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 22 },
+  confirmationCancel: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: palette.primaryContainer,
+    borderRadius: 999,
+    paddingHorizontal: 18,
+  },
+  confirmationDelete: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 999,
+    backgroundColor: palette.error,
+    paddingHorizontal: 18,
+  },
+  confirmationDeleteText: { color: palette.onPrimary, fontSize: 14, lineHeight: 20, fontWeight: '700' },
   iconButtonPressed: { backgroundColor: palette.border, opacity: 0.72 },
 })

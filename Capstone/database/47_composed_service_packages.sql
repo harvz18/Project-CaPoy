@@ -147,7 +147,6 @@ declare
   host_provider_id uuid;
   item_count integer;
   invalid_count integer;
-  common_unit text;
   calculated_subtotal numeric(12,2);
   calculated_discount numeric(12,2);
   calculated_price numeric(12,2);
@@ -171,9 +170,8 @@ begin
         or service.base_price is null
         or service.base_price <= 0
     ),
-    min(coalesce(service.pricing_unit, 'event')),
     round(sum(service.base_price * item.quantity), 2)
-  into item_count, invalid_count, common_unit, calculated_subtotal
+  into item_count, invalid_count, calculated_subtotal
   from public.service_package_items item
   join public.services service on service.id = item.service_id
   where item.package_id = target_package_id;
@@ -184,16 +182,6 @@ begin
   if invalid_count > 0 then
     raise exception 'Packages can only contain your own services with a set price.';
   end if;
-  if exists (
-    select 1
-    from public.service_package_items item
-    join public.services service on service.id = item.service_id
-    where item.package_id = target_package_id
-      and coalesce(service.pricing_unit, 'event') is distinct from common_unit
-  ) then
-    raise exception 'All services in a package must use the same charging unit.';
-  end if;
-
   if package_row.discount_type = 'percentage' then
     if package_row.discount_value >= 100 then
       raise exception 'The percentage discount must be less than 100%%.';
@@ -222,7 +210,9 @@ begin
   set subtotal = calculated_subtotal,
       discount_amount = calculated_discount,
       price = calculated_price,
-      pricing_unit = common_unit,
+      -- A bundle may mix services from any category and charging unit. Its
+      -- calculated sum is sold once as a fixed package for the whole event.
+      pricing_unit = 'event',
       updated_at = now()
   where id = target_package_id;
 end;
@@ -253,7 +243,6 @@ declare
   normalized_discount_value numeric(12,2) := round(coalesce(package_discount_value, 0), 2);
   service_count integer;
   valid_service_count integer;
-  common_unit text;
   calculated_subtotal numeric(12,2);
   calculated_discount numeric(12,2);
   calculated_price numeric(12,2);
@@ -299,10 +288,9 @@ begin
         and service.base_price > 0
         and service.status <> 'deleted'
     ),
-    min(coalesce(service.pricing_unit, 'event')),
     round(sum(service.base_price), 2),
     (array_agg(service.id order by requested.position))[1]
-  into service_count, valid_service_count, common_unit, calculated_subtotal, host_service_id
+  into service_count, valid_service_count, calculated_subtotal, host_service_id
   from requested_services requested
   join public.services service on service.id = requested.service_id;
 
@@ -311,15 +299,6 @@ begin
   then
     raise exception 'Packages can only contain your own services with a set price.';
   end if;
-  if exists (
-    select 1
-    from unnest(target_service_ids) requested_service_id
-    join public.services service on service.id = requested_service_id
-    where coalesce(service.pricing_unit, 'event') is distinct from common_unit
-  ) then
-    raise exception 'All services in a package must use the same charging unit.';
-  end if;
-
   if normalized_discount_type = 'percentage' then
     if normalized_discount_value >= 100 then
       raise exception 'The percentage discount must be less than 100%%.';
@@ -358,7 +337,7 @@ begin
         name = trim(package_name),
         description = nullif(trim(package_description), ''),
         price = calculated_price,
-        pricing_unit = common_unit,
+        pricing_unit = 'event',
         inclusions = coalesce(package_inclusions, '[]'::jsonb),
         is_active = false,
         pricing_mode = 'composed',
@@ -376,7 +355,7 @@ begin
       pricing_mode, subtotal, discount_type, discount_value, discount_amount
     ) values (
       host_service_id, trim(package_name), nullif(trim(package_description), ''),
-      calculated_price, common_unit, coalesce(package_inclusions, '[]'::jsonb), false,
+      calculated_price, 'event', coalesce(package_inclusions, '[]'::jsonb), false,
       'composed', calculated_subtotal, normalized_discount_type,
       normalized_discount_value, calculated_discount
     ) returning id into saved_package_id;
@@ -444,7 +423,7 @@ begin
       perform public.recalculate_composed_service_package(affected_package.id);
     exception when others then
       -- A service-price edit must not strand the provider. If the edit makes a
-      -- composition invalid (for example mixed charging units), hide that
+      -- composition invalid (for example a missing component price), hide that
       -- package until the provider reconfigures and resubmits it.
       update public.service_packages
       set is_active = false,

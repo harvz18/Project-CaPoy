@@ -147,6 +147,7 @@ const getPackages = (value: unknown, commissionRate: number) => {
     if (!item || typeof item !== 'object') return []
 
     const record = item as Record<string, unknown>
+    if (record.is_deleted === true) return []
     const id = textFrom(record.id, '')
     const name = textFrom(record.name, '')
     const providerPrice = numberFrom(record.price, 0)
@@ -225,11 +226,11 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
   }
 
   const baseSelection =
-    'id, provider_id, category_id, name, description, base_price, location, cover_image_url, provider_profiles(id, business_name), service_categories(id, name), service_packages(id, name, description, price, inclusions), reviews(rating)'
+    'id, provider_id, category_id, name, description, base_price, location, cover_image_url, provider_profiles(id, business_name), service_categories(id, name), service_packages(id, name, description, price, inclusions, is_deleted), reviews(rating)'
   const detailedSelection =
-    'id, provider_id, category_id, name, description, base_price, location, cover_image_url, gallery_urls, pricing_model, pricing_unit, pricing_details, catering_service_types, provider_profiles(id, business_name), service_categories(id, name), service_packages(id, name, description, price, inclusions, pricing_unit, subtotal, discount_type, discount_value, discount_amount, service_package_items(position, services(name))), reviews(rating)'
+    'id, provider_id, category_id, name, description, base_price, location, cover_image_url, gallery_urls, pricing_model, pricing_unit, pricing_details, catering_service_types, provider_profiles(id, business_name), service_categories(id, name), service_packages(id, name, description, price, inclusions, pricing_unit, subtotal, discount_type, discount_value, discount_amount, is_deleted, service_package_items(position, services(name))), reviews(rating)'
 
-  const [detailedResult, commissionResult] = await Promise.all([
+  const [detailedResult, commissionResult, includedPackageResult] = await Promise.all([
     supabase
       .from('services')
       .select(detailedSelection)
@@ -237,11 +238,33 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
       .eq('is_available', true)
       .limit(1000),
     supabase.rpc('get_public_commission_rate'),
+    supabase
+      .from('service_package_items')
+      .select(
+        'service_id, service_packages(id, name, description, price, inclusions, pricing_unit, subtotal, discount_type, discount_value, discount_amount, is_deleted, service_package_items(position, services(name)))'
+      )
+      .limit(5000),
   ])
   const commissionRate = normalizeCommissionRate(
     commissionResult.data,
     DEFAULT_COMMISSION_RATE
   )
+  const includedPackagesByService = new Map<string, Array<Record<string, unknown>>>()
+
+  if (!includedPackageResult.error && Array.isArray(includedPackageResult.data)) {
+    includedPackageResult.data.forEach((entry) => {
+      const row = entry as unknown as Record<string, unknown>
+      const serviceId = textFrom(row.service_id, '')
+      const packageValue = Array.isArray(row.service_packages)
+        ? row.service_packages[0]
+        : row.service_packages
+
+      if (!serviceId || !packageValue || typeof packageValue !== 'object') return
+      const current = includedPackagesByService.get(serviceId) ?? []
+      current.push(packageValue as Record<string, unknown>)
+      includedPackagesByService.set(serviceId, current)
+    })
+  }
 
   const fallbackResult = detailedResult.error
     ? await supabase
@@ -264,7 +287,19 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
     const categoryName = getNestedText(record.service_categories, 'name', 'Catering')
     const providerName = getNestedText(record.provider_profiles, 'business_name', 'Provider')
     const name = textFrom(record.name, providerName)
-    const packages = getPackages(record.service_packages, commissionRate)
+    const serviceId = textFrom(record.id, `service-${index}`)
+    const directlyOwnedPackages = Array.isArray(record.service_packages)
+      ? record.service_packages as Array<Record<string, unknown>>
+      : []
+    const packageRows = [
+      ...directlyOwnedPackages,
+      ...(includedPackagesByService.get(serviceId) ?? []),
+    ].filter((item, itemIndex, items) => {
+      const packageId = textFrom(item.id, '')
+      return packageId.length > 0
+        && items.findIndex((candidate) => textFrom(candidate.id, '') === packageId) === itemIndex
+    })
+    const packages = getPackages(packageRows, commissionRate)
     const providerMinPrice = numberFrom(
       record.base_price,
       packages[0]?.providerPrice ?? 0
@@ -298,7 +333,7 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
       : undefined
 
     return {
-      id: textFrom(record.id, `service-${index}`),
+      id: serviceId,
       categoryId: categoryNameToId(categoryName),
       categoryDbId: getNestedId(record.service_categories, textFrom(record.category_id, '')),
       categoryName,

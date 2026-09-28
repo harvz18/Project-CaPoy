@@ -15,7 +15,7 @@ import type { ServiceInformationValue } from './17-Step1ServiceListing'
 import type { ServicePricingValue } from './17.1-Step2Pricing'
 import type { ServicePackageValue } from './17.1.1-Step2AddPackage'
 
-export type ReviewListingSection = 'serviceInformation' | 'pricing' | 'packages'
+export type ReviewListingSection = 'serviceInformation' | 'pricing'
 
 export interface ServiceListingReviewValue {
   information: ServiceInformationValue
@@ -32,7 +32,6 @@ interface Step3ReviewListingsScreenProps {
   onOpenAccount?: () => void
   onPublish?: (value: ServiceListingReviewValue) => void
   onSaveDraft?: (value: ServiceListingReviewValue) => void
-  packages?: ServicePackageValue[]
   pricing?: ServicePricingValue
 }
 
@@ -56,36 +55,6 @@ const defaultPricing: ServicePricingValue = {
   model: 'startingAt',
   unit: 'event',
 }
-
-const defaultPackages: ServicePackageValue[] = [
-  {
-    currency: 'PHP',
-    description: 'Essential styling for an intimate celebration.',
-    id: 'essential',
-    inclusions: ['Table centerpieces', 'Welcome arrangement'],
-    name: 'Essential',
-    price: 2500,
-    unit: 'event',
-  },
-  {
-    currency: 'PHP',
-    description: 'Expanded floral styling for the ceremony and reception.',
-    id: 'signature',
-    inclusions: ['Ceremony florals', 'Reception centerpieces'],
-    name: 'Signature',
-    price: 4500,
-    unit: 'event',
-  },
-  {
-    currency: 'PHP',
-    description: 'Full-service floral design and installation.',
-    id: 'premium',
-    inclusions: ['Full venue styling', 'Setup and breakdown'],
-    name: 'Premium',
-    price: 7500,
-    unit: 'event',
-  },
-]
 
 const BackIcon = () => (
   <View style={styles.backIcon}>
@@ -137,7 +106,6 @@ export const Step3ReviewListingsScreen: React.FC<Step3ReviewListingsScreenProps>
   onOpenAccount,
   onPublish,
   onSaveDraft,
-  packages = defaultPackages,
   pricing = defaultPricing,
 }) => {
   const { width } = useWindowDimensions()
@@ -146,7 +114,7 @@ export const Step3ReviewListingsScreen: React.FC<Step3ReviewListingsScreenProps>
   const photos = information.photos.filter(Boolean)
   const previewItems: Array<string | undefined> = photos.length > 0 ? photos : [undefined]
   const [activePhotoIndex, setActivePhotoIndex] = React.useState(0)
-  const reviewValue: ServiceListingReviewValue = { information, packages, pricing }
+  const reviewValue: ServiceListingReviewValue = { information, packages: [], pricing }
   const actionsBusy = isPublishing || isSavingDraft
   const cateringOptionsMissing =
     information.category.toLowerCase().includes('cater') &&
@@ -188,11 +156,6 @@ export const Step3ReviewListingsScreen: React.FC<Step3ReviewListingsScreenProps>
             : 'None selected',
         }]
       : []),
-    {
-      label: 'Total Packages',
-      section: 'packages',
-      value: `${packages.length} ${packages.length === 1 ? 'Configured Package' : 'Configured Packages'}`,
-    },
   ]
 
   return (
@@ -229,14 +192,10 @@ export const Step3ReviewListingsScreen: React.FC<Step3ReviewListingsScreenProps>
       >
         <View style={styles.reviewHeader}>
           <View style={[styles.sectionContent, isWide && styles.sectionContentWide]}>
-            <View style={styles.stepRow}>
-              <View style={styles.stepDot} />
-              <View style={styles.stepDot} />
-              <View style={styles.stepActive} />
-              <Text style={styles.stepLabel}>STEP 3 OF 3</Text>
-            </View>
-            <Text style={styles.title}>Everything Looks Good?</Text>
-            <Text style={styles.subtitle}>Check your details below.</Text>
+            <Text style={styles.title}>Review Your Service</Text>
+            <Text style={styles.subtitle}>
+              Confirm the service details before submitting them for review. Packages are managed separately.
+            </Text>
           </View>
         </View>
 
@@ -317,6 +276,12 @@ export const Step3ReviewListingsScreen: React.FC<Step3ReviewListingsScreenProps>
                   <Text style={styles.chevron}>{'\u203A'}</Text>
                 </Pressable>
               ))}
+            </View>
+            <View style={styles.packageNote}>
+              <Text style={styles.packageNoteTitle}>Packages are optional</Text>
+              <Text style={styles.packageNoteCopy}>
+                Submit this service on its own. You can create or edit bundles later from Your Listings under the Packages tab.
+              </Text>
             </View>
             {cateringOptionsMissing ? (
               <Pressable
@@ -571,6 +536,17 @@ const styles = StyleSheet.create({
   },
   validationTitle: { color: palette.primaryContainer, fontSize: 13, lineHeight: 18, fontWeight: '700' },
   validationCopy: { color: palette.secondary, fontSize: 12, lineHeight: 18 },
+  packageNote: {
+    gap: 4,
+    borderWidth: 1,
+    borderColor: '#D8B9BE',
+    borderRadius: 8,
+    backgroundColor: '#FFF8F9',
+    marginTop: 12,
+    padding: 14,
+  },
+  packageNoteTitle: { color: palette.primaryContainer, fontSize: 13, fontWeight: '700', lineHeight: 18 },
+  packageNoteCopy: { color: palette.secondary, fontSize: 12, lineHeight: 18 },
   summaryRow: {
     minHeight: 72,
     flexDirection: 'row',

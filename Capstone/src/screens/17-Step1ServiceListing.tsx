@@ -182,14 +182,14 @@ export const Step1ServiceListingScreen: React.FC<Step1ServiceListingScreenProps>
             </Pressable>
 
             <View style={styles.progressBlock}>
-              <Text style={styles.stepCaption}>Step 1 of 3</Text>
+              <Text style={styles.stepCaption}>Step 1 of 2</Text>
               <View
-                accessibilityLabel="Step 1 of 3"
+                accessibilityLabel="Step 1 of 2"
                 accessibilityRole="progressbar"
-                accessibilityValue={{ max: 3, min: 1, now: 1 }}
+                accessibilityValue={{ max: 2, min: 1, now: 1 }}
                 style={styles.progressRow}
               >
-                {[0, 1, 2].map((step) => (
+                {[0, 1].map((step) => (
                   <View
                     key={step}
                     style={[

@@ -152,7 +152,12 @@ export function ServicesScreen() {
     setSubmitting(false)
 
     if (actionError) {
-      setError(actionError.message)
+      const moderationFunctionMissing = actionError.code === 'PGRST202'
+        || actionError.message.toLowerCase().includes('admin_review_service')
+          && actionError.message.toLowerCase().includes('schema cache')
+      setError(moderationFunctionMissing
+        ? 'Service moderation is not installed in this database. Apply migrations 21 through 48, then refresh the page.'
+        : actionError.message)
       setDecision(null)
       return
     }
@@ -180,7 +185,7 @@ export function ServicesScreen() {
           />
           <select className="inline-select" value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} aria-label="Filter services by category"><option value="all">All categories</option>{categories.map((category) => <option key={category} value={category}>{category}</option>)}</select>
         </div>
-        {error && <InlineError message={`${error} Apply database migrations 21 through 23 if service moderation is not installed yet.`} onClose={() => setError('')} />}
+        {error && <InlineError message={error} onClose={() => setError('')} />}
         {loading ? <TableSkeleton /> : visibleServices.length === 0 ? <EmptyState title="No matching services" copy={status === 'pending_review' ? 'The review queue is clear.' : 'Try another filter or search term.'} /> : (
           <div className="service-review-list">
             {visibleServices.map((service) => {

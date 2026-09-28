@@ -351,7 +351,10 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
           </View>
 
           <View style={styles.packagesSection}>
-            <Text style={styles.sectionHeading}>Packages</Text>
+            <Text style={styles.sectionHeading}>Included in These Packages</Text>
+            <Text style={styles.packageSectionIntro}>
+              Choose a bundle that includes this service together with other services from the provider.
+            </Text>
             {service.packages?.length ? (
               <View style={styles.packageList}>
                 {service.packages.map((item) => {
@@ -429,7 +432,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
               </View>
             ) : (
               <Text style={styles.noPackages}>
-                This provider has not configured separate packages. The listed base price applies.
+                This service is not currently included in a package. Its listed price still applies.
               </Text>
             )}
           </View>
@@ -1038,6 +1041,7 @@ const styles = StyleSheet.create({
   pricingNotes: { gap: 6, padding: 18 },
   pricingNotesText: { color: palette.text, fontSize: 15, lineHeight: 23 },
   packagesSection: { borderBottomWidth: 1, borderBottomColor: palette.surfaceVariant, paddingVertical: 40 },
+  packageSectionIntro: { color: palette.secondary, fontSize: 14, lineHeight: 21, marginBottom: 18, marginTop: -12 },
   packageList: { gap: 14 },
   packageCard: { borderWidth: 1, borderColor: palette.surfaceVariant, borderRadius: 14, backgroundColor: palette.surfaceLowest, padding: 18 },
   packageCardSelected: { borderWidth: 2, borderColor: palette.primary, backgroundColor: '#FCF5F6' },

@@ -50,6 +50,7 @@ import {
   changeMerchantPassword,
   clearMerchantServiceDraft,
   completeMerchantBooking,
+  deleteMerchantPackageListing,
   deleteMerchantServiceListing,
   emptyMerchantPayoutDashboard,
   fetchClientBookings,
@@ -58,6 +59,7 @@ import {
   fetchMerchantServices,
   loadMerchantServiceDraft,
   loadMerchantServiceForEditing,
+  MerchantPackageListing,
   MerchantServiceListing,
   markMerchantNotificationRead,
   markMerchantNotificationsRead,
@@ -534,6 +536,14 @@ export const App: React.FC = () => {
   const [isPublishingService, setIsPublishingService] = React.useState(false)
   const [isSavingServiceDraft, setIsSavingServiceDraft] = React.useState(false)
   const [isSavingStandalonePackage, setIsSavingStandalonePackage] = React.useState(false)
+  const [deletingMerchantPackageId, setDeletingMerchantPackageId] = React.useState('')
+  const [editingStandalonePackage, setEditingStandalonePackage] =
+    React.useState<ServicePackageValue>()
+  const [editingPackagePrimaryServiceId, setEditingPackagePrimaryServiceId] = React.useState('')
+  const [providerListingsCollection, setProviderListingsCollection] =
+    React.useState<'services' | 'packages' | 'deleted'>('services')
+  const [providerPackageReturnScreen, setProviderPackageReturnScreen] =
+    React.useState<'providerProfile' | 'providerServices'>('providerProfile')
   const [isSavingAvailability, setIsSavingAvailability] = React.useState(false)
   const [completingBookingId, setCompletingBookingId] = React.useState('')
   const [processingMerchantBookingId, setProcessingMerchantBookingId] = React.useState('')
@@ -1046,7 +1056,7 @@ export const App: React.FC = () => {
     setHasMerchantDraft(Boolean(draft))
     if (draft?.information) setMerchantServiceInfo(draft.information)
     if (draft?.pricing) setMerchantServicePricing(draft.pricing)
-    if (draft?.packages) setMerchantPackages(draft.packages)
+    setMerchantPackages([])
   }, [])
 
   React.useEffect(() => {
@@ -1783,9 +1793,15 @@ export const App: React.FC = () => {
 
   const handleMerchantAction = (action: MerchantProfileAction) => {
     if (action === 'services') {
+      setProviderListingsCollection('services')
       setScreen('providerServices')
     }
-    if (action === 'packages') setScreen('providerStandalonePackage')
+    if (action === 'packages') {
+      setEditingStandalonePackage(undefined)
+      setEditingPackagePrimaryServiceId('')
+      setProviderPackageReturnScreen('providerProfile')
+      setScreen('providerStandalonePackage')
+    }
     if (action === 'availability') setScreen('providerAvailability')
     if (action === 'operatingHours') setScreen('providerOperatingHours')
     if (action === 'payouts') setScreen('providerPayouts')
@@ -1812,7 +1828,34 @@ export const App: React.FC = () => {
 
     await refreshLiveData()
     setToastMessage(result.message ?? 'Package submitted for review.')
-    setScreen('providerProfile')
+    setEditingStandalonePackage(undefined)
+    setEditingPackagePrimaryServiceId('')
+    if (providerPackageReturnScreen === 'providerServices') {
+      setProviderListingsCollection('packages')
+    }
+    setScreen(providerPackageReturnScreen)
+  }
+
+  const editStandaloneMerchantPackage = (item: MerchantPackageListing) => {
+    setEditingStandalonePackage({
+      currency: 'PHP',
+      description: item.description,
+      discountAmount: item.discountAmount,
+      discountType: item.discountType,
+      discountValue: item.discountValue,
+      id: item.id,
+      inclusions: item.inclusions,
+      name: item.name,
+      price: item.price,
+      pricingMode: item.pricingMode,
+      serviceIds: item.serviceIds.length > 0 ? item.serviceIds : [item.primaryServiceId],
+      subtotal: item.subtotal,
+      unit: item.pricingUnit,
+    })
+    setEditingPackagePrimaryServiceId(item.primaryServiceId)
+    setProviderListingsCollection('packages')
+    setProviderPackageReturnScreen('providerServices')
+    setScreen('providerStandalonePackage')
   }
 
   const handleServiceListingSubmit = async (
@@ -1870,11 +1913,12 @@ export const App: React.FC = () => {
       setEditingMerchantServiceId('')
       setToastMessage(
         status === 'active'
-          ? 'Service submitted for review.'
+          ? 'Service submitted for review. Packages remain optional in the Packages tab.'
           : editingMerchantServiceId
             ? 'Service changes saved as a draft.'
             : 'Draft saved.'
       )
+      setProviderListingsCollection('services')
       setScreen('providerServices')
     } else if (result.message) {
       setToastMessage(result.message)
@@ -1901,7 +1945,7 @@ export const App: React.FC = () => {
     setEditingMerchantServiceId(service.id)
     setMerchantServiceInfo(value.information)
     setMerchantServicePricing(value.pricing)
-    setMerchantPackages(value.packages)
+    setMerchantPackages([])
     setHasMerchantDraft(false)
     setScreen('providerServiceReview')
   }
@@ -1917,10 +1961,36 @@ export const App: React.FC = () => {
       return
     }
 
-    setMerchantServices((current) => current.filter((item) => item.id !== service.id))
+    setMerchantServices((current) => current.map((item) =>
+      item.id === service.id
+        ? { ...item, isAvailable: false, status: 'deleted' }
+        : item
+    ))
     if (editingMerchantServiceId === service.id) setEditingMerchantServiceId('')
-    setToastMessage('Service deleted. Existing booking history was preserved.')
+    setProviderListingsCollection('deleted')
+    setToastMessage('Service moved to Deleted. Existing booking history was preserved.')
     await refreshLiveData()
+  }
+
+  const deleteMerchantPackage = async () => {
+    const packageId = editingStandalonePackage?.id
+    if (!packageId || deletingMerchantPackageId) return
+
+    setDeletingMerchantPackageId(packageId)
+    const result = await deleteMerchantPackageListing(packageId)
+    setDeletingMerchantPackageId('')
+
+    if (!result.ok) {
+      setToastMessage(result.message ?? 'Unable to delete this package.')
+      return
+    }
+
+    setEditingStandalonePackage(undefined)
+    setEditingPackagePrimaryServiceId('')
+    setProviderListingsCollection('deleted')
+    setToastMessage('Package moved to Deleted and hidden from clients.')
+    await refreshLiveData()
+    setScreen('providerServices')
   }
 
   const updateMerchantServiceAvailability = async (
@@ -2136,16 +2206,25 @@ export const App: React.FC = () => {
   )
 
   const standalonePackageServices: PackageServiceOption[] = merchantServices
-    .filter((service) => service.basePrice > 0 && service.status === 'active')
+    .filter((service) => service.basePrice > 0 && (
+      service.status === 'active'
+      || editingStandalonePackage?.serviceIds?.includes(service.id)
+    ))
     .map((service) => ({
+      categoryName: service.categoryName,
       id: service.id,
       name: service.name,
       price: service.basePrice,
       unit: service.pricingUnit,
     }))
+    .sort((left, right) => (
+      (left.categoryName ?? '').localeCompare(right.categoryName ?? '')
+      || left.name.localeCompare(right.name)
+    ))
   const currentPackageServiceId = editingMerchantServiceId || '__current_service__'
   const currentPackageService = merchantServicePricing.amount && merchantServicePricing.amount > 0
     ? [{
+        categoryName: merchantServiceInfo.category,
         id: currentPackageServiceId,
         name: merchantServiceInfo.serviceName || 'Current service',
         price: merchantServicePricing.amount,
@@ -2408,16 +2487,26 @@ export const App: React.FC = () => {
           <ProviderServicesScreen
             deletingServiceId={deletingMerchantServiceId}
             hasDraft={hasMerchantDraft}
+            initialCollection={providerListingsCollection}
             showBottomNavigation={false}
             services={merchantServices}
             onAddService={() => {
               setScreen(hasMerchantDraft ? 'providerDraftChoice' : 'providerServiceInfo')
             }}
+            onAddPackage={() => {
+              setEditingStandalonePackage(undefined)
+              setEditingPackagePrimaryServiceId('')
+              setProviderListingsCollection('packages')
+              setProviderPackageReturnScreen('providerServices')
+              setScreen('providerStandalonePackage')
+            }}
             onBack={() => setScreen('providerHome')}
             onContinueDraft={() => setScreen('providerServiceReview')}
             onDeleteService={(service) => void deleteMerchantService(service)}
+            onEditPackage={editStandaloneMerchantPackage}
             onEditService={(service) => void editMerchantService(service)}
             onOpenAccount={() => setScreen('providerProfile')}
+            onSelectCollection={setProviderListingsCollection}
             onSelectService={(service) => void editMerchantService(service)}
             onSetAvailability={(service, isAvailable) =>
               void updateMerchantServiceAvailability(service, isAvailable)
@@ -2432,13 +2521,11 @@ export const App: React.FC = () => {
             information={merchantServiceInfo}
             isPublishing={isPublishingService}
             isSavingDraft={isSavingServiceDraft}
-            packages={merchantPackages}
             pricing={merchantServicePricing}
-            onBack={() => setScreen('providerHome')}
+            onBack={() => setScreen('providerServicePricing')}
             onEditSection={(section: ReviewListingSection) => {
               if (section === 'serviceInformation') setScreen('providerServiceInfo')
               if (section === 'pricing') setScreen('providerServicePricing')
-              if (section === 'packages') setScreen('providerPackage')
             }}
             onOpenAccount={() => setScreen('providerProfile')}
             onPublish={(value) => void handleServiceListingSubmit(value, 'active')}
@@ -2457,7 +2544,7 @@ export const App: React.FC = () => {
               setHasMerchantDraft(true)
               void saveMerchantServiceDraft({
                 information,
-                packages: merchantPackages,
+                packages: [],
                 pricing: merchantServicePricing,
               })
               setScreen('providerServices')
@@ -2467,7 +2554,7 @@ export const App: React.FC = () => {
               setHasMerchantDraft(true)
               void saveMerchantServiceDraft({
                 information: value,
-                packages: merchantPackages,
+                packages: [],
                 pricing: merchantServicePricing,
               })
               setScreen('providerServicePricing')
@@ -2485,7 +2572,7 @@ export const App: React.FC = () => {
               setHasMerchantDraft(true)
               void saveMerchantServiceDraft({
                 information: merchantServiceInfo,
-                packages: merchantPackages,
+                packages: [],
                 pricing,
               })
               setScreen('providerServiceInfo')
@@ -2495,10 +2582,10 @@ export const App: React.FC = () => {
               setHasMerchantDraft(true)
               void saveMerchantServiceDraft({
                 information: merchantServiceInfo,
-                packages: merchantPackages,
+                packages: [],
                 pricing: value,
               })
-              setScreen('providerPackage')
+              setScreen('providerServiceReview')
             }}
           />
         )
@@ -2558,9 +2645,17 @@ export const App: React.FC = () => {
           <Step2AddPackageScreen
             availableServices={standalonePackageServices}
             commissionRate={packageCommissionRate}
+            initialValue={editingStandalonePackage}
+            isDeleting={deletingMerchantPackageId === editingStandalonePackage?.id}
             isSaving={isSavingStandalonePackage}
             mode="standalone"
-            onBack={() => setScreen('providerProfile')}
+            requiredServiceId={editingPackagePrimaryServiceId || undefined}
+            onBack={() => {
+              setEditingStandalonePackage(undefined)
+              setEditingPackagePrimaryServiceId('')
+              setScreen(providerPackageReturnScreen)
+            }}
+            onDelete={editingStandalonePackage?.id ? () => void deleteMerchantPackage() : undefined}
             onSave={(value) => void saveStandaloneMerchantPackage(value)}
           />
         )
@@ -3457,6 +3552,7 @@ export const App: React.FC = () => {
       || Boolean(busyCoordinatorTaskId)
       || Boolean(busyCoordinatorInvitationId)
       || Boolean(removingServiceId)
+      || Boolean(deletingMerchantPackageId)
       || Boolean(deletingMerchantServiceId)
       || Boolean(updatingAvailabilityServiceId)
   )

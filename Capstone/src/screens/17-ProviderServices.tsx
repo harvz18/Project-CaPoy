@@ -10,31 +10,40 @@ import {
   View,
 } from 'react-native'
 import { MerchantBottomNavigation } from '../components/MerchantBottomNavigation'
-import type { MerchantServiceListing } from '../lib/merchant'
+import type { MerchantPackageListing, MerchantServiceListing } from '../lib/merchant'
 import type { MerchantHomeTab } from './16-MerchantHome'
 
 interface ProviderServicesScreenProps {
   hasDraft?: boolean
+  initialCollection?: ListingCollection
   showBottomNavigation?: boolean
   deletingServiceId?: string
   updatingAvailabilityServiceId?: string
   services?: MerchantServiceListing[]
+  onAddPackage?: () => void
   onAddService?: () => void
   onBack?: () => void
   onContinueDraft?: () => void
   onDeleteService?: (service: MerchantServiceListing) => void
+  onEditPackage?: (item: MerchantPackageListing) => void
   onEditService?: (service: MerchantServiceListing) => void
   onOpenAccount?: () => void
   onSelectService?: (service: MerchantServiceListing) => void
+  onSelectCollection?: (collection: ListingCollection) => void
   onSetAvailability?: (service: MerchantServiceListing, isAvailable: boolean) => void
   onSelectTab?: (tab: MerchantHomeTab) => void
 }
+
+type ListingCollection = 'services' | 'packages' | 'deleted'
 
 const formatPrice = (value: number) => {
   if (!value) return 'Quote based'
 
   return `PHP ${Math.round(value).toLocaleString('en-US')}`
 }
+
+const packageUnitLabel = (unit: MerchantPackageListing['pricingUnit']) =>
+  ({ day: 'day', event: 'event', hour: 'hour', person: 'person' })[unit]
 
 const formatApprovalStatus = (status: string) => {
   const normalized = status.trim().toLowerCase()
@@ -50,24 +59,62 @@ const formatApprovalStatus = (status: string) => {
 
 export const ProviderServicesScreen: React.FC<ProviderServicesScreenProps> = ({
   hasDraft = false,
+  initialCollection = 'services',
   showBottomNavigation = true,
   deletingServiceId = '',
   updatingAvailabilityServiceId = '',
   services = [],
+  onAddPackage,
   onAddService,
   onBack,
   onContinueDraft,
   onDeleteService,
+  onEditPackage,
   onEditService,
   onOpenAccount,
   onSelectService,
+  onSelectCollection,
   onSetAvailability,
   onSelectTab,
 }) => {
   const { width } = useWindowDimensions()
   const isWide = width >= 768
+  const [activeCollection, setActiveCollection] = React.useState<ListingCollection>(initialCollection)
+  const [showCreateChoice, setShowCreateChoice] = React.useState(false)
   const [deleteTarget, setDeleteTarget] = React.useState<MerchantServiceListing>()
   const [availabilityTarget, setAvailabilityTarget] = React.useState<MerchantServiceListing>()
+  const activeServices = React.useMemo(
+    () => services.filter((service) => service.status !== 'deleted'),
+    [services]
+  )
+  const deletedServices = React.useMemo(
+    () => services.filter((service) => service.status === 'deleted'),
+    [services]
+  )
+  const packageListings = React.useMemo(
+    () => services.flatMap((service) =>
+      service.packages.map((item) => ({ item, service }))
+    ),
+    [services]
+  )
+  const packages = React.useMemo(
+    () => packageListings.filter(({ item, service }) => !item.isDeleted && service.status !== 'deleted'),
+    [packageListings]
+  )
+  const deletedPackages = React.useMemo(
+    () => packageListings.filter(({ item }) => item.isDeleted),
+    [packageListings]
+  )
+  const deletedCount = deletedServices.length + deletedPackages.length
+
+  React.useEffect(() => {
+    setActiveCollection(initialCollection)
+  }, [initialCollection])
+
+  const selectCollection = (collection: ListingCollection) => {
+    setActiveCollection(collection)
+    onSelectCollection?.(collection)
+  }
 
   return (
     <View style={styles.screen}>
@@ -103,25 +150,108 @@ export const ProviderServicesScreen: React.FC<ProviderServicesScreenProps> = ({
       >
         <View style={styles.headerRow}>
           <View style={styles.headerCopy}>
-            <Text style={styles.title}>Your Services</Text>
+            <Text style={styles.title}>Your Listings</Text>
             <Text style={styles.subtitle}>
-              {services.length === 0
-                ? 'Published services will appear here.'
-                : `${services.length} ${services.length === 1 ? 'service' : 'services'} uploaded`}
+              {activeCollection === 'services'
+                ? activeServices.length === 0
+                  ? 'Published services will appear here.'
+                  : `${activeServices.length} ${activeServices.length === 1 ? 'service' : 'services'} uploaded`
+                : activeCollection === 'packages'
+                  ? packages.length === 0
+                  ? 'Created packages will appear here.'
+                    : `${packages.length} ${packages.length === 1 ? 'package' : 'packages'} created`
+                  : deletedCount === 0
+                    ? 'Removed listings will appear here.'
+                    : `${deletedCount} removed ${deletedCount === 1 ? 'listing' : 'listings'}`}
             </Text>
           </View>
           <Pressable
-            accessibilityLabel="Add service"
+            accessibilityLabel="Create a service or package"
             accessibilityRole="button"
-            onPress={onAddService}
+            onPress={() => setShowCreateChoice(true)}
             style={({ pressed }) => [styles.addButton, pressed && styles.addButtonPressed]}
           >
             <Text style={styles.addIcon}>+</Text>
-            <Text style={styles.addText}>Add Service</Text>
+            <Text style={styles.addText}>Create</Text>
           </Pressable>
         </View>
 
-        {hasDraft ? (
+        <View accessibilityRole="tablist" style={styles.collectionTabs}>
+          <Pressable
+            accessibilityRole="tab"
+            accessibilityState={{ selected: activeCollection === 'services' }}
+            onPress={() => selectCollection('services')}
+            style={({ pressed }) => [
+              styles.collectionTab,
+              activeCollection === 'services' && styles.collectionTabActive,
+              pressed && styles.collectionTabPressed,
+            ]}
+          >
+            <Text style={[
+              styles.collectionTabText,
+              activeCollection === 'services' && styles.collectionTabTextActive,
+            ]}>Services</Text>
+            <View style={[
+              styles.collectionCount,
+              activeCollection === 'services' && styles.collectionCountActive,
+            ]}>
+              <Text style={[
+                styles.collectionCountText,
+                activeCollection === 'services' && styles.collectionCountTextActive,
+              ]}>{activeServices.length}</Text>
+            </View>
+          </Pressable>
+          <Pressable
+            accessibilityRole="tab"
+            accessibilityState={{ selected: activeCollection === 'packages' }}
+            onPress={() => selectCollection('packages')}
+            style={({ pressed }) => [
+              styles.collectionTab,
+              activeCollection === 'packages' && styles.collectionTabActive,
+              pressed && styles.collectionTabPressed,
+            ]}
+          >
+            <Text style={[
+              styles.collectionTabText,
+              activeCollection === 'packages' && styles.collectionTabTextActive,
+            ]}>Packages</Text>
+            <View style={[
+              styles.collectionCount,
+              activeCollection === 'packages' && styles.collectionCountActive,
+            ]}>
+              <Text style={[
+                styles.collectionCountText,
+                activeCollection === 'packages' && styles.collectionCountTextActive,
+              ]}>{packages.length}</Text>
+            </View>
+          </Pressable>
+          <Pressable
+            accessibilityRole="tab"
+            accessibilityState={{ selected: activeCollection === 'deleted' }}
+            onPress={() => selectCollection('deleted')}
+            style={({ pressed }) => [
+              styles.collectionTab,
+              activeCollection === 'deleted' && styles.collectionTabActive,
+              pressed && styles.collectionTabPressed,
+            ]}
+          >
+            <Text style={[
+              styles.collectionTabText,
+              activeCollection === 'deleted' && styles.collectionTabTextActive,
+            ]}>Deleted</Text>
+            <View style={[
+              styles.collectionCount,
+              activeCollection === 'deleted' && styles.collectionCountActive,
+            ]}>
+              <Text style={[
+                styles.collectionCountText,
+                activeCollection === 'deleted' && styles.collectionCountTextActive,
+              ]}>{deletedCount}</Text>
+            </View>
+          </Pressable>
+        </View>
+
+        {activeCollection === 'services' && hasDraft ? (
           <Pressable
             accessibilityLabel="Continue saved service draft"
             accessibilityRole="button"
@@ -136,7 +266,7 @@ export const ProviderServicesScreen: React.FC<ProviderServicesScreenProps> = ({
           </Pressable>
         ) : null}
 
-        {services.length === 0 ? (
+        {activeCollection === 'services' ? (activeServices.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyTitle}>No services uploaded yet</Text>
             <Text style={styles.emptyCopy}>
@@ -145,7 +275,7 @@ export const ProviderServicesScreen: React.FC<ProviderServicesScreenProps> = ({
           </View>
         ) : (
           <View style={styles.serviceList}>
-            {services.map((service) => (
+            {activeServices.map((service) => (
               <View
                 key={service.id}
                 style={styles.serviceCard}
@@ -281,12 +411,240 @@ export const ProviderServicesScreen: React.FC<ProviderServicesScreenProps> = ({
               </View>
             ))}
           </View>
+        )) : activeCollection === 'packages' ? (packages.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>No packages created yet</Text>
+            <Text style={styles.emptyCopy}>
+              Tap Create, choose Package, then combine services from any category.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.packageList}>
+            {packages.map(({ item, service }) => {
+              const isLive = item.isActive && service.status === 'active' && service.isAvailable
+              const hasDiscount = item.subtotal > item.price && item.discountAmount > 0
+              const includedServices = item.serviceNames.length > 0
+                ? item.serviceNames.join(' · ')
+                : service.name
+
+              return (
+                <View key={item.id} style={styles.packageCard}>
+                  <View style={styles.packageHeader}>
+                    <View style={styles.packageHeadingCopy}>
+                      <Text style={styles.packageEyebrow}>PACKAGE · {service.categoryName.toUpperCase()}</Text>
+                      <Text style={styles.packageName}>{item.name}</Text>
+                    </View>
+                    <View style={[styles.visibilityPill, isLive && styles.visibilityLive]}>
+                      <View style={[styles.visibilityDot, isLive && styles.visibilityDotLive]} />
+                      <Text style={[styles.visibilityText, isLive && styles.visibilityTextLive]}>
+                        {service.status === 'pending_review'
+                          ? 'Awaiting review'
+                          : service.status === 'rejected'
+                            ? 'Needs changes'
+                            : isLive
+                              ? 'Live'
+                              : 'Not available'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {item.description ? (
+                    <Text numberOfLines={2} style={styles.packageDescription}>{item.description}</Text>
+                  ) : null}
+
+                  <View style={styles.packageServicesBox}>
+                    <Text style={styles.packageServicesLabel}>INCLUDED SERVICES</Text>
+                    <Text style={styles.packageServicesText}>{includedServices}</Text>
+                  </View>
+
+                  <View style={styles.packageFooter}>
+                    <View style={styles.packagePriceBlock}>
+                      <View style={styles.packagePriceRow}>
+                        <Text style={styles.packagePrice}>{formatPrice(item.price)}</Text>
+                        <Text style={styles.packageUnit}> / {packageUnitLabel(item.pricingUnit)}</Text>
+                      </View>
+                      {hasDiscount ? (
+                        <View style={styles.packageDiscountRow}>
+                          <Text style={styles.packageOriginalPrice}>{formatPrice(item.subtotal)}</Text>
+                          <Text style={styles.packageDiscountText}>
+                            Save {formatPrice(item.discountAmount)}
+                          </Text>
+                        </View>
+                      ) : (
+                        <Text style={styles.packageHostText}>Listed under {service.name}</Text>
+                      )}
+                    </View>
+                    <Pressable
+                      accessibilityLabel={`Manage ${item.name}`}
+                      accessibilityRole="button"
+                      onPress={() => onEditPackage?.(item)}
+                      style={({ pressed }) => [styles.managePackageButton, pressed && styles.serviceCardPressed]}
+                    >
+                      <Text style={styles.managePackageText}>Manage</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              )
+            })}
+          </View>
+        )) : deletedCount === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>No deleted listings</Text>
+            <Text style={styles.emptyCopy}>
+              Services and packages you remove will be kept here for your records.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.deletedSections}>
+            {deletedServices.length > 0 ? (
+              <View style={styles.deletedSection}>
+                <Text style={styles.deletedSectionTitle}>Deleted services</Text>
+                <View style={styles.serviceList}>
+                  {deletedServices.map((service) => (
+                    <View key={service.id} style={[styles.serviceCard, styles.deletedCard]}>
+                      {service.coverImageUrl ? (
+                        <Image
+                          accessibilityLabel={`${service.name} cover photo`}
+                          resizeMode="cover"
+                          source={{ uri: service.coverImageUrl }}
+                          style={[styles.serviceImage, styles.deletedImage]}
+                        />
+                      ) : (
+                        <View style={[styles.imagePlaceholder, styles.deletedImage]}>
+                          <Text style={styles.imagePlaceholderText}>
+                            {service.name.slice(0, 1).toUpperCase()}
+                          </Text>
+                        </View>
+                      )}
+                      <View style={styles.serviceBody}>
+                        <Text numberOfLines={1} style={styles.serviceName}>{service.name}</Text>
+                        <View style={styles.deletedPill}>
+                          <Text style={styles.deletedPillText}>DELETED SERVICE</Text>
+                        </View>
+                        <Text style={styles.serviceDescription}>{service.categoryName}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+
+            {deletedPackages.length > 0 ? (
+              <View style={styles.deletedSection}>
+                <Text style={styles.deletedSectionTitle}>Deleted packages</Text>
+                <View style={styles.packageList}>
+                  {deletedPackages.map(({ item, service }) => (
+                    <View key={item.id} style={[styles.packageCard, styles.deletedCard]}>
+                      <View style={styles.packageHeader}>
+                        <View style={styles.packageHeadingCopy}>
+                          <Text style={styles.packageEyebrow}>DELETED PACKAGE</Text>
+                          <Text style={styles.packageName}>{item.name}</Text>
+                        </View>
+                        <View style={styles.deletedPill}>
+                          <Text style={styles.deletedPillText}>REMOVED</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.packageDescription}>
+                        {item.serviceNames.length > 0
+                          ? item.serviceNames.join(' · ')
+                          : `Previously listed under ${service.name}`}
+                      </Text>
+                      <Text style={styles.deletedDate}>
+                        {item.deletedAt
+                          ? `Deleted ${new Date(item.deletedAt).toLocaleDateString('en-PH')}`
+                          : 'Hidden from client listings'}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+          </View>
         )}
       </ScrollView>
 
       {showBottomNavigation && !isWide ? (
         <MerchantBottomNavigation activeTab="services" onSelectTab={onSelectTab} />
       ) : null}
+
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setShowCreateChoice(false)}
+        transparent
+        visible={showCreateChoice}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.createCard}>
+            <View style={styles.createHeader}>
+              <Text style={styles.confirmationTitle}>What would you like to create?</Text>
+              <Text style={styles.confirmationCopy}>
+                Add one service, or combine your existing services into a discounted package.
+              </Text>
+            </View>
+
+            <View style={styles.createOptions}>
+              <Pressable
+                accessibilityHint="Opens the service listing form"
+                accessibilityLabel="Create a single service"
+                accessibilityRole="button"
+                onPress={() => {
+                  setShowCreateChoice(false)
+                  onAddService?.()
+                }}
+                style={({ pressed }) => [
+                  styles.createOption,
+                  pressed && styles.createOptionPressed,
+                ]}
+              >
+                <View style={styles.createOptionIcon}>
+                  <Text style={styles.createOptionIconText}>1</Text>
+                </View>
+                <View style={styles.createOptionCopy}>
+                  <Text style={styles.createOptionTitle}>Single service</Text>
+                  <Text style={styles.createOptionText}>
+                    List one service with its own category, pricing, and details.
+                  </Text>
+                </View>
+                <Text style={styles.createOptionArrow}>{'>'}</Text>
+              </Pressable>
+
+              <Pressable
+                accessibilityHint="Opens the package builder"
+                accessibilityLabel="Create a service package"
+                accessibilityRole="button"
+                onPress={() => {
+                  setShowCreateChoice(false)
+                  onAddPackage?.()
+                }}
+                style={({ pressed }) => [
+                  styles.createOption,
+                  styles.packageOption,
+                  pressed && styles.createOptionPressed,
+                ]}
+              >
+                <View style={[styles.createOptionIcon, styles.packageOptionIcon]}>
+                  <Text style={styles.createOptionIconText}>+</Text>
+                </View>
+                <View style={styles.createOptionCopy}>
+                  <Text style={styles.createOptionTitle}>Package</Text>
+                  <Text style={styles.createOptionText}>
+                    Bundle your services from any category and optionally add a promo discount.
+                  </Text>
+                </View>
+                <Text style={styles.createOptionArrow}>{'>'}</Text>
+              </Pressable>
+            </View>
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setShowCreateChoice(false)}
+              style={({ pressed }) => [styles.createCancelButton, pressed && styles.pressed]}
+            >
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         animationType="fade"
@@ -298,7 +656,7 @@ export const ProviderServicesScreen: React.FC<ProviderServicesScreenProps> = ({
           <View style={styles.confirmationCard}>
             <Text style={styles.confirmationTitle}>Delete this service?</Text>
             <Text style={styles.confirmationCopy}>
-              {deleteTarget?.name} will be removed from your service list. Existing booking history will be preserved.
+              {deleteTarget?.name} will move to Deleted and disappear from client listings. Existing booking history will be preserved.
             </Text>
             <View style={styles.confirmationActions}>
               <Pressable
@@ -481,6 +839,40 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 20,
   },
+  collectionTabs: {
+    minHeight: 48,
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: palette.border,
+    marginBottom: 18,
+  },
+  collectionTab: {
+    minWidth: 112,
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderBottomWidth: 3,
+    borderBottomColor: 'transparent',
+    paddingHorizontal: 14,
+  },
+  collectionTabActive: { borderBottomColor: palette.primary },
+  collectionTabPressed: { backgroundColor: palette.surfaceLow },
+  collectionTabText: { color: palette.muted, fontSize: 14, fontWeight: '700' },
+  collectionTabTextActive: { color: palette.primary },
+  collectionCount: {
+    minWidth: 22,
+    height: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 11,
+    backgroundColor: palette.surfaceLow,
+    paddingHorizontal: 6,
+  },
+  collectionCountActive: { backgroundColor: '#F1E1E4' },
+  collectionCountText: { color: palette.muted, fontSize: 11, fontWeight: '700' },
+  collectionCountTextActive: { color: palette.primary },
   draftBanner: {
     minHeight: 74,
     flexDirection: 'row',
@@ -685,6 +1077,94 @@ const styles = StyleSheet.create({
   deleteButtonText: { color: '#A33142', fontSize: 12, fontWeight: '700' },
   viewButton: { minHeight: 34, justifyContent: 'center', paddingHorizontal: 8 },
   viewButtonText: { color: palette.muted, fontSize: 12, fontWeight: '700' },
+  deletedSections: { gap: 24 },
+  deletedSection: { gap: 10 },
+  deletedSectionTitle: {
+    color: palette.text,
+    fontSize: 15,
+    fontWeight: '700',
+    lineHeight: 21,
+  },
+  deletedCard: { opacity: 0.82 },
+  deletedImage: { opacity: 0.62 },
+  deletedPill: {
+    alignSelf: 'flex-start',
+    borderRadius: 8,
+    backgroundColor: '#F5EDEE',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginTop: 7,
+  },
+  deletedPillText: { color: '#8E3444', fontSize: 10, fontWeight: '800', lineHeight: 14 },
+  deletedDate: { color: palette.muted, fontSize: 11, lineHeight: 16, marginTop: 10 },
+  packageList: { gap: 12 },
+  packageCard: {
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 14,
+    backgroundColor: palette.surface,
+    padding: 16,
+  },
+  packageHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  packageHeadingCopy: { minWidth: 0, flex: 1 },
+  packageEyebrow: {
+    color: palette.primary,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.7,
+    lineHeight: 14,
+  },
+  packageName: { color: palette.text, fontSize: 18, fontWeight: '700', lineHeight: 24, marginTop: 3 },
+  packageDescription: { color: palette.muted, fontSize: 13, lineHeight: 19, marginTop: 8 },
+  packageServicesBox: {
+    borderRadius: 10,
+    backgroundColor: palette.surfaceLow,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginTop: 14,
+  },
+  packageServicesLabel: {
+    color: palette.muted,
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+    lineHeight: 13,
+  },
+  packageServicesText: { color: palette.text, fontSize: 13, fontWeight: '600', lineHeight: 19, marginTop: 2 },
+  packageFooter: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginTop: 14,
+  },
+  packagePriceBlock: { minWidth: 0, flex: 1 },
+  packagePriceRow: { flexDirection: 'row', alignItems: 'baseline' },
+  packagePrice: { color: palette.primary, fontSize: 18, fontWeight: '800', lineHeight: 24 },
+  packageUnit: { color: palette.muted, fontSize: 12, lineHeight: 17 },
+  packageDiscountRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 2 },
+  packageOriginalPrice: {
+    color: palette.muted,
+    fontSize: 12,
+    lineHeight: 17,
+    textDecorationLine: 'line-through',
+  },
+  packageDiscountText: { color: '#176339', fontSize: 12, fontWeight: '700', lineHeight: 17 },
+  packageHostText: { color: palette.muted, fontSize: 11, lineHeight: 16, marginTop: 2 },
+  managePackageButton: {
+    minHeight: 38,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#D8B9BE',
+    borderRadius: 9,
+    paddingHorizontal: 14,
+  },
+  managePackageText: { color: palette.primary, fontSize: 12, fontWeight: '700' },
   modalBackdrop: {
     flex: 1,
     alignItems: 'center',
@@ -698,6 +1178,48 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: palette.surface,
     padding: 24,
+  },
+  createCard: {
+    width: '100%',
+    maxWidth: 440,
+    borderRadius: 20,
+    backgroundColor: palette.surface,
+    padding: 22,
+  },
+  createHeader: { paddingHorizontal: 2 },
+  createOptions: { gap: 10, marginTop: 20 },
+  createOption: {
+    minHeight: 92,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 13,
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 14,
+    backgroundColor: palette.surface,
+    padding: 14,
+  },
+  packageOption: { borderColor: '#D8B9BE', backgroundColor: '#FFF8F9' },
+  createOptionPressed: { opacity: 0.82, transform: [{ scale: 0.99 }] },
+  createOptionIcon: {
+    width: 42,
+    height: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    backgroundColor: palette.surfaceLow,
+  },
+  packageOptionIcon: { backgroundColor: '#F1E1E4' },
+  createOptionIconText: { color: palette.primary, fontSize: 20, fontWeight: '800' },
+  createOptionCopy: { minWidth: 0, flex: 1 },
+  createOptionTitle: { color: palette.text, fontSize: 16, fontWeight: '700', lineHeight: 22 },
+  createOptionText: { color: palette.muted, fontSize: 13, lineHeight: 18, marginTop: 3 },
+  createOptionArrow: { color: palette.primary, fontSize: 22, lineHeight: 26 },
+  createCancelButton: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
   },
   confirmationTitle: { color: palette.text, fontSize: 20, fontWeight: '700' },
   confirmationCopy: { color: palette.muted, fontSize: 14, lineHeight: 21, marginTop: 8 },
