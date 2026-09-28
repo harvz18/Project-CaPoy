@@ -44,6 +44,26 @@ function paymentDisplayStatus(row: Row): 'fully_paid' | 'deposit_paid' {
   return bookingAmount > 0 && paymentAmount < bookingAmount ? 'deposit_paid' : 'fully_paid'
 }
 
+function analysisError(row: Row) {
+  const metadata = row.analysis_metadata && typeof row.analysis_metadata === 'object' && !Array.isArray(row.analysis_metadata)
+    ? row.analysis_metadata as Row
+    : null
+  return typeof metadata?.error === 'string' ? metadata.error : ''
+}
+
+function isAnalysisRetryable(row: Row) {
+  const status = String(row.analysis_status || '')
+  if (status === 'failed' || status === 'pending') return true
+  if (status !== 'processing') return false
+
+  const updatedAt = Date.parse(String(row.updated_at || ''))
+  return Number.isFinite(updatedAt) && updatedAt < Date.now() - 10 * 60 * 1000
+}
+
+function analysisKindLabel(row: Row) {
+  return row.analysis_kind === 'event_feedback' ? 'Event feedback' : 'Service review'
+}
+
 const pageCopy: Record<OperationSection, { eyebrow: string; title: string; description: string }> = {
   users: { eyebrow: 'COMMUNITY', title: 'User management', description: 'View accounts, access roles, and account standing.' },
   providers: { eyebrow: 'MARKETPLACE', title: 'Provider approvals', description: 'Review and manage service provider applications.' },
@@ -91,9 +111,11 @@ const columns: Record<LegacyTableSection, { key: string; label: string; render?:
     { key: 'created_at', label: 'Created', render: (row) => formatDate(String(row.created_at || '')) },
   ],
   reviews: [
-    { key: 'rating', label: 'Rating', render: (row) => <span className="rating">★ {String(row.rating || 0)}.0</span> },
-    { key: 'comment', label: 'Review', render: (row) => <span className="review-copy">{String(row.comment || 'No written feedback')}</span> },
-    { key: 'sentiment_label', label: 'Sentiment', render: (row) => <StatusBadge value={String(row.sentiment_label || 'published')} /> },
+    { key: 'analysis_kind', label: 'Type', render: (row) => <span className="role-label">{analysisKindLabel(row)}</span> },
+    { key: 'rating', label: 'Rating', render: (row) => row.rating == null ? <span className="table-muted">—</span> : <span className="rating">★ {String(row.rating)}.0</span> },
+    { key: 'comment', label: 'Feedback', render: (row) => <span className="review-copy">{String(row.comment || 'No written feedback')}</span> },
+    { key: 'analysis_status', label: 'Analysis', render: (row) => <div className="analysis-state"><StatusBadge value={String(row.analysis_status || 'not_requested')} />{analysisError(row) && <small title={analysisError(row)}>{analysisError(row)}</small>}</div> },
+    { key: 'sentiment_label', label: 'Sentiment', render: (row) => <StatusBadge value={String(row.sentiment_label || 'not_analyzed')} /> },
     { key: 'created_at', label: 'Submitted', render: (row) => formatDate(String(row.created_at || '')) },
   ],
 }
@@ -103,7 +125,7 @@ const queries: Record<LegacyTableSection, { table: string; select: string; order
   providers: { table: 'provider_profiles', select: 'id,user_id,business_name,description,contact_email,contact_phone,location,verification_status,terms_accepted,terms_version,terms_accepted_at,rejection_reason,reviewed_at,reviewed_by,created_at,updated_at,profiles!provider_profiles_user_id_fkey(full_name,email,phone,account_status)', order: 'created_at' },
   bookings: { table: 'bookings', select: 'id,requested_date,amount,status,created_at', order: 'created_at' },
   payments: { table: 'payments', select: 'id,booking_id,provider_reference,provider,amount,status,metadata,created_at,bookings(amount)', order: 'created_at' },
-  reviews: { table: 'reviews', select: 'id,rating,comment,sentiment_label,created_at', order: 'created_at' },
+  reviews: { table: 'reviews', select: 'id,rating,comment,analysis_status,sentiment_label,analysis_metadata,analyzed_at,created_at,updated_at', order: 'created_at' },
 }
 
 export function OperationsScreen({ section }: { section: OperationSection }) {
@@ -138,34 +160,70 @@ function TableScreen({ section, copy }: { section: LegacyTableSection; copy: typ
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
   const [busyId, setBusyId] = useState('')
+  const [notice, setNotice] = useState('')
   const [confirmation, setConfirmation] = useState<ConfirmationAction | null>(null)
   const [selectedProvider, setSelectedProvider] = useState<Row | null>(null)
 
-  const loadRows = useCallback(async () => {
+  const fetchRows = useCallback(async () => {
     const supabase = getSupabase()
-    if (!supabase) return
-    setLoading(true)
-    setError('')
+    if (!supabase) return { rows: [] as Row[], error: 'Supabase is not configured.' }
+
+    if (section === 'reviews') {
+      const [serviceReviews, eventFeedback] = await Promise.all([
+        supabase
+          .from('reviews')
+          .select(queries.reviews.select)
+          .order('created_at', { ascending: false })
+          .limit(100),
+        supabase
+          .from('event_feedback')
+          .select('id,overall_comment,analysis_status,sentiment_label,analysis_metadata,analyzed_at,created_at,updated_at')
+          .order('created_at', { ascending: false })
+          .limit(100),
+      ])
+      const queryError = serviceReviews.error || eventFeedback.error
+      if (queryError) return { rows: [] as Row[], error: queryError.message }
+
+      const serviceRows = (serviceReviews.data || []) as unknown as Row[]
+      const feedbackRows = (eventFeedback.data || []) as unknown as Row[]
+      const combined: Row[] = [
+          ...serviceRows.map((row) => ({ ...row, analysis_kind: 'service_review' })),
+          ...feedbackRows.map((row) => ({
+            ...row,
+            analysis_kind: 'event_feedback',
+            comment: row.overall_comment,
+            rating: null,
+          })),
+        ]
+      combined.sort((left, right) => Date.parse(String(right.created_at)) - Date.parse(String(left.created_at)))
+      return { rows: combined, error: '' }
+    }
+
     const query = queries[section]
     const { data, error: queryError } = await supabase.from(query.table).select(query.select).order(query.order, { ascending: false }).limit(100)
-    if (queryError) setError(queryError.message)
-    else setRows((data || []) as unknown as Row[])
-    setLoading(false)
+    return { rows: (data || []) as unknown as Row[], error: queryError?.message || '' }
   }, [section])
 
+  const loadRows = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    setNotice('')
+    const result = await fetchRows()
+    if (result.error) setError(result.error)
+    else setRows(result.rows)
+    setLoading(false)
+  }, [fetchRows])
+
   useEffect(() => {
-    const supabase = getSupabase()
-    if (!supabase) return
     let active = true
-    const query = queries[section]
-    void supabase.from(query.table).select(query.select).order(query.order, { ascending: false }).limit(100).then(({ data, error: queryError }) => {
+    void fetchRows().then((result) => {
       if (!active) return
-      if (queryError) setError(queryError.message)
-      else setRows((data || []) as unknown as Row[])
+      if (result.error) setError(result.error)
+      else setRows(result.rows)
       setLoading(false)
     })
     return () => { active = false }
-  }, [section])
+  }, [fetchRows])
 
   const visibleRows = useMemo(() => {
     const needle = search.trim().toLowerCase()
@@ -178,7 +236,7 @@ function TableScreen({ section, copy }: { section: LegacyTableSection; copy: typ
         || (section === 'providers' && String(row.verification_status) === filter)
         || (section === 'bookings' && String(row.status) === filter)
         || (section === 'payments' && paymentDisplayStatus(row) === filter)
-        || (section === 'reviews' && String(row.sentiment_label || 'published') === filter)
+        || (section === 'reviews' && String(row.analysis_status || 'not_requested') === filter)
       return matchesSearch && matchesFilter
     })
   }, [filter, rows, search, section])
@@ -192,8 +250,45 @@ function TableScreen({ section, copy }: { section: LegacyTableSection; copy: typ
         : section === 'payments'
           ? [['all', 'All'], ['fully_paid', 'Fully paid'], ['deposit_paid', '30% paid']]
           : section === 'reviews'
-            ? [['all', 'All'], ['positive', 'Positive'], ['neutral', 'Neutral'], ['negative', 'Negative'], ['published', 'Unclassified']]
+            ? [['all', 'All'], ['failed', 'Needs retry'], ['pending', 'Waiting'], ['processing', 'Analyzing'], ['processed', 'Analyzed'], ['not_requested', 'Rating only']]
             : []
+
+  async function retryAnalysis(row: Row) {
+    const supabase = getSupabase()
+    if (!supabase || !isAnalysisRetryable(row)) return
+
+    const rowKey = `${String(row.analysis_kind)}:${String(row.id)}`
+    const isEventFeedback = row.analysis_kind === 'event_feedback'
+    setBusyId(rowKey)
+    setError('')
+    setNotice('')
+
+    const { data, error: actionError } = await supabase.functions.invoke(
+      isEventFeedback ? 'analyze-feedback' : 'analyze-review',
+      { body: isEventFeedback ? { feedbackId: row.id } : { reviewId: row.id } },
+    )
+
+    if (actionError) {
+      let message = actionError.message
+      const context = (actionError as { context?: Response }).context
+      if (context) {
+        try {
+          const payload = await context.clone().json() as { error?: unknown }
+          if (typeof payload.error === 'string') message = payload.error
+        } catch {
+          // Keep the standard functions error when no JSON body is available.
+        }
+      }
+      await loadRows()
+      setError(`Analysis retry failed: ${message}`)
+    } else {
+      await loadRows()
+      setNotice(data?.status === 'processing'
+        ? 'The feedback is already being analyzed. Its status will update when processing finishes.'
+        : 'Sentiment analysis completed successfully.')
+    }
+    setBusyId('')
+  }
 
   async function moderate(id: string, action: string) {
     const supabase = getSupabase()
@@ -233,16 +328,18 @@ function TableScreen({ section, copy }: { section: LegacyTableSection; copy: typ
           {filterOptions.length > 0 && <SegmentedFilter ariaLabel={`Filter ${copy.title.toLowerCase()}`} options={filterOptions} value={filter} onChange={setFilter} />}
           <div><button className="tool-button"><MdiIcon path={mdiDownloadOutline} /> Export</button></div>
         </div>
-        {error && <InlineError message={`${error} Apply database/20_admin_web_access.sql if staff access policies are not installed yet.`} onClose={() => setError('')} />}
+        {error && <InlineError message={error} onClose={() => setError('')} />}
+        {notice && <div className="inline-success" role="status"><MdiIcon path={mdiCheck} /><span>{notice}</span><button type="button" onClick={() => setNotice('')} aria-label="Dismiss">×</button></div>}
         {loading ? <TableSkeleton /> : visibleRows.length === 0 ? <EmptyState title={`No ${copy.title.toLowerCase()} found`} copy={search ? 'Try a different search term.' : 'Records will appear here when they become available.'} /> : (
           <div className="table-scroll">
             <table className="data-table">
-              <thead><tr>{columns[section].map((column) => <th key={column.key}>{column.label}</th>)}{((section === 'users' && can('users.update')) || (section === 'providers' && can('providers.review'))) && <th><span className="sr-only">Actions</span></th>}</tr></thead>
+              <thead><tr>{columns[section].map((column) => <th key={column.key}>{column.label}</th>)}{((section === 'users' && can('users.update')) || (section === 'providers' && can('providers.review')) || (section === 'reviews' && can('reviews.analysis.retry'))) && <th><span className="sr-only">Actions</span></th>}</tr></thead>
               <tbody>{visibleRows.map((row) => (
-                <tr key={String(row.id)}>
+                <tr key={section === 'reviews' ? `${String(row.analysis_kind)}:${String(row.id)}` : String(row.id)}>
                   {columns[section].map((column) => <td key={column.key} data-label={column.label}>{column.render ? column.render(row) : String(row[column.key] ?? '—')}</td>)}
                   {section === 'users' && can('users.update') && <td className="row-actions">{canManageUser(row) && <button disabled={busyId === row.id} title="Manage account status" onClick={() => setConfirmation({ id: String(row.id), action: String(row.account_status), currentStatus: String(row.account_status), name: String(row.full_name || row.email || 'this user'), kind: 'user', reason: '' })}><MdiIcon path={mdiDotsHorizontal} /></button>}</td>}
                   {section === 'providers' && can('providers.review') && <td className="row-actions"><button className="review-button" disabled={busyId === row.id} title="Inspect provider application" onClick={() => setSelectedProvider(row)}><MdiIcon path={mdiEyeOutline} /> Review</button></td>}
+                  {section === 'reviews' && can('reviews.analysis.retry') && <td className="row-actions">{isAnalysisRetryable(row) ? <button className="sentiment-retry-button" disabled={busyId === `${String(row.analysis_kind)}:${String(row.id)}`} title="Retry sentiment analysis" onClick={() => void retryAnalysis(row)}><MdiIcon path={mdiRefresh} />{busyId === `${String(row.analysis_kind)}:${String(row.id)}` ? 'Retrying…' : 'Retry'}</button> : <span className="table-muted">—</span>}</td>}
                 </tr>
               ))}</tbody>
             </table>

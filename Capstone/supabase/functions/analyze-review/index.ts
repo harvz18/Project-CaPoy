@@ -119,11 +119,60 @@ Deno.serve(async (request) => {
     .from('reviews')
     .select('id, reviewer_id, comment, analysis_status, updated_at')
     .eq('id', reviewId)
-    .eq('reviewer_id', authData.user.id)
     .maybeSingle()
 
   if (reviewError) return jsonResponse({ error: 'Unable to load review.' }, 500)
   if (!review) return jsonResponse({ error: 'Review was not found.' }, 404)
+
+  const isOwner = review.reviewer_id === authData.user.id
+  let isStaffRetry = false
+  let actorRole: string | null = null
+
+  if (!isOwner) {
+    const { data: canRetry, error: permissionError } = await userClient.rpc('has_permission', {
+      target_permission: 'reviews.analysis.retry',
+    })
+    if (permissionError || canRetry !== true) {
+      return jsonResponse({ error: 'Sentiment-analysis retry access is required.' }, 403)
+    }
+
+    const { data: callerProfile, error: profileError } = await admin
+      .from('profiles')
+      .select('default_role')
+      .eq('id', authData.user.id)
+      .eq('account_status', 'active')
+      .maybeSingle()
+    if (profileError || !callerProfile) return jsonResponse({ error: 'Active staff access is required.' }, 403)
+
+    isStaffRetry = true
+    actorRole = callerProfile.default_role
+  }
+
+  const auditStaffRetry = async (
+    result: 'success' | 'failure',
+    outcome: string,
+    resultingStatus: string,
+    errorMessage?: string,
+  ) => {
+    if (!isStaffRetry) return
+    const { error: auditError } = await admin.from('audit_logs').insert({
+      actor_id: authData.user.id,
+      actor_role: actorRole,
+      action: 'sentiment.review.retry',
+      resource_type: 'review',
+      resource_id: reviewId,
+      previous_state: { analysis_status: review.analysis_status },
+      new_state: { analysis_status: resultingStatus },
+      result,
+      metadata: {
+        analysis_kind: 'service_review',
+        outcome,
+        ...(errorMessage ? { error: errorMessage } : {}),
+      },
+    })
+    if (auditError) console.error('Unable to record sentiment retry audit:', auditError.message)
+  }
+
   if (!review.comment?.trim()) {
     if (review.analysis_status !== 'not_requested') {
       await admin
@@ -131,9 +180,11 @@ Deno.serve(async (request) => {
         .update({ analysis_status: 'not_requested', updated_at: new Date().toISOString() })
         .eq('id', reviewId)
     }
+    await auditStaffRetry('success', 'no_written_comment', 'not_requested')
     return jsonResponse({ reviewId, status: 'not_requested' })
   }
   if (review.analysis_status === 'processed') {
+    await auditStaffRetry('success', 'already_processed', 'processed')
     return jsonResponse({ reviewId, status: 'processed' })
   }
 
@@ -144,6 +195,7 @@ Deno.serve(async (request) => {
     processingStartedAt < Date.now() - 10 * 60 * 1000
 
   if (review.analysis_status === 'processing' && !staleProcessing) {
+    await auditStaffRetry('success', 'already_processing', 'processing')
     return jsonResponse({ reviewId, status: 'processing' }, 202)
   }
   if (!['pending', 'failed', 'processing'].includes(review.analysis_status)) {
@@ -163,8 +215,14 @@ Deno.serve(async (request) => {
     .select('id')
     .maybeSingle()
 
-  if (claimError) return jsonResponse({ error: 'Unable to claim review for analysis.' }, 500)
-  if (!claimed) return jsonResponse({ reviewId, status: 'processing' }, 202)
+  if (claimError) {
+    await auditStaffRetry('failure', 'claim_failed', review.analysis_status, claimError.message)
+    return jsonResponse({ error: 'Unable to claim review for analysis.' }, 500)
+  }
+  if (!claimed) {
+    await auditStaffRetry('success', 'claimed_by_another_request', 'processing')
+    return jsonResponse({ reviewId, status: 'processing' }, 202)
+  }
 
   try {
     const headers: Record<string, string> = { 'Content-Type': 'application/json; charset=utf-8' }
@@ -218,6 +276,7 @@ Deno.serve(async (request) => {
       .eq('id', reviewId)
 
     if (updateError) throw new Error('Unable to store the sentiment result.')
+    await auditStaffRetry('success', 'processed', 'processed')
     return jsonResponse({ reviewId, status: 'processed' })
   } catch (error) {
     const message = getErrorMessage(error)
@@ -234,6 +293,7 @@ Deno.serve(async (request) => {
       })
       .eq('id', reviewId)
 
+    await auditStaffRetry('failure', 'analysis_failed', 'failed', message)
     return jsonResponse({ error: message, reviewId, status: 'failed' }, 502)
   }
 })

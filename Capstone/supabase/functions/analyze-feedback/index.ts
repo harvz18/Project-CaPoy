@@ -125,12 +125,62 @@ Deno.serve(async (request) => {
     .from('event_feedback')
     .select('id, client_id, overall_comment, analysis_status, updated_at')
     .eq('id', feedbackId)
-    .eq('client_id', authData.user.id)
     .maybeSingle()
 
   if (feedbackError) return jsonResponse({ error: 'Unable to load feedback.' }, 500)
   if (!feedback) return jsonResponse({ error: 'Feedback was not found.' }, 404)
+
+  const isOwner = feedback.client_id === authData.user.id
+  let isStaffRetry = false
+  let actorRole: string | null = null
+
+  if (!isOwner) {
+    const { data: canRetry, error: permissionError } = await userClient.rpc('has_permission', {
+      target_permission: 'reviews.analysis.retry',
+    })
+    if (permissionError || canRetry !== true) {
+      return jsonResponse({ error: 'Sentiment-analysis retry access is required.' }, 403)
+    }
+
+    const { data: callerProfile, error: profileError } = await admin
+      .from('profiles')
+      .select('default_role')
+      .eq('id', authData.user.id)
+      .eq('account_status', 'active')
+      .maybeSingle()
+    if (profileError || !callerProfile) return jsonResponse({ error: 'Active staff access is required.' }, 403)
+
+    isStaffRetry = true
+    actorRole = callerProfile.default_role
+  }
+
+  const auditStaffRetry = async (
+    result: 'success' | 'failure',
+    outcome: string,
+    resultingStatus: string,
+    errorMessage?: string,
+  ) => {
+    if (!isStaffRetry) return
+    const { error: auditError } = await admin.from('audit_logs').insert({
+      actor_id: authData.user.id,
+      actor_role: actorRole,
+      action: 'sentiment.feedback.retry',
+      resource_type: 'event_feedback',
+      resource_id: feedbackId,
+      previous_state: { analysis_status: feedback.analysis_status },
+      new_state: { analysis_status: resultingStatus },
+      result,
+      metadata: {
+        analysis_kind: 'event_feedback',
+        outcome,
+        ...(errorMessage ? { error: errorMessage } : {}),
+      },
+    })
+    if (auditError) console.error('Unable to record sentiment retry audit:', auditError.message)
+  }
+
   if (feedback.analysis_status === 'processed') {
+    await auditStaffRetry('success', 'already_processed', 'processed')
     return jsonResponse({ feedbackId, status: 'processed' })
   }
   const processingStartedAt = Date.parse(feedback.updated_at)
@@ -140,6 +190,7 @@ Deno.serve(async (request) => {
     processingStartedAt < Date.now() - 10 * 60 * 1000
 
   if (feedback.analysis_status === 'processing' && !staleProcessing) {
+    await auditStaffRetry('success', 'already_processing', 'processing')
     return jsonResponse({ feedbackId, status: 'processing' }, 202)
   }
 
@@ -159,8 +210,14 @@ Deno.serve(async (request) => {
     .select('id')
     .maybeSingle()
 
-  if (claimError) return jsonResponse({ error: 'Unable to claim feedback for analysis.' }, 500)
-  if (!claimed) return jsonResponse({ feedbackId, status: 'processing' }, 202)
+  if (claimError) {
+    await auditStaffRetry('failure', 'claim_failed', feedback.analysis_status, claimError.message)
+    return jsonResponse({ error: 'Unable to claim feedback for analysis.' }, 500)
+  }
+  if (!claimed) {
+    await auditStaffRetry('success', 'claimed_by_another_request', 'processing')
+    return jsonResponse({ feedbackId, status: 'processing' }, 202)
+  }
 
   try {
     const headers: Record<string, string> = { 'Content-Type': 'application/json; charset=utf-8' }
@@ -214,6 +271,7 @@ Deno.serve(async (request) => {
       .eq('id', feedbackId)
 
     if (updateError) throw new Error('Unable to store the sentiment result.')
+    await auditStaffRetry('success', 'processed', 'processed')
     return jsonResponse({ feedbackId, status: 'processed' })
   } catch (error) {
     const message = getErrorMessage(error)
@@ -230,6 +288,7 @@ Deno.serve(async (request) => {
       })
       .eq('id', feedbackId)
 
+    await auditStaffRetry('failure', 'analysis_failed', 'failed', message)
     return jsonResponse({ error: message, feedbackId, status: 'failed' }, 502)
   }
 })
