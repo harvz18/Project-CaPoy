@@ -119,7 +119,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         }
       }
 
-      if (!access?.profile || access.profile.account_status !== 'active') {
+      if (!access?.profile || !['active', 'verified'].includes(access.profile.account_status)) {
         await supabase.auth.signOut()
         router.replace('/?error=unauthorized')
         return

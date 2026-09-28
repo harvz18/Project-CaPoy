@@ -27,6 +27,8 @@ type ServicePackage = {
   description: string | null
   price: number | null
   inclusions: unknown
+  is_active: boolean
+  is_deleted: boolean
   pricing_unit: string | null
   service_package_items: Array<{
     position: number
@@ -59,6 +61,7 @@ type Service = {
 }
 
 type Decision = 'approved' | 'declined'
+type ReviewCollection = 'services' | 'packages'
 
 const serviceSelection = `
   id, category_id, name, description, base_price, location, cover_image_url, gallery_urls,
@@ -67,7 +70,7 @@ const serviceSelection = `
   created_at, updated_at,
   provider_profiles(business_name, contact_email, contact_phone, location, verification_status),
   service_categories(name),
-  service_packages(id, name, description, price, inclusions, pricing_unit, subtotal,
+  service_packages(id, name, description, price, inclusions, pricing_unit, subtotal, is_active, is_deleted,
     discount_type, discount_value, discount_amount,
     service_package_items(position, services(name)))
 `
@@ -76,6 +79,8 @@ export function ServicesScreen() {
   const { can } = useStaff()
   const [services, setServices] = useState<Service[]>([])
   const [selected, setSelected] = useState<Service | null>(null)
+  const [selectedPackage, setSelectedPackage] = useState<ServicePackage | null>(null)
+  const [collection, setCollection] = useState<ReviewCollection>('services')
   const [decision, setDecision] = useState<Decision | null>(null)
   const [note, setNote] = useState('')
   const [search, setSearch] = useState('')
@@ -128,7 +133,36 @@ export function ServicesScreen() {
     })
   }, [categoryFilter, search, services, status])
 
-  const pendingCount = services.filter((service) => service.status === 'pending_review').length
+  const packages = useMemo(() => services.flatMap((service) =>
+    (service.service_packages || [])
+      .filter((item) => !item.is_deleted)
+      .map((item) => ({ item, service }))
+  ), [services])
+
+  const visiblePackages = useMemo(() => {
+    const needle = search.trim().toLowerCase()
+    return packages.filter(({ item, service }) => {
+      const provider = nestedRecord(service.provider_profiles)
+      const category = nestedRecord(service.service_categories)
+      const packageServices = (item.service_package_items || [])
+        .map((entry) => String(nestedRecord(entry.services)?.name || ''))
+        .filter(Boolean)
+      const matchesStatus = status === 'all' || service.status === status
+      const matchesCategory = categoryFilter === 'all' || String(category?.name || '') === categoryFilter
+      const matchesSearch = !needle || [
+        item.name,
+        item.description,
+        service.name,
+        provider?.business_name,
+        ...packageServices,
+      ].some((value) => String(value || '').toLowerCase().includes(needle))
+      return matchesStatus && matchesCategory && matchesSearch
+    })
+  }, [categoryFilter, packages, search, status])
+
+  const pendingServiceCount = services.filter((service) => service.status === 'pending_review').length
+  const pendingPackageCount = packages.filter(({ service }) => service.status === 'pending_review').length
+  const pendingCount = collection === 'services' ? pendingServiceCount : pendingPackageCount
   const categories = Array.from(new Set(services.map((service) => String(nestedRecord(service.service_categories)?.name || '')).filter(Boolean))).sort()
 
   function requestDecision(nextDecision: Decision) {
@@ -164,17 +198,22 @@ export function ServicesScreen() {
 
     setDecision(null)
     setSelected(null)
+    setSelectedPackage(null)
     await loadServices()
   }
 
   return (
     <div className="screen-stack">
       <section className="page-heading page-heading--with-action">
-        <div><span className="eyebrow">MARKETPLACE</span><h1>Service approvals</h1><p>Review provider listings before they become visible to clients.</p></div>
+        <div><span className="eyebrow">MARKETPLACE</span><h1>Listing approvals</h1><p>Review provider services and packages before they become visible to clients.</p></div>
         <div className="heading-actions"><span className="queue-count"><i />{pendingCount} awaiting review</span><button className="secondary-button" onClick={() => void loadServices()}><MdiIcon path={mdiRefresh} /> Refresh</button></div>
       </section>
 
       <section className="panel data-panel">
+        <div className="approval-type-tabs" role="tablist" aria-label="Listing type">
+          <button type="button" role="tab" aria-selected={collection === 'services'} className={collection === 'services' ? 'active' : ''} onClick={() => setCollection('services')}>Services <span>{services.length}</span></button>
+          <button type="button" role="tab" aria-selected={collection === 'packages'} className={collection === 'packages' ? 'active' : ''} onClick={() => setCollection('packages')}>Packages <span>{packages.length}</span></button>
+        </div>
         <div className="table-toolbar service-toolbar">
           <label className="search-box"><MdiIcon path={mdiMagnify} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search services or providers…" /></label>
           <SegmentedFilter
@@ -186,7 +225,7 @@ export function ServicesScreen() {
           <select className="inline-select" value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} aria-label="Filter services by category"><option value="all">All categories</option>{categories.map((category) => <option key={category} value={category}>{category}</option>)}</select>
         </div>
         {error && <InlineError message={error} onClose={() => setError('')} />}
-        {loading ? <TableSkeleton /> : visibleServices.length === 0 ? <EmptyState title="No matching services" copy={status === 'pending_review' ? 'The review queue is clear.' : 'Try another filter or search term.'} /> : (
+        {loading ? <TableSkeleton /> : collection === 'services' && visibleServices.length === 0 ? <EmptyState title="No matching services" copy={status === 'pending_review' ? 'The service review queue is clear.' : 'Try another filter or search term.'} /> : collection === 'packages' && visiblePackages.length === 0 ? <EmptyState title="No matching packages" copy={status === 'pending_review' ? 'The package review queue is clear.' : 'Try another filter or search term.'} /> : collection === 'services' ? (
           <div className="service-review-list">
             {visibleServices.map((service) => {
               const provider = nestedRecord(service.provider_profiles)
@@ -200,7 +239,29 @@ export function ServicesScreen() {
                     <small>{service.description || 'No service description provided.'}</small>
                   </div>
                   <div className="service-review-row__meta"><span>Provider price</span><strong>{service.base_price ? formatMoney(service.base_price) : 'Custom quote'}</strong><small>Submitted {formatDate(service.updated_at)}</small></div>
-                  <button className="review-button" onClick={() => setSelected(service)}><MdiIcon path={mdiEyeOutline} /> Review details</button>
+                  <button className="review-button" onClick={() => { setSelectedPackage(null); setSelected(service) }}><MdiIcon path={mdiEyeOutline} /> Review details</button>
+                </article>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="service-review-list">
+            {visiblePackages.map(({ item, service }) => {
+              const provider = nestedRecord(service.provider_profiles)
+              const packageServices = (item.service_package_items || [])
+                .sort((left, right) => left.position - right.position)
+                .map((entry) => String(nestedRecord(entry.services)?.name || ''))
+                .filter(Boolean)
+              return (
+                <article key={item.id} className="service-review-row">
+                  <div className="service-review-image service-review-image--package"><MdiIcon path={mdiPackageVariantClosed} /></div>
+                  <div className="service-review-row__main">
+                    <div><strong>{item.name}</strong><StatusBadge value={service.status} /><SubmissionBadge kind={service.submission_kind} /></div>
+                    <p>{String(provider?.business_name || 'Unknown provider')} · Package</p>
+                    <small>{packageServices.length ? packageServices.join(' · ') : `Hosted by ${service.name}`}</small>
+                  </div>
+                  <div className="service-review-row__meta"><span>Package price</span><strong>{item.price ? formatMoney(item.price) : 'Custom quote'}</strong><small>Updated {formatDate(service.updated_at)}</small></div>
+                  <button className="review-button" onClick={() => { setSelectedPackage(item); setSelected(service) }}><MdiIcon path={mdiEyeOutline} /> Review package</button>
                 </article>
               )
             })}
@@ -212,8 +273,10 @@ export function ServicesScreen() {
         <ServiceDetailModal
           canApprove={can('services.approve')}
           canReject={can('services.reject')}
+          reviewTarget={selectedPackage ? 'package' : 'service'}
+          selectedPackageId={selectedPackage?.id}
           service={selected}
-          onClose={() => setSelected(null)}
+          onClose={() => { setSelected(null); setSelectedPackage(null) }}
           onDecision={requestDecision}
         />
       )}
@@ -222,12 +285,14 @@ export function ServicesScreen() {
         <div className="modal-backdrop modal-backdrop--front" role="presentation">
           <section className="confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="decision-title">
             <span className={`confirmation-dialog__icon confirmation-dialog__icon--${decision}`}><MdiIcon path={decision === 'approved' ? mdiCheck : mdiClose} /></span>
-            <h2 id="decision-title">{decision === 'approved' ? 'Approve this service?' : 'Decline this service?'}</h2>
+            <h2 id="decision-title">{decision === 'approved' ? `Approve this ${selectedPackage ? 'package' : 'service'}?` : `Decline this ${selectedPackage ? 'package' : 'service'}?`}</h2>
             <p>{decision === 'approved'
-              ? selected.submission_kind === 'updated'
-                ? `The reviewed changes will replace the current version of ${selected.name} and become visible to clients.`
-                : `${selected.name} will immediately become visible and bookable by clients.`
-              : `${selected.name} will remain hidden. The provider will receive your feedback.`}</p>
+              ? selectedPackage
+                ? `${selectedPackage.name} and its host-listing revision will become visible to clients.`
+                : selected.submission_kind === 'updated'
+                  ? `The reviewed changes will replace the current version of ${selected.name} and become visible to clients.`
+                  : `${selected.name} will immediately become visible and bookable by clients.`
+              : `${selectedPackage?.name || selected.name} will remain hidden. The provider will receive your feedback.`}</p>
             <label className="decision-note"><span>{decision === 'approved' ? 'Note to provider (optional)' : 'Reason for declining'}</span><textarea autoFocus={decision === 'declined'} value={note} onChange={(event) => setNote(event.target.value)} placeholder={decision === 'declined' ? 'Explain what needs to be corrected before resubmission…' : 'Add a short approval note…'} /></label>
             <div className="confirmation-dialog__actions"><button className="secondary-button" disabled={submitting} onClick={() => setDecision(null)}>Cancel</button><button className={decision === 'approved' ? 'confirm-button confirm-button--approve' : 'confirm-button confirm-button--decline'} disabled={submitting || (decision === 'declined' && !note.trim())} onClick={() => void submitDecision()}>{submitting ? 'Saving decision…' : decision === 'approved' ? 'Yes, approve service' : 'Yes, decline service'}</button></div>
           </section>
