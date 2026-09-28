@@ -978,7 +978,15 @@ const PickerColumn: React.FC<PickerColumnProps> = ({
   const listRef = React.useRef<FlatList<WheelOption>>(null)
   const scrollOffset = React.useRef(new Animated.Value(0)).current
   const dragSettleTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const latestOffset = React.useRef(0)
+  const optionsRef = React.useRef(options)
+  const onSelectRef = React.useRef(onSelect)
+  const selectedRef = React.useRef(selected)
   const selectedIndex = Math.max(0, options.findIndex((option) => option.value === selected))
+
+  optionsRef.current = options
+  onSelectRef.current = onSelect
+  selectedRef.current = selected
 
   React.useEffect(() => {
     const timeout = setTimeout(() => {
@@ -986,6 +994,7 @@ const PickerColumn: React.FC<PickerColumnProps> = ({
         animated: false,
         offset: selectedIndex * wheelRowHeight,
       })
+      latestOffset.current = selectedIndex * wheelRowHeight
     }, 0)
 
     return () => clearTimeout(timeout)
@@ -998,13 +1007,33 @@ const PickerColumn: React.FC<PickerColumnProps> = ({
     []
   )
 
-  const selectFromScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+  const settleWheel = (offset: number, animated = true) => {
+    const currentOptions = optionsRef.current
     const index = Math.max(
       0,
-      Math.min(options.length - 1, Math.round(event.nativeEvent.contentOffset.y / wheelRowHeight))
+      Math.min(currentOptions.length - 1, Math.round(offset / wheelRowHeight))
     )
-    const option = options[index]
-    if (option && option.value !== selected) onSelect(option.value)
+    const snappedOffset = index * wheelRowHeight
+    latestOffset.current = snappedOffset
+
+    if (Math.abs(offset - snappedOffset) > 0.5) {
+      listRef.current?.scrollToOffset({ animated, offset: snappedOffset })
+    }
+
+    const option = currentOptions[index]
+    if (option && option.value !== selectedRef.current) {
+      selectedRef.current = option.value
+      onSelectRef.current(option.value)
+    }
+  }
+
+  const scheduleWheelSettle = (offset: number) => {
+    latestOffset.current = offset
+    if (dragSettleTimer.current) clearTimeout(dragSettleTimer.current)
+    dragSettleTimer.current = setTimeout(() => {
+      dragSettleTimer.current = null
+      settleWheel(latestOffset.current)
+    }, 120)
   }
 
   return (
@@ -1018,7 +1047,7 @@ const PickerColumn: React.FC<PickerColumnProps> = ({
         ref={listRef}
         contentContainerStyle={styles.pickerOptionList}
         data={options}
-        decelerationRate={0.985}
+        decelerationRate="fast"
         disableIntervalMomentum
         getItemLayout={(_, index) => ({
           index,
@@ -1033,30 +1062,20 @@ const PickerColumn: React.FC<PickerColumnProps> = ({
         }}
         onMomentumScrollEnd={(event) => {
           if (dragSettleTimer.current) clearTimeout(dragSettleTimer.current)
-          selectFromScroll(event)
+          dragSettleTimer.current = null
+          settleWheel(event.nativeEvent.contentOffset.y)
         }}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollOffset } } }],
-          { useNativeDriver: true }
+          {
+            listener: (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+              scheduleWheelSettle(event.nativeEvent.contentOffset.y)
+            },
+            useNativeDriver: true,
+          }
         )}
         onScrollEndDrag={(event) => {
-          if (dragSettleTimer.current) clearTimeout(dragSettleTimer.current)
-          const capturedOffset = event.nativeEvent.contentOffset.y
-          dragSettleTimer.current = setTimeout(() => {
-            const index = Math.max(
-              0,
-              Math.min(
-                options.length - 1,
-                Math.round(capturedOffset / wheelRowHeight)
-              )
-            )
-            listRef.current?.scrollToOffset({
-              animated: true,
-              offset: index * wheelRowHeight,
-            })
-            const option = options[index]
-            if (option && option.value !== selected) onSelect(option.value)
-          }, 90)
+          scheduleWheelSettle(event.nativeEvent.contentOffset.y)
         }}
         renderItem={({ index, item }) => {
           const isSelected = item.value === selected
@@ -1095,11 +1114,17 @@ const PickerColumn: React.FC<PickerColumnProps> = ({
                 accessibilityRole="button"
                 accessibilityState={{ selected: isSelected }}
                 onPress={() => {
+                  if (dragSettleTimer.current) clearTimeout(dragSettleTimer.current)
+                  dragSettleTimer.current = null
+                  latestOffset.current = index * wheelRowHeight
                   listRef.current?.scrollToOffset({
                     animated: true,
                     offset: index * wheelRowHeight,
                   })
-                  onSelect(item.value)
+                  if (item.value !== selectedRef.current) {
+                    selectedRef.current = item.value
+                    onSelectRef.current(item.value)
+                  }
                 }}
                 style={({ pressed }) => [styles.pickerOption, pressed && styles.pressed]}
               >
