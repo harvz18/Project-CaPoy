@@ -16,6 +16,7 @@ import type {
   PayoutEarningsPeriod,
   PayoutEarningsSummary,
   PayoutTransaction,
+  ServicePackageValue,
   ServiceListingReviewValue,
   ServicePricingUnit,
 } from '../screens'
@@ -35,6 +36,7 @@ export interface MerchantServiceListing {
   isAvailable: boolean
   name: string
   packageCount: number
+  pricingUnit: ServicePricingUnit
   status: string
   updatedAt: string
 }
@@ -290,6 +292,9 @@ const mapMerchantServiceRow = (row: unknown, fallbackCategoryName = 'Service') =
     isAvailable: record.is_available !== false,
     name: textFrom(record.name, 'Untitled service'),
     packageCount: packages.length,
+    pricingUnit: (['event', 'person', 'hour', 'day'].includes(textFrom(record.pricing_unit))
+      ? textFrom(record.pricing_unit)
+      : 'event') as ServicePricingUnit,
     status: textFrom(record.status, 'draft'),
     updatedAt: textFrom(record.updated_at, new Date().toISOString()),
   } satisfies MerchantServiceListing
@@ -392,6 +397,54 @@ export const uploadMerchantServicePhoto = async (uri: string): Promise<string | 
   }
 }
 
+const saveComposedPackageWithContext = async (
+  context: NonNullable<Awaited<ReturnType<typeof getMerchantContext>>>,
+  value: ServicePackageValue,
+  serviceIds: string[]
+): Promise<{ id?: string; message?: string; ok: boolean }> => {
+  const targetPackageId = isUuid(value.id) ? value.id : null
+  const { data, error } = await context.client.rpc('provider_save_composed_package', {
+    package_description: value.description || null,
+    package_discount_type: value.discountType ?? 'none',
+    package_discount_value: value.discountValue ?? 0,
+    package_inclusions: value.inclusions,
+    package_name: value.name,
+    target_package_id: targetPackageId,
+    target_service_ids: serviceIds,
+  })
+
+  if (error) {
+    const unavailable = error.message.toLowerCase().includes('provider_save_composed_package')
+    return {
+      ok: false,
+      message: unavailable
+        ? 'Composed packages are not installed yet. Apply database/47_composed_service_packages.sql, then try again.'
+        : error.message,
+    }
+  }
+
+  return { id: typeof data === 'string' ? data : undefined, ok: true }
+}
+
+export const saveMerchantComposedPackage = async (
+  value: ServicePackageValue
+): Promise<MerchantResult> => {
+  try {
+    const context = await getMerchantContext()
+    if (!context) return { ok: false, message: notReady }
+
+    const result = await saveComposedPackageWithContext(context, value, value.serviceIds ?? [])
+    return {
+      ok: result.ok,
+      message: result.ok
+        ? 'Package submitted for review.'
+        : result.message,
+    }
+  } catch (error) {
+    return { ok: false, message: toMessage(error, 'Unable to save this package.') }
+  }
+}
+
 export const saveMerchantServiceListing = async (
   value: ServiceListingReviewValue,
   status: 'draft' | 'active',
@@ -484,41 +537,49 @@ export const saveMerchantServiceListing = async (
       return { ok: false, message: error.message }
     }
 
-    if (existingServiceId) {
-      const { error: removePackagesError } = await context.client
-        .from('service_packages')
-        .delete()
-        .eq('service_id', existingServiceId)
-
-      if (removePackagesError) {
-        return { ok: false, message: removePackagesError.message }
-      }
-    }
-
     if (value.packages.length > 0) {
-      const packageRows = value.packages.map((item) => ({
-          description: item.description,
-          inclusions: item.inclusions,
-          is_active: false,
-          name: item.name,
-          price: item.price,
-          service_id: serviceId,
-        }))
-      let packageInsert = await context.client.from('service_packages').insert(
-        packageRows.map((item, index) => ({
-          ...item,
-          pricing_unit: value.packages[index]?.unit ?? 'event',
-        }))
-      )
+      for (const item of value.packages) {
+        if (item.pricingMode !== 'composed') {
+          // Preserve unpublished drafts created before composed packages were
+          // introduced. Existing legacy rows remain untouched.
+          if (isUuid(item.id)) continue
+          let legacyInsert = await context.client.from('service_packages').insert({
+            description: item.description,
+            inclusions: item.inclusions,
+            is_active: false,
+            name: item.name,
+            price: item.price,
+            pricing_unit: item.unit,
+            service_id: serviceId,
+          })
+          if (legacyInsert.error && isMissingListingDetailsColumn(legacyInsert.error.message)) {
+            legacyInsert = await context.client.from('service_packages').insert({
+              description: item.description,
+              inclusions: item.inclusions,
+              is_active: false,
+              name: item.name,
+              price: item.price,
+              service_id: serviceId,
+            })
+          }
+          if (legacyInsert.error) {
+            return { ok: false, message: legacyInsert.error.message }
+          }
+          continue
+        }
 
-      if (packageInsert.error && isMissingListingDetailsColumn(packageInsert.error.message)) {
-        packageInsert = await context.client.from('service_packages').insert(packageRows)
-      }
+        const resolvedServiceIds = (item.serviceIds ?? []).map((id) =>
+          id === '__current_service__' ? serviceId : id
+        )
+        const packageResult = await saveComposedPackageWithContext(
+          context,
+          item,
+          Array.from(new Set(resolvedServiceIds))
+        )
 
-      const { error: packageError } = packageInsert
-
-      if (packageError) {
-        return { ok: false, message: packageError.message }
+        if (!packageResult.ok) {
+          return { ok: false, message: packageResult.message }
+        }
       }
     }
 
@@ -676,7 +737,7 @@ export const loadMerchantServiceForEditing = async (
   const { data, error } = await context.client
     .from('services')
     .select(
-      'id, name, description, base_price, cover_image_url, gallery_urls, pricing_model, pricing_unit, pricing_details, catering_service_types, category_id, service_categories(name), service_packages(id, name, description, price, inclusions, pricing_unit)'
+      'id, name, description, base_price, cover_image_url, gallery_urls, pricing_model, pricing_unit, pricing_details, catering_service_types, category_id, service_categories(name), service_packages(id, name, description, price, inclusions, pricing_unit, pricing_mode, subtotal, discount_type, discount_value, discount_amount, service_package_items(service_id, position, services(id, name, base_price, pricing_unit)))'
     )
     .eq('id', serviceId)
     .eq('provider_id', context.providerId)
@@ -710,19 +771,48 @@ export const loadMerchantServiceForEditing = async (
       photos: Array.from(new Set([coverImage, ...gallery].filter(Boolean))),
       serviceName: textFrom(record.name),
     },
-    packages: packageRows.map((item) => ({
-      currency: 'PHP' as const,
-      description: textFrom(item.description),
-      id: textFrom(item.id, randomUuid()),
-      inclusions: Array.isArray(item.inclusions)
-        ? item.inclusions.filter((entry): entry is string => typeof entry === 'string')
-        : [],
-      name: textFrom(item.name, 'Package'),
-      price: numberFrom(item.price),
-      unit: (['event', 'person', 'hour', 'day'].includes(textFrom(item.pricing_unit))
-        ? textFrom(item.pricing_unit)
-        : 'event') as ServicePricingUnit,
-    })),
+    packages: packageRows.map((item) => {
+      const packageItems = Array.isArray(item.service_package_items)
+        ? (item.service_package_items as Array<Record<string, unknown>>)
+            .sort((left, right) => numberFrom(left.position) - numberFrom(right.position))
+        : []
+      const services = packageItems.map((packageItem) => {
+        const service = nested(packageItem.services) as Record<string, unknown> | undefined
+        const itemUnit = textFrom(service?.pricing_unit, textFrom(item.pricing_unit, 'event'))
+        return {
+          id: textFrom(packageItem.service_id),
+          name: textFrom(service?.name, 'Service'),
+          price: numberFrom(service?.base_price),
+          unit: (['event', 'person', 'hour', 'day'].includes(itemUnit)
+            ? itemUnit
+            : 'event') as ServicePricingUnit,
+        }
+      }).filter((service) => service.id)
+      const itemUnit = textFrom(item.pricing_unit, 'event')
+
+      return {
+        currency: 'PHP' as const,
+        description: textFrom(item.description),
+        discountAmount: numberFrom(item.discount_amount),
+        discountType: (['none', 'percentage', 'fixed'].includes(textFrom(item.discount_type))
+          ? textFrom(item.discount_type)
+          : 'none') as ServicePackageValue['discountType'],
+        discountValue: numberFrom(item.discount_value),
+        id: textFrom(item.id, randomUuid()),
+        inclusions: Array.isArray(item.inclusions)
+          ? item.inclusions.filter((entry): entry is string => typeof entry === 'string')
+          : [],
+        name: textFrom(item.name, 'Package'),
+        price: numberFrom(item.price),
+        pricingMode: textFrom(item.pricing_mode) === 'composed' ? 'composed' as const : 'legacy' as const,
+        serviceIds: services.map((service) => service.id),
+        services,
+        subtotal: numberFrom(item.subtotal, numberFrom(item.price)),
+        unit: (['event', 'person', 'hour', 'day'].includes(itemUnit)
+          ? itemUnit
+          : 'event') as ServicePricingUnit,
+      }
+    }),
     pricing: {
       amount: pricingModel === 'customQuote' ? undefined : numberFrom(record.base_price),
       cateringServiceTypes,
@@ -1116,7 +1206,7 @@ export const fetchMerchantServices = async (): Promise<MerchantServiceListing[]>
   const query = context.client
     .from('services')
     .select(
-      'id, name, description, base_price, cover_image_url, status, is_available, updated_at, service_categories(name), service_packages(id)'
+      'id, name, description, base_price, pricing_unit, cover_image_url, status, is_available, updated_at, service_categories(name), service_packages(id)'
     )
     .eq('provider_id', context.providerId)
     .neq('status', 'deleted')
@@ -1131,7 +1221,7 @@ export const fetchMerchantServices = async (): Promise<MerchantServiceListing[]>
 
     const { data: fallbackData, error: fallbackError } = await context.client
       .from('services')
-      .select('id, name, description, base_price, cover_image_url, status, is_available, updated_at')
+      .select('id, name, description, base_price, pricing_unit, cover_image_url, status, is_available, updated_at')
       .eq('provider_id', context.providerId)
       .neq('status', 'deleted')
       .order('updated_at', { ascending: false })

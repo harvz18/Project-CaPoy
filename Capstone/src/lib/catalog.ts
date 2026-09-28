@@ -68,11 +68,16 @@ export interface CatalogService {
   packageId?: string
   packages?: Array<{
     description: string
+    discountAmount: number
+    discountType: 'none' | 'percentage' | 'fixed'
+    discountValue: number
     id: string
     inclusions: string[]
     name: string
+    originalPrice?: number
     price: number
     providerPrice: number
+    serviceNames: string[]
     unit?: 'event' | 'person' | 'hour' | 'day'
   }>
   pricingDetails?: string
@@ -145,12 +150,27 @@ const getPackages = (value: unknown, commissionRate: number) => {
     const id = textFrom(record.id, '')
     const name = textFrom(record.name, '')
     const providerPrice = numberFrom(record.price, 0)
+    const providerSubtotal = numberFrom(record.subtotal, providerPrice)
+    const packageItems = Array.isArray(record.service_package_items)
+      ? (record.service_package_items as Array<Record<string, unknown>>)
+          .sort((left, right) => numberFrom(left.position, 0) - numberFrom(right.position, 0))
+      : []
+    const serviceNames = packageItems.flatMap((packageItem) => {
+      const serviceName = getNestedText(packageItem.services, 'name', '')
+      return serviceName ? [serviceName] : []
+    })
+    const discountType = ['none', 'percentage', 'fixed'].includes(String(record.discount_type))
+      ? record.discount_type as 'none' | 'percentage' | 'fixed'
+      : 'none'
 
     if (!id || !name) return []
 
     return [
       {
         description: textFrom(record.description, ''),
+        discountAmount: numberFrom(record.discount_amount, 0),
+        discountType,
+        discountValue: numberFrom(record.discount_value, 0),
         id,
         inclusions: Array.isArray(record.inclusions)
           ? record.inclusions.filter(
@@ -158,8 +178,12 @@ const getPackages = (value: unknown, commissionRate: number) => {
             )
           : [],
         name,
+        originalPrice: providerSubtotal > providerPrice
+          ? customerPriceFromProviderPrice(providerSubtotal, commissionRate)
+          : undefined,
         price: customerPriceFromProviderPrice(providerPrice, commissionRate),
         providerPrice,
+        serviceNames,
         unit: ['event', 'person', 'hour', 'day'].includes(String(record.pricing_unit))
           ? (record.pricing_unit as 'event' | 'person' | 'hour' | 'day')
           : undefined,
@@ -203,7 +227,7 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
   const baseSelection =
     'id, provider_id, category_id, name, description, base_price, location, cover_image_url, provider_profiles(id, business_name), service_categories(id, name), service_packages(id, name, description, price, inclusions), reviews(rating)'
   const detailedSelection =
-    'id, provider_id, category_id, name, description, base_price, location, cover_image_url, gallery_urls, pricing_model, pricing_unit, pricing_details, catering_service_types, provider_profiles(id, business_name), service_categories(id, name), service_packages(id, name, description, price, inclusions, pricing_unit), reviews(rating)'
+    'id, provider_id, category_id, name, description, base_price, location, cover_image_url, gallery_urls, pricing_model, pricing_unit, pricing_details, catering_service_types, provider_profiles(id, business_name), service_categories(id, name), service_packages(id, name, description, price, inclusions, pricing_unit, subtotal, discount_type, discount_value, discount_amount, service_package_items(position, services(name))), reviews(rating)'
 
   const [detailedResult, commissionResult] = await Promise.all([
     supabase

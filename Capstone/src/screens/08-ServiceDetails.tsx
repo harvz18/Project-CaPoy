@@ -384,13 +384,35 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                           ) : null}
                           <Text style={styles.packageName}>{item.name}</Text>
                         </View>
-                        <Text style={styles.packagePrice}>
-                          {formatPeso(item.price)}
-                          {item.unit ? ` / ${pricingUnitLabel(item.unit)}` : ''}
-                        </Text>
+                        <View style={styles.packagePriceGroup}>
+                          {item.originalPrice ? (
+                            <Text style={styles.packageOriginalPrice}>{formatPeso(item.originalPrice)}</Text>
+                          ) : null}
+                          <Text style={styles.packagePrice}>
+                            {formatPeso(item.price)}
+                            {item.unit ? ` / ${pricingUnitLabel(item.unit)}` : ''}
+                          </Text>
+                        </View>
                       </View>
+                      {item.discountAmount > 0 ? (
+                        <Text style={styles.packageDiscountBadge}>
+                          {item.discountType === 'percentage'
+                            ? `${item.discountValue}% package promo`
+                            : `${formatPeso(item.discountAmount)} package promo`}
+                        </Text>
+                      ) : null}
                       {item.description ? (
                         <Text style={styles.packageDescription}>{item.description}</Text>
+                      ) : null}
+                      {item.serviceNames.length ? (
+                        <View style={styles.packageServices}>
+                          <Text style={styles.packageServicesLabel}>SERVICES IN THIS PACKAGE</Text>
+                          {item.serviceNames.map((serviceName) => (
+                            <Text key={serviceName} style={styles.inclusionText}>
+                              {'\u2022'} {serviceName}
+                            </Text>
+                          ))}
+                        </View>
                       ) : null}
                       {item.inclusions.length ? (
                         <View style={styles.inclusionList}>
@@ -1025,6 +1047,23 @@ const styles = StyleSheet.create({
   packageName: { minWidth: 0, flex: 1, color: palette.text, fontSize: 18, lineHeight: 24, fontWeight: '700' },
   packagePrice: { color: palette.primary, fontSize: 15, lineHeight: 21, fontWeight: '700', textAlign: 'right' },
   packageDescription: { color: palette.secondary, fontSize: 14, lineHeight: 22, marginTop: 10 },
+  packagePriceGroup: { alignItems: 'flex-end' },
+  packageOriginalPrice: {
+    color: palette.secondaryFixedDim,
+    fontSize: 12,
+    lineHeight: 16,
+    textDecorationLine: 'line-through',
+  },
+  packageDiscountBadge: {
+    alignSelf: 'flex-start',
+    color: '#2E7D4F',
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: '700',
+    marginTop: 8,
+  },
+  packageServices: { gap: 4, marginTop: 12 },
+  packageServicesLabel: { color: palette.secondary, fontSize: 10, lineHeight: 14, fontWeight: '700' },
   inclusionList: { gap: 6, marginTop: 14 },
   inclusionText: { color: palette.text, fontSize: 14, lineHeight: 21 },
   noPackages: { color: palette.secondary, fontSize: 15, lineHeight: 23 },

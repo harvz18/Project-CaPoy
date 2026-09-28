@@ -37,7 +37,11 @@ export type {
   ServicePricingValue,
 } from './17.1-Step2Pricing'
 export { Step2AddPackageScreen } from './17.1.1-Step2AddPackage'
-export type { ServicePackageValue } from './17.1.1-Step2AddPackage'
+export type {
+  PackageDiscountType,
+  PackageServiceOption,
+  ServicePackageValue,
+} from './17.1.1-Step2AddPackage'
 export { Step3ReviewListingsScreen } from './17.2-Step3ReviewListings'
 export type {
   ReviewListingSection,

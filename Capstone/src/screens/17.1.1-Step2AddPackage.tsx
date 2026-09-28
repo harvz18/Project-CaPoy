@@ -1,6 +1,7 @@
 import { Text } from '../components/AppText'
 import React from 'react'
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -16,27 +17,41 @@ import type { ServicePricingUnit } from './17.1-Step2Pricing'
 export interface ServicePackageValue {
   currency: 'PHP'
   description: string
+  discountAmount?: number
+  discountType?: PackageDiscountType
+  discountValue?: number
   id: string
   inclusions: string[]
+  name: string
+  price: number
+  pricingMode?: 'composed' | 'legacy'
+  serviceIds?: string[]
+  services?: PackageServiceOption[]
+  subtotal?: number
+  unit: ServicePricingUnit
+}
+
+export type PackageDiscountType = 'none' | 'percentage' | 'fixed'
+
+export interface PackageServiceOption {
+  id: string
   name: string
   price: number
   unit: ServicePricingUnit
 }
 
 interface Step2AddPackageScreenProps {
+  availableServices?: PackageServiceOption[]
+  commissionRate?: number
   initialValue?: Partial<ServicePackageValue>
+  isSaving?: boolean
   maxInclusions?: number
+  mode?: 'listing' | 'standalone'
   onBack?: (draft?: ServicePackageValue) => void
   onSave?: (value: ServicePackageValue) => void
   onSkip?: () => void
+  requiredServiceId?: string
 }
-
-const pricingUnits: Array<{ id: ServicePricingUnit; label: string }> = [
-  { id: 'event', label: 'Per event' },
-  { id: 'person', label: 'Per person' },
-  { id: 'hour', label: 'Per hour' },
-  { id: 'day', label: 'Per day' },
-]
 
 const sanitizeAmount = (value: string) => {
   const numericValue = value.replace(/[^\d.]/g, '')
@@ -48,8 +63,14 @@ const sanitizeAmount = (value: string) => {
 
 const parseAmount = (value: string) => {
   const amount = Number(value)
-  return Number.isFinite(amount) && amount > 0 ? amount : undefined
+  return Number.isFinite(amount) && amount >= 0 ? amount : 0
 }
+
+const money = (amount: number) =>
+  `\u20B1${amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+const unitLabel = (unit: ServicePricingUnit) =>
+  ({ event: 'event', person: 'person', hour: 'hour', day: 'day' })[unit]
 
 const BackIcon = () => (
   <View style={styles.backIcon}>
@@ -59,11 +80,16 @@ const BackIcon = () => (
 )
 
 export const Step2AddPackageScreen: React.FC<Step2AddPackageScreenProps> = ({
+  availableServices = [],
+  commissionRate = 0.1,
   initialValue,
+  isSaving = false,
   maxInclusions = 10,
+  mode = 'listing',
   onBack,
   onSave,
   onSkip,
+  requiredServiceId,
 }) => {
   const { width } = useWindowDimensions()
   const isWide = width >= 768
@@ -76,11 +102,18 @@ export const Step2AddPackageScreen: React.FC<Step2AddPackageScreenProps> = ({
   )
   const [name, setName] = React.useState(initialValue?.name ?? '')
   const [description, setDescription] = React.useState(initialValue?.description ?? '')
-  const [priceInput, setPriceInput] = React.useState(
-    initialValue?.price && initialValue.price > 0 ? String(initialValue.price) : ''
+  const [selectedServiceIds, setSelectedServiceIds] = React.useState<string[]>(
+    () => initialValue?.serviceIds?.length
+      ? initialValue.serviceIds
+      : requiredServiceId
+        ? [requiredServiceId]
+        : []
   )
-  const [unit, setUnit] = React.useState<ServicePricingUnit>(
-    initialValue?.unit ?? 'event'
+  const [discountType, setDiscountType] = React.useState<PackageDiscountType>(
+    initialValue?.discountType ?? 'none'
+  )
+  const [discountInput, setDiscountInput] = React.useState(
+    initialValue?.discountValue ? String(initialValue.discountValue) : ''
   )
   const [inclusions, setInclusions] = React.useState<string[]>(() => {
     const initialInclusions = initialValue?.inclusions?.slice(0, inclusionLimit)
@@ -89,10 +122,46 @@ export const Step2AddPackageScreen: React.FC<Step2AddPackageScreenProps> = ({
   const [submitted, setSubmitted] = React.useState(false)
 
   const normalizedName = name.trim()
-  const price = parseAmount(priceInput)
+  const selectedServices = selectedServiceIds.flatMap((serviceId) => {
+    const service = availableServices.find((option) => option.id === serviceId)
+    return service ? [service] : []
+  })
+  const unit = selectedServices[0]?.unit ?? initialValue?.unit ?? 'event'
+  const hasMixedUnits = selectedServices.some((service) => service.unit !== unit)
+  const subtotal = selectedServices.reduce((sum, service) => sum + service.price, 0)
+  const discountValue = discountType === 'none' ? 0 : parseAmount(discountInput)
+  const discountAmount = discountType === 'percentage'
+    ? Math.round((subtotal * Math.min(discountValue, 99.99) / 100) * 100) / 100
+    : discountType === 'fixed'
+      ? Math.min(discountValue, subtotal)
+      : 0
+  const price = Math.max(0, Math.round((subtotal - discountAmount) * 100) / 100)
+  const commissionAmount = Math.round(price * Math.max(0, commissionRate) * 100) / 100
+  const customerPrice = price + commissionAmount
   const nameMissing = submitted && normalizedName.length === 0
-  const priceMissing = submitted && !price
+  const servicesMissing = submitted && selectedServices.length === 0
+  const isDiscountInvalid = (
+    (discountType === 'percentage' && discountValue >= 100)
+    || (discountType === 'fixed' && discountValue >= subtotal)
+  )
+  const discountInvalid = submitted && isDiscountInvalid
   const canAddInclusion = inclusions.length < inclusionLimit
+
+  React.useEffect(() => {
+    if (!requiredServiceId) return
+    setSelectedServiceIds((current) =>
+      current.includes(requiredServiceId) ? current : [requiredServiceId, ...current]
+    )
+  }, [requiredServiceId])
+
+  const toggleService = (serviceId: string) => {
+    if (serviceId === requiredServiceId) return
+    setSelectedServiceIds((current) =>
+      current.includes(serviceId)
+        ? current.filter((id) => id !== serviceId)
+        : [...current, serviceId]
+    )
+  }
 
   const handleInclusionChange = (index: number, value: string) => {
     setInclusions((current) =>
@@ -116,29 +185,52 @@ export const Step2AddPackageScreen: React.FC<Step2AddPackageScreenProps> = ({
 
   const handleSave = () => {
     setSubmitted(true)
-    if (!normalizedName || !price) return
+    if (
+      isSaving
+      || !normalizedName
+      || selectedServices.length === 0
+      || hasMixedUnits
+      || price <= 0
+      || isDiscountInvalid
+    ) return
 
     onSave?.({
       currency: 'PHP',
       description: description.trim(),
+      discountAmount,
+      discountType,
+      discountValue,
       id: packageId,
       inclusions: inclusions.map((inclusion) => inclusion.trim()).filter(Boolean),
       name: normalizedName,
       price,
+      pricingMode: 'composed',
+      serviceIds: selectedServices.map((service) => service.id),
+      services: selectedServices,
+      subtotal,
       unit,
     })
   }
 
   const buildDraft = (): ServicePackageValue | undefined => {
-    if (!normalizedName || !price) return undefined
+    if (!normalizedName || selectedServices.length === 0 || hasMixedUnits || price <= 0) {
+      return undefined
+    }
 
     return {
       currency: 'PHP',
       description: description.trim(),
+      discountAmount,
+      discountType,
+      discountValue,
       id: packageId,
       inclusions: inclusions.map((inclusion) => inclusion.trim()).filter(Boolean),
       name: normalizedName,
       price,
+      pricingMode: 'composed',
+      serviceIds: selectedServices.map((service) => service.id),
+      services: selectedServices,
+      subtotal,
       unit,
     }
   }
@@ -161,25 +253,27 @@ export const Step2AddPackageScreen: React.FC<Step2AddPackageScreenProps> = ({
               <BackIcon />
             </Pressable>
 
-            <View style={styles.progressBlock}>
-              <Text style={styles.stepCaption}>Step 2 of 3</Text>
-              <View
-                accessibilityLabel="Step 2 of 3"
-                accessibilityRole="progressbar"
-                accessibilityValue={{ max: 3, min: 1, now: 2 }}
-                style={styles.progressRow}
-              >
-                {[0, 1, 2].map((step) => (
-                  <View
-                    key={step}
-                    style={[
-                      styles.progressSegment,
-                      step <= 1 ? styles.progressSegmentActive : styles.progressSegmentInactive,
-                    ]}
-                  />
-                ))}
+            {mode === 'listing' ? (
+              <View style={styles.progressBlock}>
+                <Text style={styles.stepCaption}>Step 2 of 3</Text>
+                <View
+                  accessibilityLabel="Step 2 of 3"
+                  accessibilityRole="progressbar"
+                  accessibilityValue={{ max: 3, min: 1, now: 2 }}
+                  style={styles.progressRow}
+                >
+                  {[0, 1, 2].map((step) => (
+                    <View
+                      key={step}
+                      style={[
+                        styles.progressSegment,
+                        step <= 1 ? styles.progressSegmentActive : styles.progressSegmentInactive,
+                      ]}
+                    />
+                  ))}
+                </View>
               </View>
-            </View>
+            ) : null}
           </View>
 
           <Text
@@ -205,10 +299,11 @@ export const Step2AddPackageScreen: React.FC<Step2AddPackageScreenProps> = ({
             <View style={styles.introCopy}>
               <Text style={styles.title}>{isEditing ? 'Edit Your Package' : 'Create a Package'}</Text>
               <Text style={styles.subtitle}>
-                Bundle your service into a clear option that clients can compare.
+                Select from your priced services. The package total updates automatically,
+                and you may add an optional promo discount.
               </Text>
             </View>
-            {!isEditing ? (
+            {!isEditing && mode === 'listing' ? (
               <Pressable
                 accessibilityLabel="Skip package setup"
                 accessibilityRole="button"
@@ -246,58 +341,143 @@ export const Step2AddPackageScreen: React.FC<Step2AddPackageScreenProps> = ({
           </View>
 
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Package Price</Text>
-            <View style={[styles.amountField, priceMissing && styles.inputError]}>
-              <View style={styles.currencyPrefix}>
-                <Text style={styles.currencySymbol}>{'\u20B1'}</Text>
-              </View>
-              <TextInput
-                accessibilityLabel="Package price in Philippine pesos"
-                inputMode="decimal"
-                keyboardType="decimal-pad"
-                onChangeText={(value) => setPriceInput(sanitizeAmount(value))}
-                placeholder="0.00"
-                placeholderTextColor={palette.placeholder}
-                returnKeyType="done"
-                style={styles.amountInput}
-                value={priceInput}
-              />
-              <Text style={styles.currencyCode}>PHP</Text>
+            <View style={styles.labelRow}>
+              <Text style={styles.label}>Services in this package</Text>
+              <Text style={styles.characterCount}>{selectedServices.length} selected</Text>
             </View>
-            {priceMissing ? (
-              <Text accessibilityRole="alert" style={styles.errorText}>
-                Enter an amount greater than zero.
-              </Text>
-            ) : (
-              <Text style={styles.helperText}>This is the amount you receive. MULTIVENT adds its service fee on top for clients.</Text>
-            )}
-          </View>
-
-          <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Charge Per</Text>
-            <View accessibilityRole="radiogroup" style={styles.unitGrid}>
-              {pricingUnits.map((option) => {
-                const selected = unit === option.id
+            <Text style={styles.helperText}>
+              Only your services with a set price are shown. Services must use the same charging unit.
+              {mode === 'standalone' ? ' Your first selection becomes the package\'s primary listing.' : ''}
+            </Text>
+            <View style={[styles.serviceList, servicesMissing && styles.serviceListError]}>
+              {availableServices.length > 0 ? availableServices.map((service) => {
+                const selected = selectedServiceIds.includes(service.id)
+                const required = service.id === requiredServiceId
+                const incompatible = selectedServices.length > 0 && service.unit !== unit && !selected
 
                 return (
                   <Pressable
-                    key={option.id}
-                    accessibilityRole="radio"
-                    accessibilityState={{ checked: selected }}
-                    onPress={() => setUnit(option.id)}
+                    key={service.id}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: selected, disabled: required || incompatible }}
+                    disabled={required || incompatible}
+                    onPress={() => toggleService(service.id)}
                     style={({ pressed }) => [
-                      styles.unitChip,
-                      selected && styles.unitChipSelected,
-                      pressed && styles.unitChipPressed,
+                      styles.serviceOption,
+                      selected && styles.serviceOptionSelected,
+                      incompatible && styles.serviceOptionDisabled,
+                      pressed && styles.serviceOptionPressed,
                     ]}
                   >
-                    <Text style={[styles.unitText, selected && styles.unitTextSelected]}>
-                      {option.label}
-                    </Text>
+                    <View style={[styles.serviceCheck, selected && styles.serviceCheckSelected]}>
+                      {selected ? <Text style={styles.serviceCheckText}>{'\u2713'}</Text> : null}
+                    </View>
+                    <View style={styles.serviceCopy}>
+                      <Text style={styles.serviceName}>{service.name}</Text>
+                      <Text style={styles.serviceMeta}>
+                        {money(service.price)} per {unitLabel(service.unit)}{required ? ' · Required' : ''}
+                      </Text>
+                    </View>
                   </Pressable>
                 )
-              })}
+              }) : (
+                <View style={styles.emptyServices}>
+                  <Text style={styles.emptyServicesTitle}>No priced services available</Text>
+                  <Text style={styles.helperText}>Add a service with a fixed price before creating a package.</Text>
+                </View>
+              )}
             </View>
+            {servicesMissing ? (
+              <Text accessibilityRole="alert" style={styles.errorText}>Select at least one service.</Text>
+            ) : null}
+            {hasMixedUnits ? (
+              <Text accessibilityRole="alert" style={styles.errorText}>
+                Selected services must use the same charging unit.
+              </Text>
+            ) : null}
+          </View>
+
+          <View style={styles.fieldGroup}>
+            <View style={styles.labelRow}>
+              <Text style={styles.label}>Package discount</Text>
+              <Text style={styles.optionalLabel}>Optional</Text>
+            </View>
+            <View accessibilityRole="radiogroup" style={styles.discountOptions}>
+              {([
+                ['none', 'No discount'],
+                ['percentage', 'Percentage'],
+                ['fixed', 'Fixed amount'],
+              ] as Array<[PackageDiscountType, string]>).map(([value, label]) => (
+                <Pressable
+                  key={value}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: discountType === value }}
+                  onPress={() => {
+                    setDiscountType(value)
+                    if (value === 'none') setDiscountInput('')
+                  }}
+                  style={({ pressed }) => [
+                    styles.discountChip,
+                    discountType === value && styles.discountChipSelected,
+                    pressed && styles.unitChipPressed,
+                  ]}
+                >
+                  <Text style={[
+                    styles.unitText,
+                    discountType === value && styles.unitTextSelected,
+                  ]}>{label}</Text>
+                </Pressable>
+              ))}
+            </View>
+            {discountType !== 'none' ? (
+              <View style={[styles.amountField, discountInvalid && styles.inputError]}>
+                <View style={styles.currencyPrefix}>
+                  <Text style={styles.currencySymbol}>
+                    {discountType === 'percentage' ? '%' : '\u20B1'}
+                  </Text>
+                </View>
+                <TextInput
+                  accessibilityLabel={discountType === 'percentage' ? 'Discount percentage' : 'Discount amount'}
+                  inputMode="decimal"
+                  keyboardType="decimal-pad"
+                  onChangeText={(value) => setDiscountInput(sanitizeAmount(value))}
+                  placeholder="0.00"
+                  placeholderTextColor={palette.placeholder}
+                  style={styles.amountInput}
+                  value={discountInput}
+                />
+              </View>
+            ) : null}
+            {discountInvalid ? (
+              <Text accessibilityRole="alert" style={styles.errorText}>
+                The discount must be less than the package subtotal.
+              </Text>
+            ) : null}
+          </View>
+
+          <View style={styles.priceSummary}>
+            <View style={styles.priceRow}>
+              <Text style={styles.priceLabel}>Services subtotal</Text>
+              <Text style={styles.priceValue}>{money(subtotal)}</Text>
+            </View>
+            <View style={styles.priceRow}>
+              <Text style={styles.priceLabel}>Your package discount</Text>
+              <Text style={styles.discountValue}>-{money(discountAmount)}</Text>
+            </View>
+            <View style={[styles.priceRow, styles.providerTotalRow]}>
+              <View>
+                <Text style={styles.providerTotalLabel}>Your package price</Text>
+                <Text style={styles.helperText}>Amount before MULTIVENT's added fee</Text>
+              </View>
+              <Text style={styles.providerTotal}>{money(price)}</Text>
+            </View>
+            <View style={styles.priceRow}>
+              <Text style={styles.priceLabel}>Estimated client total</Text>
+              <Text style={styles.clientTotal}>{money(customerPrice)}</Text>
+            </View>
+            <Text style={styles.commissionNote}>
+              Includes {Math.round(Math.max(0, commissionRate) * 10000) / 100}% MULTIVENT commission ({money(commissionAmount)}).
+            </Text>
           </View>
 
           <View style={styles.fieldGroup}>
@@ -393,10 +573,19 @@ export const Step2AddPackageScreen: React.FC<Step2AddPackageScreenProps> = ({
           <Pressable
             accessibilityLabel={isEditing ? 'Save package changes' : 'Add package'}
             accessibilityRole="button"
+            accessibilityState={{ disabled: isSaving }}
+            disabled={isSaving}
             onPress={handleSave}
-            style={({ pressed }) => [styles.saveButton, pressed && styles.saveButtonPressed]}
+            style={({ pressed }) => [
+              styles.saveButton,
+              isSaving && styles.saveButtonDisabled,
+              pressed && styles.saveButtonPressed,
+            ]}
           >
-            <Text style={styles.saveButtonText}>{isEditing ? 'Save Changes' : 'Add Package'}</Text>
+            {isSaving ? <ActivityIndicator color={palette.onPrimary} size="small" /> : null}
+            <Text style={styles.saveButtonText}>
+              {isSaving ? 'Saving package...' : isEditing ? 'Save Changes' : 'Add Package'}
+            </Text>
           </Pressable>
         </View>
       </View>
@@ -560,6 +749,73 @@ const styles = StyleSheet.create({
   unitChipPressed: { opacity: 0.72 },
   unitText: { color: palette.secondary, fontSize: 14, lineHeight: 20 },
   unitTextSelected: { color: palette.primaryContainer, fontWeight: '600' },
+  serviceList: {
+    gap: 8,
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 12,
+    backgroundColor: palette.inputBackground,
+    padding: 8,
+  },
+  serviceListError: { borderColor: palette.error },
+  serviceOption: {
+    minHeight: 58,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+  },
+  serviceOptionSelected: { backgroundColor: palette.primaryPill },
+  serviceOptionDisabled: { opacity: 0.45 },
+  serviceOptionPressed: { opacity: 0.72 },
+  serviceCheck: {
+    width: 22,
+    height: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: palette.placeholder,
+    borderRadius: 6,
+  },
+  serviceCheckSelected: { borderColor: palette.primaryContainer, backgroundColor: palette.primaryContainer },
+  serviceCheckText: { color: palette.onPrimary, fontSize: 13, lineHeight: 16, fontWeight: '700' },
+  serviceCopy: { minWidth: 0, flex: 1 },
+  serviceName: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '600' },
+  serviceMeta: { color: palette.secondary, fontSize: 12, lineHeight: 17, marginTop: 2 },
+  emptyServices: { gap: 4, padding: 12 },
+  emptyServicesTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '600' },
+  discountOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  discountChip: {
+    minHeight: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: palette.surfaceContainerHigh,
+    borderRadius: 999,
+    backgroundColor: palette.inputBackground,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  discountChipSelected: { borderColor: palette.primaryContainer, backgroundColor: palette.primaryPill },
+  priceSummary: {
+    gap: 10,
+    borderWidth: 1,
+    borderColor: '#E7CDD2',
+    borderRadius: 14,
+    backgroundColor: '#FFF9FA',
+    padding: 16,
+  },
+  priceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  priceLabel: { color: palette.secondary, fontSize: 13, lineHeight: 18 },
+  priceValue: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '600' },
+  discountValue: { color: '#2E7D4F', fontSize: 14, lineHeight: 20, fontWeight: '700' },
+  providerTotalRow: { borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 12 },
+  providerTotalLabel: { color: palette.text, fontSize: 15, lineHeight: 21, fontWeight: '700' },
+  providerTotal: { color: palette.primaryContainer, fontSize: 20, lineHeight: 26, fontWeight: '800' },
+  clientTotal: { color: palette.primaryContainer, fontSize: 15, lineHeight: 21, fontWeight: '700' },
+  commissionNote: { color: palette.secondary, fontSize: 11, lineHeight: 16 },
   textArea: { minHeight: 104 },
   inclusionsSection: {
     gap: 12,
@@ -654,7 +910,10 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: palette.primaryContainer,
     paddingHorizontal: 20,
+    flexDirection: 'row',
+    gap: 8,
   },
+  saveButtonDisabled: { opacity: 0.65 },
   saveButtonPressed: { opacity: 0.9, transform: [{ scale: 0.98 }] },
   saveButtonText: { color: palette.onPrimary, fontSize: 16, lineHeight: 24, fontWeight: '600' },
   iconButtonPressed: { backgroundColor: palette.border, opacity: 0.72 },

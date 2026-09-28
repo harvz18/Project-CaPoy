@@ -67,6 +67,7 @@ import {
   saveBookingDecision,
   saveMerchantServiceDraft,
   saveMerchantServiceListing,
+  saveMerchantComposedPackage,
   saveMerchantPayoutAccount,
   saveNotificationPreferences,
   saveOperatingHours,
@@ -87,6 +88,7 @@ import {
 import { ProviderServicesScreen } from './screens/17-ProviderServices'
 import { ServicePricingValue, Step2PricingScreen } from './screens/17.1-Step2Pricing'
 import {
+  PackageServiceOption,
   ServicePackageValue,
   Step2AddPackageScreen,
 } from './screens/17.1.1-Step2AddPackage'
@@ -229,6 +231,7 @@ type AppScreen =
   | 'providerServiceInfo'
   | 'providerServicePricing'
   | 'providerPackage'
+  | 'providerStandalonePackage'
   | 'providerServiceReview'
   | 'providerAvailability'
   | 'providerBookingRequests'
@@ -530,6 +533,7 @@ export const App: React.FC = () => {
     React.useState<BookingRequestStatus>('new')
   const [isPublishingService, setIsPublishingService] = React.useState(false)
   const [isSavingServiceDraft, setIsSavingServiceDraft] = React.useState(false)
+  const [isSavingStandalonePackage, setIsSavingStandalonePackage] = React.useState(false)
   const [isSavingAvailability, setIsSavingAvailability] = React.useState(false)
   const [completingBookingId, setCompletingBookingId] = React.useState('')
   const [processingMerchantBookingId, setProcessingMerchantBookingId] = React.useState('')
@@ -1778,9 +1782,10 @@ export const App: React.FC = () => {
   }
 
   const handleMerchantAction = (action: MerchantProfileAction) => {
-    if (action === 'services' || action === 'packages') {
+    if (action === 'services') {
       setScreen('providerServices')
     }
+    if (action === 'packages') setScreen('providerStandalonePackage')
     if (action === 'availability') setScreen('providerAvailability')
     if (action === 'operatingHours') setScreen('providerOperatingHours')
     if (action === 'payouts') setScreen('providerPayouts')
@@ -1792,6 +1797,22 @@ export const App: React.FC = () => {
     if (action === 'logout') {
       void handleSignOut()
     }
+  }
+
+  const saveStandaloneMerchantPackage = async (value: ServicePackageValue) => {
+    if (isSavingStandalonePackage) return
+    setIsSavingStandalonePackage(true)
+    const result = await saveMerchantComposedPackage(value)
+    setIsSavingStandalonePackage(false)
+
+    if (!result.ok) {
+      setToastMessage(result.message ?? 'Unable to save this package.')
+      return
+    }
+
+    await refreshLiveData()
+    setToastMessage(result.message ?? 'Package submitted for review.')
+    setScreen('providerProfile')
   }
 
   const handleServiceListingSubmit = async (
@@ -2113,6 +2134,31 @@ export const App: React.FC = () => {
       onSelectTab={openClientTab}
     />
   )
+
+  const standalonePackageServices: PackageServiceOption[] = merchantServices
+    .filter((service) => service.basePrice > 0 && service.status === 'active')
+    .map((service) => ({
+      id: service.id,
+      name: service.name,
+      price: service.basePrice,
+      unit: service.pricingUnit,
+    }))
+  const currentPackageServiceId = editingMerchantServiceId || '__current_service__'
+  const currentPackageService = merchantServicePricing.amount && merchantServicePricing.amount > 0
+    ? [{
+        id: currentPackageServiceId,
+        name: merchantServiceInfo.serviceName || 'Current service',
+        price: merchantServicePricing.amount,
+        unit: merchantServicePricing.unit ?? 'event',
+      } satisfies PackageServiceOption]
+    : []
+  const listingPackageServices = currentPackageService.length > 0
+    ? [
+        ...currentPackageService,
+        ...standalonePackageServices.filter((service) => service.id !== editingMerchantServiceId),
+      ]
+    : []
+  const packageCommissionRate = catalogServices[0]?.commissionRate ?? 0.1
 
   const renderScreen = () => {
     switch (screen) {
@@ -2459,6 +2505,9 @@ export const App: React.FC = () => {
       case 'providerPackage':
         return (
           <Step2AddPackageScreen
+            availableServices={listingPackageServices}
+            commissionRate={packageCommissionRate}
+            requiredServiceId={currentPackageService.length > 0 ? currentPackageServiceId : undefined}
             onBack={(draft) => {
               if (draft) {
                 setMerchantPackages((current) => {
@@ -2502,6 +2551,17 @@ export const App: React.FC = () => {
               })
               setScreen('providerServiceReview')
             }}
+          />
+        )
+      case 'providerStandalonePackage':
+        return (
+          <Step2AddPackageScreen
+            availableServices={standalonePackageServices}
+            commissionRate={packageCommissionRate}
+            isSaving={isSavingStandalonePackage}
+            mode="standalone"
+            onBack={() => setScreen('providerProfile')}
+            onSave={(value) => void saveStandaloneMerchantPackage(value)}
           />
         )
       case 'providerAvailability':

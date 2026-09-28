@@ -1,5 +1,5 @@
 import React from 'react'
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native'
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { Text } from '../components/AppText'
 import {
@@ -36,6 +36,7 @@ export const SupportScreen = ({ onBack }: { onBack: () => void }) => {
   const [selected, setSelected] = React.useState<SupportTicket>()
   const [messages, setMessages] = React.useState<SupportMessage[]>([])
   const [reply, setReply] = React.useState('')
+  const [contextPickerOpen, setContextPickerOpen] = React.useState(false)
 
   const load = React.useCallback(async () => {
     const [ticketResult, contextResult] = await Promise.all([
@@ -111,18 +112,19 @@ export const SupportScreen = ({ onBack }: { onBack: () => void }) => {
           ))}</View>
 
           <Text style={styles.label}>Related record (optional)</Text>
-          <View style={styles.contexts}>
-            <Pressable onPress={() => setContext(undefined)} style={[styles.context, !context && styles.contextActive]}>
-              <Text style={[styles.contextType, !context && styles.contextTextActive]}>GENERAL</Text>
-              <Text numberOfLines={2} style={[styles.contextLabel, !context && styles.contextTextActive]}>No specific event or booking</Text>
-            </Pressable>
-            {contexts.map((item) => (
-              <Pressable key={`${item.type}:${item.id}`} onPress={() => setContext(item)} style={[styles.context, context?.id === item.id && context?.type === item.type && styles.contextActive]}>
-                <Text style={[styles.contextType, context?.id === item.id && context?.type === item.type && styles.contextTextActive]}>{item.type}</Text>
-                <Text numberOfLines={2} style={[styles.contextLabel, context?.id === item.id && context?.type === item.type && styles.contextTextActive]}>{item.label}</Text>
-              </Pressable>
-            ))}
-          </View>
+          <Pressable
+            accessibilityLabel="Select a related event or booking"
+            accessibilityRole="button"
+            accessibilityState={{ expanded: contextPickerOpen }}
+            onPress={() => setContextPickerOpen(true)}
+            style={({ pressed }) => [styles.contextSelect, pressed && styles.contextSelectPressed]}
+          >
+            <View style={styles.contextSelectCopy}>
+              <Text style={styles.contextType}>{context?.type || 'GENERAL'}</Text>
+              <Text numberOfLines={1} style={styles.contextLabel}>{context?.label || 'No specific event or booking'}</Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-down" color={colors.textSecondary} size={22}/>
+          </Pressable>
 
           <Text style={styles.label}>Subject</Text>
           <TextInput maxLength={200} style={styles.input} value={subject} onChangeText={setSubject} placeholder="Brief summary" placeholderTextColor={colors.textMuted}/>
@@ -153,6 +155,54 @@ export const SupportScreen = ({ onBack }: { onBack: () => void }) => {
           {selected.status !== 'closed' ? <><TextInput maxLength={4000} multiline style={[styles.input, styles.reply]} value={reply} onChangeText={setReply} placeholder="Reply to support" placeholderTextColor={colors.textMuted}/><Pressable disabled={sending || !reply.trim()} onPress={() => void replyToTicket()} style={[styles.submit, (sending || !reply.trim()) && styles.disabled]}><Text style={styles.submitText}>Send reply</Text></Pressable></> : <Text style={styles.empty}>This ticket is closed. Create a new ticket if you need more help.</Text>}
         </View> : null}
       </ScrollView>
+
+      <Modal animationType="fade" onRequestClose={() => setContextPickerOpen(false)} transparent visible={contextPickerOpen}>
+        <Pressable accessibilityRole="button" onPress={() => setContextPickerOpen(false)} style={styles.pickerBackdrop}>
+          <Pressable accessibilityRole="none" onPress={(event) => event.stopPropagation()} style={styles.pickerSheet}>
+            <View style={styles.pickerHeader}>
+              <View style={styles.pickerHeaderCopy}>
+                <Text style={styles.pickerTitle}>Related record</Text>
+                <Text style={styles.pickerSubtitle}>Choose the event or booking connected to this concern.</Text>
+              </View>
+              <Pressable accessibilityLabel="Close related record selector" accessibilityRole="button" onPress={() => setContextPickerOpen(false)} style={styles.pickerClose}>
+                <MaterialCommunityIcons name="close" color={colors.primaryDark} size={20}/>
+              </Pressable>
+            </View>
+            <ScrollView contentContainerStyle={styles.pickerOptions} keyboardShouldPersistTaps="handled" style={styles.pickerList}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ selected: !context }}
+                onPress={() => { setContext(undefined); setContextPickerOpen(false) }}
+                style={[styles.pickerOption, !context && styles.pickerOptionActive]}
+              >
+                <View style={styles.pickerOptionCopy}>
+                  <Text style={styles.contextType}>GENERAL</Text>
+                  <Text style={styles.pickerOptionLabel}>No specific event or booking</Text>
+                </View>
+                {!context ? <MaterialCommunityIcons name="check-circle" color={colors.primary} size={20}/> : null}
+              </Pressable>
+              {contexts.map((item) => {
+                const active = context?.id === item.id && context?.type === item.type
+                return (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    key={`${item.type}:${item.id}`}
+                    onPress={() => { setContext(item); setContextPickerOpen(false) }}
+                    style={[styles.pickerOption, active && styles.pickerOptionActive]}
+                  >
+                    <View style={styles.pickerOptionCopy}>
+                      <Text style={styles.contextType}>{item.type}</Text>
+                      <Text numberOfLines={2} style={styles.pickerOptionLabel}>{item.label}</Text>
+                    </View>
+                    {active ? <MaterialCommunityIcons name="check-circle" color={colors.primary} size={20}/> : null}
+                  </Pressable>
+                )
+              })}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   )
 }
@@ -171,11 +221,10 @@ const styles = StyleSheet.create({
   categoryText:{color:colors.textSecondary,fontFamily:'Inter_500Medium',fontSize:11},
   categoryTextActive:{color:'white'},
   content:{padding:18,paddingBottom:50},
-  context:{backgroundColor:colors.background,borderColor:colors.border,borderRadius:10,borderWidth:1,minHeight:62,padding:10,width:'48%'},
-  contextActive:{backgroundColor:colors.primary,borderColor:colors.primary},
   contextLabel:{color:colors.textPrimary,fontFamily:'Inter_500Medium',fontSize:11,lineHeight:15,marginTop:3},
-  contexts:{flexDirection:'row',flexWrap:'wrap',gap:7,marginBottom:16},
-  contextTextActive:{color:'white'},
+  contextSelect:{alignItems:'center',backgroundColor:colors.background,borderColor:colors.border,borderRadius:10,borderWidth:1,flexDirection:'row',gap:12,marginBottom:16,minHeight:58,paddingHorizontal:12,paddingVertical:9},
+  contextSelectCopy:{flex:1,minWidth:0},
+  contextSelectPressed:{opacity:.72},
   contextType:{color:colors.primary,fontFamily:'Inter_700Bold',fontSize:8,letterSpacing:.5,textTransform:'uppercase'},
   copy:{color:colors.textSecondary,fontFamily:'Inter_400Regular',fontSize:13,lineHeight:20,marginBottom:20},
   disabled:{opacity:.5},
@@ -185,6 +234,19 @@ const styles = StyleSheet.create({
   input:{backgroundColor:colors.background,borderColor:colors.border,borderRadius:10,borderWidth:1,color:colors.textPrimary,fontFamily:'Inter_400Regular',fontSize:14,marginBottom:15,minHeight:46,paddingHorizontal:12,paddingVertical:10},
   label:{color:colors.textPrimary,fontFamily:'Inter_600SemiBold',fontSize:12,marginBottom:7},
   message:{color:colors.primaryDark,fontFamily:'Inter_500Medium',fontSize:12,marginBottom:12},
+  pickerBackdrop:{backgroundColor:'rgba(31, 20, 24, .42)',flex:1,justifyContent:'flex-end'},
+  pickerClose:{alignItems:'center',borderColor:colors.border,borderRadius:10,borderWidth:1,height:40,justifyContent:'center',width:40},
+  pickerHeader:{alignItems:'flex-start',borderBottomColor:colors.border,borderBottomWidth:1,flexDirection:'row',gap:14,justifyContent:'space-between',paddingBottom:14},
+  pickerHeaderCopy:{flex:1,minWidth:0},
+  pickerList:{maxHeight:430},
+  pickerOption:{alignItems:'center',borderColor:colors.border,borderRadius:11,borderWidth:1,flexDirection:'row',gap:12,minHeight:62,paddingHorizontal:13,paddingVertical:10},
+  pickerOptionActive:{backgroundColor:'#FAF2F4',borderColor:colors.primary},
+  pickerOptionCopy:{flex:1,minWidth:0},
+  pickerOptionLabel:{color:colors.textPrimary,fontFamily:'Inter_500Medium',fontSize:12,lineHeight:17,marginTop:3},
+  pickerOptions:{gap:8,paddingBottom:10,paddingTop:14},
+  pickerSheet:{backgroundColor:colors.surfaceElevated,borderTopLeftRadius:22,borderTopRightRadius:22,maxHeight:'78%',paddingBottom:20,paddingHorizontal:18,paddingTop:18},
+  pickerSubtitle:{color:colors.textSecondary,fontFamily:'Inter_400Regular',fontSize:11,lineHeight:16,marginTop:4},
+  pickerTitle:{color:colors.textPrimary,fontFamily:'Inter_700Bold',fontSize:18},
   reply:{marginTop:12,minHeight:75,textAlignVertical:'top'},
   screen:{backgroundColor:colors.backgroundSecondary,flex:1},
   section:{color:colors.textPrimary,fontFamily:'Inter_700Bold',fontSize:18,marginBottom:12,marginTop:26},

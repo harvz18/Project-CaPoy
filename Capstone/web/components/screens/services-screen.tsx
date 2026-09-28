@@ -19,12 +19,20 @@ import { getSupabase } from '@/lib/supabase'
 import { useStaff } from '@/components/dashboard-shell'
 
 type ServicePackage = {
+  discount_amount: number | null
+  discount_type: string | null
+  discount_value: number | null
   id: string
   name: string
   description: string | null
   price: number | null
   inclusions: unknown
   pricing_unit: string | null
+  service_package_items: Array<{
+    position: number
+    services: unknown
+  }> | null
+  subtotal: number | null
 }
 
 type Service = {
@@ -59,7 +67,9 @@ const serviceSelection = `
   created_at, updated_at,
   provider_profiles(business_name, contact_email, contact_phone, location, verification_status),
   service_categories(name),
-  service_packages(id, name, description, price, inclusions, pricing_unit)
+  service_packages(id, name, description, price, inclusions, pricing_unit, subtotal,
+    discount_type, discount_value, discount_amount,
+    service_package_items(position, services(name)))
 `
 
 export function ServicesScreen() {
@@ -263,7 +273,18 @@ function ServiceDetailModal({ service, canApprove, canReject, onClose, onDecisio
             <main>
               <section className="detail-section"><span className="detail-label">DESCRIPTION</span><p>{service.description || 'The provider did not include a description.'}</p></section>
               <section className="detail-section"><span className="detail-label">PROVIDER PRICING</span><div className="price-summary"><strong>{service.base_price ? formatMoney(service.base_price) : 'Custom quote'}</strong><span>{formatPricing(service)}</span></div><p>MULTIVENT adds the configured commission on top when showing the client-facing price.</p>{service.pricing_details && <p>{service.pricing_details}</p>}</section>
-              <section className="detail-section"><span className="detail-label">PACKAGES ({packages.length})</span>{packages.length ? <div className="package-review-list">{packages.map((item) => <article key={item.id}><span><MdiIcon path={mdiPackageVariantClosed} /></span><div><strong>{item.name}</strong><p>{item.description || formatInclusions(item.inclusions)}</p></div><b>{item.price ? formatMoney(item.price) : 'Quote'}</b></article>)}</div> : <p>No packages were added.</p>}</section>
+              <section className="detail-section"><span className="detail-label">PACKAGES ({packages.length})</span>{packages.length ? <div className="package-review-list">{packages.map((item) => {
+                const packageServices = (item.service_package_items || [])
+                  .sort((left, right) => left.position - right.position)
+                  .map((entry) => String(nestedRecord(entry.services)?.name || ''))
+                  .filter(Boolean)
+                const promo = item.discount_amount && item.discount_amount > 0
+                  ? item.discount_type === 'percentage'
+                    ? `${item.discount_value || 0}% discount`
+                    : `${formatMoney(item.discount_amount)} discount`
+                  : ''
+                return <article key={item.id}><span><MdiIcon path={mdiPackageVariantClosed} /></span><div><strong>{item.name}</strong><p>{[item.description || formatInclusions(item.inclusions), packageServices.length ? `Services: ${packageServices.join(', ')}` : '', promo].filter(Boolean).join(' · ')}</p></div><b>{item.price ? formatMoney(item.price) : 'Quote'}</b></article>
+              })}</div> : <p>No packages were added.</p>}</section>
             </main>
             <aside>
               <section className="provider-summary"><span><MdiIcon path={mdiStorefrontOutline} /></span><div><small>PROVIDER</small><strong>{String(provider?.business_name || 'Unknown provider')}</strong><p>{String(provider?.contact_email || 'No email')}</p></div></section>
@@ -345,10 +366,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function packageComparable(value: Record<string, unknown>) {
   return {
     description: value.description ?? null,
+    discount_amount: value.discount_amount ?? 0,
+    discount_type: value.discount_type ?? 'none',
+    discount_value: value.discount_value ?? 0,
     inclusions: value.inclusions ?? [],
     name: value.name ?? '',
     price: value.price ?? null,
     pricing_unit: value.pricing_unit ?? null,
+    services: packageServiceNames(value),
+    subtotal: value.subtotal ?? value.price ?? null,
   }
 }
 
@@ -357,7 +383,29 @@ function formatPackageChange(value: Record<string, unknown>) {
   const unit = value.pricing_unit ? ` per ${String(value.pricing_unit)}` : ''
   const description = String(value.description || '').trim()
   const inclusions = Array.isArray(value.inclusions) ? value.inclusions.map(String).join(', ') : ''
-  return [price + unit, description, inclusions].filter(Boolean).join(' · ')
+  const services = packageServiceNames(value)
+  const discountAmount = Number(value.discount_amount || 0)
+  const promo = discountAmount > 0
+    ? value.discount_type === 'percentage'
+      ? `${Number(value.discount_value || 0)}% discount`
+      : `${formatMoney(discountAmount)} discount`
+    : ''
+  return [price + unit, services.length ? `Services: ${services.join(', ')}` : '', promo, description, inclusions]
+    .filter(Boolean)
+    .join(' · ')
+}
+
+function packageServiceNames(value: Record<string, unknown>) {
+  const snapshotItems = Array.isArray(value.services) ? value.services : []
+  const liveItems = Array.isArray(value.service_package_items) ? value.service_package_items : []
+  return (snapshotItems.length ? snapshotItems : liveItems)
+    .filter(isRecord)
+    .sort((left, right) => Number(left.position || 0) - Number(right.position || 0))
+    .map((entry) => {
+      if (entry.service_name) return String(entry.service_name)
+      return String(nestedRecord(entry.services)?.name || '')
+    })
+    .filter(Boolean)
 }
 
 function formatChangedValue(key: string, value: unknown) {
