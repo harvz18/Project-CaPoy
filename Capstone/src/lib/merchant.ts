@@ -924,7 +924,17 @@ export const deleteMerchantServiceListing = async (
       target_service_id: serviceId,
     })
 
-    return { ok: !error, message: error?.message }
+    const normalizedMessage = error?.message.toLowerCase() ?? ''
+    const oldHardDeleteFunction =
+      normalizedMessage.includes('bookings_service_id_fkey') ||
+      normalizedMessage.includes('foreign key constraint')
+
+    return {
+      ok: !error,
+      message: oldHardDeleteFunction
+        ? 'Safe service removal is not installed yet. Apply database/52_service_deletion_booking_history.sql, then try again. Your booking history was not deleted.'
+        : error?.message,
+    }
   } catch (error) {
     return { ok: false, message: toMessage(error) }
   }
