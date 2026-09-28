@@ -1,5 +1,6 @@
 import { supabase, supabaseConfig } from './supabase'
 import type { CateringServiceType } from './catalog'
+import { normalizeCategoryDetails } from './service-category-details'
 import type {
   AvailabilityCalendarValue,
   BookingItem,
@@ -564,6 +565,10 @@ export const saveMerchantServiceListing = async (
     }
     const detailedServicePayload = {
       ...servicePayload,
+      category_details: normalizeCategoryDetails(
+        value.information.category,
+        value.information.categoryDetails
+      ),
       gallery_urls: uploadedPhotos.filter((photo): photo is string => Boolean(photo)),
       catering_service_types: isCatering ? cateringServiceTypes : [],
       pricing_details: value.pricing.details,
@@ -598,7 +603,12 @@ export const saveMerchantServiceListing = async (
 
     if (error) {
       console.warn('Unable to create merchant service:', error.message)
-      return { ok: false, message: error.message }
+      return {
+        ok: false,
+        message: error.message.toLowerCase().includes('category_details')
+          ? 'Category-specific service details are not installed yet. Apply database/51_category_specific_service_details.sql, then try again.'
+          : error.message,
+      }
     }
 
     if (value.packages.length > 0) {
@@ -801,7 +811,7 @@ export const loadMerchantServiceForEditing = async (
   const { data, error } = await context.client
     .from('services')
     .select(
-      'id, name, description, base_price, cover_image_url, gallery_urls, pricing_model, pricing_unit, pricing_details, catering_service_types, category_id, service_categories(name), service_packages(id, name, description, price, inclusions, pricing_unit, pricing_mode, subtotal, discount_type, discount_value, discount_amount, service_package_items(service_id, position, services(id, name, base_price, pricing_unit)))'
+      'id, name, description, base_price, cover_image_url, gallery_urls, pricing_model, pricing_unit, pricing_details, catering_service_types, category_details, category_id, service_categories(name), service_packages(id, name, description, price, inclusions, pricing_unit, pricing_mode, subtotal, discount_type, discount_value, discount_amount, service_package_items(service_id, position, services(id, name, base_price, pricing_unit)))'
     )
     .eq('id', serviceId)
     .eq('provider_id', context.providerId)
@@ -830,6 +840,10 @@ export const loadMerchantServiceForEditing = async (
   return {
     information: {
       category: textFrom(category?.name, 'Service'),
+      categoryDetails: normalizeCategoryDetails(
+        textFrom(category?.name, 'Service'),
+        record.category_details
+      ),
       categoryId: textFrom(record.category_id),
       description: textFrom(record.description),
       photos: Array.from(new Set([coverImage, ...gallery].filter(Boolean))),

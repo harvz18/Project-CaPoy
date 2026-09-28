@@ -20,6 +20,7 @@ import {
   formatServicePrice,
 } from '../lib/catalog'
 import { customerPriceFromProviderPrice } from '../lib/pricing'
+import { summarizeCategoryDetails } from '../lib/service-category-details'
 import type { ReviewSentiment, ServiceReviewInsights } from '../lib/reviews'
 
 export type MealType = CateringServiceType
@@ -168,6 +169,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   }
 
   const attendeeCount = attendeeDigits ? Number(attendeeDigits) : 0
+  const categoryFacts = summarizeCategoryDetails(service.categoryName, service.categoryDetails)
   const budgetPerHead = budgetDigits ? Number(budgetDigits) : 0
   const isCatering = service.categoryId === 'catering'
   const availableMealTypes = service.cateringServiceTypes ?? []
@@ -347,6 +349,12 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                   <Text style={styles.pricingNotesText}>{service.pricingDetails}</Text>
                 </View>
               ) : null}
+              {categoryFacts.map((fact) => (
+                <View key={`${fact.label}-${fact.value}`} style={styles.serviceFactRow}>
+                  <Text style={styles.serviceFactLabel}>{fact.label.toUpperCase()}</Text>
+                  <Text style={styles.serviceFactValue}>{fact.value}</Text>
+                </View>
+              ))}
             </View>
           </View>
 

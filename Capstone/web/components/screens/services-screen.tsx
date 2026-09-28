@@ -40,6 +40,7 @@ type ServicePackage = {
 type Service = {
   id: string
   category_id: string | null
+  category_details: unknown
   name: string
   description: string | null
   base_price: number | null
@@ -65,7 +66,7 @@ type ReviewCollection = 'services' | 'packages'
 
 const serviceSelection = `
   id, category_id, name, description, base_price, location, cover_image_url, gallery_urls,
-  pricing_model, pricing_unit, pricing_details, status, moderation_note,
+  pricing_model, pricing_unit, pricing_details, category_details, status, moderation_note,
   submission_kind, last_approved_snapshot,
   created_at, updated_at,
   provider_profiles(business_name, contact_email, contact_phone, location, verification_status),
@@ -343,6 +344,7 @@ function ServiceDetailModal({ service, canApprove, canReject, reviewTarget, sele
           <div className="service-detail-grid">
             <main>
               <section className="detail-section"><span className="detail-label">DESCRIPTION</span><p>{service.description || 'The provider did not include a description.'}</p></section>
+              {hasCategoryDetails(service.category_details) && <section className="detail-section"><span className="detail-label">CATEGORY DETAILS</span><pre className="category-detail-json">{formatCategoryDetails(service.category_details)}</pre></section>}
               <section className="detail-section"><span className="detail-label">PROVIDER PRICING</span><div className="price-summary"><strong>{service.base_price ? formatMoney(service.base_price) : 'Custom quote'}</strong><span>{formatPricing(service)}</span></div><p>MULTIVENT adds the configured commission on top when showing the client-facing price.</p>{service.pricing_details && <p>{service.pricing_details}</p>}</section>
               <section className="detail-section"><span className="detail-label">PACKAGES ({packages.length})</span>{packages.length ? <div className="package-review-list">{packages.map((item) => {
                 const packageServices = (item.service_package_items || [])
@@ -395,6 +397,7 @@ function buildServiceChanges(service: Service): ServiceChange[] {
     ['pricing_model', 'Pricing model', beforeService.pricing_model, service.pricing_model],
     ['pricing_unit', 'Pricing unit', beforeService.pricing_unit, service.pricing_unit],
     ['pricing_details', 'Pricing details', beforeService.pricing_details, service.pricing_details],
+    ['category_details', 'Category details', beforeService.category_details, service.category_details],
     ['cover_image_url', 'Cover photo', beforeService.cover_image_url, service.cover_image_url],
     ['gallery_urls', 'Gallery photos', beforeService.gallery_urls, service.gallery_urls],
   ]
@@ -483,8 +486,37 @@ function formatChangedValue(key: string, value: unknown) {
   if (key === 'base_price') return typeof value === 'number' ? formatMoney(value) : 'Custom quote'
   if (key === 'cover_image_url') return value ? 'Photo provided' : 'No cover photo'
   if (key === 'gallery_urls') return `${Array.isArray(value) ? value.length : 0} photo(s)`
+  if (key === 'category_details') return hasCategoryDetails(value) ? formatCategoryDetails(value) : 'No category details'
   if (value === null || value === undefined || value === '') return 'Not provided'
   return String(value)
+}
+
+function hasCategoryDetails(value: unknown) {
+  return isRecord(value) && Object.keys(value).some((key) => !['kind', 'schemaVersion'].includes(key))
+}
+
+function formatCategoryDetails(value: unknown) {
+  if (!isRecord(value)) return 'No category details'
+  return Object.entries(value)
+    .filter(([key]) => !['kind', 'schemaVersion'].includes(key))
+    .map(([key, item]) => `${humanizeKey(key)}: ${formatCategoryDetailValue(item)}`)
+    .join('\n')
+}
+
+function formatCategoryDetailValue(value: unknown): string {
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No'
+  if (Array.isArray(value)) {
+    return value.map((item) => isRecord(item)
+      ? `{ ${Object.entries(item).map(([key, nestedValue]) => `${humanizeKey(key)}: ${formatCategoryDetailValue(nestedValue)}`).join(', ')} }`
+      : String(item)
+    ).join(' · ')
+  }
+  if (isRecord(value)) return Object.entries(value).map(([key, item]) => `${humanizeKey(key)}: ${formatCategoryDetailValue(item)}`).join(', ')
+  return String(value ?? 'Not provided')
+}
+
+function humanizeKey(value: string) {
+  return value.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/_/g, ' ').replace(/^./, (letter) => letter.toUpperCase())
 }
 
 function stableValue(value: unknown) {

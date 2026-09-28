@@ -1,6 +1,7 @@
 import { Text } from '../components/AppText'
 import React from 'react'
 import {
+  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -12,11 +13,21 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native'
+import { CategorySpecificServiceDetails } from '../components/CategorySpecificServiceDetails'
 import type { ServiceCategoryOption } from '../lib/catalog'
 import { fallbackServiceCategories } from '../lib/catalog'
+import {
+  emptyCategoryDetails,
+  hasEnteredCategoryDetails,
+  normalizeCategoryDetails,
+  serviceCategoryKind,
+  validateCategoryDetails,
+  type ServiceCategoryDetails,
+} from '../lib/service-category-details'
 
 export interface ServiceInformationValue {
   category: string
+  categoryDetails: ServiceCategoryDetails
   categoryId?: string
   description: string
   photos: string[]
@@ -90,18 +101,30 @@ export const Step1ServiceListingScreen: React.FC<Step1ServiceListingScreenProps>
   const [selectedCategoryId, setSelectedCategoryId] = React.useState(
     initialValue?.categoryId
   )
+  const [categoryDetails, setCategoryDetails] = React.useState<ServiceCategoryDetails>(() =>
+    normalizeCategoryDetails(
+      initialValue?.category ?? category,
+      initialValue?.categoryDetails
+    )
+  )
   const [isCategoryOpen, setIsCategoryOpen] = React.useState(false)
   const [photos, setPhotos] = React.useState(
     () => initialValue?.photos?.filter(Boolean).slice(0, photoLimit) ?? []
   )
   const [submitted, setSubmitted] = React.useState(false)
   const [isAddingPhoto, setIsAddingPhoto] = React.useState(false)
+  const [categoryErrors, setCategoryErrors] = React.useState<string[]>([])
 
   const normalizedName = serviceName.trim()
   const normalizedDescription = description.trim()
   const serviceNameMissing = submitted && normalizedName.length === 0
   const descriptionMissing = submitted && normalizedDescription.length === 0
   const canAddPhoto = photos.length < photoLimit && !isAddingPhoto
+  const visibleCategories = React.useMemo(() => categories.filter((option) =>
+    serviceCategoryKind(option.name) !== 'event_organizer' ||
+    option.id === selectedCategoryId ||
+    option.name === selectedCategory
+  ), [categories, selectedCategory, selectedCategoryId])
 
   React.useEffect(() => {
     if (selectedCategoryId) return
@@ -142,10 +165,13 @@ export const Step1ServiceListingScreen: React.FC<Step1ServiceListingScreenProps>
 
   const handleNext = () => {
     setSubmitted(true)
-    if (!normalizedName || !normalizedDescription) return
+    const detailErrors = validateCategoryDetails(selectedCategory, categoryDetails)
+    setCategoryErrors(detailErrors)
+    if (!normalizedName || !normalizedDescription || detailErrors.length > 0) return
 
     onNext?.({
       category: selectedCategory,
+      categoryDetails: normalizeCategoryDetails(selectedCategory, categoryDetails),
       categoryId: selectedCategoryId,
       description: normalizedDescription,
       photos,
@@ -156,11 +182,39 @@ export const Step1ServiceListingScreen: React.FC<Step1ServiceListingScreenProps>
   const handleBack = () => {
     onBack?.({
       category: selectedCategory,
+      categoryDetails: normalizeCategoryDetails(selectedCategory, categoryDetails),
       categoryId: selectedCategoryId,
       description: normalizedDescription,
       photos,
       serviceName: normalizedName,
     })
+  }
+
+  const applyCategory = (option: ServiceCategoryOption) => {
+    setSelectedCategory(option.name)
+    setSelectedCategoryId(option.id)
+    setCategoryDetails(emptyCategoryDetails(option.name))
+    setCategoryErrors([])
+    setIsCategoryOpen(false)
+  }
+
+  const handleCategoryChange = (option: ServiceCategoryOption) => {
+    if (option.id === selectedCategoryId || option.name === selectedCategory) {
+      setIsCategoryOpen(false)
+      return
+    }
+    if (!hasEnteredCategoryDetails(categoryDetails)) {
+      applyCategory(option)
+      return
+    }
+    Alert.alert(
+      'Change Service Category?',
+      `Changing the category will remove the service details entered for ${selectedCategory}.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Change Category', style: 'destructive', onPress: () => applyCategory(option) },
+      ]
+    )
   }
 
   return (
@@ -241,7 +295,7 @@ export const Step1ServiceListingScreen: React.FC<Step1ServiceListingScreenProps>
             </Pressable>
             {isCategoryOpen ? (
               <View style={styles.categoryOptions}>
-                {categories.map((option, index) => {
+                {visibleCategories.map((option, index) => {
                   const isSelected =
                     option.id === selectedCategoryId || option.name === selectedCategory
 
@@ -251,14 +305,10 @@ export const Step1ServiceListingScreen: React.FC<Step1ServiceListingScreenProps>
                       accessibilityLabel={`Choose ${option.name}`}
                       accessibilityRole="button"
                       accessibilityState={{ selected: isSelected }}
-                      onPress={() => {
-                        setSelectedCategory(option.name)
-                        setSelectedCategoryId(option.id)
-                        setIsCategoryOpen(false)
-                      }}
+                      onPress={() => handleCategoryChange(option)}
                       style={({ pressed }) => [
                         styles.categoryOption,
-                        index === categories.length - 1 && styles.categoryOptionLast,
+                        index === visibleCategories.length - 1 && styles.categoryOptionLast,
                         isSelected && styles.categoryOptionSelected,
                         pressed && styles.categoryOptionPressed,
                       ]}
@@ -320,6 +370,16 @@ export const Step1ServiceListingScreen: React.FC<Step1ServiceListingScreenProps>
               </Text>
             ) : null}
           </View>
+
+          <CategorySpecificServiceDetails
+            categoryName={selectedCategory}
+            errors={categoryErrors}
+            onChange={(next) => {
+              setCategoryDetails(next)
+              if (categoryErrors.length) setCategoryErrors([])
+            }}
+            value={categoryDetails}
+          />
 
           <View style={styles.photosSection}>
             <View style={styles.photosHeader}>

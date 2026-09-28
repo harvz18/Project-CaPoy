@@ -14,6 +14,7 @@ import {
 import type { ServiceInformationValue } from './17-Step1ServiceListing'
 import type { ServicePricingValue } from './17.1-Step2Pricing'
 import type { ServicePackageValue } from './17.1.1-Step2AddPackage'
+import { emptyCategoryDetails, summarizeCategoryDetails } from '../lib/service-category-details'
 
 export type ReviewListingSection = 'serviceInformation' | 'pricing'
 
@@ -42,6 +43,7 @@ const previewPhotos = [
 
 const defaultInformation: ServiceInformationValue = {
   category: 'Floral Design',
+  categoryDetails: emptyCategoryDetails('Floral Design'),
   description: 'Elegant floral styling tailored to your event theme and venue.',
   photos: previewPhotos,
   serviceName: 'Premium Floral Design',
@@ -145,7 +147,8 @@ export const Step3ReviewListingsScreen: React.FC<Step3ReviewListingsScreenProps>
       section: 'pricing',
       value: formatPrice(pricing),
     },
-    ...(information.category.toLowerCase().includes('cater')
+    ...(information.category.toLowerCase().includes('cater') &&
+      information.categoryDetails?.kind !== 'catering'
       ? [{
           label: 'Catering Styles',
           section: 'pricing' as const,
@@ -156,6 +159,11 @@ export const Step3ReviewListingsScreen: React.FC<Step3ReviewListingsScreenProps>
             : 'None selected',
         }]
       : []),
+    ...summarizeCategoryDetails(information.category, information.categoryDetails).map((fact) => ({
+      label: fact.label,
+      section: 'serviceInformation' as const,
+      value: fact.value,
+    })),
   ]
 
   return (

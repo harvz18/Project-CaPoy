@@ -4,6 +4,7 @@ import {
   DEFAULT_COMMISSION_RATE,
   normalizeCommissionRate,
 } from './pricing'
+import { normalizeCategoryDetails, type ServiceCategoryDetails } from './service-category-details'
 
 export type CatalogCategoryId =
   | 'venues'
@@ -51,6 +52,7 @@ export interface CatalogService {
   categoryId: CatalogCategoryId
   categoryDbId?: string
   categoryName: string
+  categoryDetails?: ServiceCategoryDetails
   cateringServiceTypes?: CateringServiceType[]
   commissionRate: number
   description: string
@@ -228,7 +230,7 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
   const baseSelection =
     'id, provider_id, category_id, name, description, base_price, location, cover_image_url, provider_profiles(id, business_name), service_categories(id, name), service_packages(id, name, description, price, inclusions, is_deleted), reviews(rating)'
   const detailedSelection =
-    'id, provider_id, category_id, name, description, base_price, location, cover_image_url, gallery_urls, pricing_model, pricing_unit, pricing_details, catering_service_types, provider_profiles(id, business_name), service_categories(id, name), service_packages(id, name, description, price, inclusions, pricing_unit, subtotal, discount_type, discount_value, discount_amount, is_deleted, service_package_items(position, services(name))), reviews(rating)'
+    'id, provider_id, category_id, name, description, base_price, location, cover_image_url, gallery_urls, pricing_model, pricing_unit, pricing_details, catering_service_types, category_details, provider_profiles(id, business_name), service_categories(id, name), service_packages(id, name, description, price, inclusions, pricing_unit, subtotal, discount_type, discount_value, discount_amount, is_deleted, service_package_items(position, services(name))), reviews(rating)'
 
   const [detailedResult, commissionResult, includedPackageResult] = await Promise.all([
     supabase
@@ -336,6 +338,7 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
       id: serviceId,
       categoryId: categoryNameToId(categoryName),
       categoryDbId: getNestedId(record.service_categories, textFrom(record.category_id, '')),
+      categoryDetails: normalizeCategoryDetails(categoryName, record.category_details),
       categoryName,
       cateringServiceTypes: getCateringServiceTypes(record.catering_service_types),
       commissionRate,

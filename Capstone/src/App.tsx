@@ -149,6 +149,7 @@ import { BudgetTrackerScreen } from './screens/04.1-BudgetTracker'
 import { CategoryBrowseScreen } from './screens/06-CategoryBrowse'
 import { CoordinatorDetailsScreen } from './screens/06.1-CoordinatorDetails'
 import { ServiceDetailsScreen } from './screens/08-ServiceDetails'
+import { emptyCategoryDetails, normalizeCategoryDetails } from './lib/service-category-details'
 import {
   AssignedCoordinatorSummary,
   SelectedSummaryScreen,
@@ -373,6 +374,7 @@ const DEFAULT_EVENT: EventCreationValue = {
 
 const DEFAULT_SERVICE_INFORMATION: ServiceInformationValue = {
   category: 'Catering',
+  categoryDetails: emptyCategoryDetails('Catering'),
   description: '',
   photos: [],
   serviceName: '',
@@ -2550,12 +2552,32 @@ export const App: React.FC = () => {
               setScreen('providerServices')
             }}
             onNext={(value) => {
+              const details = normalizeCategoryDetails(value.category, value.categoryDetails)
+              const pricingBasis = details.kind === 'catering'
+                ? String(details.pricingBasis ?? 'package')
+                : ''
+              const nextPricing = details.kind === 'catering'
+                ? {
+                    ...merchantServicePricing,
+                    unit: pricingBasis === 'per_person' ? 'person' as const : 'event' as const,
+                    cateringServiceTypes: Array.isArray(details.cateringTypes)
+                      ? details.cateringTypes.flatMap((item) => {
+                          const normalized = String(item).toLowerCase()
+                          if (normalized === 'plated') return ['plated' as const]
+                          if (normalized === 'buffet') return ['buffet' as const]
+                          if (normalized === 'packed meals') return ['packed' as const]
+                          return []
+                        })
+                      : merchantServicePricing.cateringServiceTypes,
+                  }
+                : merchantServicePricing
               setMerchantServiceInfo(value)
+              setMerchantServicePricing(nextPricing)
               setHasMerchantDraft(true)
               void saveMerchantServiceDraft({
                 information: value,
                 packages: [],
-                pricing: merchantServicePricing,
+                pricing: nextPricing,
               })
               setScreen('providerServicePricing')
             }}
@@ -2564,6 +2586,7 @@ export const App: React.FC = () => {
       case 'providerServicePricing':
         return (
           <Step2PricingScreen
+            categoryDetails={merchantServiceInfo.categoryDetails}
             categoryName={merchantServiceInfo.category}
             initialValue={merchantServicePricing}
             onBack={(draft) => {

@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native'
 import type { CateringServiceType } from '../lib/catalog'
+import type { ServiceCategoryDetails } from '../lib/service-category-details'
 
 export type ServicePricingModel = 'fixed' | 'startingAt' | 'customQuote'
 export type ServicePricingUnit = 'event' | 'person' | 'hour' | 'day'
@@ -27,6 +28,7 @@ export interface ServicePricingValue {
 }
 
 interface Step2PricingScreenProps {
+  categoryDetails?: ServiceCategoryDetails
   categoryName?: string
   initialValue?: Partial<ServicePricingValue>
   onBack?: (draft?: ServicePricingValue) => void
@@ -94,6 +96,7 @@ const BackIcon = () => (
 )
 
 export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
+  categoryDetails,
   categoryName = '',
   initialValue,
   onBack,
@@ -101,6 +104,9 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
 }) => {
   const { width } = useWindowDimensions()
   const isWide = width >= 768
+  const categoryPricingUnit = categoryDetails?.kind === 'catering'
+    ? categoryDetails.pricingBasis === 'per_person' ? 'person' as const : 'event' as const
+    : undefined
   const [model, setModel] = React.useState<ServicePricingModel>(
     initialValue?.model ?? 'fixed'
   )
@@ -108,11 +114,21 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
     initialValue?.amount && initialValue.amount > 0 ? String(initialValue.amount) : ''
   )
   const [unit, setUnit] = React.useState<ServicePricingUnit>(
-    initialValue?.unit ?? 'event'
+    categoryPricingUnit ?? initialValue?.unit ?? 'event'
   )
   const [details, setDetails] = React.useState(initialValue?.details ?? '')
+  const configuredCateringTypes = categoryDetails?.kind === 'catering' && Array.isArray(categoryDetails.cateringTypes)
+    ? categoryDetails.cateringTypes.flatMap((item) => {
+        const normalized = String(item).toLowerCase()
+        if (normalized === 'plated') return ['plated' as const]
+        if (normalized === 'buffet') return ['buffet' as const]
+        if (normalized === 'packed meals') return ['packed' as const]
+        return []
+      })
+    : []
+  const cateringTypesManagedInDetails = configuredCateringTypes.length > 0
   const [selectedCateringTypes, setSelectedCateringTypes] = React.useState<CateringServiceType[]>(
-    initialValue?.cateringServiceTypes ?? []
+    configuredCateringTypes.length ? configuredCateringTypes : initialValue?.cateringServiceTypes ?? []
   )
   const [submitted, setSubmitted] = React.useState(false)
 
@@ -297,7 +313,18 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
                 )}
               </View>
 
-              <View style={styles.fieldGroup}>
+              {categoryPricingUnit ? (
+                <View style={styles.quoteNotice}>
+                  <View style={styles.quoteNoticeIcon}>
+                    <Text style={styles.quoteNoticeIconText}>i</Text>
+                  </View>
+                  <Text style={styles.quoteNoticeText}>
+                    This catering price is charged {categoryPricingUnit === 'person'
+                      ? 'per person'
+                      : 'per package/event'}, based on Service Information.
+                  </Text>
+                </View>
+              ) : <View style={styles.fieldGroup}>
                 <Text style={styles.label}>Charge Per</Text>
                 <View accessibilityRole="radiogroup" style={styles.unitGrid}>
                   {pricingUnits.map((option) => {
@@ -322,7 +349,7 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
                     )
                   })}
                 </View>
-              </View>
+              </View>}
             </>
           ) : (
             <View style={styles.quoteNotice}>
@@ -336,7 +363,7 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
             </View>
           )}
 
-          {isCatering ? (
+          {isCatering && !cateringTypesManagedInDetails ? (
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>Available Catering Styles</Text>
               <Text style={styles.helperText}>
@@ -384,6 +411,17 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
                   Select at least one catering style.
                 </Text>
               ) : null}
+            </View>
+          ) : isCatering ? (
+            <View style={styles.quoteNotice}>
+              <View style={styles.quoteNoticeIcon}>
+                <Text style={styles.quoteNoticeIconText}>i</Text>
+              </View>
+              <Text style={styles.quoteNoticeText}>
+                Catering styles are already configured in Service Information: {configuredCateringTypes
+                  .map((item) => item.charAt(0).toUpperCase() + item.slice(1))
+                  .join(', ')}.
+              </Text>
             </View>
           ) : null}
 
