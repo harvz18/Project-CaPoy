@@ -1,0 +1,620 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function currentUser() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function hasEnabledAccount() {
+      return signedIn()
+        && (
+          !('accountStatus' in currentUser())
+          || currentUser().accountStatus in ['active', 'pending_verification']
+        );
+    }
+
+    function hasRole(role) {
+      return hasEnabledAccount() && currentUser().role == role;
+    }
+
+    function task(taskId) {
+      return get(/databases/$(database)/documents/tasks/$(taskId)).data;
+    }
+
+    function taskAfter(taskId) {
+      return getAfter(/databases/$(database)/documents/tasks/$(taskId)).data;
+    }
+
+    function matchAfter(matchId) {
+      return getAfter(/databases/$(database)/documents/taskMatches/$(matchId)).data;
+    }
+
+    function isTaskClient(taskData) {
+      return hasEnabledAccount() && taskData.clientId == request.auth.uid;
+    }
+
+    function isTaskWorker(taskData) {
+      return hasEnabledAccount() && 'workerId' in taskData && taskData.workerId == request.auth.uid;
+    }
+
+    function isTaskApplicant(taskData) {
+      return hasEnabledAccount()
+        && taskData.applicantIds is list
+        && request.auth.uid in taskData.applicantIds;
+    }
+
+    function isTaskParticipant(taskData) {
+      return isTaskClient(taskData) || isTaskWorker(taskData) || isTaskApplicant(taskData);
+    }
+
+    function taskParticipantIds(taskData) {
+      return [taskData.clientId]
+        + taskData.applicantIds
+        + ('workerId' in taskData ? [taskData.workerId] : []);
+    }
+
+    function isOpenTask(taskData) {
+      return taskData.status in ['Finding Workers', 'Applied'];
+    }
+
+    function validOwnUserDocument(userId) {
+      return signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.id == userId
+        && request.resource.data.role in ['worker', 'client'];
+    }
+
+    function validUserProfileUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'role',
+          'fullName',
+          'address',
+          'skills',
+          'capabilities',
+          'availabilityStatus',
+          'availability',
+          'businessName',
+          'profilePhotoUrl',
+          'experienceDescription',
+          'yearsOfExperience',
+          'validIdType',
+          'validIdUrl',
+          'medicalCertificateUrl',
+          'verificationStatus',
+          'currentLatitude',
+          'currentLongitude',
+          'preferredRadiusKm',
+          'updatedAt'
+        ])
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['verificationStatus'])
+          || request.resource.data.verificationStatus == 'Pending Verification'
+        )
+        && (
+          !('activeTaskId' in resource.data)
+          || !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'availabilityStatus',
+            'availability'
+          ])
+        );
+    }
+
+    function validWorkflowPrivateWorkerUpdate(userId) {
+      return hasRole('client')
+        && resource.data.role == 'worker'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'availabilityStatus',
+          'availability',
+          'activeTaskId',
+          'completedTasks',
+          'updatedAt'
+        ])
+        && (
+          (
+            !('activeTaskId' in resource.data)
+            && request.resource.data.activeTaskId is string
+            && request.resource.data.availabilityStatus == 'Busy'
+            && request.resource.data.availability == 'Busy'
+            && request.resource.data.get('completedTasks', 0) == resource.data.get('completedTasks', 0)
+            && task(request.resource.data.activeTaskId).status == 'Applied'
+            && taskAfter(request.resource.data.activeTaskId).status == 'Accepted'
+            && taskAfter(request.resource.data.activeTaskId).clientId == request.auth.uid
+            && taskAfter(request.resource.data.activeTaskId).workerId == userId
+          )
+          ||
+          (
+            resource.data.activeTaskId is string
+            && !('activeTaskId' in request.resource.data)
+            && request.resource.data.availabilityStatus == 'Available'
+            && request.resource.data.availability == 'Available'
+            && request.resource.data.completedTasks == resource.data.get('completedTasks', 0) + 1
+            && task(resource.data.activeTaskId).status == 'Pending Approval'
+            && taskAfter(resource.data.activeTaskId).status == 'Finished'
+            && taskAfter(resource.data.activeTaskId).clientId == request.auth.uid
+            && taskAfter(resource.data.activeTaskId).workerId == userId
+          )
+        );
+    }
+
+    function validWorkflowVisibleWorkerUpdate(userId) {
+      return hasRole('client')
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'availabilityStatus',
+          'availability',
+          'completedTasks',
+          'updatedAt'
+        ])
+        && (
+          (
+            'activeTaskId' in getAfter(/databases/$(database)/documents/users/$(userId)).data
+            && request.resource.data.availabilityStatus == 'Busy'
+            && request.resource.data.availability == 'Busy'
+            && request.resource.data.get('completedTasks', 0) == resource.data.get('completedTasks', 0)
+            && taskAfter(getAfter(/databases/$(database)/documents/users/$(userId)).data.activeTaskId).status == 'Accepted'
+            && taskAfter(getAfter(/databases/$(database)/documents/users/$(userId)).data.activeTaskId).clientId == request.auth.uid
+            && taskAfter(getAfter(/databases/$(database)/documents/users/$(userId)).data.activeTaskId).workerId == userId
+          )
+          ||
+          (
+            'activeTaskId' in get(/databases/$(database)/documents/users/$(userId)).data
+            && !('activeTaskId' in getAfter(/databases/$(database)/documents/users/$(userId)).data)
+            && request.resource.data.availabilityStatus == 'Available'
+            && request.resource.data.availability == 'Available'
+            && request.resource.data.completedTasks
+              == getAfter(/databases/$(database)/documents/users/$(userId)).data.completedTasks
+            && taskAfter(get(/databases/$(database)/documents/users/$(userId)).data.activeTaskId).status == 'Finished'
+            && taskAfter(get(/databases/$(database)/documents/users/$(userId)).data.activeTaskId).clientId == request.auth.uid
+            && taskAfter(get(/databases/$(database)/documents/users/$(userId)).data.activeTaskId).workerId == userId
+          )
+        );
+    }
+
+    function validOwnWorkerProfileUpdate(userId) {
+      return hasEnabledAccount()
+        && request.auth.uid == userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'skills',
+          'capabilities',
+          'availabilityStatus',
+          'availability',
+          'profilePhotoUrl',
+          'experienceDescription',
+          'yearsOfExperience',
+          'validIdType',
+          'validIdUrl',
+          'medicalCertificateUrl',
+          'currentLatitude',
+          'currentLongitude',
+          'preferredRadiusKm',
+          'updatedAt'
+        ])
+        && (
+          !('activeTaskId' in currentUser())
+          || !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'availabilityStatus',
+            'availability'
+          ])
+        );
+    }
+
+    function validPublicProfileFields() {
+      return request.resource.data.keys().hasOnly([
+        'id',
+        'role',
+        'fullName',
+        'rating',
+        'ratingCount',
+        'ratingTotal',
+        'skills',
+        'capabilities',
+        'availabilityStatus',
+        'availability',
+        'businessName',
+        'profilePhotoUrl',
+        'experienceDescription',
+        'yearsOfExperience',
+        'verificationStatus',
+        'completedTasks',
+        'createdAt',
+        'updatedAt'
+      ]);
+    }
+
+    function validApplicationUpdate(taskId) {
+      return hasRole('worker')
+        && currentUser().availabilityStatus == 'Available'
+        && isOpenTask(resource.data)
+        && !('workerId' in resource.data)
+        && !('workerId' in request.resource.data)
+        && resource.data.applicantIds is list
+        && request.resource.data.applicantIds is list
+        && !(request.auth.uid in resource.data.applicantIds)
+        && request.auth.uid in request.resource.data.applicantIds
+        && request.resource.data.lastApplicationWorkerId == request.auth.uid
+        && request.resource.data.lastApplicationMatchId
+          == taskId + '_' + request.auth.uid
+        && request.resource.data.lastApplicationAction == 'Applied'
+        && matchAfter(request.resource.data.lastApplicationMatchId).acceptanceStatus == 'Applied'
+        && request.resource.data.applicantIds.hasAll(resource.data.applicantIds)
+        && request.resource.data.applicantIds.size() == resource.data.applicantIds.size() + 1
+        && request.resource.data.status == 'Applied'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'applicantIds',
+          'status',
+          'lastApplicationWorkerId',
+          'lastApplicationMatchId',
+          'lastApplicationAction',
+          'updatedAt'
+        ]);
+    }
+
+    function validApplicationRemoval(taskId) {
+      return isOpenTask(resource.data)
+        && !('workerId' in resource.data)
+        && !('workerId' in request.resource.data)
+        && resource.data.applicantIds is list
+        && request.resource.data.applicantIds is list
+        && resource.data.applicantIds.hasAll(request.resource.data.applicantIds)
+        && request.resource.data.applicantIds.size() == resource.data.applicantIds.size() - 1
+        && request.resource.data.status
+          == (request.resource.data.applicantIds.size() == 0 ? 'Finding Workers' : 'Applied')
+        && resource.data.applicantIds.hasAny([request.resource.data.lastApplicationWorkerId])
+        && !request.resource.data.applicantIds.hasAny([request.resource.data.lastApplicationWorkerId])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'applicantIds',
+          'status',
+          'lastApplicationWorkerId',
+          'lastApplicationMatchId',
+          'lastApplicationAction',
+          'updatedAt'
+        ])
+        && (
+          (hasRole('worker')
+            && request.resource.data.lastApplicationWorkerId == request.auth.uid
+            && request.resource.data.lastApplicationMatchId
+              == taskId + '_' + request.auth.uid
+            && request.resource.data.lastApplicationAction == 'Withdrawn'
+            && matchAfter(request.resource.data.lastApplicationMatchId).acceptanceStatus == 'Withdrawn')
+          || (hasRole('client')
+            && resource.data.clientId == request.auth.uid
+            && request.resource.data.lastApplicationMatchId
+              == taskId + '_' + request.resource.data.lastApplicationWorkerId
+            && request.resource.data.lastApplicationAction == 'Rejected'
+            && matchAfter(request.resource.data.lastApplicationMatchId).acceptanceStatus == 'Rejected')
+        );
+    }
+
+    function validAssignedWorkerUpdate() {
+      return hasRole('worker')
+        && resource.data.workerId == request.auth.uid
+        && request.resource.data.workerId == request.auth.uid
+        && (
+          (resource.data.status == 'Accepted'
+            && request.resource.data.status == 'In Progress'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'startedAt', 'updatedAt']))
+          ||
+          (resource.data.status == 'In Progress'
+            && request.resource.data.status == 'Pending Approval'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'workerFinishedAt', 'updatedAt']))
+          ||
+          (resource.data.status in ['Accepted', 'In Progress', 'Pending Approval', 'Finished']
+            && request.resource.data.status == 'Disputed'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'disputedAt', 'updatedAt']))
+        );
+    }
+
+    function validClientTaskUpdate(taskId) {
+      return hasRole('client')
+        && resource.data.clientId == request.auth.uid
+        && request.resource.data.clientId == request.auth.uid
+        && (
+          (resource.data.status == 'Applied'
+            && request.resource.data.status == 'Accepted'
+            && request.resource.data.workerId in resource.data.applicantIds
+            && request.resource.data.applicantIds == [request.resource.data.workerId]
+            && request.resource.data.selectedMatchId
+              == taskId + '_' + request.resource.data.workerId
+            && matchAfter(request.resource.data.selectedMatchId).acceptanceStatus == 'Accepted'
+            && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.workerId
+              == request.resource.data.workerId
+            && getAfter(/databases/$(database)/documents/users/$(request.resource.data.workerId)).data.activeTaskId
+              == taskId
+            && getAfter(/databases/$(database)/documents/users/$(request.resource.data.workerId)).data.availabilityStatus
+              == 'Busy'
+            && getAfter(/databases/$(database)/documents/workerProfiles/$(request.resource.data.workerId)).data.availabilityStatus
+              == 'Busy'
+            && getAfter(/databases/$(database)/documents/publicProfiles/$(request.resource.data.workerId)).data.availabilityStatus
+              == 'Busy'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status', 'workerId', 'applicantIds', 'selectedMatchId', 'acceptedAt', 'updatedAt'
+            ]))
+          ||
+          (resource.data.status == 'Pending Approval'
+            && request.resource.data.status == 'Finished'
+            && resource.data.paymentStatus in ['Submitted', 'Verified']
+            && !('activeTaskId' in getAfter(/databases/$(database)/documents/users/$(resource.data.workerId)).data)
+            && getAfter(/databases/$(database)/documents/users/$(resource.data.workerId)).data.completedTasks
+              == get(/databases/$(database)/documents/users/$(resource.data.workerId)).data.get('completedTasks', 0) + 1
+            && getAfter(/databases/$(database)/documents/workerProfiles/$(resource.data.workerId)).data.completedTasks
+              == getAfter(/databases/$(database)/documents/users/$(resource.data.workerId)).data.completedTasks
+            && getAfter(/databases/$(database)/documents/publicProfiles/$(resource.data.workerId)).data.completedTasks
+              == getAfter(/databases/$(database)/documents/users/$(resource.data.workerId)).data.completedTasks
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'finishedAt', 'updatedAt']))
+          ||
+          (resource.data.status == 'Finished'
+            && request.resource.data.status == 'Archived'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'archivedAt', 'updatedAt']))
+          ||
+          (resource.data.status in ['Finding Workers', 'Applied']
+            && request.resource.data.status == 'Cancelled'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt', 'updatedAt']))
+          ||
+          (resource.data.status in ['Accepted', 'In Progress', 'Pending Approval', 'Finished']
+            && request.resource.data.status == 'Disputed'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'disputedAt', 'updatedAt']))
+          ||
+          (request.resource.data.status == resource.data.status
+            && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.paymentStatus
+              == request.resource.data.paymentStatus
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'paymentStatus',
+              'proofOfPaymentText',
+              'proofOfPaymentUrl',
+              'updatedAt'
+            ]))
+        );
+    }
+
+    match /users/{userId} {
+      allow create: if validOwnUserDocument(userId)
+        && request.resource.data.accountStatus == 'active'
+        && (
+          (request.resource.data.role == 'worker'
+            && request.resource.data.verificationStatus == 'Pending Verification')
+          || (request.resource.data.role == 'client'
+            && !('verificationStatus' in request.resource.data))
+        );
+      allow read: if signedIn() && request.auth.uid == userId;
+      allow update: if (
+          hasEnabledAccount()
+          && validOwnUserDocument(userId)
+          && request.resource.data.accountStatus == resource.data.accountStatus
+          && request.resource.data.createdAt == resource.data.createdAt
+          && validUserProfileUpdate()
+        ) || validWorkflowPrivateWorkerUpdate(userId);
+      allow delete: if false;
+    }
+
+    match /publicProfiles/{userId} {
+      allow read: if hasEnabledAccount();
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && validPublicProfileFields()
+        && request.resource.data.id == userId
+        && request.resource.data.role in ['worker', 'client']
+        && request.resource.data.role == getAfter(/databases/$(database)/documents/users/$(userId)).data.role
+        && (
+          !('accountStatus' in getAfter(/databases/$(database)/documents/users/$(userId)).data)
+          || getAfter(/databases/$(database)/documents/users/$(userId)).data.accountStatus
+            in ['active', 'pending_verification']
+        )
+        && request.resource.data.get('verificationStatus', null)
+          == getAfter(/databases/$(database)/documents/users/$(userId)).data.get('verificationStatus', null)
+        && request.resource.data.rating == getAfter(/databases/$(database)/documents/users/$(userId)).data.rating;
+      allow update: if (
+          hasEnabledAccount()
+          && request.auth.uid == userId
+          && validPublicProfileFields()
+          && request.resource.data.id == userId
+          && request.resource.data.role in ['worker', 'client']
+          && request.resource.data.role == getAfter(/databases/$(database)/documents/users/$(userId)).data.role
+          && request.resource.data.get('verificationStatus', null)
+            == getAfter(/databases/$(database)/documents/users/$(userId)).data.get('verificationStatus', null)
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'rating',
+            'ratingCount',
+            'ratingTotal',
+            'completedTasks',
+            'createdAt'
+          ])
+        ) || validWorkflowVisibleWorkerUpdate(userId);
+      allow delete: if false;
+    }
+
+    match /workerProfiles/{userId} {
+      allow read: if hasEnabledAccount() && request.auth.uid == userId;
+      allow update: if validOwnWorkerProfileUpdate(userId)
+        || validWorkflowVisibleWorkerUpdate(userId);
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && getAfter(/databases/$(database)/documents/users/$(userId)).data.role == 'worker'
+        && getAfter(/databases/$(database)/documents/users/$(userId)).data.accountStatus
+          in ['active', 'pending_verification'];
+      allow delete: if false;
+    }
+
+    match /clientProfiles/{userId} {
+      allow read, update: if hasEnabledAccount() && request.auth.uid == userId;
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && getAfter(/databases/$(database)/documents/users/$(userId)).data.role == 'client'
+        && getAfter(/databases/$(database)/documents/users/$(userId)).data.accountStatus
+          in ['active', 'pending_verification'];
+      allow delete: if false;
+    }
+
+    match /tasks/{taskId} {
+      allow read: if hasEnabledAccount() && (isOpenTask(resource.data) || isTaskParticipant(resource.data));
+      allow create: if hasRole('client')
+        && request.resource.data.clientId == request.auth.uid
+        && request.resource.data.status == 'Finding Workers'
+        && request.resource.data.applicantIds is list
+        && request.resource.data.applicantIds.size() == 0;
+      allow update: if validClientTaskUpdate(taskId)
+        || validApplicationUpdate(taskId)
+        || validApplicationRemoval(taskId)
+        || validAssignedWorkerUpdate();
+      allow delete: if false;
+    }
+
+    match /taskMatches/{matchId} {
+      allow read: if hasEnabledAccount()
+        && (resource.data.workerId == request.auth.uid || resource.data.clientId == request.auth.uid);
+      allow create: if hasEnabledAccount()
+        && matchId == request.resource.data.taskId + '_' + request.resource.data.workerId
+        && request.resource.data.taskId is string
+        && request.resource.data.clientId == task(request.resource.data.taskId).clientId
+        && hasRole('worker')
+        && request.resource.data.workerId == request.auth.uid
+        && request.resource.data.acceptanceStatus == 'Applied';
+      allow update: if hasEnabledAccount()
+        && request.resource.data.workerId == resource.data.workerId
+        && request.resource.data.clientId == resource.data.clientId
+        && request.resource.data.taskId == resource.data.taskId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'acceptanceStatus',
+          'hiredAt',
+          'rejectedAt',
+          'withdrawnAt',
+          'cancelledAt',
+          'updatedAt'
+        ])
+        && (
+          (resource.data.acceptanceStatus == 'Applied'
+            && request.resource.data.acceptanceStatus == 'Withdrawn'
+            && resource.data.workerId == request.auth.uid
+            && !(request.auth.uid in taskAfter(resource.data.taskId).applicantIds))
+          ||
+          (resource.data.acceptanceStatus == 'Applied'
+            && resource.data.clientId == request.auth.uid
+            && (
+              (request.resource.data.acceptanceStatus == 'Accepted'
+                && taskAfter(resource.data.taskId).status == 'Accepted'
+                && taskAfter(resource.data.taskId).workerId == resource.data.workerId)
+              ||
+              (request.resource.data.acceptanceStatus == 'Rejected'
+                && !(resource.data.workerId in taskAfter(resource.data.taskId).applicantIds))
+              ||
+              (request.resource.data.acceptanceStatus == 'Cancelled'
+                && taskAfter(resource.data.taskId).status == 'Cancelled')
+            ))
+        );
+      allow delete: if false;
+    }
+
+    match /payments/{taskId} {
+      allow read: if hasEnabledAccount() && isTaskParticipant(task(taskId));
+      allow create: if hasRole('client')
+        && taskAfter(taskId).clientId == request.auth.uid
+        && request.resource.data.taskId == taskId
+        && request.resource.data.clientId == request.auth.uid;
+      allow update: if hasRole('client')
+        && task(taskId).clientId == request.auth.uid
+        && request.resource.data.taskId == taskId
+        && request.resource.data.clientId == request.auth.uid
+        && (
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['workerId', 'updatedAt'])
+            && taskAfter(taskId).status == 'Accepted'
+            && request.resource.data.workerId == taskAfter(taskId).workerId)
+          ||
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'paymentStatus',
+              'proofOfPaymentText',
+              'proofOfPaymentUrl',
+              'updatedAt'
+            ])
+            && request.resource.data.paymentStatus == 'Submitted'
+            && taskAfter(taskId).paymentStatus == 'Submitted'
+            && taskAfter(taskId).get('proofOfPaymentText', null)
+              == request.resource.data.get('proofOfPaymentText', null))
+        );
+      allow delete: if false;
+    }
+
+    match /chats/{chatId} {
+      allow read: if hasEnabledAccount()
+        && resource.data.participantIds is list
+        && request.auth.uid in resource.data.participantIds;
+      allow create, update: if hasEnabledAccount()
+        && request.resource.data.taskId is string
+        && request.resource.data.participantIds is list
+        && request.resource.data.participantIds.size() == 2
+        && request.auth.uid in request.resource.data.participantIds
+        && request.resource.data.participantIds.hasOnly(
+          taskParticipantIds(task(request.resource.data.taskId))
+        )
+        && isTaskParticipant(task(request.resource.data.taskId));
+      allow delete: if false;
+    }
+
+    match /messages/{messageId} {
+      allow read: if hasEnabledAccount()
+        && (resource.data.senderId == request.auth.uid || resource.data.receiverId == request.auth.uid);
+      allow create: if hasEnabledAccount()
+        && request.resource.data.senderId == request.auth.uid
+        && request.resource.data.taskId is string
+        && request.resource.data.participantIds is list
+        && request.auth.uid in request.resource.data.participantIds
+        && request.resource.data.receiverId in request.resource.data.participantIds
+        && (
+          request.resource.data.receiverId == task(request.resource.data.taskId).clientId
+          || request.resource.data.receiverId in taskParticipantIds(task(request.resource.data.taskId))
+        )
+        && isTaskParticipant(task(request.resource.data.taskId));
+      allow update, delete: if false;
+    }
+
+    match /ratings/{ratingId} {
+      allow read: if hasEnabledAccount();
+      allow create: if hasEnabledAccount()
+        && ratingId == request.resource.data.taskId + '_' + request.auth.uid
+        && request.resource.data.reviewerId == request.auth.uid
+        && request.resource.data.score is int
+        && request.resource.data.score >= 1
+        && request.resource.data.score <= 5
+        && task(request.resource.data.taskId).status in ['Finished', 'Archived']
+        && (
+          (task(request.resource.data.taskId).clientId == request.auth.uid
+            && task(request.resource.data.taskId).workerId == request.resource.data.targetUserId)
+          ||
+          (task(request.resource.data.taskId).workerId == request.auth.uid
+            && task(request.resource.data.taskId).clientId == request.resource.data.targetUserId)
+        );
+      allow update, delete: if false;
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if hasEnabledAccount() && resource.data.userId == request.auth.uid;
+      allow create: if hasEnabledAccount()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.taskId is string
+        && (
+          isTaskParticipant(task(request.resource.data.taskId))
+          || isTaskParticipant(taskAfter(request.resource.data.taskId))
+        )
+        && (
+          request.resource.data.userId == task(request.resource.data.taskId).clientId
+          || request.resource.data.userId in taskParticipantIds(task(request.resource.data.taskId))
+          || request.resource.data.userId == taskAfter(request.resource.data.taskId).clientId
+          || request.resource.data.userId in taskParticipantIds(taskAfter(request.resource.data.taskId))
+          || (
+            task(request.resource.data.taskId).clientId == request.auth.uid
+            && get(/databases/$(database)/documents/publicProfiles/$(request.resource.data.userId)).data.role == 'worker'
+          )
+        );
+      allow update: if hasEnabledAccount()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readStatus']);
+      allow delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

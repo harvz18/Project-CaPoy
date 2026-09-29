@@ -7,11 +7,15 @@ export type TaskStatus =
   | "In Progress"
   | "Pending Approval"
   | "Finished"
-  | "Archived";
+  | "Archived"
+  | "Cancelled"
+  | "Disputed"
+  | "Expired";
 
 export type PaymentMethod = "COD" | "GCash link";
 export type PaymentStatus = "Pending" | "Submitted" | "Verified" | "Rejected";
 export type VerificationStatus = "Pending Verification" | "Verified" | "Rejected" | "Needs Resubmission";
+export type AccountStatus = "active" | "pending_verification" | "suspended" | "deleted";
 
 export type UserProfile = {
   id: string;
@@ -20,6 +24,9 @@ export type UserProfile = {
   mobileNumber: string;
   address: string;
   rating: number;
+  accountStatus?: AccountStatus;
+  ratingCount?: number;
+  ratingTotal?: number;
   skills?: string[];
   capabilities?: string[];
   availabilityStatus?: "Available" | "Busy";
@@ -39,6 +46,7 @@ export type UserProfile = {
   currentLongitude?: number;
   preferredRadiusKm?: number;
   completedTasks?: number;
+  activeTaskId?: string;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -48,6 +56,10 @@ export type Task = {
   clientId: string;
   workerId?: string;
   applicantIds?: string[];
+  lastApplicationWorkerId?: string;
+  lastApplicationMatchId?: string;
+  lastApplicationAction?: "Applied" | "Withdrawn" | "Rejected";
+  selectedMatchId?: string;
   title: string;
   description: string;
   category: string;
@@ -70,6 +82,10 @@ export type Task = {
   workerFinishedAt?: string;
   finishedAt?: string;
   archivedAt?: string;
+  cancelledAt?: string;
+  disputedAt?: string;
+  expiresAt?: string;
+  updatedAt?: string;
 };
 
 export type ChatMessage = {
@@ -77,6 +93,7 @@ export type ChatMessage = {
   taskId: string;
   senderId: string;
   receiverId: string;
+  participantIds?: string[];
   message: string;
   timestamp: string;
 };
@@ -94,6 +111,8 @@ export type AppNotification = {
   id: string;
   userId: string;
   notificationType: string;
+  taskId?: string;
+  createdBy?: string;
   message: string;
   readStatus: boolean;
   createdAt: string;
@@ -104,9 +123,13 @@ export type TaskMatch = {
   taskId: string;
   workerId: string;
   clientId: string;
-  acceptanceStatus: "Applied" | "Accepted" | "Rejected";
+  acceptanceStatus: "Applied" | "Accepted" | "Rejected" | "Withdrawn" | "Cancelled";
   createdAt: string;
   hiredAt?: string;
+  rejectedAt?: string;
+  withdrawnAt?: string;
+  cancelledAt?: string;
+  updatedAt?: string;
 };
 
 export type Payment = {

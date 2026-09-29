@@ -7,10 +7,18 @@ import {
   Rating,
   Role,
   Task,
+  TaskMatch,
   TaskStatus,
   UserProfile
 } from "../types";
-import { loginWithMobileNumber, registerWithMobileNumber } from "../services/authService";
+import {
+  deleteCurrentAuthUser,
+  loginWithMobileNumber,
+  logoutFromFirebase,
+  registerWithMobileNumber,
+  subscribeToAuthState
+} from "../services/authService";
+import { assertCanApply, assertTaskTransition } from "../domain/taskWorkflow";
 import { sendMessageToFirestore, subscribeToMessages } from "../services/chatService";
 import { hasFirebaseConfig } from "../services/firebase";
 import { addNotification, subscribeToNotifications } from "../services/notificationService";
@@ -18,11 +26,21 @@ import { addRatingToFirestore, subscribeToRatings } from "../services/ratingServ
 import {
   applyToTask,
   createTaskInFirestore,
-  subscribeToTasks,
+  rejectTaskApplication,
+  subscribeToTaskMatchesForUser,
+  subscribeToTasksForUser,
   updateTaskPaymentVerification,
-  updateTaskStatusInFirestore
+  updateTaskStatusInFirestore,
+  withdrawTaskApplication
 } from "../services/taskRepository";
-import { getUserProfile, saveUserProfile, subscribeToUsers, updateUserProfile } from "../services/userService";
+import {
+  getUserProfile,
+  ensurePublicProfile,
+  saveUserProfile,
+  subscribeToPublicProfiles,
+  subscribeToUserProfile,
+  updateUserProfile
+} from "../services/userService";
 import { formatDistance, getTaskDistanceKm, isWorkerInsideTaskGeofence } from "../utils/location";
 
 type RegisterInput = {
@@ -70,11 +88,13 @@ type AppContextValue = {
   login: (role: Role, input?: LoginInput) => Promise<UserProfile>;
   register: (input: RegisterInput) => Promise<void>;
   setRole: (role: Role) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
   getUserById: (userId?: string) => UserProfile | undefined;
   createTask: (input: TaskInput) => Promise<Task>;
   acceptTask: (taskId: string) => Promise<void>;
+  withdrawApplication: (taskId: string) => Promise<void>;
+  rejectApplication: (taskId: string, workerId: string) => Promise<void>;
   updateTaskStatus: (taskId: string, status: TaskStatus, workerId?: string) => Promise<void>;
   submitPaymentProof: (taskId: string, proofOfPaymentText: string) => Promise<void>;
   sendMessage: (taskId: string, message: string, receiverId?: string) => Promise<void>;
@@ -89,40 +109,100 @@ const usingFirebase = hasFirebaseConfig;
 export function AppProvider({ children }: PropsWithChildren) {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [users, setUsers] = useState<UserProfile[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [taskSnapshots, setTaskSnapshots] = useState<Task[]>([]);
+  const [taskMatches, setTaskMatches] = useState<TaskMatch[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [ratings, setRatings] = useState<Rating[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [appLoading, setAppLoading] = useState(usingFirebase);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const tasks = useMemo(
+    () =>
+      taskSnapshots.map((task) => {
+        const matches = taskMatches.filter((match) => match.taskId === task.id);
+        const canonicalApplicantIds = matches
+          .filter((match) => match.acceptanceStatus === "Applied" || match.acceptanceStatus === "Accepted")
+          .map((match) => match.workerId);
+        return matches.length ? { ...task, applicantIds: canonicalApplicantIds } : task;
+      }),
+    [taskMatches, taskSnapshots]
+  );
 
   useEffect(() => {
-    const unsubscribers = [
-      subscribeToUsers(setUsers, handleListenerError),
-      subscribeToTasks(setTasks, handleListenerError),
-      subscribeToMessages(setMessages, handleListenerError),
-      subscribeToRatings(setRatings, handleListenerError)
-    ];
+    if (!usingFirebase) {
+      setAppLoading(false);
+      return () => undefined;
+    }
 
-    setAppLoading(false);
+    return subscribeToAuthState(
+      async (authUser) => {
+        if (!authUser) {
+          setCurrentUser(null);
+          setAppLoading(false);
+          return;
+        }
 
-    return () => {
-      unsubscribers.forEach((unsubscribe) => unsubscribe());
-    };
+        try {
+          const profile = await getUserProfile(authUser.uid);
+          if (profile && isBlockedAccount(profile)) {
+            await logoutFromFirebase();
+            setError("This account is unavailable. Please contact support.");
+            setCurrentUser(null);
+            return;
+          }
+          if (profile) {
+            await ensurePublicProfile(profile);
+          }
+          setCurrentUser(profile);
+        } catch (authError) {
+          handleListenerError(authError instanceof Error ? authError : new Error("Unable to restore your session."));
+        } finally {
+          setAppLoading(false);
+        }
+      },
+      handleListenerError
+    );
   }, []);
 
   useEffect(() => {
-    const latestUser = users.find((user) => user.id === currentUser?.id);
-
-    if (latestUser) {
-      setCurrentUser(latestUser);
+    if (!currentUser) {
+      setUsers([]);
+      setTaskSnapshots([]);
+      setTaskMatches([]);
+      setMessages([]);
+      setRatings([]);
+      setNotifications([]);
+      return () => undefined;
     }
-  }, [currentUser?.id, users]);
 
-  useEffect(() => {
-    return subscribeToNotifications(currentUser?.id, setNotifications, handleListenerError);
-  }, [currentUser?.id]);
+    const unsubscribers = [
+      subscribeToUserProfile(
+        currentUser.id,
+        (user) => {
+          if (!user) {
+            return;
+          }
+          if (isBlockedAccount(user)) {
+            setError("This account is unavailable. Please contact support.");
+            void logoutFromFirebase();
+            setCurrentUser(null);
+            return;
+          }
+          setCurrentUser(user);
+        },
+        handleListenerError
+      ),
+      subscribeToPublicProfiles(setUsers, handleListenerError),
+      subscribeToTasksForUser(currentUser, setTaskSnapshots, handleListenerError),
+      subscribeToTaskMatchesForUser(currentUser, setTaskMatches, handleListenerError),
+      subscribeToMessages(currentUser.id, setMessages, handleListenerError),
+      subscribeToRatings(setRatings, handleListenerError),
+      subscribeToNotifications(currentUser.id, setNotifications, handleListenerError)
+    ];
+
+    return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
+  }, [currentUser?.id, currentUser?.role]);
 
   function handleListenerError(listenerError: Error) {
     setError(listenerError.message);
@@ -147,7 +227,7 @@ export function AppProvider({ children }: PropsWithChildren) {
     let authenticatedUser: UserProfile | undefined;
 
     await runAction(async () => {
-      const mobileNumber = input ? input.mobileNumber.trim() : role === "worker" ? "9170000001" : "9170000002";
+      const mobileNumber = input?.mobileNumber.trim() ?? "";
       if (!mobileNumber) {
         throw new Error("Please enter your mobile number.");
       }
@@ -157,7 +237,12 @@ export function AppProvider({ children }: PropsWithChildren) {
       if (!user) {
         throw new Error("Account found, but profile data is missing in Firestore.");
       }
+      if (isBlockedAccount(user)) {
+        await logoutFromFirebase();
+        throw new Error("This account is unavailable. Please contact support.");
+      }
 
+      await ensurePublicProfile(user);
       setCurrentUser(user);
       authenticatedUser = user;
     });
@@ -173,18 +258,23 @@ export function AppProvider({ children }: PropsWithChildren) {
     await runAction(async () => {
       validateRegistration(input);
       const authSession = await registerWithMobileNumber(input.mobileNumber, input.password);
-      const user = await saveUserProfile({
-        id: authSession.localId,
-        role: input.role,
-        fullName: input.fullName.trim(),
-        mobileNumber: input.mobileNumber.trim(),
-        address: input.address.trim() || "Bacolod City",
-        skills: input.skills,
-        capabilities: input.capabilities ?? input.skills,
-        businessName: input.businessName
-      });
+      try {
+        const user = await saveUserProfile({
+          id: authSession.localId,
+          role: input.role,
+          fullName: input.fullName.trim(),
+          mobileNumber: input.mobileNumber.trim(),
+          address: input.address.trim() || "Bacolod City",
+          skills: input.skills,
+          capabilities: input.capabilities ?? input.skills,
+          businessName: input.businessName
+        });
 
-      setCurrentUser(user);
+        setCurrentUser(user);
+      } catch (profileError) {
+        await deleteCurrentAuthUser().catch(() => undefined);
+        throw profileError;
+      }
     });
   }
 
@@ -211,9 +301,12 @@ export function AppProvider({ children }: PropsWithChildren) {
     });
   }
 
-  function logout() {
-    setCurrentUser(null);
-    setNotifications([]);
+  async function logout() {
+    await runAction(async () => {
+      await logoutFromFirebase();
+      setCurrentUser(null);
+      setNotifications([]);
+    });
   }
 
   async function updateProfile(updates: Partial<UserProfile>) {
@@ -222,10 +315,29 @@ export function AppProvider({ children }: PropsWithChildren) {
         throw new Error("Please log in before updating your profile.");
       }
 
-      await updateUserProfile(currentUser.id, updates);
+      const safeUpdates: Partial<UserProfile> = {
+        fullName: updates.fullName,
+        address: updates.address,
+        skills: updates.skills,
+        capabilities: updates.capabilities,
+        availabilityStatus: updates.availabilityStatus,
+        availability: updates.availability,
+        businessName: updates.businessName,
+        profilePhotoUrl: updates.profilePhotoUrl,
+        experienceDescription: updates.experienceDescription,
+        yearsOfExperience: updates.yearsOfExperience,
+        validIdType: updates.validIdType,
+        validIdUrl: updates.validIdUrl,
+        medicalCertificateUrl: updates.medicalCertificateUrl,
+        currentLatitude: updates.currentLatitude,
+        currentLongitude: updates.currentLongitude,
+        preferredRadiusKm: updates.preferredRadiusKm
+      };
+
+      await updateUserProfile(currentUser.id, safeUpdates);
       setCurrentUser({
         ...currentUser,
-        ...updates
+        ...safeUpdates
       });
     });
   }
@@ -238,6 +350,10 @@ export function AppProvider({ children }: PropsWithChildren) {
         throw new Error("Please log in before posting a task.");
       }
 
+      if (currentUser.role !== "client") {
+        throw new Error("Only clients can post tasks.");
+      }
+
       validateTask(input);
       createdTask = await createTaskInFirestore({
         ...input,
@@ -248,7 +364,7 @@ export function AppProvider({ children }: PropsWithChildren) {
         wage: input.wage.trim()
       });
 
-      await notifyWorkers(`New task posted in Bacolod City: ${createdTask.title}.`);
+      await notifyWorkers(createdTask.id, `New task posted in Bacolod City: ${createdTask.title}.`);
     });
 
     if (!createdTask) {
@@ -264,23 +380,49 @@ export function AppProvider({ children }: PropsWithChildren) {
         throw new Error("Please log in before applying to a task.");
       }
 
-      await applyToTask(taskId, currentUser.id);
-      const task = tasks.find((item) => item.id === taskId);
-
-      if (task) {
-        await addNotification({
-          userId: task.clientId,
-          notificationType: "Worker application",
-          message: `${currentUser.fullName} applied to ${task.title}.`
-        });
+      if (currentUser.role !== "worker") {
+        throw new Error("Only workers can apply to tasks.");
       }
+
+      const task = tasks.find((item) => item.id === taskId);
+      if (!task) throw new Error("Task not found.");
+      assertCanApply(task, currentUser, currentUser.availabilityStatus ?? currentUser.availability);
+      await applyToTask(taskId, currentUser);
+    });
+  }
+
+  async function withdrawApplication(taskId: string) {
+    await runAction(async () => {
+      if (!currentUser || currentUser.role !== "worker") {
+        throw new Error("Only workers can withdraw an application.");
+      }
+      await withdrawTaskApplication(taskId, currentUser);
+    });
+  }
+
+  async function rejectApplication(taskId: string, workerId: string) {
+    await runAction(async () => {
+      if (!currentUser || currentUser.role !== "client") {
+        throw new Error("Only clients can reject an application.");
+      }
+      await rejectTaskApplication(taskId, workerId, currentUser);
     });
   }
 
   async function updateTaskStatus(taskId: string, status: TaskStatus, workerId?: string) {
     await runAction(async () => {
+      if (!currentUser) {
+        throw new Error("Please log in before updating a task.");
+      }
+
       const task = tasks.find((item) => item.id === taskId);
+
+      if (!task) {
+        throw new Error("Task not found.");
+      }
+
       const nextWorkerId = workerId ?? task?.workerId ?? (currentUser?.role === "worker" ? currentUser.id : undefined);
+      assertTaskTransition(task, status, currentUser, nextWorkerId);
 
       if (
         currentUser?.role === "worker" &&
@@ -295,27 +437,7 @@ export function AppProvider({ children }: PropsWithChildren) {
         );
       }
 
-      await updateTaskStatusInFirestore(taskId, status, nextWorkerId);
-
-      if (!task || !currentUser) {
-        return;
-      }
-
-      if (status === "Accepted" && task.workerId) {
-        await addNotification({
-          userId: task.workerId,
-          notificationType: "Application accepted",
-          message: `Your application for ${task.title} was accepted.`
-        });
-      }
-
-      if (status === "Pending Approval") {
-        await addNotification({
-          userId: task.clientId,
-          notificationType: "Completion approval",
-          message: `${task.title} is waiting for your completion approval.`
-        });
-      }
+      await updateTaskStatusInFirestore(taskId, status, currentUser, nextWorkerId);
     });
   }
 
@@ -331,16 +453,12 @@ export function AppProvider({ children }: PropsWithChildren) {
         throw new Error("Task not found.");
       }
 
-      const nextStatus: PaymentStatus = proofOfPaymentText.trim() ? "Submitted" : "Pending";
-      await updateTaskPaymentVerification(taskId, nextStatus, proofOfPaymentText.trim());
-
-      if (task.workerId && nextStatus === "Submitted") {
-        await addNotification({
-          userId: task.workerId,
-          notificationType: "Payment proof submitted",
-          message: `Payment proof was submitted for ${task.title}.`
-        });
+      if (task.clientId !== currentUser.id) {
+        throw new Error("Only the client who posted this task can submit payment proof.");
       }
+
+      const nextStatus: PaymentStatus = proofOfPaymentText.trim() ? "Submitted" : "Pending";
+      await updateTaskPaymentVerification(taskId, currentUser.id, nextStatus, proofOfPaymentText.trim());
     });
   }
 
@@ -354,6 +472,12 @@ export function AppProvider({ children }: PropsWithChildren) {
 
       if (!task) {
         throw new Error("Task not found.");
+      }
+
+      const participantIds = [task.clientId, task.workerId, ...(task.applicantIds ?? [])].filter(Boolean);
+
+      if (!participantIds.includes(currentUser.id)) {
+        throw new Error("Only task participants can use this chat.");
       }
 
       const nextReceiverId =
@@ -402,6 +526,18 @@ export function AppProvider({ children }: PropsWithChildren) {
         throw new Error("Task not found.");
       }
 
+      if (task.status !== "Finished" && task.status !== "Archived") {
+        throw new Error("Ratings are available after the task is finished.");
+      }
+
+      if (score < 1 || score > 5 || !Number.isInteger(score)) {
+        throw new Error("Choose a rating from 1 to 5.");
+      }
+
+      if (currentUser.id !== task.clientId && currentUser.id !== task.workerId) {
+        throw new Error("Only task participants can submit a rating.");
+      }
+
       const targetUserId = currentUser.role === "worker" ? task.clientId : task.workerId;
 
       if (!targetUserId) {
@@ -430,13 +566,14 @@ export function AppProvider({ children }: PropsWithChildren) {
     setError(null);
   }
 
-  async function notifyWorkers(message: string) {
+  async function notifyWorkers(taskId: string, message: string) {
     const workerUsers = users.filter((user) => user.role === "worker");
 
     await Promise.all(
       workerUsers.map((worker) =>
         addNotification({
           userId: worker.id,
+          taskId,
           notificationType: "Nearby task",
           message
         })
@@ -464,6 +601,8 @@ export function AppProvider({ children }: PropsWithChildren) {
       getUserById,
       createTask,
       acceptTask,
+      withdrawApplication,
+      rejectApplication,
       updateTaskStatus,
       submitPaymentProof,
       sendMessage,
@@ -477,6 +616,10 @@ export function AppProvider({ children }: PropsWithChildren) {
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 
+function isBlockedAccount(user: UserProfile) {
+  return user.accountStatus === "suspended" || user.accountStatus === "deleted";
+}
+
 function validateRegistration(input: RegisterInput) {
   if (!input.fullName.trim()) {
     throw new Error("Full name is required.");
@@ -484,6 +627,10 @@ function validateRegistration(input: RegisterInput) {
 
   if (input.mobileNumber.replace(/\D/g, "").length < 10) {
     throw new Error("Enter a valid mobile number.");
+  }
+
+  if (!input.password || input.password.length < 6) {
+    throw new Error("Password must be at least 6 characters.");
   }
 }
 

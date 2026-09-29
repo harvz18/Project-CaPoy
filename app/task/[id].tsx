@@ -27,7 +27,7 @@ export default function TaskDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { currentUser, users, getUserById, tasks, acceptTask, updateTaskStatus } = useApp();
+  const { currentUser, users, getUserById, tasks, acceptTask, rejectApplication, updateTaskStatus } = useApp();
   const task = tasks.find((item) => item.id === id);
 
   if (!task) {
@@ -68,6 +68,11 @@ export default function TaskDetailsScreen() {
     }
     await updateTaskStatus(taskId, "Accepted", workerId);
     router.push(`/task-status/${taskId}`);
+  }
+
+  async function handleClientRejectWorker(workerId: string) {
+    if (!task?.id) return;
+    await rejectApplication(task.id, workerId);
   }
 
   return (
@@ -194,6 +199,9 @@ export default function TaskDetailsScreen() {
                       <Text style={styles.primaryButtonText}>Accept</Text>
                     </Pressable>
                   </View>
+                  <Pressable style={styles.rejectButton} onPress={() => handleClientRejectWorker(applicant.id)}>
+                    <Text style={styles.rejectButtonText}>Reject Application</Text>
+                  </Pressable>
                 </View>
               ))
             ) : (
@@ -318,4 +326,6 @@ const styles = StyleSheet.create({
   secondaryButton: { flex: 1, minHeight: 46, borderRadius: 10, borderWidth: 1, borderColor: palette.primary, alignItems: "center", justifyContent: "center", backgroundColor: palette.surface },
   secondaryButtonText: { color: palette.primary, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   disabledButton: { backgroundColor: palette.surfaceHigh },
+  rejectButton: { minHeight: 42, borderRadius: 10, borderWidth: 1, borderColor: "#B91C1C", alignItems: "center", justifyContent: "center", backgroundColor: palette.surface },
+  rejectButtonText: { color: "#B91C1C", fontSize: 13, lineHeight: 18, fontWeight: "900" },
 });

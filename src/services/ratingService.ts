@@ -1,4 +1,4 @@
-import { addDoc, collection, onSnapshot, orderBy, query, runTransaction, doc } from "firebase/firestore";
+import { collection, onSnapshot, orderBy, query, runTransaction, doc } from "firebase/firestore";
 import { Rating } from "../types";
 import { db } from "./firebase";
 
@@ -28,35 +28,25 @@ export function subscribeToRatings(onChange: (ratings: Rating[]) => void, onErro
 export async function addRatingToFirestore(rating: Omit<Rating, "id">) {
   const firestore = requireDb();
   const now = new Date().toISOString();
-  const ratingRef = await addDoc(collection(firestore, "ratings"), {
-    ...rating,
-    createdAt: now
-  });
-  const targetUserRef = doc(firestore, "users", rating.targetUserId);
+  const ratingId = `${rating.taskId}_${rating.reviewerId}`;
+  const ratingRef = doc(firestore, "ratings", ratingId);
 
   await runTransaction(firestore, async (transaction) => {
-    const userSnapshot = await transaction.get(targetUserRef);
+    const existingRating = await transaction.get(ratingRef);
 
-    if (!userSnapshot.exists()) {
-      return;
+    if (existingRating.exists()) {
+      throw new Error("You have already rated this user for this task.");
     }
 
-    const user = userSnapshot.data();
-    const ratingCount = Number(user.ratingCount ?? 0);
-    const ratingTotal = Number(user.ratingTotal ?? 0);
-    const nextCount = ratingCount + 1;
-    const nextTotal = ratingTotal + rating.score;
-
-    transaction.update(targetUserRef, {
-      ratingCount: nextCount,
-      ratingTotal: nextTotal,
-      rating: Number((nextTotal / nextCount).toFixed(1)),
-      updatedAt: now
+    transaction.set(ratingRef, {
+      id: ratingId,
+      ...rating,
+      createdAt: now
     });
   });
 
   return {
-    id: ratingRef.id,
+    id: ratingId,
     ...rating
   };
 }

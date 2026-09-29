@@ -1,4 +1,4 @@
-import { doc, getDoc, onSnapshot, query, collection, setDoc, updateDoc, where, getDocs } from "firebase/firestore";
+import { collection, doc, getDoc, onSnapshot, setDoc, writeBatch } from "firebase/firestore";
 import { Role, UserProfile } from "../types";
 import { db } from "./firebase";
 
@@ -12,6 +12,28 @@ function requireDb() {
 
 function withoutUndefined<T extends object>(value: T) {
   return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined)) as Partial<T>;
+}
+
+function toPublicProfile(user: Partial<UserProfile> & Pick<UserProfile, "id" | "role" | "fullName">) {
+  return withoutUndefined({
+    id: user.id,
+    role: user.role,
+    fullName: user.fullName,
+    rating: user.rating,
+    ratingCount: user.ratingCount,
+    skills: user.skills,
+    capabilities: user.capabilities,
+    availabilityStatus: user.availabilityStatus,
+    availability: user.availability,
+    businessName: user.businessName,
+    profilePhotoUrl: user.profilePhotoUrl,
+    experienceDescription: user.experienceDescription,
+    yearsOfExperience: user.yearsOfExperience,
+    verificationStatus: user.verificationStatus,
+    completedTasks: user.completedTasks,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt
+  });
 }
 
 export type SaveUserInput = {
@@ -35,6 +57,7 @@ export async function saveUserProfile(input: SaveUserInput) {
     mobileNumber: input.mobileNumber,
     address: input.address || "Bacolod City",
     rating: 0,
+    accountStatus: "active",
     skills: input.role === "worker" ? input.skills ?? input.capabilities ?? [] : undefined,
     capabilities: input.role === "worker" ? input.capabilities ?? input.skills ?? [] : undefined,
     availabilityStatus: input.role === "worker" ? "Available" : undefined,
@@ -51,10 +74,13 @@ export async function saveUserProfile(input: SaveUserInput) {
     updatedAt: now
   };
 
-  await setDoc(doc(firestore, "users", input.id), withoutUndefined({ ...user }));
+  const batch = writeBatch(firestore);
+
+  batch.set(doc(firestore, "users", input.id), withoutUndefined({ ...user }));
+  batch.set(doc(firestore, "publicProfiles", input.id), toPublicProfile(user));
 
   if (input.role === "worker") {
-    await setDoc(doc(firestore, "workerProfiles", input.id), {
+    batch.set(doc(firestore, "workerProfiles", input.id), {
       userId: input.id,
       skills: user.skills ?? [],
       capabilities: user.capabilities ?? [],
@@ -69,13 +95,15 @@ export async function saveUserProfile(input: SaveUserInput) {
       updatedAt: now
     });
   } else {
-    await setDoc(doc(firestore, "clientProfiles", input.id), {
+    batch.set(doc(firestore, "clientProfiles", input.id), {
       userId: input.id,
       businessName: input.businessName ?? "",
       createdAt: now,
       updatedAt: now
     });
   }
+
+  await batch.commit();
 
   return user;
 }
@@ -91,12 +119,29 @@ export async function getUserProfile(userId: string) {
   return { id: snapshot.id, ...snapshot.data() } as UserProfile;
 }
 
-export async function findUserByMobileNumber(mobileNumber: string) {
+export async function ensurePublicProfile(user: UserProfile) {
   const firestore = requireDb();
-  const snapshot = await getDocs(query(collection(firestore, "users"), where("mobileNumber", "==", mobileNumber)));
-  const userDoc = snapshot.docs[0];
+  const publicProfileRef = doc(firestore, "publicProfiles", user.id);
+  await setDoc(publicProfileRef, toPublicProfile(user));
+}
 
-  return userDoc ? ({ id: userDoc.id, ...userDoc.data() } as UserProfile) : null;
+export function subscribeToUserProfile(
+  userId: string,
+  onChange: (user: UserProfile | null) => void,
+  onError: (error: Error) => void
+) {
+  if (!db || !userId) {
+    onChange(null);
+    return () => undefined;
+  }
+
+  return onSnapshot(
+    doc(db, "users", userId),
+    (snapshot) => {
+      onChange(snapshot.exists() ? ({ id: snapshot.id, ...snapshot.data() } as UserProfile) : null);
+    },
+    onError
+  );
 }
 
 export async function updateUserProfile(userId: string, updates: Partial<UserProfile>) {
@@ -106,7 +151,19 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
     updatedAt: new Date().toISOString()
   };
 
-  await updateDoc(doc(firestore, "users", userId), withoutUndefined(nextUpdates));
+  const batch = writeBatch(firestore);
+  const userRef = doc(firestore, "users", userId);
+  const currentSnapshot = await getDoc(userRef);
+
+  if (!currentSnapshot.exists()) {
+    throw new Error("User profile not found.");
+  }
+
+  const currentUser = { id: currentSnapshot.id, ...currentSnapshot.data() } as UserProfile;
+  const mergedUser = { ...currentUser, ...withoutUndefined(nextUpdates) } as UserProfile;
+
+  batch.update(userRef, withoutUndefined(nextUpdates));
+  batch.set(doc(firestore, "publicProfiles", userId), toPublicProfile(mergedUser));
 
   if (
     updates.role === "worker" ||
@@ -125,7 +182,7 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
     updates.currentLongitude !== undefined ||
     updates.preferredRadiusKm !== undefined
   ) {
-    await setDoc(
+    batch.set(
       doc(firestore, "workerProfiles", userId),
       {
         userId,
@@ -152,7 +209,7 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
   }
 
   if (updates.role === "client" || updates.businessName) {
-    await setDoc(
+    batch.set(
       doc(firestore, "clientProfiles", userId),
       {
         userId,
@@ -162,18 +219,31 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
       { merge: true }
     );
   }
+
+  await batch.commit();
 }
 
-export function subscribeToUsers(onChange: (users: UserProfile[]) => void, onError: (error: Error) => void) {
+export function subscribeToPublicProfiles(onChange: (users: UserProfile[]) => void, onError: (error: Error) => void) {
   if (!db) {
     onChange([]);
     return () => undefined;
   }
 
   return onSnapshot(
-    collection(db, "users"),
+    collection(db, "publicProfiles"),
     (snapshot) => {
-      onChange(snapshot.docs.map((userDoc) => ({ id: userDoc.id, ...userDoc.data() }) as UserProfile));
+      onChange(
+        snapshot.docs.map(
+          (userDoc) =>
+            ({
+              mobileNumber: "",
+              address: "Bacolod City",
+              rating: 0,
+              id: userDoc.id,
+              ...userDoc.data()
+            }) as UserProfile
+        )
+      );
     },
     onError
   );

@@ -83,16 +83,19 @@ export default function ProfileScreen() {
     workerAreaPresets[0];
   const workerRadiusScale = getWorkerRadiusScale(preferredRadiusKm);
 
-  function handleLogout() {
-    logout();
-    router.replace("/login");
+  async function handleLogout() {
+    try {
+      await logout();
+      router.replace("/login");
+    } catch {
+      // AppContext exposes the readable error message.
+    }
   }
 
   async function handleSave() {
     try {
       await updateProfile({
         fullName,
-        mobileNumber,
         address,
         skills: currentUser?.role === "worker" ? skills : undefined,
         capabilities: currentUser?.role === "worker" ? skills : undefined,
@@ -173,7 +176,14 @@ export default function ProfileScreen() {
 
         <SettingsCard title="Edit Profile">
           <Field label="Full Name" value={fullName} onChangeText={setFullName} placeholder="Full name" />
-          <Field label="Mobile Number" value={mobileNumber} onChangeText={setMobileNumber} keyboardType="phone-pad" placeholder="Mobile number" />
+          <Field
+            editable={false}
+            label="Mobile Number (verified identity)"
+            value={mobileNumber}
+            onChangeText={setMobileNumber}
+            keyboardType="phone-pad"
+            placeholder="Mobile number"
+          />
           <Field label="Address / Barangay" value={address} onChangeText={setAddress} placeholder="Address or barangay" />
           <Field label={currentUser?.role === "client" ? "Business Bio" : "Worker Bio"} value={bio} onChangeText={setBio} placeholder="Tell people about yourself" multiline />
         </SettingsCard>
@@ -400,7 +410,8 @@ function Field({
   onChangeText,
   placeholder,
   keyboardType,
-  multiline
+  multiline,
+  editable = true
 }: {
   label: string;
   value: string;
@@ -408,17 +419,19 @@ function Field({
   placeholder: string;
   keyboardType?: "default" | "phone-pad";
   multiline?: boolean;
+  editable?: boolean;
 }) {
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
+        editable={editable}
         keyboardType={keyboardType}
         multiline={multiline}
         onChangeText={onChangeText}
         placeholder={placeholder}
         placeholderTextColor={palette.outline}
-        style={[styles.input, multiline && styles.textArea]}
+        style={[styles.input, !editable && styles.inputDisabled, multiline && styles.textArea]}
         textAlignVertical={multiline ? "top" : "center"}
         value={value}
       />
@@ -582,6 +595,7 @@ const styles = StyleSheet.create({
   field: { gap: 6 },
   fieldLabel: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "800" },
   input: { minHeight: 48, borderRadius: 8, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow, color: palette.text, fontSize: 16, paddingHorizontal: 14 },
+  inputDisabled: { color: palette.outline, backgroundColor: palette.surfaceContainer },
   textArea: { minHeight: 96, paddingTop: 12 },
   uploadInput: {
     minHeight: 58,

@@ -1,6 +1,6 @@
 import { addDoc, collection, onSnapshot, query, where } from "firebase/firestore";
 import { AppNotification } from "../types";
-import { db } from "./firebase";
+import { auth, db } from "./firebase";
 
 function requireDb() {
   if (!db) {
@@ -33,11 +33,21 @@ export function subscribeToNotifications(
   );
 }
 
-export async function addNotification(notification: Omit<AppNotification, "id" | "readStatus" | "createdAt">) {
+type NotificationInput = Omit<AppNotification, "id" | "readStatus" | "createdAt" | "createdBy"> & {
+  taskId: string;
+};
+
+export async function addNotification(notification: NotificationInput) {
   const firestore = requireDb();
+  const currentAuthUser = auth?.currentUser;
+
+  if (!currentAuthUser) {
+    throw new Error("Please log in before sending notifications.");
+  }
 
   await addDoc(collection(firestore, "notifications"), {
     ...notification,
+    createdBy: currentAuthUser.uid,
     readStatus: false,
     createdAt: new Date().toISOString()
   });

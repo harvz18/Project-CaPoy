@@ -20,8 +20,8 @@ export default function RegistrationScreen() {
     try {
       await register({
         role: "worker",
-        fullName: fullName || "TaskLink User",
-        mobileNumber: mobileNumber || "09170000000",
+        fullName,
+        mobileNumber,
         password,
         address
       });
@@ -52,7 +52,7 @@ export default function RegistrationScreen() {
           secureTextEntry
           placeholder="Create password"
         />
-        <AppInput label="Mobile verification code" value="123456" editable={false} placeholder="Mobile verification code" />
+        <Text style={styles.muted}>SMS verification is not enabled yet. Your password must contain at least 6 characters.</Text>
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
         <AppButton title={actionLoading ? "Registering..." : "Register"} onPress={handleRegister} disabled={actionLoading} />
       </AppCard>

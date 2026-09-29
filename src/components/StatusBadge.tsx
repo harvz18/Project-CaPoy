@@ -16,7 +16,7 @@ export function StatusBadge({ status }: StatusBadgeProps) {
           ? styles.badgeWarning
           : status === "Accepted" || status === "Applied"
             ? styles.badgeInfo
-            : status === "Unread"
+            : status === "Unread" || status === "Cancelled" || status === "Disputed" || status === "Expired"
               ? styles.badgeDanger
               : styles.badgePrimary;
 

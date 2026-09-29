@@ -1,16 +1,18 @@
-import { firebaseApiKey, hasFirebaseConfig } from "./firebase";
+import {
+  AuthError,
+  createUserWithEmailAndPassword,
+  deleteUser,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signOut,
+  User
+} from "firebase/auth";
+import { auth } from "./firebase";
 
-type FirebaseAuthResponse = {
+export type AuthSession = {
   localId: string;
   email: string;
-  idToken: string;
-  refreshToken: string;
 };
-
-export type AuthSession = FirebaseAuthResponse;
-
-const authBaseUrl = "https://identitytoolkit.googleapis.com/v1/accounts:";
-const fallbackPassword = "tasklink123";
 
 export function normalizeMobileNumber(mobileNumber: string) {
   const digits = mobileNumber.replace(/\D/g, "");
@@ -30,57 +32,96 @@ export function mobileNumberToEmail(mobileNumber: string) {
   return `${normalizeMobileNumber(mobileNumber)}@tasklink.local`;
 }
 
-export function getAuthPassword(password?: string) {
-  return password && password.length >= 6 ? password : fallbackPassword;
-}
-
-async function requestAuth(endpoint: "signUp" | "signInWithPassword", payload: Record<string, unknown>) {
-  if (!hasFirebaseConfig || !firebaseApiKey) {
+function requireAuth() {
+  if (!auth) {
     throw new Error("Firebase is not configured. Please check the EXPO_PUBLIC_FIREBASE_* values.");
   }
 
-  const response = await fetch(`${authBaseUrl}${endpoint}?key=${firebaseApiKey}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(payload)
-  });
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(getAuthErrorMessage(data?.error?.message));
-  }
-
-  return data as FirebaseAuthResponse;
+  return auth;
 }
 
 export async function registerWithMobileNumber(mobileNumber: string, password?: string) {
-  return requestAuth("signUp", {
-    email: mobileNumberToEmail(mobileNumber),
-    password: getAuthPassword(password),
-    returnSecureToken: true
-  });
+  validatePassword(password);
+
+  try {
+    const credential = await createUserWithEmailAndPassword(
+      requireAuth(),
+      mobileNumberToEmail(mobileNumber),
+      password as string
+    );
+    return toAuthSession(credential.user);
+  } catch (error) {
+    throw new Error(getAuthErrorMessage(error));
+  }
 }
 
 export async function loginWithMobileNumber(mobileNumber: string, password?: string) {
-  return requestAuth("signInWithPassword", {
-    email: mobileNumberToEmail(mobileNumber),
-    password: getAuthPassword(password),
-    returnSecureToken: true
-  });
+  validatePassword(password);
+
+  try {
+    const credential = await signInWithEmailAndPassword(
+      requireAuth(),
+      mobileNumberToEmail(mobileNumber),
+      password as string
+    );
+    return toAuthSession(credential.user);
+  } catch (error) {
+    throw new Error(getAuthErrorMessage(error));
+  }
 }
 
-function getAuthErrorMessage(code?: string) {
+export function subscribeToAuthState(
+  onChange: (user: User | null) => void,
+  onError: (error: Error) => void
+) {
+  if (!auth) {
+    onChange(null);
+    return () => undefined;
+  }
+
+  return onAuthStateChanged(auth, onChange, (error) => onError(new Error(getAuthErrorMessage(error))));
+}
+
+export async function logoutFromFirebase() {
+  await signOut(requireAuth());
+}
+
+export async function deleteCurrentAuthUser() {
+  if (auth?.currentUser) {
+    await deleteUser(auth.currentUser);
+  }
+}
+
+function toAuthSession(user: User): AuthSession {
+  return {
+    localId: user.uid,
+    email: user.email ?? ""
+  };
+}
+
+function validatePassword(password?: string) {
+  if (!password || password.length < 6) {
+    throw new Error("Password must be at least 6 characters.");
+  }
+}
+
+function getAuthErrorMessage(error: unknown) {
+  const code = (error as AuthError | undefined)?.code;
+
   switch (code) {
-    case "EMAIL_EXISTS":
+    case "auth/email-already-in-use":
       return "This mobile number is already registered. Please log in instead.";
-    case "EMAIL_NOT_FOUND":
-    case "INVALID_LOGIN_CREDENTIALS":
-    case "INVALID_PASSWORD":
+    case "auth/invalid-credential":
+    case "auth/invalid-login-credentials":
+    case "auth/user-not-found":
+    case "auth/wrong-password":
       return "Mobile number or password is incorrect.";
-    case "WEAK_PASSWORD : Password should be at least 6 characters":
+    case "auth/weak-password":
       return "Password should be at least 6 characters.";
+    case "auth/network-request-failed":
+      return "Network unavailable. Check your connection and try again.";
+    case "auth/too-many-requests":
+      return "Too many attempts. Please wait before trying again.";
     default:
       return "Unable to continue. Please try again.";
   }

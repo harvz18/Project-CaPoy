@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   LayoutAnimation,
   Modal,
@@ -38,7 +38,6 @@ const palette = {
 };
 
 const barangays = ["Barangay Alijis", "Barangay Taculing", "Barangay Mandalagan", "Barangay 10"];
-type LoginMethod = "otp" | "password";
 
 function getRoleRoute(role?: "worker" | "client") {
   if (role === "worker") {
@@ -55,41 +54,18 @@ function getRoleRoute(role?: "worker" | "client") {
 export default function LoginScreen() {
   const router = useRouter();
   const { actionLoading, error, login, register, usingFirebase } = useApp();
-  const [loginMethod, setLoginMethod] = useState<LoginMethod>("otp");
   const [mobileNumber, setMobileNumber] = useState("");
-  const [verificationCode, setVerificationCode] = useState("123456");
   const [password, setPassword] = useState("");
-  const [otpVisible, setOtpVisible] = useState(false);
   const [registerVisible, setRegisterVisible] = useState(false);
-  const [fullName, setFullName] = useState("Juana Dela Cruz");
+  const [fullName, setFullName] = useState("");
   const [registerMobileNumber, setRegisterMobileNumber] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
   const [registerCapabilities, setRegisterCapabilities] = useState(["Cleaning"]);
   const [selectedBarangay, setSelectedBarangay] = useState(barangays[0]);
   const [barangayOpen, setBarangayOpen] = useState(false);
 
-  const otpDigits = useMemo(() => {
-    const padded = verificationCode.padEnd(6, "");
-    return Array.from({ length: 6 }, (_, index) => padded[index] ?? "");
-  }, [verificationCode]);
-
   function animateNext() {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-  }
-
-  function handleOtpChange(value: string, index: number) {
-    const digit = value.replace(/\D/g, "").slice(-1);
-    const nextDigits = [...otpDigits];
-    nextDigits[index] = digit;
-    setVerificationCode(nextDigits.join("").slice(0, 6));
-  }
-
-  function handleSendOtp() {
-    animateNext();
-    setOtpVisible(true);
-    if (!verificationCode) {
-      setVerificationCode("123456");
-    }
   }
 
   async function handleLogin() {
@@ -108,8 +84,8 @@ export default function LoginScreen() {
     try {
       await register({
         role: "worker",
-        fullName: fullName || "TaskLink User",
-        mobileNumber: registerMobileNumber || mobileNumber,
+        fullName,
+        mobileNumber: registerMobileNumber,
         password: registerPassword,
         address: selectedBarangay,
         skills: registerCapabilities,
@@ -124,14 +100,6 @@ export default function LoginScreen() {
   function toggleRegister() {
     animateNext();
     setRegisterVisible((visible) => !visible);
-  }
-
-  function switchMethod(method: LoginMethod) {
-    animateNext();
-    setLoginMethod(method);
-    if (method === "password") {
-      setOtpVisible(false);
-    }
   }
 
   function toggleCapability(capability: string) {
@@ -160,10 +128,10 @@ export default function LoginScreen() {
         </View>
 
         <View style={screenStyles.card}>
-          <View style={screenStyles.tabRow}>
-            <LoginTab label="OTP Login" method="otp" activeMethod={loginMethod} onSelect={switchMethod} />
-            <LoginTab label="Password Login" method="password" activeMethod={loginMethod} onSelect={switchMethod} />
-          </View>
+          <Text style={screenStyles.authTitle}>Password Login</Text>
+          <Text style={screenStyles.authNotice}>
+            SMS OTP is not enabled yet. Use the password created with your account.
+          </Text>
 
           <View style={screenStyles.section}>
             <Text style={screenStyles.label}>Mobile Number</Text>
@@ -172,81 +140,25 @@ export default function LoginScreen() {
 
           {error ? <Text style={screenStyles.errorText}>{error}</Text> : null}
 
-          {loginMethod === "otp" ? (
-            <>
-              <Pressable
-                accessibilityRole="button"
-                onPress={handleSendOtp}
-                style={({ pressed }) => [screenStyles.primaryButton, pressed && screenStyles.pressed]}
-              >
-                <Text style={screenStyles.primaryButtonText}>Send Code</Text>
-              </Pressable>
-
-              {otpVisible ? (
-                <>
-                  <View style={screenStyles.dividerRow}>
-                    <View style={screenStyles.divider} />
-                    <Text style={screenStyles.dividerText}>PROTOTYPE 2FA CODE</Text>
-                    <View style={screenStyles.divider} />
-                  </View>
-
-                  <View style={screenStyles.section}>
-                    <View style={screenStyles.codeHeader}>
-                      <Text style={screenStyles.label}>Verification Code</Text>
-                      <View style={screenStyles.sentRow}>
-                        <Text style={screenStyles.sentIcon}>OK</Text>
-                        <Text style={screenStyles.sentText}>Code Sent</Text>
-                      </View>
-                    </View>
-                    <View style={screenStyles.otpRow}>
-                      {otpDigits.map((digit, index) => (
-                        <TextInput
-                          key={index}
-                          keyboardType="number-pad"
-                          maxLength={1}
-                          onChangeText={(value) => handleOtpChange(value, index)}
-                          placeholder="."
-                          placeholderTextColor={palette.outlineVariant}
-                          style={screenStyles.otpInput}
-                          textAlign="center"
-                          value={digit}
-                        />
-                      ))}
-                    </View>
-                    <Pressable accessibilityRole="button" onPress={handleSendOtp} style={screenStyles.resendButton}>
-                      <Text style={screenStyles.resendText}>Resend code in 0:45</Text>
-                    </Pressable>
-                    <Pressable
-                      accessibilityRole="button"
-                      onPress={handleLogin}
-                      style={({ pressed }) => [screenStyles.secondaryButton, pressed && screenStyles.pressed]}
-                    >
-                      <Text style={screenStyles.secondaryButtonText}>{actionLoading ? "Logging in..." : "Login"}</Text>
-                    </Pressable>
-                  </View>
-                </>
-              ) : null}
-            </>
-          ) : (
-            <View style={screenStyles.section}>
-              <Text style={screenStyles.label}>Password</Text>
-              <TextInput
-                onChangeText={setPassword}
-                placeholder="Enter your password"
-                placeholderTextColor={palette.outline}
-                secureTextEntry
-                style={screenStyles.textInput}
-                value={password}
-              />
-              <Pressable
-                accessibilityRole="button"
-                onPress={handleLogin}
-                style={({ pressed }) => [screenStyles.secondaryButton, pressed && screenStyles.pressed]}
-              >
-                <Text style={screenStyles.secondaryButtonText}>{actionLoading ? "Logging in..." : "Login"}</Text>
-              </Pressable>
-            </View>
-          )}
+          <View style={screenStyles.section}>
+            <Text style={screenStyles.label}>Password</Text>
+            <TextInput
+              onChangeText={setPassword}
+              placeholder="Enter your password"
+              placeholderTextColor={palette.outline}
+              secureTextEntry
+              style={screenStyles.textInput}
+              value={password}
+            />
+            <Pressable
+              accessibilityRole="button"
+              disabled={actionLoading}
+              onPress={handleLogin}
+              style={({ pressed }) => [screenStyles.secondaryButton, pressed && screenStyles.pressed]}
+            >
+              <Text style={screenStyles.secondaryButtonText}>{actionLoading ? "Logging in..." : "Login"}</Text>
+            </Pressable>
+          </View>
 
           <View style={screenStyles.dividerRow}>
             <View style={screenStyles.divider} />
@@ -260,10 +172,6 @@ export default function LoginScreen() {
             style={({ pressed }) => [screenStyles.createAccountButton, pressed && screenStyles.pressed]}
           >
             <Text style={screenStyles.createAccountText}>{registerVisible ? "Hide Registration" : "Create Account"}</Text>
-          </Pressable>
-
-          <Pressable accessibilityRole="button" style={screenStyles.googleButton}>
-            <Text style={screenStyles.googleButtonText}>Continue with Google</Text>
           </Pressable>
 
           {registerVisible ? (
@@ -327,6 +235,7 @@ export default function LoginScreen() {
 
               <Pressable
                 accessibilityRole="button"
+                disabled={actionLoading}
                 onPress={handleRegister}
                 style={({ pressed }) => [screenStyles.primaryButton, pressed && screenStyles.pressed]}
               >
@@ -416,27 +325,6 @@ function PhoneInput({ mobileNumber, onChange }: PhoneInputProps) {
   );
 }
 
-type LoginTabProps = {
-  label: string;
-  method: LoginMethod;
-  activeMethod: LoginMethod;
-  onSelect: (method: LoginMethod) => void;
-};
-
-function LoginTab({ label, method, activeMethod, onSelect }: LoginTabProps) {
-  const active = method === activeMethod;
-
-  return (
-    <Pressable
-      accessibilityRole="tab"
-      onPress={() => onSelect(method)}
-      style={[screenStyles.tabButton, active && screenStyles.tabButtonActive]}
-    >
-      <Text style={[screenStyles.tabText, active && screenStyles.tabTextActive]}>{label}</Text>
-    </Pressable>
-  );
-}
-
 const screenStyles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -512,6 +400,8 @@ const screenStyles = StyleSheet.create({
     elevation: 3,
     gap: 20
   },
+  authTitle: { color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "900" },
+  authNotice: { color: palette.muted, fontSize: 13, lineHeight: 18 },
   section: {
     gap: 14
   },

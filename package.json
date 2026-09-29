@@ -6,28 +6,40 @@
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
-    "typecheck": "tsc --noEmit"
+    "web": "expo start --web",
+    "build:web": "expo export --platform web",
+    "preview:web": "expo serve",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run typecheck && npm run test:workflow",
+    "test:workflow": "tsx --test tests/taskWorkflow.test.ts",
+    "test:rules": "node --test --test-concurrency=1 tests/firestore.rules.test.cjs tests/storage.rules.test.cjs",
+    "test:rules:emulator": "npx --yes firebase-tools@15.32.0 emulators:exec --project demo-tasklink --only firestore,storage \"npm run test:rules\""
   },
   "dependencies": {
-    "expo": "~54.0.0",
+    "@expo/metro-runtime": "~6.1.2",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "expo": "~54.0.37",
     "expo-asset": "~12.0.13",
-    "expo-constants": "~18.0.13",
+    "expo-constants": "~18.0.14",
     "expo-linking": "~8.0.12",
     "expo-notifications": "~0.32.17",
-    "expo-router": "~6.0.23",
+    "expo-router": "~6.0.24",
     "expo-splash-screen": "~31.0.13",
     "expo-status-bar": "~3.0.9",
-    "firebase": "^10.14.1",
+    "firebase": "10.14.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
     "react-native-safe-area-context": "~5.6.0",
-    "react-native-screens": "~4.16.0"
+    "react-native-screens": "~4.16.0",
+    "react-native-web": "^0.21.0"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^3.0.4",
     "@react-native-community/cli-server-api": "^20.1.3",
     "@types/react": "~19.1.10",
     "babel-preset-expo": "54.0.10",
+    "tsx": "^4.20.6",
     "typescript": "~5.9.2"
   }
 }

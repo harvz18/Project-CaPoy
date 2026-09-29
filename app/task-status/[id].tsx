@@ -4,7 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBadge } from "../../src/components/StatusBadge";
 import { useApp } from "../../src/context/AppContext";
-import { Task, TaskStatus } from "../../src/types";
+import { PaymentStatus, Task, TaskStatus } from "../../src/types";
 import { formatDistance, getTaskCheckDistanceKm, isWorkerInsideTaskGeofence } from "../../src/utils/location";
 
 const palette = {
@@ -30,7 +30,7 @@ export default function TaskStatusScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { acceptTask, actionLoading, currentUser, ratings, tasks, submitPaymentProof, updateTaskStatus } = useApp();
+  const { acceptTask, actionLoading, currentUser, ratings, tasks, submitPaymentProof, updateTaskStatus, withdrawApplication } = useApp();
   const task = tasks.find((item) => item.id === id);
   const [actionWarning, setActionWarning] = useState("");
   const [proofOfPaymentText, setProofOfPaymentText] = useState(task?.proofOfPaymentText ?? "");
@@ -56,7 +56,7 @@ export default function TaskStatusScreen() {
     task.workerId === currentUser?.id ||
     workerHasApplied ||
     taskIsOpenForApplications;
-  const action = getPrimaryAction(task.status, currentUser?.role, workerHasApplied);
+  const action = getPrimaryAction(task.status, currentUser?.role, workerHasApplied, task.paymentStatus);
   const distanceKm = getTaskCheckDistanceKm(currentUser, task);
   const insideGeofence = isWorkerInsideTaskGeofence(currentUser, task);
   const clientHasRated = Boolean(
@@ -116,9 +116,23 @@ export default function TaskStatusScreen() {
 
     try {
       setActionWarning("");
-      await submitPaymentProof(task.id, proofOfPaymentText || "Client marked payment as submitted.");
+      await submitPaymentProof(task.id, proofOfPaymentText);
     } catch (error) {
       setActionWarning(error instanceof Error ? error.message : "Unable to submit payment proof.");
+    }
+  }
+
+  async function handleSecondaryWorkflowAction(actionName: "withdraw" | "cancel" | "dispute") {
+    if (!task) return;
+    try {
+      setActionWarning("");
+      if (actionName === "withdraw") {
+        await withdrawApplication(task.id);
+        return;
+      }
+      await updateTaskStatus(task.id, actionName === "cancel" ? "Cancelled" : "Disputed");
+    } catch (error) {
+      setActionWarning(error instanceof Error ? error.message : "Unable to continue. Please try again.");
     }
   }
 
@@ -265,10 +279,31 @@ export default function TaskStatusScreen() {
                 <Pressable style={styles.secondaryAction} onPress={() => router.push(`/chat/${task.id}`)}>
                   <Text style={styles.secondaryActionText}>Chat</Text>
                 </Pressable>
-                <Pressable style={styles.secondaryAction} onPress={() => router.push(`/rating/${task.id}`)}>
-                  <Text style={styles.secondaryActionText}>Rate User</Text>
-                </Pressable>
+                {task.status === "Finished" || task.status === "Archived" ? (
+                  <Pressable style={styles.secondaryAction} onPress={() => router.push(`/rating/${task.id}`)}>
+                    <Text style={styles.secondaryActionText}>Rate User</Text>
+                  </Pressable>
+                ) : null}
               </View>
+            ) : null}
+
+            {currentUser?.role === "worker" && workerHasApplied && taskIsOpenForApplications ? (
+              <Pressable style={styles.dangerAction} onPress={() => handleSecondaryWorkflowAction("withdraw")}>
+                <Text style={styles.dangerActionText}>Withdraw Application</Text>
+              </Pressable>
+            ) : null}
+
+            {currentUser?.role === "client" && task.clientId === currentUser.id && taskIsOpenForApplications ? (
+              <Pressable style={styles.dangerAction} onPress={() => handleSecondaryWorkflowAction("cancel")}>
+                <Text style={styles.dangerActionText}>Cancel Task</Text>
+              </Pressable>
+            ) : null}
+
+            {(task.status === "Accepted" || task.status === "In Progress" || task.status === "Pending Approval" || task.status === "Finished") &&
+            (currentUser?.id === task.clientId || currentUser?.id === task.workerId) ? (
+              <Pressable style={styles.dangerAction} onPress={() => handleSecondaryWorkflowAction("dispute")}>
+                <Text style={styles.dangerActionText}>Open Dispute</Text>
+              </Pressable>
             ) : null}
 
             {actionWarning ? <Text style={styles.warningText}>{actionWarning}</Text> : null}
@@ -297,13 +332,21 @@ export default function TaskStatusScreen() {
   );
 }
 
-function getPrimaryAction(status: TaskStatus, role?: string, workerHasApplied = false) {
+function getPrimaryAction(
+  status: TaskStatus,
+  role?: string,
+  workerHasApplied = false,
+  paymentStatus?: PaymentStatus
+) {
   if (role === "client" && status === "Applied") {
     return { label: "Review Applicants", enabled: true };
   }
 
   if (role === "client" && status === "Pending Approval") {
-    return { label: "Confirm Finished", nextStatus: "Finished" as TaskStatus, enabled: true };
+    const paymentReady = paymentStatus === "Submitted" || paymentStatus === "Verified";
+    return paymentReady
+      ? { label: "Confirm Finished", nextStatus: "Finished" as TaskStatus, enabled: true }
+      : { label: "Submit Payment First", enabled: false };
   }
 
   if (role === "client" && status === "Finished") {
@@ -331,7 +374,7 @@ function getPrimaryAction(status: TaskStatus, role?: string, workerHasApplied = 
   }
 
   if (role === "worker" && status === "In Progress") {
-    return { label: "Mark as Finished", nextStatus: "Pending Approval" as TaskStatus, enabled: true };
+    return { label: "Submit for Approval", nextStatus: "Pending Approval" as TaskStatus, enabled: true };
   }
 
   if (role === "worker" && status === "Pending Approval") {
@@ -348,6 +391,10 @@ function getPrimaryAction(status: TaskStatus, role?: string, workerHasApplied = 
 
   if (status === "Archived") {
     return { label: "Task Archived", enabled: false };
+  }
+
+  if (status === "Cancelled" || status === "Disputed" || status === "Expired") {
+    return { label: `Task ${status}`, enabled: false };
   }
 
   return { label: "Status Updated", enabled: false };
@@ -591,6 +638,8 @@ const styles = StyleSheet.create({
   clientRatingButtonText: { color: palette.white, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   clientRatingButtonTextDisabled: { color: palette.textStrong },
   secondaryRow: { flexDirection: "row", gap: 12 },
+  dangerAction: { minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: "#B91C1C", alignItems: "center", justifyContent: "center", backgroundColor: palette.surface },
+  dangerActionText: { color: "#B91C1C", fontSize: 13, lineHeight: 18, fontWeight: "900" },
   secondaryAction: {
     flex: 1,
     minHeight: 44,

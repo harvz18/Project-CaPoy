@@ -1,0 +1,57 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function task(taskId) {
+      return firestore.get(/databases/(default)/documents/tasks/$(taskId)).data;
+    }
+
+    function hasEnabledAccount() {
+      return signedIn()
+        && (
+          !('accountStatus' in firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data)
+          || firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.accountStatus
+            in ['active', 'pending_verification']
+        );
+    }
+
+    function isAssignedTaskParticipant(taskId) {
+      return hasEnabledAccount()
+        && (
+          task(taskId).clientId == request.auth.uid
+          || ('workerId' in task(taskId) && task(taskId).workerId == request.auth.uid)
+        );
+    }
+
+    function validUpload() {
+      return request.resource != null
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('(image/.*|application/pdf)');
+    }
+
+    match /profilePhotos/{userId}/{fileName} {
+      allow read: if hasEnabledAccount();
+      allow write: if hasEnabledAccount() && request.auth.uid == userId && validUpload();
+    }
+
+    match /verification/{userId}/{fileName} {
+      allow read: if signedIn() && request.auth.uid == userId;
+      allow write: if hasEnabledAccount() && request.auth.uid == userId && validUpload();
+    }
+
+    match /paymentProofs/{taskId}/{fileName} {
+      allow read: if isAssignedTaskParticipant(taskId);
+      allow write: if hasEnabledAccount()
+        && task(taskId).clientId == request.auth.uid
+        && validUpload();
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
