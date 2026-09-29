@@ -377,10 +377,10 @@ export function AppProvider({ children }: PropsWithChildren) {
         preferredRadiusKm: updates.preferredRadiusKm
       };
 
-      await updateUserProfile(currentUser.id, safeUpdates);
+      const savedUpdates = await updateUserProfile(currentUser.id, safeUpdates);
       setCurrentUser({
         ...currentUser,
-        ...safeUpdates
+        ...savedUpdates
       });
     });
   }

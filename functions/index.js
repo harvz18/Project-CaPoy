@@ -5,6 +5,7 @@ const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { logger } = require("firebase-functions");
 const { scoreWorkerForTask } = require("./matching");
 const { buildExpoPushMessage, isExpoPushToken, isNotificationCategoryEnabled } = require("./push");
+const { buildIdentityReview } = require("./identity");
 
 initializeApp();
 
@@ -81,8 +82,9 @@ exports.reviewWorkerVerification = onCall({ region: REGION }, async (request) =>
       reviewReason: reason,
       updatedAt: reviewedAt
     };
+    const identityReview = buildIdentityReview(decision, reviewedAt, adminId);
     transaction.update(requestRef, review);
-    transaction.update(userRef, { verificationStatus: decision, updatedAt: reviewedAt });
+    transaction.update(userRef, { verificationStatus: decision, ...identityReview, updatedAt: reviewedAt });
     transaction.set(workerRef, { verificationStatus: decision, updatedAt: reviewedAt }, { merge: true });
     transaction.set(publicRef, { verificationStatus: decision, updatedAt: reviewedAt }, { merge: true });
     transaction.set(db.collection("notifications").doc(), {

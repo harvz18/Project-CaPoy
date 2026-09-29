@@ -16,6 +16,7 @@ export type TaskStatus =
 export type PaymentMethod = "COD" | "GCash link";
 export type PaymentStatus = "Pending" | "Submitted" | "Verified" | "Rejected";
 export type VerificationStatus = "Pending Verification" | "Verified" | "Rejected" | "Needs Resubmission";
+export type IdentityStatus = "Unverified" | "Pending Approval" | "Approved" | "Rejected" | "Needs Resubmission";
 export type AccountStatus = "active" | "pending_verification" | "suspended" | "deleted";
 export type LocationSource = "device" | "manual" | "map";
 
@@ -42,6 +43,10 @@ export type UserProfile = {
   validIdUrl?: string;
   medicalCertificateUrl?: string;
   verificationStatus?: VerificationStatus;
+  identityStatus?: IdentityStatus;
+  identityApprovedAt?: string;
+  identityApprovedBy?: string;
+  identityLockedAt?: string;
   phoneVerified?: boolean;
   thirdPartyProvider?: "none" | "google";
   currentLatitude?: number;

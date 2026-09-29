@@ -1,5 +1,6 @@
 import { collection, deleteField, doc, getDoc, onSnapshot, setDoc, writeBatch } from "firebase/firestore";
 import { PublicRole, UserProfile } from "../types";
+import { initialIdentityStatus, normalizeAddress, normalizeFullName } from "../domain/profileIdentity";
 import { db } from "./firebase";
 
 function requireDb() {
@@ -50,12 +51,14 @@ export type SaveUserInput = {
 export async function saveUserProfile(input: SaveUserInput) {
   const firestore = requireDb();
   const now = new Date().toISOString();
+  const fullName = normalizeFullName(input.fullName);
+  const address = normalizeAddress(input.address || "Bacolod City");
   const user: UserProfile = {
     id: input.id,
     role: input.role,
-    fullName: input.fullName,
+    fullName,
     mobileNumber: input.mobileNumber,
-    address: input.address || "Bacolod City",
+    address,
     rating: 0,
     accountStatus: "active",
     skills: input.role === "worker" ? input.skills ?? input.capabilities ?? [] : undefined,
@@ -64,6 +67,7 @@ export async function saveUserProfile(input: SaveUserInput) {
     availability: input.role === "worker" ? "Available" : undefined,
     businessName: input.role === "client" ? input.businessName : undefined,
     verificationStatus: input.role === "worker" ? "Pending Verification" : undefined,
+    identityStatus: initialIdentityStatus(input.role),
     phoneVerified: false,
     thirdPartyProvider: "none",
     preferredRadiusKm: input.role === "worker" ? 5 : undefined,
@@ -144,8 +148,13 @@ export function subscribeToUserProfile(
 
 export async function updateUserProfile(userId: string, updates: Partial<UserProfile>) {
   const firestore = requireDb();
-  const nextUpdates = {
+  const sanitizedUpdates = withoutUndefined({
     ...updates,
+    fullName: updates.fullName === undefined ? undefined : normalizeFullName(updates.fullName),
+    address: updates.address === undefined ? undefined : normalizeAddress(updates.address)
+  });
+  const nextUpdates = {
+    ...sanitizedUpdates,
     updatedAt: new Date().toISOString()
   };
 
@@ -160,7 +169,7 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
   const currentUser = { id: currentSnapshot.id, ...currentSnapshot.data() } as UserProfile;
   const mergedUser = { ...currentUser, ...withoutUndefined(nextUpdates) } as UserProfile;
   const userUpdates: Record<string, unknown> = withoutUndefined(nextUpdates);
-  if (updates.locationSource === "manual" && updates.locationAccuracyMeters === undefined) {
+  if (sanitizedUpdates.locationSource === "manual" && sanitizedUpdates.locationAccuracyMeters === undefined) {
     userUpdates.locationAccuracyMeters = deleteField();
     delete mergedUser.locationAccuracyMeters;
   }
@@ -169,49 +178,49 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
   batch.set(doc(firestore, "publicProfiles", userId), toPublicProfile(mergedUser));
 
   if (
-    updates.role === "worker" ||
-    updates.skills ||
-    updates.capabilities ||
-    updates.availabilityStatus ||
-    updates.availability ||
-    updates.profilePhotoUrl ||
-    updates.experienceDescription ||
-    updates.yearsOfExperience ||
-    updates.validIdType ||
-    updates.validIdUrl ||
-    updates.medicalCertificateUrl ||
-    updates.verificationStatus ||
-    updates.currentLatitude !== undefined ||
-    updates.currentLongitude !== undefined ||
-    updates.locationUpdatedAt !== undefined ||
-    updates.locationAccuracyMeters !== undefined ||
-    updates.locationSource !== undefined ||
-    updates.preferredRadiusKm !== undefined
+    sanitizedUpdates.role === "worker" ||
+    sanitizedUpdates.skills ||
+    sanitizedUpdates.capabilities ||
+    sanitizedUpdates.availabilityStatus ||
+    sanitizedUpdates.availability ||
+    sanitizedUpdates.profilePhotoUrl ||
+    sanitizedUpdates.experienceDescription ||
+    sanitizedUpdates.yearsOfExperience ||
+    sanitizedUpdates.validIdType ||
+    sanitizedUpdates.validIdUrl ||
+    sanitizedUpdates.medicalCertificateUrl ||
+    sanitizedUpdates.verificationStatus ||
+    sanitizedUpdates.currentLatitude !== undefined ||
+    sanitizedUpdates.currentLongitude !== undefined ||
+    sanitizedUpdates.locationUpdatedAt !== undefined ||
+    sanitizedUpdates.locationAccuracyMeters !== undefined ||
+    sanitizedUpdates.locationSource !== undefined ||
+    sanitizedUpdates.preferredRadiusKm !== undefined
   ) {
     batch.set(
       doc(firestore, "workerProfiles", userId),
       {
         userId,
         ...withoutUndefined({
-          skills: updates.skills,
-          capabilities: updates.capabilities,
-          availabilityStatus: updates.availabilityStatus,
-          availability: updates.availability,
-          profilePhotoUrl: updates.profilePhotoUrl,
-          experienceDescription: updates.experienceDescription,
-          yearsOfExperience: updates.yearsOfExperience,
-          validIdType: updates.validIdType,
-          validIdUrl: updates.validIdUrl,
-          medicalCertificateUrl: updates.medicalCertificateUrl,
-          verificationStatus: updates.verificationStatus,
-          currentLatitude: updates.currentLatitude,
-          currentLongitude: updates.currentLongitude,
-          locationUpdatedAt: updates.locationUpdatedAt,
-          locationAccuracyMeters: updates.locationAccuracyMeters,
-          locationSource: updates.locationSource,
-          preferredRadiusKm: updates.preferredRadiusKm
+          skills: sanitizedUpdates.skills,
+          capabilities: sanitizedUpdates.capabilities,
+          availabilityStatus: sanitizedUpdates.availabilityStatus,
+          availability: sanitizedUpdates.availability,
+          profilePhotoUrl: sanitizedUpdates.profilePhotoUrl,
+          experienceDescription: sanitizedUpdates.experienceDescription,
+          yearsOfExperience: sanitizedUpdates.yearsOfExperience,
+          validIdType: sanitizedUpdates.validIdType,
+          validIdUrl: sanitizedUpdates.validIdUrl,
+          medicalCertificateUrl: sanitizedUpdates.medicalCertificateUrl,
+          verificationStatus: sanitizedUpdates.verificationStatus,
+          currentLatitude: sanitizedUpdates.currentLatitude,
+          currentLongitude: sanitizedUpdates.currentLongitude,
+          locationUpdatedAt: sanitizedUpdates.locationUpdatedAt,
+          locationAccuracyMeters: sanitizedUpdates.locationAccuracyMeters,
+          locationSource: sanitizedUpdates.locationSource,
+          preferredRadiusKm: sanitizedUpdates.preferredRadiusKm
         }),
-        ...(updates.locationSource === "manual" && updates.locationAccuracyMeters === undefined
+        ...(sanitizedUpdates.locationSource === "manual" && sanitizedUpdates.locationAccuracyMeters === undefined
           ? { locationAccuracyMeters: deleteField() }
           : {}),
         updatedAt: nextUpdates.updatedAt
@@ -220,12 +229,12 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
     );
   }
 
-  if (updates.role === "client" || updates.businessName) {
+  if (sanitizedUpdates.role === "client" || sanitizedUpdates.businessName) {
     batch.set(
       doc(firestore, "clientProfiles", userId),
       {
         userId,
-        businessName: updates.businessName ?? "",
+        businessName: sanitizedUpdates.businessName ?? "",
         updatedAt: nextUpdates.updatedAt
       },
       { merge: true }
@@ -233,6 +242,7 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
   }
 
   await batch.commit();
+  return nextUpdates;
 }
 
 export function subscribeToPublicProfiles(onChange: (users: UserProfile[]) => void, onError: (error: Error) => void) {

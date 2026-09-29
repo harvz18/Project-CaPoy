@@ -7,6 +7,7 @@ import LocationMap from "../src/components/LocationMap";
 import { StatusBadge } from "../src/components/StatusBadge";
 import { workerCapabilities } from "../src/constants/capabilities";
 import { useApp } from "../src/context/AppContext";
+import { isIdentityLocked } from "../src/domain/profileIdentity";
 import { captureForegroundLocation } from "../src/services/locationService";
 import { pickAndUploadPrivateDocument, pickAndUploadProfilePhoto } from "../src/services/fileUploadService";
 import { submitVerificationRequest } from "../src/services/verificationService";
@@ -79,6 +80,7 @@ export default function ProfileScreen() {
   const [locationMessage, setLocationMessage] = useState("");
   const [preferredRadiusKm, setPreferredRadiusKm] = useState(String(currentUser?.preferredRadiusKm ?? 5));
   const [skillDropdownOpen, setSkillDropdownOpen] = useState(false);
+  const fullNameLocked = isIdentityLocked(currentUser);
   const profileRatings = ratings
     .filter((rating) => rating.targetUserId === currentUser?.id)
     .slice(0, 2)
@@ -106,7 +108,7 @@ export default function ProfileScreen() {
   async function handleSave() {
     try {
       await updateProfile({
-        fullName,
+        fullName: fullNameLocked ? undefined : fullName,
         address,
         skills: currentUser?.role === "worker" ? skills : undefined,
         capabilities: currentUser?.role === "worker" ? skills : undefined,
@@ -259,7 +261,14 @@ export default function ProfileScreen() {
         </View>
 
         <SettingsCard title="Edit Profile">
-          <Field label="Full Name" value={fullName} onChangeText={setFullName} placeholder="Full name" />
+          <Field
+            editable={!fullNameLocked}
+            helper={fullNameLocked ? "Locked after identity approval. Contact support to request a correction." : "This name will lock after identity approval."}
+            label="Full Name"
+            value={fullName}
+            onChangeText={setFullName}
+            placeholder="Full name"
+          />
           <Field
             editable={false}
             label="Mobile Number (verified identity)"
@@ -497,7 +506,8 @@ function Field({
   placeholder,
   keyboardType,
   multiline,
-  editable = true
+  editable = true,
+  helper
 }: {
   label: string;
   value: string;
@@ -506,6 +516,7 @@ function Field({
   keyboardType?: "default" | "phone-pad" | "decimal-pad";
   multiline?: boolean;
   editable?: boolean;
+  helper?: string;
 }) {
   return (
     <View style={styles.field}>
@@ -521,6 +532,7 @@ function Field({
         textAlignVertical={multiline ? "top" : "center"}
         value={value}
       />
+      {helper ? <Text style={styles.fieldHelper}>{helper}</Text> : null}
     </View>
   );
 }
@@ -768,6 +780,7 @@ const styles = StyleSheet.create({
   logoutButton: { minHeight: 48, borderRadius: 10, borderWidth: 1, borderColor: "#FFDAD6", alignItems: "center", justifyContent: "center", backgroundColor: "#FFF7F6" },
   logoutText: { color: palette.danger, fontSize: 14, fontWeight: "900" },
   errorText: { color: palette.danger, fontSize: 12, lineHeight: 16, fontWeight: "700" },
+  fieldHelper: { color: palette.muted, fontSize: 12, lineHeight: 16 },
   bottomNav: {
     position: "absolute",
     left: 0,

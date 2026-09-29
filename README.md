@@ -111,6 +111,8 @@ Phase 5 replaces the profile upload placeholders with real image/PDF uploads. Pr
 
 Worker verification submissions atomically update the private worker profile, public verification label, and `verificationRequests/{uid}` queue. Workers can submit or resubmit documents, but cannot approve themselves. Administrator approval, rejection, resubmission requests, account suspension, and GCash evidence review are trusted callable Functions and append an immutable `auditLogs` record.
 
+Approved identity names are locked at both the private `users` document and mirrored `publicProfiles` boundary. The profile screen also disables the field, but Firestore rules remain the authoritative protection. Legacy workers already marked `Verified` receive the same lock even if they predate the shared identity fields. Names and private addresses are whitespace-normalized and length-validated; addresses remain private and editable under the current beta policy.
+
 Payment behavior is verification only; TASKLINK does not process, hold, or escrow money:
 
 - GCash requires an uploaded image/PDF receipt and administrator review.

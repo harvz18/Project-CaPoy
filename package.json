@@ -11,7 +11,7 @@
     "preview:web": "expo serve",
     "typecheck": "tsc --noEmit",
     "test": "npm run typecheck && npm run test:workflow && npm run test:functions",
-    "test:workflow": "tsx --test tests/taskWorkflow.test.ts tests/matching.test.ts",
+    "test:workflow": "tsx --test tests/taskWorkflow.test.ts tests/matching.test.ts tests/profileIdentity.test.ts",
     "test:functions": "npm --prefix functions test",
     "test:rules": "node --test --test-concurrency=1 tests/firestore.rules.test.cjs tests/storage.rules.test.cjs",
     "test:rules:emulator": "npx --yes firebase-tools@15.32.0 emulators:exec --project demo-tasklink --only firestore,storage \"npm run test:rules\""

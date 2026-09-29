@@ -237,6 +237,75 @@ test("users cannot forge ratings, verification, or private fields in public prof
   await assertFails(
     updateDoc(doc(workerDb, "publicProfiles", WORKER_ID), { address: "Private address" })
   );
+  await assertFails(
+    updateDoc(doc(workerDb, "publicProfiles", WORKER_ID), { fullName: "Forged public name" })
+  );
+});
+
+test("unapproved names update atomically while approved and legacy verified names stay locked", async () => {
+  const clientDb = dbFor(CLIENT_ID);
+  const workerDb = dbFor(WORKER_ID);
+  const renamedAt = "2026-01-01T00:05:00.000Z";
+
+  const allowedRename = writeBatch(clientDb);
+  allowedRename.update(doc(clientDb, "users", CLIENT_ID), {
+    fullName: "Updated Client Name",
+    updatedAt: renamedAt
+  });
+  allowedRename.update(doc(clientDb, "publicProfiles", CLIENT_ID), {
+    fullName: "Updated Client Name",
+    updatedAt: renamedAt
+  });
+  await assertSucceeds(allowedRename.commit());
+
+  await assertFails(updateDoc(doc(clientDb, "users", CLIENT_ID), {
+    address: "x",
+    updatedAt: renamedAt
+  }));
+  await assertSucceeds(updateDoc(doc(clientDb, "users", CLIENT_ID), {
+    address: "Barangay Villamonte, Bacolod City",
+    updatedAt: renamedAt
+  }));
+
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
+    await Promise.all([
+      updateDoc(doc(db, "users", CLIENT_ID), {
+        identityStatus: "Approved",
+        identityApprovedAt: renamedAt,
+        identityApprovedBy: ADMIN_ID,
+        identityLockedAt: renamedAt
+      }),
+      updateDoc(doc(db, "users", WORKER_ID), {
+        verificationStatus: "Verified"
+      }),
+      updateDoc(doc(db, "publicProfiles", WORKER_ID), {
+        verificationStatus: "Verified"
+      })
+    ]);
+  });
+
+  const lockedClientRename = writeBatch(clientDb);
+  lockedClientRename.update(doc(clientDb, "users", CLIENT_ID), {
+    fullName: "Changed After Approval",
+    updatedAt: "2026-01-01T00:06:00.000Z"
+  });
+  lockedClientRename.update(doc(clientDb, "publicProfiles", CLIENT_ID), {
+    fullName: "Changed After Approval",
+    updatedAt: "2026-01-01T00:06:00.000Z"
+  });
+  await assertFails(lockedClientRename.commit());
+
+  const legacyWorkerRename = writeBatch(workerDb);
+  legacyWorkerRename.update(doc(workerDb, "users", WORKER_ID), {
+    fullName: "Changed Legacy Worker",
+    updatedAt: "2026-01-01T00:06:00.000Z"
+  });
+  legacyWorkerRename.update(doc(workerDb, "publicProfiles", WORKER_ID), {
+    fullName: "Changed Legacy Worker",
+    updatedAt: "2026-01-01T00:06:00.000Z"
+  });
+  await assertFails(legacyWorkerRename.commit());
 });
 
 test("workers can submit private verification metadata atomically but cannot approve themselves", async () => {
@@ -258,9 +327,13 @@ test("workers can submit private verification metadata atomically but cannot app
     verificationStatus: verification.status,
     updatedAt: now
   };
+  const privateUserUpdate = {
+    ...profileUpdate,
+    identityStatus: "Pending Approval"
+  };
   const batch = writeBatch(workerDb);
   batch.set(doc(workerDb, "verificationRequests", WORKER_ID), verification);
-  batch.update(doc(workerDb, "users", WORKER_ID), profileUpdate);
+  batch.update(doc(workerDb, "users", WORKER_ID), privateUserUpdate);
   batch.update(doc(workerDb, "workerProfiles", WORKER_ID), profileUpdate);
   batch.update(doc(workerDb, "publicProfiles", WORKER_ID), {
     verificationStatus: verification.status,
@@ -324,6 +397,23 @@ test("registration can atomically create private, public, and role profiles", as
   });
 
   await assertSucceeds(batch.commit());
+
+  const forgedUserId = "forged-approved-client";
+  const forgedDb = dbFor(forgedUserId);
+  const forgedBatch = writeBatch(forgedDb);
+  forgedBatch.set(doc(forgedDb, "users", forgedUserId), {
+    ...user(forgedUserId, "client"),
+    identityStatus: "Approved",
+    identityLockedAt: "2026-01-01T00:00:00.000Z"
+  });
+  forgedBatch.set(doc(forgedDb, "publicProfiles", forgedUserId), publicProfile(forgedUserId, "client"));
+  forgedBatch.set(doc(forgedDb, "clientProfiles", forgedUserId), {
+    userId: forgedUserId,
+    businessName: "",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z"
+  });
+  await assertFails(forgedBatch.commit());
 });
 
 test("only a client can create an open task owned by that client", async () => {

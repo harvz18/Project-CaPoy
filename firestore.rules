@@ -97,6 +97,34 @@ service cloud.firestore {
         && request.resource.data.role in ['worker', 'client'];
     }
 
+    function validIdentityText(profileData) {
+      return profileData.fullName is string
+        && profileData.fullName.size() >= 2
+        && profileData.fullName.size() <= 100
+        && profileData.fullName.matches('.*[^ ].*')
+        && profileData.address is string
+        && profileData.address.size() >= 3
+        && profileData.address.size() <= 200
+        && profileData.address.matches('.*[^ ].*');
+    }
+
+    function identityLocked(profileData) {
+      return profileData.get('identityStatus', null) == 'Approved'
+        || profileData.get('verificationStatus', null) == 'Verified'
+        || 'identityLockedAt' in profileData;
+    }
+
+    function validInitialIdentityState(profileData) {
+      return (
+          !('identityStatus' in profileData)
+          || (profileData.role == 'worker' && profileData.identityStatus == 'Pending Approval')
+          || (profileData.role == 'client' && profileData.identityStatus == 'Unverified')
+        )
+        && !('identityApprovedAt' in profileData)
+        && !('identityApprovedBy' in profileData)
+        && !('identityLockedAt' in profileData);
+    }
+
     function validPrivateLocation(profileData) {
       return profileData.currentLatitude is number
         && profileData.currentLatitude >= -90
@@ -127,6 +155,7 @@ service cloud.firestore {
           'validIdUrl',
           'medicalCertificateUrl',
           'verificationStatus',
+          'identityStatus',
           'currentLatitude',
           'currentLongitude',
           'locationUpdatedAt',
@@ -135,6 +164,15 @@ service cloud.firestore {
           'preferredRadiusKm',
           'updatedAt'
         ])
+        && validIdentityText(request.resource.data)
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['fullName'])
+          || (
+            !identityLocked(resource.data)
+            && getAfter(/databases/$(database)/documents/publicProfiles/$(request.auth.uid)).data.fullName
+              == request.resource.data.fullName
+          )
+        )
         && (
           !request.resource.data.diff(resource.data).affectedKeys().hasAny([
             'currentLatitude', 'currentLongitude', 'locationUpdatedAt', 'locationAccuracyMeters', 'locationSource'
@@ -144,6 +182,15 @@ service cloud.firestore {
         && (
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['verificationStatus'])
           || request.resource.data.verificationStatus == 'Pending Verification'
+        )
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['identityStatus'])
+          || (
+            !identityLocked(resource.data)
+            && request.resource.data.role == 'worker'
+            && request.resource.data.identityStatus == 'Pending Approval'
+            && verificationAfter(request.auth.uid).status == 'Pending Verification'
+          )
         )
         && (
           !request.resource.data.diff(resource.data).affectedKeys().hasAny([
@@ -470,6 +517,8 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow create: if validOwnUserDocument(userId)
+        && validIdentityText(request.resource.data)
+        && validInitialIdentityState(request.resource.data)
         && request.resource.data.accountStatus == 'active'
         && (
           (request.resource.data.role == 'worker'
@@ -496,6 +545,8 @@ service cloud.firestore {
         && request.resource.data.id == userId
         && request.resource.data.role in ['worker', 'client']
         && request.resource.data.role == getAfter(/databases/$(database)/documents/users/$(userId)).data.role
+        && request.resource.data.fullName
+          == getAfter(/databases/$(database)/documents/users/$(userId)).data.fullName
         && (
           !('accountStatus' in getAfter(/databases/$(database)/documents/users/$(userId)).data)
           || getAfter(/databases/$(database)/documents/users/$(userId)).data.accountStatus
@@ -511,6 +562,8 @@ service cloud.firestore {
           && request.resource.data.id == userId
           && request.resource.data.role in ['worker', 'client']
           && request.resource.data.role == getAfter(/databases/$(database)/documents/users/$(userId)).data.role
+          && request.resource.data.fullName
+            == getAfter(/databases/$(database)/documents/users/$(userId)).data.fullName
           && request.resource.data.get('verificationStatus', null)
             == getAfter(/databases/$(database)/documents/users/$(userId)).data.get('verificationStatus', null)
           && !request.resource.data.diff(resource.data).affectedKeys().hasAny([

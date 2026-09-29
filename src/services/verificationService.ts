@@ -20,15 +20,18 @@ export async function submitVerificationRequest(input: {
   const firestore = requireDb();
   const now = new Date().toISOString();
   const batch = writeBatch(firestore);
-  const profileUpdates = {
+  const verificationUpdates = {
     validIdType: input.validIdType.trim(),
     validIdUrl: input.validIdPath,
     medicalCertificateUrl: input.medicalCertificatePath,
     verificationStatus: "Pending Verification" as const,
     updatedAt: now
   };
-  batch.update(doc(firestore, "users", input.userId), profileUpdates);
-  batch.set(doc(firestore, "workerProfiles", input.userId), { userId: input.userId, ...profileUpdates }, { merge: true });
+  batch.update(doc(firestore, "users", input.userId), {
+    ...verificationUpdates,
+    identityStatus: "Pending Approval"
+  });
+  batch.set(doc(firestore, "workerProfiles", input.userId), { userId: input.userId, ...verificationUpdates }, { merge: true });
   batch.update(doc(firestore, "publicProfiles", input.userId), {
     verificationStatus: "Pending Verification",
     updatedAt: now

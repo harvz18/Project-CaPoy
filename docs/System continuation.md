@@ -21,8 +21,8 @@ However, the cloud functions, rules, indexes, push setup, administrator account,
 
 | Requested behavior | Current state | Continuation work |
 | --- | --- | --- |
-| Lock full name after approval | Missing. The profile screen and current rules still allow `fullName` updates. | Enforce the lock in UI, trusted backend, and Firestore rules. |
-| Address | A private address field exists and is editable. Its approval/locking policy is not defined. | Confirm the policy and validate/normalize the address without exposing it publicly. |
+| Lock full name after approval | Implemented locally for the current worker-approval path, including legacy verified workers; not deployed. | Add the employer approval/correction authority in Phase 2 and complete beta-device/cloud verification. |
+| Address | Private, editable, normalized, and length-validated locally. Its approval/locking policy is still not finalized. | Confirm whether approval should also lock address; it remains editable under the current default. |
 | Superadmin restrictions | Missing as a distinct authority. The current `admin` callable can suspend or reactivate ordinary accounts. | Add a protected `superadmin` claim and move restriction authority to it if that is the approved policy. |
 | Smart matching | Implemented locally using availability, required skill/capability, distance, verification, experience, rating, and completed tasks. | Harden location freshness, define weights/eligibility, expose reasons, and verify with device/cloud tests. |
 | Admin analytics | Only small live counts are shown for reviews, payments, disputes, and users. | Add real, data-backed operational analytics and date filters. |
@@ -60,7 +60,7 @@ The continuation phases below are numbered independently from the original TASKL
 | Phase | Focus | Starting status | Priority |
 | --- | --- | --- | --- |
 | 0 | Requirements and policy lock | Not started | Required before schema changes |
-| 1 | Approved identity fields and address | Not started | High |
+| 1 | Approved identity fields and address | Implemented locally; pending cloud/manual verification | High |
 | 2 | Superadmin and account restrictions | Partially represented by admin suspension | High |
 | 3 | Geofenced discovery and nearby notifications | Implemented locally; not beta-proven | **Highest** |
 | 4 | Smart-match consistency and explainability | Implemented locally; needs hardening | High |
@@ -135,6 +135,28 @@ The continuation phases below are numbered independently from the original TASKL
 - An approved employer/tasker cannot alter locked identity fields through either the app or a direct Firestore request.
 - An unapproved user can edit only the fields allowed by the final policy.
 - Existing profiles continue to load safely during migration.
+
+### Implementation status — Implemented locally, pending cloud/manual verification
+
+- Added shared `identityStatus`, approval actor/time, and lock-time fields to private user profiles.
+- New taskers begin at `Pending Approval`; new employers begin at `Unverified`.
+- Worker verification submission sets the shared identity state to `Pending Approval`.
+- Existing administrator approval now changes a verified worker to `Approved` and writes the lock metadata.
+- The profile screen disables Full Name after approval and explains how to request a correction.
+- Firestore rules reject locked-name changes and require any allowed pre-approval name change to update the private and public copies atomically.
+- Legacy workers with `verificationStatus == Verified` are treated as locked even without the new fields.
+- Full names and addresses are trimmed, whitespace-normalized, length-validated, and rejected when they contain control characters.
+- Addresses and identity approval metadata remain private and are not copied to `publicProfiles`.
+- Under the current default policy, an approved user may still update their private written address. Changing this to an address lock requires the Phase 0 policy decision.
+- Employer approval is not exposed yet. If a trusted Phase 2 action sets an employer to `Approved`, the Phase 1 rules and UI already enforce the name lock.
+
+Phase 1 local verification:
+
+- TypeScript passed.
+- 17/17 application workflow, matching, location, and identity unit tests passed.
+- 8/8 Functions tests passed.
+- 31/31 Firestore and Storage emulator tests passed.
+- No Firebase resources or production data were changed.
 
 ## Continuation Phase 2 — Superadmin and Account Restrictions
 
