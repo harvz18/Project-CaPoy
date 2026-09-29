@@ -22,6 +22,12 @@ service cloud.firestore {
       return hasEnabledAccount() && currentUser().role == role;
     }
 
+    function isAdmin() {
+      return hasEnabledAccount()
+        && request.auth.token.keys().hasAny(['admin'])
+        && request.auth.token.admin == true;
+    }
+
     function task(taskId) {
       return get(/databases/$(database)/documents/tasks/$(taskId)).data;
     }
@@ -32,6 +38,10 @@ service cloud.firestore {
 
     function matchAfter(matchId) {
       return getAfter(/databases/$(database)/documents/taskMatches/$(matchId)).data;
+    }
+
+    function verificationAfter(userId) {
+      return getAfter(/databases/$(database)/documents/verificationRequests/$(userId)).data;
     }
 
     function isTaskClient(taskData) {
@@ -52,10 +62,28 @@ service cloud.firestore {
       return isTaskClient(taskData) || isTaskWorker(taskData) || isTaskApplicant(taskData);
     }
 
+    function isNotificationParticipant(taskData, userId) {
+      return taskData.clientId == userId
+        || ('workerId' in taskData && taskData.workerId == userId)
+        || (taskData.applicantIds is list && userId in taskData.applicantIds);
+    }
+
     function taskParticipantIds(taskData) {
       return [taskData.clientId]
         + taskData.applicantIds
         + ('workerId' in taskData ? [taskData.workerId] : []);
+    }
+
+    function isConversationWorker(taskData, workerId) {
+      return ('workerId' in taskData && taskData.workerId == workerId)
+        || (taskData.applicantIds is list && workerId in taskData.applicantIds);
+    }
+
+    function validConversationParticipants(taskData, workerId, participantIds) {
+      return participantIds is list
+        && participantIds.size() == 2
+        && participantIds.hasAll([taskData.clientId, workerId])
+        && participantIds.hasOnly([taskData.clientId, workerId]);
     }
 
     function isOpenTask(taskData) {
@@ -67,6 +95,19 @@ service cloud.firestore {
         && request.auth.uid == userId
         && request.resource.data.id == userId
         && request.resource.data.role in ['worker', 'client'];
+    }
+
+    function validPrivateLocation(profileData) {
+      return profileData.currentLatitude is number
+        && profileData.currentLatitude >= -90
+        && profileData.currentLatitude <= 90
+        && profileData.currentLongitude is number
+        && profileData.currentLongitude >= -180
+        && profileData.currentLongitude <= 180
+        && profileData.locationUpdatedAt is string
+        && profileData.locationSource in ['device', 'manual']
+        && (!('locationAccuracyMeters' in profileData)
+          || (profileData.locationAccuracyMeters is number && profileData.locationAccuracyMeters >= 0));
     }
 
     function validUserProfileUpdate() {
@@ -88,12 +129,36 @@ service cloud.firestore {
           'verificationStatus',
           'currentLatitude',
           'currentLongitude',
+          'locationUpdatedAt',
+          'locationAccuracyMeters',
+          'locationSource',
           'preferredRadiusKm',
           'updatedAt'
         ])
         && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'currentLatitude', 'currentLongitude', 'locationUpdatedAt', 'locationAccuracyMeters', 'locationSource'
+          ])
+          || validPrivateLocation(request.resource.data)
+        )
+        && (
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['verificationStatus'])
           || request.resource.data.verificationStatus == 'Pending Verification'
+        )
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'validIdType', 'validIdUrl', 'medicalCertificateUrl'
+          ])
+          || (
+            request.resource.data.role == 'worker'
+            && request.resource.data.verificationStatus == 'Pending Verification'
+            && request.resource.data.validIdUrl.matches('verification/' + request.auth.uid + '/.*')
+            && request.resource.data.medicalCertificateUrl.matches('verification/' + request.auth.uid + '/.*')
+            && verificationAfter(request.auth.uid).status == 'Pending Verification'
+            && verificationAfter(request.auth.uid).validIdType == request.resource.data.validIdType
+            && verificationAfter(request.auth.uid).validIdPath == request.resource.data.validIdUrl
+            && verificationAfter(request.auth.uid).medicalCertificatePath == request.resource.data.medicalCertificateUrl
+          )
         )
         && (
           !('activeTaskId' in resource.data)
@@ -188,11 +253,35 @@ service cloud.firestore {
           'validIdType',
           'validIdUrl',
           'medicalCertificateUrl',
+          'verificationStatus',
           'currentLatitude',
           'currentLongitude',
+          'locationUpdatedAt',
+          'locationAccuracyMeters',
+          'locationSource',
           'preferredRadiusKm',
           'updatedAt'
         ])
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'currentLatitude', 'currentLongitude', 'locationUpdatedAt', 'locationAccuracyMeters', 'locationSource'
+          ])
+          || validPrivateLocation(request.resource.data)
+        )
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'validIdType', 'validIdUrl', 'medicalCertificateUrl', 'verificationStatus'
+          ])
+          || (
+            request.resource.data.verificationStatus == 'Pending Verification'
+            && request.resource.data.validIdUrl.matches('verification/' + userId + '/.*')
+            && request.resource.data.medicalCertificateUrl.matches('verification/' + userId + '/.*')
+            && verificationAfter(userId).status == 'Pending Verification'
+            && verificationAfter(userId).validIdType == request.resource.data.validIdType
+            && verificationAfter(userId).validIdPath == request.resource.data.validIdUrl
+            && verificationAfter(userId).medicalCertificatePath == request.resource.data.medicalCertificateUrl
+          )
+        )
         && (
           !('activeTaskId' in currentUser())
           || !request.resource.data.diff(resource.data).affectedKeys().hasAny([
@@ -336,7 +425,7 @@ service cloud.firestore {
           ||
           (resource.data.status == 'Pending Approval'
             && request.resource.data.status == 'Finished'
-            && resource.data.paymentStatus in ['Submitted', 'Verified']
+            && resource.data.paymentStatus == 'Verified'
             && !('activeTaskId' in getAfter(/databases/$(database)/documents/users/$(resource.data.workerId)).data)
             && getAfter(/databases/$(database)/documents/users/$(resource.data.workerId)).data.completedTasks
               == get(/databases/$(database)/documents/users/$(resource.data.workerId)).data.get('completedTasks', 0) + 1
@@ -365,8 +454,17 @@ service cloud.firestore {
               'paymentStatus',
               'proofOfPaymentText',
               'proofOfPaymentUrl',
+              'clientConfirmedAt',
               'updatedAt'
-            ]))
+            ])
+            && request.resource.data.paymentStatus == 'Submitted'
+            && request.resource.data.proofOfPaymentText is string
+            && request.resource.data.proofOfPaymentText.size() > 0
+            && (
+              getAfter(/databases/$(database)/documents/payments/$(taskId)).data.paymentMethod == 'COD'
+                ? request.resource.data.clientConfirmedAt is string
+                : request.resource.data.proofOfPaymentUrl.matches('paymentProofs/' + taskId + '/.*')
+            ))
         );
     }
 
@@ -379,7 +477,7 @@ service cloud.firestore {
           || (request.resource.data.role == 'client'
             && !('verificationStatus' in request.resource.data))
         );
-      allow read: if signedIn() && request.auth.uid == userId;
+      allow read: if (signedIn() && request.auth.uid == userId) || isAdmin();
       allow update: if (
           hasEnabledAccount()
           && validOwnUserDocument(userId)
@@ -427,7 +525,7 @@ service cloud.firestore {
     }
 
     match /workerProfiles/{userId} {
-      allow read: if hasEnabledAccount() && request.auth.uid == userId;
+      allow read: if (hasEnabledAccount() && request.auth.uid == userId) || isAdmin();
       allow update: if validOwnWorkerProfileUpdate(userId)
         || validWorkflowVisibleWorkerUpdate(userId);
       allow create: if signedIn()
@@ -439,7 +537,8 @@ service cloud.firestore {
     }
 
     match /clientProfiles/{userId} {
-      allow read, update: if hasEnabledAccount() && request.auth.uid == userId;
+      allow read: if (hasEnabledAccount() && request.auth.uid == userId) || isAdmin();
+      allow update: if hasEnabledAccount() && request.auth.uid == userId;
       allow create: if signedIn()
         && request.auth.uid == userId
         && getAfter(/databases/$(database)/documents/users/$(userId)).data.role == 'client'
@@ -449,12 +548,33 @@ service cloud.firestore {
     }
 
     match /tasks/{taskId} {
-      allow read: if hasEnabledAccount() && (isOpenTask(resource.data) || isTaskParticipant(resource.data));
+      allow read: if isAdmin() || (hasEnabledAccount() && (isOpenTask(resource.data) || isTaskParticipant(resource.data)));
       allow create: if hasRole('client')
         && request.resource.data.clientId == request.auth.uid
         && request.resource.data.status == 'Finding Workers'
+        && request.resource.data.paymentMethod in ['COD', 'GCash link']
+        && request.resource.data.paymentStatus == 'Pending'
         && request.resource.data.applicantIds is list
-        && request.resource.data.applicantIds.size() == 0;
+        && request.resource.data.applicantIds.size() == 0
+        && request.resource.data.latitude is number
+        && request.resource.data.latitude >= -90
+        && request.resource.data.latitude <= 90
+        && request.resource.data.longitude is number
+        && request.resource.data.longitude >= -180
+        && request.resource.data.longitude <= 180
+        && request.resource.data.geofenceRadius is number
+        && request.resource.data.geofenceRadius >= 100
+        && request.resource.data.geofenceRadius <= 5000
+        && request.resource.data.locationCapturedAt is string
+        && request.resource.data.locationSource in ['device', 'manual', 'map']
+        && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.id == taskId
+        && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.clientId == request.auth.uid
+        && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.paymentMethod
+          == request.resource.data.paymentMethod
+        && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.paymentStatus == 'Pending'
+        && (!('locationAccuracyMeters' in request.resource.data)
+          || (request.resource.data.locationAccuracyMeters is number
+            && request.resource.data.locationAccuracyMeters >= 0));
       allow update: if validClientTaskUpdate(taskId)
         || validApplicationUpdate(taskId)
         || validApplicationRemoval(taskId)
@@ -463,14 +583,19 @@ service cloud.firestore {
     }
 
     match /taskMatches/{matchId} {
-      allow read: if hasEnabledAccount()
-        && (resource.data.workerId == request.auth.uid || resource.data.clientId == request.auth.uid);
+      allow read: if isAdmin() || (hasEnabledAccount()
+        && (resource.data.workerId == request.auth.uid || resource.data.clientId == request.auth.uid));
       allow create: if hasEnabledAccount()
+        && request.resource.data.keys().hasOnly([
+          'id', 'taskId', 'workerId', 'clientId', 'acceptanceStatus', 'createdAt', 'updatedAt'
+        ])
         && matchId == request.resource.data.taskId + '_' + request.resource.data.workerId
         && request.resource.data.taskId is string
         && request.resource.data.clientId == task(request.resource.data.taskId).clientId
         && hasRole('worker')
         && request.resource.data.workerId == request.auth.uid
+        && request.auth.uid in taskAfter(request.resource.data.taskId).applicantIds
+        && taskAfter(request.resource.data.taskId).lastApplicationMatchId == matchId
         && request.resource.data.acceptanceStatus == 'Applied';
       allow update: if hasEnabledAccount()
         && request.resource.data.workerId == resource.data.workerId
@@ -508,11 +633,16 @@ service cloud.firestore {
     }
 
     match /payments/{taskId} {
-      allow read: if hasEnabledAccount() && isTaskParticipant(task(taskId));
+      allow read: if isAdmin() || (hasEnabledAccount() && isTaskParticipant(task(taskId)));
       allow create: if hasRole('client')
         && taskAfter(taskId).clientId == request.auth.uid
+        && request.resource.data.id == taskId
         && request.resource.data.taskId == taskId
-        && request.resource.data.clientId == request.auth.uid;
+        && request.resource.data.clientId == request.auth.uid
+        && request.resource.data.paymentMethod == taskAfter(taskId).paymentMethod
+        && request.resource.data.paymentMethod in ['COD', 'GCash link']
+        && request.resource.data.paymentStatus == 'Pending'
+        && !('workerId' in request.resource.data);
       allow update: if hasRole('client')
         && task(taskId).clientId == request.auth.uid
         && request.resource.data.taskId == taskId
@@ -526,29 +656,83 @@ service cloud.firestore {
               'paymentStatus',
               'proofOfPaymentText',
               'proofOfPaymentUrl',
+              'clientConfirmedAt',
               'updatedAt'
             ])
             && request.resource.data.paymentStatus == 'Submitted'
             && taskAfter(taskId).paymentStatus == 'Submitted'
             && taskAfter(taskId).get('proofOfPaymentText', null)
-              == request.resource.data.get('proofOfPaymentText', null))
+              == request.resource.data.get('proofOfPaymentText', null)
+            && taskAfter(taskId).get('proofOfPaymentUrl', null)
+              == request.resource.data.get('proofOfPaymentUrl', null)
+            && taskAfter(taskId).get('clientConfirmedAt', null)
+              == request.resource.data.get('clientConfirmedAt', null))
         );
       allow delete: if false;
+    }
+
+    match /verificationRequests/{userId} {
+      allow read: if isAdmin() || (hasEnabledAccount() && request.auth.uid == userId);
+      allow create, update: if hasRole('worker')
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly([
+          'userId', 'validIdType', 'validIdPath', 'medicalCertificatePath',
+          'status', 'submittedAt', 'updatedAt'
+        ])
+        && request.resource.data.userId == userId
+        && request.resource.data.validIdType is string
+        && request.resource.data.validIdType.size() > 0
+        && request.resource.data.validIdPath.matches('verification/' + userId + '/.*')
+        && request.resource.data.medicalCertificatePath.matches('verification/' + userId + '/.*')
+        && request.resource.data.status == 'Pending Verification';
+      allow delete: if false;
+    }
+
+    match /auditLogs/{auditId} {
+      allow read: if isAdmin();
+      allow write: if false;
     }
 
     match /chats/{chatId} {
       allow read: if hasEnabledAccount()
         && resource.data.participantIds is list
         && request.auth.uid in resource.data.participantIds;
-      allow create, update: if hasEnabledAccount()
+      allow create: if hasEnabledAccount()
+        && request.resource.data.keys().hasOnly([
+          'id', 'taskId', 'workerId', 'participantIds', 'lastMessage', 'lastMessageAt',
+          'lastSenderId', 'updatedAt'
+        ])
         && request.resource.data.taskId is string
-        && request.resource.data.participantIds is list
-        && request.resource.data.participantIds.size() == 2
-        && request.auth.uid in request.resource.data.participantIds
-        && request.resource.data.participantIds.hasOnly(
-          taskParticipantIds(task(request.resource.data.taskId))
+        && request.resource.data.workerId is string
+        && chatId == request.resource.data.taskId + '_' + request.resource.data.workerId
+        && request.resource.data.id == chatId
+        && isConversationWorker(task(request.resource.data.taskId), request.resource.data.workerId)
+        && validConversationParticipants(
+          task(request.resource.data.taskId),
+          request.resource.data.workerId,
+          request.resource.data.participantIds
         )
-        && isTaskParticipant(task(request.resource.data.taskId));
+        && request.auth.uid in request.resource.data.participantIds
+        && request.resource.data.lastSenderId == request.auth.uid
+        && request.resource.data.lastMessage is string
+        && request.resource.data.lastMessage.size() > 0
+        && request.resource.data.lastMessage.size() <= 2000
+        && request.resource.data.lastMessageAt is string;
+      allow update: if hasEnabledAccount()
+        && request.auth.uid in resource.data.participantIds
+        && isConversationWorker(task(resource.data.taskId), resource.data.workerId)
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.taskId == resource.data.taskId
+        && request.resource.data.workerId == resource.data.workerId
+        && request.resource.data.participantIds == resource.data.participantIds
+        && request.resource.data.lastSenderId == request.auth.uid
+        && request.resource.data.lastMessage is string
+        && request.resource.data.lastMessage.size() > 0
+        && request.resource.data.lastMessage.size() <= 2000
+        && request.resource.data.lastMessageAt is string
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'lastMessage', 'lastMessageAt', 'lastSenderId', 'updatedAt'
+        ]);
       allow delete: if false;
     }
 
@@ -556,17 +740,64 @@ service cloud.firestore {
       allow read: if hasEnabledAccount()
         && (resource.data.senderId == request.auth.uid || resource.data.receiverId == request.auth.uid);
       allow create: if hasEnabledAccount()
+        && request.resource.data.keys().hasOnly([
+          'conversationId', 'taskId', 'senderId', 'receiverId', 'participantIds', 'message', 'timestamp'
+        ])
         && request.resource.data.senderId == request.auth.uid
+        && request.resource.data.conversationId is string
         && request.resource.data.taskId is string
         && request.resource.data.participantIds is list
-        && request.auth.uid in request.resource.data.participantIds
+        && request.resource.data.participantIds.size() == 2
+        && request.resource.data.senderId != request.resource.data.receiverId
         && request.resource.data.receiverId in request.resource.data.participantIds
-        && (
-          request.resource.data.receiverId == task(request.resource.data.taskId).clientId
-          || request.resource.data.receiverId in taskParticipantIds(task(request.resource.data.taskId))
+        && request.resource.data.participantIds.hasAll([
+          request.resource.data.senderId, request.resource.data.receiverId
+        ])
+        && request.resource.data.participantIds.hasOnly(
+          getAfter(/databases/$(database)/documents/chats/$(request.resource.data.conversationId)).data.participantIds
         )
-        && isTaskParticipant(task(request.resource.data.taskId));
-      allow update, delete: if false;
+        && request.resource.data.taskId
+          == getAfter(/databases/$(database)/documents/chats/$(request.resource.data.conversationId)).data.taskId
+        && request.resource.data.message is string
+        && request.resource.data.message.size() > 0
+        && request.resource.data.message.size() <= 2000
+        && request.resource.data.timestamp is string;
+      allow update: if hasEnabledAccount()
+        && resource.data.receiverId == request.auth.uid
+        && request.resource.data.readAt is string
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt']);
+      allow delete: if false;
+    }
+
+    match /pushTokens/{tokenId} {
+      allow read: if hasEnabledAccount() && resource.data.userId == request.auth.uid;
+      allow create: if hasEnabledAccount()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.token is string
+        && request.resource.data.platform in ['android', 'ios']
+        && request.resource.data.enabled is bool;
+      allow update: if hasEnabledAccount()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.token == resource.data.token
+        && request.resource.data.platform == resource.data.platform
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['enabled', 'updatedAt']);
+      allow delete: if hasEnabledAccount() && resource.data.userId == request.auth.uid;
+    }
+
+    match /notificationPreferences/{userId} {
+      allow read: if hasEnabledAccount() && request.auth.uid == userId;
+      allow create, update: if hasEnabledAccount()
+        && request.auth.uid == userId
+        && request.resource.data.userId == userId
+        && request.resource.data.keys().hasOnly([
+          'userId', 'pushEnabled', 'messagesEnabled', 'taskUpdatesEnabled', 'matchingEnabled', 'updatedAt'
+        ])
+        && request.resource.data.pushEnabled is bool
+        && request.resource.data.messagesEnabled is bool
+        && request.resource.data.taskUpdatesEnabled is bool
+        && request.resource.data.matchingEnabled is bool;
+      allow delete: if false;
     }
 
     match /ratings/{ratingId} {
@@ -594,21 +825,16 @@ service cloud.firestore {
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.taskId is string
         && (
-          isTaskParticipant(task(request.resource.data.taskId))
-          || isTaskParticipant(taskAfter(request.resource.data.taskId))
+          isNotificationParticipant(task(request.resource.data.taskId), request.auth.uid)
+          || isNotificationParticipant(taskAfter(request.resource.data.taskId), request.auth.uid)
         )
         && (
-          request.resource.data.userId == task(request.resource.data.taskId).clientId
-          || request.resource.data.userId in taskParticipantIds(task(request.resource.data.taskId))
-          || request.resource.data.userId == taskAfter(request.resource.data.taskId).clientId
-          || request.resource.data.userId in taskParticipantIds(taskAfter(request.resource.data.taskId))
-          || (
-            task(request.resource.data.taskId).clientId == request.auth.uid
-            && get(/databases/$(database)/documents/publicProfiles/$(request.resource.data.userId)).data.role == 'worker'
-          )
+          isNotificationParticipant(task(request.resource.data.taskId), request.resource.data.userId)
+          || isNotificationParticipant(taskAfter(request.resource.data.taskId), request.resource.data.userId)
         );
       allow update: if hasEnabledAccount()
         && resource.data.userId == request.auth.uid
+        && request.resource.data.readStatus == true
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readStatus']);
       allow delete: if false;
     }

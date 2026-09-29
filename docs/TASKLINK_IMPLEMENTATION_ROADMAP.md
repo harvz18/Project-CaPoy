@@ -4,7 +4,7 @@
 
 This document compares the requirements in `Nexspace-Innovation-IT27-HO6.pdf` with the code currently in `Project-CaPoy` and defines a safe order for turning the prototype into a working system.
 
-This document began as a documentation-only audit. The implementation-status sections near the end now record the completed Phase 1 authentication/security foundation and Phase 2 canonical workflow work, including local verification results. No live Firebase deployment or production-data mutation was performed.
+This document began as a documentation-only audit. The implementation-status sections near the end now record the locally implemented Phase 1 through Phase 5 foundations and their verification results. No live Firebase deployment or production-data mutation was performed.
 
 ## Executive Summary
 
@@ -407,10 +407,91 @@ Implemented in the canonical workflow batch:
 Intentionally deferred beyond this baseline:
 
 - Automatic expiration requires trusted scheduled backend code. Clients cannot set `Expired` themselves.
-- New-task notification fan-out is still client-originated and broad. Matching-targeted fan-out belongs to Phase 3, while reliable push delivery/deduplication belongs to Phase 4.
+- Matching-targeted in-app notification fan-out is implemented as a trusted Phase 3 Cloud Function. Reliable push delivery, preferences, and retry behavior remain Phase 4 work.
 - Dispute resolution, administrator payment verification, and immutable audit decisions belong to Phase 5.
 - The local emulator verifies the two-account lifecycle and security boundary. A physical Android two-device/manual acceptance pass is still required before release.
 - No rules, indexes, or application changes were deployed to a live Firebase project.
+
+## Phase 3 Implementation Status — Implemented Locally, Pending Device/Cloud Verification
+
+- Added foreground device-location capture with explicit denial messages and a manual discovery fallback.
+- Replaced simulated map panels in the Phase 3 task/location flows with `react-native-maps` on native and a safe coordinate fallback on web.
+- Removed default-coordinate and missing-coordinate geofence bypasses. Location source, capture time, and accuracy are stored.
+- Task start and finish now refresh device location and require a fresh, accurate reading inside the configured task radius.
+- Added one deterministic matching policy with bounded capability, distance, availability, verification, experience, rating, and completed-task signals plus readable reasons.
+- Ranked worker recommendations and client applicants using server-materialized match snapshots from that policy.
+- Removed broad client-side new-task fan-out. A trusted Firebase Function now creates in-app notifications only for eligible matching workers using private profile coordinates.
+- Kept exact worker coordinates out of `publicProfiles`; only match score/reasons are shared with the task client.
+
+Remaining Phase 3 release checks:
+
+- Run a physical Android permission-denial, manual-fallback, map-pin, and inside/outside geofence test.
+- Set a restricted `GOOGLE_MAPS_API_KEY` for production Android builds.
+- Review and deploy the function/rules only after emulator verification; Cloud Functions deployment requires Firebase Blaze.
+- Phase 4 is still required for actual push delivery, token registration, retry, and notification preferences.
+
+Phase 3 verification performed locally:
+
+- `npm test` — TypeScript passed and 13/13 workflow/matching tests passed.
+- Functions matching policy tests — 3/3 passed.
+- `npm run test:rules:emulator` — 27/27 Firestore and Storage rule tests passed against `demo-tasklink`.
+- Expo Doctor — passed 18/18 checks.
+- Android and web static exports — completed successfully; temporary export directories were removed afterward.
+
+## Phase 4 Implementation Status — Implemented Locally, Pending Device/Cloud Verification
+
+- Replaced task-wide chat metadata with deterministic `taskId_workerId` conversations, allowing a client to maintain a separate authorized conversation with each applicant before hiring.
+- Made conversation creation and message creation atomic. Firestore rules enforce the task, worker, two participants, sender, receiver, immutable conversation identity, and a 2,000-character message limit.
+- Replaced unbounded message subscriptions with a participant-scoped newest-100 listener and backward pagination supported by a versioned compound Firestore index.
+- Added receiver-only message read receipts, persistent unread indicators, and per-conversation filtering in both the inbox and task chat.
+- Added notification read state, mark-all-read behavior, timestamps, and task/chat deep links.
+- Added explicit Android push opt-in, notification-channel setup, per-device Expo token registration/disable behavior, and message/task/matching push preferences.
+- Added trusted Functions that create deterministic in-app notifications for new messages and deliver Expo pushes for existing workflow notifications.
+- Added a per-notification/per-device delivery ledger to deduplicate normal trigger retries, retry transient Expo request failures, and disable tokens reported as unregistered.
+- Extended deny-by-default rules for chats, messages, push tokens, and notification preferences. Clients cannot read or mutate another user's token or preferences.
+
+Remaining Phase 4 release checks:
+
+- Deploy the new Firestore rules **and compound index**. The message listener will require that index in a live project.
+- Deploy Functions on a Blaze-enabled Firebase project and configure Android FCM credentials for the EAS project.
+- Use two physical-device EAS development/preview builds to verify foreground, background, terminated-app, permission-denial, deep-link, read-receipt, and multi-applicant chat behavior. Expo Go is not sufficient for remote push verification.
+- Add Expo push-receipt polling/operational alerting if production delivery telemetry is required; the current backend records Expo submission tickets and retryable request failures.
+
+Phase 4 verification performed locally:
+
+- `npm test` — TypeScript passed, 13/13 workflow/matching tests passed, and 6/6 Functions matching/push tests passed.
+- `npm run test:rules:emulator` — 28/28 Firestore and Storage rules tests passed against `demo-tasklink`.
+- Expo Doctor — passed 18/18 checks.
+- Android and web static exports — completed successfully; temporary export directories were removed afterward.
+
+## Phase 5 Implementation Status — Implemented Locally, Pending Cloud/Device Verification
+
+- Replaced placeholder profile controls with real Expo image/document selection and Firebase Storage uploads for profile photos, valid IDs, medical certificates, and payment evidence.
+- Added client-side file type and 10 MB checks, backed by deny-by-default Storage rules. Verification documents are readable only by their owner or a custom-claim administrator; payment proof is readable only by assigned participants or an administrator.
+- Added atomic worker verification submissions in `verificationRequests/{uid}`. Document paths and `Pending Verification` state must agree across the request and mirrored profiles, and workers cannot self-approve.
+- Added an admin-only route with queues for worker verification and GCash payment evidence, disputed-task visibility, account suspension/reactivation, and recent audit records.
+- Added a dedicated provisioning script for a non-public administrator account. Both the route and database access require the `admin: true` Firebase custom claim; changing a normal profile role cannot grant administrator access.
+- Added trusted callable Functions for verification decisions, GCash evidence decisions, account state changes, and assigned-worker COD receipt confirmation.
+- Added append-only Admin SDK audit records containing actor, action, target, time, reason, and decision metadata. Client security rules deny all audit-log writes.
+- Implemented GCash receipt upload plus administrator approval/rejection and COD dual confirmation. Task completion now requires `Verified` payment rather than merely client-submitted evidence.
+- Removed payment-security language that implied escrow, insurance, or guaranteed support; the UI now describes private evidence and participant/admin review accurately.
+- Aligned message queries with sender/receiver authorization and added the required sender/timestamp and receiver/timestamp compound indexes discovered by the final rules regression.
+
+Remaining Phase 5 release checks:
+
+- Deploy Firestore rules/indexes and Storage rules to a non-production Firebase project, then deploy only the four Phase 5 callable Functions if push deployment remains deferred.
+- Create a dedicated Firebase Auth account for administration and run `npm --prefix functions run set-admin -- <mobile-number>` from a trusted machine with Firebase Admin credentials. The admin must sign out/in afterward to refresh claims.
+- Run a three-account physical-device/manual path: worker upload/resubmit, admin approve/reject, client GCash upload/admin decision, and client COD confirmation/worker receipt confirmation.
+- Define retention/deletion policy for rejected or superseded identity/payment files before production. Automatic orphan cleanup is intentionally not performed by the client.
+- Dispute resolution is visible to administrators but a formal resolve/refund outcome is not yet implemented; that policy decision remains before production claims can be expanded.
+- No live Firebase resources or production data were changed during this phase.
+
+Phase 5 verification performed locally:
+
+- `npm test` — TypeScript passed, 13/13 workflow/matching tests passed, and 6/6 Functions matching/push tests passed.
+- `npm run test:rules:emulator` — 30/30 Firestore and Storage rules tests passed against the isolated `demo-tasklink` project, including custom-claim admin and private-document boundaries.
+- Expo Doctor — passed 18/18 checks.
+- Android and web static exports — completed successfully; temporary export directories were removed afterward.
 
 Phase 2 verification performed locally:
 

@@ -3,9 +3,12 @@ import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomNavIcon } from "../src/components/BottomNavIcon";
+import LocationMap from "../src/components/LocationMap";
 import { StatusBadge } from "../src/components/StatusBadge";
 import { useApp } from "../src/context/AppContext";
+import { MatchResult, rankTasksForWorker } from "../src/domain/matching";
 import { Task } from "../src/types";
+import { formatDistance } from "../src/utils/location";
 
 const palette = {
   background: "#F7FAF8",
@@ -29,6 +32,7 @@ export default function WorkerDashboardScreen() {
   const [selectedTab, setSelectedTab] = useState<"active" | "finished">("active");
   const { currentUser, tasks, ratings, acceptTask } = useApp();
   const postedTasks = tasks.filter((task) => task.status === "Finding Workers" || task.status === "Applied");
+  const rankedPostedTasks = currentUser ? rankTasksForWorker(postedTasks, currentUser) : [];
   const acceptedTasks = tasks.filter(
     (task) =>
       task.applicantIds?.includes(currentUser?.id ?? "") &&
@@ -39,7 +43,7 @@ export default function WorkerDashboardScreen() {
   const finishedTasks = tasks.filter(
     (task) => task.workerId === currentUser?.id && (task.status === "Finished" || task.status === "Archived")
   );
-  const featuredJobs = postedTasks.slice(0, 2);
+  const featuredJobs = rankedPostedTasks.filter(({ match }) => match.eligible).slice(0, 2);
 
   async function handleQuickApply(task: Task) {
     await acceptTask(task.id);
@@ -135,15 +139,15 @@ export default function WorkerDashboardScreen() {
         )}
 
         <View style={styles.mapPanel}>
-          <View style={styles.mapGrid}>
-            <View style={styles.mapLineHorizontal} />
-            <View style={styles.mapLineVertical} />
-            <View style={[styles.mapPin, styles.mapPinOne]} />
-            <View style={[styles.mapPin, styles.mapPinTwo]} />
-          </View>
+          <LocationMap
+            center={currentUser?.currentLatitude !== undefined && currentUser.currentLongitude !== undefined ? { latitude: currentUser.currentLatitude, longitude: currentUser.currentLongitude } : undefined}
+            markers={postedTasks.flatMap((task) => task.latitude !== undefined && task.longitude !== undefined ? [{ id: task.id, latitude: task.latitude, longitude: task.longitude, title: task.title }] : [])}
+            showUserLocation
+            height={208}
+          />
           <View style={styles.locationBadge}>
             <Text style={styles.locationIcon}>•</Text>
-            <Text style={styles.locationText}>2 hot areas near you</Text>
+            <Text style={styles.locationText}>{rankedPostedTasks.filter(({ match }) => match.eligible).length} matching jobs near you</Text>
           </View>
         </View>
 
@@ -159,12 +163,12 @@ export default function WorkerDashboardScreen() {
 
         <View style={styles.jobGrid}>
           {featuredJobs.length ? (
-            featuredJobs.map((task, index) => (
+            featuredJobs.map(({ task, match }, index) => (
                 <WorkerJobCard
                 key={task.id}
                 task={task}
                 urgent={index === 0 || task.wage === "1200"}
-                detail={workerDetails[index % workerDetails.length]}
+                match={match}
                 onOpen={() => router.push(`/task/${task.id}`)}
                 onQuickAccept={() => handleQuickApply(task)}
               />
@@ -187,11 +191,6 @@ export default function WorkerDashboardScreen() {
   );
 }
 
-const workerDetails = [
-  { distance: "0.8 km away", area: "Lacson St.", load: "Light load" },
-  { distance: "2.4 km away", area: "Mansilingan", load: "Tools provided" }
-];
-
 function DashboardHeader({ initials }: { initials: string }) {
   return (
     <View style={styles.header}>
@@ -209,13 +208,13 @@ function DashboardHeader({ initials }: { initials: string }) {
 function WorkerJobCard({
   task,
   urgent,
-  detail,
+  match,
   onQuickAccept,
   onOpen
 }: {
   task: Task;
   urgent?: boolean;
-  detail: { distance: string; area: string; load: string };
+  match: MatchResult;
   onQuickAccept: () => void;
   onOpen: () => void;
 }) {
@@ -230,10 +229,11 @@ function WorkerJobCard({
         <Text style={styles.price}>P{task.wage}</Text>
       </View>
       <Text style={styles.jobTitle}>{task.title}</Text>
-      <Text style={styles.jobMeta}>{detail.distance} • {detail.area}</Text>
+      <Text style={styles.jobMeta}>{formatDistance(match.distanceKm)} · {task.locationAddress ?? task.location}</Text>
+      <Text style={styles.jobMeta}>{match.score}% match · {match.reasons[0]}</Text>
       <View style={styles.jobInfoRow}>
         <Text style={styles.jobInfo}>{task.estimatedDuration}</Text>
-        <Text style={styles.jobInfo}>{detail.load}</Text>
+        <Text style={styles.jobInfo}>{task.requiredCapability ?? task.category}</Text>
       </View>
       <View style={styles.cardActions}>
         <Pressable accessibilityRole="button" onPress={onOpen} style={styles.detailsButton}>

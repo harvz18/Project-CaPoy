@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { Href, useRouter } from "expo-router";
 import { useState } from "react";
 import {
   LayoutAnimation,
@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { workerCapabilities } from "../src/constants/capabilities";
 import { useApp } from "../src/context/AppContext";
+import { Role } from "../src/types";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -39,7 +40,10 @@ const palette = {
 
 const barangays = ["Barangay Alijis", "Barangay Taculing", "Barangay Mandalagan", "Barangay 10"];
 
-function getRoleRoute(role?: "worker" | "client") {
+function getRoleRoute(role?: Role): Href {
+  if (role === "admin") {
+    return "/admin" as Href;
+  }
   if (role === "worker") {
     return "/worker-dashboard";
   }

@@ -17,6 +17,7 @@ import {
   TaskActor
 } from "../domain/taskWorkflow";
 import { PaymentMethod, PaymentStatus, Task, TaskMatch, TaskStatus, UserProfile } from "../types";
+import { scoreWorkerForTask } from "../domain/matching";
 import { auth, db } from "./firebase";
 
 function requireDb() {
@@ -44,6 +45,9 @@ export type TaskInput = {
   latitude?: number;
   longitude?: number;
   geofenceRadius?: number;
+  locationCapturedAt?: string;
+  locationAccuracyMeters?: number;
+  locationSource?: Task["locationSource"];
   requiredCapability?: string;
   wage: string;
   estimatedDuration: string;
@@ -120,6 +124,9 @@ export async function createTaskInFirestore(input: TaskInput) {
     latitude: input.latitude,
     longitude: input.longitude,
     geofenceRadius: input.geofenceRadius ?? 500,
+    locationCapturedAt: input.locationCapturedAt,
+    locationAccuracyMeters: input.locationAccuracyMeters,
+    locationSource: input.locationSource,
     requiredCapability: input.requiredCapability ?? input.category,
     wage: input.wage,
     estimatedDuration: input.estimatedDuration,
@@ -161,6 +168,10 @@ export async function applyToTask(taskId: string, worker: UserProfile) {
     const workerData = workerSnapshot.data() as UserProfile;
     assertCanApply(task, actor, workerData.availabilityStatus ?? workerData.availability);
     if (matchSnapshot.exists()) throw new Error("An application already exists for this task.");
+    const match = scoreWorkerForTask(task, { ...workerData, id: worker.id });
+    if (!match.eligible) {
+      throw new Error(match.reasons[0] ?? "Your profile is not eligible for this task.");
+    }
     transaction.set(matchRef, {
       id: matchRef.id, taskId, workerId: worker.id, clientId: task.clientId,
       acceptanceStatus: "Applied", createdAt: now, updatedAt: now
@@ -422,7 +433,11 @@ export async function updateTaskPaymentVerification(
       throw new Error("Enter a payment reference or COD confirmation.");
     }
     const updates = withoutUndefined({
-      paymentStatus, proofOfPaymentText: proofOfPaymentText.trim(), proofOfPaymentUrl, updatedAt: now
+      paymentStatus,
+      proofOfPaymentText: proofOfPaymentText.trim(),
+      proofOfPaymentUrl,
+      clientConfirmedAt: task.paymentMethod === "COD" ? now : undefined,
+      updatedAt: now
     });
     transaction.update(taskRef, updates);
     transaction.set(paymentRef, { id: taskId, taskId, clientId, ...updates }, { merge: true });

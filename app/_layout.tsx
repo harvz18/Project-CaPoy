@@ -1,10 +1,21 @@
-import { Stack, useRouter, useSegments } from "expo-router";
+import { Href, Stack, useRouter, useSegments } from "expo-router";
+import * as Notifications from "expo-notifications";
 import { useEffect } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppProvider, useApp } from "../src/context/AppContext";
 import { colors } from "../src/theme";
+import { configureNotificationChannel } from "../src/services/pushNotificationService";
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false
+  })
+});
 
 export default function RootLayout() {
   return (
@@ -25,6 +36,37 @@ function ProtectedNavigator() {
   const publicRoutes = ["index", "login", "register"];
   const clientOnlyRoutes = ["client-dashboard", "post-task"];
   const workerOnlyRoutes = ["worker-dashboard", "jobs"];
+  const adminOnlyRoutes = ["admin"];
+
+  useEffect(() => {
+    void configureNotificationChannel().catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    if (!currentUser) return () => undefined;
+
+    const openNotification = (response: Notifications.NotificationResponse) => {
+      const data = response.notification.request.content.data;
+      const taskId = typeof data.taskId === "string" ? data.taskId : undefined;
+      const route = data.route === "chat" ? "chat" : "task";
+      const senderId = typeof data.senderId === "string" ? data.senderId : undefined;
+      if (!taskId) return;
+      if (route === "chat" && senderId) {
+        router.push({ pathname: "/chat/[id]", params: { id: taskId, recipientId: senderId } });
+      } else {
+        router.push({ pathname: "/task/[id]", params: { id: taskId } });
+      }
+    };
+
+    const subscription = Notifications.addNotificationResponseReceivedListener(openNotification);
+    void Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (response) {
+        openNotification(response);
+        void Notifications.clearLastNotificationResponseAsync();
+      }
+    }).catch(() => undefined);
+    return () => subscription.remove();
+  }, [currentUser?.id, router]);
 
   useEffect(() => {
     if (appLoading || !route) {
@@ -37,7 +79,18 @@ function ProtectedNavigator() {
     }
 
     if (currentUser && publicRoutes.includes(route)) {
-      router.replace(currentUser.role === "worker" ? "/worker-dashboard" : "/client-dashboard");
+      const homeRoute = (currentUser.role === "admin" ? "/admin" : currentUser.role === "worker" ? "/worker-dashboard" : "/client-dashboard") as Href;
+      router.replace(homeRoute);
+      return;
+    }
+
+    if (adminOnlyRoutes.includes(route) && currentUser?.role !== "admin") {
+      router.replace(currentUser?.role === "worker" ? "/worker-dashboard" : "/client-dashboard");
+      return;
+    }
+
+    if (currentUser?.role === "admin" && !adminOnlyRoutes.includes(route)) {
+      router.replace("/admin" as Href);
       return;
     }
 
@@ -85,6 +138,7 @@ function ProtectedNavigator() {
       <Stack.Screen name="profile" options={{ title: "Profile" }} />
       <Stack.Screen name="worker-profile/[id]" options={{ title: "Worker Profile" }} />
       <Stack.Screen name="notifications" options={{ title: "Notifications" }} />
+      <Stack.Screen name="admin" options={{ title: "Administrator" }} />
     </Stack>
   );
 }

@@ -19,6 +19,12 @@ service firebase.storage {
         );
     }
 
+    function isAdmin() {
+      return hasEnabledAccount()
+        && request.auth.token.keys().hasAny(['admin'])
+        && request.auth.token.admin == true;
+    }
+
     function isAssignedTaskParticipant(taskId) {
       return hasEnabledAccount()
         && (
@@ -33,18 +39,24 @@ service firebase.storage {
         && request.resource.contentType.matches('(image/.*|application/pdf)');
     }
 
+    function validImageUpload() {
+      return request.resource != null
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
     match /profilePhotos/{userId}/{fileName} {
       allow read: if hasEnabledAccount();
-      allow write: if hasEnabledAccount() && request.auth.uid == userId && validUpload();
+      allow write: if hasEnabledAccount() && request.auth.uid == userId && validImageUpload();
     }
 
     match /verification/{userId}/{fileName} {
-      allow read: if signedIn() && request.auth.uid == userId;
+      allow read: if (signedIn() && request.auth.uid == userId) || isAdmin();
       allow write: if hasEnabledAccount() && request.auth.uid == userId && validUpload();
     }
 
     match /paymentProofs/{taskId}/{fileName} {
-      allow read: if isAssignedTaskParticipant(taskId);
+      allow read: if isAssignedTaskParticipant(taskId) || isAdmin();
       allow write: if hasEnabledAccount()
         && task(taskId).clientId == request.auth.uid
         && validUpload();

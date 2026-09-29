@@ -2,7 +2,7 @@ import { useRouter } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useApp } from "../src/context/AppContext";
-import { Role } from "../src/types";
+import { PublicRole } from "../src/types";
 
 const palette = {
   background: "#F7FAF8",
@@ -26,7 +26,7 @@ export default function RoleSelectionScreen() {
   const router = useRouter();
   const { actionLoading, error, setRole } = useApp();
 
-  async function chooseRole(role: Role) {
+  async function chooseRole(role: PublicRole) {
     try {
       await setRole(role);
       router.replace(role === "worker" ? "/worker-dashboard" : "/client-dashboard");

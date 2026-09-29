@@ -6,21 +6,17 @@ export type Coordinates = {
 };
 
 const earthRadiusKm = 6371;
-const defaultWorkerLatitude = 10.6765;
-const defaultWorkerLongitude = 122.9509;
+export const CHECK_IN_LOCATION_MAX_AGE_MS = 10 * 60 * 1000;
+export const CHECK_IN_MAX_ACCURACY_METERS = 150;
 
 export function parseCoordinate(value: string) {
+  if (!value.trim()) return undefined;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 export function calculateDistanceKm(from: Coordinates, to: Coordinates) {
-  if (
-    from.latitude === undefined ||
-    from.longitude === undefined ||
-    to.latitude === undefined ||
-    to.longitude === undefined
-  ) {
+  if (!hasValidCoordinates(from) || !hasValidCoordinates(to)) {
     return undefined;
   }
 
@@ -49,9 +45,10 @@ export function getTaskDistanceKm(worker: UserProfile | null | undefined, task: 
 }
 
 export function getTaskCheckDistanceKm(worker: UserProfile | null | undefined, task: Task) {
-  const workerCoordinates = getWorkerCheckCoordinates(worker, task);
-
-  return calculateDistanceKm(workerCoordinates, {
+  return calculateDistanceKm({
+    latitude: worker?.currentLatitude,
+    longitude: worker?.currentLongitude
+  }, {
     latitude: task.latitude,
     longitude: task.longitude
   });
@@ -62,7 +59,7 @@ export function isWorkerInsideTaskGeofence(worker: UserProfile | null | undefine
   const radiusKm = (task.geofenceRadius ?? 0) / 1000;
 
   if (distanceKm === undefined || radiusKm <= 0) {
-    return true;
+    return false;
   }
 
   return distanceKm <= radiusKm;
@@ -73,7 +70,7 @@ export function isTaskWithinPreferredRadius(worker: UserProfile | null | undefin
   const preferredRadiusKm = worker?.preferredRadiusKm;
 
   if (distanceKm === undefined || preferredRadiusKm === undefined || preferredRadiusKm <= 0) {
-    return true;
+    return false;
   }
 
   return distanceKm <= preferredRadiusKm;
@@ -81,7 +78,7 @@ export function isTaskWithinPreferredRadius(worker: UserProfile | null | undefin
 
 export function formatDistance(distanceKm: number | undefined) {
   if (distanceKm === undefined) {
-    return "Distance not set";
+    return "Distance unavailable";
   }
 
   return `${distanceKm.toFixed(1)} km away`;
@@ -91,22 +88,58 @@ function toRadians(value: number) {
   return (value * Math.PI) / 180;
 }
 
-function getWorkerCheckCoordinates(worker: UserProfile | null | undefined, task: Task) {
-  const workerLatitude = worker?.currentLatitude;
-  const workerLongitude = worker?.currentLongitude;
-  const hasTaskCoordinates = task.latitude !== undefined && task.longitude !== undefined;
-  const isUsingDefaultWorkerLocation =
-    workerLatitude === defaultWorkerLatitude && workerLongitude === defaultWorkerLongitude;
+export function hasValidCoordinates(value: Coordinates): value is { latitude: number; longitude: number } {
+  return Number.isFinite(value.latitude) &&
+    Number.isFinite(value.longitude) &&
+    (value.latitude as number) >= -90 &&
+    (value.latitude as number) <= 90 &&
+    (value.longitude as number) >= -180 &&
+    (value.longitude as number) <= 180;
+}
 
-  if (hasTaskCoordinates && isUsingDefaultWorkerLocation) {
-    return {
-      latitude: task.latitude,
-      longitude: task.longitude
-    };
+export function isLocationFresh(updatedAt: string | undefined, now = Date.now()) {
+  if (!updatedAt) return false;
+  const timestamp = new Date(updatedAt).getTime();
+  return Number.isFinite(timestamp) && now - timestamp >= 0 && now - timestamp <= CHECK_IN_LOCATION_MAX_AGE_MS;
+}
+
+export type GeofenceCheck = {
+  allowed: boolean;
+  distanceKm?: number;
+  reason: string;
+};
+
+export function getGeofenceCheck(
+  worker: UserProfile | null | undefined,
+  task: Task,
+  now = Date.now()
+): GeofenceCheck {
+  if (!hasValidCoordinates({ latitude: task.latitude, longitude: task.longitude }) || !task.geofenceRadius || task.geofenceRadius <= 0) {
+    return { allowed: false, reason: "This task does not have a valid service-area pin." };
+  }
+  if (!hasValidCoordinates({ latitude: worker?.currentLatitude, longitude: worker?.currentLongitude })) {
+    return { allowed: false, reason: "Capture your current device location before continuing." };
+  }
+  if (worker?.locationSource !== "device") {
+    return { allowed: false, reason: "A device location is required for task check-in. Manual locations are for discovery only." };
+  }
+  if (!isLocationFresh(worker.locationUpdatedAt, now)) {
+    return { allowed: false, reason: "Your device location is stale. Refresh it before continuing." };
+  }
+  if (!Number.isFinite(worker.locationAccuracyMeters) || (worker.locationAccuracyMeters as number) > CHECK_IN_MAX_ACCURACY_METERS) {
+    return { allowed: false, reason: `Location accuracy must be within ${CHECK_IN_MAX_ACCURACY_METERS} meters.` };
   }
 
-  return {
-    latitude: workerLatitude,
-    longitude: workerLongitude
-  };
+  const distanceKm = getTaskCheckDistanceKm(worker, task);
+  const radiusKm = task.geofenceRadius / 1000;
+  if (distanceKm === undefined || distanceKm > radiusKm) {
+    return {
+      allowed: false,
+      distanceKm,
+      reason: distanceKm === undefined
+        ? "Unable to calculate your distance from the task."
+        : `You are ${formatDistance(distanceKm)}. Move within ${task.geofenceRadius} meters of the task pin.`
+    };
+  }
+  return { allowed: true, distanceKm, reason: `Device location is within the ${task.geofenceRadius}-meter task area.` };
 }

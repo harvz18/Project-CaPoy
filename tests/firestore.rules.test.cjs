@@ -7,10 +7,17 @@ const {
 } = require("@firebase/rules-unit-testing");
 const {
   deleteField,
+  collection,
   doc,
   getDoc,
+  getDocs,
+  limit,
+  or,
+  orderBy,
+  query,
   setDoc,
   updateDoc,
+  where,
   writeBatch
 } = require("firebase/firestore");
 
@@ -19,6 +26,7 @@ const CLIENT_ID = "client-1";
 const WORKER_ID = "worker-1";
 const OUTSIDER_ID = "worker-2";
 const SUSPENDED_ID = "worker-suspended";
+const ADMIN_ID = "admin-1";
 const TASK_ID = "task-1";
 
 let testEnvironment;
@@ -73,15 +81,19 @@ function taskData(overrides = {}) {
     location: "Bacolod City",
     latitude: 10.6765,
     longitude: 122.9509,
+    geofenceRadius: 500,
+    locationCapturedAt: "2026-01-01T00:00:00.000Z",
+    locationSource: "manual",
     status: "Finding Workers",
+    paymentMethod: "COD",
     applicantIds: [],
     createdAt: "2026-01-01T00:00:00.000Z",
     ...overrides
   };
 }
 
-function dbFor(userId) {
-  return testEnvironment.authenticatedContext(userId).firestore();
+function dbFor(userId, tokenOptions) {
+  return testEnvironment.authenticatedContext(userId, tokenOptions).firestore();
 }
 
 async function seedBaseData() {
@@ -95,6 +107,7 @@ async function seedBaseData() {
         ...user(SUSPENDED_ID, "worker"),
         accountStatus: "suspended"
       }),
+      setDoc(doc(db, "users", ADMIN_ID), user(ADMIN_ID, "admin")),
       setDoc(doc(db, "publicProfiles", CLIENT_ID), publicProfile(CLIENT_ID, "client")),
       setDoc(doc(db, "publicProfiles", WORKER_ID), publicProfile(WORKER_ID, "worker")),
       setDoc(doc(db, "publicProfiles", OUTSIDER_ID), publicProfile(OUTSIDER_ID, "worker")),
@@ -226,6 +239,78 @@ test("users cannot forge ratings, verification, or private fields in public prof
   );
 });
 
+test("workers can submit private verification metadata atomically but cannot approve themselves", async () => {
+  const workerDb = dbFor(WORKER_ID);
+  const now = "2026-01-01T00:10:00.000Z";
+  const verification = {
+    userId: WORKER_ID,
+    validIdType: "PhilSys ID",
+    validIdPath: `verification/${WORKER_ID}/valid-id.pdf`,
+    medicalCertificatePath: `verification/${WORKER_ID}/medical.pdf`,
+    status: "Pending Verification",
+    submittedAt: now,
+    updatedAt: now
+  };
+  const profileUpdate = {
+    validIdType: verification.validIdType,
+    validIdUrl: verification.validIdPath,
+    medicalCertificateUrl: verification.medicalCertificatePath,
+    verificationStatus: verification.status,
+    updatedAt: now
+  };
+  const batch = writeBatch(workerDb);
+  batch.set(doc(workerDb, "verificationRequests", WORKER_ID), verification);
+  batch.update(doc(workerDb, "users", WORKER_ID), profileUpdate);
+  batch.update(doc(workerDb, "workerProfiles", WORKER_ID), profileUpdate);
+  batch.update(doc(workerDb, "publicProfiles", WORKER_ID), {
+    verificationStatus: verification.status,
+    updatedAt: now
+  });
+  await assertSucceeds(batch.commit());
+  await assertFails(updateDoc(doc(workerDb, "verificationRequests", WORKER_ID), {
+    status: "Verified",
+    updatedAt: "2026-01-01T00:11:00.000Z"
+  }));
+});
+
+test("only a custom-claim administrator can read private review queues and audit logs", async () => {
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
+    await Promise.all([
+      setDoc(doc(db, "verificationRequests", WORKER_ID), {
+        userId: WORKER_ID,
+        validIdType: "PhilSys ID",
+        validIdPath: `verification/${WORKER_ID}/valid-id.pdf`,
+        medicalCertificatePath: `verification/${WORKER_ID}/medical.pdf`,
+        status: "Pending Verification",
+        submittedAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z"
+      }),
+      setDoc(doc(db, "auditLogs", "audit-1"), {
+        actorId: ADMIN_ID,
+        action: "test",
+        targetType: "user",
+        targetId: WORKER_ID,
+        createdAt: "2026-01-01T00:00:00.000Z"
+      })
+    ]);
+  });
+  const adminDb = dbFor(ADMIN_ID, { admin: true });
+  const clientDb = dbFor(CLIENT_ID);
+  await assertSucceeds(getDocs(collection(adminDb, "users")));
+  await assertSucceeds(getDocs(collection(adminDb, "verificationRequests")));
+  await assertSucceeds(getDocs(collection(adminDb, "auditLogs")));
+  await assertFails(getDocs(collection(clientDb, "verificationRequests")));
+  await assertFails(getDocs(collection(clientDb, "auditLogs")));
+  await assertFails(setDoc(doc(adminDb, "auditLogs", "forged"), {
+    actorId: ADMIN_ID,
+    action: "forged",
+    targetType: "user",
+    targetId: CLIENT_ID,
+    createdAt: "2026-01-01T00:00:00.000Z"
+  }));
+});
+
 test("registration can atomically create private, public, and role profiles", async () => {
   const newUserId = "new-worker";
   const db = dbFor(newUserId);
@@ -260,6 +345,52 @@ test("only a client can create an open task owned by that client", async () => {
   await assertFails(
     setDoc(doc(workerDb, "tasks", "worker-task"), taskData({ clientId: WORKER_ID }))
   );
+  await assertFails(
+    setDoc(doc(clientDb, "tasks", "invalid-location"), taskData({ latitude: 200 }))
+  );
+});
+
+test("workers can save valid private location metadata but invalid coordinates fail", async () => {
+  const workerDb = dbFor(WORKER_ID);
+  await assertSucceeds(updateDoc(doc(workerDb, "users", WORKER_ID), {
+    currentLatitude: 10.6765,
+    currentLongitude: 122.9509,
+    locationUpdatedAt: "2026-01-01T00:00:00.000Z",
+    locationAccuracyMeters: 15,
+    locationSource: "device",
+    updatedAt: "2026-01-01T00:00:01.000Z"
+  }));
+  await assertSucceeds(updateDoc(doc(workerDb, "users", WORKER_ID), {
+    currentLatitude: 10.6766,
+    currentLongitude: 122.951,
+    locationUpdatedAt: "2026-01-01T00:00:01.500Z",
+    locationAccuracyMeters: deleteField(),
+    locationSource: "manual",
+    updatedAt: "2026-01-01T00:00:01.500Z"
+  }));
+  await assertFails(updateDoc(doc(workerDb, "users", WORKER_ID), {
+    currentLatitude: -100,
+    currentLongitude: 122.9509,
+    locationUpdatedAt: "2026-01-01T00:00:02.000Z",
+    locationSource: "manual",
+    updatedAt: "2026-01-01T00:00:02.000Z"
+  }));
+});
+
+test("clients cannot fan out a new-task notification to an unrelated worker", async () => {
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), "tasks", TASK_ID), taskData());
+  });
+  const clientDb = dbFor(CLIENT_ID);
+  await assertFails(setDoc(doc(clientDb, "notifications", "broad-notification"), {
+    userId: OUTSIDER_ID,
+    taskId: TASK_ID,
+    createdBy: CLIENT_ID,
+    notificationType: "Nearby task",
+    message: "New task",
+    readStatus: false,
+    createdAt: "2026-01-01T00:00:01.000Z"
+  }));
 });
 
 test("a worker can apply atomically but cannot assign themselves", async () => {
@@ -268,6 +399,14 @@ test("a worker can apply atomically but cannot assign themselves", async () => {
   });
 
   const workerDb = dbFor(WORKER_ID);
+  await assertFails(setDoc(doc(workerDb, "taskMatches", `${TASK_ID}_${WORKER_ID}`), {
+    taskId: TASK_ID,
+    clientId: CLIENT_ID,
+    workerId: WORKER_ID,
+    acceptanceStatus: "Applied",
+    matchScore: 100,
+    createdAt: "2026-01-01T00:00:00.000Z"
+  }));
   const batch = writeBatch(workerDb);
   batch.update(doc(workerDb, "tasks", TASK_ID), {
     applicantIds: [WORKER_ID],
@@ -389,14 +528,33 @@ test("client and worker accounts can complete the full canonical task lifecycle"
   batch.update(taskRef, {
     paymentStatus: "Submitted",
     proofOfPaymentText: "COD confirmed by client",
+    clientConfirmedAt: now,
     updatedAt: now
   });
   batch.update(paymentRef, {
     paymentStatus: "Submitted",
     proofOfPaymentText: "COD confirmed by client",
+    clientConfirmedAt: now,
     updatedAt: now
   });
   await assertSucceeds(batch.commit());
+
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
+    const workerConfirmedAt = "2026-01-01T01:22:00.000Z";
+    await Promise.all([
+      updateDoc(doc(db, "tasks", TASK_ID), {
+        paymentStatus: "Verified",
+        workerConfirmedAt,
+        updatedAt: workerConfirmedAt
+      }),
+      updateDoc(doc(db, "payments", TASK_ID), {
+        paymentStatus: "Verified",
+        workerConfirmedAt,
+        updatedAt: workerConfirmedAt
+      })
+    ]);
+  });
 
   now = "2026-01-01T01:25:00.000Z";
   batch = writeBatch(clientDb);
@@ -684,7 +842,7 @@ test("completion requires submitted payment and atomically restores availability
     status: "Pending Approval",
     applicantIds: [WORKER_ID],
     workerId: WORKER_ID,
-    paymentStatus: "Submitted"
+    paymentStatus: "Verified"
   });
   await testEnvironment.withSecurityRulesDisabled(async (context) => {
     const db = context.firestore();
@@ -771,18 +929,48 @@ test("task chat is writable only by a task participant", async () => {
     );
   });
 
+  const conversationId = `${TASK_ID}_${WORKER_ID}`;
+  const now = "2026-01-01T00:00:00.000Z";
   const message = {
+    conversationId,
     taskId: TASK_ID,
     senderId: WORKER_ID,
     receiverId: CLIENT_ID,
     participantIds: [WORKER_ID, CLIENT_ID],
     message: "I am on my way.",
-    createdAt: "2026-01-01T00:00:00.000Z"
+    timestamp: now
   };
 
-  await assertSucceeds(
-    setDoc(doc(dbFor(WORKER_ID), "messages", "allowed-message"), message)
-  );
+  const workerDb = dbFor(WORKER_ID);
+  const batch = writeBatch(workerDb);
+  batch.set(doc(workerDb, "chats", conversationId), {
+    id: conversationId,
+    taskId: TASK_ID,
+    workerId: WORKER_ID,
+    participantIds: [WORKER_ID, CLIENT_ID],
+    lastMessage: message.message,
+    lastMessageAt: now,
+    lastSenderId: WORKER_ID,
+    updatedAt: now
+  });
+  batch.set(doc(workerDb, "messages", "allowed-message"), message);
+  await assertSucceeds(batch.commit());
+
+  await assertSucceeds(getDocs(query(
+    collection(dbFor(CLIENT_ID), "messages"),
+    or(where("senderId", "==", CLIENT_ID), where("receiverId", "==", CLIENT_ID)),
+    orderBy("timestamp", "desc"),
+    limit(100)
+  )));
+  await assertFails(getDocs(query(
+    collection(dbFor(OUTSIDER_ID), "messages"),
+    where("senderId", "==", WORKER_ID),
+    orderBy("timestamp", "desc"),
+    limit(100)
+  )));
+
+  await assertSucceeds(updateDoc(doc(dbFor(CLIENT_ID), "messages", "allowed-message"), { readAt: now }));
+  await assertFails(updateDoc(doc(dbFor(WORKER_ID), "messages", "allowed-message"), { readAt: now }));
   await assertFails(
     setDoc(doc(dbFor(OUTSIDER_ID), "messages", "blocked-message"), {
       ...message,
@@ -790,6 +978,54 @@ test("task chat is writable only by a task participant", async () => {
       participantIds: [OUTSIDER_ID, CLIENT_ID]
     })
   );
+});
+
+test("users control only their own push token and notification preferences", async () => {
+  const workerDb = dbFor(WORKER_ID);
+  await assertSucceeds(setDoc(doc(workerDb, "pushTokens", `${WORKER_ID}_device`), {
+    userId: WORKER_ID,
+    token: "ExponentPushToken[test]",
+    platform: "android",
+    enabled: true,
+    updatedAt: "2026-01-01T00:00:00.000Z"
+  }));
+  await assertFails(setDoc(doc(dbFor(OUTSIDER_ID), "pushTokens", `${WORKER_ID}_other`), {
+    userId: WORKER_ID,
+    token: "ExponentPushToken[forged]",
+    platform: "android",
+    enabled: true
+  }));
+
+  await assertSucceeds(setDoc(doc(workerDb, "notificationPreferences", WORKER_ID), {
+    userId: WORKER_ID,
+    pushEnabled: true,
+    messagesEnabled: true,
+    taskUpdatesEnabled: true,
+    matchingEnabled: false,
+    updatedAt: "2026-01-01T00:00:00.000Z"
+  }));
+  await assertFails(setDoc(doc(dbFor(OUTSIDER_ID), "notificationPreferences", WORKER_ID), {
+    userId: WORKER_ID,
+    pushEnabled: false,
+    messagesEnabled: false,
+    taskUpdatesEnabled: false,
+    matchingEnabled: false
+  }));
+
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), "notifications", "worker-notification"), {
+      userId: WORKER_ID,
+      taskId: TASK_ID,
+      createdBy: CLIENT_ID,
+      notificationType: "Task update",
+      message: "Task updated",
+      readStatus: false,
+      createdAt: "2026-01-01T00:00:00.000Z"
+    });
+  });
+  await assertSucceeds(updateDoc(doc(workerDb, "notifications", "worker-notification"), { readStatus: true }));
+  await assertFails(updateDoc(doc(workerDb, "notifications", "worker-notification"), { readStatus: false }));
+  await assertFails(updateDoc(doc(dbFor(OUTSIDER_ID), "notifications", "worker-notification"), { readStatus: true }));
 });
 
 test("ratings require completion, a participant, and a unique deterministic id", async () => {

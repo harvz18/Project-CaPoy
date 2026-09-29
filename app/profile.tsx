@@ -3,9 +3,13 @@ import { useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomNavIcon } from "../src/components/BottomNavIcon";
+import LocationMap from "../src/components/LocationMap";
 import { StatusBadge } from "../src/components/StatusBadge";
 import { workerCapabilities } from "../src/constants/capabilities";
 import { useApp } from "../src/context/AppContext";
+import { captureForegroundLocation } from "../src/services/locationService";
+import { pickAndUploadPrivateDocument, pickAndUploadProfilePhoto } from "../src/services/fileUploadService";
+import { submitVerificationRequest } from "../src/services/verificationService";
 import { parseCoordinate } from "../src/utils/location";
 
 const palette = {
@@ -55,16 +59,24 @@ export default function ProfileScreen() {
       ? currentUser?.businessName ?? "Reliable client looking for trusted local help."
       : "Professional local worker available for nearby tasks."
   );
-  const [skills, setSkills] = useState(currentUser?.skills?.length ? currentUser.skills : ["Cleaning", "Delivery"]);
+  const [skills, setSkills] = useState(currentUser?.skills?.length ? currentUser.skills : ["Cleaning", "Delivery assistance"]);
   const [profilePhotoUrl, setProfilePhotoUrl] = useState(currentUser?.profilePhotoUrl ?? "");
   const [experienceDescription, setExperienceDescription] = useState(currentUser?.experienceDescription ?? "");
   const [yearsOfExperience, setYearsOfExperience] = useState(currentUser?.yearsOfExperience ?? "");
   const [validIdType, setValidIdType] = useState(currentUser?.validIdType ?? "");
   const [validIdUrl, setValidIdUrl] = useState(currentUser?.validIdUrl ?? "");
   const [medicalCertificateUrl, setMedicalCertificateUrl] = useState(currentUser?.medicalCertificateUrl ?? "");
+  const [documentsChanged, setDocumentsChanged] = useState(false);
+  const [uploadingField, setUploadingField] = useState<string>();
+  const [uploadMessage, setUploadMessage] = useState("");
   const [availability, setAvailability] = useState(currentUser?.availability ?? currentUser?.availabilityStatus ?? "Available");
-  const [currentLatitude, setCurrentLatitude] = useState(String(currentUser?.currentLatitude ?? 10.6765));
-  const [currentLongitude, setCurrentLongitude] = useState(String(currentUser?.currentLongitude ?? 122.9509));
+  const [currentLatitude, setCurrentLatitude] = useState(String(currentUser?.currentLatitude ?? ""));
+  const [currentLongitude, setCurrentLongitude] = useState(String(currentUser?.currentLongitude ?? ""));
+  const [locationSource, setLocationSource] = useState(currentUser?.locationSource);
+  const [locationUpdatedAt, setLocationUpdatedAt] = useState(currentUser?.locationUpdatedAt);
+  const [locationAccuracyMeters, setLocationAccuracyMeters] = useState(currentUser?.locationAccuracyMeters);
+  const [locating, setLocating] = useState(false);
+  const [locationMessage, setLocationMessage] = useState("");
   const [preferredRadiusKm, setPreferredRadiusKm] = useState(String(currentUser?.preferredRadiusKm ?? 5));
   const [skillDropdownOpen, setSkillDropdownOpen] = useState(false);
   const profileRatings = ratings
@@ -78,17 +90,16 @@ export default function ProfileScreen() {
     ? (profileRatings.reduce((total, rating) => total + rating.score, 0) / profileRatings.length).toFixed(1)
     : (currentUser?.rating ?? 4.9).toFixed(1);
   const reviewCountLabel = profileRatings.length ? `${profileRatings.length} reviews` : "No reviews yet";
-  const selectedWorkerArea =
-    workerAreaPresets.find((area) => area.latitude === currentLatitude && area.longitude === currentLongitude) ??
-    workerAreaPresets[0];
-  const workerRadiusScale = getWorkerRadiusScale(preferredRadiusKm);
+  const mapCenter = parseCoordinate(currentLatitude) !== undefined && parseCoordinate(currentLongitude) !== undefined
+    ? { latitude: parseCoordinate(currentLatitude) as number, longitude: parseCoordinate(currentLongitude) as number }
+    : undefined;
 
   async function handleLogout() {
     try {
       await logout();
       router.replace("/login");
-    } catch {
-      // AppContext exposes the readable error message.
+    } catch (logoutError) {
+      setUploadMessage(logoutError instanceof Error ? logoutError.message : "Unable to log out.");
     }
   }
 
@@ -102,20 +113,64 @@ export default function ProfileScreen() {
         profilePhotoUrl: currentUser?.role === "worker" ? profilePhotoUrl : undefined,
         experienceDescription: currentUser?.role === "worker" ? experienceDescription : undefined,
         yearsOfExperience: currentUser?.role === "worker" ? yearsOfExperience : undefined,
-        validIdType: currentUser?.role === "worker" ? validIdType : undefined,
-        validIdUrl: currentUser?.role === "worker" ? validIdUrl : undefined,
-        medicalCertificateUrl: currentUser?.role === "worker" ? medicalCertificateUrl : undefined,
         availability: currentUser?.role === "worker" ? availability : undefined,
         availabilityStatus: currentUser?.role === "worker" && availability !== "Unavailable" ? availability : undefined,
         currentLatitude: currentUser?.role === "worker" ? parseCoordinate(currentLatitude) : undefined,
         currentLongitude: currentUser?.role === "worker" ? parseCoordinate(currentLongitude) : undefined,
+        locationSource: currentUser?.role === "worker" ? locationSource : undefined,
+        locationUpdatedAt: currentUser?.role === "worker" ? locationUpdatedAt : undefined,
+        locationAccuracyMeters: currentUser?.role === "worker" ? locationAccuracyMeters : undefined,
         preferredRadiusKm: currentUser?.role === "worker" ? Number(preferredRadiusKm) || 5 : undefined,
-        verificationStatus:
-          currentUser?.role === "worker" ? currentUser.verificationStatus ?? "Pending Verification" : undefined,
         businessName: currentUser?.role === "client" ? bio : undefined
       });
-    } catch {
-      // AppContext exposes the readable error message.
+      if (currentUser?.role === "worker" && documentsChanged) {
+        await submitVerificationRequest({
+          userId: currentUser.id,
+          validIdType,
+          validIdPath: validIdUrl,
+          medicalCertificatePath: medicalCertificateUrl
+        });
+        setDocumentsChanged(false);
+        setUploadMessage("Verification documents submitted for administrator review.");
+      }
+    } catch (saveError) {
+      setUploadMessage(saveError instanceof Error ? saveError.message : "Unable to save this profile.");
+    }
+  }
+
+  async function uploadProfilePhoto() {
+    if (!currentUser) return;
+    setUploadingField("profile-photo");
+    setUploadMessage("");
+    try {
+      const uploaded = await pickAndUploadProfilePhoto(currentUser.id);
+      if (uploaded) {
+        setProfilePhotoUrl(uploaded.url);
+        setUploadMessage("Profile photo uploaded. Save changes to publish it.");
+      }
+    } catch (uploadError) {
+      setUploadMessage(uploadError instanceof Error ? uploadError.message : "Unable to upload profile photo.");
+    } finally {
+      setUploadingField(undefined);
+    }
+  }
+
+  async function uploadVerificationDocument(kind: "valid-id" | "medical-certificate") {
+    if (!currentUser) return;
+    setUploadingField(kind);
+    setUploadMessage("");
+    try {
+      const uploaded = await pickAndUploadPrivateDocument(currentUser.id, kind);
+      if (uploaded) {
+        if (kind === "valid-id") setValidIdUrl(uploaded.path);
+        else setMedicalCertificateUrl(uploaded.path);
+        setDocumentsChanged(true);
+        setUploadMessage(`${uploaded.name} uploaded privately. Save changes to submit it for review.`);
+      }
+    } catch (uploadError) {
+      setUploadMessage(uploadError instanceof Error ? uploadError.message : "Unable to upload this document.");
+    } finally {
+      setUploadingField(undefined);
     }
   }
 
@@ -127,9 +182,38 @@ export default function ProfileScreen() {
     setAddress(area.address);
     setCurrentLatitude(area.latitude);
     setCurrentLongitude(area.longitude);
+    setLocationSource("manual");
+    setLocationUpdatedAt(new Date().toISOString());
+    setLocationAccuracyMeters(undefined);
+    setLocationMessage("Manual area selected for discovery. Device location is still required at check-in.");
     if (area.label === "Downtown") {
       setPreferredRadiusKm("10");
     }
+  }
+
+  async function useDeviceLocation() {
+    setLocating(true);
+    setLocationMessage("");
+    try {
+      const captured = await captureForegroundLocation();
+      setCurrentLatitude(String(captured.latitude));
+      setCurrentLongitude(String(captured.longitude));
+      setLocationSource(captured.source);
+      setLocationUpdatedAt(captured.capturedAt);
+      setLocationAccuracyMeters(captured.accuracyMeters);
+      setLocationMessage(`Device location captured${captured.accuracyMeters ? ` (about ${Math.round(captured.accuracyMeters)} m accuracy)` : ""}. Save changes to keep it.`);
+    } catch (locationError) {
+      setLocationMessage(locationError instanceof Error ? locationError.message : "Unable to capture location.");
+    } finally {
+      setLocating(false);
+    }
+  }
+
+  function updateManualCoordinate(setValue: (value: string) => void, value: string) {
+    setValue(value);
+    setLocationSource("manual");
+    setLocationUpdatedAt(new Date().toISOString());
+    setLocationAccuracyMeters(undefined);
   }
 
   return (
@@ -215,11 +299,11 @@ export default function ProfileScreen() {
                 </View>
               </View>
               <UploadField
+                disabled={uploadingField === "profile-photo"}
                 label="Profile Photo"
                 value={profilePhotoUrl}
                 placeholder="Tap to upload profile photo"
-                sampleFileName="profile-photo.jpg"
-                onSelect={setProfilePhotoUrl}
+                onSelect={uploadProfilePhoto}
               />
               <Field label="Years of Experience" value={yearsOfExperience} onChangeText={setYearsOfExperience} placeholder="e.g. 2 years" />
               <Field
@@ -229,22 +313,26 @@ export default function ProfileScreen() {
                 placeholder="Describe your work experience"
                 multiline
               />
-              <Field label="Valid ID Type" value={validIdType} onChangeText={setValidIdType} placeholder="e.g. National ID, Driver's License" />
+              <Field label="Valid ID Type" value={validIdType} onChangeText={(value) => {
+                setValidIdType(value);
+                setDocumentsChanged(true);
+              }} placeholder="e.g. National ID, Driver's License" />
               <UploadField
+                disabled={uploadingField === "valid-id"}
                 label="Valid ID"
                 value={validIdUrl}
                 placeholder="Tap to upload valid ID"
-                sampleFileName="valid-id-document.pdf"
-                onSelect={setValidIdUrl}
+                onSelect={() => uploadVerificationDocument("valid-id")}
               />
               <UploadField
+                disabled={uploadingField === "medical-certificate"}
                 label="Medical Certificate"
                 value={medicalCertificateUrl}
                 placeholder="Tap to upload medical certificate"
-                sampleFileName="medical-certificate.pdf"
-                onSelect={setMedicalCertificateUrl}
+                onSelect={() => uploadVerificationDocument("medical-certificate")}
               />
               <Text style={styles.helperText}>Upload the required documents so the account can be reviewed.</Text>
+              {uploadMessage ? <Text style={styles.locationMessage}>{uploadMessage}</Text> : null}
             </SettingsCard>
 
             <SettingsCard title="Service Area">
@@ -266,17 +354,21 @@ export default function ProfileScreen() {
                 ))}
               </View>
 
-              <View style={styles.workerMapCard}>
-                <View style={styles.mapRoadOne} />
-                <View style={styles.mapRoadTwo} />
-                <View style={[styles.workerRadiusRing, getWorkerRadiusRingStyle(workerRadiusScale)]} />
-                <View style={styles.workerPin}>
-                  <Text style={styles.workerPinText}>You</Text>
-                </View>
-                <View style={styles.workerMapBadge}>
-                  <Text style={styles.workerMapBadgeLabel}>Service area</Text>
-                  <Text style={styles.workerMapBadgeText}>{selectedWorkerArea.label}</Text>
-                </View>
+              <LocationMap
+                center={mapCenter}
+                markers={mapCenter ? [{ id: "worker", ...mapCenter, title: "Your saved location" }] : []}
+                radiusMeters={(Number(preferredRadiusKm) || 0) * 1000}
+                showUserLocation
+                height={180}
+              />
+              <Pressable accessibilityRole="button" disabled={locating} onPress={useDeviceLocation} style={styles.locationButton}>
+                <Text style={styles.locationButtonText}>{locating ? "Getting location..." : "Use current device location"}</Text>
+              </Pressable>
+              <Text style={styles.helperText}>Your exact coordinates stay in your private profile. Clients see only matching reasons and distance.</Text>
+              {locationMessage ? <Text style={styles.locationMessage}>{locationMessage}</Text> : null}
+              <View style={styles.twoColumn}>
+                <Field label="Manual latitude" value={currentLatitude} onChangeText={(value) => updateManualCoordinate(setCurrentLatitude, value)} keyboardType="decimal-pad" placeholder="e.g. 10.6765" />
+                <Field label="Manual longitude" value={currentLongitude} onChangeText={(value) => updateManualCoordinate(setCurrentLongitude, value)} keyboardType="decimal-pad" placeholder="e.g. 122.9509" />
               </View>
 
               <View style={styles.areaPresetGrid}>
@@ -345,13 +437,7 @@ export default function ProfileScreen() {
             <Text style={styles.coverageIcon}>•</Text>
             <Text style={styles.coverageTitle}>{currentUser?.role === "client" ? "Preferred Service Area" : "Service Coverage"}</Text>
           </View>
-          <View style={styles.coverageMap}>
-            <View style={styles.mapRoadOne} />
-            <View style={styles.mapRoadTwo} />
-            <View style={styles.coverageBadge}>
-              <Text style={styles.coverageBadgeText}>{address}</Text>
-            </View>
-          </View>
+          <LocationMap center={mapCenter} markers={mapCenter ? [{ id: "coverage", ...mapCenter, title: address }] : []} height={128} />
         </View>
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -417,7 +503,7 @@ function Field({
   value: string;
   onChangeText: (value: string) => void;
   placeholder: string;
-  keyboardType?: "default" | "phone-pad";
+  keyboardType?: "default" | "phone-pad" | "decimal-pad";
   multiline?: boolean;
   editable?: boolean;
 }) {
@@ -440,28 +526,24 @@ function Field({
 }
 
 function UploadField({
+  disabled,
   label,
   value,
   placeholder,
-  sampleFileName,
   onSelect
 }: {
+  disabled?: boolean;
   label: string;
   value: string;
   placeholder: string;
-  sampleFileName: string;
-  onSelect: (value: string) => void;
+  onSelect: () => void | Promise<void>;
 }) {
   const selectedFile = getUploadedFileName(value);
-
-  function handleSelect() {
-    onSelect(`Uploaded file: ${sampleFileName}`);
-  }
 
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
-      <Pressable accessibilityRole="button" onPress={handleSelect} style={styles.uploadInput}>
+      <Pressable accessibilityRole="button" disabled={disabled} onPress={() => void onSelect()} style={[styles.uploadInput, disabled && styles.uploadDisabled]}>
         <View style={styles.uploadCopy}>
           <Text style={[styles.uploadText, !selectedFile && styles.uploadPlaceholder]}>
             {selectedFile || placeholder}
@@ -469,7 +551,7 @@ function UploadField({
           {selectedFile ? <Text style={styles.uploadMeta}>Ready for review</Text> : null}
         </View>
         <View style={styles.uploadButton}>
-          <Text style={styles.uploadButtonText}>{selectedFile ? "Change" : "Upload"}</Text>
+          <Text style={styles.uploadButtonText}>{disabled ? "Uploading..." : selectedFile ? "Change" : "Upload"}</Text>
         </View>
       </Pressable>
     </View>
@@ -477,7 +559,9 @@ function UploadField({
 }
 
 function getUploadedFileName(value: string) {
-  return value.replace("Uploaded file: ", "").trim();
+  if (!value) return "";
+  if (value.startsWith("http")) return "Profile photo uploaded";
+  return value.split("/").pop()?.replace(/^\d+_/, "") ?? value;
 }
 
 function ReviewCard({ initials, name, date, stars, text }: { initials: string; name: string; date: string; stars: number; text: string }) {
@@ -498,27 +582,6 @@ function ReviewCard({ initials, name, date, stars, text }: { initials: string; n
       <Text style={styles.reviewText}>{text}</Text>
     </View>
   );
-}
-
-function getWorkerRadiusScale(radiusKm: string) {
-  switch (radiusKm) {
-    case "2":
-      return 0.72;
-    case "10":
-      return 1.25;
-    default:
-      return 1;
-  }
-}
-
-function getWorkerRadiusRingStyle(scale: number) {
-  const size = 118 * scale;
-
-  return {
-    width: size,
-    height: size,
-    borderRadius: size / 2
-  };
 }
 
 function BottomNav({
@@ -610,6 +673,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10
   },
+  uploadDisabled: { opacity: 0.6 },
   uploadCopy: { flex: 1, gap: 2 },
   uploadText: { color: palette.text, fontSize: 15, lineHeight: 20, fontWeight: "800" },
   uploadPlaceholder: { color: palette.outline, fontWeight: "500" },
@@ -647,6 +711,9 @@ const styles = StyleSheet.create({
   availabilityChipSelected: { backgroundColor: palette.primary, borderColor: palette.primary },
   availabilityText: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "800" },
   availabilityTextSelected: { color: palette.white },
+  locationButton: { minHeight: 44, borderRadius: 8, backgroundColor: palette.primary, alignItems: "center", justifyContent: "center" },
+  locationButtonText: { color: palette.white, fontSize: 13, fontWeight: "900" },
+  locationMessage: { color: palette.primary, fontSize: 12, lineHeight: 17, fontWeight: "700" },
   workerMapCard: { height: 150, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: "#E5F1EE", overflow: "hidden", alignItems: "center", justifyContent: "center" },
   workerRadiusRing: {
     position: "absolute",

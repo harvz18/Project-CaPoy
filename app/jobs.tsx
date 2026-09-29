@@ -1,11 +1,15 @@
 import { useRouter } from "expo-router";
+import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomNavIcon } from "../src/components/BottomNavIcon";
+import LocationMap from "../src/components/LocationMap";
 import { StatusBadge } from "../src/components/StatusBadge";
 import { useApp } from "../src/context/AppContext";
-import { Task, UserProfile } from "../src/types";
-import { formatDistance, getTaskDistanceKm, isTaskWithinPreferredRadius } from "../src/utils/location";
+import { MatchResult, rankTasksForWorker } from "../src/domain/matching";
+import { captureForegroundLocation } from "../src/services/locationService";
+import { Task } from "../src/types";
+import { formatDistance } from "../src/utils/location";
 
 const palette = {
   background: "#F7FAF8",
@@ -27,10 +31,10 @@ const filters = ["All Jobs", "Delivery", "Repair", "Cleaning", "Unloading"];
 export default function JobsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { tasks, acceptTask, currentUser } = useApp();
-  const postedTasks = tasks
-    .filter((task) => task.status === "Finding Workers" || task.status === "Applied")
-    .sort((a, b) => Number(isTaskWithinPreferredRadius(currentUser, b)) - Number(isTaskWithinPreferredRadius(currentUser, a)));
+  const { tasks, acceptTask, currentUser, updateProfile, actionLoading, error } = useApp();
+  const [activeFilter, setActiveFilter] = useState("All Jobs");
+  const [locationMessage, setLocationMessage] = useState("");
+  const postedTasks = tasks.filter((task) => task.status === "Finding Workers" || task.status === "Applied");
   const appliedTasks = tasks.filter(
     (task) =>
       task.applicantIds?.includes(currentUser?.id ?? "") &&
@@ -38,11 +42,30 @@ export default function JobsScreen() {
       task.status !== "Finished" &&
       task.status !== "Archived"
   );
-  const jobs = postedTasks;
+  const rankedJobs = currentUser ? rankTasksForWorker(postedTasks, currentUser).filter(({ task }) =>
+    activeFilter === "All Jobs" || task.category.toLowerCase().includes(activeFilter.toLowerCase())
+  ) : [];
 
   async function handleQuickApply(task: Task) {
     await acceptTask(task.id);
     router.push(`/task-status/${task.id}`);
+  }
+
+  async function refreshLocation() {
+    try {
+      setLocationMessage("");
+      const captured = await captureForegroundLocation();
+      await updateProfile({
+        currentLatitude: captured.latitude,
+        currentLongitude: captured.longitude,
+        locationUpdatedAt: captured.capturedAt,
+        locationAccuracyMeters: captured.accuracyMeters,
+        locationSource: captured.source
+      });
+      setLocationMessage("Location refreshed. Recommendations have been re-ranked.");
+    } catch (locationError) {
+      setLocationMessage(locationError instanceof Error ? locationError.message : "Unable to refresh location.");
+    }
   }
 
   return (
@@ -61,13 +84,12 @@ export default function JobsScreen() {
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 98 + insets.bottom }]} showsVerticalScrollIndicator={false}>
         <View style={styles.mapPanel}>
-          <View style={styles.mapGrid}>
-            <View style={styles.mapLineHorizontal} />
-            <View style={styles.mapLineVertical} />
-            <View style={[styles.mapPin, styles.mapPinOne]} />
-            <View style={[styles.mapPin, styles.mapPinTwo]} />
-            <View style={[styles.mapPin, styles.mapPinThree]} />
-          </View>
+          <LocationMap
+            center={currentUser?.currentLatitude !== undefined && currentUser.currentLongitude !== undefined ? { latitude: currentUser.currentLatitude, longitude: currentUser.currentLongitude } : undefined}
+            markers={postedTasks.flatMap((task) => task.latitude !== undefined && task.longitude !== undefined ? [{ id: task.id, latitude: task.latitude, longitude: task.longitude, title: task.title }] : [])}
+            showUserLocation
+            height={250}
+          />
           <View style={styles.locationBadge}>
             <Text style={styles.locationIcon}>•</Text>
             <View style={styles.locationCopy}>
@@ -75,13 +97,17 @@ export default function JobsScreen() {
               <Text style={styles.locationText}>Bacolod City opportunities around you</Text>
             </View>
           </View>
+          <Pressable accessibilityRole="button" disabled={actionLoading} onPress={refreshLocation} style={styles.refreshButton}>
+            <Text style={styles.refreshButtonText}>{actionLoading ? "Refreshing..." : "Refresh my location"}</Text>
+          </Pressable>
         </View>
+        {locationMessage ? <Text style={styles.locationMessage}>{locationMessage}</Text> : null}
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-          {filters.map((filter, index) => (
-            <View key={filter} style={[styles.filterChip, index === 0 && styles.filterChipActive]}>
-              <Text style={[styles.filterText, index === 0 && styles.filterTextActive]}>{filter}</Text>
-            </View>
+          {filters.map((filter) => (
+            <Pressable key={filter} onPress={() => setActiveFilter(filter)} style={[styles.filterChip, activeFilter === filter && styles.filterChipActive]}>
+              <Text style={[styles.filterText, activeFilter === filter && styles.filterTextActive]}>{filter}</Text>
+            </Pressable>
           ))}
         </ScrollView>
 
@@ -102,7 +128,7 @@ export default function JobsScreen() {
         <View style={styles.boardHeader}>
           <View>
             <Text style={styles.screenTitle}>Job Board</Text>
-            <Text style={styles.screenSubtitle}>{jobs.length} available task{jobs.length === 1 ? "" : "s"}</Text>
+            <Text style={styles.screenSubtitle}>{rankedJobs.length} available task{rankedJobs.length === 1 ? "" : "s"}</Text>
           </View>
           <View style={styles.liveBadge}>
             <Text style={styles.liveBadgeText}>Live</Text>
@@ -110,14 +136,13 @@ export default function JobsScreen() {
         </View>
 
         <View style={styles.jobGrid}>
-          {jobs.length ? (
-            jobs.map((task, index) => (
+          {rankedJobs.length ? (
+            rankedJobs.map(({ task, match }, index) => (
               <JobCard
                 key={task.id}
                 task={task}
                 urgent={index === 0 || Number(task.wage) >= 800}
-                detail={jobDetails[index % jobDetails.length]}
-                currentUser={currentUser}
+                match={match}
                 onOpen={() => router.push(`/task/${task.id}`)}
                 onQuickAccept={() => handleQuickApply(task)}
               />
@@ -129,6 +154,7 @@ export default function JobsScreen() {
             </View>
           )}
         </View>
+        {error ? <Text style={styles.locationMessage}>{error}</Text> : null}
       </ScrollView>
 
       <BottomNav active="jobs" router={router} bottom={insets.bottom} />
@@ -136,33 +162,19 @@ export default function JobsScreen() {
   );
 }
 
-const jobDetails = [
-  { distance: "0.8 km away", area: "Lacson St.", load: "Light load" },
-  { distance: "2.4 km away", area: "Mansilingan", load: "Tools provided" },
-  { distance: "1.2 km away", area: "Bata Subd.", load: "Heavy load" },
-  { distance: "3.5 km away", area: "Alijis", load: "Outdoor task" }
-];
-
 function JobCard({
   task,
   urgent,
-  detail,
-  currentUser,
+  match,
   onOpen,
   onQuickAccept
 }: {
   task: Task;
   urgent?: boolean;
-  detail: { distance: string; area: string; load: string };
-  currentUser: UserProfile | null;
+  match: MatchResult;
   onOpen: () => void;
   onQuickAccept: () => void;
 }) {
-  const distance = getTaskDistanceKm(currentUser, task);
-  const withinRadius = isTaskWithinPreferredRadius(currentUser, task);
-  const capabilities = currentUser?.capabilities ?? currentUser?.skills ?? [];
-  const capabilityMatch = !task.requiredCapability || capabilities.includes(task.requiredCapability);
-
   return (
     <Pressable accessibilityRole="button" onPress={onOpen} style={({ pressed }) => [styles.jobCard, pressed && styles.pressed]}>
       {urgent ? (
@@ -174,27 +186,24 @@ function JobCard({
         <Text style={styles.price}>P{task.wage}</Text>
       </View>
       <Text style={styles.jobTitle}>{task.title}</Text>
-      <Text style={styles.jobMeta}>{detail.distance} • {detail.area}</Text>
+      <Text style={styles.jobMeta}>{formatDistance(match.distanceKm)} · {task.locationAddress ?? task.location}</Text>
       <Text style={styles.jobDescription} numberOfLines={2}>{task.description}</Text>
       <View style={styles.matchRow}>
-        <Text style={styles.matchChip}>{formatDistance(distance)}</Text>
-        <Text style={[styles.matchChip, withinRadius ? styles.matchChipGood : styles.matchChipWarn]}>
-          {withinRadius ? "Within service area" : "Outside preferred radius"}
+        <Text style={[styles.matchChip, match.eligible ? styles.matchChipGood : styles.matchChipWarn]}>
+          {match.eligible ? `${match.score}% match` : "Not eligible"}
         </Text>
-        <Text style={[styles.matchChip, capabilityMatch ? styles.matchChipGood : styles.matchChipWarn]}>
-          {capabilityMatch ? "Capability match" : `Needs ${task.requiredCapability ?? "capability"}`}
-        </Text>
+        <Text style={styles.matchChip}>{match.reasons[0] ?? "Complete your worker profile."}</Text>
       </View>
       <View style={styles.jobInfoRow}>
         <Text style={styles.jobInfo}>{task.estimatedDuration}</Text>
-        <Text style={styles.jobInfo}>{detail.load}</Text>
+        <Text style={styles.jobInfo}>{task.requiredCapability ?? task.category}</Text>
       </View>
       <View style={styles.actionRow}>
         <Pressable accessibilityRole="button" onPress={onOpen} style={styles.detailsButton}>
           <Text style={styles.detailsButtonText}>Details</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" onPress={onQuickAccept} style={styles.quickButton}>
-          <Text style={styles.quickButtonText}>Quick Apply</Text>
+        <Pressable accessibilityRole="button" disabled={!match.eligible} onPress={onQuickAccept} style={[styles.quickButton, !match.eligible && styles.quickButtonDisabled]}>
+          <Text style={styles.quickButtonText}>{match.eligible ? "Quick Apply" : "Profile update needed"}</Text>
         </Pressable>
       </View>
     </Pressable>
@@ -266,7 +275,7 @@ const styles = StyleSheet.create({
   avatar: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: palette.secondaryContainer, borderWidth: 1, borderColor: palette.outlineVariant },
   avatarText: { color: "#684000", fontWeight: "900" },
   content: { paddingBottom: 104 },
-  mapPanel: { height: 208, overflow: "hidden", backgroundColor: "#DDEDEA", elevation: 2 },
+  mapPanel: { minHeight: 250, overflow: "hidden", backgroundColor: "#DDEDEA", elevation: 2 },
   mapGrid: { flex: 1, backgroundColor: "#E7F3F0" },
   mapLineHorizontal: { position: "absolute", left: -20, right: -20, top: 92, height: 18, backgroundColor: "#C8DBD7", transform: [{ rotate: "-10deg" }] },
   mapLineVertical: { position: "absolute", top: -20, bottom: -20, left: "56%", width: 20, backgroundColor: "#D6C29E", transform: [{ rotate: "18deg" }] },
@@ -274,7 +283,10 @@ const styles = StyleSheet.create({
   mapPinOne: { left: "24%", top: 58 },
   mapPinTwo: { left: "62%", top: 84, backgroundColor: palette.primary },
   mapPinThree: { left: "46%", top: 138 },
-  locationBadge: { position: "absolute", left: 16, bottom: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: "rgba(255,255,255,0.92)", paddingHorizontal: 14, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 8 },
+  locationBadge: { position: "absolute", left: 16, top: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: "rgba(255,255,255,0.92)", paddingHorizontal: 14, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 8 },
+  refreshButton: { position: "absolute", right: 16, bottom: 16, minHeight: 42, borderRadius: 10, paddingHorizontal: 12, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
+  refreshButtonText: { color: palette.white, fontSize: 12, fontWeight: "900" },
+  locationMessage: { color: palette.primary, fontSize: 12, lineHeight: 17, fontWeight: "700", paddingHorizontal: 16, paddingTop: 8 },
   locationIcon: { color: palette.primary, fontSize: 22, fontWeight: "900" },
   locationCopy: { gap: 1 },
   locationTitle: { color: palette.text, fontSize: 14, fontWeight: "900" },
@@ -319,6 +331,7 @@ const styles = StyleSheet.create({
   detailsButton: { flex: 1, minHeight: 48, borderRadius: 8, borderWidth: 1, borderColor: palette.primary, alignItems: "center", justifyContent: "center", backgroundColor: palette.surface },
   detailsButtonText: { color: palette.primary, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   quickButton: { flex: 1.3, minHeight: 48, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
+  quickButtonDisabled: { opacity: 0.45 },
   quickButtonText: { color: palette.white, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   emptyCard: { padding: 24, borderRadius: 12, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.outlineVariant, alignItems: "center", gap: 8 },
   emptyTitle: { color: palette.textStrong, fontSize: 18, lineHeight: 26, fontWeight: "900" },

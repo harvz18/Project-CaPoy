@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomNavIcon } from "../../src/components/BottomNavIcon";
@@ -29,14 +29,26 @@ export default function ChatScreen() {
   const { id, recipientId } = useLocalSearchParams<{ id: string; recipientId?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { currentUser, getTaskMessages, getUserById, sendMessage, tasks } = useApp();
+  const { currentUser, getTaskMessages, getUserById, loadOlderChatMessages, markMessagesRead, sendMessage, tasks } = useApp();
   const [message, setMessage] = useState("");
   const [sendError, setSendError] = useState("");
-  const messages = getTaskMessages(id);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [allMessagesLoaded, setAllMessagesLoaded] = useState(false);
   const task = tasks.find((item) => item.id === id);
   const singleApplicantId = task?.applicantIds?.length === 1 ? task.applicantIds[0] : undefined;
   const participantId = currentUser?.role === "worker" ? task?.clientId : recipientId ?? task?.workerId ?? singleApplicantId;
   const participant = getUserById(participantId);
+  const messages = getTaskMessages(id, participantId);
+  const unreadIds = useMemo(
+    () => messages.filter((item) => item.receiverId === currentUser?.id && !item.readAt).map((item) => item.id).join(","),
+    [currentUser?.id, messages]
+  );
+
+  useEffect(() => {
+    if (id && participantId && unreadIds) {
+      void markMessagesRead(id, participantId).catch(() => undefined);
+    }
+  }, [id, participantId, unreadIds]);
 
   async function handleSend(text = message) {
     if (!text.trim()) {
@@ -48,6 +60,16 @@ export default function ChatScreen() {
       setSendError("");
     } catch (error) {
       setSendError(error instanceof Error ? error.message : "Unable to send this message.");
+    }
+  }
+
+  async function handleLoadOlder() {
+    setLoadingOlder(true);
+    try {
+      const count = await loadOlderChatMessages();
+      if (count === 0) setAllMessagesLoaded(true);
+    } finally {
+      setLoadingOlder(false);
     }
   }
 
@@ -88,7 +110,16 @@ export default function ChatScreen() {
         data={messages}
         keyExtractor={(item) => item.id}
         contentContainerStyle={[styles.messageList, { paddingBottom: 174 + insets.bottom }]}
-        ListHeaderComponent={<Text style={styles.datePill}>Today</Text>}
+        ListHeaderComponent={(
+          <View>
+            {!allMessagesLoaded && messages.length ? (
+              <Pressable accessibilityRole="button" disabled={loadingOlder} onPress={() => void handleLoadOlder()}>
+                <Text style={styles.loadOlder}>{loadingOlder ? "Loading..." : "Load older messages"}</Text>
+              </Pressable>
+            ) : null}
+            <Text style={styles.datePill}>Conversation</Text>
+          </View>
+        )}
         renderItem={({ item }) => (
           <MessageBubble message={item} mine={item.senderId === currentUser?.id} />
         )}
@@ -131,7 +162,7 @@ function MessageBubble({ message, mine }: { message: ChatMessage; mine: boolean 
         <Text style={[styles.messageText, mine && styles.messageMineText]}>{message.message}</Text>
         <Text style={[styles.messageTime, mine && styles.messageMineText]}>{formatTime(message.timestamp)}</Text>
       </View>
-      {mine ? <Text style={styles.doneMark}>OK</Text> : null}
+      {mine ? <Text style={styles.doneMark}>{message.readAt ? "Read" : "Sent"}</Text> : null}
     </View>
   );
 }
@@ -206,6 +237,7 @@ const styles = StyleSheet.create({
   locationButtonText: { color: palette.primary, fontWeight: "900" },
   messageList: { paddingHorizontal: 16, paddingTop: 16, gap: 12 },
   datePill: { alignSelf: "center", overflow: "hidden", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5, marginBottom: 12, backgroundColor: palette.surfaceContainer, color: palette.muted, fontSize: 12, lineHeight: 16 },
+  loadOlder: { alignSelf: "center", color: palette.primary, fontSize: 12, lineHeight: 18, fontWeight: "800", marginBottom: 10 },
   messageRow: { marginBottom: 12, flexDirection: "row", alignItems: "flex-end", gap: 8, maxWidth: "86%" },
   messageRowMine: { alignSelf: "flex-end" },
   messageRowOther: { alignSelf: "flex-start" },

@@ -69,9 +69,70 @@ The canonical task lifecycle is:
 Finding Workers -> Applied -> Accepted -> In Progress -> Pending Approval -> Finished -> Archived
 ```
 
-Applications can also be withdrawn or rejected. Open tasks can be cancelled, and assigned participants can open a dispute. Task creation/payment linking and the core workflow mutations use Firestore batches or transactions. Completion requires a submitted payment confirmation. `Expired` is reserved for future trusted scheduled backend automation and cannot be set by the mobile client.
+Applications can also be withdrawn or rejected. Open tasks can be cancelled, and assigned participants can open a dispute. Task creation/payment linking and the core workflow mutations use Firestore batches or transactions. Completion requires verified payment evidence or dual COD confirmation. `Expired` is reserved for future trusted scheduled backend automation and cannot be set by the mobile client.
 
 The UI reads `taskMatches` as the application source. `tasks.applicantIds` remains as a denormalized query/rules index and is updated in the same application transaction.
+
+## Location, maps, and matching
+
+TASKLINK requests foreground location only after the user taps a location action. Workers may save a manual location for job discovery, but starting and finishing an assigned task requires a fresh device location with acceptable accuracy inside the task radius. Exact worker coordinates remain in the private `users` and `workerProfiles` documents and are not copied to `publicProfiles`.
+
+Job recommendations and applicant cards use a deterministic score based on required capability, distance, availability, verification, experience, rating, and completed work. Missing location or capability data fails closed instead of using a hidden Bacolod coordinate.
+
+Native Android maps work in Expo Go during development. Production Android builds need `GOOGLE_MAPS_API_KEY` in the local/EAS environment. Restrict that key to `com.tasklink.app` and the production signing certificate. Web uses a coordinate summary and manual/device-location fallback rather than the native map component.
+
+Eligible-worker in-app notification fan-out is implemented in `functions/` as a trusted Firestore trigger. It reads private worker coordinates on the server and never exposes them to clients. Deploying Cloud Functions requires a Firebase project on the Blaze plan; nothing is deployed automatically by this repository.
+
+## Chat and notifications
+
+Task conversations use deterministic `taskId_workerId` IDs, so a client can communicate with separate applicants without overwriting another applicant's chat. Message listeners are participant-scoped, load the newest 100 records, and can page backward. Opening a conversation writes receiver-only read receipts.
+
+The Notifications screen supports unread state, deep links, category preferences, and an explicit Android push opt-in. Expo push tokens are stored per user/device. Trusted Cloud Functions create message notifications and send push payloads with a delivery ledger, retryable request failures, and automatic disabling of tokens rejected as unregistered.
+
+Remote push does not work in Expo Go on current Android SDK releases. Use an EAS development/preview build and configure the Android FCM credentials for the EAS project. The app never asks for notification permission until the user enables push in the Notifications screen.
+
+Phase 4 adds a compound message index. After testing against a non-production Firebase project, deploy the rules and index together:
+
+```bash
+npx firebase-tools@15.32.0 deploy --only firestore:rules,firestore:indexes --project tasklink-fb027
+```
+
+Push and server-created message notifications additionally require the Blaze plan and a separate Functions deployment:
+
+```bash
+npx firebase-tools@15.32.0 deploy --only functions --project tasklink-fb027
+```
+
+No deployment is performed automatically by this repository.
+
+## Verification, payment evidence, and administrator
+
+Phase 5 replaces the profile upload placeholders with real image/PDF uploads. Profile photos are readable by signed-in users, while worker IDs, medical certificates, and payment proof stay behind owner/participant/custom-claim administrator Storage rules. Files are limited to 10 MB and unsupported content types are rejected by both the app and Storage rules.
+
+Worker verification submissions atomically update the private worker profile, public verification label, and `verificationRequests/{uid}` queue. Workers can submit or resubmit documents, but cannot approve themselves. Administrator approval, rejection, resubmission requests, account suspension, and GCash evidence review are trusted callable Functions and append an immutable `auditLogs` record.
+
+Payment behavior is verification only; TASKLINK does not process, hold, or escrow money:
+
+- GCash requires an uploaded image/PDF receipt and administrator review.
+- COD requires the client to record payment and the assigned worker to confirm receipt.
+- A client cannot finish a task until its payment status is `Verified`.
+
+The administrator route is not publicly registrable. Create a dedicated Firebase Authentication user whose email matches the app's mobile mapping (for example `639171234567@tasklink.local`), then run the provisioning script from a trusted machine with Firebase Admin application-default credentials:
+
+```bash
+npm --prefix functions run set-admin -- 09171234567
+```
+
+Never put a service-account key in `.env` or in the Expo bundle. After provisioning, sign out and sign back in so Firebase refreshes the custom claim.
+
+To deploy only the Phase 5 callable backend while push remains deferred:
+
+```bash
+npx firebase-tools@15.32.0 deploy --only firestore:rules,firestore:indexes,storage --project tasklink-fb027
+npx firebase-tools@15.32.0 deploy --only "functions:reviewWorkerVerification,functions:reviewPaymentEvidence,functions:setUserAccountStatus,functions:confirmCashPaymentReceived" --project tasklink-fb027
+```
+
+Run the emulator tests first and deploy to a non-production Firebase project before production. Functions deployment requires the Blaze plan. These commands are documentation only; this implementation did not change your live Firebase project.
 
 ## Useful commands
 
@@ -80,6 +141,7 @@ npm run start
 npm run android
 npm test
 npm run test:workflow
+npm run test:functions
 npm run test:rules:emulator
 ```
 

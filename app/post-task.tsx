@@ -2,8 +2,10 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import LocationMap from "../src/components/LocationMap";
 import { workerCapabilities } from "../src/constants/capabilities";
 import { useApp } from "../src/context/AppContext";
+import { captureForegroundLocation } from "../src/services/locationService";
 import { PaymentMethod } from "../src/types";
 import { parseCoordinate } from "../src/utils/location";
 
@@ -45,8 +47,13 @@ export default function PostTaskScreen() {
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("Delivery assistance");
   const [location, setLocation] = useState("Bacolod City");
-  const [latitude, setLatitude] = useState("10.6765");
-  const [longitude, setLongitude] = useState("122.9509");
+  const [latitude, setLatitude] = useState("");
+  const [longitude, setLongitude] = useState("");
+  const [locationSource, setLocationSource] = useState<"device" | "manual" | "map">();
+  const [locationCapturedAt, setLocationCapturedAt] = useState<string>();
+  const [locationAccuracyMeters, setLocationAccuracyMeters] = useState<number>();
+  const [locating, setLocating] = useState(false);
+  const [locationMessage, setLocationMessage] = useState("");
   const [geofenceRadius, setGeofenceRadius] = useState("500");
   const [requiredCapability, setRequiredCapability] = useState("Delivery assistance");
   const [wage, setWage] = useState("");
@@ -55,18 +62,58 @@ export default function PostTaskScreen() {
   const [mapOpen, setMapOpen] = useState(false);
   const [categoryOpen, setCategoryOpen] = useState(false);
   const [durationOpen, setDurationOpen] = useState(false);
-  const selectedServiceArea =
-    serviceAreaPresets.find((preset) => preset.latitude === latitude && preset.longitude === longitude) ??
-    serviceAreaPresets[0];
-  const radiusScale = getRadiusScale(geofenceRadius);
+  const selectedServiceArea = serviceAreaPresets.find(
+    (preset) => preset.latitude === latitude && preset.longitude === longitude
+  );
+  const mapCenter = parseCoordinate(latitude) !== undefined && parseCoordinate(longitude) !== undefined
+    ? { latitude: parseCoordinate(latitude) as number, longitude: parseCoordinate(longitude) as number }
+    : undefined;
 
   function selectServiceArea(preset: (typeof serviceAreaPresets)[number]) {
     setLocation(preset.address);
     setLatitude(preset.latitude);
     setLongitude(preset.longitude);
+    setLocationSource("manual");
+    setLocationCapturedAt(new Date().toISOString());
+    setLocationAccuracyMeters(undefined);
+    setLocationMessage("Manual task pin selected.");
     if (preset.label === "Downtown") {
       setGeofenceRadius("1000");
     }
+  }
+
+  async function useDeviceLocation() {
+    setLocating(true);
+    setLocationMessage("");
+    try {
+      const captured = await captureForegroundLocation();
+      setLatitude(String(captured.latitude));
+      setLongitude(String(captured.longitude));
+      setLocationSource(captured.source);
+      setLocationCapturedAt(captured.capturedAt);
+      setLocationAccuracyMeters(captured.accuracyMeters);
+      setLocationMessage(`Device location captured${captured.accuracyMeters ? ` (about ${Math.round(captured.accuracyMeters)} m accuracy)` : ""}.`);
+    } catch (locationError) {
+      setLocationMessage(locationError instanceof Error ? locationError.message : "Unable to capture location.");
+    } finally {
+      setLocating(false);
+    }
+  }
+
+  function setManualCoordinate(setValue: (value: string) => void, value: string) {
+    setValue(value);
+    setLocationSource("manual");
+    setLocationCapturedAt(new Date().toISOString());
+    setLocationAccuracyMeters(undefined);
+  }
+
+  function selectMapCoordinate(coordinate: { latitude: number; longitude: number }) {
+    setLatitude(String(coordinate.latitude));
+    setLongitude(String(coordinate.longitude));
+    setLocationSource("map");
+    setLocationCapturedAt(new Date().toISOString());
+    setLocationAccuracyMeters(undefined);
+    setLocationMessage("Task pin selected on the map.");
   }
 
   function selectCategory(nextCategory: string) {
@@ -86,6 +133,9 @@ export default function PostTaskScreen() {
         latitude: parseCoordinate(latitude),
         longitude: parseCoordinate(longitude),
         geofenceRadius: Number(geofenceRadius) || 500,
+        locationCapturedAt,
+        locationAccuracyMeters,
+        locationSource,
         requiredCapability,
         wage: wage || "300",
         estimatedDuration,
@@ -158,28 +208,25 @@ export default function PostTaskScreen() {
                 </View>
               </View>
 
-              <Pressable
-                accessibilityLabel="Open map pin setter"
-                accessibilityRole="button"
-                onPress={() => setMapOpen(true)}
-                style={styles.pinMap}
-              >
-                <View style={styles.pinMapRoadOne} />
-                <View style={styles.pinMapRoadTwo} />
-                <View style={styles.pinMapRoadThree} />
-                <View style={styles.pinMapPark} />
-                <View style={[styles.radiusRing, getRadiusRingStyle(radiusScale, 120)]} />
-                <View style={styles.centerPin}>
-                  <Text style={styles.centerPinText}>Client</Text>
-                </View>
-                <View style={styles.mapCallout}>
-                  <Text style={styles.mapCalloutLabel}>Radius center</Text>
-                  <Text style={styles.mapCalloutTitle}>{selectedServiceArea.label}</Text>
-                </View>
-                <View style={styles.openMapBadge}>
-                  <Text style={styles.openMapBadgeText}>Open map</Text>
-                </View>
-              </Pressable>
+              <LocationMap
+                center={mapCenter}
+                markers={mapCenter ? [{ id: "selected", ...mapCenter, title: "Task pin" }] : []}
+                radiusMeters={Number(geofenceRadius) || 500}
+                height={220}
+              />
+              <View style={styles.locationActionRow}>
+                <Pressable accessibilityRole="button" disabled={locating} onPress={useDeviceLocation} style={styles.locationButton}>
+                  <Text style={styles.locationButtonText}>{locating ? "Getting location..." : "Use device location"}</Text>
+                </Pressable>
+                <Pressable accessibilityRole="button" onPress={() => setMapOpen(true)} style={styles.locationOutlineButton}>
+                  <Text style={styles.locationOutlineText}>Choose on map</Text>
+                </Pressable>
+              </View>
+              {locationMessage ? <Text style={styles.locationMessage}>{locationMessage}</Text> : null}
+              <View style={styles.twoColumn}>
+                <TextInput keyboardType="decimal-pad" onChangeText={(value) => setManualCoordinate(setLatitude, value)} placeholder="Latitude" placeholderTextColor={palette.outline} style={[styles.input, styles.flex]} value={latitude} />
+                <TextInput keyboardType="decimal-pad" onChangeText={(value) => setManualCoordinate(setLongitude, value)} placeholder="Longitude" placeholderTextColor={palette.outline} style={[styles.input, styles.flex]} value={longitude} />
+              </View>
 
               <View style={styles.areaPresetGrid}>
                 {serviceAreaPresets.map((preset) => {
@@ -216,7 +263,7 @@ export default function PostTaskScreen() {
               <View style={styles.coordinateSummary}>
                 <View style={styles.flex}>
                   <Text style={styles.coordinateLabel}>Pinned task area</Text>
-                  <Text style={styles.coordinateAddress}>{selectedServiceArea.address}</Text>
+                  <Text style={styles.coordinateAddress}>{selectedServiceArea?.address ?? location}</Text>
                 </View>
                 <Text style={styles.coordinateValue}>{latitude}, {longitude}</Text>
               </View>
@@ -328,21 +375,16 @@ export default function PostTaskScreen() {
           </View>
 
           <View style={styles.mapModalBody}>
-            <View style={styles.largePinMap}>
-              <View style={styles.largeRoadOne} />
-              <View style={styles.largeRoadTwo} />
-              <View style={styles.largeRoadThree} />
-              <View style={styles.largePark} />
-              <View style={[styles.largeRadiusRing, getRadiusRingStyle(radiusScale, 220)]} />
-              <View style={styles.largeCenterPin}>
-                <Text style={styles.largeCenterPinText}>Client</Text>
-              </View>
-              <View style={styles.largeMapCallout}>
-                <Text style={styles.mapCalloutLabel}>Radius center</Text>
-                <Text style={styles.mapCalloutTitle}>{selectedServiceArea.label}</Text>
-                <Text style={styles.largeMapMeta}>{geofenceRadius} meters</Text>
-              </View>
-            </View>
+            <LocationMap
+              center={mapCenter}
+              interactive
+              markers={mapCenter ? [{ id: "selected", ...mapCenter, title: "Task pin" }] : []}
+              onSelectCoordinate={selectMapCoordinate}
+              radiusMeters={Number(geofenceRadius) || 500}
+              showUserLocation
+              height={360}
+            />
+            <Text style={styles.helperText}>Tap the mobile map or drag the task pin. On web, enter coordinates manually.</Text>
 
             <View style={styles.modalPanel}>
               <Text style={styles.fieldLabel}>Choose pin location</Text>
@@ -447,29 +489,6 @@ function PickerModal({
       </Pressable>
     </Modal>
   );
-}
-
-function getRadiusScale(radius: string) {
-  switch (radius) {
-    case "300":
-      return 0.75;
-    case "1000":
-      return 1.25;
-    default:
-      return 1;
-  }
-}
-
-function getRadiusRingStyle(scale: number, baseSize: number) {
-  const size = baseSize * scale;
-
-  return {
-    width: size,
-    height: size,
-    marginLeft: -size / 2,
-    marginTop: -size / 2,
-    borderRadius: size / 2
-  };
 }
 
 function Field({ label, children, style }: { label: string; children: React.ReactNode; style?: object }) {
@@ -671,6 +690,12 @@ const styles = StyleSheet.create({
   mapCalloutLabel: { color: palette.muted, fontSize: 10, lineHeight: 14, fontWeight: "800", textTransform: "uppercase" },
   mapCalloutTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   areaPresetGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  locationActionRow: { flexDirection: "row", gap: 8 },
+  locationButton: { flex: 1, minHeight: 44, borderRadius: 8, backgroundColor: palette.primary, alignItems: "center", justifyContent: "center" },
+  locationButtonText: { color: palette.white, fontSize: 12, fontWeight: "900" },
+  locationOutlineButton: { flex: 1, minHeight: 44, borderRadius: 8, borderWidth: 1, borderColor: palette.primary, alignItems: "center", justifyContent: "center" },
+  locationOutlineText: { color: palette.primary, fontSize: 12, fontWeight: "900" },
+  locationMessage: { color: palette.primary, fontSize: 12, lineHeight: 17, fontWeight: "700" },
   areaPresetChip: { minHeight: 36, borderRadius: 18, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow, paddingHorizontal: 12, alignItems: "center", justifyContent: "center" },
   areaPresetChipSelected: { backgroundColor: palette.primary, borderColor: palette.primary },
   areaPresetText: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "900" },

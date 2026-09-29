@@ -1,5 +1,5 @@
-import { collection, doc, getDoc, onSnapshot, setDoc, writeBatch } from "firebase/firestore";
-import { Role, UserProfile } from "../types";
+import { collection, deleteField, doc, getDoc, onSnapshot, setDoc, writeBatch } from "firebase/firestore";
+import { PublicRole, UserProfile } from "../types";
 import { db } from "./firebase";
 
 function requireDb() {
@@ -38,7 +38,7 @@ function toPublicProfile(user: Partial<UserProfile> & Pick<UserProfile, "id" | "
 
 export type SaveUserInput = {
   id: string;
-  role: Role;
+  role: PublicRole;
   fullName: string;
   mobileNumber: string;
   address: string;
@@ -66,8 +66,6 @@ export async function saveUserProfile(input: SaveUserInput) {
     verificationStatus: input.role === "worker" ? "Pending Verification" : undefined,
     phoneVerified: false,
     thirdPartyProvider: "none",
-    currentLatitude: input.role === "worker" ? 10.6765 : undefined,
-    currentLongitude: input.role === "worker" ? 122.9509 : undefined,
     preferredRadiusKm: input.role === "worker" ? 5 : undefined,
     completedTasks: 0,
     createdAt: now,
@@ -80,7 +78,7 @@ export async function saveUserProfile(input: SaveUserInput) {
   batch.set(doc(firestore, "publicProfiles", input.id), toPublicProfile(user));
 
   if (input.role === "worker") {
-    batch.set(doc(firestore, "workerProfiles", input.id), {
+    batch.set(doc(firestore, "workerProfiles", input.id), withoutUndefined({
       userId: input.id,
       skills: user.skills ?? [],
       capabilities: user.capabilities ?? [],
@@ -93,7 +91,7 @@ export async function saveUserProfile(input: SaveUserInput) {
       preferredRadiusKm: user.preferredRadiusKm,
       createdAt: now,
       updatedAt: now
-    });
+    }));
   } else {
     batch.set(doc(firestore, "clientProfiles", input.id), {
       userId: input.id,
@@ -161,8 +159,13 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
 
   const currentUser = { id: currentSnapshot.id, ...currentSnapshot.data() } as UserProfile;
   const mergedUser = { ...currentUser, ...withoutUndefined(nextUpdates) } as UserProfile;
+  const userUpdates: Record<string, unknown> = withoutUndefined(nextUpdates);
+  if (updates.locationSource === "manual" && updates.locationAccuracyMeters === undefined) {
+    userUpdates.locationAccuracyMeters = deleteField();
+    delete mergedUser.locationAccuracyMeters;
+  }
 
-  batch.update(userRef, withoutUndefined(nextUpdates));
+  batch.update(userRef, userUpdates);
   batch.set(doc(firestore, "publicProfiles", userId), toPublicProfile(mergedUser));
 
   if (
@@ -180,6 +183,9 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
     updates.verificationStatus ||
     updates.currentLatitude !== undefined ||
     updates.currentLongitude !== undefined ||
+    updates.locationUpdatedAt !== undefined ||
+    updates.locationAccuracyMeters !== undefined ||
+    updates.locationSource !== undefined ||
     updates.preferredRadiusKm !== undefined
   ) {
     batch.set(
@@ -200,8 +206,14 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
           verificationStatus: updates.verificationStatus,
           currentLatitude: updates.currentLatitude,
           currentLongitude: updates.currentLongitude,
+          locationUpdatedAt: updates.locationUpdatedAt,
+          locationAccuracyMeters: updates.locationAccuracyMeters,
+          locationSource: updates.locationSource,
           preferredRadiusKm: updates.preferredRadiusKm
         }),
+        ...(updates.locationSource === "manual" && updates.locationAccuracyMeters === undefined
+          ? { locationAccuracyMeters: deleteField() }
+          : {}),
         updatedAt: nextUpdates.updatedAt
       },
       { merge: true }

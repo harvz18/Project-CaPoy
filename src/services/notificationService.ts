@@ -1,5 +1,15 @@
-import { addDoc, collection, onSnapshot, query, where } from "firebase/firestore";
-import { AppNotification } from "../types";
+import {
+  addDoc,
+  collection,
+  doc,
+  onSnapshot,
+  query,
+  setDoc,
+  updateDoc,
+  where,
+  writeBatch
+} from "firebase/firestore";
+import { AppNotification, NotificationPreferences } from "../types";
 import { auth, db } from "./firebase";
 
 function requireDb() {
@@ -51,4 +61,53 @@ export async function addNotification(notification: NotificationInput) {
     readStatus: false,
     createdAt: new Date().toISOString()
   });
+}
+
+export async function markNotificationRead(notificationId: string) {
+  await updateDoc(doc(requireDb(), "notifications", notificationId), { readStatus: true });
+}
+
+export async function markAllNotificationsRead(notifications: AppNotification[]) {
+  const unread = notifications.filter((notification) => !notification.readStatus);
+  if (!unread.length) return;
+  const firestore = requireDb();
+  for (let offset = 0; offset < unread.length; offset += 450) {
+    const batch = writeBatch(firestore);
+    unread.slice(offset, offset + 450).forEach((notification) => {
+      batch.update(doc(firestore, "notifications", notification.id), { readStatus: true });
+    });
+    await batch.commit();
+  }
+}
+
+export const defaultNotificationPreferences: NotificationPreferences = {
+  pushEnabled: false,
+  messagesEnabled: true,
+  taskUpdatesEnabled: true,
+  matchingEnabled: true
+};
+
+export function subscribeToNotificationPreferences(
+  userId: string,
+  onChange: (preferences: NotificationPreferences) => void,
+  onError: (error: Error) => void
+) {
+  if (!db || !userId) {
+    onChange(defaultNotificationPreferences);
+    return () => undefined;
+  }
+
+  return onSnapshot(doc(db, "notificationPreferences", userId), (snapshot) => {
+    onChange(snapshot.exists()
+      ? { ...defaultNotificationPreferences, ...snapshot.data() } as NotificationPreferences
+      : defaultNotificationPreferences);
+  }, onError);
+}
+
+export async function saveNotificationPreferences(userId: string, preferences: NotificationPreferences) {
+  await setDoc(doc(requireDb(), "notificationPreferences", userId), {
+    ...preferences,
+    userId,
+    updatedAt: new Date().toISOString()
+  }, { merge: true });
 }

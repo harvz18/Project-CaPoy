@@ -42,7 +42,7 @@ export function assertTaskTransition(
   if (nextStatus === "Finished") {
     requireTaskClient(task, actor);
     requireCurrentStatus(task, "Pending Approval");
-    requireSubmittedPayment(task.paymentStatus);
+    requireVerifiedPayment(task.paymentStatus);
     return;
   }
 
@@ -127,8 +127,8 @@ function requireCurrentStatus(task: Task, expectedStatus: TaskStatus) {
   }
 }
 
-function requireSubmittedPayment(paymentStatus?: PaymentStatus) {
-  if (paymentStatus !== "Submitted" && paymentStatus !== "Verified") {
-    throw new Error("Submit the payment confirmation before approving completion.");
+function requireVerifiedPayment(paymentStatus?: PaymentStatus) {
+  if (paymentStatus !== "Verified") {
+    throw new Error("Payment must be verified before approving completion.");
   }
 }

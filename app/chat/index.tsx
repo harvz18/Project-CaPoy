@@ -25,7 +25,9 @@ const palette = {
 };
 
 type Conversation = {
+  id: string;
   task: Task;
+  participantId: string;
   participantName: string;
   initials: string;
   preview: string;
@@ -87,8 +89,11 @@ export default function ChatInboxScreen() {
           {filteredConversations.map((conversation) => (
             <ConversationRow
               conversation={conversation}
-              key={conversation.task.id}
-              onPress={() => router.push(`/chat/${conversation.task.id}`)}
+              key={conversation.id}
+              onPress={() => router.push({
+                pathname: "/chat/[id]",
+                params: { id: conversation.task.id, recipientId: conversation.participantId }
+              })}
             />
           ))}
         </View>
@@ -112,30 +117,40 @@ function buildConversations(
     const taskMessages = messages
       .filter((message) => message.taskId === task.id)
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    const userMessages = taskMessages.filter(
-      (message) => message.senderId === currentUserId || message.receiverId === currentUserId
+    const messageParticipants = taskMessages.flatMap((message) =>
+      message.senderId === currentUserId ? [message.receiverId]
+        : message.receiverId === currentUserId ? [message.senderId]
+          : []
     );
-    const latest = taskMessages[0];
-    const latestUserMessage = userMessages[0];
-    const messageParticipantId =
-      latestUserMessage?.senderId === currentUserId ? latestUserMessage.receiverId : latestUserMessage?.senderId;
-    const singleApplicantId = task.applicantIds?.length === 1 ? task.applicantIds[0] : undefined;
-    const participantId = role === "client" ? messageParticipantId ?? task.workerId ?? singleApplicantId : task.clientId;
+    const participantIds = role === "client"
+      ? [...new Set([task.workerId, ...(task.applicantIds ?? []), ...messageParticipants].filter(Boolean) as string[])]
+      : task.clientId ? [task.clientId] : [];
 
-    if (!shouldShowConversation(task, role, currentUserId, participantId, userMessages.length > 0)) {
-      return [];
-    }
+    return participantIds.flatMap((participantId, participantIndex) => {
+      const userMessages = taskMessages.filter((message) =>
+        (message.senderId === currentUserId && message.receiverId === participantId)
+        || (message.receiverId === currentUserId && message.senderId === participantId)
+      );
+      const latestUserMessage = userMessages[0];
 
-    const participantName = users.find((user) => user.id === participantId)?.fullName ?? getFallbackName(role, index);
+      if (!shouldShowConversation(task, role, currentUserId, participantId, userMessages.length > 0)) {
+        return [];
+      }
 
-    return [{
-      task,
-      participantName,
-      initials: getInitials(participantName),
-      preview: latestUserMessage?.message ?? `${task.title} conversation is ready.`,
-      timestamp: latestUserMessage?.timestamp ?? latest?.timestamp ?? task.createdAt,
-      unread: Boolean(latestUserMessage && latestUserMessage.receiverId === currentUserId)
-    }];
+      const participantName = users.find((user) => user.id === participantId)?.fullName
+        ?? getFallbackName(role, index + participantIndex);
+
+      return [{
+        id: `${task.id}_${participantId}`,
+        task,
+        participantId,
+        participantName,
+        initials: getInitials(participantName),
+        preview: latestUserMessage?.message ?? `${task.title} conversation is ready.`,
+        timestamp: latestUserMessage?.timestamp ?? task.createdAt,
+        unread: userMessages.some((message) => message.receiverId === currentUserId && !message.readAt)
+      }];
+    });
   });
 }
 
@@ -158,7 +173,7 @@ function shouldShowConversation(
     return task.clientId === currentUserId && Boolean(participantId);
   }
 
-  return task.workerId === currentUserId && Boolean(participantId);
+  return (task.workerId === currentUserId || task.applicantIds?.includes(currentUserId)) && Boolean(participantId);
 }
 
 function ConversationRow({ conversation, onPress }: { conversation: Conversation; onPress: () => void }) {

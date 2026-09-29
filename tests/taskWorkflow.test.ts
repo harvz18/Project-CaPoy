@@ -48,7 +48,7 @@ test("allows every supported happy-path task transition", () => {
       current: "Pending Approval",
       next: "Finished",
       actor: CLIENT,
-      overrides: { workerId: WORKER.id, paymentStatus: "Submitted" },
+      overrides: { workerId: WORKER.id, paymentStatus: "Verified" },
     },
     { current: "Finished", next: "Archived", actor: CLIENT, overrides: { workerId: WORKER.id } },
     { current: "Finding Workers", next: "Cancelled", actor: CLIENT },
@@ -110,8 +110,8 @@ test("requires an active selected applicant for acceptance", () => {
   assert.throws(() => assertTaskTransition(task("Applied"), "Accepted", CLIENT, OTHER_WORKER.id));
 });
 
-test("requires submitted or verified payment before completion", () => {
-  for (const paymentStatus of ["Pending", "Rejected"] as const) {
+test("requires verified payment before completion", () => {
+  for (const paymentStatus of ["Pending", "Submitted", "Rejected"] as const) {
     assert.throws(() =>
       assertTaskTransition(
         task("Pending Approval", { workerId: WORKER.id, paymentStatus }),

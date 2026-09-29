@@ -2,10 +2,12 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import LocationMap from "../../src/components/LocationMap";
 import { StatusBadge } from "../../src/components/StatusBadge";
 import { useApp } from "../../src/context/AppContext";
 import { PaymentStatus, Task, TaskStatus } from "../../src/types";
-import { formatDistance, getTaskCheckDistanceKm, isWorkerInsideTaskGeofence } from "../../src/utils/location";
+import { formatDistance, getGeofenceCheck, getTaskCheckDistanceKm } from "../../src/utils/location";
+import { pickAndUploadPaymentProof } from "../../src/services/fileUploadService";
 
 const palette = {
   background: "#F7FAF8",
@@ -30,10 +32,13 @@ export default function TaskStatusScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { acceptTask, actionLoading, currentUser, ratings, tasks, submitPaymentProof, updateTaskStatus, withdrawApplication } = useApp();
+  const { acceptTask, actionLoading, confirmCashPayment, currentUser, ratings, tasks, submitPaymentProof, updateTaskStatus, withdrawApplication } = useApp();
   const task = tasks.find((item) => item.id === id);
   const [actionWarning, setActionWarning] = useState("");
   const [proofOfPaymentText, setProofOfPaymentText] = useState(task?.proofOfPaymentText ?? "");
+  const [proofOfPaymentUrl, setProofOfPaymentUrl] = useState(task?.proofOfPaymentUrl ?? "");
+  const [proofFileName, setProofFileName] = useState(task?.proofOfPaymentUrl?.split("/").pop() ?? "");
+  const [uploadingProof, setUploadingProof] = useState(false);
 
   if (!task) {
     return (
@@ -58,7 +63,10 @@ export default function TaskStatusScreen() {
     taskIsOpenForApplications;
   const action = getPrimaryAction(task.status, currentUser?.role, workerHasApplied, task.paymentStatus);
   const distanceKm = getTaskCheckDistanceKm(currentUser, task);
-  const insideGeofence = isWorkerInsideTaskGeofence(currentUser, task);
+  const geofenceCheck = currentUser?.role === "worker"
+    ? getGeofenceCheck(currentUser, task)
+    : { allowed: false, reason: "The assigned worker's location is checked privately when they start or finish the task." };
+  const insideGeofence = geofenceCheck.allowed;
   const clientHasRated = Boolean(
     currentUser?.role === "client" && task.workerId && ratings.some((rating) => rating.taskId === task.id && rating.reviewerId === currentUser.id)
   );
@@ -116,9 +124,36 @@ export default function TaskStatusScreen() {
 
     try {
       setActionWarning("");
-      await submitPaymentProof(task.id, proofOfPaymentText);
+      await submitPaymentProof(task.id, proofOfPaymentText, proofOfPaymentUrl || undefined);
     } catch (error) {
       setActionWarning(error instanceof Error ? error.message : "Unable to submit payment proof.");
+    }
+  }
+
+  async function handleUploadPaymentProof() {
+    if (!task) return;
+    setUploadingProof(true);
+    setActionWarning("");
+    try {
+      const uploaded = await pickAndUploadPaymentProof(task.id);
+      if (uploaded) {
+        setProofOfPaymentUrl(uploaded.path);
+        setProofFileName(uploaded.name);
+      }
+    } catch (error) {
+      setActionWarning(error instanceof Error ? error.message : "Unable to upload payment evidence.");
+    } finally {
+      setUploadingProof(false);
+    }
+  }
+
+  async function handleConfirmCashPayment() {
+    if (!task) return;
+    try {
+      setActionWarning("");
+      await confirmCashPayment(task.id);
+    } catch (error) {
+      setActionWarning(error instanceof Error ? error.message : "Unable to confirm cash payment.");
     }
   }
 
@@ -141,12 +176,13 @@ export default function TaskStatusScreen() {
       <TopBar onBack={() => router.back()} />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 132 + insets.bottom }]} showsVerticalScrollIndicator={false}>
         <View style={styles.mapHero}>
-          <View style={styles.mapGrid}>
-            <View style={styles.mapRoadOne} />
-            <View style={styles.mapRoadTwo} />
-            <View style={styles.mapPark} />
-            <View style={styles.mapPin} />
-          </View>
+          <LocationMap
+            center={task.latitude !== undefined && task.longitude !== undefined ? { latitude: task.latitude, longitude: task.longitude } : undefined}
+            markers={task.latitude !== undefined && task.longitude !== undefined ? [{ id: task.id, latitude: task.latitude, longitude: task.longitude, title: task.title }] : []}
+            radiusMeters={task.geofenceRadius}
+            showUserLocation
+            height={260}
+          />
           <View style={styles.urgentBadge}>
             <Text style={styles.urgentBadgeText}>{task.status === "Finding Workers" ? "Open" : task.status}</Text>
           </View>
@@ -201,13 +237,13 @@ export default function TaskStatusScreen() {
               <View style={styles.geoHeader}>
                 <Text style={styles.sectionTitle}>Location Check</Text>
                 <Text style={[styles.geoBadge, insideGeofence ? styles.geoBadgeGood : styles.geoBadgeWarn]}>
-                  {insideGeofence ? "Inside task radius" : "Outside task radius"}
+                  {currentUser?.role !== "worker" ? "Worker check-in" : insideGeofence ? "Inside task radius" : "Check-in needed"}
                 </Text>
               </View>
               <Text style={styles.geoText}>Task area: {task.locationAddress ?? task.location}</Text>
               <Text style={styles.geoText}>Distance: {formatDistance(distanceKm)}</Text>
               <Text style={styles.geoText}>Allowed radius: {task.geofenceRadius ?? 500} meters</Text>
-              <Text style={styles.geoHint}>Start Task and Mark as Finished use this simulated location check.</Text>
+              <Text style={styles.geoHint}>{geofenceCheck.reason} Start and finish actions refresh your device location before continuing.</Text>
             </View>
 
             <View style={styles.paymentPanel}>
@@ -227,6 +263,13 @@ export default function TaskStatusScreen() {
                     textAlignVertical="top"
                     value={proofOfPaymentText}
                   />
+                  {task.paymentMethod === "GCash link" ? (
+                    <Pressable accessibilityRole="button" disabled={uploadingProof} onPress={handleUploadPaymentProof} style={styles.paymentOutlineButton}>
+                      <Text style={styles.paymentOutlineButtonText}>
+                        {uploadingProof ? "Uploading..." : proofFileName || "Upload receipt image or PDF"}
+                      </Text>
+                    </Pressable>
+                  ) : null}
                   <Pressable
                     accessibilityRole="button"
                     onPress={handleSubmitPaymentProof}
@@ -236,14 +279,21 @@ export default function TaskStatusScreen() {
                   </Pressable>
                 </>
               ) : (
-                <Text style={styles.geoHint}>{task.proofOfPaymentText || "Waiting for client payment proof."}</Text>
+                <>
+                  <Text style={styles.geoHint}>{task.proofOfPaymentText || "Waiting for client payment confirmation."}</Text>
+                  {currentUser?.id === task.workerId && task.paymentMethod === "COD" && task.paymentStatus === "Submitted" ? (
+                    <Pressable accessibilityRole="button" disabled={actionLoading} onPress={handleConfirmCashPayment} style={styles.paymentButton}>
+                      <Text style={styles.paymentButtonText}>{actionLoading ? "Confirming..." : "Confirm Cash Received"}</Text>
+                    </Pressable>
+                  ) : null}
+                </>
               )}
             </View>
 
             <View style={styles.trustRow}>
-              <TrustItem text="Payment Secured" />
-              <TrustItem text="Accident Insurance" />
-              <TrustItem text="24/7 Support" />
+              <TrustItem text="Evidence stored privately" />
+              <TrustItem text="Participants only" />
+              <TrustItem text="Disputes can be reviewed" />
             </View>
 
             <View style={styles.statusPanel}>
@@ -343,7 +393,7 @@ function getPrimaryAction(
   }
 
   if (role === "client" && status === "Pending Approval") {
-    const paymentReady = paymentStatus === "Submitted" || paymentStatus === "Verified";
+    const paymentReady = paymentStatus === "Verified";
     return paymentReady
       ? { label: "Confirm Finished", nextStatus: "Finished" as TaskStatus, enabled: true }
       : { label: "Submit Payment First", enabled: false };
@@ -628,6 +678,8 @@ const styles = StyleSheet.create({
   paymentInput: { minHeight: 82, borderRadius: 8, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow, color: palette.text, fontSize: 14, lineHeight: 20, padding: 12 },
   paymentButton: { minHeight: 42, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
   paymentButtonText: { color: palette.white, fontSize: 14, lineHeight: 20, fontWeight: "900" },
+  paymentOutlineButton: { minHeight: 42, borderRadius: 8, borderWidth: 1, borderColor: palette.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: 12 },
+  paymentOutlineButtonText: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "900", textAlign: "center" },
   warningText: { color: "#684000", fontSize: 12, lineHeight: 16, fontWeight: "800" },
   clientRatingPanel: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, gap: 12, elevation: 2 },
   clientRatingCopy: { gap: 4 },

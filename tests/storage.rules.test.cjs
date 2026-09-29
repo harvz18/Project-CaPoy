@@ -11,12 +11,13 @@ const PROJECT_ID = "demo-tasklink";
 const CLIENT_ID = "storage-client";
 const WORKER_ID = "storage-worker";
 const APPLICANT_ID = "storage-applicant";
+const ADMIN_ID = "storage-admin";
 const TASK_ID = "storage-task";
 
 let testEnvironment;
 
-function storageFor(userId) {
-  return testEnvironment.authenticatedContext(userId).storage();
+function storageFor(userId, tokenOptions) {
+  return testEnvironment.authenticatedContext(userId, tokenOptions).storage();
 }
 
 async function seedTask() {
@@ -36,6 +37,11 @@ async function seedTask() {
       setDoc(doc(db, "users", APPLICANT_ID), {
         id: APPLICANT_ID,
         role: "worker",
+        accountStatus: "active"
+      }),
+      setDoc(doc(db, "users", ADMIN_ID), {
+        id: ADMIN_ID,
+        role: "admin",
         accountStatus: "active"
       }),
       setDoc(doc(db, "tasks", TASK_ID), {
@@ -72,6 +78,7 @@ test("verification documents are private to their owner", async () => {
     })
   );
   await assertSucceeds(getBytes(ownerReference));
+  await assertSucceeds(getBytes(ref(storageFor(ADMIN_ID, { admin: true }), path)));
   await assertFails(getBytes(ref(storageFor(CLIENT_ID), path)));
 });
 
@@ -111,6 +118,7 @@ test("payment proof is limited to the client and assigned worker", async () => {
     })
   );
   await assertSucceeds(getBytes(ref(storageFor(WORKER_ID), path)));
+  await assertSucceeds(getBytes(ref(storageFor(ADMIN_ID, { admin: true }), path)));
   await assertFails(getBytes(ref(storageFor(APPLICANT_ID), path)));
   await assertFails(
     uploadBytes(ref(storageFor(WORKER_ID), `paymentProofs/${TASK_ID}/worker.png`), new Uint8Array([1]), {

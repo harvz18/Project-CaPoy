@@ -1,4 +1,5 @@
-export type Role = "worker" | "client";
+export type Role = "worker" | "client" | "admin";
+export type PublicRole = Exclude<Role, "admin">;
 
 export type TaskStatus =
   | "Finding Workers"
@@ -16,6 +17,7 @@ export type PaymentMethod = "COD" | "GCash link";
 export type PaymentStatus = "Pending" | "Submitted" | "Verified" | "Rejected";
 export type VerificationStatus = "Pending Verification" | "Verified" | "Rejected" | "Needs Resubmission";
 export type AccountStatus = "active" | "pending_verification" | "suspended" | "deleted";
+export type LocationSource = "device" | "manual" | "map";
 
 export type UserProfile = {
   id: string;
@@ -44,6 +46,9 @@ export type UserProfile = {
   thirdPartyProvider?: "none" | "google";
   currentLatitude?: number;
   currentLongitude?: number;
+  locationUpdatedAt?: string;
+  locationAccuracyMeters?: number;
+  locationSource?: Extract<LocationSource, "device" | "manual">;
   preferredRadiusKm?: number;
   completedTasks?: number;
   activeTaskId?: string;
@@ -68,6 +73,9 @@ export type Task = {
   latitude?: number;
   longitude?: number;
   geofenceRadius?: number;
+  locationCapturedAt?: string;
+  locationAccuracyMeters?: number;
+  locationSource?: LocationSource;
   requiredCapability?: string;
   wage: string;
   estimatedDuration: string;
@@ -76,6 +84,11 @@ export type Task = {
   paymentStatus?: PaymentStatus;
   proofOfPaymentUrl?: string;
   proofOfPaymentText?: string;
+  clientConfirmedAt?: string;
+  workerConfirmedAt?: string;
+  paymentReviewedAt?: string;
+  paymentReviewedBy?: string;
+  paymentReviewReason?: string;
   createdAt: string;
   acceptedAt?: string;
   startedAt?: string;
@@ -90,12 +103,14 @@ export type Task = {
 
 export type ChatMessage = {
   id: string;
+  conversationId?: string;
   taskId: string;
   senderId: string;
   receiverId: string;
   participantIds?: string[];
   message: string;
   timestamp: string;
+  readAt?: string;
 };
 
 export type Rating = {
@@ -116,6 +131,16 @@ export type AppNotification = {
   message: string;
   readStatus: boolean;
   createdAt: string;
+  route?: "task" | "chat";
+  senderId?: string;
+  conversationId?: string;
+};
+
+export type NotificationPreferences = {
+  pushEnabled: boolean;
+  messagesEnabled: boolean;
+  taskUpdatesEnabled: boolean;
+  matchingEnabled: boolean;
 };
 
 export type TaskMatch = {
@@ -124,6 +149,11 @@ export type TaskMatch = {
   workerId: string;
   clientId: string;
   acceptanceStatus: "Applied" | "Accepted" | "Rejected" | "Withdrawn" | "Cancelled";
+  matchScore?: number;
+  matchReasons?: string[];
+  distanceKm?: number;
+  eligible?: boolean;
+  matchPolicyVersion?: number;
   createdAt: string;
   hiredAt?: string;
   rejectedAt?: string;
@@ -141,6 +171,36 @@ export type Payment = {
   paymentStatus: PaymentStatus;
   proofOfPaymentUrl?: string;
   proofOfPaymentText?: string;
+  clientConfirmedAt?: string;
+  workerConfirmedAt?: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
+  reviewReason?: string;
   createdAt: string;
   updatedAt?: string;
+};
+
+export type VerificationRequest = {
+  id: string;
+  userId: string;
+  validIdType: string;
+  validIdPath: string;
+  medicalCertificatePath: string;
+  status: VerificationStatus;
+  submittedAt: string;
+  updatedAt: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
+  reviewReason?: string;
+};
+
+export type AuditLog = {
+  id: string;
+  actorId: string;
+  action: string;
+  targetType: "user" | "verification" | "payment" | "task";
+  targetId: string;
+  reason?: string;
+  createdAt: string;
+  metadata?: Record<string, unknown>;
 };

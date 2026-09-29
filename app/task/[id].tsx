@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBadge } from "../../src/components/StatusBadge";
 import { useApp } from "../../src/context/AppContext";
+import { rankTaskMatches } from "../../src/domain/matching";
 
 const palette = {
   background: "#F7FAF8",
@@ -27,7 +28,7 @@ export default function TaskDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { currentUser, users, getUserById, tasks, acceptTask, rejectApplication, updateTaskStatus } = useApp();
+  const { currentUser, users, getUserById, tasks, taskMatches, acceptTask, rejectApplication, updateTaskStatus } = useApp();
   const task = tasks.find((item) => item.id === id);
 
   if (!task) {
@@ -46,7 +47,16 @@ export default function TaskDetailsScreen() {
   if (task.status === "Applied" && task.workerId && !applicantIds.includes(task.workerId)) {
     applicantIds.push(task.workerId);
   }
-  const applicants = users.filter((user) => applicantIds.includes(user.id));
+  const rankedMatches = rankTaskMatches(taskMatches.filter(
+    (match) => match.taskId === task.id && applicantIds.includes(match.workerId) && match.acceptanceStatus === "Applied"
+  ));
+  const rankedApplicantIds = [...rankedMatches.map((match) => match.workerId), ...applicantIds.filter(
+    (applicantId) => !rankedMatches.some((match) => match.workerId === applicantId)
+  )];
+  const applicants = rankedApplicantIds.flatMap((applicantId) => {
+    const applicant = users.find((user) => user.id === applicantId);
+    return applicant ? [applicant] : [];
+  });
   const applicantCount = applicantIds.length;
   const hasAcceptedWorker = task.status === "Accepted" && Boolean(task.workerId);
   const worker = getUserById(task.workerId);
@@ -159,6 +169,15 @@ export default function TaskDetailsScreen() {
             ) : applicants.length ? (
               applicants.map((applicant) => (
                 <View key={applicant.id} style={styles.workerCard}>
+                  {(() => {
+                    const match = rankedMatches.find((item) => item.workerId === applicant.id);
+                    return match ? (
+                      <View style={styles.skillRow}>
+                        <Text style={styles.skillChip}>{match.matchScore ?? 0}% match</Text>
+                        {(match.matchReasons ?? []).slice(0, 2).map((reason) => <Text key={reason} style={styles.workerNote}>{reason}</Text>)}
+                      </View>
+                    ) : null;
+                  })()}
                   <Pressable
                     accessibilityRole="button"
                     onPress={() =>

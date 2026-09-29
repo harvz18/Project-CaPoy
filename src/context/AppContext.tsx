@@ -2,8 +2,10 @@ import React, { createContext, PropsWithChildren, useContext, useEffect, useMemo
 import {
   AppNotification,
   ChatMessage,
+  NotificationPreferences,
   PaymentMethod,
   PaymentStatus,
+  PublicRole,
   Rating,
   Role,
   Task,
@@ -19,9 +21,23 @@ import {
   subscribeToAuthState
 } from "../services/authService";
 import { assertCanApply, assertTaskTransition } from "../domain/taskWorkflow";
-import { sendMessageToFirestore, subscribeToMessages } from "../services/chatService";
+import {
+  markConversationMessagesRead,
+  loadOlderMessages,
+  sendMessageToFirestore,
+  subscribeToMessages
+} from "../services/chatService";
 import { hasFirebaseConfig } from "../services/firebase";
-import { addNotification, subscribeToNotifications } from "../services/notificationService";
+import {
+  defaultNotificationPreferences,
+  markAllNotificationsRead,
+  markNotificationRead,
+  saveNotificationPreferences,
+  subscribeToNotificationPreferences,
+  subscribeToNotifications
+} from "../services/notificationService";
+import { disableCurrentPushToken, registerPushToken } from "../services/pushNotificationService";
+import { confirmCashPayment as confirmCashPaymentWithBackend } from "../services/adminService";
 import { addRatingToFirestore, subscribeToRatings } from "../services/ratingService";
 import {
   applyToTask,
@@ -41,12 +57,13 @@ import {
   subscribeToUserProfile,
   updateUserProfile
 } from "../services/userService";
-import { formatDistance, getTaskDistanceKm, isWorkerInsideTaskGeofence } from "../utils/location";
+import { captureForegroundLocation } from "../services/locationService";
+import { getGeofenceCheck, hasValidCoordinates } from "../utils/location";
 
 type RegisterInput = {
   fullName: string;
   mobileNumber: string;
-  role: Role;
+  role: PublicRole;
   address: string;
   password?: string;
   skills?: string[];
@@ -68,6 +85,9 @@ type TaskInput = {
   latitude?: number;
   longitude?: number;
   geofenceRadius?: number;
+  locationCapturedAt?: string;
+  locationAccuracyMeters?: number;
+  locationSource?: Task["locationSource"];
   requiredCapability?: string;
   wage: string;
   estimatedDuration: string;
@@ -78,16 +98,18 @@ type AppContextValue = {
   currentUser: UserProfile | null;
   users: UserProfile[];
   tasks: Task[];
+  taskMatches: TaskMatch[];
   messages: ChatMessage[];
   ratings: Rating[];
   notifications: AppNotification[];
+  notificationPreferences: NotificationPreferences;
   usingFirebase: boolean;
   appLoading: boolean;
   actionLoading: boolean;
   error: string | null;
   login: (role: Role, input?: LoginInput) => Promise<UserProfile>;
   register: (input: RegisterInput) => Promise<void>;
-  setRole: (role: Role) => Promise<void>;
+  setRole: (role: PublicRole) => Promise<void>;
   logout: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
   getUserById: (userId?: string) => UserProfile | undefined;
@@ -96,10 +118,16 @@ type AppContextValue = {
   withdrawApplication: (taskId: string) => Promise<void>;
   rejectApplication: (taskId: string, workerId: string) => Promise<void>;
   updateTaskStatus: (taskId: string, status: TaskStatus, workerId?: string) => Promise<void>;
-  submitPaymentProof: (taskId: string, proofOfPaymentText: string) => Promise<void>;
+  submitPaymentProof: (taskId: string, proofOfPaymentText: string, proofOfPaymentUrl?: string) => Promise<void>;
+  confirmCashPayment: (taskId: string) => Promise<void>;
   sendMessage: (taskId: string, message: string, receiverId?: string) => Promise<void>;
+  markMessagesRead: (taskId: string, otherParticipantId: string) => Promise<void>;
+  loadOlderChatMessages: () => Promise<number>;
+  markNotificationAsRead: (notificationId: string) => Promise<void>;
+  markEveryNotificationRead: () => Promise<void>;
+  updateNotificationPreferences: (updates: Partial<NotificationPreferences>) => Promise<void>;
   submitRating: (taskId: string, score: number, feedback: string) => Promise<void>;
-  getTaskMessages: (taskId: string) => ChatMessage[];
+  getTaskMessages: (taskId: string, otherParticipantId?: string) => ChatMessage[];
   clearError: () => void;
 };
 
@@ -114,6 +142,7 @@ export function AppProvider({ children }: PropsWithChildren) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [ratings, setRatings] = useState<Rating[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [notificationPreferences, setNotificationPreferences] = useState(defaultNotificationPreferences);
   const [appLoading, setAppLoading] = useState(usingFirebase);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -151,7 +180,7 @@ export function AppProvider({ children }: PropsWithChildren) {
             setCurrentUser(null);
             return;
           }
-          if (profile) {
+          if (profile && profile.role !== "admin") {
             await ensurePublicProfile(profile);
           }
           setCurrentUser(profile);
@@ -173,6 +202,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       setMessages([]);
       setRatings([]);
       setNotifications([]);
+      setNotificationPreferences(defaultNotificationPreferences);
       return () => undefined;
     }
 
@@ -196,13 +226,22 @@ export function AppProvider({ children }: PropsWithChildren) {
       subscribeToPublicProfiles(setUsers, handleListenerError),
       subscribeToTasksForUser(currentUser, setTaskSnapshots, handleListenerError),
       subscribeToTaskMatchesForUser(currentUser, setTaskMatches, handleListenerError),
-      subscribeToMessages(currentUser.id, setMessages, handleListenerError),
+      subscribeToMessages(currentUser.id, (incoming) => {
+        setMessages((existing) => mergeMessages(existing, incoming));
+      }, handleListenerError),
       subscribeToRatings(setRatings, handleListenerError),
-      subscribeToNotifications(currentUser.id, setNotifications, handleListenerError)
+      subscribeToNotifications(currentUser.id, setNotifications, handleListenerError),
+      subscribeToNotificationPreferences(currentUser.id, setNotificationPreferences, handleListenerError)
     ];
 
     return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
   }, [currentUser?.id, currentUser?.role]);
+
+  useEffect(() => {
+    if (currentUser && notificationPreferences.pushEnabled) {
+      void registerPushToken(currentUser.id).catch(() => undefined);
+    }
+  }, [currentUser?.id, notificationPreferences.pushEnabled]);
 
   function handleListenerError(listenerError: Error) {
     setError(listenerError.message);
@@ -242,7 +281,7 @@ export function AppProvider({ children }: PropsWithChildren) {
         throw new Error("This account is unavailable. Please contact support.");
       }
 
-      await ensurePublicProfile(user);
+      if (user.role !== "admin") await ensurePublicProfile(user);
       setCurrentUser(user);
       authenticatedUser = user;
     });
@@ -278,7 +317,7 @@ export function AppProvider({ children }: PropsWithChildren) {
     });
   }
 
-  async function setRole(role: Role) {
+  async function setRole(role: PublicRole) {
     await runAction(async () => {
       if (!currentUser) {
         throw new Error("Please log in before selecting a role.");
@@ -290,8 +329,8 @@ export function AppProvider({ children }: PropsWithChildren) {
         availability: role === "worker" ? "Available" : undefined,
         verificationStatus: role === "worker" ? currentUser.verificationStatus ?? "Pending Verification" : undefined,
         preferredRadiusKm: role === "worker" ? currentUser.preferredRadiusKm ?? 5 : undefined,
-        currentLatitude: role === "worker" ? currentUser.currentLatitude ?? 10.6765 : undefined,
-        currentLongitude: role === "worker" ? currentUser.currentLongitude ?? 122.9509 : undefined
+        currentLatitude: role === "worker" ? currentUser.currentLatitude : undefined,
+        currentLongitude: role === "worker" ? currentUser.currentLongitude : undefined
       };
       await updateUserProfile(currentUser.id, updates);
       setCurrentUser({
@@ -303,6 +342,7 @@ export function AppProvider({ children }: PropsWithChildren) {
 
   async function logout() {
     await runAction(async () => {
+      if (currentUser) await disableCurrentPushToken(currentUser.id);
       await logoutFromFirebase();
       setCurrentUser(null);
       setNotifications([]);
@@ -331,6 +371,9 @@ export function AppProvider({ children }: PropsWithChildren) {
         medicalCertificateUrl: updates.medicalCertificateUrl,
         currentLatitude: updates.currentLatitude,
         currentLongitude: updates.currentLongitude,
+        locationUpdatedAt: updates.locationUpdatedAt,
+        locationAccuracyMeters: updates.locationAccuracyMeters,
+        locationSource: updates.locationSource,
         preferredRadiusKm: updates.preferredRadiusKm
       };
 
@@ -364,7 +407,6 @@ export function AppProvider({ children }: PropsWithChildren) {
         wage: input.wage.trim()
       });
 
-      await notifyWorkers(createdTask.id, `New task posted in Bacolod City: ${createdTask.title}.`);
     });
 
     if (!createdTask) {
@@ -424,24 +466,27 @@ export function AppProvider({ children }: PropsWithChildren) {
       const nextWorkerId = workerId ?? task?.workerId ?? (currentUser?.role === "worker" ? currentUser.id : undefined);
       assertTaskTransition(task, status, currentUser, nextWorkerId);
 
-      if (
-        currentUser?.role === "worker" &&
-        task &&
-        (status === "In Progress" || status === "Pending Approval") &&
-        !isWorkerInsideTaskGeofence(currentUser, task)
-      ) {
-        const distance = formatDistance(getTaskDistanceKm(currentUser, task));
-        const radius = task.geofenceRadius ?? 0;
-        throw new Error(
-          `Location check: you are ${distance}. Please move within ${radius} meters of the task area before continuing.`
-        );
+      let actor = currentUser;
+      if (currentUser.role === "worker" && (status === "In Progress" || status === "Pending Approval")) {
+        const captured = await captureForegroundLocation();
+        const locationUpdates: Partial<UserProfile> = {
+          currentLatitude: captured.latitude,
+          currentLongitude: captured.longitude,
+          locationUpdatedAt: captured.capturedAt,
+          locationAccuracyMeters: captured.accuracyMeters,
+          locationSource: captured.source
+        };
+        await updateUserProfile(currentUser.id, locationUpdates);
+        actor = { ...currentUser, ...locationUpdates };
+        const check = getGeofenceCheck(actor, task);
+        if (!check.allowed) throw new Error(`Location check: ${check.reason}`);
       }
 
-      await updateTaskStatusInFirestore(taskId, status, currentUser, nextWorkerId);
+      await updateTaskStatusInFirestore(taskId, status, actor, nextWorkerId);
     });
   }
 
-  async function submitPaymentProof(taskId: string, proofOfPaymentText: string) {
+  async function submitPaymentProof(taskId: string, proofOfPaymentText: string, proofOfPaymentUrl?: string) {
     await runAction(async () => {
       if (!currentUser || currentUser.role !== "client") {
         throw new Error("Only the client can submit payment proof for this task.");
@@ -457,8 +502,18 @@ export function AppProvider({ children }: PropsWithChildren) {
         throw new Error("Only the client who posted this task can submit payment proof.");
       }
 
+      if (task.paymentMethod === "GCash link" && !proofOfPaymentUrl) {
+        throw new Error("Upload an image or PDF payment receipt before submitting.");
+      }
       const nextStatus: PaymentStatus = proofOfPaymentText.trim() ? "Submitted" : "Pending";
-      await updateTaskPaymentVerification(taskId, currentUser.id, nextStatus, proofOfPaymentText.trim());
+      await updateTaskPaymentVerification(taskId, currentUser.id, nextStatus, proofOfPaymentText.trim(), proofOfPaymentUrl);
+    });
+  }
+
+  async function confirmCashPayment(taskId: string) {
+    await runAction(async () => {
+      if (!currentUser || currentUser.role !== "worker") throw new Error("Only the assigned worker can confirm cash receipt.");
+      await confirmCashPaymentWithBackend(taskId);
     });
   }
 
@@ -473,6 +528,10 @@ export function AppProvider({ children }: PropsWithChildren) {
       if (!task) {
         throw new Error("Task not found.");
       }
+
+      const trimmedMessage = message.trim();
+      if (!trimmedMessage) throw new Error("Enter a message before sending.");
+      if (trimmedMessage.length > 2000) throw new Error("Messages can contain up to 2,000 characters.");
 
       const participantIds = [task.clientId, task.workerId, ...(task.applicantIds ?? [])].filter(Boolean);
 
@@ -493,10 +552,41 @@ export function AppProvider({ children }: PropsWithChildren) {
         taskId,
         senderId: currentUser.id,
         receiverId: nextReceiverId,
-        message,
+        message: trimmedMessage,
         timestamp: new Date().toISOString()
-      });
+      }, currentUser.role === "worker" ? currentUser.id : nextReceiverId);
     });
+  }
+
+  async function markMessagesRead(taskId: string, otherParticipantId: string) {
+    if (!currentUser) return;
+    await markConversationMessagesRead(taskId, currentUser.id, otherParticipantId, messages);
+  }
+
+  async function loadOlderChatMessages() {
+    if (!currentUser || !messages.length) return 0;
+    const oldestTimestamp = messages.reduce((oldest, message) =>
+      message.timestamp < oldest ? message.timestamp : oldest, messages[0].timestamp);
+    const older = await loadOlderMessages(currentUser.id, oldestTimestamp);
+    setMessages((existing) => mergeMessages(existing, older));
+    return older.length;
+  }
+
+  async function markNotificationAsRead(notificationId: string) {
+    await markNotificationRead(notificationId);
+  }
+
+  async function markEveryNotificationRead() {
+    await markAllNotificationsRead(notifications);
+  }
+
+  async function updateNotificationPreferences(updates: Partial<NotificationPreferences>) {
+    if (!currentUser) throw new Error("Please log in before changing notification settings.");
+    const next = { ...notificationPreferences, ...updates };
+    if (updates.pushEnabled === true) await registerPushToken(currentUser.id);
+    if (updates.pushEnabled === false) await disableCurrentPushToken(currentUser.id);
+    await saveNotificationPreferences(currentUser.id, next);
+    setNotificationPreferences(next);
   }
 
   function getClientMessageReceiverId(task: Task, requestedReceiverId?: string) {
@@ -554,8 +644,13 @@ export function AppProvider({ children }: PropsWithChildren) {
     });
   }
 
-  function getTaskMessages(taskId: string) {
-    return messages.filter((message) => message.taskId === taskId);
+  function getTaskMessages(taskId: string, otherParticipantId?: string) {
+    return messages.filter((message) =>
+      message.taskId === taskId
+      && (!otherParticipantId
+        || message.senderId === otherParticipantId
+        || message.receiverId === otherParticipantId)
+    );
   }
 
   function getUserById(userId?: string) {
@@ -566,29 +661,16 @@ export function AppProvider({ children }: PropsWithChildren) {
     setError(null);
   }
 
-  async function notifyWorkers(taskId: string, message: string) {
-    const workerUsers = users.filter((user) => user.role === "worker");
-
-    await Promise.all(
-      workerUsers.map((worker) =>
-        addNotification({
-          userId: worker.id,
-          taskId,
-          notificationType: "Nearby task",
-          message
-        })
-      )
-    );
-  }
-
   const value = useMemo<AppContextValue>(
     () => ({
       currentUser,
       users,
       tasks,
+      taskMatches,
       messages,
       ratings,
       notifications,
+      notificationPreferences,
       usingFirebase,
       appLoading,
       actionLoading,
@@ -605,12 +687,18 @@ export function AppProvider({ children }: PropsWithChildren) {
       rejectApplication,
       updateTaskStatus,
       submitPaymentProof,
+      confirmCashPayment,
       sendMessage,
+      markMessagesRead,
+      loadOlderChatMessages,
+      markNotificationAsRead,
+      markEveryNotificationRead,
+      updateNotificationPreferences,
       submitRating,
       getTaskMessages,
       clearError
     }),
-    [currentUser, users, tasks, messages, ratings, notifications, appLoading, actionLoading, error]
+    [currentUser, users, tasks, taskMatches, messages, ratings, notifications, notificationPreferences, appLoading, actionLoading, error]
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
@@ -618,6 +706,13 @@ export function AppProvider({ children }: PropsWithChildren) {
 
 function isBlockedAccount(user: UserProfile) {
   return user.accountStatus === "suspended" || user.accountStatus === "deleted";
+}
+
+function mergeMessages(existing: ChatMessage[], incoming: ChatMessage[]) {
+  const merged = new Map(existing.map((message) => [message.id, message]));
+  incoming.forEach((message) => merged.set(message.id, message));
+  return [...merged.values()].sort((left, right) =>
+    new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime());
 }
 
 function validateRegistration(input: RegisterInput) {
@@ -641,6 +736,14 @@ function validateTask(input: TaskInput) {
 
   if (!input.location.trim()) {
     throw new Error("Task location is required.");
+  }
+
+  if (!hasValidCoordinates({ latitude: input.latitude, longitude: input.longitude }) || !input.locationSource) {
+    throw new Error("Set a valid task pin using device location, the map, or manual coordinates.");
+  }
+
+  if (!input.geofenceRadius || input.geofenceRadius < 100 || input.geofenceRadius > 5000) {
+    throw new Error("Choose a task service radius from 100 to 5,000 meters.");
   }
 
   if (!input.wage.trim() || Number(input.wage) <= 0) {
