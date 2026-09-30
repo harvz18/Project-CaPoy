@@ -138,8 +138,8 @@ export default function TaskDetailsScreen() {
                   </View>
                   <View style={styles.flex}>
                     <Text style={styles.workerName}>{worker?.fullName ?? "Worker"}</Text>
-                    <Text style={styles.workerMeta}>* {worker?.rating ?? "-"} • {worker?.completedTasks ?? 0} jobs</Text>
-                    <Text style={styles.workerNote}>{worker?.availabilityStatus ?? "Available for this task."}</Text>
+                    <Text style={styles.workerMeta}>{ratingSummary(worker?.rating)} · {worker?.completedTasks ?? 0} jobs</Text>
+                    <Text style={styles.workerNote}>{worker?.availabilityStatus ?? "Availability not recorded"}</Text>
                   </View>
                 </Pressable>
                 <View style={styles.skillRow}>
@@ -190,8 +190,8 @@ export default function TaskDetailsScreen() {
                     </View>
                     <View style={styles.flex}>
                       <Text style={styles.workerName}>{applicant.fullName}</Text>
-                      <Text style={styles.workerMeta}>* {applicant.rating ?? "-"} • {applicant.completedTasks ?? 0} jobs</Text>
-                      <Text style={styles.workerNote}>{applicant.availabilityStatus ?? "Available for this task."}</Text>
+                      <Text style={styles.workerMeta}>{ratingSummary(applicant.rating)} · {applicant.completedTasks ?? 0} jobs</Text>
+                      <Text style={styles.workerNote}>{applicant.availabilityStatus ?? "Availability not recorded"}</Text>
                     </View>
                   </Pressable>
                   <View style={styles.skillRow}>
@@ -295,14 +295,18 @@ function TopBar({ title, onBack }: { title: string; onBack: () => void }) {
   return (
     <View style={styles.header}>
       <View style={styles.headerLeft}>
-        <Pressable onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backText}>‹</Text>
+        <Pressable accessibilityLabel="Go back" accessibilityRole="button" onPress={onBack} style={styles.backButton}>
+          <Text style={styles.backText}>Back</Text>
         </Pressable>
         <Text style={styles.headerTitle}>{title}</Text>
       </View>
       <Text style={styles.brand}>TASKLINK</Text>
     </View>
   );
+}
+
+function ratingSummary(rating?: number) {
+  return rating !== undefined && rating > 0 ? `${rating.toFixed(1)} rating` : "Not rated";
 }
 
 function DetailBox({ label, value }: { label: string; value: string }) {
@@ -327,8 +331,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between"
   },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1 },
-  backButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  backText: { color: palette.primary, fontSize: 34, lineHeight: 36 },
+  backButton: { minWidth: 48, minHeight: 44, alignItems: "center", justifyContent: "center" },
+  backText: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "900" },
   headerTitle: { color: palette.text, fontSize: 20, lineHeight: 28, fontWeight: "800" },
   brand: { color: palette.primary, fontSize: 16, lineHeight: 22, fontWeight: "900" },
   content: { padding: 16, gap: 14 },

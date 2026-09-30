@@ -30,7 +30,8 @@ const palette = {
 export default function WorkerDashboardScreen() {
   const router = useRouter();
   const [selectedTab, setSelectedTab] = useState<"active" | "finished">("active");
-  const { currentUser, tasks, ratings, acceptTask } = useApp();
+  const [actionMessage, setActionMessage] = useState("");
+  const { actionLoading, currentUser, tasks, ratings, acceptTask } = useApp();
   const postedTasks = tasks.filter((task) => task.status === "Finding Workers" || task.status === "Applied");
   const rankedPostedTasks = currentUser ? rankTasksForWorker(postedTasks, currentUser) : [];
   const acceptedTasks = tasks.filter(
@@ -47,8 +48,13 @@ export default function WorkerDashboardScreen() {
   const discoveryLocationIssue = getDiscoveryLocationIssue(currentUser);
 
   async function handleQuickApply(task: Task) {
-    await acceptTask(task.id);
-    router.push(`/task-status/${task.id}`);
+    try {
+      setActionMessage("");
+      await acceptTask(task.id);
+      router.push(`/task-status/${task.id}`);
+    } catch (applyError) {
+      setActionMessage(applyError instanceof Error ? applyError.message : "Unable to submit this application.");
+    }
   }
 
   return (
@@ -58,22 +64,23 @@ export default function WorkerDashboardScreen() {
         <View style={styles.heroPanel}>
           <View style={styles.heroCopy}>
             <Text style={styles.heroKicker}>Worker Home</Text>
-            <Text style={styles.heroTitle}>Welcome back, {currentUser?.fullName?.split(" ")[0] ?? "Juan"}.</Text>
+            <Text style={styles.heroTitle}>Welcome back, {currentUser?.fullName?.split(" ")[0] ?? "there"}.</Text>
             <Text style={styles.heroText}>{discoveryLocationIssue ?? "Your discovery location is current. Matching jobs inside your preferred radius will appear here."}</Text>
           </View>
           <View style={styles.availabilityPill}>
-            <Text style={styles.availabilityText}>{currentUser?.availabilityStatus ?? "Available"}</Text>
+            <Text style={styles.availabilityText}>{currentUser?.availabilityStatus ?? "Not set"}</Text>
           </View>
         </View>
 
         <View style={styles.statsGrid}>
-          <StatCard label="Available Jobs" value={String(postedTasks.length).padStart(2, "0")} />
+          <StatCard label="Open Jobs" value={String(postedTasks.length).padStart(2, "0")} />
           <StatCard label="Applications" value={String(acceptedTasks.length).padStart(2, "0")} />
         </View>
 
         <View style={styles.tabRow}>
           <Pressable
             accessibilityRole="tab"
+            accessibilityState={{ selected: selectedTab === "active" }}
             onPress={() => setSelectedTab("active")}
             style={[styles.tabButton, selectedTab === "active" && styles.tabButtonActive]}
           >
@@ -81,6 +88,7 @@ export default function WorkerDashboardScreen() {
           </Pressable>
           <Pressable
             accessibilityRole="tab"
+            accessibilityState={{ selected: selectedTab === "finished" }}
             onPress={() => setSelectedTab("finished")}
             style={[styles.tabButton, selectedTab === "finished" && styles.tabButtonActive]}
           >
@@ -147,7 +155,6 @@ export default function WorkerDashboardScreen() {
             height={208}
           />
           <View style={styles.locationBadge}>
-            <Text style={styles.locationIcon}>•</Text>
             <Text style={styles.locationText}>{rankedPostedTasks.filter(({ match }) => match.eligible).length} matching jobs near you</Text>
           </View>
         </View>
@@ -157,21 +164,21 @@ export default function WorkerDashboardScreen() {
             <Text style={styles.sectionTitle}>Top Opportunities</Text>
             <Text style={styles.sectionSubtitle}>A quick glance. Jobs has the full board with filters.</Text>
           </View>
-          <Pressable onPress={() => router.push("/jobs")} style={styles.viewAllButton}>
+          <Pressable accessibilityRole="button" onPress={() => router.push("/jobs")} style={styles.viewAllButton}>
             <Text style={styles.viewAllText}>View All</Text>
           </Pressable>
         </View>
 
         <View style={styles.jobGrid}>
           {featuredJobs.length ? (
-            featuredJobs.map(({ task, match }, index) => (
+            featuredJobs.map(({ task, match }) => (
                 <WorkerJobCard
                 key={task.id}
                 task={task}
-                urgent={index === 0 || task.wage === "1200"}
                 match={match}
                 onOpen={() => router.push(`/task/${task.id}`)}
                 onQuickAccept={() => handleQuickApply(task)}
+                applying={actionLoading}
               />
             ))
           ) : (
@@ -182,7 +189,9 @@ export default function WorkerDashboardScreen() {
           )}
         </View>
 
-        <Pressable onPress={() => router.push("/jobs")} style={styles.fullBoardButton}>
+        {actionMessage ? <Text accessibilityRole="alert" style={styles.actionMessage}>{actionMessage}</Text> : null}
+
+        <Pressable accessibilityRole="button" onPress={() => router.push("/jobs")} style={styles.fullBoardButton}>
           <Text style={styles.fullBoardText}>Open Full Job Board</Text>
         </Pressable>
 
@@ -196,7 +205,6 @@ function DashboardHeader({ initials }: { initials: string }) {
   return (
     <View style={styles.header}>
       <View style={styles.headerLeft}>
-        <Text style={styles.menuText}>≡</Text>
         <Text style={styles.brand}>TASKLINK</Text>
       </View>
       <View style={styles.avatar}>
@@ -208,24 +216,19 @@ function DashboardHeader({ initials }: { initials: string }) {
 
 function WorkerJobCard({
   task,
-  urgent,
   match,
   onQuickAccept,
-  onOpen
+  onOpen,
+  applying
 }: {
   task: Task;
-  urgent?: boolean;
   match: MatchResult;
   onQuickAccept: () => void;
   onOpen: () => void;
+  applying: boolean;
 }) {
   return (
     <View style={styles.jobCard}>
-      {urgent ? (
-        <View style={styles.urgentBadge}>
-          <Text style={styles.urgentText}>URGENT</Text>
-        </View>
-      ) : null}
       <View style={styles.priceRow}>
         <Text style={styles.price}>P{task.wage}</Text>
       </View>
@@ -240,8 +243,8 @@ function WorkerJobCard({
         <Pressable accessibilityRole="button" onPress={onOpen} style={styles.detailsButton}>
           <Text style={styles.detailsButtonText}>Details</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" onPress={onQuickAccept} style={({ pressed }) => [styles.quickButton, pressed && styles.pressed]}>
-          <Text style={styles.quickButtonText}>Quick Apply</Text>
+        <Pressable accessibilityRole="button" disabled={applying} onPress={onQuickAccept} style={({ pressed }) => [styles.quickButton, applying && styles.disabled, pressed && styles.pressed]}>
+          <Text style={styles.quickButtonText}>{applying ? "Applying..." : "Quick Apply"}</Text>
         </Pressable>
       </View>
     </View>
@@ -381,7 +384,7 @@ function BottomNav({ active, router }: { active: string; router: ReturnType<type
         const selected = item.key === active;
         const color = selected ? "#684000" : palette.muted;
         return (
-          <Pressable key={item.key} onPress={() => router.push(item.route as never)} style={[styles.navItem, selected && styles.navItemActive]}>
+          <Pressable accessibilityLabel={item.label} accessibilityRole="button" accessibilityState={{ selected }} key={item.key} onPress={() => router.push(item.route as never)} style={[styles.navItem, selected && styles.navItemActive]}>
             <BottomNavIcon name={item.key} color={color} />
             <Text style={[styles.navLabel, selected && styles.navTextActive]}>{item.label}</Text>
           </Pressable>
@@ -493,6 +496,7 @@ const styles = StyleSheet.create({
   quickButtonText: { color: palette.white, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   fullBoardButton: { minHeight: 48, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: palette.secondaryContainer },
   fullBoardText: { color: "#684000", fontSize: 14, fontWeight: "900" },
+  actionMessage: { color: "#BA1A1A", fontSize: 13, lineHeight: 18, fontWeight: "700" },
   historyPanel: { padding: 16, borderRadius: 12, backgroundColor: palette.surfaceLow, gap: 12 },
   historyHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   historyList: { gap: 10 },
@@ -538,5 +542,6 @@ const styles = StyleSheet.create({
   navItemActive: { backgroundColor: palette.secondaryContainer },
   navLabel: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "600" },
   navTextActive: { color: "#684000" },
+  disabled: { opacity: 0.5 },
   pressed: { opacity: 0.78, transform: [{ scale: 0.99 }] }
 });

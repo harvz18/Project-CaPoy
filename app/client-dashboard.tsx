@@ -1,4 +1,5 @@
 import { useRouter } from "expo-router";
+import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomNavIcon } from "../src/components/BottomNavIcon";
@@ -30,21 +31,23 @@ const palette = {
 export default function ClientDashboardScreen() {
   const router = useRouter();
   const { currentUser, tasks, users } = useApp();
+  const [showAllOngoing, setShowAllOngoing] = useState(false);
   const clientTasks = tasks.filter((task) => task.clientId === currentUser?.id);
-  const activeClientTasks = clientTasks.filter((task) => task.status !== "Finished" && task.status !== "Archived");
+  const activeClientTasks = clientTasks.filter((task) => ["Finding Workers", "Applied", "Accepted", "In Progress", "Pending Approval", "Disputed"].includes(task.status));
   const finishedCount = clientTasks.filter((task) => task.status === "Finished").length;
   const finishedTasks = clientTasks.filter((task) => task.status === "Finished");
   const archivedTasks = clientTasks.filter((task) => task.status === "Archived");
-  const activeWorkers = users.filter((user) => user.role === "worker");
+  const registeredWorkers = users.filter((user) => user.role === "worker");
+  const availableWorkers = registeredWorkers.filter((user) => user.availabilityStatus === "Available");
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-      <DashboardHeader onPostTask={() => router.push("/post-task")} initials="M" />
+      <DashboardHeader onPostTask={() => router.push("/post-task")} initials={currentUser?.fullName?.[0] ?? "U"} />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.heroGrid}>
           <View style={styles.heroPanel}>
             <View style={styles.heroCopy}>
-              <Text style={styles.heroTitle}>Welcome back, {currentUser?.fullName?.split(" ")[0] ?? "Maria"}!</Text>
+              <Text style={styles.heroTitle}>Welcome back, {currentUser?.fullName?.split(" ")[0] ?? "there"}!</Text>
               <Text style={styles.heroText}>
                 You have {clientTasks.length} tasks in your workspace and {finishedCount} completed jobs.
               </Text>
@@ -59,40 +62,28 @@ export default function ClientDashboardScreen() {
             <Text style={styles.heroMark}>TL</Text>
           </View>
 
-          <View style={styles.healthCard}>
-            <View style={styles.healthTop}>
-              <Text style={styles.cardMutedBold}>System Health</Text>
-              <View style={styles.healthDot} />
-            </View>
-            <View style={styles.healthBody}>
-              <View style={styles.rowBetween}>
-                <Text style={styles.smallLabel}>Market Demand</Text>
-                <Text style={styles.successText}>High</Text>
-              </View>
-              <View style={styles.progressTrack}>
-                <View style={styles.progressFill} />
-              </View>
-              <Text style={styles.smallMuted}>Workers are currently very active in Bacolod City.</Text>
-            </View>
-          </View>
         </View>
 
         <View style={styles.statsGrid}>
           <StatCard label="Ongoing Jobs" value={String(activeClientTasks.length).padStart(2, "0")} tone="primary" />
-          <StatCard label="Active Workers" value={String(activeWorkers.length).padStart(2, "0")} tone="secondary" />
+          <StatCard label="Available Workers" value={String(availableWorkers.length).padStart(2, "0")} tone="secondary" />
           <StatCard label="Completed" value={String(finishedCount).padStart(2, "0")} tone="success" />
-          <StatCard label="Total Spend" value={`P${getTotalSpend(clientTasks)}`} tone="primary" />
+          <StatCard label="Verified Work Total" value={`P${getVerifiedWorkTotal(clientTasks)}`} tone="primary" />
         </View>
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Ongoing Jobs</Text>
-          <Text style={styles.linkText}>View All</Text>
+          {activeClientTasks.length > 2 ? (
+            <Pressable accessibilityRole="button" onPress={() => setShowAllOngoing((value) => !value)}>
+              <Text style={styles.linkText}>{showAllOngoing ? "Show Less" : "View All"}</Text>
+            </Pressable>
+          ) : null}
         </View>
 
         <View style={styles.jobGrid}>
           {activeClientTasks.length ? (
-            activeClientTasks.slice(0, 2).map((task, index) => (
-              <ClientJobCard key={task.id} task={task} urgent={index === 0} onPress={() => router.push(`/task/${task.id}`)} />
+            activeClientTasks.slice(0, showAllOngoing ? undefined : 2).map((task) => (
+              <ClientJobCard key={task.id} task={task} onPress={() => router.push(`/task/${task.id}`)} />
             ))
           ) : (
             <View style={styles.archiveEmptyRow}>
@@ -137,53 +128,50 @@ export default function ClientDashboardScreen() {
           )}
         </View>
 
-        <Text style={styles.sectionTitle}>Active Workers</Text>
+        <Text style={styles.sectionTitle}>Available Workers</Text>
         <View style={styles.workerPanel}>
-          {activeWorkers.length ? (
-            activeWorkers.slice(0, 3).map((worker) => (
+          {availableWorkers.length ? (
+            availableWorkers.slice(0, 3).map((worker) => (
               <WorkerRow
                 key={worker.id}
                 name={worker.fullName}
-                rating={`${worker.rating || 0} (${worker.completedTasks ?? 0} Jobs)`}
-                online={worker.availabilityStatus === "Available"}
+                rating={worker.rating > 0 ? `${worker.rating.toFixed(1)} rating · ${worker.completedTasks ?? 0} jobs` : `Not rated · ${worker.completedTasks ?? 0} jobs`}
               />
             ))
           ) : (
-            <Text style={styles.smallMuted}>Registered workers will appear here.</Text>
+            <Text style={styles.smallMuted}>No workers are currently marked available.</Text>
           )}
-        </View>
-
-        <View style={styles.tipCard}>
-          <Text style={styles.tipIcon}>i</Text>
-          <Text style={styles.tipText}>Tip: Jobs with a P500+ rate get accepted faster.</Text>
         </View>
       </ScrollView>
       <BottomNav active="home" router={router} />
       <Pressable
+        accessibilityLabel="Post a task"
         accessibilityRole="button"
         onPress={() => router.push("/post-task")}
         style={({ pressed }) => [styles.fab, pressed && styles.pressed]}
       >
-        <Text style={styles.fabText}>+</Text>
+        <Text style={styles.fabText}>Post</Text>
       </Pressable>
     </SafeAreaView>
   );
 }
 
-function getTotalSpend(tasks: Task[]) {
-  return tasks.reduce((total, task) => total + Number(task.wage || 0), 0).toLocaleString("en-PH");
+function getVerifiedWorkTotal(tasks: Task[]) {
+  return tasks
+    .filter((task) => ["Finished", "Archived"].includes(task.status) && task.paymentStatus === "Verified")
+    .reduce((total, task) => total + Number(task.wage || 0), 0)
+    .toLocaleString("en-PH");
 }
 
 function DashboardHeader({ onPostTask, initials }: { onPostTask: () => void; initials: string }) {
   return (
     <View style={styles.header}>
       <View style={styles.headerLeft}>
-        <Text style={styles.menuText}>≡</Text>
         <Text style={styles.brand}>TASKLINK</Text>
       </View>
       <View style={styles.headerRight}>
         <Pressable accessibilityRole="button" onPress={onPostTask} style={styles.headerPostButton}>
-          <Text style={styles.headerPostText}>+ Post Task</Text>
+          <Text style={styles.headerPostText}>Post Task</Text>
         </Pressable>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{initials}</Text>
@@ -204,25 +192,21 @@ function StatCard({ label, value, tone }: { label: string; value: string; tone: 
   );
 }
 
-function ClientJobCard({ task, urgent, onPress }: { task: Task; urgent?: boolean; onPress: () => void }) {
+function ClientJobCard({ task, onPress }: { task: Task; onPress: () => void }) {
   return (
-    <View style={[styles.jobCard, { borderLeftColor: urgent ? palette.urgent : palette.success }]}>
+    <View style={[styles.jobCard, { borderLeftColor: palette.primary }]}>
       <View style={styles.rowBetween}>
-        <Text style={[styles.statusChip, urgent ? styles.urgentChip : styles.scheduledChip]}>{urgent ? "URGENT" : "SCHEDULED"}</Text>
+        <StatusBadge status={task.status} />
         <Text style={styles.priceText}>P{task.wage}</Text>
       </View>
       <Text style={styles.jobTitle}>{task.title}</Text>
       <Text style={styles.smallMuted}>{task.location}</Text>
       <View style={styles.jobFooter}>
-        <View style={styles.workerStack}>
-          <View style={styles.smallAvatar}><Text style={styles.smallAvatarText}>W</Text></View>
-          <View style={styles.smallAvatarMuted}><Text style={styles.smallAvatarText}>+2</Text></View>
-        </View>
+        <Text style={styles.smallMuted}>{task.applicantIds?.length ?? 0} applicant{task.applicantIds?.length === 1 ? "" : "s"}</Text>
         <Pressable accessibilityRole="button" onPress={onPress} style={styles.detailButton}>
           <Text style={styles.detailButtonText}>Details</Text>
         </Pressable>
       </View>
-      <StatusBadge status={task.status} />
     </View>
   );
 }
@@ -269,20 +253,20 @@ function ArchivedTaskRow({ task, onPress }: { task: Task; onPress: () => void })
   );
 }
 
-function WorkerRow({ name, rating, online }: { name: string; rating: string; online?: boolean }) {
+function WorkerRow({ name, rating }: { name: string; rating: string }) {
   return (
     <View style={styles.workerRow}>
       <View style={styles.workerLeft}>
         <View style={styles.workerAvatar}>
           <Text style={styles.avatarText}>{name[0]}</Text>
-          <View style={[styles.onlineDot, { backgroundColor: online ? palette.success : palette.pending }]} />
+          <View style={[styles.onlineDot, { backgroundColor: palette.success }]} />
         </View>
         <View>
           <Text style={styles.workerName}>{name}</Text>
-          <Text style={styles.ratingText}>* {rating}</Text>
+          <Text style={styles.ratingText}>{rating}</Text>
         </View>
       </View>
-      <Text style={styles.chatButton}>Chat</Text>
+      <Text style={styles.availableText}>Available</Text>
     </View>
   );
 }
@@ -302,7 +286,7 @@ function BottomNav({ active, router }: { active: string; router: ReturnType<type
         const selected = item.key === active;
         const color = selected ? "#684000" : palette.muted;
         return (
-          <Pressable key={item.key} onPress={() => router.push(item.route as never)} style={[styles.navItem, selected && styles.navItemActive]}>
+          <Pressable accessibilityLabel={item.label} accessibilityRole="button" accessibilityState={{ selected }} key={item.key} onPress={() => router.push(item.route as never)} style={[styles.navItem, selected && styles.navItemActive]}>
             <BottomNavIcon name={item.key as "home" | "jobs" | "chat" | "profile"} color={color} />
             <Text style={[styles.navLabel, selected && styles.navTextActive]}>{item.label}</Text>
           </Pressable>
@@ -413,7 +397,7 @@ const styles = StyleSheet.create({
   onlineDot: { position: "absolute", right: 1, bottom: 1, width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: palette.white },
   workerName: { color: palette.text, fontSize: 14, fontWeight: "800" },
   ratingText: { color: palette.text, fontSize: 10, fontWeight: "800" },
-  chatButton: { color: palette.primary, fontSize: 12, fontWeight: "900" },
+  availableText: { color: palette.success, fontSize: 12, fontWeight: "900" },
   tipCard: { padding: 16, borderRadius: 12, backgroundColor: "#FFF8EE", borderWidth: 1, borderColor: "#E7C18C", flexDirection: "row", alignItems: "center", gap: 12 },
   tipIcon: { color: palette.secondary, fontSize: 18, fontWeight: "900" },
   tipText: { color: "#684000", flex: 1, fontSize: 12, lineHeight: 16 },
@@ -439,7 +423,7 @@ const styles = StyleSheet.create({
   navItemActive: { backgroundColor: palette.secondaryContainer },
   navLabel: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "600" },
   navTextActive: { color: "#684000" },
-  fab: { position: "absolute", right: 20, bottom: 88, width: 56, height: 56, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: palette.secondaryContainer, elevation: 12 },
-  fabText: { color: "#684000", fontSize: 30, lineHeight: 32, fontWeight: "600" },
+  fab: { position: "absolute", right: 20, bottom: 88, minWidth: 64, height: 56, paddingHorizontal: 12, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: palette.secondaryContainer, elevation: 12 },
+  fabText: { color: "#684000", fontSize: 13, lineHeight: 18, fontWeight: "900" },
   pressed: { opacity: 0.78, transform: [{ scale: 0.99 }] }
 });

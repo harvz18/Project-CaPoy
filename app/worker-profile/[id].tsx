@@ -1,4 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBadge } from "../../src/components/StatusBadge";
@@ -28,45 +29,64 @@ export default function WorkerPublicProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { id, taskId } = useLocalSearchParams<{ id: string; taskId?: string }>();
-  const { getUserById, ratings, updateTaskStatus, users } = useApp();
+  const { actionLoading, getUserById, ratings, updateTaskStatus, users } = useApp();
+  const [actionError, setActionError] = useState("");
   const worker = getUserById(id);
-  const skills = worker?.capabilities?.length ? worker.capabilities : worker?.skills?.length ? worker.skills : ["Cleaning", "Delivery assistance"];
-  const name = worker?.fullName ?? "Juan Dela Cruz";
-  const verificationStatus = worker?.verificationStatus ?? "Pending Verification";
+  const skills = worker?.capabilities?.length ? worker.capabilities : worker?.skills ?? [];
+  const name = worker?.fullName ?? "Worker profile";
+  const verificationStatus = worker?.verificationStatus ?? "Not submitted";
   const experienceText =
     worker?.experienceDescription ||
     (worker?.yearsOfExperience ? `${worker.yearsOfExperience} of local task experience.` : "Experience details not provided yet.");
-  const documentChecks = [
-    { label: "Profile photo", complete: Boolean(worker?.profilePhotoUrl || worker?.profilePhoto) },
-    { label: worker?.validIdType ? `Valid ID: ${worker.validIdType}` : "Valid ID", complete: Boolean(worker?.validIdUrl) },
-    { label: "Medical certificate", complete: Boolean(worker?.medicalCertificateUrl) }
-  ];
   const workerRatings = ratings
     .filter((rating) => rating.targetUserId === id)
-    .slice(0, 2)
     .map((rating) => ({
       ...rating,
       reviewerName: users.find((user) => user.id === rating.reviewerId)?.fullName ?? "TaskLink User"
     }));
   const averageRating = workerRatings.length
     ? (workerRatings.reduce((total, rating) => total + rating.score, 0) / workerRatings.length).toFixed(1)
-    : (worker?.rating ?? 4.9).toFixed(1);
+    : worker && worker.rating > 0 ? worker.rating.toFixed(1) : "Not rated";
   const reviewCountLabel = workerRatings.length ? `${workerRatings.length} reviews` : "No reviews yet";
+  const memberSince = worker?.createdAt && Number.isFinite(new Date(worker.createdAt).getTime())
+    ? String(new Date(worker.createdAt).getFullYear())
+    : "Not recorded";
 
   async function handleAcceptWorker() {
     if (!taskId || !worker) {
       return;
     }
-    await updateTaskStatus(taskId, "Accepted", worker.id);
-    router.replace(`/task-status/${taskId}`);
+    try {
+      setActionError("");
+      await updateTaskStatus(taskId, "Accepted", worker.id);
+      router.replace(`/task-status/${taskId}`);
+    } catch (acceptError) {
+      setActionError(acceptError instanceof Error ? acceptError.message : "Unable to accept this application.");
+    }
+  }
+
+  if (!worker) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
+        <View style={styles.header}>
+          <Pressable accessibilityLabel="Go back" accessibilityRole="button" onPress={() => router.back()} style={styles.backButton}>
+            <Text style={styles.backText}>Back</Text>
+          </Pressable>
+        </View>
+        <View style={styles.missingProfile}>
+          <Text style={styles.sectionTitle}>Worker profile unavailable</Text>
+          <Text style={styles.bio}>This profile could not be loaded. Go back and retry from the applicant list.</Text>
+        </View>
+      </SafeAreaView>
+    );
   }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.backButton}>
-            <Text style={styles.backText}>‹</Text>
+          <Pressable accessibilityLabel="Go back" accessibilityRole="button" onPress={() => router.back()} style={styles.backButton}>
+            <Text style={styles.backText}>Back</Text>
           </Pressable>
           <Text style={styles.brand}>TASKLINK</Text>
         </View>
@@ -89,15 +109,16 @@ export default function WorkerPublicProfileScreen() {
             <View style={styles.profileCopy}>
               <Text style={styles.profileName}>{name}</Text>
               <View style={styles.ratingRow}>
-                <Text style={styles.star}>*</Text>
                 <Text style={styles.ratingValue}>{averageRating}</Text>
                 <Text style={styles.reviewCount}>({reviewCountLabel})</Text>
               </View>
               <Text style={styles.bio}>{experienceText}</Text>
-              <StatusBadge status={worker?.availabilityStatus ?? "Available"} />
+              {worker.availabilityStatus
+                ? <StatusBadge status={worker.availabilityStatus} />
+                : <Text style={styles.bio}>Availability not recorded.</Text>}
               <View style={styles.statsGrid}>
-                <StatBox label="Jobs Completed" value="124" />
-                <StatBox label="Member since" value="2023" />
+                <StatBox label="Jobs Completed" value={String(worker.completedTasks ?? 0)} />
+                <StatBox label="Member since" value={memberSince} />
               </View>
             </View>
           </View>
@@ -106,11 +127,11 @@ export default function WorkerPublicProfileScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Capabilities</Text>
           <View style={styles.skillRow}>
-            {skills.map((skill, index) => (
-              <View key={`${skill}-${index}`} style={[styles.skillChip, index > 2 && styles.skillChipMuted]}>
-                <Text style={[styles.skillText, index > 2 && styles.skillTextMuted]}>{skill}</Text>
+            {skills.length ? skills.map((skill, index) => (
+              <View key={`${skill}-${index}`} style={styles.skillChip}>
+                <Text style={styles.skillText}>{skill}</Text>
               </View>
-            ))}
+            )) : <Text style={styles.bio}>No capabilities listed.</Text>}
           </View>
         </View>
 
@@ -121,26 +142,13 @@ export default function WorkerPublicProfileScreen() {
               <Text style={styles.verificationStatusText}>{verificationStatus}</Text>
             </View>
           </View>
-          <View style={styles.documentGrid}>
-            {documentChecks.map((item) => (
-              <View key={item.label} style={styles.documentRow}>
-                <View style={[styles.documentDot, item.complete && styles.documentDotComplete]} />
-                <Text style={styles.documentText}>{item.label}</Text>
-                <Text style={[styles.documentStatus, item.complete && styles.documentStatusComplete]}>
-                  {item.complete ? "Provided" : "Missing"}
-                </Text>
-              </View>
-            ))}
-          </View>
+          <Text style={styles.bio}>Private identity and medical files are reviewed by authorized staff and are not exposed on public profiles.</Text>
         </View>
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Reviews</Text>
-            <View style={styles.viewAllComingSoon}>
-              <Text style={styles.viewAll}>View All</Text>
-              <Text style={styles.viewAllHint}>Coming soon</Text>
-            </View>
+            <Text style={styles.sectionTitle}>Reviews</Text>
+            <Text style={styles.reviewCount}>{reviewCountLabel}</Text>
           </View>
           {workerRatings.length ? (
             workerRatings.map((rating) => (
@@ -162,34 +170,29 @@ export default function WorkerPublicProfileScreen() {
 
         <View style={styles.coverageCard}>
           <View style={styles.coverageHeader}>
-            <Text style={styles.coverageIcon}>•</Text>
-            <Text style={styles.coverageTitle}>Service Coverage</Text>
+            <Text style={styles.coverageTitle}>Location privacy</Text>
           </View>
-          <View style={styles.coverageMap}>
-            <View style={styles.mapRoadOne} />
-            <View style={styles.mapRoadTwo} />
-            <View style={styles.coverageBadge}>
-              <Text style={styles.coverageBadgeText}>{worker?.address ?? "Bacolod City"}</Text>
-            </View>
-          </View>
+          <Text style={styles.bio}>TaskLink uses the tasker's private saved location for matching. Exact coordinates and home address are not displayed here.</Text>
         </View>
+        {actionError ? <Text accessibilityRole="alert" style={styles.actionError}>{actionError}</Text> : null}
       </ScrollView>
 
       <View style={[styles.bottomAction, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <Pressable
-          disabled={!taskId || !worker}
-          style={[styles.messageButton, (!taskId || !worker) && styles.messageButtonDisabled]}
+          accessibilityRole="button"
+          disabled={!taskId}
+          style={[styles.messageButton, !taskId && styles.messageButtonDisabled]}
           onPress={() =>
             router.push({
               pathname: "/chat/[id]",
-              params: { id: taskId as string, recipientId: worker?.id as string }
+              params: { id: taskId as string, recipientId: worker.id }
             })
           }
         >
           <Text style={styles.messageButtonText}>Message</Text>
         </Pressable>
-        <Pressable disabled={!taskId} style={[styles.hireButton, !taskId && styles.hireButtonDisabled]} onPress={handleAcceptWorker}>
-          <Text style={styles.hireButtonText}>{taskId ? "Accept Application" : "No Task Selected"}</Text>
+        <Pressable accessibilityRole="button" disabled={!taskId || actionLoading} style={[styles.hireButton, (!taskId || actionLoading) && styles.hireButtonDisabled]} onPress={handleAcceptWorker}>
+          <Text style={styles.hireButtonText}>{actionLoading ? "Accepting..." : taskId ? "Accept Application" : "No Task Selected"}</Text>
         </Pressable>
       </View>
     </SafeAreaView>
@@ -229,12 +232,13 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.background },
   header: { minHeight: 56, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: palette.surface, borderBottomWidth: 1, borderBottomColor: "#EDF1EF" },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
-  backButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  backText: { color: palette.text, fontSize: 34, lineHeight: 36 },
+  backButton: { minWidth: 48, minHeight: 44, alignItems: "center", justifyContent: "center" },
+  backText: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "900" },
   brand: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "900" },
   smallAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: palette.surfaceHigh, alignItems: "center", justifyContent: "center" },
   avatarText: { color: palette.secondary, fontWeight: "900" },
   content: { padding: 16, paddingTop: 24, gap: 16 },
+  missingProfile: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 10 },
   profileCard: { padding: 24, borderRadius: 12, borderWidth: 1, borderColor: "rgba(189,201,198,0.35)", backgroundColor: palette.surface, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 2 },
   profileHeader: { alignItems: "center", gap: 20 },
   photoWrap: { position: "relative" },
@@ -286,6 +290,7 @@ const styles = StyleSheet.create({
   reviewStars: { color: palette.secondary, fontSize: 14, fontWeight: "900" },
   reviewText: { color: palette.muted, fontSize: 16, lineHeight: 24 },
   coverageCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "rgba(189,201,198,0.35)", backgroundColor: palette.surfaceLow, gap: 12 },
+  actionError: { color: "#BA1A1A", fontSize: 13, lineHeight: 18, fontWeight: "700", textAlign: "center" },
   coverageHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
   coverageIcon: { color: palette.primary, fontSize: 24, fontWeight: "900" },
   coverageTitle: { color: palette.textStrong, fontSize: 14, lineHeight: 20, fontWeight: "900", textTransform: "uppercase" },

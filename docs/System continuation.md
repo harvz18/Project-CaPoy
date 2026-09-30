@@ -541,6 +541,38 @@ Phase 6 verification:
 - Critical flows remain understandable and recoverable under expected beta failures.
 - No unsupported safety, payment, insurance, or real-time-tracking claim remains.
 
+### Phase 7 implementation status (October 1, 2026)
+
+Implemented in source:
+
+- Removed prototype names, ratings, task counts, availability/urgency claims, fixed city pins, silent Bacolod address rewriting, and default title/description/wage values from operational screens. Missing data is now shown as missing, unrated, unavailable, or not configured.
+- Replaced the static job chips with live-data category filters, full-text search, and deterministic recommended/nearest/newest/highest-pay sorting. Three domain tests cover category derivation, filtering, and sort order.
+- Removed the remote splash dependency and ambiguous decorative glyphs from critical controls. Primary navigation continues to use the shared code-native icon component, while text actions now have explicit labels.
+- Added mutation loading/error states to high-risk actions, a global listener error banner with safe subscription retry, an Expo Network online/offline banner, and an application-level render error boundary.
+- Added accessibility roles, selected/disabled states, input labels, and 44–48 px targets to the critical controls touched in this phase. Staff Help routing and small-screen wrapping constraints were corrected.
+- Added `docs/TASKLINK_BETA_OPERATIONS.md` with beta limitations, permission/location behavior, payment and identity statements, retention targets, manual deletion/correction procedures, support configuration, and the required tester evidence matrix.
+- Added the public Help screen and `EXPO_PUBLIC_SUPPORT_EMAIL` configuration. If no project mailbox is configured, the build says so instead of exposing a personal or invented contact.
+
+Verification completed:
+
+- TypeScript passed.
+- 34/34 application, matching, identity, authority, workflow, location, and job-discovery tests passed.
+- 25/25 Functions policy, matching, notification, moderation, and analytics tests passed.
+- 33/33 Firestore and Storage emulator regression tests passed.
+- Expo Doctor passed all 18 checks.
+- Android and web Expo exports passed with the Phase 7 source.
+- A static operational-fact audit found no remaining hard-coded person, rating, count, urgency, or city fallback in `app/` or `src/`.
+
+Still requires owner/device evidence:
+
+- Physical Android and browser checks for offline/reconnect transitions, keyboard coverage, large font scaling, TalkBack/screen-reader order, contrast, and every critical touch target.
+- A project-owned support mailbox must be placed in local/EAS/Render environment settings before distributing the beta.
+- The current error boundary logs locally. A consented, redacted remote crash processor is not configured and must not be represented as active.
+- The retention schedule is a documented manual operator process. Automated expiry requires a reviewed trusted backend and remains undeployed under the current no-charge constraint.
+- No Firebase rules, indexes, or Functions changed in this phase. The existing deployed rules remain in effect; Functions-dependent push, moderation, and analytics limitations remain unchanged.
+
+The source-level Phase 7 work is complete. The phase’s physical accessibility/offline verification and operational support/retention setup remain beta acceptance work and must be completed before claiming the overall 80–90% readiness gate.
+
 ## Continuation Phase 8 — Beta Deployment and Acceptance Testing
 
 **Goal:** demonstrate the agreed 80–90% functional beta in an isolated environment with reproducible evidence.

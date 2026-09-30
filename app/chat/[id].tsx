@@ -65,9 +65,12 @@ export default function ChatScreen() {
 
   async function handleLoadOlder() {
     setLoadingOlder(true);
+    setSendError("");
     try {
       const count = await loadOlderChatMessages();
       if (count === 0) setAllMessagesLoaded(true);
+    } catch (loadError) {
+      setSendError(loadError instanceof Error ? loadError.message : "Unable to load older messages.");
     } finally {
       setLoadingOlder(false);
     }
@@ -77,17 +80,14 @@ export default function ChatScreen() {
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.iconButton}>
-            <Text style={styles.menuText}>‹</Text>
+          <Pressable accessibilityLabel="Go back" accessibilityRole="button" onPress={() => router.back()} style={styles.iconButton}>
+            <Text style={styles.menuText}>Back</Text>
           </Pressable>
           <Text style={styles.brand}>TASKLINK</Text>
         </View>
         <View style={styles.headerRight}>
-          <Pressable accessibilityRole="button" style={styles.callButton}>
-            <Text style={styles.callText}>Call</Text>
-          </Pressable>
           <View style={styles.smallAvatar}>
-            <Text style={styles.avatarText}>{currentUser?.fullName?.[0] ?? "J"}</Text>
+            <Text style={styles.avatarText}>{currentUser?.fullName?.[0] ?? "U"}</Text>
           </View>
         </View>
       </View>
@@ -95,15 +95,11 @@ export default function ChatScreen() {
       <View style={styles.contextBar}>
         <View style={styles.contactAvatar}>
           <Text style={styles.avatarText}>{participant?.fullName?.[0] ?? "U"}</Text>
-          <View style={styles.onlineDot} />
         </View>
         <View style={styles.contextCopy}>
           <Text style={styles.contactName}>{participant?.fullName ?? "Task Chat"}</Text>
-          <Text style={styles.contactMeta}>Active now • {task?.title ?? "Task conversation"}</Text>
+          <Text style={styles.contactMeta}>{task?.title ?? "Task conversation"}</Text>
         </View>
-        <Pressable accessibilityRole="button" style={styles.locationButton}>
-          <Text style={styles.locationButtonText}>Pin</Text>
-        </Pressable>
       </View>
 
       <FlatList
@@ -135,17 +131,15 @@ export default function ChatScreen() {
           ))}
         </ScrollView>
         <View style={styles.inputRow}>
-          <Pressable style={styles.addButton}>
-            <Text style={styles.addButtonText}>+</Text>
-          </Pressable>
           <TextInput
+            accessibilityLabel="Message"
             onChangeText={setMessage}
             placeholder="Type a message..."
             placeholderTextColor={palette.outline}
             style={styles.input}
             value={message}
           />
-          <Pressable onPress={() => handleSend()} style={({ pressed }) => [styles.sendButton, pressed && styles.pressed]}>
+          <Pressable accessibilityRole="button" onPress={() => handleSend()} style={({ pressed }) => [styles.sendButton, pressed && styles.pressed]}>
             <Text style={styles.sendButtonText}>Send</Text>
           </Pressable>
         </View>
@@ -168,7 +162,8 @@ function MessageBubble({ message, mine }: { message: ChatMessage; mine: boolean 
 }
 
 function formatTime(timestamp: string) {
-  return new Date(timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const parsed = new Date(timestamp);
+  return Number.isFinite(parsed.getTime()) ? parsed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Time unavailable";
 }
 
 function BottomNav({
@@ -196,7 +191,7 @@ function BottomNav({
         const selected = item.key === active;
         const color = selected ? "#684000" : palette.muted;
         return (
-          <Pressable key={item.key} onPress={() => router.push(item.route as never)} style={[styles.navItem, selected && styles.navItemActive]}>
+          <Pressable accessibilityLabel={item.label} accessibilityRole="button" accessibilityState={{ selected }} key={item.key} onPress={() => router.push(item.route as never)} style={[styles.navItem, selected && styles.navItemActive]}>
             <BottomNavIcon name={item.key} color={color} />
             <Text style={[styles.navLabel, selected && styles.navTextActive]}>{item.label}</Text>
           </Pressable>
@@ -220,8 +215,8 @@ const styles = StyleSheet.create({
   },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
   headerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
-  iconButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  menuText: { color: palette.primary, fontSize: 32, lineHeight: 36 },
+  iconButton: { minWidth: 48, minHeight: 44, alignItems: "center", justifyContent: "center" },
+  menuText: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "900" },
   brand: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "900" },
   callButton: { paddingHorizontal: 10, minHeight: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   callText: { color: palette.muted, fontWeight: "800" },

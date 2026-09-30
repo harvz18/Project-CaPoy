@@ -135,6 +135,7 @@ type AppContextValue = {
   submitRating: (taskId: string, score: number, feedback: string) => Promise<void>;
   getTaskMessages: (taskId: string, otherParticipantId?: string) => ChatMessage[];
   clearError: () => void;
+  retryDataSync: () => void;
 };
 
 const AppContext = createContext<AppContextValue | undefined>(undefined);
@@ -153,6 +154,7 @@ export function AppProvider({ children }: PropsWithChildren) {
   const [appLoading, setAppLoading] = useState(usingFirebase);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [subscriptionRefreshKey, setSubscriptionRefreshKey] = useState(0);
   const tasks = useMemo(
     () =>
       taskSnapshots.map((task) => {
@@ -261,7 +263,7 @@ export function AppProvider({ children }: PropsWithChildren) {
     );
 
     return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
-  }, [authority, currentUser?.id, currentUser?.role]);
+  }, [authority, currentUser?.id, currentUser?.role, subscriptionRefreshKey]);
 
   useEffect(() => {
     if (currentUser && notificationPreferences.pushEnabled) {
@@ -338,7 +340,7 @@ export function AppProvider({ children }: PropsWithChildren) {
           role: input.role,
           fullName: input.fullName.trim(),
           mobileNumber: input.mobileNumber.trim(),
-          address: input.address.trim() || "Bacolod City",
+          address: input.address.trim(),
           skills: input.skills,
           capabilities: input.capabilities ?? input.skills,
           businessName: input.businessName
@@ -702,6 +704,11 @@ export function AppProvider({ children }: PropsWithChildren) {
     setError(null);
   }
 
+  function retryDataSync() {
+    setError(null);
+    setSubscriptionRefreshKey((value) => value + 1);
+  }
+
   const value = useMemo<AppContextValue>(
     () => ({
       currentUser,
@@ -739,7 +746,8 @@ export function AppProvider({ children }: PropsWithChildren) {
       updateNotificationPreferences,
       submitRating,
       getTaskMessages,
-      clearError
+      clearError,
+      retryDataSync
     }),
     [currentUser, authority, users, tasks, taskMatches, messages, ratings, notifications, notificationPreferences, appLoading, actionLoading, error]
   );
@@ -773,6 +781,10 @@ function validateRegistration(input: RegisterInput) {
 
   if (input.mobileNumber.replace(/\D/g, "").length < 10) {
     throw new Error("Enter a valid mobile number.");
+  }
+
+  if (!input.address.trim()) {
+    throw new Error("Address or barangay is required.");
   }
 
   if (!input.password || input.password.length < 6) {

@@ -120,7 +120,7 @@ export async function createTaskInFirestore(input: TaskInput) {
     title: input.title,
     description: input.description,
     category: input.category,
-    location: input.location.includes("Bacolod") ? input.location : `${input.location}, Bacolod City`,
+    location: input.location,
     locationAddress: input.locationAddress ?? input.location,
     latitude: input.latitude,
     longitude: input.longitude,

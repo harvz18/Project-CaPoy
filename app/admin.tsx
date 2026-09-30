@@ -124,11 +124,11 @@ export default function AdminScreen() {
         </View>
         <View style={styles.headerActions}>
           {authority === "superadmin" ? (
-            <Pressable onPress={() => router.push("/superadmin" as Href)} style={styles.controlLink}>
+            <Pressable accessibilityRole="button" onPress={() => router.push("/superadmin" as Href)} style={styles.controlLink}>
               <Text style={styles.controlLinkText}>Account controls</Text>
             </Pressable>
           ) : null}
-          <Pressable onPress={handleLogout} style={styles.logout}><Text style={styles.logoutText}>Log out</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={handleLogout} style={styles.logout}><Text style={styles.logoutText}>Log out</Text></Pressable>
         </View>
       </View>
       <ScrollView contentContainerStyle={styles.content}>
@@ -412,7 +412,7 @@ function Section({ title, empty, children }: { title: string; empty: string; chi
 type Tone = "neutral" | "positive" | "warning" | "danger";
 function Action({ label, tone, disabled, onPress }: { label: string; tone: Tone; disabled: boolean; onPress: () => void }) {
   return (
-    <Pressable disabled={disabled} onPress={onPress} style={[styles.action, styles[`action_${tone}`], disabled && styles.disabled]}>
+    <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={[styles.action, styles[`action_${tone}`], disabled && styles.disabled]}>
       <Text style={[styles.actionText, tone !== "neutral" && styles.actionTextLight]}>{label}</Text>
     </Pressable>
   );

@@ -13,7 +13,7 @@ export default function RegistrationScreen() {
   const { actionLoading, error, register } = useApp();
   const [fullName, setFullName] = useState("");
   const [mobileNumber, setMobileNumber] = useState("");
-  const [address, setAddress] = useState("Bacolod City");
+  const [address, setAddress] = useState("");
   const [password, setPassword] = useState("");
 
   async function handleRegister() {

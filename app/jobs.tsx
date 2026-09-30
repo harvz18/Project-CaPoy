@@ -1,12 +1,13 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomNavIcon } from "../src/components/BottomNavIcon";
 import LocationMap from "../src/components/LocationMap";
 import { StatusBadge } from "../src/components/StatusBadge";
 import { useApp } from "../src/context/AppContext";
 import { MatchResult, rankTasksForWorker } from "../src/domain/matching";
+import { filterAndSortRankedJobs, getJobCategories, JobSort } from "../src/domain/jobDiscovery";
 import { captureForegroundLocation } from "../src/services/locationService";
 import { Task } from "../src/types";
 import { formatDistance, getDiscoveryLocationIssue } from "../src/utils/location";
@@ -26,14 +27,22 @@ const palette = {
   white: "#FFFFFF"
 };
 
-const filters = ["All Jobs", "Delivery", "Repair", "Cleaning", "Unloading"];
+const sortOptions: Array<{ label: string; value: JobSort }> = [
+  { label: "Recommended", value: "recommended" },
+  { label: "Nearest", value: "nearest" },
+  { label: "Newest", value: "newest" },
+  { label: "Highest pay", value: "highest-pay" }
+];
 
 export default function JobsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { tasks, acceptTask, currentUser, updateProfile, actionLoading, error } = useApp();
-  const [activeFilter, setActiveFilter] = useState("All Jobs");
+  const [activeFilter, setActiveFilter] = useState("");
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<JobSort>("recommended");
   const [locationMessage, setLocationMessage] = useState("");
+  const [actionMessage, setActionMessage] = useState("");
   const postedTasks = tasks.filter((task) => task.status === "Finding Workers" || task.status === "Applied");
   const appliedTasks = tasks.filter(
     (task) =>
@@ -42,14 +51,20 @@ export default function JobsScreen() {
       task.status !== "Finished" &&
       task.status !== "Archived"
   );
-  const rankedJobs = currentUser ? rankTasksForWorker(postedTasks, currentUser).filter(({ task }) =>
-    activeFilter === "All Jobs" || task.category.toLowerCase().includes(activeFilter.toLowerCase())
-  ) : [];
+  const categories = getJobCategories(postedTasks);
+  const rankedJobs = currentUser
+    ? filterAndSortRankedJobs(rankTasksForWorker(postedTasks, currentUser), { category: activeFilter, query, sort })
+    : [];
   const discoveryLocationIssue = getDiscoveryLocationIssue(currentUser);
 
   async function handleQuickApply(task: Task) {
-    await acceptTask(task.id);
-    router.push(`/task-status/${task.id}`);
+    try {
+      setActionMessage("");
+      await acceptTask(task.id);
+      router.push(`/task-status/${task.id}`);
+    } catch (applyError) {
+      setActionMessage(applyError instanceof Error ? applyError.message : "Unable to submit this application.");
+    }
   }
 
   async function refreshLocation() {
@@ -73,8 +88,8 @@ export default function JobsScreen() {
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.iconButton}>
-            <Text style={styles.backText}>‹</Text>
+          <Pressable accessibilityLabel="Go back" accessibilityRole="button" onPress={() => router.back()} style={styles.iconButton}>
+            <Text style={styles.backText}>Back</Text>
           </Pressable>
           <Text style={styles.brand}>TASKLINK</Text>
         </View>
@@ -92,7 +107,6 @@ export default function JobsScreen() {
             height={250}
           />
           <View style={styles.locationBadge}>
-            <Text style={styles.locationIcon}>•</Text>
             <View style={styles.locationCopy}>
               <Text style={styles.locationTitle}>Nearby Jobs</Text>
               <Text style={styles.locationText}>{discoveryLocationIssue ?? `${rankedJobs.filter(({ match }) => match.eligible).length} eligible jobs within your radius`}</Text>
@@ -104,10 +118,29 @@ export default function JobsScreen() {
         </View>
         {locationMessage ? <Text style={styles.locationMessage}>{locationMessage}</Text> : null}
 
+        <View style={styles.searchSection}>
+          <TextInput
+            accessibilityLabel="Search jobs"
+            onChangeText={setQuery}
+            placeholder="Search title, skill, category, or area"
+            placeholderTextColor={palette.outline}
+            style={styles.searchInput}
+            value={query}
+          />
+        </View>
+
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-          {filters.map((filter) => (
-            <Pressable key={filter} onPress={() => setActiveFilter(filter)} style={[styles.filterChip, activeFilter === filter && styles.filterChipActive]}>
-              <Text style={[styles.filterText, activeFilter === filter && styles.filterTextActive]}>{filter}</Text>
+          {["", ...categories].map((filter) => (
+            <Pressable accessibilityRole="button" accessibilityState={{ selected: activeFilter === filter }} key={filter} onPress={() => setActiveFilter(filter)} style={[styles.filterChip, activeFilter === filter && styles.filterChipActive]}>
+              <Text style={[styles.filterText, activeFilter === filter && styles.filterTextActive]}>{filter || "All categories"}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sortRow}>
+          {sortOptions.map((option) => (
+            <Pressable accessibilityRole="button" accessibilityState={{ selected: sort === option.value }} key={option.value} onPress={() => setSort(option.value)} style={[styles.sortButton, sort === option.value && styles.sortButtonActive]}>
+              <Text style={[styles.sortText, sort === option.value && styles.sortTextActive]}>{option.label}</Text>
             </Pressable>
           ))}
         </ScrollView>
@@ -142,19 +175,20 @@ export default function JobsScreen() {
               <JobCard
                 key={task.id}
                 task={task}
-                urgent={index === 0 || Number(task.wage) >= 800}
                 match={match}
                 onOpen={() => router.push(`/task/${task.id}`)}
                 onQuickAccept={() => handleQuickApply(task)}
+                applying={actionLoading}
               />
             ))
           ) : (
             <View style={styles.emptyCard}>
               <Text style={styles.emptyTitle}>No nearby jobs</Text>
-              <Text style={styles.emptyText}>Open tasks in Bacolod City will appear here.</Text>
+              <Text style={styles.emptyText}>{query || activeFilter ? "No open tasks match these filters." : "Eligible open tasks will appear here after your profile and location are ready."}</Text>
             </View>
           )}
         </View>
+        {actionMessage ? <Text accessibilityRole="alert" style={styles.errorMessage}>{actionMessage}</Text> : null}
         {error ? <Text style={styles.locationMessage}>{error}</Text> : null}
       </ScrollView>
 
@@ -165,24 +199,19 @@ export default function JobsScreen() {
 
 function JobCard({
   task,
-  urgent,
   match,
   onOpen,
-  onQuickAccept
+  onQuickAccept,
+  applying
 }: {
   task: Task;
-  urgent?: boolean;
   match: MatchResult;
   onOpen: () => void;
   onQuickAccept: () => void;
+  applying: boolean;
 }) {
   return (
     <Pressable accessibilityRole="button" onPress={onOpen} style={({ pressed }) => [styles.jobCard, pressed && styles.pressed]}>
-      {urgent ? (
-        <View style={styles.urgentBadge}>
-          <Text style={styles.urgentText}>URGENT</Text>
-        </View>
-      ) : null}
       <View style={styles.priceRow}>
         <Text style={styles.price}>P{task.wage}</Text>
       </View>
@@ -203,8 +232,8 @@ function JobCard({
         <Pressable accessibilityRole="button" onPress={onOpen} style={styles.detailsButton}>
           <Text style={styles.detailsButtonText}>Details</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" disabled={!match.eligible} onPress={onQuickAccept} style={[styles.quickButton, !match.eligible && styles.quickButtonDisabled]}>
-          <Text style={styles.quickButtonText}>{match.eligible ? "Quick Apply" : "Profile update needed"}</Text>
+        <Pressable accessibilityRole="button" disabled={!match.eligible || applying} onPress={onQuickAccept} style={[styles.quickButton, (!match.eligible || applying) && styles.quickButtonDisabled]}>
+          <Text style={styles.quickButtonText}>{applying ? "Applying..." : match.eligible ? "Quick Apply" : "Profile update needed"}</Text>
         </Pressable>
       </View>
     </Pressable>
@@ -256,7 +285,7 @@ function BottomNav({ active, router, bottom }: { active: string; router: ReturnT
         const selected = item.key === active;
         const color = selected ? "#684000" : palette.muted;
         return (
-          <Pressable key={item.key} onPress={() => router.push(item.route as never)} style={[styles.navItem, selected && styles.navItemActive]}>
+          <Pressable accessibilityLabel={item.label} accessibilityRole="button" accessibilityState={{ selected }} key={item.key} onPress={() => router.push(item.route as never)} style={[styles.navItem, selected && styles.navItemActive]}>
             <BottomNavIcon name={item.key} color={color} />
             <Text style={[styles.navLabel, selected && styles.navTextActive]}>{item.label}</Text>
           </Pressable>
@@ -270,8 +299,8 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.background },
   header: { minHeight: 56, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: palette.surface, borderBottomWidth: 1, borderBottomColor: "#EDF1EF" },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
-  iconButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  backText: { color: palette.primary, fontSize: 34, lineHeight: 36 },
+  iconButton: { minWidth: 48, minHeight: 44, alignItems: "center", justifyContent: "center" },
+  backText: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "900" },
   brand: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "900" },
   avatar: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: palette.secondaryContainer, borderWidth: 1, borderColor: palette.outlineVariant },
   avatarText: { color: "#684000", fontWeight: "900" },
@@ -284,19 +313,25 @@ const styles = StyleSheet.create({
   mapPinOne: { left: "24%", top: 58 },
   mapPinTwo: { left: "62%", top: 84, backgroundColor: palette.primary },
   mapPinThree: { left: "46%", top: 138 },
-  locationBadge: { position: "absolute", left: 16, top: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: "rgba(255,255,255,0.92)", paddingHorizontal: 14, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 8 },
+  locationBadge: { position: "absolute", left: 16, top: 16, maxWidth: "72%", borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: "rgba(255,255,255,0.92)", paddingHorizontal: 14, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 8 },
   refreshButton: { position: "absolute", right: 16, bottom: 16, minHeight: 42, borderRadius: 10, paddingHorizontal: 12, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
   refreshButtonText: { color: palette.white, fontSize: 12, fontWeight: "900" },
   locationMessage: { color: palette.primary, fontSize: 12, lineHeight: 17, fontWeight: "700", paddingHorizontal: 16, paddingTop: 8 },
-  locationIcon: { color: palette.primary, fontSize: 22, fontWeight: "900" },
   locationCopy: { gap: 1 },
   locationTitle: { color: palette.text, fontSize: 14, fontWeight: "900" },
   locationText: { color: palette.muted, fontSize: 12, lineHeight: 16 },
-  filterRow: { paddingHorizontal: 16, paddingVertical: 16, gap: 8 },
+  searchSection: { paddingHorizontal: 16, paddingTop: 16 },
+  searchInput: { minHeight: 48, borderWidth: 1, borderColor: palette.outlineVariant, borderRadius: 12, paddingHorizontal: 14, backgroundColor: palette.surface, color: palette.text, fontSize: 15 },
+  filterRow: { paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
   filterChip: { minHeight: 40, borderRadius: 20, paddingHorizontal: 16, alignItems: "center", justifyContent: "center", backgroundColor: palette.surfaceHigh },
   filterChipActive: { backgroundColor: palette.primary },
   filterText: { color: palette.muted, fontSize: 14, fontWeight: "800" },
   filterTextActive: { color: palette.white },
+  sortRow: { paddingHorizontal: 16, paddingBottom: 16, gap: 8 },
+  sortButton: { minHeight: 38, borderRadius: 8, borderWidth: 1, borderColor: palette.outlineVariant, paddingHorizontal: 12, alignItems: "center", justifyContent: "center", backgroundColor: palette.surface },
+  sortButtonActive: { borderColor: palette.secondary, backgroundColor: "#FFF8EE" },
+  sortText: { color: palette.muted, fontSize: 12, fontWeight: "800" },
+  sortTextActive: { color: palette.secondary },
   boardHeader: { paddingHorizontal: 16, paddingBottom: 12, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   applicationSection: { paddingHorizontal: 16, paddingBottom: 16, gap: 10 },
   applicationHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
@@ -337,6 +372,7 @@ const styles = StyleSheet.create({
   emptyCard: { padding: 24, borderRadius: 12, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.outlineVariant, alignItems: "center", gap: 8 },
   emptyTitle: { color: palette.textStrong, fontSize: 18, lineHeight: 26, fontWeight: "900" },
   emptyText: { color: palette.muted, fontSize: 14, lineHeight: 20, textAlign: "center" },
+  errorMessage: { color: "#BA1A1A", fontSize: 13, lineHeight: 18, fontWeight: "700", paddingHorizontal: 16, paddingTop: 10 },
   bottomNav: { position: "absolute", left: 0, right: 0, bottom: 0, minHeight: 72, paddingHorizontal: 8, paddingTop: 8, borderTopLeftRadius: 12, borderTopRightRadius: 12, borderTopWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, flexDirection: "row", justifyContent: "space-around", elevation: 10 },
   navItem: { minWidth: 66, borderRadius: 24, alignItems: "center", justifyContent: "center", paddingVertical: 4 },
   navItemActive: { backgroundColor: palette.secondaryContainer },

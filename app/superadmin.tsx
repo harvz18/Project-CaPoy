@@ -78,10 +78,10 @@ export default function SuperadminScreen() {
           <Text style={styles.subtitle}>{currentUser?.fullName ?? "Superadministrator"}</Text>
         </View>
         <View style={styles.headerActions}>
-          <Pressable onPress={() => router.push("/admin" as Href)} style={styles.reviewLink}>
+          <Pressable accessibilityRole="button" onPress={() => router.push("/admin" as Href)} style={styles.reviewLink}>
             <Text style={styles.reviewLinkText}>Admin reviews</Text>
           </Pressable>
-          <Pressable onPress={handleLogout} style={styles.logout}>
+          <Pressable accessibilityRole="button" onPress={handleLogout} style={styles.logout}>
             <Text style={styles.logoutText}>Log out</Text>
           </Pressable>
         </View>
@@ -232,7 +232,7 @@ function Section({ title, empty, children }: { title: string; empty: string; chi
 type Tone = "neutral" | "positive" | "warning" | "danger";
 function Action({ label, tone, disabled, onPress }: { label: string; tone: Tone; disabled: boolean; onPress: () => void }) {
   return (
-    <Pressable disabled={disabled} onPress={onPress} style={[styles.action, styles[`action_${tone}`], disabled && styles.disabled]}>
+    <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={[styles.action, styles[`action_${tone}`], disabled && styles.disabled]}>
       <Text style={[styles.actionText, tone !== "neutral" && styles.actionTextLight]}>{label}</Text>
     </Pressable>
   );

@@ -116,7 +116,7 @@ export default function LoginScreen() {
     <SafeAreaView style={screenStyles.safeArea} edges={["top", "left", "right"]}>
       <View style={screenStyles.header}>
         <Text style={screenStyles.brand}>TASKLINK</Text>
-        <Pressable accessibilityLabel="Help" accessibilityRole="button" style={screenStyles.helpButton}>
+        <Pressable accessibilityLabel="Help, privacy, and support" accessibilityRole="button" onPress={() => router.push("/help" as Href)} style={screenStyles.helpButton}>
           <Text style={screenStyles.helpText}>?</Text>
         </Pressable>
       </View>
@@ -181,9 +181,9 @@ export default function LoginScreen() {
           {registerVisible ? (
             <View style={screenStyles.registerPanel}>
               <View style={screenStyles.profileRow}>
-                <Pressable accessibilityRole="button" style={screenStyles.avatarButton}>
-                  <Text style={screenStyles.avatarIcon}>+</Text>
-                </Pressable>
+                <View accessibilityLabel="Registration profile initial" style={screenStyles.avatarButton}>
+                  <Text style={screenStyles.avatarIcon}>{fullName.trim()[0]?.toUpperCase() ?? "U"}</Text>
+                </View>
                 <View style={screenStyles.nameField}>
                   <Text style={screenStyles.label}>Full Name</Text>
                   <TextInput
@@ -251,24 +251,19 @@ export default function LoginScreen() {
           ) : null}
         </View>
 
-        <Text style={screenStyles.terms}>
-          By signing in, you agree to our <Text style={screenStyles.link}>Terms of Service</Text> and{" "}
-          <Text style={screenStyles.link}>Privacy Policy</Text>.
-        </Text>
+        <View style={screenStyles.termsBlock}>
+          <Text style={screenStyles.terms}>By signing in, you agree to the beta terms and privacy notice.</Text>
+          <Pressable accessibilityRole="link" onPress={() => router.push("/help" as Href)}>
+            <Text style={screenStyles.link}>Read terms, privacy, limitations, and support</Text>
+          </Pressable>
+        </View>
 
         <View style={screenStyles.footer}>
-          <View style={screenStyles.trustRow}>
-            <View style={screenStyles.trustBadge}>
-              <Text style={screenStyles.trustText}>PAY</Text>
-            </View>
-            <View style={screenStyles.trustBadge}>
-              <Text style={screenStyles.trustText}>SECURE</Text>
-            </View>
-          </View>
+          <Text style={screenStyles.modeText}>TaskLink records payment evidence but does not process or escrow funds.</Text>
           <Text style={screenStyles.modeText}>
             Data mode: {usingFirebase ? "Firebase backend" : "Firebase not configured"}
           </Text>
-          <Text style={screenStyles.copyright}>(c) 2024 TASKLINK Philippines</Text>
+          <Text style={screenStyles.copyright}>(c) 2026 TASKLINK Philippines</Text>
         </View>
       </ScrollView>
 
@@ -689,6 +684,7 @@ const screenStyles = StyleSheet.create({
     opacity: 0.78,
     transform: [{ scale: 0.99 }]
   },
+  termsBlock: { alignItems: "center", gap: 6 },
   terms: {
     width: "100%",
     maxWidth: 448,

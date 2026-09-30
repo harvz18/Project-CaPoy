@@ -1,10 +1,7 @@
 import { useRouter } from "expo-router";
 import { useEffect, useRef } from "react";
-import { Animated, Image, StyleSheet, Text, View } from "react-native";
+import { Animated, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-
-const illustrationUri =
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuCpg7j6PLGh_4Nh6nWiF0Fhz-4rq2cWt65Q9U6C-4vCKy3xfHLmgsTUlE6N-UjdEr5AzsU7eY7fD8j0P50vKLyKH_GhPdg5GRGEhSPRAeQrl937g5D27ZVRIit9HmtsMojHV8xM8JWuhhPIrF-4FmnCl1q8IDqm-4K-523AHy-6dSbgN-T-F9JiL3jAX2gbKrUvoAX4LV4JVhpFCMqImXlFzSyYkB4Dwy2QhffGDnMQWbCuy1Kn1Raj7sGDvBRQCAXHNx2eUowsi1Kn";
 
 const palette = {
   background: "#F7FAF8",
@@ -59,12 +56,11 @@ export default function SplashScreen() {
       <View style={styles.content}>
         <View style={styles.illustrationWrap}>
           <View style={styles.glow} />
-          <Image
-            accessibilityIgnoresInvertColors
-            resizeMode="contain"
-            source={{ uri: illustrationUri }}
-            style={styles.illustration}
-          />
+          <View accessibilityLabel="TaskLink logo" style={styles.illustration}>
+            <View style={styles.linkCircleLeft}><Text style={styles.linkCircleText}>T</Text></View>
+            <View style={styles.linkBar} />
+            <View style={styles.linkCircleRight}><Text style={styles.linkCircleText}>L</Text></View>
+          </View>
         </View>
 
         <View style={styles.brandBlock}>
@@ -115,10 +111,16 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.92 }]
   },
   illustration: {
-    width: "80%",
-    height: "80%",
-    borderRadius: 12
+    width: 240,
+    height: 150,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row"
   },
+  linkCircleLeft: { width: 92, height: 92, borderRadius: 46, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary, zIndex: 2 },
+  linkCircleRight: { width: 92, height: 92, borderRadius: 46, alignItems: "center", justifyContent: "center", backgroundColor: "#FEA619", zIndex: 2 },
+  linkBar: { width: 58, height: 22, marginHorizontal: -8, borderRadius: 11, backgroundColor: "#9CF2E8" },
+  linkCircleText: { color: "#FFFFFF", fontSize: 34, lineHeight: 42, fontWeight: "900" },
   brandBlock: {
     alignItems: "center",
     marginBottom: 48

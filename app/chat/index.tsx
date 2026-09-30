@@ -72,6 +72,7 @@ export default function ChatInboxScreen() {
         <View style={styles.searchWrap}>
           <Text style={styles.searchIcon}>Search</Text>
           <TextInput
+            accessibilityLabel="Search conversations"
             onChangeText={setQuery}
             placeholder="Search people or tasks"
             placeholderTextColor={palette.outline}
@@ -86,7 +87,7 @@ export default function ChatInboxScreen() {
         </View>
 
         <View style={styles.conversationList}>
-          {filteredConversations.map((conversation) => (
+          {filteredConversations.length ? filteredConversations.map((conversation) => (
             <ConversationRow
               conversation={conversation}
               key={conversation.id}
@@ -95,7 +96,11 @@ export default function ChatInboxScreen() {
                 params: { id: conversation.task.id, recipientId: conversation.participantId }
               })}
             />
-          ))}
+          )) : (
+            <View style={styles.emptyConversation}>
+              <Text style={styles.previewText}>{query.trim() ? "No conversations match your search." : "Task conversations will appear here."}</Text>
+            </View>
+          )}
         </View>
       </ScrollView>
 
@@ -113,7 +118,7 @@ function buildConversations(
 ): Conversation[] {
   const visibleTasks = tasks.length ? tasks : [];
 
-  return visibleTasks.flatMap((task, index) => {
+  return visibleTasks.flatMap((task) => {
     const taskMessages = messages
       .filter((message) => message.taskId === task.id)
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
@@ -126,7 +131,7 @@ function buildConversations(
       ? [...new Set([task.workerId, ...(task.applicantIds ?? []), ...messageParticipants].filter(Boolean) as string[])]
       : task.clientId ? [task.clientId] : [];
 
-    return participantIds.flatMap((participantId, participantIndex) => {
+    return participantIds.flatMap((participantId) => {
       const userMessages = taskMessages.filter((message) =>
         (message.senderId === currentUserId && message.receiverId === participantId)
         || (message.receiverId === currentUserId && message.senderId === participantId)
@@ -138,7 +143,7 @@ function buildConversations(
       }
 
       const participantName = users.find((user) => user.id === participantId)?.fullName
-        ?? getFallbackName(role, index + participantIndex);
+        ?? "Task participant";
 
       return [{
         id: `${task.id}_${participantId}`,
@@ -181,7 +186,6 @@ function ConversationRow({ conversation, onPress }: { conversation: Conversation
     <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.conversationRow, pressed && styles.pressed]}>
       <View style={styles.contactAvatar}>
         <Text style={styles.contactAvatarText}>{conversation.initials}</Text>
-        <View style={styles.onlineDot} />
       </View>
       <View style={styles.conversationCopy}>
         <View style={styles.rowBetween}>
@@ -221,7 +225,7 @@ function BottomNav({
         const selected = item.key === active;
         const color = selected ? "#684000" : palette.muted;
         return (
-          <Pressable key={item.key} onPress={() => router.push(item.route as never)} style={[styles.navItem, selected && styles.navItemActive]}>
+          <Pressable accessibilityLabel={item.label} accessibilityRole="button" accessibilityState={{ selected }} key={item.key} onPress={() => router.push(item.route as never)} style={[styles.navItem, selected && styles.navItemActive]}>
             <BottomNavIcon name={item.key} color={color} />
             <Text style={[styles.navLabel, selected && styles.navTextActive]}>{item.label}</Text>
           </Pressable>
@@ -229,12 +233,6 @@ function BottomNav({
       })}
     </View>
   );
-}
-
-function getFallbackName(role?: string, index = 0) {
-  const workerNames = ["Worker Applicant", "Local Worker", "Task Helper"];
-
-  return role === "client" ? workerNames[index % workerNames.length] : "Client";
 }
 
 function getInitials(name: string) {
@@ -304,6 +302,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.surface,
     overflow: "hidden"
   },
+  emptyConversation: { minHeight: 100, padding: 20, alignItems: "center", justifyContent: "center" },
   conversationRow: {
     minHeight: 86,
     padding: 14,

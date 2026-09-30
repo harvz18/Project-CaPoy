@@ -39,8 +39,9 @@ export default function TaskStatusScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { acceptTask, actionLoading, confirmCashPayment, currentUser, ratings, tasks, submitPaymentProof, updateTaskStatus, withdrawApplication } = useApp();
+  const { acceptTask, actionLoading, confirmCashPayment, currentUser, getUserById, ratings, tasks, submitPaymentProof, updateTaskStatus, withdrawApplication } = useApp();
   const task = tasks.find((item) => item.id === id);
+  const taskClient = getUserById(task?.clientId) ?? (currentUser?.id === task?.clientId ? currentUser : undefined);
   const [actionWarning, setActionWarning] = useState("");
   const [proofOfPaymentText, setProofOfPaymentText] = useState(task?.proofOfPaymentText ?? "");
   const [proofOfPaymentUrl, setProofOfPaymentUrl] = useState(task?.proofOfPaymentUrl ?? "");
@@ -57,7 +58,7 @@ export default function TaskStatusScreen() {
   if (!task) {
     return (
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-        <TopBar onBack={() => router.back()} />
+        <TopBar initials={currentUser?.fullName?.[0] ?? "U"} onBack={() => router.back()} />
         <View style={styles.notFound}>
           <Text style={styles.title}>Task not found</Text>
           <Pressable style={styles.secondaryAction} onPress={() => router.replace("/worker-dashboard")}>
@@ -136,7 +137,7 @@ export default function TaskStatusScreen() {
   if (!workerCanTrackTask) {
     return (
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-        <TopBar onBack={() => router.back()} />
+        <TopBar initials={currentUser?.fullName?.[0] ?? "U"} onBack={() => router.back()} />
         <View style={styles.notFound}>
           <Text style={styles.title}>Apply before tracking this task</Text>
           <Text style={styles.emptyText}>This status screen is only for workers who applied to the task or were accepted by the client.</Text>
@@ -204,7 +205,7 @@ export default function TaskStatusScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-      <TopBar onBack={() => router.back()} />
+      <TopBar initials={currentUser?.fullName?.[0] ?? "U"} onBack={() => router.back()} />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 132 + insets.bottom }]} showsVerticalScrollIndicator={false}>
         <View style={styles.mapHero}>
           <LocationMap
@@ -231,7 +232,6 @@ export default function TaskStatusScreen() {
             <Text style={styles.urgentBadgeText}>{task.status === "Finding Workers" ? "Open" : task.status}</Text>
           </View>
           <View style={styles.locationBadge}>
-            <Text style={styles.locationDot}>•</Text>
             <Text style={styles.locationText}>{task.location}</Text>
           </View>
         </View>
@@ -241,10 +241,7 @@ export default function TaskStatusScreen() {
             <View style={styles.jobHeader}>
               <View style={styles.jobTitleBlock}>
                 <Text style={styles.title}>{task.title}</Text>
-                <View style={styles.inlineMeta}>
-                  <Text style={styles.metaIcon}>⏱</Text>
-                  <Text style={styles.metaText}>Estimated {task.estimatedDuration}</Text>
-                </View>
+                <Text style={styles.metaText}>Estimated duration: {task.estimatedDuration}</Text>
               </View>
               <View style={styles.priceBlock}>
                 <Text style={styles.price}>P{task.wage}</Text>
@@ -255,15 +252,15 @@ export default function TaskStatusScreen() {
             <View style={styles.employerCard}>
               <View style={styles.employerLeft}>
                 <View style={styles.employerAvatar}>
-                  <Text style={styles.avatarText}>M</Text>
+                  <Text style={styles.avatarText}>{taskClient?.fullName?.[0] ?? "C"}</Text>
                 </View>
                 <View>
-                  <Text style={styles.employerName}>Mrs. Maria Santos</Text>
-                  <Text style={styles.rating}>* 4.9 (24 tasks)</Text>
+                  <Text style={styles.employerName}>{taskClient?.fullName ?? "Task client"}</Text>
+                  <Text style={styles.rating}>{taskClient && taskClient.rating > 0 ? `${taskClient.rating.toFixed(1)} rating` : "Not rated"}</Text>
                 </View>
               </View>
               <View style={styles.verifiedBadge}>
-                <Text style={styles.verifiedText}>Verified</Text>
+                <Text style={styles.verifiedText}>Task Client</Text>
               </View>
             </View>
 
@@ -274,7 +271,7 @@ export default function TaskStatusScreen() {
 
             <View style={styles.detailsGrid}>
               <DetailBox label="Payment Method" value={task.paymentMethod} icon="P" />
-              <DetailBox label="Tools Required" value={task.category.toLowerCase().includes("clean") ? "Provided" : "As needed"} icon="T" />
+              <DetailBox label="Required Capability" value={task.requiredCapability ?? task.category} icon="S" />
             </View>
 
             <View style={styles.geoPanel}>
@@ -286,7 +283,7 @@ export default function TaskStatusScreen() {
               </View>
               <Text style={styles.geoText}>Task area: {task.locationAddress ?? task.location}</Text>
               <Text style={styles.geoText}>Distance: {formatDistance(distanceKm)}</Text>
-              <Text style={styles.geoText}>Allowed radius: {task.geofenceRadius ?? 500} meters</Text>
+              <Text style={styles.geoText}>Allowed radius: {task.geofenceRadius !== undefined ? `${task.geofenceRadius} meters` : "Not recorded"}</Text>
               {liveTrackingEnabled ? (
                 <View style={styles.liveLocationPanel}>
                   <View style={styles.geoHeader}>
@@ -553,15 +550,15 @@ function formatLocationUpdateTime(capturedAt: string) {
   return timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
-function TopBar({ onBack }: { onBack: () => void }) {
+function TopBar({ initials, onBack }: { initials: string; onBack: () => void }) {
   return (
     <View style={styles.topBar}>
-      <Pressable accessibilityRole="button" onPress={onBack} style={styles.backButton}>
-        <Text style={styles.backText}>‹</Text>
+      <Pressable accessibilityLabel="Go back" accessibilityRole="button" onPress={onBack} style={styles.backButton}>
+        <Text style={styles.backText}>Back</Text>
       </Pressable>
       <Text style={styles.brand}>TASKLINK</Text>
       <View style={styles.userAvatar}>
-        <Text style={styles.avatarText}>J</Text>
+        <Text style={styles.avatarText}>{initials}</Text>
       </View>
     </View>
   );
@@ -582,7 +579,6 @@ function DetailBox({ label, value, icon }: { label: string; value: string; icon:
 function TrustItem({ text }: { text: string }) {
   return (
     <View style={styles.trustItem}>
-      <Text style={styles.trustCheck}>✓</Text>
       <Text style={styles.trustText}>{text}</Text>
     </View>
   );
@@ -601,13 +597,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1
   },
   backButton: {
-    width: 40,
-    height: 40,
+    minWidth: 48,
+    minHeight: 44,
     borderRadius: 20,
     alignItems: "center",
     justifyContent: "center"
   },
-  backText: { color: palette.primary, fontSize: 34, lineHeight: 38, fontWeight: "500" },
+  backText: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "900" },
   brand: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "800" },
   userAvatar: {
     width: 40,

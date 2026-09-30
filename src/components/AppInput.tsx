@@ -10,6 +10,7 @@ export function AppInput({ label, multiline, style, ...props }: AppInputProps) {
     <View style={styles.inputGroup}>
       {label ? <Text style={styles.inputLabel}>{label}</Text> : null}
       <TextInput
+        accessibilityLabel={props.accessibilityLabel ?? label}
         placeholderTextColor="#94A3B8"
         multiline={multiline}
         style={[styles.input, multiline && styles.inputMultiline, style]}

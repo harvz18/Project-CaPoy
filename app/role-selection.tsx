@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { Href, useRouter } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useApp } from "../src/context/AppContext";
@@ -58,7 +58,7 @@ export default function RoleSelectionScreen() {
             accent="secondary"
             icon="H"
             title="Hire Workers"
-            description="Post a task and find reliable help for home, office, or personal errands quickly."
+            description="Post a task and review local applicants for home, office, or personal errands."
             buttonText={actionLoading ? "Saving..." : "I want to hire"}
             onPress={() => chooseRole("client")}
           />
@@ -67,9 +67,9 @@ export default function RoleSelectionScreen() {
         <View style={styles.termsBlock}>
           <Text style={styles.termsText}>By continuing, you agree to our Terms of Service</Text>
           <View style={styles.linkRow}>
-            <Text style={styles.linkText}>Terms</Text>
-            <Text style={styles.linkText}>Privacy</Text>
-            <Text style={styles.linkText}>Help Center</Text>
+            <Pressable accessibilityRole="link" onPress={() => router.push("/help" as Href)}><Text style={styles.linkText}>Terms</Text></Pressable>
+            <Pressable accessibilityRole="link" onPress={() => router.push("/help" as Href)}><Text style={styles.linkText}>Privacy</Text></Pressable>
+            <Pressable accessibilityRole="link" onPress={() => router.push("/help" as Href)}><Text style={styles.linkText}>Help</Text></Pressable>
           </View>
         </View>
       </ScrollView>
@@ -81,9 +81,6 @@ function AppHeader() {
   return (
     <View style={styles.header}>
       <View style={styles.headerLeft}>
-        <Pressable accessibilityRole="button" style={styles.iconButton}>
-          <Text style={styles.iconButtonText}>≡</Text>
-        </Pressable>
         <Text style={styles.brand}>TASKLINK</Text>
       </View>
       <View style={styles.avatar}>
@@ -119,7 +116,7 @@ function RoleCard({ accent, icon, title, description, buttonText, onPress }: Rol
           <Text style={[styles.roleTitle, { color: isPrimary ? palette.primary : palette.secondary }]}>{title}</Text>
           <Text style={styles.roleDescription}>{description}</Text>
         </View>
-        <Text style={styles.chevron}>›</Text>
+        <Text style={styles.cardAction}>Select</Text>
       </View>
       <View style={[styles.roleButton, { backgroundColor: isPrimary ? palette.primary : palette.secondary }]}>
         <Text style={styles.roleButtonText}>{buttonText}</Text>
@@ -264,10 +261,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24
   },
-  chevron: {
+  cardAction: {
     color: palette.outline,
-    fontSize: 32,
-    lineHeight: 40
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: "900"
   },
   roleButton: {
     minHeight: 48,

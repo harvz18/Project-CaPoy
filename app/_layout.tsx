@@ -1,10 +1,12 @@
 import { Href, Stack, useRouter, useSegments } from "expo-router";
+import * as Network from "expo-network";
 import * as Notifications from "expo-notifications";
 import { useEffect } from "react";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppProvider, useApp } from "../src/context/AppContext";
+import { AppErrorBoundary } from "../src/components/AppErrorBoundary";
 import { colors } from "../src/theme";
 import { configureNotificationChannel } from "../src/services/pushNotificationService";
 import { markNotificationOpened } from "../src/services/notificationService";
@@ -21,10 +23,12 @@ Notifications.setNotificationHandler({
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <AppProvider>
-        <StatusBar style="dark" />
-        <ProtectedNavigator />
-      </AppProvider>
+      <AppErrorBoundary>
+        <AppProvider>
+          <StatusBar style="dark" />
+          <ProtectedNavigator />
+        </AppProvider>
+      </AppErrorBoundary>
     </SafeAreaProvider>
   );
 }
@@ -32,12 +36,15 @@ export default function RootLayout() {
 function ProtectedNavigator() {
   const router = useRouter();
   const segments = useSegments();
-  const { appLoading, authority, currentUser } = useApp();
+  const networkState = Network.useNetworkState();
+  const { appLoading, authority, clearError, currentUser, error, retryDataSync } = useApp();
   const route = segments[0] as string | undefined;
-  const publicRoutes = ["index", "login", "register"];
+  const authRoutes = ["index", "login", "register"];
+  const publicRoutes = [...authRoutes, "help"];
   const clientOnlyRoutes = ["client-dashboard", "post-task"];
   const workerOnlyRoutes = ["worker-dashboard", "jobs"];
   const staffRoutes = ["admin", "superadmin"];
+  const offline = networkState.isConnected === false || networkState.isInternetReachable === false;
 
   useEffect(() => {
     void configureNotificationChannel().catch(() => undefined);
@@ -81,7 +88,7 @@ function ProtectedNavigator() {
       return;
     }
 
-    if (currentUser && publicRoutes.includes(route)) {
+    if (currentUser && authRoutes.includes(route)) {
       const homeRoute = (
         authority === "superadmin"
           ? "/superadmin"
@@ -105,7 +112,7 @@ function ProtectedNavigator() {
       return;
     }
 
-    if (currentUser?.role === "admin" && !staffRoutes.includes(route)) {
+    if (currentUser?.role === "admin" && route !== "help" && !staffRoutes.includes(route)) {
       router.replace((authority === "superadmin" ? "/superadmin" : "/admin") as Href);
       return;
     }
@@ -129,43 +136,71 @@ function ProtectedNavigator() {
   }
 
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        headerStyle: { backgroundColor: colors.background },
-        headerShadowVisible: false,
-        headerTintColor: colors.text,
-        headerTitleStyle: { fontWeight: "800" },
-        contentStyle: { backgroundColor: colors.background }
-      }}
-    >
-      <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen name="login" options={{ title: "Login" }} />
-      <Stack.Screen name="register" options={{ title: "Registration" }} />
-      <Stack.Screen name="role-selection" options={{ title: "Role Selection" }} />
-      <Stack.Screen name="worker-dashboard" options={{ title: "Worker Dashboard" }} />
-      <Stack.Screen name="client-dashboard" options={{ title: "Client Dashboard" }} />
-      <Stack.Screen name="post-task" options={{ title: "Post Task" }} />
-      <Stack.Screen name="jobs" options={{ title: "Nearby Jobs" }} />
-      <Stack.Screen name="task/[id]" options={{ title: "Job Details" }} />
-      <Stack.Screen name="task-status/[id]" options={{ title: "Task Status" }} />
-      <Stack.Screen name="chat/[id]" options={{ title: "Chat" }} />
-      <Stack.Screen name="rating/[id]" options={{ title: "Rating and Feedback" }} />
-      <Stack.Screen name="profile" options={{ title: "Profile" }} />
-      <Stack.Screen name="worker-profile/[id]" options={{ title: "Worker Profile" }} />
-      <Stack.Screen name="notifications" options={{ title: "Notifications" }} />
-      <Stack.Screen name="report-user" options={{ title: "Report a User" }} />
-      <Stack.Screen name="admin" options={{ title: "Administrator" }} />
-      <Stack.Screen name="superadmin" options={{ title: "Superadministrator" }} />
-    </Stack>
+    <View style={styles.navigator}>
+      {offline ? (
+        <View accessibilityRole="alert" style={styles.offlineBanner}>
+          <Text style={styles.offlineMessage}>You are offline. Cached information may remain visible; reconnect before retrying an action.</Text>
+        </View>
+      ) : null}
+      {currentUser && error ? (
+        <View accessibilityRole="alert" style={styles.syncBanner}>
+          <Text numberOfLines={2} style={styles.syncMessage}>{error}</Text>
+          <Pressable accessibilityRole="button" onPress={retryDataSync} style={styles.syncButton}>
+            <Text style={styles.syncButtonText}>Retry Sync</Text>
+          </Pressable>
+          <Pressable accessibilityLabel="Dismiss error" accessibilityRole="button" onPress={clearError} style={styles.dismissButton}>
+            <Text style={styles.dismissText}>Dismiss</Text>
+          </Pressable>
+        </View>
+      ) : null}
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          headerStyle: { backgroundColor: colors.background },
+          headerShadowVisible: false,
+          headerTintColor: colors.text,
+          headerTitleStyle: { fontWeight: "800" },
+          contentStyle: { backgroundColor: colors.background }
+        }}
+      >
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="login" options={{ title: "Login" }} />
+        <Stack.Screen name="register" options={{ title: "Registration" }} />
+        <Stack.Screen name="help" options={{ title: "TaskLink Beta Information" }} />
+        <Stack.Screen name="role-selection" options={{ title: "Role Selection" }} />
+        <Stack.Screen name="worker-dashboard" options={{ title: "Worker Dashboard" }} />
+        <Stack.Screen name="client-dashboard" options={{ title: "Client Dashboard" }} />
+        <Stack.Screen name="post-task" options={{ title: "Post Task" }} />
+        <Stack.Screen name="jobs" options={{ title: "Nearby Jobs" }} />
+        <Stack.Screen name="task/[id]" options={{ title: "Job Details" }} />
+        <Stack.Screen name="task-status/[id]" options={{ title: "Task Status" }} />
+        <Stack.Screen name="chat/[id]" options={{ title: "Chat" }} />
+        <Stack.Screen name="rating/[id]" options={{ title: "Rating and Feedback" }} />
+        <Stack.Screen name="profile" options={{ title: "Profile" }} />
+        <Stack.Screen name="worker-profile/[id]" options={{ title: "Worker Profile" }} />
+        <Stack.Screen name="notifications" options={{ title: "Notifications" }} />
+        <Stack.Screen name="report-user" options={{ title: "Report a User" }} />
+        <Stack.Screen name="admin" options={{ title: "Administrator" }} />
+        <Stack.Screen name="superadmin" options={{ title: "Superadministrator" }} />
+      </Stack>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  navigator: { flex: 1 },
   loadingScreen: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.background
-  }
+  },
+  syncBanner: { minHeight: 54, paddingHorizontal: 12, paddingVertical: 8, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF7ED", borderBottomWidth: 1, borderBottomColor: "#FDBA74" },
+  offlineBanner: { minHeight: 42, paddingHorizontal: 14, paddingVertical: 10, alignItems: "center", justifyContent: "center", backgroundColor: "#7C2D12" },
+  offlineMessage: { color: "#FFFFFF", fontSize: 12, lineHeight: 17, fontWeight: "800", textAlign: "center" },
+  syncMessage: { flex: 1, color: "#9A3412", fontSize: 12, lineHeight: 16, fontWeight: "700" },
+  syncButton: { minHeight: 38, borderRadius: 8, paddingHorizontal: 10, alignItems: "center", justifyContent: "center", backgroundColor: "#9A3412" },
+  syncButtonText: { color: "#FFFFFF", fontSize: 12, fontWeight: "900" },
+  dismissButton: { minHeight: 38, paddingHorizontal: 6, alignItems: "center", justifyContent: "center" },
+  dismissText: { color: "#9A3412", fontSize: 12, fontWeight: "900" }
 });

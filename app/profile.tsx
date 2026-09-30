@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { Href, useRouter } from "expo-router";
 import { useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -36,31 +36,25 @@ const palette = {
 };
 
 const skillOptions = workerCapabilities;
-const workerAreaPresets = [
-  { label: "Downtown", address: "Downtown Bacolod", latitude: "10.6765", longitude: "122.9509" },
-  { label: "Mandalagan", address: "Barangay Mandalagan", latitude: "10.7012", longitude: "122.9663" },
-  { label: "Alijis", address: "Barangay Alijis", latitude: "10.6426", longitude: "122.9338" },
-  { label: "Taculing", address: "Barangay Taculing", latitude: "10.6556", longitude: "122.9557" }
-];
 const workerRadiusOptions = [
   { label: "Nearby", value: "2", helper: "Best for quick nearby tasks" },
   { label: "Barangay", value: "5", helper: "Covers nearby barangays" },
-  { label: "City-wide", value: "10", helper: "Shows more Bacolod tasks" }
+  { label: "Wide area", value: "10", helper: "Shows tasks within a broader radius" }
 ];
 
 export default function ProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { actionLoading, currentUser, error, logout, ratings, users, updateProfile } = useApp();
-  const [fullName, setFullName] = useState(currentUser?.fullName ?? "TaskLink User");
-  const [mobileNumber, setMobileNumber] = useState(currentUser?.mobileNumber ?? "09170000000");
-  const [address, setAddress] = useState(currentUser?.address ?? "Bacolod City");
+  const { actionLoading, currentUser, error, logout, ratings, tasks, users, updateProfile } = useApp();
+  const [fullName, setFullName] = useState(currentUser?.fullName ?? "");
+  const [mobileNumber, setMobileNumber] = useState(currentUser?.mobileNumber ?? "");
+  const [address, setAddress] = useState(currentUser?.address ?? "");
   const [bio, setBio] = useState(
     currentUser?.role === "client"
-      ? currentUser?.businessName ?? "Reliable client looking for trusted local help."
-      : "Professional local worker available for nearby tasks."
+      ? currentUser?.businessName ?? ""
+      : currentUser?.experienceDescription ?? ""
   );
-  const [skills, setSkills] = useState(currentUser?.skills?.length ? currentUser.skills : ["Cleaning", "Delivery assistance"]);
+  const [skills, setSkills] = useState(currentUser?.skills?.length ? currentUser.skills : []);
   const [profilePhotoUrl, setProfilePhotoUrl] = useState(currentUser?.profilePhotoUrl ?? "");
   const [experienceDescription, setExperienceDescription] = useState(currentUser?.experienceDescription ?? "");
   const [yearsOfExperience, setYearsOfExperience] = useState(currentUser?.yearsOfExperience ?? "");
@@ -83,15 +77,20 @@ export default function ProfileScreen() {
   const fullNameLocked = isIdentityLocked(currentUser);
   const profileRatings = ratings
     .filter((rating) => rating.targetUserId === currentUser?.id)
-    .slice(0, 2)
     .map((rating) => ({
       ...rating,
       reviewerName: users.find((user) => user.id === rating.reviewerId)?.fullName ?? "TaskLink User"
     }));
   const averageRating = profileRatings.length
     ? (profileRatings.reduce((total, rating) => total + rating.score, 0) / profileRatings.length).toFixed(1)
-    : (currentUser?.rating ?? 4.9).toFixed(1);
+    : currentUser && currentUser.rating > 0 ? currentUser.rating.toFixed(1) : "Not rated";
   const reviewCountLabel = profileRatings.length ? `${profileRatings.length} reviews` : "No reviews yet";
+  const completedOrPosted = currentUser?.role === "client"
+    ? tasks.filter((task) => task.clientId === currentUser.id).length
+    : currentUser?.completedTasks ?? 0;
+  const memberSince = currentUser?.createdAt && Number.isFinite(new Date(currentUser.createdAt).getTime())
+    ? String(new Date(currentUser.createdAt).getFullYear())
+    : "Not recorded";
   const mapCenter = parseCoordinate(currentLatitude) !== undefined && parseCoordinate(currentLongitude) !== undefined
     ? { latitude: parseCoordinate(currentLatitude) as number, longitude: parseCoordinate(currentLongitude) as number }
     : undefined;
@@ -180,19 +179,6 @@ export default function ProfileScreen() {
     setSkills((items) => (items.includes(skill) ? items.filter((item) => item !== skill) : [...items, skill]));
   }
 
-  function selectWorkerArea(area: (typeof workerAreaPresets)[number]) {
-    setAddress(area.address);
-    setCurrentLatitude(area.latitude);
-    setCurrentLongitude(area.longitude);
-    setLocationSource("manual");
-    setLocationUpdatedAt(new Date().toISOString());
-    setLocationAccuracyMeters(undefined);
-    setLocationMessage("Manual area selected for discovery. Device location is still required at check-in.");
-    if (area.label === "Downtown") {
-      setPreferredRadiusKm("10");
-    }
-  }
-
   async function useDeviceLocation() {
     setLocating(true);
     setLocationMessage("");
@@ -222,8 +208,8 @@ export default function ProfileScreen() {
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.backButton}>
-            <Text style={styles.backText}>‹</Text>
+          <Pressable accessibilityLabel="Go back" accessibilityRole="button" onPress={() => router.back()} style={styles.backButton}>
+            <Text style={styles.backText}>Back</Text>
           </Pressable>
           <Text style={styles.brand}>TASKLINK</Text>
         </View>
@@ -246,15 +232,14 @@ export default function ProfileScreen() {
             <View style={styles.profileCopy}>
               <Text style={styles.profileName}>{fullName}</Text>
               <View style={styles.ratingRow}>
-                <Text style={styles.star}>*</Text>
                 <Text style={styles.ratingValue}>{averageRating}</Text>
                 <Text style={styles.reviewCount}>({reviewCountLabel})</Text>
               </View>
               <Text style={styles.bio}>{bio}</Text>
               {currentUser?.role === "worker" ? <StatusBadge status={currentUser.availabilityStatus ?? "Available"} /> : null}
               <View style={styles.statsGrid}>
-                <StatBox label={currentUser?.role === "client" ? "Tasks Posted" : "Jobs Completed"} value={currentUser?.role === "client" ? "18" : "124"} />
-                <StatBox label="Member since" value="2023" />
+                <StatBox label={currentUser?.role === "client" ? "Tasks Posted" : "Jobs Completed"} value={String(completedOrPosted)} />
+                <StatBox label="Member since" value={memberSince} />
               </View>
             </View>
           </View>
@@ -286,12 +271,12 @@ export default function ProfileScreen() {
             <Text style={styles.sectionTitle}>Capabilities</Text>
             <View style={styles.skillRow}>
               {skills.map((skill) => (
-                <Pressable key={skill} onPress={() => toggleSkill(skill)} style={styles.skillChip}>
+                <Pressable accessibilityLabel={`Remove ${skill}`} accessibilityRole="button" key={skill} onPress={() => toggleSkill(skill)} style={styles.skillChip}>
                   <Text style={styles.skillText}>{skill} x</Text>
                 </Pressable>
               ))}
             </View>
-            <Pressable onPress={() => setSkillDropdownOpen(true)} style={styles.dropdownButton}>
+            <Pressable accessibilityRole="button" onPress={() => setSkillDropdownOpen(true)} style={styles.dropdownButton}>
               <Text style={styles.dropdownText}>Add or remove capabilities</Text>
               <Text style={styles.dropdownIcon}>v</Text>
             </Pressable>
@@ -354,6 +339,8 @@ export default function ProfileScreen() {
               <View style={styles.skillRow}>
                 {(["Available", "Busy", "Unavailable"] as const).map((item) => (
                   <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: availability === item }}
                     key={item}
                     onPress={() => setAvailability(item)}
                     style={[styles.availabilityChip, availability === item && styles.availabilityChipSelected]}
@@ -380,26 +367,13 @@ export default function ProfileScreen() {
                 <Field label="Manual longitude" value={currentLongitude} onChangeText={(value) => updateManualCoordinate(setCurrentLongitude, value)} keyboardType="decimal-pad" placeholder="e.g. 122.9509" />
               </View>
 
-              <View style={styles.areaPresetGrid}>
-                {workerAreaPresets.map((area) => {
-                  const selected = currentLatitude === area.latitude && currentLongitude === area.longitude;
-                  return (
-                    <Pressable
-                      key={area.label}
-                      onPress={() => selectWorkerArea(area)}
-                      style={[styles.areaPresetChip, selected && styles.areaPresetChipSelected]}
-                    >
-                      <Text style={[styles.areaPresetText, selected && styles.areaPresetTextSelected]}>{area.label}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-
               <View style={styles.radiusGrid}>
                 {workerRadiusOptions.map((option) => {
                   const selected = preferredRadiusKm === option.value;
                   return (
                     <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
                       key={option.value}
                       onPress={() => setPreferredRadiusKm(option.value)}
                       style={[styles.radiusCard, selected && styles.radiusCardSelected]}
@@ -417,11 +391,8 @@ export default function ProfileScreen() {
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Reviews</Text>
-            <View style={styles.viewAllComingSoon}>
-              <Text style={styles.viewAll}>View All</Text>
-              <Text style={styles.viewAllHint}>Coming soon</Text>
-            </View>
+            <Text style={styles.sectionTitle}>Reviews</Text>
+            <Text style={styles.reviewCount}>{reviewCountLabel}</Text>
           </View>
           {profileRatings.length ? (
             profileRatings.map((rating) => (
@@ -443,15 +414,17 @@ export default function ProfileScreen() {
 
         <View style={styles.coverageCard}>
           <View style={styles.coverageHeader}>
-            <Text style={styles.coverageIcon}>•</Text>
             <Text style={styles.coverageTitle}>{currentUser?.role === "client" ? "Preferred Service Area" : "Service Coverage"}</Text>
           </View>
           <LocationMap center={mapCenter} markers={mapCenter ? [{ id: "coverage", ...mapCenter, title: address }] : []} height={128} />
         </View>
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
-        <Pressable style={styles.saveButton} onPress={handleSave}>
+        <Pressable accessibilityRole="button" accessibilityState={{ disabled: actionLoading }} disabled={actionLoading} style={[styles.saveButton, actionLoading && styles.uploadDisabled]} onPress={handleSave}>
           <Text style={styles.saveButtonText}>{actionLoading ? "Saving..." : "Save Changes"}</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" onPress={() => router.push("/help" as Href)} style={styles.supportButton}>
+          <Text style={styles.supportButtonText}>Privacy, limitations, and beta support</Text>
         </Pressable>
         <Pressable accessibilityRole="button" onPress={handleLogout} style={styles.logoutButton}>
           <Text style={styles.logoutText}>Logout</Text>
@@ -467,9 +440,9 @@ export default function ProfileScreen() {
             {skillOptions.map((skill) => {
               const selected = skills.includes(skill);
               return (
-                <Pressable key={skill} onPress={() => toggleSkill(skill)} style={styles.dropdownOption}>
+                <Pressable accessibilityRole="button" accessibilityState={{ selected }} key={skill} onPress={() => toggleSkill(skill)} style={styles.dropdownOption}>
                   <Text style={[styles.dropdownOptionText, selected && styles.dropdownOptionSelected]}>
-                    {selected ? "✓ " : ""}{skill}
+                    {selected ? "Selected: " : ""}{skill}
                   </Text>
                 </Pressable>
               );
@@ -627,7 +600,7 @@ function BottomNav({
         const selected = item.key === active;
         const color = selected ? "#684000" : palette.muted;
         return (
-          <Pressable key={item.key} onPress={() => router.push(item.route as never)} style={[styles.navItem, selected && styles.navItemActive]}>
+          <Pressable accessibilityLabel={item.label} accessibilityRole="button" accessibilityState={{ selected }} key={item.key} onPress={() => router.push(item.route as never)} style={[styles.navItem, selected && styles.navItemActive]}>
             <BottomNavIcon name={item.key as "home" | "jobs" | "chat" | "profile"} color={color} />
             <Text style={[styles.navLabel, selected && styles.navTextActive]}>{item.label}</Text>
           </Pressable>
@@ -641,8 +614,8 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.background },
   header: { minHeight: 56, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: palette.surface, borderBottomWidth: 1, borderBottomColor: "#EDF1EF" },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
-  backButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  backText: { color: palette.text, fontSize: 34, lineHeight: 36 },
+  backButton: { minWidth: 48, minHeight: 44, alignItems: "center", justifyContent: "center" },
+  backText: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "900" },
   brand: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "900" },
   smallAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: palette.surfaceHigh, alignItems: "center", justifyContent: "center" },
   avatarText: { color: palette.secondary, fontWeight: "900" },
@@ -777,6 +750,8 @@ const styles = StyleSheet.create({
   coverageBadgeText: { color: palette.primary, fontSize: 14, fontWeight: "900" },
   saveButton: { minHeight: 48, borderRadius: 10, backgroundColor: palette.primary, alignItems: "center", justifyContent: "center" },
   saveButtonText: { color: palette.white, fontSize: 14, fontWeight: "900" },
+  supportButton: { minHeight: 48, borderRadius: 10, borderWidth: 1, borderColor: palette.outlineVariant, alignItems: "center", justifyContent: "center", paddingHorizontal: 14, backgroundColor: palette.surface },
+  supportButtonText: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "900", textAlign: "center" },
   logoutButton: { minHeight: 48, borderRadius: 10, borderWidth: 1, borderColor: "#FFDAD6", alignItems: "center", justifyContent: "center", backgroundColor: "#FFF7F6" },
   logoutText: { color: palette.danger, fontSize: 14, fontWeight: "900" },
   errorText: { color: palette.danger, fontSize: 12, lineHeight: 16, fontWeight: "700" },

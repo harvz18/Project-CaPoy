@@ -49,7 +49,7 @@ export default function ReportUserScreen() {
   return (
     <ScreenContainer scroll>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.back}><Text style={styles.backText}>Back</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.back}><Text style={styles.backText}>Back</Text></Pressable>
         <Text style={styles.eyebrow}>TASKLINK SAFETY</Text>
         <Text style={styles.title}>Report a user</Text>
         <Text style={styles.subtitle}>
@@ -61,7 +61,7 @@ export default function ReportUserScreen() {
         <Text style={styles.label}>Category</Text>
         <View style={styles.chips}>
           {categories.map((item) => (
-            <Pressable key={item} onPress={() => setCategory(item)} style={[styles.chip, category === item && styles.chipSelected]}>
+            <Pressable accessibilityRole="button" accessibilityState={{ selected: category === item }} key={item} onPress={() => setCategory(item)} style={[styles.chip, category === item && styles.chipSelected]}>
               <Text style={[styles.chipText, category === item && styles.chipTextSelected]}>{item}</Text>
             </Pressable>
           ))}
@@ -88,7 +88,7 @@ export default function ReportUserScreen() {
         {error ? <Text style={styles.error}>{error}</Text> : null}
         {confirmation ? <Text style={styles.success}>{confirmation}</Text> : null}
 
-        <Pressable disabled={submitting || Boolean(confirmation)} onPress={submit} style={[styles.submit, (submitting || Boolean(confirmation)) && styles.disabled]}>
+        <Pressable accessibilityRole="button" accessibilityState={{ disabled: submitting || Boolean(confirmation) }} disabled={submitting || Boolean(confirmation)} onPress={submit} style={[styles.submit, (submitting || Boolean(confirmation)) && styles.disabled]}>
           <Text style={styles.submitText}>{submitting ? "Submitting..." : confirmation ? "Report submitted" : "Submit report"}</Text>
         </Pressable>
       </View>

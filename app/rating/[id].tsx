@@ -28,23 +28,42 @@ export default function RatingScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { submitRating, ratings, currentUser, tasks } = useApp();
+  const { actionLoading, submitRating, ratings, currentUser, tasks } = useApp();
   const [score, setScore] = useState(5);
   const [feedback, setFeedback] = useState("");
+  const [submitError, setSubmitError] = useState("");
   const task = tasks.find((item) => item.id === id);
   const taskRatings = ratings.filter((rating) => rating.taskId === id);
 
   async function handleSubmit() {
-    await submitRating(id, score, feedback || "Good transaction.");
-    router.back();
+    try {
+      setSubmitError("");
+      await submitRating(id, score, feedback.trim());
+      router.back();
+    } catch (ratingError) {
+      setSubmitError(ratingError instanceof Error ? ratingError.message : "Unable to submit this rating.");
+    }
+  }
+
+  if (!task) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
+        <View style={styles.header}>
+          <Pressable accessibilityLabel="Go back" accessibilityRole="button" onPress={() => router.back()} style={styles.backButton}>
+            <Text style={styles.backText}>Back</Text>
+          </Pressable>
+        </View>
+        <EmptyState title="Task unavailable" message="This task could not be loaded, so a rating cannot be submitted." />
+      </SafeAreaView>
+    );
   }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.backButton}>
-            <Text style={styles.backText}>{"<"}</Text>
+          <Pressable accessibilityLabel="Go back" accessibilityRole="button" onPress={() => router.back()} style={styles.backButton}>
+            <Text style={styles.backText}>Back</Text>
           </Pressable>
           <Text style={styles.brand}>TASKLINK</Text>
         </View>
@@ -61,7 +80,7 @@ export default function RatingScreen() {
         <View style={styles.heroPanel}>
           <View style={styles.heroCopy}>
             <Text style={styles.heroKicker}>Rate Transaction</Text>
-            <Text style={styles.heroTitle}>{task?.title ?? "Completed Task"}</Text>
+            <Text style={styles.heroTitle}>{task.title}</Text>
             <Text style={styles.heroText}>Share a quick review for trust, quality, and reliability.</Text>
           </View>
           <View style={styles.scoreBadge}>
@@ -79,7 +98,9 @@ export default function RatingScreen() {
                 const selected = score === value;
                 return (
                   <Pressable
+                    accessibilityLabel={`${value} out of 5`}
                     accessibilityRole="button"
+                    accessibilityState={{ selected }}
                     key={value}
                     onPress={() => setScore(value)}
                     style={({ pressed }) => [
@@ -110,11 +131,13 @@ export default function RatingScreen() {
 
           <Pressable
             accessibilityRole="button"
+            disabled={actionLoading}
             onPress={handleSubmit}
-            style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}
+            style={({ pressed }) => [styles.primaryButton, actionLoading && styles.disabled, pressed && styles.pressed]}
           >
-            <Text style={styles.primaryButtonText}>Submit Rating</Text>
+            <Text style={styles.primaryButtonText}>{actionLoading ? "Submitting..." : "Submit Rating"}</Text>
           </Pressable>
+          {submitError ? <Text accessibilityRole="alert" style={styles.submitError}>{submitError}</Text> : null}
         </View>
 
         <View style={styles.sectionHeader}>
@@ -174,8 +197,8 @@ const styles = StyleSheet.create({
     borderBottomColor: "#EDF1EF"
   },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
-  backButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  backText: { color: palette.text, fontSize: 34, lineHeight: 36 },
+  backButton: { minWidth: 48, minHeight: 44, alignItems: "center", justifyContent: "center" },
+  backText: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "900" },
   brand: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "900" },
   smallAvatar: {
     width: 32,
@@ -274,6 +297,7 @@ const styles = StyleSheet.create({
     gap: 8
   },
   primaryButtonText: { color: palette.white, fontSize: 14, lineHeight: 20, fontWeight: "900" },
+  submitError: { color: "#BA1A1A", fontSize: 13, lineHeight: 18, fontWeight: "700", textAlign: "center" },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -321,5 +345,6 @@ const styles = StyleSheet.create({
   },
   reviewScoreText: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
   reviewText: { color: palette.muted, fontSize: 16, lineHeight: 24 },
+  disabled: { opacity: 0.5 },
   pressed: { opacity: 0.78, transform: [{ scale: 0.99 }] }
 });

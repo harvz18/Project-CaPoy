@@ -52,7 +52,7 @@ export async function saveUserProfile(input: SaveUserInput) {
   const firestore = requireDb();
   const now = new Date().toISOString();
   const fullName = normalizeFullName(input.fullName);
-  const address = normalizeAddress(input.address || "Bacolod City");
+  const address = normalizeAddress(input.address);
   const user: UserProfile = {
     id: input.id,
     role: input.role,
@@ -259,7 +259,7 @@ export function subscribeToPublicProfiles(onChange: (users: UserProfile[]) => vo
           (userDoc) =>
             ({
               mobileNumber: "",
-              address: "Bacolod City",
+              address: "",
               rating: 0,
               id: userDoc.id,
               ...userDoc.data()

@@ -27,12 +27,6 @@ const palette = {
 
 const categories = ["Delivery assistance", "Basic repair", "Cleaning"];
 const durations = ["1 Hour", "2 Hours", "Half Day", "Whole Day"];
-const serviceAreaPresets = [
-  { label: "Downtown", address: "Downtown Bacolod", latitude: "10.6765", longitude: "122.9509", left: "48%" as const, top: "44%" as const },
-  { label: "Mandalagan", address: "Barangay Mandalagan, Bacolod City", latitude: "10.7012", longitude: "122.9663", left: "64%" as const, top: "26%" as const },
-  { label: "Alijis", address: "Barangay Alijis, Bacolod City", latitude: "10.6426", longitude: "122.9338", left: "30%" as const, top: "68%" as const },
-  { label: "Taculing", address: "Barangay Taculing, Bacolod City", latitude: "10.6556", longitude: "122.9557", left: "55%" as const, top: "62%" as const }
-];
 const radiusOptions = [
   { label: "Nearby", value: "300", helper: "Same street or nearby block" },
   { label: "Barangay", value: "500", helper: "Good for most local tasks" },
@@ -42,11 +36,11 @@ const radiusOptions = [
 export default function PostTaskScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { actionLoading, createTask, error } = useApp();
+  const { actionLoading, createTask, currentUser, error } = useApp();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("Delivery assistance");
-  const [location, setLocation] = useState("Bacolod City");
+  const [location, setLocation] = useState("");
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
   const [locationSource, setLocationSource] = useState<"device" | "manual" | "map">();
@@ -62,25 +56,9 @@ export default function PostTaskScreen() {
   const [mapOpen, setMapOpen] = useState(false);
   const [categoryOpen, setCategoryOpen] = useState(false);
   const [durationOpen, setDurationOpen] = useState(false);
-  const selectedServiceArea = serviceAreaPresets.find(
-    (preset) => preset.latitude === latitude && preset.longitude === longitude
-  );
   const mapCenter = parseCoordinate(latitude) !== undefined && parseCoordinate(longitude) !== undefined
     ? { latitude: parseCoordinate(latitude) as number, longitude: parseCoordinate(longitude) as number }
     : undefined;
-
-  function selectServiceArea(preset: (typeof serviceAreaPresets)[number]) {
-    setLocation(preset.address);
-    setLatitude(preset.latitude);
-    setLongitude(preset.longitude);
-    setLocationSource("manual");
-    setLocationCapturedAt(new Date().toISOString());
-    setLocationAccuracyMeters(undefined);
-    setLocationMessage("Manual task pin selected.");
-    if (preset.label === "Downtown") {
-      setGeofenceRadius("1000");
-    }
-  }
 
   async function useDeviceLocation() {
     setLocating(true);
@@ -125,8 +103,8 @@ export default function PostTaskScreen() {
   async function handlePostTask() {
     try {
       const task = await createTask({
-        title: title || "Manual labor task",
-        description: description || "Short-term task in Bacolod City.",
+        title,
+        description,
         category,
         location,
         locationAddress: location,
@@ -137,7 +115,7 @@ export default function PostTaskScreen() {
         locationAccuracyMeters,
         locationSource,
         requiredCapability,
-        wage: wage || "300",
+        wage,
         estimatedDuration,
         paymentMethod
       });
@@ -157,7 +135,7 @@ export default function PostTaskScreen() {
           <Text style={styles.headerTitle}>Post a Task</Text>
         </View>
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>M</Text>
+          <Text style={styles.avatarText}>{currentUser?.fullName?.trim().charAt(0).toUpperCase() || "T"}</Text>
         </View>
       </View>
 
@@ -191,8 +169,8 @@ export default function PostTaskScreen() {
 
           <Field label="Location & Service Area">
             <View style={styles.locationInputWrap}>
-              <Text style={styles.locationIcon}>•</Text>
               <TextInput
+                accessibilityLabel="Task location"
                 onChangeText={setLocation}
                 placeholder="Enter your address"
                 placeholderTextColor={palette.outline}
@@ -224,23 +202,8 @@ export default function PostTaskScreen() {
               </View>
               {locationMessage ? <Text style={styles.locationMessage}>{locationMessage}</Text> : null}
               <View style={styles.twoColumn}>
-                <TextInput keyboardType="decimal-pad" onChangeText={(value) => setManualCoordinate(setLatitude, value)} placeholder="Latitude" placeholderTextColor={palette.outline} style={[styles.input, styles.flex]} value={latitude} />
-                <TextInput keyboardType="decimal-pad" onChangeText={(value) => setManualCoordinate(setLongitude, value)} placeholder="Longitude" placeholderTextColor={palette.outline} style={[styles.input, styles.flex]} value={longitude} />
-              </View>
-
-              <View style={styles.areaPresetGrid}>
-                {serviceAreaPresets.map((preset) => {
-                  const selected = latitude === preset.latitude && longitude === preset.longitude;
-                  return (
-                    <Pressable
-                      key={preset.label}
-                      onPress={() => selectServiceArea(preset)}
-                      style={[styles.areaPresetChip, selected && styles.areaPresetChipSelected]}
-                    >
-                      <Text style={[styles.areaPresetText, selected && styles.areaPresetTextSelected]}>{preset.label}</Text>
-                    </Pressable>
-                  );
-                })}
+                <TextInput accessibilityLabel="Task latitude" keyboardType="decimal-pad" onChangeText={(value) => setManualCoordinate(setLatitude, value)} placeholder="Latitude" placeholderTextColor={palette.outline} style={[styles.input, styles.flex]} value={latitude} />
+                <TextInput accessibilityLabel="Task longitude" keyboardType="decimal-pad" onChangeText={(value) => setManualCoordinate(setLongitude, value)} placeholder="Longitude" placeholderTextColor={palette.outline} style={[styles.input, styles.flex]} value={longitude} />
               </View>
 
               <View style={styles.radiusGrid}>
@@ -248,6 +211,8 @@ export default function PostTaskScreen() {
                   const selected = geofenceRadius === option.value;
                   return (
                     <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
                       key={option.value}
                       onPress={() => setGeofenceRadius(option.value)}
                       style={[styles.radiusCard, selected && styles.radiusCardSelected]}
@@ -263,9 +228,9 @@ export default function PostTaskScreen() {
               <View style={styles.coordinateSummary}>
                 <View style={styles.flex}>
                   <Text style={styles.coordinateLabel}>Pinned task area</Text>
-                  <Text style={styles.coordinateAddress}>{selectedServiceArea?.address ?? location}</Text>
+                  <Text style={styles.coordinateAddress}>{location || "Address not entered"}</Text>
                 </View>
-                <Text style={styles.coordinateValue}>{latitude}, {longitude}</Text>
+                <Text style={styles.coordinateValue}>{latitude && longitude ? `${latitude}, ${longitude}` : "Pin not set"}</Text>
               </View>
             </View>
           </Field>
@@ -276,6 +241,8 @@ export default function PostTaskScreen() {
                 const selected = requiredCapability === capability;
                 return (
                   <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
                     key={capability}
                     onPress={() => {
                       setRequiredCapability(capability);
@@ -318,6 +285,8 @@ export default function PostTaskScreen() {
             <View style={styles.paymentRow}>
               {(["COD", "GCash link"] as PaymentMethod[]).map((method) => (
                 <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: paymentMethod === method }}
                   key={method}
                   onPress={() => setPaymentMethod(method)}
                   style={[styles.paymentChip, paymentMethod === method && styles.paymentChipSelected]}
@@ -354,11 +323,12 @@ export default function PostTaskScreen() {
       <View style={[styles.bottomAction, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <Pressable
           accessibilityRole="button"
+          accessibilityState={{ disabled: actionLoading }}
+          disabled={actionLoading}
           onPress={handlePostTask}
-          style={({ pressed }) => [styles.postButton, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.postButton, actionLoading && styles.disabled, pressed && styles.pressed]}
         >
           <Text style={styles.postButtonText}>{actionLoading ? "Posting..." : "Post Job Now"}</Text>
-          <Text style={styles.postButtonText}>Send</Text>
         </Pressable>
       </View>
 
@@ -387,30 +357,14 @@ export default function PostTaskScreen() {
             <Text style={styles.helperText}>Tap the mobile map or drag the task pin. On web, enter coordinates manually.</Text>
 
             <View style={styles.modalPanel}>
-              <Text style={styles.fieldLabel}>Choose pin location</Text>
-              <View style={styles.areaPresetGrid}>
-                {serviceAreaPresets.map((preset) => {
-                  const selected = latitude === preset.latitude && longitude === preset.longitude;
-                  return (
-                    <Pressable
-                      key={preset.label}
-                      onPress={() => selectServiceArea(preset)}
-                      style={[styles.areaPresetChip, selected && styles.areaPresetChipSelected]}
-                    >
-                      <Text style={[styles.areaPresetText, selected && styles.areaPresetTextSelected]}>{preset.label}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-
-            <View style={styles.modalPanel}>
               <Text style={styles.fieldLabel}>Worker check radius</Text>
               <View style={styles.radiusGrid}>
                 {radiusOptions.map((option) => {
                   const selected = geofenceRadius === option.value;
                   return (
                     <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
                       key={option.value}
                       onPress={() => setGeofenceRadius(option.value)}
                       style={[styles.radiusCard, selected && styles.radiusCardSelected]}
@@ -574,8 +528,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center"
   },
-  locationIcon: { color: palette.primary, fontSize: 24, paddingLeft: 12 },
-  locationInput: { flex: 1, minHeight: 48, color: palette.text, fontSize: 16, paddingHorizontal: 8 },
+  locationInput: { flex: 1, minHeight: 48, color: palette.text, fontSize: 16, paddingHorizontal: 12 },
   mapPreview: {
     height: 128,
     borderRadius: 8,
@@ -823,5 +776,6 @@ const styles = StyleSheet.create({
   pickerOptionText: { color: palette.text, fontSize: 16, lineHeight: 24, fontWeight: "700", flex: 1 },
   pickerOptionTextSelected: { color: palette.primary, fontWeight: "900" },
   pickerCheck: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
+  disabled: { opacity: 0.55 },
   pressed: { opacity: 0.78, transform: [{ scale: 0.99 }] }
 });

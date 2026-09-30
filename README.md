@@ -64,13 +64,21 @@ Run `npm run test:rules:emulator` before deploying rules to a real project. The 
 
 ## Online deployment status
 
-As of September 30, 2026:
+As of October 1, 2026:
 
-- Phase 2 commit `f3a795e` is pushed to GitHub’s `tasklink` branch. A Render site linked to that branch with auto-deploy enabled should rebuild from it; confirm the completed build in Render because this workspace has no Render API credential.
-- Phase 2 Firestore rules and the existing indexes are deployed to `tasklink-fb027`. The participant, sender, and receiver message indexes remain `READY`.
-- Cloud Functions are not deployed. This means the superadmin/report screens are present in the web build, but their trusted actions remain unavailable online. Firebase requires the Blaze pay-as-you-go plan for Functions, and deployment artifacts can produce small storage charges.
+- The verified Phase 7 source is published through GitHub’s `tasklink` branch. A Render site linked to that branch with auto-deploy enabled should rebuild from the pushed commit; confirm the completed build in Render because this workspace has no Render API credential.
+- The reviewed Phase 6 Firestore rules and indexes are deployed to `tasklink-fb027`. The participant, sender, receiver, and administrator analytics protections were exercised in the emulator before deployment.
+- Cloud Functions are not deployed. This means trusted matching fan-out, remote push, moderation mutations, and analytics generation remain unavailable online. Firebase requires the Blaze pay-as-you-go plan for Functions, and deployment artifacts can produce small storage charges.
 - Cloud Storage for Firebase also requires Blaze as of February 3, 2026. Upload/review features cannot be represented as fully online under a strict no-charge constraint.
 - No billing plan was enabled or changed by these deployment steps.
+
+## Phase 7 beta hardening
+
+The current client removes prototype names, ratings, counts, availability claims, and location fallbacks from operational screens. Job search, category filters, and sorting operate on live task data. Critical listener failures expose Retry Sync and Dismiss actions, while risky mutations keep their own result/loading states. A local error boundary prevents a render failure from becoming an unexplained blank screen.
+
+Set `EXPO_PUBLIC_SUPPORT_EMAIL` in local, EAS, and Render environments to a project-owned mailbox. When it is unset, the Help screen explicitly reports that beta support is not configured. No third-party remote crash processor or automated retention worker is represented as active.
+
+The controlled-beta limitations, location/payment statements, manual deletion process, retention targets, and tester matrix are documented in [docs/TASKLINK_BETA_OPERATIONS.md](docs/TASKLINK_BETA_OPERATIONS.md). Physical-device offline, large-font, screen-reader, and four-role acceptance evidence is still required before claiming the Phase 7 or overall beta gate is complete.
 
 ## Task workflow
 
