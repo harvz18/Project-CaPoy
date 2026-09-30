@@ -33,7 +33,9 @@ import { hasFirebaseConfig } from "../services/firebase";
 import {
   defaultNotificationPreferences,
   markAllNotificationsRead,
+  markNotificationOpened,
   markNotificationRead,
+  recordMatchingApplication,
   saveNotificationPreferences,
   subscribeToNotificationPreferences,
   subscribeToNotifications
@@ -127,6 +129,7 @@ type AppContextValue = {
   markMessagesRead: (taskId: string, otherParticipantId: string) => Promise<void>;
   loadOlderChatMessages: () => Promise<number>;
   markNotificationAsRead: (notificationId: string) => Promise<void>;
+  markNotificationAsOpened: (notificationId: string) => Promise<void>;
   markEveryNotificationRead: () => Promise<void>;
   updateNotificationPreferences: (updates: Partial<NotificationPreferences>) => Promise<void>;
   submitRating: (taskId: string, score: number, feedback: string) => Promise<void>;
@@ -463,6 +466,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       if (!task) throw new Error("Task not found.");
       assertCanApply(task, currentUser, currentUser.availabilityStatus ?? currentUser.availability);
       await applyToTask(taskId, currentUser);
+      await recordMatchingApplication(taskId, currentUser.id).catch(() => undefined);
     });
   }
 
@@ -609,6 +613,10 @@ export function AppProvider({ children }: PropsWithChildren) {
     await markNotificationRead(notificationId);
   }
 
+  async function markNotificationAsOpened(notificationId: string) {
+    await markNotificationOpened(notificationId);
+  }
+
   async function markEveryNotificationRead() {
     await markAllNotificationsRead(notifications);
   }
@@ -726,6 +734,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       markMessagesRead,
       loadOlderChatMessages,
       markNotificationAsRead,
+      markNotificationAsOpened,
       markEveryNotificationRead,
       updateNotificationPreferences,
       submitRating,

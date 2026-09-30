@@ -112,6 +112,7 @@ export async function createTaskInFirestore(input: TaskInput) {
   const firestore = requireDb();
   requireAuthActor({ id: input.clientId, role: "client" });
   const now = new Date().toISOString();
+  const expiresAt = new Date(Date.parse(now) + 7 * 24 * 60 * 60 * 1000).toISOString();
   const taskRef = doc(collection(firestore, "tasks"));
   const task = withoutUndefined({
     clientId: input.clientId,
@@ -133,6 +134,7 @@ export async function createTaskInFirestore(input: TaskInput) {
     status: "Finding Workers" as const,
     paymentMethod: input.paymentMethod,
     paymentStatus: "Pending" as const,
+    expiresAt,
     createdAt: now,
     updatedAt: now
   }) as Omit<Task, "id">;

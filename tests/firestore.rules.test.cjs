@@ -89,6 +89,7 @@ function taskData(overrides = {}) {
     paymentMethod: "COD",
     applicantIds: [],
     createdAt: "2026-01-01T00:00:00.000Z",
+    expiresAt: "2027-01-01T00:00:00.000Z",
     ...overrides
   };
 }
@@ -477,6 +478,11 @@ test("only a client can create an open task owned by that client", async () => {
   await assertFails(
     setDoc(doc(clientDb, "tasks", "invalid-location"), taskData({ latitude: 200 }))
   );
+  await assertFails(updateDoc(doc(clientDb, "tasks", TASK_ID), {
+    latitude: 10.7,
+    longitude: 122.96,
+    updatedAt: "2026-01-01T00:01:00.000Z"
+  }));
 });
 
 test("workers can save valid private location metadata but invalid coordinates fail", async () => {
@@ -488,6 +494,14 @@ test("workers can save valid private location metadata but invalid coordinates f
     locationAccuracyMeters: 15,
     locationSource: "device",
     updatedAt: "2026-01-01T00:00:01.000Z"
+  }));
+  await assertSucceeds(updateDoc(doc(workerDb, "users", WORKER_ID), {
+    preferredRadiusKm: 10,
+    updatedAt: "2026-01-01T00:00:01.750Z"
+  }));
+  await assertFails(updateDoc(doc(workerDb, "users", WORKER_ID), {
+    preferredRadiusKm: 100,
+    updatedAt: "2026-01-01T00:00:01.800Z"
   }));
   await assertSucceeds(updateDoc(doc(workerDb, "users", WORKER_ID), {
     currentLatitude: 10.6766,
@@ -1153,7 +1167,15 @@ test("users control only their own push token and notification preferences", asy
     });
   });
   await assertSucceeds(updateDoc(doc(workerDb, "notifications", "worker-notification"), { readStatus: true }));
+  await assertSucceeds(updateDoc(doc(workerDb, "notifications", "worker-notification"), {
+    openedAt: "2026-01-01T00:01:00.000Z"
+  }));
+  await assertSucceeds(updateDoc(doc(workerDb, "notifications", "worker-notification"), {
+    applicationConvertedAt: "2026-01-01T00:02:00.000Z"
+  }));
   await assertFails(updateDoc(doc(workerDb, "notifications", "worker-notification"), { readStatus: false }));
+  await assertFails(updateDoc(doc(workerDb, "notifications", "worker-notification"), { openedAt: 123 }));
+  await assertFails(updateDoc(doc(workerDb, "notifications", "worker-notification"), { message: "Forged" }));
   await assertFails(updateDoc(doc(dbFor(OUTSIDER_ID), "notifications", "worker-notification"), { readStatus: true }));
 });
 

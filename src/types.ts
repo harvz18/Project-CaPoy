@@ -146,6 +146,12 @@ export type AppNotification = {
   route?: "task" | "chat";
   senderId?: string;
   conversationId?: string;
+  matchScore?: number;
+  matchReasons?: string[];
+  matchPolicyVersion?: number;
+  distanceKm?: number;
+  openedAt?: string;
+  applicationConvertedAt?: string;
 };
 
 export type NotificationPreferences = {

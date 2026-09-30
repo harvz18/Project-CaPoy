@@ -9,7 +9,7 @@ import { useApp } from "../src/context/AppContext";
 import { MatchResult, rankTasksForWorker } from "../src/domain/matching";
 import { captureForegroundLocation } from "../src/services/locationService";
 import { Task } from "../src/types";
-import { formatDistance } from "../src/utils/location";
+import { formatDistance, getDiscoveryLocationIssue } from "../src/utils/location";
 
 const palette = {
   background: "#F7FAF8",
@@ -45,6 +45,7 @@ export default function JobsScreen() {
   const rankedJobs = currentUser ? rankTasksForWorker(postedTasks, currentUser).filter(({ task }) =>
     activeFilter === "All Jobs" || task.category.toLowerCase().includes(activeFilter.toLowerCase())
   ) : [];
+  const discoveryLocationIssue = getDiscoveryLocationIssue(currentUser);
 
   async function handleQuickApply(task: Task) {
     await acceptTask(task.id);
@@ -94,7 +95,7 @@ export default function JobsScreen() {
             <Text style={styles.locationIcon}>•</Text>
             <View style={styles.locationCopy}>
               <Text style={styles.locationTitle}>Nearby Jobs</Text>
-              <Text style={styles.locationText}>Bacolod City opportunities around you</Text>
+              <Text style={styles.locationText}>{discoveryLocationIssue ?? `${rankedJobs.filter(({ match }) => match.eligible).length} eligible jobs within your radius`}</Text>
             </View>
           </View>
           <Pressable accessibilityRole="button" disabled={actionLoading} onPress={refreshLocation} style={styles.refreshButton}>

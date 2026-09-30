@@ -14,6 +14,7 @@ export default function NotificationsScreen() {
     currentUser,
     markEveryNotificationRead,
     markNotificationAsRead,
+    markNotificationAsOpened,
     notificationPreferences,
     notifications,
     updateNotificationPreferences
@@ -36,7 +37,9 @@ export default function NotificationsScreen() {
   }
 
   async function openNotification(item: AppNotification) {
-    if (!item.readStatus) await markNotificationAsRead(item.id).catch(() => undefined);
+    await markNotificationAsOpened(item.id).catch(async () => {
+      if (!item.readStatus) await markNotificationAsRead(item.id).catch(() => undefined);
+    });
     if (!item.taskId) return;
     if (item.route === "chat" && item.senderId) {
       router.push({ pathname: "/chat/[id]", params: { id: item.taskId, recipientId: item.senderId } });

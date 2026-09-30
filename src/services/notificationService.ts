@@ -2,6 +2,7 @@ import {
   addDoc,
   collection,
   doc,
+  getDoc,
   onSnapshot,
   query,
   setDoc,
@@ -65,6 +66,23 @@ export async function addNotification(notification: NotificationInput) {
 
 export async function markNotificationRead(notificationId: string) {
   await updateDoc(doc(requireDb(), "notifications", notificationId), { readStatus: true });
+}
+
+export async function markNotificationOpened(notificationId: string) {
+  await updateDoc(doc(requireDb(), "notifications", notificationId), {
+    readStatus: true,
+    openedAt: new Date().toISOString()
+  });
+}
+
+export async function recordMatchingApplication(taskId: string, userId: string) {
+  const firestore = requireDb();
+  const notificationRef = doc(firestore, "notifications", `${taskId}_nearby_${userId}`);
+  const snapshot = await getDoc(notificationRef);
+  if (!snapshot.exists() || snapshot.data().userId !== userId || snapshot.data().notificationType !== "Matching task") {
+    return;
+  }
+  await updateDoc(notificationRef, { applicationConvertedAt: new Date().toISOString() });
 }
 
 export async function markAllNotificationsRead(notifications: AppNotification[]) {

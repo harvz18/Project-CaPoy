@@ -7,6 +7,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppProvider, useApp } from "../src/context/AppContext";
 import { colors } from "../src/theme";
 import { configureNotificationChannel } from "../src/services/pushNotificationService";
+import { markNotificationOpened } from "../src/services/notificationService";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -50,6 +51,8 @@ function ProtectedNavigator() {
       const taskId = typeof data.taskId === "string" ? data.taskId : undefined;
       const route = data.route === "chat" ? "chat" : "task";
       const senderId = typeof data.senderId === "string" ? data.senderId : undefined;
+      const notificationId = typeof data.notificationId === "string" ? data.notificationId : undefined;
+      if (notificationId) void markNotificationOpened(notificationId).catch(() => undefined);
       if (!taskId) return;
       if (route === "chat" && senderId) {
         router.push({ pathname: "/chat/[id]", params: { id: taskId, recipientId: senderId } });

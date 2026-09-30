@@ -8,6 +8,8 @@ export type Coordinates = {
 const earthRadiusKm = 6371;
 export const CHECK_IN_LOCATION_MAX_AGE_MS = 10 * 60 * 1000;
 export const CHECK_IN_MAX_ACCURACY_METERS = 150;
+export const DISCOVERY_LOCATION_MAX_AGE_MS = 30 * 60 * 1000;
+export const DISCOVERY_MAX_DEVICE_ACCURACY_METERS = 200;
 
 export function parseCoordinate(value: string) {
   if (!value.trim()) return undefined;
@@ -101,6 +103,29 @@ export function isLocationFresh(updatedAt: string | undefined, now = Date.now())
   if (!updatedAt) return false;
   const timestamp = new Date(updatedAt).getTime();
   return Number.isFinite(timestamp) && now - timestamp >= 0 && now - timestamp <= CHECK_IN_LOCATION_MAX_AGE_MS;
+}
+
+export function getDiscoveryLocationIssue(worker: UserProfile | null | undefined, now = Date.now()) {
+  if (!hasValidCoordinates({ latitude: worker?.currentLatitude, longitude: worker?.currentLongitude })) {
+    return "Set a valid discovery location to receive nearby job matches.";
+  }
+  const timestamp = worker?.locationUpdatedAt ? new Date(worker.locationUpdatedAt).getTime() : Number.NaN;
+  const age = now - timestamp;
+  if (!Number.isFinite(timestamp) || age < 0 || age > DISCOVERY_LOCATION_MAX_AGE_MS) {
+    return "Your discovery location is stale. Refresh it to receive nearby job matches.";
+  }
+  if (worker?.locationSource !== "manual" && (
+    worker?.locationSource !== "device" ||
+    !Number.isFinite(worker.locationAccuracyMeters) ||
+    (worker.locationAccuracyMeters as number) < 0 ||
+    (worker.locationAccuracyMeters as number) > DISCOVERY_MAX_DEVICE_ACCURACY_METERS
+  )) {
+    return `Refresh with device accuracy within ${DISCOVERY_MAX_DEVICE_ACCURACY_METERS} meters.`;
+  }
+  if (!Number.isFinite(worker?.preferredRadiusKm) || (worker?.preferredRadiusKm as number) <= 0) {
+    return "Choose a preferred discovery radius.";
+  }
+  return undefined;
 }
 
 export type GeofenceCheck = {

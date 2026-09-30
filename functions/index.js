@@ -3,7 +3,12 @@ const { getFirestore } = require("firebase-admin/firestore");
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { logger } = require("firebase-functions");
-const { scoreWorkerForTask } = require("./matching");
+const {
+  MATCH_POLICY_VERSION,
+  matchingNotificationId,
+  matchingNotificationsEnabled,
+  scoreWorkerForTask
+} = require("./matching");
 const { buildExpoPushMessage, isExpoPushToken, isNotificationCategoryEnabled } = require("./push");
 const { buildIdentityReview } = require("./identity");
 const {
@@ -425,16 +430,30 @@ exports.notifyEligibleWorkers = onDocumentCreated(
 
     const db = getFirestore();
     const workers = await db.collection("users").where("role", "==", "worker").get();
+    const evaluatedAt = Date.now();
     const eligible = workers.docs.map((workerDocument) => {
       const worker = { id: workerDocument.id, ...workerDocument.data() };
-      return { worker, match: scoreWorkerForTask(task, worker) };
+      return { worker, match: scoreWorkerForTask(task, worker, evaluatedAt) };
     }).filter(({ match }) => match.eligible);
 
+    let createdCount = 0;
     for (let offset = 0; offset < eligible.length; offset += 400) {
+      const chunk = eligible.slice(offset, offset + 400);
+      const preferenceSnapshots = await db.getAll(...chunk.map(({ worker }) =>
+        db.collection("notificationPreferences").doc(worker.id)
+      ));
+      const enabled = chunk.filter((_, index) =>
+        matchingNotificationsEnabled(preferenceSnapshots[index].data())
+      );
+      if (!enabled.length) continue;
+      const notificationRefs = enabled.map(({ worker }) =>
+        db.collection("notifications").doc(matchingNotificationId(event.params.taskId, worker.id))
+      );
+      const existingNotifications = await db.getAll(...notificationRefs);
       const batch = db.batch();
-      eligible.slice(offset, offset + 400).forEach(({ worker, match }) => {
-        const notification = db.collection("notifications").doc(`${event.params.taskId}_nearby_${worker.id}`);
-        batch.set(notification, {
+      enabled.forEach(({ worker, match }, index) => {
+        if (existingNotifications[index].exists) return;
+        batch.create(notificationRefs[index], {
           userId: worker.id,
           taskId: event.params.taskId,
           createdBy: task.clientId,
@@ -442,13 +461,21 @@ exports.notifyEligibleWorkers = onDocumentCreated(
           message: `${task.title} is a ${match.score}% match for your profile.`,
           matchScore: match.score,
           matchReasons: match.reasons,
+          matchPolicyVersion: MATCH_POLICY_VERSION,
+          distanceKm: Number(match.distanceKm.toFixed(3)),
+          route: "task",
           readStatus: false,
           createdAt: new Date().toISOString()
         });
+        createdCount += 1;
       });
-      await batch.commit();
+      if (enabled.some((_, index) => !existingNotifications[index].exists)) await batch.commit();
     }
-    logger.info("TaskLink matching notifications created", { taskId: event.params.taskId, count: eligible.length });
+    logger.info("TaskLink matching notifications created", {
+      taskId: event.params.taskId,
+      eligibleCount: eligible.length,
+      createdCount
+    });
   }
 );
 
@@ -472,7 +499,7 @@ exports.materializeApplicationMatch = onDocumentCreated(
       matchReasons: match.reasons,
       ...(match.distanceKm === undefined ? {} : { distanceKm: match.distanceKm }),
       eligible: match.eligible,
-      matchPolicyVersion: 1,
+      matchPolicyVersion: MATCH_POLICY_VERSION,
       updatedAt: new Date().toISOString()
     });
   }

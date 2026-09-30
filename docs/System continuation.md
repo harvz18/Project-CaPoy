@@ -62,7 +62,7 @@ The continuation phases below are numbered independently from the original TASKL
 | 0 | Requirements and policy lock | Not started | Required before schema changes |
 | 1 | Approved identity fields and address | Client pushed and Firestore deployed; backend/manual verification pending | High |
 | 2 | Superadmin and account restrictions | Client pushed and Firestore deployed; Functions/provisioning/manual verification pending | High |
-| 3 | Geofenced discovery and nearby notifications | Implemented locally; not beta-proven | **Highest** |
+| 3 | Geofenced discovery and nearby notifications | Hardened and locally verified; cloud Function/device proof pending | **Highest** |
 | 4 | Smart-match consistency and explainability | Implemented locally; needs hardening | High |
 | 5 | Foreground real-time map | Static/live user marker only | High |
 | 6 | Administrator analytics | Basic counters only | Medium |
@@ -300,6 +300,30 @@ Record delivery/open/apply events for beta analytics
 - Every failed eligibility gate prevents the notification and has a test.
 - Start/finish check-in continues to use the smaller worksite geofence and fresh device coordinates.
 - The beta project produces evidence for distance boundaries and delivery behavior.
+
+### Implementation status — Client/rules ready; trusted Function and device proof pending
+
+- Added matching policy version 2 to both the TypeScript client and trusted JavaScript backend so eligibility, scoring, reasons, and sorting agree.
+- Discovery locations are valid for 30 minutes. Device locations must report accuracy within 200 meters; deliberate manual pins remain discovery-only and never satisfy worksite check-in.
+- Matching now fails closed for an invalid/stale/inaccurate location, invalid radius, unavailable or already assigned tasker, suspended/deleted account, skill mismatch, unapproved identity, closed task, expired task, or out-of-range task.
+- Newly posted tasks from the current client receive a seven-day expiry. Firestore validates the field when present while still allowing older deployed clients and legacy task records during the beta migration.
+- The tasker job board exposes an explicit location refresh and shows when the discovery location is stale or invalid. No hidden fallback coordinate is used.
+- Nearby notification IDs remain deterministic (`taskId_nearby_workerId`). The Function checks for an existing document before creating it so retries do not replace timestamps or trigger another push.
+- `matchingEnabled` controls whether the in-app match notification is created. `pushEnabled` remains a separate choice, so disabling push does not remove an enabled in-app match.
+- Matching notifications store policy version, bounded score, readable reasons, and rounded distance, but never copy the tasker’s exact private coordinates.
+- Existing deterministic push-delivery records retain submission/provider-ticket results. Notification documents now record owner-only open time and application conversion time.
+- Employer task coordinates are already immutable after creation under the allowed task-update transitions; the emulator suite now tests this directly.
+- Discovery radius is restricted to 1–50 km in Firestore. Worksite start/finish still uses the separate meter-based `geofenceRadius`, a fresh device coordinate, and the stricter 150-meter accuracy limit.
+
+Phase 3 local verification:
+
+- TypeScript passed.
+- 23/23 application, matching, identity, authority, and location tests passed, including exact worksite-boundary and inside/outside discovery cases.
+- 16/16 Functions policy/helper tests passed, including stale, inaccurate, busy, assigned, unapproved, expired, duplicate-ID, and preference cases.
+- 32/32 Firestore and Storage emulator tests passed, including task-location immutability, bounded discovery radius, and notification telemetry ownership.
+- Android and web Expo exports passed.
+- Physical-device foreground/background/terminated push behavior is not verified yet.
+- The task-created and push-delivery Functions are not deployed because Firebase requires the Blaze plan; no billing setting was changed.
 
 ## Continuation Phase 4 — Smart-Match Consistency and Explainability
 

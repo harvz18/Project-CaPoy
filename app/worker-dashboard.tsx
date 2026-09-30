@@ -8,7 +8,7 @@ import { StatusBadge } from "../src/components/StatusBadge";
 import { useApp } from "../src/context/AppContext";
 import { MatchResult, rankTasksForWorker } from "../src/domain/matching";
 import { Task } from "../src/types";
-import { formatDistance } from "../src/utils/location";
+import { formatDistance, getDiscoveryLocationIssue } from "../src/utils/location";
 
 const palette = {
   background: "#F7FAF8",
@@ -44,6 +44,7 @@ export default function WorkerDashboardScreen() {
     (task) => task.workerId === currentUser?.id && (task.status === "Finished" || task.status === "Archived")
   );
   const featuredJobs = rankedPostedTasks.filter(({ match }) => match.eligible).slice(0, 2);
+  const discoveryLocationIssue = getDiscoveryLocationIssue(currentUser);
 
   async function handleQuickApply(task: Task) {
     await acceptTask(task.id);
@@ -58,7 +59,7 @@ export default function WorkerDashboardScreen() {
           <View style={styles.heroCopy}>
             <Text style={styles.heroKicker}>Worker Home</Text>
             <Text style={styles.heroTitle}>Welcome back, {currentUser?.fullName?.split(" ")[0] ?? "Juan"}.</Text>
-            <Text style={styles.heroText}>You are visible to nearby clients in Bacolod City. Open the full board for all available jobs.</Text>
+            <Text style={styles.heroText}>{discoveryLocationIssue ?? "Your discovery location is current. Matching jobs inside your preferred radius will appear here."}</Text>
           </View>
           <View style={styles.availabilityPill}>
             <Text style={styles.availabilityText}>{currentUser?.availabilityStatus ?? "Available"}</Text>
