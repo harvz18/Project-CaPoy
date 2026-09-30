@@ -5,8 +5,15 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import LocationMap from "../../src/components/LocationMap";
 import { StatusBadge } from "../../src/components/StatusBadge";
 import { useApp } from "../../src/context/AppContext";
+import { useForegroundLocationWatch } from "../../src/hooks/useForegroundLocationWatch";
 import { PaymentStatus, Task, TaskStatus } from "../../src/types";
-import { formatDistance, getGeofenceCheck, getTaskCheckDistanceKm } from "../../src/utils/location";
+import {
+  formatDistance,
+  getGeofenceCheck,
+  getLiveLocationIssue,
+  getTaskCheckDistanceKm,
+  shouldTrackTaskLocation
+} from "../../src/utils/location";
 import { pickAndUploadPaymentProof } from "../../src/services/fileUploadService";
 
 const palette = {
@@ -39,6 +46,13 @@ export default function TaskStatusScreen() {
   const [proofOfPaymentUrl, setProofOfPaymentUrl] = useState(task?.proofOfPaymentUrl ?? "");
   const [proofFileName, setProofFileName] = useState(task?.proofOfPaymentUrl?.split("/").pop() ?? "");
   const [uploadingProof, setUploadingProof] = useState(false);
+  const liveTrackingEnabled = shouldTrackTaskLocation(
+    currentUser?.role,
+    currentUser?.id,
+    task?.workerId,
+    task?.status
+  );
+  const liveTracking = useForegroundLocationWatch(liveTrackingEnabled);
 
   if (!task) {
     return (
@@ -62,11 +76,23 @@ export default function TaskStatusScreen() {
     workerHasApplied ||
     taskIsOpenForApplications;
   const action = getPrimaryAction(task.status, currentUser?.role, workerHasApplied, task.paymentStatus);
-  const distanceKm = getTaskCheckDistanceKm(currentUser, task);
+  const locationActor = currentUser && liveTracking.location ? {
+    ...currentUser,
+    currentLatitude: liveTracking.location.latitude,
+    currentLongitude: liveTracking.location.longitude,
+    locationAccuracyMeters: liveTracking.location.accuracyMeters,
+    locationUpdatedAt: liveTracking.location.capturedAt,
+    locationSource: liveTracking.location.source
+  } : currentUser;
+  const distanceKm = getTaskCheckDistanceKm(locationActor, task);
   const geofenceCheck = currentUser?.role === "worker"
-    ? getGeofenceCheck(currentUser, task)
+    ? getGeofenceCheck(locationActor, task, liveTracking.checkedAt)
     : { allowed: false, reason: "The assigned worker's location is checked privately when they start or finish the task." };
   const insideGeofence = geofenceCheck.allowed;
+  const liveLocationIssue = liveTracking.status === "error"
+    ? liveTracking.issue?.message
+    : getLiveLocationIssue(liveTracking.location, liveTracking.checkedAt);
+  const liveLocationHealthy = liveTracking.status === "watching" && !liveLocationIssue;
   const clientHasRated = Boolean(
     currentUser?.role === "client" && task.workerId && ratings.some((rating) => rating.taskId === task.id && rating.reviewerId === currentUser.id)
   );
@@ -183,9 +209,22 @@ export default function TaskStatusScreen() {
         <View style={styles.mapHero}>
           <LocationMap
             center={task.latitude !== undefined && task.longitude !== undefined ? { latitude: task.latitude, longitude: task.longitude } : undefined}
-            markers={task.latitude !== undefined && task.longitude !== undefined ? [{ id: task.id, latitude: task.latitude, longitude: task.longitude, title: task.title }] : []}
+            markers={[
+              ...(task.latitude !== undefined && task.longitude !== undefined
+                ? [{ id: task.id, latitude: task.latitude, longitude: task.longitude, title: task.title }]
+                : []),
+              ...(liveTracking.location ? [{
+                id: "current-device",
+                latitude: liveTracking.location.latitude,
+                longitude: liveTracking.location.longitude,
+                title: "Current device location",
+                description: Number.isFinite(liveTracking.location.accuracyMeters)
+                  ? `Accuracy about ${Math.round(liveTracking.location.accuracyMeters as number)} meters`
+                  : "Accuracy unavailable",
+                color: "#2563EB"
+              }] : [])
+            ]}
             radiusMeters={task.geofenceRadius}
-            showUserLocation
             height={260}
           />
           <View style={styles.urgentBadge}>
@@ -248,6 +287,39 @@ export default function TaskStatusScreen() {
               <Text style={styles.geoText}>Task area: {task.locationAddress ?? task.location}</Text>
               <Text style={styles.geoText}>Distance: {formatDistance(distanceKm)}</Text>
               <Text style={styles.geoText}>Allowed radius: {task.geofenceRadius ?? 500} meters</Text>
+              {liveTrackingEnabled ? (
+                <View style={styles.liveLocationPanel}>
+                  <View style={styles.geoHeader}>
+                    <Text style={styles.liveLocationTitle}>Foreground live location</Text>
+                    <Text style={[styles.geoBadge, liveLocationHealthy ? styles.geoBadgeGood : styles.geoBadgeWarn]}>
+                      {liveLocationStatusLabel(liveTracking.status, liveLocationHealthy)}
+                    </Text>
+                  </View>
+                  {liveTracking.location ? (
+                    <>
+                      <Text style={styles.geoText}>Last update: {formatLocationUpdateTime(liveTracking.location.capturedAt)}</Text>
+                      <Text style={styles.geoText}>
+                        Accuracy: {Number.isFinite(liveTracking.location.accuracyMeters)
+                          ? `about ${Math.round(liveTracking.location.accuracyMeters as number)} meters`
+                          : "unavailable"}
+                      </Text>
+                    </>
+                  ) : null}
+                  <Text style={[styles.geoHint, liveLocationIssue ? styles.liveLocationWarning : undefined]}>
+                    {liveTracking.status === "starting"
+                      ? "Requesting a balanced-accuracy device location..."
+                      : liveTracking.status === "paused"
+                        ? "Live updates pause while TaskLink is in the background."
+                        : liveLocationIssue ?? "Your marker is updating while this screen stays open."}
+                  </Text>
+                  <Text style={styles.privacyText}>This moving marker stays on your device and is not continuously stored or shared with the employer.</Text>
+                  {(liveTracking.status === "error" || (liveTracking.status === "watching" && Boolean(liveLocationIssue))) ? (
+                    <Pressable accessibilityRole="button" onPress={liveTracking.retry} style={styles.retryLocationButton}>
+                      <Text style={styles.retryLocationButtonText}>Retry Live Location</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : null}
               <Text style={styles.geoHint}>{geofenceCheck.reason} Start and finish actions refresh your device location before continuing.</Text>
             </View>
 
@@ -465,6 +537,20 @@ function getPrimaryAction(
   }
 
   return { label: "Status Updated", enabled: false };
+}
+
+function liveLocationStatusLabel(status: "idle" | "starting" | "watching" | "paused" | "error", healthy: boolean) {
+  if (status === "starting") return "Locating";
+  if (status === "paused") return "Paused";
+  if (status === "error") return "Needs attention";
+  if (status === "watching") return healthy ? "Live" : "Check accuracy";
+  return "Off";
+}
+
+function formatLocationUpdateTime(capturedAt: string) {
+  const timestamp = new Date(capturedAt);
+  if (!Number.isFinite(timestamp.getTime())) return "Unavailable";
+  return timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
 function TopBar({ onBack }: { onBack: () => void }) {
@@ -690,6 +776,12 @@ const styles = StyleSheet.create({
   geoBadgeWarn: { backgroundColor: "#FFF8EE", color: "#684000" },
   geoText: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "700" },
   geoHint: { color: palette.outline, fontSize: 12, lineHeight: 16 },
+  liveLocationPanel: { marginTop: 6, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, gap: 6 },
+  liveLocationTitle: { color: palette.textStrong, fontSize: 13, lineHeight: 18, fontWeight: "900" },
+  liveLocationWarning: { color: "#92400E", fontWeight: "700" },
+  privacyText: { color: palette.outline, fontSize: 11, lineHeight: 15 },
+  retryLocationButton: { minHeight: 40, borderRadius: 8, borderWidth: 1, borderColor: palette.primary, alignItems: "center", justifyContent: "center", marginTop: 2 },
+  retryLocationButtonText: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
   paymentPanel: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "rgba(189,201,198,0.45)", backgroundColor: palette.surface, gap: 8 },
   paymentBadge: { overflow: "hidden", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: "#FFF8EE", color: "#684000", fontSize: 11, lineHeight: 14, fontWeight: "900" },
   paymentInput: { minHeight: 82, borderRadius: 8, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow, color: palette.text, fontSize: 14, lineHeight: 20, padding: 12 },

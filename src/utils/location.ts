@@ -9,11 +9,21 @@ export type Coordinates = {
   longitude?: number;
 };
 
+export type LocationReading = {
+  latitude: number;
+  longitude: number;
+  accuracyMeters?: number;
+  capturedAt: string;
+};
+
 const earthRadiusKm = 6371;
 export const CHECK_IN_LOCATION_MAX_AGE_MS = 10 * 60 * 1000;
 export const CHECK_IN_MAX_ACCURACY_METERS = 150;
 export const DISCOVERY_LOCATION_MAX_AGE_MS = CORE_DISCOVERY_LOCATION_MAX_AGE_MS;
 export const DISCOVERY_MAX_DEVICE_ACCURACY_METERS = CORE_DISCOVERY_MAX_DEVICE_ACCURACY_METERS;
+export const LIVE_LOCATION_MIN_INTERVAL_MS = 5 * 1000;
+export const LIVE_LOCATION_MIN_DISTANCE_METERS = 10;
+export const LIVE_LOCATION_STALE_AFTER_MS = 20 * 1000;
 
 export function parseCoordinate(value: string) {
   if (!value.trim()) return undefined;
@@ -88,6 +98,50 @@ export function formatDistance(distanceKm: number | undefined) {
   }
 
   return `${distanceKm.toFixed(1)} km away`;
+}
+
+export function shouldTrackTaskLocation(
+  role: string | undefined,
+  userId: string | undefined,
+  workerId: string | undefined,
+  status: Task["status"] | undefined
+) {
+  return role === "worker" && Boolean(userId) && userId === workerId &&
+    (status === "Accepted" || status === "In Progress");
+}
+
+export function shouldAcceptLiveLocationUpdate(
+  previous: LocationReading | undefined,
+  next: LocationReading
+) {
+  if (!hasValidCoordinates(next)) return false;
+  const nextTimestamp = new Date(next.capturedAt).getTime();
+  if (!Number.isFinite(nextTimestamp)) return false;
+  if (!previous) return true;
+
+  const previousTimestamp = new Date(previous.capturedAt).getTime();
+  if (!Number.isFinite(previousTimestamp) || nextTimestamp <= previousTimestamp) return false;
+  const elapsed = nextTimestamp - previousTimestamp;
+  const distanceMeters = (calculateDistanceKm(previous, next) ?? 0) * 1000;
+  return elapsed >= LIVE_LOCATION_MIN_INTERVAL_MS || distanceMeters >= LIVE_LOCATION_MIN_DISTANCE_METERS;
+}
+
+export function getLiveLocationIssue(reading: LocationReading | undefined, now = Date.now()) {
+  if (!reading || !hasValidCoordinates(reading)) {
+    return "Waiting for a valid device location.";
+  }
+  const capturedAt = new Date(reading.capturedAt).getTime();
+  const age = now - capturedAt;
+  if (!Number.isFinite(capturedAt) || age < 0 || age > LIVE_LOCATION_STALE_AFTER_MS) {
+    return "Live location is stale. Check GPS and retry.";
+  }
+  if (!Number.isFinite(reading.accuracyMeters)) {
+    return "Location accuracy is unavailable. Start and finish checks still require an accurate reading.";
+  }
+  if ((reading.accuracyMeters as number) > CHECK_IN_MAX_ACCURACY_METERS) {
+    return `Low location accuracy (about ${Math.round(reading.accuracyMeters as number)} meters). Move outdoors or retry.`;
+  }
+  return undefined;
 }
 
 function toRadians(value: number) {

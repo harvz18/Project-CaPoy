@@ -426,6 +426,31 @@ If avoiding billed Google Maps setup is mandatory, complete a separate MapLibre-
 - Watch lifecycle and battery/network limits are enforced.
 - Exact tasker coordinates remain private unless a separate approved sharing feature is active.
 
+### Phase 5 implementation status (2026-09-30)
+
+- Retained `react-native-maps` and the existing task pin/worksite circle to avoid a map-provider migration during beta hardening.
+- Added a foreground-only balanced-accuracy watcher for the assigned tasker on the task-status screen. It runs only while the task is `Accepted` or `In Progress`.
+- Added a controlled blue device marker, live distance/geofence display, last-update time, accuracy, locating/live/paused/error states, and an explicit retry action.
+- Applied both native watch options and an application filter: updates are accepted after at least 5 seconds or 10 meters of movement. This limits unnecessary foreground rendering and battery use.
+- The watcher is removed when the screen unmounts, the app backgrounds, the task leaves an active status, or the logged-in user is not the assigned tasker. It restarts when the app returns to the foreground and the task is still active.
+- Added clear handling for disabled GPS, denied or blocked foreground permission, unavailable updates, stale readings, and accuracy above the 150-meter check-in limit.
+- Kept the start/finish workflow independent: those actions still request a new high-accuracy one-shot location and run the existing geofence check. The moving marker alone cannot authorize a workflow transition.
+- Live coordinates remain only in component memory. Phase 5 adds no continuous Firestore writes, no employer-visible movement, no background location task, and no `activeTaskLocations` collection.
+- Added pure activation, threshold, ordering, stale-reading, and inaccurate-reading tests.
+
+Phase 5 verification:
+
+- TypeScript passed.
+- 31/31 application, matching, identity, authority, workflow, location, and foreground-tracking tests passed.
+- 19/19 Functions policy/helper tests passed.
+- 32/32 Firestore and Storage emulator regression tests passed.
+- Expo Doctor passed all 18 checks.
+- Android and web Expo exports passed.
+- No Firebase rule, index, Function, or paid service change was required for this phase.
+- The source can be deployed to the connected Render workflow after commit/push, but Render serves the web fallback rather than the native `react-native-maps` view.
+- Physical Android verification is still required before claiming the Phase 5 exit criteria: walk/drive marker movement, permission removal, GPS off/on, foreground/background transitions, screen unmount, and independent inside/outside start/finish checks cannot be proven by the local automated suite.
+- A standalone production Android map can require a valid provider key and the provider's current setup/billing terms. No paid map service or billing setting was added.
+
 ## Continuation Phase 6 — Administrator Analytics
 
 **Goal:** replace basic counters with real operational metrics that help administrators evaluate the beta.
