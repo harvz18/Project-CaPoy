@@ -235,6 +235,77 @@ export type AuditLog = {
   metadata?: Record<string, unknown>;
 };
 
+export type AdminAnalyticsRangePreset = "today" | "7d" | "30d" | "custom";
+
+export type AdminAnalyticsRangeInput = {
+  preset: AdminAnalyticsRangePreset;
+  startDate?: string;
+  endDate?: string;
+};
+
+export type AdminAnalyticsReport = {
+  version: number;
+  source: "trusted-function";
+  snapshotId: string;
+  generatedAt: string;
+  range: {
+    preset: AdminAnalyticsRangePreset;
+    label: string;
+    timeZone: "Asia/Manila";
+    startDate: string;
+    endDate: string;
+    startAt: string;
+    endAtExclusive: string;
+  };
+  accounts: {
+    employers: number;
+    taskers: number;
+    active: number;
+    restricted: number;
+  };
+  verification: {
+    pending: number;
+    approved: number;
+    rejected: number;
+    resubmission: number;
+  };
+  taskInventory: {
+    total: number;
+    byStatus: Record<TaskStatus, number>;
+  };
+  activity: {
+    posted: number;
+    matched: number;
+    applications: number;
+    accepted: number;
+    completed: number;
+    cancelled: number;
+    disputed: number;
+    byCategory: Array<{ category: string; count: number }>;
+  };
+  payments: Record<PaymentStatus, number> & { unresolvedReviews: number };
+  matching: {
+    telemetryAvailable: boolean;
+    notificationsSent: number;
+    opened: number;
+    converted: number;
+    openRatePercent: number | null;
+    conversionRatePercent: number | null;
+    averageEligibleTaskersPerPostedTask: number | null;
+    averageMinutesToFirstApplication: number | null;
+    averageMinutesToAcceptance: number | null;
+  };
+  daily: Array<{
+    date: string;
+    posted: number;
+    applications: number;
+    accepted: number;
+    completed: number;
+    notifications: number;
+    converted: number;
+  }>;
+};
+
 export type ViolationReport = {
   id: string;
   reporterId: string;

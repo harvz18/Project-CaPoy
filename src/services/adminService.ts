@@ -2,6 +2,8 @@ import { collection, onSnapshot } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { getDownloadURL, ref } from "firebase/storage";
 import {
+  AdminAnalyticsRangeInput,
+  AdminAnalyticsReport,
   AuditLog,
   ModerationUser,
   Payment,
@@ -83,6 +85,15 @@ export async function loadSuperadminOverview() {
     "getSuperadminOverview"
   );
   const result = await callable({});
+  return result.data;
+}
+
+export async function loadAdminAnalytics(range: AdminAnalyticsRangeInput) {
+  const callable = httpsCallable<AdminAnalyticsRangeInput, AdminAnalyticsReport>(
+    requireAdminServices().functions,
+    "getAdminAnalytics"
+  );
+  const result = await callable(range);
   return result.data;
 }
 

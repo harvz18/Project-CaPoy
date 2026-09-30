@@ -490,6 +490,29 @@ Phase 5 verification:
 - Admin and superadmin can view metrics; employers and taskers cannot.
 - Geofencing delivery and conversion can be evaluated without exposing precise location history.
 
+### Phase 6 implementation status (2026-10-01)
+
+- Added the versioned metric dictionary in `docs/TASKLINK_ANALYTICS_METRICS.md`, including Asia/Manila date boundaries, current-state versus period metrics, event timestamps, notification cohorts, privacy exclusions, retry behavior, and unavailable-state rules.
+- Added the trusted `getAdminAnalytics` callable Function. It reads the private source collections through the Admin SDK, deduplicates records by document ID, creates a deterministic sanitized snapshot for the selected date range, and returns aggregates without names, user/task IDs, exact coordinates, identity documents, payment proof, or message content.
+- Added Today, 7-day, 30-day, and custom inclusive date filters to the administrator dashboard. The dashboard now covers account and verification snapshots, task lifecycle and category counts, the workflow funnel, payment evidence states, daily activity, eligible taskers per post, notification delivery/open/conversion, and average application/acceptance time.
+- Kept the operational verification, payment, dispute, and audit queues separate from analytics. The browser/mobile client does not download private collections as an analytics fallback.
+- Added explicit loading, unavailable, last-successful/stale, and no-denominator states. Missing trusted telemetry is shown as `Unavailable`, not a fabricated zero.
+- Protected `analyticsSnapshots` so only enabled admin/superadmin custom claims can read them, all client writes are denied, and the Admin SDK remains the only materialization path.
+- Added deterministic fixtures for exact totals, Manila date boundaries, invalid/custom ranges, duplicate retries, sensitive-field exclusion, missing telemetry, and a zero-post denominator.
+
+Phase 6 verification:
+
+- TypeScript passed.
+- 31/31 application, matching, identity, authority, workflow, location, and foreground-tracking tests passed.
+- 25/25 Functions policy, matching, notification, moderation, and analytics tests passed.
+- 33/33 Firestore and Storage emulator regression tests passed, including admin/superadmin snapshot access, ordinary-user denial, and denied client writes.
+- Expo Doctor passed all 18 checks.
+- Android and web Expo exports passed.
+- The reviewed Firestore analytics rule was deployed successfully to the free-tier `tasklink-fb027` project. No billing setting or paid service was enabled.
+- Phase 6 source is pushed to GitHub's `tasklink` branch for the connected Render workflow; Render build completion still requires confirmation in the Render dashboard.
+- The callable Function source is complete and tested but is not deployed because this Firebase project requires the Blaze plan for Functions. Until the owner deliberately enables a Functions-capable plan, the online dashboard honestly reports trusted analytics as unavailable instead of exposing private data or displaying false values.
+- Consequently, the source-level and rule-level Phase 6 work is complete, but the online analytics exit criteria remain pending the trusted Function deployment and a four-role beta smoke test.
+
 ## Continuation Phase 7 — Product and Beta Hardening
 
 **Goal:** remove remaining prototype behavior and make critical flows understandable during errors, slow connections, and small-device use.

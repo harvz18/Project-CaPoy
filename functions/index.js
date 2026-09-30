@@ -3,6 +3,7 @@ const { getFirestore } = require("firebase-admin/firestore");
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { logger } = require("firebase-functions");
+const { buildAnalyticsReport } = require("./analytics");
 const {
   buildMatchSnapshot,
   MATCH_POLICY_VERSION,
@@ -362,6 +363,46 @@ exports.getSuperadminOverview = onCall({ region: REGION }, async (request) => {
     reports: reportsSnapshot.docs.map((document) => ({ id: document.id, ...document.data() })),
     auditLogs: auditSnapshot.docs.map((document) => ({ id: document.id, ...document.data() }))
   };
+});
+
+exports.getAdminAnalytics = onCall({ region: REGION }, async (request) => {
+  requireAdmin(request);
+  const db = getFirestore();
+  let rangeInput;
+  try {
+    rangeInput = {
+      preset: request.data?.preset ?? "7d",
+      startDate: request.data?.startDate,
+      endDate: request.data?.endDate
+    };
+    const [usersSnapshot, verificationSnapshot, tasksSnapshot, paymentsSnapshot, matchesSnapshot, notificationsSnapshot] = await Promise.all([
+      db.collection("users").where("role", "in", ["client", "worker"]).get(),
+      db.collection("verificationRequests").get(),
+      db.collection("tasks").get(),
+      db.collection("payments").get(),
+      db.collection("taskMatches").get(),
+      db.collection("notifications").where("notificationType", "==", "Matching task").get()
+    ]);
+    const withIds = (snapshot) => snapshot.docs.map((document) => ({ id: document.id, ...document.data() }));
+    const report = buildAnalyticsReport({
+      users: withIds(usersSnapshot),
+      verificationRequests: withIds(verificationSnapshot),
+      tasks: withIds(tasksSnapshot),
+      payments: withIds(paymentsSnapshot),
+      taskMatches: withIds(matchesSnapshot),
+      notifications: withIds(notificationsSnapshot)
+    }, rangeInput, nowIso());
+    await db.collection("analyticsSnapshots").doc(report.snapshotId).set(report);
+    return report;
+  } catch (error) {
+    if (error instanceof HttpsError) throw error;
+    const message = error instanceof Error ? error.message : "Unable to generate analytics.";
+    if (/^(Custom analytics dates|Analytics end date|Analytics ranges|Unsupported analytics range)/.test(message)) {
+      throw new HttpsError("invalid-argument", message);
+    }
+    logger.error("TaskLink analytics generation failed", { error: message, rangeInput });
+    throw new HttpsError("internal", "Unable to generate administrator analytics.");
+  }
 });
 
 exports.confirmCashPaymentReceived = onCall({ region: REGION }, async (request) => {

@@ -392,6 +392,30 @@ test("only a custom-claim administrator can read private review queues and audit
   }));
 });
 
+test("only custom-claim administrators can read trusted analytics snapshots", async () => {
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), "analyticsSnapshots", "v1_2026-09-25_2026-10-01"), {
+      version: 1,
+      source: "trusted-function",
+      generatedAt: "2026-10-01T00:00:00.000Z",
+      range: { startDate: "2026-09-25", endDate: "2026-10-01", timeZone: "Asia/Manila" },
+      accounts: { employers: 1, taskers: 2, active: 2, restricted: 1 }
+    });
+  });
+  const snapshotId = "v1_2026-09-25_2026-10-01";
+  const adminDb = dbFor(ADMIN_ID, { admin: true });
+  const superadminDb = dbFor(SUPERADMIN_ID, { superadmin: true });
+  await assertSucceeds(getDoc(doc(adminDb, "analyticsSnapshots", snapshotId)));
+  await assertSucceeds(getDoc(doc(superadminDb, "analyticsSnapshots", snapshotId)));
+  await assertFails(getDoc(doc(dbFor(ADMIN_ID), "analyticsSnapshots", snapshotId)));
+  await assertFails(getDoc(doc(dbFor(CLIENT_ID), "analyticsSnapshots", snapshotId)));
+  await assertFails(getDoc(doc(dbFor(WORKER_ID), "analyticsSnapshots", snapshotId)));
+  await assertFails(setDoc(doc(adminDb, "analyticsSnapshots", "forged"), {
+    source: "client",
+    accounts: { active: 999 }
+  }));
+});
+
 test("violation reports are validated, staff-readable, and immutable to clients", async () => {
   const clientDb = dbFor(CLIENT_ID);
   const reportRef = doc(clientDb, "violationReports", "report-1");

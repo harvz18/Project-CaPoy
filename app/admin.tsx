@@ -5,11 +5,20 @@ import { Href, useRouter } from "expo-router";
 import { useApp } from "../src/context/AppContext";
 import {
   getPrivateFileUrl,
+  loadAdminAnalytics,
   reviewPayment,
   reviewWorkerVerification,
   subscribeToAdminData
 } from "../src/services/adminService";
-import { AuditLog, Payment, Task, UserProfile, VerificationRequest } from "../src/types";
+import {
+  AdminAnalyticsRangePreset,
+  AdminAnalyticsReport,
+  AuditLog,
+  Payment,
+  Task,
+  UserProfile,
+  VerificationRequest
+} from "../src/types";
 import { colors } from "../src/theme";
 
 type AdminData = {
@@ -29,8 +38,42 @@ export default function AdminScreen() {
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
   const [busyKey, setBusyKey] = useState("");
+  const [analytics, setAnalytics] = useState<AdminAnalyticsReport>();
+  const [analyticsError, setAnalyticsError] = useState("");
+  const [analyticsLoading, setAnalyticsLoading] = useState(true);
+  const [analyticsPreset, setAnalyticsPreset] = useState<AdminAnalyticsRangePreset>("7d");
+  const [analyticsStartDate, setAnalyticsStartDate] = useState(manilaToday());
+  const [analyticsEndDate, setAnalyticsEndDate] = useState(manilaToday());
+  const [analyticsRefreshKey, setAnalyticsRefreshKey] = useState(0);
 
   useEffect(() => subscribeToAdminData(setData, (subscriptionError) => setError(subscriptionError.message)), []);
+
+  useEffect(() => {
+    if (authority !== "admin" && authority !== "superadmin") {
+      setAnalytics(undefined);
+      setAnalyticsError("");
+      setAnalyticsLoading(false);
+      return;
+    }
+    let active = true;
+    setAnalyticsLoading(true);
+    setAnalyticsError("");
+    loadAdminAnalytics({
+      preset: analyticsPreset,
+      ...(analyticsPreset === "custom" ? { startDate: analyticsStartDate, endDate: analyticsEndDate } : {})
+    }).then((report) => {
+      if (!active) return;
+      setAnalytics(report);
+    }).catch((analyticsFailure: unknown) => {
+      if (!active) return;
+      setAnalyticsError(analyticsFailure instanceof Error
+        ? analyticsFailure.message
+        : "Trusted analytics are unavailable.");
+    }).finally(() => {
+      if (active) setAnalyticsLoading(false);
+    });
+    return () => { active = false; };
+  }, [authority, analyticsPreset, analyticsRefreshKey]);
 
   const pendingVerifications = useMemo(
     () => data.verifications.filter((item) => item.status === "Pending Verification"),
@@ -89,12 +132,18 @@ export default function AdminScreen() {
         </View>
       </View>
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.stats}>
-          <Stat label="Worker checks" value={pendingVerifications.length} />
-          <Stat label="Payment checks" value={submittedPayments.length} />
-          <Stat label="Disputes" value={disputedTasks.length} />
-          <Stat label="Users" value={data.users.filter((user) => user.role !== "admin").length} />
-        </View>
+        <AnalyticsPanel
+          analytics={analytics}
+          endDate={analyticsEndDate}
+          error={analyticsError}
+          loading={analyticsLoading}
+          onEndDateChange={setAnalyticsEndDate}
+          onPresetChange={setAnalyticsPreset}
+          onRefresh={() => setAnalyticsRefreshKey((value) => value + 1)}
+          onStartDateChange={setAnalyticsStartDate}
+          preset={analyticsPreset}
+          startDate={analyticsStartDate}
+        />
 
         <View style={styles.reasonCard}>
           <Text style={styles.cardTitle}>Review note</Text>
@@ -175,7 +224,183 @@ function formatDate(value?: string) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+const analyticsTaskStatuses: Task["status"][] = [
+  "Finding Workers", "Applied", "Accepted", "In Progress", "Pending Approval",
+  "Finished", "Archived", "Cancelled", "Disputed", "Expired"
+];
+
+function manilaToday() {
+  return new Date(Date.now() + (8 * 60 * 60 * 1000)).toISOString().slice(0, 10);
+}
+
+function optionalMetric(value: number | null, suffix = "") {
+  return value === null ? "Unavailable" : `${value}${suffix}`;
+}
+
+function AnalyticsPanel({
+  analytics,
+  endDate,
+  error,
+  loading,
+  onEndDateChange,
+  onPresetChange,
+  onRefresh,
+  onStartDateChange,
+  preset,
+  startDate
+}: {
+  analytics?: AdminAnalyticsReport;
+  endDate: string;
+  error: string;
+  loading: boolean;
+  onEndDateChange: (value: string) => void;
+  onPresetChange: (value: AdminAnalyticsRangePreset) => void;
+  onRefresh: () => void;
+  onStartDateChange: (value: string) => void;
+  preset: AdminAnalyticsRangePreset;
+  startDate: string;
+}) {
+  const latestDays = analytics?.daily.slice(-14) ?? [];
+  return (
+    <View style={styles.analyticsSection}>
+      <View style={styles.analyticsHeader}>
+        <View style={styles.analyticsHeaderCopy}>
+          <Text style={styles.sectionTitle}>Trusted beta analytics</Text>
+          <Text style={styles.help}>Sanitized aggregate values generated by an administrator-only Function. Dates use Asia/Manila.</Text>
+        </View>
+        <Pressable accessibilityRole="button" disabled={loading} onPress={onRefresh} style={[styles.refreshButton, loading && styles.disabled]}>
+          <Text style={styles.refreshButtonText}>{loading ? "Loading..." : "Refresh"}</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.filterRow}>
+        {(["today", "7d", "30d", "custom"] as AdminAnalyticsRangePreset[]).map((value) => (
+          <Pressable
+            accessibilityRole="button"
+            key={value}
+            onPress={() => onPresetChange(value)}
+            style={[styles.filterButton, preset === value && styles.filterButtonActive]}
+          >
+            <Text style={[styles.filterButtonText, preset === value && styles.filterButtonTextActive]}>
+              {value === "today" ? "Today" : value === "7d" ? "7 days" : value === "30d" ? "30 days" : "Custom"}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      {preset === "custom" ? (
+        <View style={styles.customRangeRow}>
+          <TextInput accessibilityLabel="Analytics start date" onChangeText={onStartDateChange} placeholder="YYYY-MM-DD" style={styles.dateInput} value={startDate} />
+          <TextInput accessibilityLabel="Analytics end date" onChangeText={onEndDateChange} placeholder="YYYY-MM-DD" style={styles.dateInput} value={endDate} />
+          <Pressable accessibilityRole="button" disabled={loading} onPress={onRefresh} style={[styles.applyRangeButton, loading && styles.disabled]}>
+            <Text style={styles.applyRangeButtonText}>Apply dates</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {error ? (
+        <View style={styles.analyticsUnavailable}>
+          <Text style={styles.analyticsUnavailableTitle}>Trusted analytics unavailable</Text>
+          <Text style={styles.help}>{error}</Text>
+          <Text style={styles.help}>The callable analytics Function must be deployed before online values can be generated. No private-data client fallback is used.</Text>
+        </View>
+      ) : null}
+
+      {analytics ? (
+        <>
+          <Text style={styles.analyticsStamp}>
+            {analytics.range.label} · generated {formatDate(analytics.generatedAt)}{error ? " · showing last successful snapshot" : ""}
+          </Text>
+
+          <MetricGroup title="Current account snapshot" note="Current all-time account state; unaffected by the activity date filter.">
+            <Stat label="Employers" value={analytics.accounts.employers} />
+            <Stat label="Taskers" value={analytics.accounts.taskers} />
+            <Stat label="Active accounts" value={analytics.accounts.active} />
+            <Stat label="Restricted accounts" value={analytics.accounts.restricted} />
+          </MetricGroup>
+
+          <MetricGroup title="Current verification snapshot" note="Latest state of all submitted worker verification requests.">
+            <Stat label="Pending" value={analytics.verification.pending} />
+            <Stat label="Approved" value={analytics.verification.approved} />
+            <Stat label="Rejected" value={analytics.verification.rejected} />
+            <Stat label="Needs resubmission" value={analytics.verification.resubmission} />
+          </MetricGroup>
+
+          <MetricGroup title={`Workflow activity · ${analytics.range.label}`}>
+            <Stat label="Posted" value={analytics.activity.posted} />
+            <Stat label="Matched tasks" value={analytics.activity.matched} />
+            <Stat label="Applications" value={analytics.activity.applications} />
+            <Stat label="Accepted" value={analytics.activity.accepted} />
+            <Stat label="Completed" value={analytics.activity.completed} />
+            <Stat label="Cancelled" value={analytics.activity.cancelled} />
+            <Stat label="Disputed" value={analytics.activity.disputed} />
+          </MetricGroup>
+
+          <View style={styles.analyticsCard}>
+            <Text style={styles.cardTitle}>Current task lifecycle · {analytics.taskInventory.total} total</Text>
+            {analyticsTaskStatuses.map((status) => (
+              <BreakdownRow key={status} label={status} value={analytics.taskInventory.byStatus[status]} />
+            ))}
+          </View>
+
+          <MetricGroup title={`Payment records created · ${analytics.range.label}`}>
+            <Stat label="Pending" value={analytics.payments.Pending} />
+            <Stat label="Submitted" value={analytics.payments.Submitted} />
+            <Stat label="Verified" value={analytics.payments.Verified} />
+            <Stat label="Rejected" value={analytics.payments.Rejected} />
+            <Stat label="Unresolved GCash reviews" value={analytics.payments.unresolvedReviews} />
+          </MetricGroup>
+
+          <MetricGroup title="Matching and geofence funnel" note={analytics.matching.telemetryAvailable
+            ? "Notification metrics use matching notifications created in the selected period."
+            : "Matching notification telemetry has not been materialized, so notification metrics are unavailable rather than assumed to be zero."}>
+            <Stat label="Eligible notifications" value={analytics.matching.telemetryAvailable ? analytics.matching.notificationsSent : "Unavailable"} />
+            <Stat label="Opened" value={analytics.matching.telemetryAvailable ? analytics.matching.opened : "Unavailable"} />
+            <Stat label="Converted to application" value={analytics.matching.telemetryAvailable ? analytics.matching.converted : "Unavailable"} />
+            <Stat label="Open rate" value={optionalMetric(analytics.matching.openRatePercent, "%")} />
+            <Stat label="Conversion rate" value={optionalMetric(analytics.matching.conversionRatePercent, "%")} />
+            <Stat label="Avg. eligible taskers / post" value={optionalMetric(analytics.matching.averageEligibleTaskersPerPostedTask)} />
+            <Stat label="Avg. minutes to first application" value={optionalMetric(analytics.matching.averageMinutesToFirstApplication)} />
+            <Stat label="Avg. minutes to acceptance" value={optionalMetric(analytics.matching.averageMinutesToAcceptance)} />
+          </MetricGroup>
+
+          <View style={styles.analyticsCard}>
+            <Text style={styles.cardTitle}>Posted task categories · {analytics.range.label}</Text>
+            {analytics.activity.byCategory.length
+              ? analytics.activity.byCategory.map((item) => <BreakdownRow key={item.category} label={item.category} value={item.count} />)
+              : <Text style={styles.emptyInline}>No tasks were posted in this period.</Text>}
+          </View>
+
+          <View style={styles.analyticsCard}>
+            <Text style={styles.cardTitle}>Daily activity {analytics.daily.length > 14 ? "· latest 14 days shown" : ""}</Text>
+            {latestDays.map((day) => (
+              <View key={day.date} style={styles.trendRow}>
+                <Text style={styles.trendDate}>{day.date}</Text>
+                <Text style={styles.trendValue}>Posts {day.posted} · Apps {day.applications} · Accepted {day.accepted} · Done {day.completed}</Text>
+              </View>
+            ))}
+          </View>
+        </>
+      ) : loading ? <Text style={styles.analyticsLoading}>Generating sanitized analytics...</Text> : null}
+    </View>
+  );
+}
+
+function MetricGroup({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
+  return (
+    <View style={styles.metricGroup}>
+      <Text style={styles.cardTitle}>{title}</Text>
+      {note ? <Text style={styles.help}>{note}</Text> : null}
+      <View style={styles.stats}>{children}</View>
+    </View>
+  );
+}
+
+function BreakdownRow({ label, value }: { label: string; value: number }) {
+  return <View style={styles.breakdownRow}><Text style={styles.meta}>{label}</Text><Text style={styles.breakdownValue}>{value}</Text></View>;
+}
+
+function Stat({ label, value }: { label: string; value: number | string }) {
   return <View style={styles.stat}><Text style={styles.statValue}>{value}</Text><Text style={styles.meta}>{label}</Text></View>;
 }
 
@@ -205,9 +430,35 @@ const styles = StyleSheet.create({
   controlLink: { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.primary },
   controlLinkText: { color: "#FFFFFF", fontWeight: "800", fontSize: 12 },
   content: { padding: 18, paddingBottom: 48, gap: 18 },
+  analyticsSection: { gap: 12 },
+  analyticsHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
+  analyticsHeaderCopy: { flex: 1, gap: 4 },
+  refreshButton: { minHeight: 40, borderRadius: 9, paddingHorizontal: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.primary },
+  refreshButtonText: { color: colors.white, fontSize: 12, fontWeight: "900" },
+  filterRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  filterButton: { minHeight: 38, borderRadius: 999, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.card },
+  filterButtonActive: { borderColor: colors.primary, backgroundColor: colors.primary },
+  filterButtonText: { color: colors.text, fontSize: 12, fontWeight: "800" },
+  filterButtonTextActive: { color: colors.white },
+  customRangeRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  dateInput: { minHeight: 42, minWidth: 140, flexGrow: 1, borderRadius: 9, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, backgroundColor: colors.card, color: colors.text },
+  applyRangeButton: { minHeight: 42, borderRadius: 9, paddingHorizontal: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.primary },
+  applyRangeButtonText: { color: colors.white, fontSize: 12, fontWeight: "900" },
+  analyticsUnavailable: { padding: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.warning, backgroundColor: colors.warningLight, gap: 4 },
+  analyticsUnavailableTitle: { color: colors.text, fontSize: 14, fontWeight: "900" },
+  analyticsStamp: { color: colors.muted, fontSize: 11, lineHeight: 16 },
+  analyticsLoading: { color: colors.muted, padding: 16, textAlign: "center" },
+  metricGroup: { padding: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, gap: 8 },
+  analyticsCard: { padding: 16, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, gap: 8 },
   stats: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  stat: { flexGrow: 1, minWidth: 130, padding: 16, backgroundColor: "#FFFFFF", borderRadius: 14, borderWidth: 1, borderColor: colors.border },
-  statValue: { color: colors.primary, fontSize: 26, fontWeight: "900" },
+  stat: { flexGrow: 1, minWidth: 130, padding: 14, backgroundColor: colors.mutedLight, borderRadius: 12, borderWidth: 1, borderColor: colors.border },
+  statValue: { color: colors.primary, fontSize: 24, fontWeight: "900" },
+  breakdownRow: { minHeight: 30, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
+  breakdownValue: { color: colors.primary, fontWeight: "900" },
+  emptyInline: { color: colors.muted, fontSize: 12, paddingVertical: 8 },
+  trendRow: { paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border, gap: 3 },
+  trendDate: { color: colors.text, fontSize: 12, fontWeight: "900" },
+  trendValue: { color: colors.muted, fontSize: 11, lineHeight: 16 },
   reasonCard: { backgroundColor: colors.infoLight, borderRadius: 14, padding: 16, gap: 8 },
   input: { minHeight: 76, backgroundColor: "#FFFFFF", borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 12, textAlignVertical: "top" },
   help: { color: colors.muted, fontSize: 13 },
