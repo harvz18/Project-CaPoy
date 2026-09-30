@@ -1,5 +1,6 @@
 export type Role = "worker" | "client" | "admin";
 export type PublicRole = Exclude<Role, "admin">;
+export type Authority = "user" | "admin" | "superadmin";
 
 export type TaskStatus =
   | "Finding Workers"
@@ -28,6 +29,12 @@ export type UserProfile = {
   address: string;
   rating: number;
   accountStatus?: AccountStatus;
+  restrictionReason?: string | null;
+  restrictionEvidenceReference?: string | null;
+  restrictedAt?: string;
+  restrictedBy?: string;
+  reactivatedAt?: string;
+  reactivatedBy?: string;
   ratingCount?: number;
   ratingTotal?: number;
   skills?: string[];
@@ -203,9 +210,30 @@ export type AuditLog = {
   id: string;
   actorId: string;
   action: string;
-  targetType: "user" | "verification" | "payment" | "task";
+  targetType: "user" | "verification" | "payment" | "task" | "violation_report";
   targetId: string;
   reason?: string;
   createdAt: string;
   metadata?: Record<string, unknown>;
 };
+
+export type ViolationReport = {
+  id: string;
+  reporterId: string;
+  targetUserId: string;
+  category: "Safety" | "Fraud" | "Harassment" | "Payment" | "Other";
+  reason: string;
+  evidenceReference?: string | null;
+  taskId?: string | null;
+  status: "Open" | "Actioned" | "Dismissed";
+  createdAt: string;
+  updatedAt: string;
+  actionedAt?: string;
+  actionedBy?: string;
+};
+
+export type ModerationUser = Pick<
+  UserProfile,
+  "id" | "role" | "fullName" | "accountStatus" | "identityStatus" | "restrictionReason" |
+  "restrictionEvidenceReference" | "restrictedAt"
+>;

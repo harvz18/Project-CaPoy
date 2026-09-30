@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { Href, useRouter } from "expo-router";
 import { useApp } from "../src/context/AppContext";
 import {
   getPrivateFileUrl,
   reviewPayment,
   reviewWorkerVerification,
-  setUserAccountStatus,
   subscribeToAdminData
 } from "../src/services/adminService";
 import { AuditLog, Payment, Task, UserProfile, VerificationRequest } from "../src/types";
@@ -25,7 +24,7 @@ const emptyData: AdminData = { verifications: [], payments: [], users: [], tasks
 
 export default function AdminScreen() {
   const router = useRouter();
-  const { currentUser, logout } = useApp();
+  const { authority, currentUser, logout } = useApp();
   const [data, setData] = useState<AdminData>(emptyData);
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
@@ -80,7 +79,14 @@ export default function AdminScreen() {
           <Text style={styles.title}>Administrator review</Text>
           <Text style={styles.subtitle}>{currentUser?.fullName ?? "Administrator"}</Text>
         </View>
-        <Pressable onPress={handleLogout} style={styles.logout}><Text style={styles.logoutText}>Log out</Text></Pressable>
+        <View style={styles.headerActions}>
+          {authority === "superadmin" ? (
+            <Pressable onPress={() => router.push("/superadmin" as Href)} style={styles.controlLink}>
+              <Text style={styles.controlLinkText}>Account controls</Text>
+            </Pressable>
+          ) : null}
+          <Pressable onPress={handleLogout} style={styles.logout}><Text style={styles.logoutText}>Log out</Text></Pressable>
+        </View>
       </View>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.stats}>
@@ -92,7 +98,7 @@ export default function AdminScreen() {
 
         <View style={styles.reasonCard}>
           <Text style={styles.cardTitle}>Review note</Text>
-          <Text style={styles.help}>Required for rejections, resubmission requests, and account changes.</Text>
+          <Text style={styles.help}>Required for rejections and resubmission requests.</Text>
           <TextInput
             value={reason}
             onChangeText={setReason}
@@ -149,26 +155,6 @@ export default function AdminScreen() {
           ))}
         </Section>
 
-        <Section title="Account controls" empty="No user accounts found.">
-          {data.users.filter((user) => user.role !== "admin").map((user) => {
-            const suspended = user.accountStatus === "suspended";
-            return (
-              <View key={user.id} style={styles.userRow}>
-                <View style={styles.grow}>
-                  <Text style={styles.cardTitle}>{user.fullName}</Text>
-                  <Text style={styles.meta}>{user.role} · {user.accountStatus ?? "active"}</Text>
-                </View>
-                <Action
-                  label={suspended ? "Reactivate" : "Suspend"}
-                  tone={suspended ? "positive" : "danger"}
-                  disabled={Boolean(busyKey)}
-                  onPress={() => run(`account:${user.id}`, () => setUserAccountStatus(user.id, suspended ? "active" : "suspended", reason))}
-                />
-              </View>
-            );
-          })}
-        </Section>
-
         <Section title="Recent audit log" empty="Administrator actions will appear here.">
           {recentAudit.map((entry) => (
             <View key={entry.id} style={styles.auditRow}>
@@ -215,6 +201,9 @@ const styles = StyleSheet.create({
   subtitle: { color: colors.muted, marginTop: 2 },
   logout: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: colors.border },
   logoutText: { color: colors.danger, fontWeight: "800" },
+  headerActions: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end", gap: 8 },
+  controlLink: { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.primary },
+  controlLinkText: { color: "#FFFFFF", fontWeight: "800", fontSize: 12 },
   content: { padding: 18, paddingBottom: 48, gap: 18 },
   stats: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   stat: { flexGrow: 1, minWidth: 130, padding: 16, backgroundColor: "#FFFFFF", borderRadius: 14, borderWidth: 1, borderColor: colors.border },
@@ -239,7 +228,5 @@ const styles = StyleSheet.create({
   actionTextLight: { color: "#FFFFFF" },
   disabled: { opacity: 0.5 },
   empty: { color: colors.muted, padding: 16, backgroundColor: "#FFFFFF", borderRadius: 12 },
-  userRow: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#FFFFFF", padding: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.border },
-  grow: { flex: 1 },
   auditRow: { backgroundColor: "#FFFFFF", borderLeftWidth: 3, borderLeftColor: colors.primary, padding: 13, gap: 4 }
 });

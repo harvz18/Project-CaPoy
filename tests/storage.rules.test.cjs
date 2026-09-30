@@ -12,6 +12,7 @@ const CLIENT_ID = "storage-client";
 const WORKER_ID = "storage-worker";
 const APPLICANT_ID = "storage-applicant";
 const ADMIN_ID = "storage-admin";
+const SUPERADMIN_ID = "storage-superadmin";
 const TASK_ID = "storage-task";
 
 let testEnvironment;
@@ -41,6 +42,11 @@ async function seedTask() {
       }),
       setDoc(doc(db, "users", ADMIN_ID), {
         id: ADMIN_ID,
+        role: "admin",
+        accountStatus: "active"
+      }),
+      setDoc(doc(db, "users", SUPERADMIN_ID), {
+        id: SUPERADMIN_ID,
         role: "admin",
         accountStatus: "active"
       }),
@@ -79,6 +85,7 @@ test("verification documents are private to their owner", async () => {
   );
   await assertSucceeds(getBytes(ownerReference));
   await assertSucceeds(getBytes(ref(storageFor(ADMIN_ID, { admin: true }), path)));
+  await assertSucceeds(getBytes(ref(storageFor(SUPERADMIN_ID, { superadmin: true }), path)));
   await assertFails(getBytes(ref(storageFor(CLIENT_ID), path)));
 });
 

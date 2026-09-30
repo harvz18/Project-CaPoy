@@ -27,6 +27,7 @@ const WORKER_ID = "worker-1";
 const OUTSIDER_ID = "worker-2";
 const SUSPENDED_ID = "worker-suspended";
 const ADMIN_ID = "admin-1";
+const SUPERADMIN_ID = "superadmin-1";
 const TASK_ID = "task-1";
 
 let testEnvironment;
@@ -108,6 +109,7 @@ async function seedBaseData() {
         accountStatus: "suspended"
       }),
       setDoc(doc(db, "users", ADMIN_ID), user(ADMIN_ID, "admin")),
+      setDoc(doc(db, "users", SUPERADMIN_ID), user(SUPERADMIN_ID, "admin")),
       setDoc(doc(db, "publicProfiles", CLIENT_ID), publicProfile(CLIENT_ID, "client")),
       setDoc(doc(db, "publicProfiles", WORKER_ID), publicProfile(WORKER_ID, "worker")),
       setDoc(doc(db, "publicProfiles", OUTSIDER_ID), publicProfile(OUTSIDER_ID, "worker")),
@@ -369,10 +371,15 @@ test("only a custom-claim administrator can read private review queues and audit
     ]);
   });
   const adminDb = dbFor(ADMIN_ID, { admin: true });
+  const superadminDb = dbFor(SUPERADMIN_ID, { superadmin: true });
+  const unclaimedAdminDb = dbFor(ADMIN_ID);
   const clientDb = dbFor(CLIENT_ID);
-  await assertSucceeds(getDocs(collection(adminDb, "users")));
+  await assertFails(getDocs(collection(adminDb, "users")));
   await assertSucceeds(getDocs(collection(adminDb, "verificationRequests")));
   await assertSucceeds(getDocs(collection(adminDb, "auditLogs")));
+  await assertFails(getDocs(collection(superadminDb, "users")));
+  await assertSucceeds(getDocs(collection(superadminDb, "auditLogs")));
+  await assertFails(getDocs(collection(unclaimedAdminDb, "auditLogs")));
   await assertFails(getDocs(collection(clientDb, "verificationRequests")));
   await assertFails(getDocs(collection(clientDb, "auditLogs")));
   await assertFails(setDoc(doc(adminDb, "auditLogs", "forged"), {
@@ -381,6 +388,38 @@ test("only a custom-claim administrator can read private review queues and audit
     targetType: "user",
     targetId: CLIENT_ID,
     createdAt: "2026-01-01T00:00:00.000Z"
+  }));
+});
+
+test("violation reports are validated, staff-readable, and immutable to clients", async () => {
+  const clientDb = dbFor(CLIENT_ID);
+  const reportRef = doc(clientDb, "violationReports", "report-1");
+  const report = {
+    reporterId: CLIENT_ID,
+    targetUserId: WORKER_ID,
+    category: "Safety",
+    reason: "Unsafe behavior was observed at the task location.",
+    evidenceReference: null,
+    taskId: TASK_ID,
+    status: "Open",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z"
+  };
+  await assertFails(setDoc(reportRef, report));
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), "violationReports", "report-1"), report);
+  });
+  await assertFails(getDoc(reportRef));
+  await assertFails(getDoc(doc(dbFor(ADMIN_ID, { admin: true }), "violationReports", "report-1")));
+  await assertSucceeds(getDoc(doc(dbFor(SUPERADMIN_ID, { superadmin: true }), "violationReports", "report-1")));
+  await assertFails(updateDoc(reportRef, { status: "Actioned" }));
+  await assertFails(setDoc(doc(clientDb, "violationReports", "self-report"), {
+    ...report,
+    targetUserId: CLIENT_ID
+  }));
+  await assertFails(setDoc(doc(dbFor(SUSPENDED_ID), "violationReports", "blocked-report"), {
+    ...report,
+    reporterId: SUSPENDED_ID
   }));
 });
 

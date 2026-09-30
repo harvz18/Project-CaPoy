@@ -7,6 +7,8 @@ import {
   signOut,
   User
 } from "firebase/auth";
+import type { Authority } from "../types";
+import { authorityFromClaims } from "../domain/authority";
 import { auth } from "./firebase";
 
 export type AuthSession = {
@@ -84,6 +86,12 @@ export function subscribeToAuthState(
 
 export async function logoutFromFirebase() {
   await signOut(requireAuth());
+}
+
+export async function getCurrentAuthority(user: User | null = auth?.currentUser ?? null, forceRefresh = false): Promise<Authority> {
+  if (!user) return "user";
+  const token = await user.getIdTokenResult(forceRefresh);
+  return authorityFromClaims(token.claims);
 }
 
 export async function deleteCurrentAuthUser() {

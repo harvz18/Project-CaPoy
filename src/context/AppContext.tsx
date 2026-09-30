@@ -1,6 +1,7 @@
 import React, { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from "react";
 import {
   AppNotification,
+  Authority,
   ChatMessage,
   NotificationPreferences,
   PaymentMethod,
@@ -15,6 +16,7 @@ import {
 } from "../types";
 import {
   deleteCurrentAuthUser,
+  getCurrentAuthority,
   loginWithMobileNumber,
   logoutFromFirebase,
   registerWithMobileNumber,
@@ -96,6 +98,7 @@ type TaskInput = {
 
 type AppContextValue = {
   currentUser: UserProfile | null;
+  authority: Authority;
   users: UserProfile[];
   tasks: Task[];
   taskMatches: TaskMatch[];
@@ -136,6 +139,7 @@ const usingFirebase = hasFirebaseConfig;
 
 export function AppProvider({ children }: PropsWithChildren) {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [authority, setAuthority] = useState<Authority>("user");
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [taskSnapshots, setTaskSnapshots] = useState<Task[]>([]);
   const [taskMatches, setTaskMatches] = useState<TaskMatch[]>([]);
@@ -168,21 +172,34 @@ export function AppProvider({ children }: PropsWithChildren) {
       async (authUser) => {
         if (!authUser) {
           setCurrentUser(null);
+          setAuthority("user");
           setAppLoading(false);
           return;
         }
 
         try {
-          const profile = await getUserProfile(authUser.uid);
+          const [profile, tokenAuthority] = await Promise.all([
+            getUserProfile(authUser.uid),
+            getCurrentAuthority(authUser)
+          ]);
           if (profile && isBlockedAccount(profile)) {
             await logoutFromFirebase();
-            setError("This account is unavailable. Please contact support.");
+            setError(blockedAccountMessage(profile));
             setCurrentUser(null);
+            setAuthority("user");
+            return;
+          }
+          if (profile?.role === "admin" && tokenAuthority === "user") {
+            await logoutFromFirebase();
+            setError("Administrator access is not provisioned for this account.");
+            setCurrentUser(null);
+            setAuthority("user");
             return;
           }
           if (profile && profile.role !== "admin") {
             await ensurePublicProfile(profile);
           }
+          setAuthority(profile?.role === "admin" ? tokenAuthority : "user");
           setCurrentUser(profile);
         } catch (authError) {
           handleListenerError(authError instanceof Error ? authError : new Error("Unable to restore your session."));
@@ -206,23 +223,29 @@ export function AppProvider({ children }: PropsWithChildren) {
       return () => undefined;
     }
 
-    const unsubscribers = [
-      subscribeToUserProfile(
-        currentUser.id,
-        (user) => {
-          if (!user) {
-            return;
-          }
-          if (isBlockedAccount(user)) {
-            setError("This account is unavailable. Please contact support.");
-            void logoutFromFirebase();
-            setCurrentUser(null);
-            return;
-          }
-          setCurrentUser(user);
-        },
-        handleListenerError
-      ),
+    const unsubscribers = [subscribeToUserProfile(
+      currentUser.id,
+      (user) => {
+        if (!user) {
+          return;
+        }
+        if (isBlockedAccount(user)) {
+          setError(blockedAccountMessage(user));
+          void logoutFromFirebase();
+          setCurrentUser(null);
+          setAuthority("user");
+          return;
+        }
+        setCurrentUser(user);
+      },
+      handleListenerError
+    )];
+
+    if (authority === "admin" || authority === "superadmin") {
+      return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
+    }
+
+    unsubscribers.push(
       subscribeToPublicProfiles(setUsers, handleListenerError),
       subscribeToTasksForUser(currentUser, setTaskSnapshots, handleListenerError),
       subscribeToTaskMatchesForUser(currentUser, setTaskMatches, handleListenerError),
@@ -232,10 +255,10 @@ export function AppProvider({ children }: PropsWithChildren) {
       subscribeToRatings(setRatings, handleListenerError),
       subscribeToNotifications(currentUser.id, setNotifications, handleListenerError),
       subscribeToNotificationPreferences(currentUser.id, setNotificationPreferences, handleListenerError)
-    ];
+    );
 
     return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
-  }, [currentUser?.id, currentUser?.role]);
+  }, [authority, currentUser?.id, currentUser?.role]);
 
   useEffect(() => {
     if (currentUser && notificationPreferences.pushEnabled) {
@@ -271,17 +294,26 @@ export function AppProvider({ children }: PropsWithChildren) {
         throw new Error("Please enter your mobile number.");
       }
       const authSession = await loginWithMobileNumber(mobileNumber, input?.password);
-      const user = await getUserProfile(authSession.localId);
+      const [user, tokenAuthority] = await Promise.all([
+        getUserProfile(authSession.localId),
+        getCurrentAuthority(undefined, true)
+      ]);
 
       if (!user) {
         throw new Error("Account found, but profile data is missing in Firestore.");
       }
       if (isBlockedAccount(user)) {
         await logoutFromFirebase();
-        throw new Error("This account is unavailable. Please contact support.");
+        throw new Error(blockedAccountMessage(user));
+      }
+
+      if (user.role === "admin" && tokenAuthority === "user") {
+        await logoutFromFirebase();
+        throw new Error("Administrator access is not provisioned for this account.");
       }
 
       if (user.role !== "admin") await ensurePublicProfile(user);
+      setAuthority(user.role === "admin" ? tokenAuthority : "user");
       setCurrentUser(user);
       authenticatedUser = user;
     });
@@ -345,6 +377,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       if (currentUser) await disableCurrentPushToken(currentUser.id);
       await logoutFromFirebase();
       setCurrentUser(null);
+      setAuthority("user");
       setNotifications([]);
     });
   }
@@ -664,6 +697,7 @@ export function AppProvider({ children }: PropsWithChildren) {
   const value = useMemo<AppContextValue>(
     () => ({
       currentUser,
+      authority,
       users,
       tasks,
       taskMatches,
@@ -698,7 +732,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       getTaskMessages,
       clearError
     }),
-    [currentUser, users, tasks, taskMatches, messages, ratings, notifications, notificationPreferences, appLoading, actionLoading, error]
+    [currentUser, authority, users, tasks, taskMatches, messages, ratings, notifications, notificationPreferences, appLoading, actionLoading, error]
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
@@ -706,6 +740,14 @@ export function AppProvider({ children }: PropsWithChildren) {
 
 function isBlockedAccount(user: UserProfile) {
   return user.accountStatus === "suspended" || user.accountStatus === "deleted";
+}
+
+function blockedAccountMessage(user: UserProfile) {
+  if (user.accountStatus === "suspended") {
+    const reason = user.restrictionReason ? ` Reason: ${user.restrictionReason}` : "";
+    return `This account is restricted.${reason} Contact TASKLINK support to request a review.`;
+  }
+  return "This account is unavailable. Contact TASKLINK support if you believe this is an error.";
 }
 
 function mergeMessages(existing: ChatMessage[], incoming: ChatMessage[]) {

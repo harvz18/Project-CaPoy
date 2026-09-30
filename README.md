@@ -120,7 +120,7 @@ No deployment is performed automatically by this repository.
 
 Phase 5 replaces the profile upload placeholders with real image/PDF uploads. Profile photos are readable by signed-in users, while worker IDs, medical certificates, and payment proof stay behind owner/participant/custom-claim administrator Storage rules. Files are limited to 10 MB and unsupported content types are rejected by both the app and Storage rules.
 
-Worker verification submissions atomically update the private worker profile, public verification label, and `verificationRequests/{uid}` queue. Workers can submit or resubmit documents, but cannot approve themselves. Administrator approval, rejection, resubmission requests, account suspension, and GCash evidence review are trusted callable Functions and append an immutable `auditLogs` record.
+Worker verification submissions atomically update the private worker profile, public verification label, and `verificationRequests/{uid}` queue. Workers can submit or resubmit documents, but cannot approve themselves. Administrators may review worker verification and GCash evidence. Only a custom-claim superadministrator may restrict/reactivate employer or tasker accounts or correct an approved locked name. Trusted changes append immutable `auditLogs` records.
 
 Approved identity names are locked at both the private `users` document and mirrored `publicProfiles` boundary. The profile screen also disables the field, but Firestore rules remain the authoritative protection. Legacy workers already marked `Verified` receive the same lock even if they predate the shared identity fields. Names and private addresses are whitespace-normalized and length-validated; addresses remain private and editable under the current beta policy.
 
@@ -136,13 +136,21 @@ The administrator route is not publicly registrable. Create a dedicated Firebase
 npm --prefix functions run set-admin -- 09171234567
 ```
 
+Provision the separate superadministrator authority only for a tightly controlled account:
+
+```bash
+npm --prefix functions run set-superadmin -- 09171234567
+```
+
+The superadministrator UI receives only a sanitized moderation view rather than full private profile documents. Restrictions require a reason plus an evidence reference or violation-report ID. Users can submit an immutable safety/conduct report from an assigned task, and ordinary administrators cannot read that report queue or perform superadministrator mutations.
+
 Never put a service-account key in `.env` or in the Expo bundle. After provisioning, sign out and sign back in so Firebase refreshes the custom claim.
 
 To deploy only the Phase 5 callable backend while push remains deferred:
 
 ```bash
 npx firebase-tools@15.32.0 deploy --only firestore:rules,firestore:indexes,storage --project tasklink-fb027
-npx firebase-tools@15.32.0 deploy --only "functions:reviewWorkerVerification,functions:reviewPaymentEvidence,functions:setUserAccountStatus,functions:confirmCashPaymentReceived" --project tasklink-fb027
+npx firebase-tools@15.32.0 deploy --only "functions:reviewWorkerVerification,functions:reviewPaymentEvidence,functions:setUserAccountStatus,functions:correctLockedFullName,functions:submitViolationReport,functions:getSuperadminOverview,functions:confirmCashPaymentReceived" --project tasklink-fb027
 ```
 
 Run the emulator tests first and deploy to a non-production Firebase project before production. Functions deployment requires the Blaze plan. The Firestore rules/indexes have been deployed to `tasklink-fb027`; the Functions commands remain documentation only and have not been run.

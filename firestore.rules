@@ -24,8 +24,16 @@ service cloud.firestore {
 
     function isAdmin() {
       return hasEnabledAccount()
-        && request.auth.token.keys().hasAny(['admin'])
-        && request.auth.token.admin == true;
+        && (
+          (request.auth.token.keys().hasAny(['admin']) && request.auth.token.admin == true)
+          || (request.auth.token.keys().hasAny(['superadmin']) && request.auth.token.superadmin == true)
+        );
+    }
+
+    function isSuperadmin() {
+      return hasEnabledAccount()
+        && request.auth.token.keys().hasAny(['superadmin'])
+        && request.auth.token.superadmin == true;
     }
 
     function task(taskId) {
@@ -526,7 +534,7 @@ service cloud.firestore {
           || (request.resource.data.role == 'client'
             && !('verificationStatus' in request.resource.data))
         );
-      allow read: if (signedIn() && request.auth.uid == userId) || isAdmin();
+      allow read: if signedIn() && request.auth.uid == userId;
       allow update: if (
           hasEnabledAccount()
           && validOwnUserDocument(userId)
@@ -578,7 +586,7 @@ service cloud.firestore {
     }
 
     match /workerProfiles/{userId} {
-      allow read: if (hasEnabledAccount() && request.auth.uid == userId) || isAdmin();
+      allow read: if hasEnabledAccount() && request.auth.uid == userId;
       allow update: if validOwnWorkerProfileUpdate(userId)
         || validWorkflowVisibleWorkerUpdate(userId);
       allow create: if signedIn()
@@ -590,7 +598,7 @@ service cloud.firestore {
     }
 
     match /clientProfiles/{userId} {
-      allow read: if (hasEnabledAccount() && request.auth.uid == userId) || isAdmin();
+      allow read: if hasEnabledAccount() && request.auth.uid == userId;
       allow update: if hasEnabledAccount() && request.auth.uid == userId;
       allow create: if signedIn()
         && request.auth.uid == userId
@@ -743,6 +751,11 @@ service cloud.firestore {
 
     match /auditLogs/{auditId} {
       allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /violationReports/{reportId} {
+      allow read: if isSuperadmin();
       allow write: if false;
     }
 

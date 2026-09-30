@@ -6,6 +6,14 @@ const { logger } = require("firebase-functions");
 const { scoreWorkerForTask } = require("./matching");
 const { buildExpoPushMessage, isExpoPushToken, isNotificationCategoryEnabled } = require("./push");
 const { buildIdentityReview } = require("./identity");
+const {
+  authorityFromClaims,
+  buildAccountStatusChange,
+  buildLockedNameCorrection,
+  buildViolationReport,
+  hasSuperadminAuthority,
+  toModerationUser
+} = require("./authority");
 
 initializeApp();
 
@@ -29,10 +37,26 @@ function requireSignedIn(request) {
 
 function requireAdmin(request) {
   const uid = requireSignedIn(request);
-  if (request.auth.token.admin !== true) {
+  if (!new Set(["admin", "superadmin"]).has(authorityFromClaims(request.auth.token))) {
     throw new HttpsError("permission-denied", "An administrator account is required.");
   }
   return uid;
+}
+
+function requireSuperadmin(request) {
+  const uid = requireSignedIn(request);
+  if (!hasSuperadminAuthority(request.auth.token)) {
+    throw new HttpsError("permission-denied", "A superadministrator account is required.");
+  }
+  return uid;
+}
+
+function buildModerationChange(builder) {
+  try {
+    return builder();
+  } catch (error) {
+    throw new HttpsError("invalid-argument", error instanceof Error ? error.message : "Invalid moderation request.");
+  }
 }
 
 function writeAudit(transaction, db, entry) {
@@ -185,34 +209,153 @@ exports.reviewPaymentEvidence = onCall({ region: REGION }, async (request) => {
 });
 
 exports.setUserAccountStatus = onCall({ region: REGION }, async (request) => {
-  const adminId = requireAdmin(request);
+  const superadminId = requireSuperadmin(request);
   const userId = requiredString(request.data?.userId, "userId");
   const accountStatus = requiredString(request.data?.accountStatus, "accountStatus");
   const reason = requiredString(request.data?.reason, "reason");
-  if (!["active", "suspended"].includes(accountStatus)) {
-    throw new HttpsError("invalid-argument", "Unsupported account status.");
-  }
-  if (userId === adminId) throw new HttpsError("failed-precondition", "You cannot change your own administrator status.");
+  const evidenceReference = typeof request.data?.evidenceReference === "string"
+    ? request.data.evidenceReference.trim()
+    : "";
+  const violationReportId = typeof request.data?.violationReportId === "string"
+    ? request.data.violationReportId.trim()
+    : "";
 
   const db = getFirestore();
   const userRef = db.collection("users").doc(userId);
   await db.runTransaction(async (transaction) => {
-    const userSnapshot = await transaction.get(userRef);
+    const reportRef = violationReportId ? db.collection("violationReports").doc(violationReportId) : null;
+    const [userSnapshot, reportSnapshot] = await Promise.all([
+      transaction.get(userRef),
+      reportRef ? transaction.get(reportRef) : Promise.resolve(null)
+    ]);
     if (!userSnapshot.exists) throw new HttpsError("not-found", "User account was not found.");
-    if (userSnapshot.data().role === "admin") {
-      throw new HttpsError("failed-precondition", "Administrator accounts must be managed outside the app.");
+    if (reportRef && (!reportSnapshot?.exists || reportSnapshot.data().targetUserId !== userId)) {
+      throw new HttpsError("failed-precondition", "The violation report does not belong to this account.");
     }
-    transaction.update(userRef, { accountStatus, updatedAt: nowIso() });
-    writeAudit(transaction, db, {
-      actorId: adminId,
-      action: "set_user_account_status",
-      targetType: "user",
+    const changedAt = nowIso();
+    const change = buildModerationChange(() => buildAccountStatusChange({
+      actorId: superadminId,
       targetId: userId,
+      target: userSnapshot.data(),
+      accountStatus,
       reason,
-      metadata: { accountStatus }
-    });
+      evidenceReference,
+      violationReportId,
+      changedAt
+    }));
+    transaction.update(userRef, change.update);
+    if (reportRef && accountStatus === "suspended") {
+      transaction.update(reportRef, {
+        status: "Actioned",
+        actionedAt: changedAt,
+        actionedBy: superadminId,
+        updatedAt: changedAt
+      });
+    }
+    writeAudit(transaction, db, change.audit);
   });
   return { ok: true, accountStatus };
+});
+
+exports.correctLockedFullName = onCall({ region: REGION }, async (request) => {
+  const superadminId = requireSuperadmin(request);
+  const userId = requiredString(request.data?.userId, "userId");
+  const fullName = requiredString(request.data?.fullName, "fullName");
+  const reason = requiredString(request.data?.reason, "reason");
+  const evidenceReference = typeof request.data?.evidenceReference === "string"
+    ? request.data.evidenceReference.trim()
+    : "";
+  const db = getFirestore();
+  const userRef = db.collection("users").doc(userId);
+  const publicRef = db.collection("publicProfiles").doc(userId);
+  await db.runTransaction(async (transaction) => {
+    const [userSnapshot, publicSnapshot] = await Promise.all([
+      transaction.get(userRef),
+      transaction.get(publicRef)
+    ]);
+    if (!userSnapshot.exists || !publicSnapshot.exists) {
+      throw new HttpsError("not-found", "The account or its public profile was not found.");
+    }
+    const change = buildModerationChange(() => buildLockedNameCorrection({
+      actorId: superadminId,
+      targetId: userId,
+      target: userSnapshot.data(),
+      fullName,
+      reason,
+      evidenceReference,
+      changedAt: nowIso()
+    }));
+    transaction.update(userRef, change.update);
+    transaction.update(publicRef, change.update);
+    writeAudit(transaction, db, change.audit);
+  });
+  return { ok: true, fullName: fullName.trim().replace(/\s+/g, " ") };
+});
+
+exports.submitViolationReport = onCall({ region: REGION }, async (request) => {
+  const reporterId = requireSignedIn(request);
+  const targetId = requiredString(request.data?.targetUserId, "targetUserId");
+  const category = requiredString(request.data?.category, "category");
+  const reason = requiredString(request.data?.reason, "reason");
+  const evidenceReference = typeof request.data?.evidenceReference === "string"
+    ? request.data.evidenceReference.trim()
+    : "";
+  const taskId = typeof request.data?.taskId === "string" ? request.data.taskId.trim() : "";
+  const db = getFirestore();
+  const reportRef = db.collection("violationReports").doc();
+  await db.runTransaction(async (transaction) => {
+    const taskRef = taskId ? db.collection("tasks").doc(taskId) : null;
+    const [reporterSnapshot, targetSnapshot, taskSnapshot] = await Promise.all([
+      transaction.get(db.collection("users").doc(reporterId)),
+      transaction.get(db.collection("users").doc(targetId)),
+      taskRef ? transaction.get(taskRef) : Promise.resolve(null)
+    ]);
+    if (!reporterSnapshot.exists || !targetSnapshot.exists) {
+      throw new HttpsError("not-found", "The reporting or reported account was not found.");
+    }
+    const reporter = reporterSnapshot.data();
+    const target = targetSnapshot.data();
+    if (!["active", "pending_verification"].includes(reporter.accountStatus ?? "active")) {
+      throw new HttpsError("permission-denied", "This account cannot submit reports.");
+    }
+    if (!["client", "worker"].includes(reporter.role) || !["client", "worker"].includes(target.role)) {
+      throw new HttpsError("failed-precondition", "Reports are limited to employer and tasker accounts.");
+    }
+    if (taskRef) {
+      if (!taskSnapshot?.exists) throw new HttpsError("not-found", "The related task was not found.");
+      const task = taskSnapshot.data();
+      const participantIds = [task.clientId, task.workerId, ...(task.applicantIds ?? [])].filter(Boolean);
+      if (!participantIds.includes(reporterId) || !participantIds.includes(targetId)) {
+        throw new HttpsError("failed-precondition", "Both accounts must participate in the related task.");
+      }
+    }
+    const report = buildModerationChange(() => buildViolationReport({
+      reporterId,
+      targetId,
+      category,
+      reason,
+      evidenceReference,
+      taskId,
+      createdAt: nowIso()
+    }));
+    transaction.create(reportRef, report);
+  });
+  return { ok: true, reportId: reportRef.id };
+});
+
+exports.getSuperadminOverview = onCall({ region: REGION }, async (request) => {
+  requireSuperadmin(request);
+  const db = getFirestore();
+  const [usersSnapshot, reportsSnapshot, auditSnapshot] = await Promise.all([
+    db.collection("users").where("role", "in", ["client", "worker"]).get(),
+    db.collection("violationReports").orderBy("createdAt", "desc").limit(50).get(),
+    db.collection("auditLogs").orderBy("createdAt", "desc").limit(50).get()
+  ]);
+  return {
+    users: usersSnapshot.docs.map((document) => toModerationUser(document.id, document.data())),
+    reports: reportsSnapshot.docs.map((document) => ({ id: document.id, ...document.data() })),
+    auditLogs: auditSnapshot.docs.map((document) => ({ id: document.id, ...document.data() }))
+  };
 });
 
 exports.confirmCashPaymentReceived = onCall({ region: REGION }, async (request) => {
@@ -233,7 +376,8 @@ exports.confirmCashPaymentReceived = onCall({ region: REGION }, async (request) 
     }
     const task = taskSnapshot.data();
     const payment = paymentSnapshot.data();
-    if (!workerSnapshot.exists || workerSnapshot.data().accountStatus === "suspended") {
+    if (!workerSnapshot.exists
+      || !["active", "pending_verification"].includes(workerSnapshot.data().accountStatus ?? "active")) {
       throw new HttpsError("permission-denied", "This worker account is not enabled.");
     }
     if (task.workerId !== workerId || payment.workerId !== workerId) {

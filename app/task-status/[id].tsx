@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { Href, useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -70,6 +70,11 @@ export default function TaskStatusScreen() {
   const clientHasRated = Boolean(
     currentUser?.role === "client" && task.workerId && ratings.some((rating) => rating.taskId === task.id && rating.reviewerId === currentUser.id)
   );
+  const reportTargetId = currentUser?.id === task.clientId
+    ? task.workerId
+    : currentUser?.id === task.workerId
+      ? task.clientId
+      : undefined;
 
   async function handlePrimaryAction() {
     if (!task) {
@@ -353,6 +358,18 @@ export default function TaskStatusScreen() {
             (currentUser?.id === task.clientId || currentUser?.id === task.workerId) ? (
               <Pressable style={styles.dangerAction} onPress={() => handleSecondaryWorkflowAction("dispute")}>
                 <Text style={styles.dangerActionText}>Open Dispute</Text>
+              </Pressable>
+            ) : null}
+
+            {reportTargetId ? (
+              <Pressable
+                style={styles.reportAction}
+                onPress={() => router.push({
+                  pathname: "/report-user",
+                  params: { targetUserId: reportTargetId, taskId: task.id }
+                } as unknown as Href)}
+              >
+                <Text style={styles.reportActionText}>Report Safety or Conduct Issue</Text>
               </Pressable>
             ) : null}
 
@@ -692,6 +709,8 @@ const styles = StyleSheet.create({
   secondaryRow: { flexDirection: "row", gap: 12 },
   dangerAction: { minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: "#B91C1C", alignItems: "center", justifyContent: "center", backgroundColor: palette.surface },
   dangerActionText: { color: "#B91C1C", fontSize: 13, lineHeight: 18, fontWeight: "900" },
+  reportAction: { minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: palette.outlineVariant, alignItems: "center", justifyContent: "center", backgroundColor: palette.surfaceLow },
+  reportActionText: { color: palette.muted, fontSize: 13, lineHeight: 18, fontWeight: "800" },
   secondaryAction: {
     flex: 1,
     minHeight: 44,

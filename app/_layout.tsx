@@ -31,12 +31,12 @@ export default function RootLayout() {
 function ProtectedNavigator() {
   const router = useRouter();
   const segments = useSegments();
-  const { appLoading, currentUser } = useApp();
+  const { appLoading, authority, currentUser } = useApp();
   const route = segments[0] as string | undefined;
   const publicRoutes = ["index", "login", "register"];
   const clientOnlyRoutes = ["client-dashboard", "post-task"];
   const workerOnlyRoutes = ["worker-dashboard", "jobs"];
-  const adminOnlyRoutes = ["admin"];
+  const staffRoutes = ["admin", "superadmin"];
 
   useEffect(() => {
     void configureNotificationChannel().catch(() => undefined);
@@ -79,18 +79,31 @@ function ProtectedNavigator() {
     }
 
     if (currentUser && publicRoutes.includes(route)) {
-      const homeRoute = (currentUser.role === "admin" ? "/admin" : currentUser.role === "worker" ? "/worker-dashboard" : "/client-dashboard") as Href;
+      const homeRoute = (
+        authority === "superadmin"
+          ? "/superadmin"
+          : authority === "admin"
+            ? "/admin"
+            : currentUser.role === "worker"
+              ? "/worker-dashboard"
+              : "/client-dashboard"
+      ) as Href;
       router.replace(homeRoute);
       return;
     }
 
-    if (adminOnlyRoutes.includes(route) && currentUser?.role !== "admin") {
+    if (route === "superadmin" && authority !== "superadmin") {
       router.replace(currentUser?.role === "worker" ? "/worker-dashboard" : "/client-dashboard");
       return;
     }
 
-    if (currentUser?.role === "admin" && !adminOnlyRoutes.includes(route)) {
-      router.replace("/admin" as Href);
+    if (route === "admin" && authority !== "admin" && authority !== "superadmin") {
+      router.replace(currentUser?.role === "worker" ? "/worker-dashboard" : "/client-dashboard");
+      return;
+    }
+
+    if (currentUser?.role === "admin" && !staffRoutes.includes(route)) {
+      router.replace((authority === "superadmin" ? "/superadmin" : "/admin") as Href);
       return;
     }
 
@@ -102,7 +115,7 @@ function ProtectedNavigator() {
     if (currentUser?.role === "client" && workerOnlyRoutes.includes(route)) {
       router.replace("/client-dashboard");
     }
-  }, [appLoading, currentUser, route, router]);
+  }, [appLoading, authority, currentUser, route, router]);
 
   if (appLoading) {
     return (
@@ -138,7 +151,9 @@ function ProtectedNavigator() {
       <Stack.Screen name="profile" options={{ title: "Profile" }} />
       <Stack.Screen name="worker-profile/[id]" options={{ title: "Worker Profile" }} />
       <Stack.Screen name="notifications" options={{ title: "Notifications" }} />
+      <Stack.Screen name="report-user" options={{ title: "Report a User" }} />
       <Stack.Screen name="admin" options={{ title: "Administrator" }} />
+      <Stack.Screen name="superadmin" options={{ title: "Superadministrator" }} />
     </Stack>
   );
 }

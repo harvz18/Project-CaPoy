@@ -1,7 +1,15 @@
 import { collection, onSnapshot } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { getDownloadURL, ref } from "firebase/storage";
-import { AuditLog, Payment, Task, UserProfile, VerificationRequest } from "../types";
+import {
+  AuditLog,
+  ModerationUser,
+  Payment,
+  Task,
+  UserProfile,
+  VerificationRequest,
+  ViolationReport
+} from "../types";
 import { db, functions, storage } from "./firebase";
 
 function requireAdminServices() {
@@ -34,7 +42,7 @@ export function subscribeToAdminData(
       state.payments = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as Payment);
       emit();
     }, onError),
-    onSnapshot(collection(services.db, "users"), (snapshot) => {
+    onSnapshot(collection(services.db, "publicProfiles"), (snapshot) => {
       state.users = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as UserProfile);
       emit();
     }, onError),
@@ -63,8 +71,49 @@ export function reviewPayment(taskId: string, decision: "Verified" | "Rejected",
   return callAdminFunction("reviewPaymentEvidence", { taskId, decision, reason });
 }
 
-export function setUserAccountStatus(userId: string, accountStatus: "active" | "suspended", reason: string) {
-  return callAdminFunction("setUserAccountStatus", { userId, accountStatus, reason });
+export type SuperadminOverview = {
+  users: ModerationUser[];
+  reports: ViolationReport[];
+  auditLogs: AuditLog[];
+};
+
+export async function loadSuperadminOverview() {
+  const callable = httpsCallable<Record<string, never>, SuperadminOverview>(
+    requireAdminServices().functions,
+    "getSuperadminOverview"
+  );
+  const result = await callable({});
+  return result.data;
+}
+
+export function moderateUserAccount(
+  userId: string,
+  accountStatus: "active" | "suspended",
+  reason: string,
+  evidenceReference = "",
+  violationReportId = ""
+) {
+  return callAdminFunction("setUserAccountStatus", {
+    userId,
+    accountStatus,
+    reason,
+    evidenceReference,
+    violationReportId
+  });
+}
+
+export function correctLockedFullName(userId: string, fullName: string, reason: string, evidenceReference = "") {
+  return callAdminFunction("correctLockedFullName", { userId, fullName, reason, evidenceReference });
+}
+
+export function submitViolationReport(input: {
+  targetUserId: string;
+  category: ViolationReport["category"];
+  reason: string;
+  evidenceReference?: string;
+  taskId?: string;
+}) {
+  return callAdminFunction("submitViolationReport", input);
 }
 
 export function confirmCashPayment(taskId: string) {

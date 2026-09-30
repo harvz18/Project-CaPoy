@@ -23,7 +23,7 @@ On September 30, 2026, the tested Firestore rules and indexes were deployed to `
 | --- | --- | --- |
 | Lock full name after approval | Implemented for the current worker-approval path, including legacy verified workers. Client code is pushed and Firestore enforcement is live; its trusted approval Function is not deployed. | Add employer approval/correction authority in Phase 2 and deploy the trusted backend only after billing approval. |
 | Address | Private, editable, normalized, and length-validated locally. Its approval/locking policy is still not finalized. | Confirm whether approval should also lock address; it remains editable under the current default. |
-| Superadmin restrictions | Missing as a distinct authority. The current `admin` callable can suspend or reactivate ordinary accounts. | Add a protected `superadmin` claim and move restriction authority to it if that is the approved policy. |
+| Superadmin restrictions | Implemented locally with a distinct custom claim, protected route/callables, violation intake, evidence-backed restrictions, locked-name corrections, and audit records. | Provision a trusted beta account and deploy Functions only after billing approval, then complete manual cloud testing. |
 | Smart matching | Implemented locally using availability, required skill/capability, distance, verification, experience, rating, and completed tasks. | Harden location freshness, define weights/eligibility, expose reasons, and verify with device/cloud tests. |
 | Admin analytics | Only small live counts are shown for reviews, payments, disputes, and users. | Add real, data-backed operational analytics and date filters. |
 | Nearby-task geofencing notification | A task-created Cloud Function already evaluates eligible workers and creates deterministic nearby-task notifications. | Deploy to a test project, add freshness/telemetry protections, test push delivery, and prove boundary cases on devices. |
@@ -61,7 +61,7 @@ The continuation phases below are numbered independently from the original TASKL
 | --- | --- | --- | --- |
 | 0 | Requirements and policy lock | Not started | Required before schema changes |
 | 1 | Approved identity fields and address | Client pushed and Firestore deployed; backend/manual verification pending | High |
-| 2 | Superadmin and account restrictions | Partially represented by admin suspension | High |
+| 2 | Superadmin and account restrictions | Implemented locally; pending trusted provisioning/cloud verification | High |
 | 3 | Geofenced discovery and nearby notifications | Implemented locally; not beta-proven | **Highest** |
 | 4 | Smart-match consistency and explainability | Implemented locally; needs hardening | High |
 | 5 | Foreground real-time map | Static/live user marker only | High |
@@ -197,6 +197,30 @@ Phase 1 local verification:
 - A superadmin can restrict either public role with a required reason and audit trail.
 - A normal admin cannot restrict users, correct locked identity fields, or grant authority.
 - A restricted user loses protected access without deleting historical records.
+
+### Implementation status — Implemented locally, pending trusted provisioning/cloud verification
+
+- Added `superadmin: true` custom-claim recognition while keeping Firestore profile roles unable to grant authority.
+- Added a trusted `set-superadmin` provisioning script; it is not executed automatically and no beta account has been promoted.
+- Ordinary administrators retain worker-verification and payment-review access but no longer see account-control actions.
+- Account restriction/reactivation, locked-name correction, and sanitized moderation-overview callables require the superadmin claim.
+- Restricting an account requires a reason plus an evidence reference or linked violation-report ID; self-moderation and admin/public targets are rejected.
+- Restrictions and name corrections record actor, target, previous/new values, reason, evidence reference, and timestamp in append-only audit logs.
+- Added immutable violation reports and a participant-facing report screen linked from assigned task status.
+- Added a separate claim-protected superadmin screen for reports, account status, locked-name correction, and recent audits.
+- Removed direct staff reads of private user/worker/client profile collections; normal admin uses public profiles and superadmin receives a sanitized callable response.
+- Existing live user-profile listeners immediately sign out suspended/deleted accounts and show a restriction status, reason when available, and appeal direction.
+- Firestore and Storage rules accept both staff claims for existing review duties, while only superadmins may read violation reports.
+
+Phase 2 local verification:
+
+- TypeScript passed.
+- 19/19 application workflow, matching, identity, location, and authority tests passed.
+- 13/13 Functions policy/helper tests passed.
+- 32/32 Firestore and Storage emulator tests passed with the final least-privilege rules.
+- Android and web exports passed with the superadmin and report routes.
+- Cloud Functions were not deployed because doing so requires the Blaze plan; no billing setting was changed.
+- No superadmin claim was assigned because selecting the real privileged account requires an explicit owner decision.
 
 ## Continuation Phase 3 — Geofenced Discovery and Nearby Notifications
 

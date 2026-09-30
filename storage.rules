@@ -21,8 +21,10 @@ service firebase.storage {
 
     function isAdmin() {
       return hasEnabledAccount()
-        && request.auth.token.keys().hasAny(['admin'])
-        && request.auth.token.admin == true;
+        && (
+          (request.auth.token.keys().hasAny(['admin']) && request.auth.token.admin == true)
+          || (request.auth.token.keys().hasAny(['superadmin']) && request.auth.token.superadmin == true)
+        );
     }
 
     function isAssignedTaskParticipant(taskId) {
