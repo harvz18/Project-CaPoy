@@ -62,7 +62,7 @@ The continuation phases below are numbered independently from the original TASKL
 | 0 | Requirements and policy lock | Not started | Required before schema changes |
 | 1 | Approved identity fields and address | Client pushed and Firestore deployed; backend/manual verification pending | High |
 | 2 | Superadmin and account restrictions | Client pushed and Firestore deployed; Functions/provisioning/manual verification pending | High |
-| 3 | Geofenced discovery and nearby notifications | Hardened and locally verified; cloud Function/device proof pending | **Highest** |
+| 3 | Geofenced discovery and nearby notifications | Client pushed and Firestore deployed; cloud Function/device proof pending | **Highest** |
 | 4 | Smart-match consistency and explainability | Implemented locally; needs hardening | High |
 | 5 | Foreground real-time map | Static/live user marker only | High |
 | 6 | Administrator analytics | Basic counters only | Medium |
@@ -301,7 +301,7 @@ Record delivery/open/apply events for beta analytics
 - Start/finish check-in continues to use the smaller worksite geofence and fresh device coordinates.
 - The beta project produces evidence for distance boundaries and delivery behavior.
 
-### Implementation status — Client/rules ready; trusted Function and device proof pending
+### Implementation status — Client pushed and Firestore deployed; trusted Function and device proof pending
 
 - Added matching policy version 2 to both the TypeScript client and trusted JavaScript backend so eligibility, scoring, reasons, and sorting agree.
 - Discovery locations are valid for 30 minutes. Device locations must report accuracy within 200 meters; deliberate manual pins remain discovery-only and never satisfy worksite check-in.
@@ -322,6 +322,9 @@ Phase 3 local verification:
 - 16/16 Functions policy/helper tests passed, including stale, inaccurate, busy, assigned, unapproved, expired, duplicate-ID, and preference cases.
 - 32/32 Firestore and Storage emulator tests passed, including task-location immutability, bounded discovery radius, and notification telemetry ownership.
 - Android and web Expo exports passed.
+- Commits `32275aa` and `99ee14b` were pushed to GitHub’s `tasklink` branch for the connected Render workflow.
+- The final warning-free Firestore rules were deployed successfully to the free-tier `tasklink-fb027` project.
+- Render build completion remains unverified because no Render API/CLI credential or GitHub deployment status is available in this workspace.
 - Physical-device foreground/background/terminated push behavior is not verified yet.
 - The task-created and push-delivery Functions are not deployed because Firebase requires the Blaze plan; no billing setting was changed.
 
