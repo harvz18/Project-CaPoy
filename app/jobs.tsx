@@ -193,7 +193,7 @@ function JobCard({
         <Text style={[styles.matchChip, match.eligible ? styles.matchChipGood : styles.matchChipWarn]}>
           {match.eligible ? `${match.score}% match` : "Not eligible"}
         </Text>
-        <Text style={styles.matchChip}>{match.reasons[0] ?? "Complete your worker profile."}</Text>
+        <Text style={styles.matchChip}>{match.reasons.slice(0, 2).join(" · ") || "Complete your worker profile."}</Text>
       </View>
       <View style={styles.jobInfoRow}>
         <Text style={styles.jobInfo}>{task.estimatedDuration}</Text>

@@ -4,6 +4,7 @@ const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { logger } = require("firebase-functions");
 const {
+  buildMatchSnapshot,
   MATCH_POLICY_VERSION,
   matchingNotificationId,
   matchingNotificationsEnabled,
@@ -462,6 +463,7 @@ exports.notifyEligibleWorkers = onDocumentCreated(
           matchScore: match.score,
           matchReasons: match.reasons,
           matchPolicyVersion: MATCH_POLICY_VERSION,
+          scoreBreakdown: match.breakdown,
           distanceKm: Number(match.distanceKm.toFixed(3)),
           route: "task",
           readStatus: false,
@@ -493,13 +495,11 @@ exports.materializeApplicationMatch = onDocumentCreated(
       logger.warn("Unable to materialize TaskLink match", { matchId: event.params.matchId });
       return;
     }
-    const match = scoreWorkerForTask(taskSnapshot.data(), { id: workerSnapshot.id, ...workerSnapshot.data() });
     await event.data.ref.update({
-      matchScore: match.score,
-      matchReasons: match.reasons,
-      ...(match.distanceKm === undefined ? {} : { distanceKm: match.distanceKm }),
-      eligible: match.eligible,
-      matchPolicyVersion: MATCH_POLICY_VERSION,
+      ...buildMatchSnapshot(
+        taskSnapshot.data(),
+        { id: workerSnapshot.id, ...workerSnapshot.data() }
+      ),
       updatedAt: new Date().toISOString()
     });
   }

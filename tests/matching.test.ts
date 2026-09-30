@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { rankTasksForWorker, rankTaskMatches, scoreWorkerForTask } from "../src/domain/matching";
+import {
+  MATCH_POLICY_VERSION,
+  rankTasksForWorker,
+  rankTaskMatches,
+  scoreWorkerForTask,
+  summarizeScoreBreakdown
+} from "../src/domain/matching";
 import { Task, TaskMatch, UserProfile } from "../src/types";
 import { calculateDistanceKm, getGeofenceCheck } from "../src/utils/location";
 
@@ -26,6 +32,40 @@ test("a qualified nearby worker receives a predictable perfect score", () => {
   assert.equal(result.score, 100);
   assert.ok((result.distanceKm ?? 1) < 0.1);
   assert.ok(result.reasons.some((reason) => reason.includes("preferred radius")));
+  assert.equal(MATCH_POLICY_VERSION, 3);
+  assert.deepEqual(result.breakdown, {
+    skill: 35,
+    proximity: 30,
+    availability: 15,
+    verification: 10,
+    experience: 5,
+    rating: 3,
+    completedTasks: 2
+  });
+});
+
+test("distance contributes to the score within the same preferred radius", () => {
+  const nearby = scoreWorkerForTask(task(), worker(), Date.parse(now));
+  const farther = scoreWorkerForTask(task({ latitude: 10.71 }), worker(), Date.parse(now));
+
+  assert.equal(farther.eligible, true);
+  assert.ok(nearby.score > farther.score);
+  assert.ok((nearby.breakdown?.proximity ?? 0) > (farther.breakdown?.proximity ?? 0));
+});
+
+test("new unrated taskers remain eligible without receiving rating points", () => {
+  const result = scoreWorkerForTask(task(), worker({
+    rating: 0,
+    ratingCount: 0,
+    completedTasks: 0,
+    experienceDescription: undefined,
+    yearsOfExperience: undefined
+  }), Date.parse(now));
+
+  assert.equal(result.eligible, true);
+  assert.equal(result.score, 90);
+  assert.equal(result.breakdown?.rating, 0);
+  assert.ok(result.reasons.some((reason) => reason.includes("no rating history")));
 });
 
 test("missing capability and coordinates fail closed", () => {
@@ -57,6 +97,31 @@ test("client applicant ranking uses the stored application snapshot", () => {
     eligible: true, matchScore: score, distanceKm
   });
   assert.deepEqual(rankTaskMatches([match("lower", 75, 1), match("far", 90, 3), match("near", 90, 1)]).map((item) => item.id), ["near", "far", "lower"]);
+});
+
+test("applicant ranking is deterministic and keeps pending evaluations above ineligible snapshots", () => {
+  const base = {
+    taskId: "task-1",
+    clientId: "client-1",
+    acceptanceStatus: "Applied" as const,
+    createdAt: now
+  };
+  const ranked = rankTaskMatches([
+    { ...base, id: "ineligible", workerId: "worker-c", eligible: false, matchScore: 0 },
+    { ...base, id: "pending-b", workerId: "worker-b" },
+    { ...base, id: "pending-a", workerId: "worker-a" }
+  ]);
+
+  assert.deepEqual(ranked.map((item) => item.workerId), ["worker-a", "worker-b", "worker-c"]);
+});
+
+test("score explanations expose points without exposing coordinates", () => {
+  const result = scoreWorkerForTask(task(), worker(), Date.parse(now));
+  const summary = summarizeScoreBreakdown(result.breakdown);
+
+  assert.match(summary ?? "", /Skill 35/);
+  assert.doesNotMatch(summary ?? "", /10\.676/);
+  assert.doesNotMatch(summary ?? "", /122\.950/);
 });
 
 test("check-in requires a fresh accurate device location", () => {

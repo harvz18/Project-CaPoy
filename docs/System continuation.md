@@ -364,6 +364,29 @@ Phase 3 local verification:
 - Employer and tasker screens agree with backend notification selection.
 - Matching explanations contain no exact private tasker coordinates.
 
+### Phase 4 implementation status (2026-09-30)
+
+- Added canonical match policy version 3 in `functions/matching.js`. The Expo application imports this same pure policy module, so tasker recommendations and trusted Firebase Functions no longer maintain separate scoring implementations.
+- Kept mandatory eligibility gates for tasker role, active account, exact required capability, availability, no active task, approved identity, an open/unexpired task, fresh and sufficiently accurate location, and the tasker's preferred discovery radius.
+- Defined a bounded 100-point eligible-worker score: skill 35, proximity 15-30, availability 15, identity approval 10, experience 5, rating 3, and completed work 2. Proximity now rewards a nearer task inside the same radius instead of awarding every in-range task the same points.
+- Kept new taskers eligible. A tasker with no rating history receives no rating-history bonus but is explicitly explained as a new tasker rather than rejected or assigned a fake low rating.
+- Added a typed score breakdown and a canonical trusted snapshot builder. Nearby notifications and application match snapshots now carry `matchPolicyVersion`, bounded score, readable reasons, rounded distance, eligibility, and score breakdown without copying exact tasker coordinates.
+- Added deterministic tie breakers. Task recommendations end with task ID; employer applicant ranking orders evaluated eligible matches first, pending trusted evaluations second, ineligible snapshots last, then score, rounded distance, application time, and worker ID.
+- Updated employer applicant cards to show score, policy version, rounded distance, breakdown, and readable reasons. A match that has not been evaluated by the trusted Function now says `Match evaluation pending` instead of misleadingly displaying `0% match`.
+- Updated tasker job cards to show the first two useful match reasons.
+- Left `Paticys` unresolved and did not add or rename a field for it. Confirm its intended meaning before altering this policy.
+
+Phase 4 verification:
+
+- TypeScript passed.
+- 27/27 application, matching, identity, authority, workflow, and location tests passed.
+- 19/19 Functions policy/helper tests passed.
+- 32/32 Firestore and Storage emulator regression tests passed.
+- Android and web Expo exports passed with the shared policy module.
+- No Firestore or Storage rule changed in this phase, so no new rules deployment was required.
+- The web application changes become available to the connected Render workflow after the Phase 4 commit is pushed to its deployed branch; Render build completion still requires confirmation in the Render dashboard.
+- Trusted notification and application-score materialization still requires the Firebase Functions source to be deployed. The current Firebase project requires the Blaze plan for that deployment, so no Function was deployed and no billing setting was changed. Until then, online employer applications correctly show `Match evaluation pending`.
+
 ## Continuation Phase 5 — Foreground Real-Time Map
 
 **Goal:** show a safely updating device marker and task geofence during an active task without permanent background tracking.

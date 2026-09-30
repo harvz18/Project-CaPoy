@@ -231,7 +231,7 @@ function WorkerJobCard({
       </View>
       <Text style={styles.jobTitle}>{task.title}</Text>
       <Text style={styles.jobMeta}>{formatDistance(match.distanceKm)} · {task.locationAddress ?? task.location}</Text>
-      <Text style={styles.jobMeta}>{match.score}% match · {match.reasons[0]}</Text>
+      <Text style={styles.jobMeta}>{match.score}% match · {match.reasons.slice(0, 2).join(" · ")}</Text>
       <View style={styles.jobInfoRow}>
         <Text style={styles.jobInfo}>{task.estimatedDuration}</Text>
         <Text style={styles.jobInfo}>{task.requiredCapability ?? task.category}</Text>

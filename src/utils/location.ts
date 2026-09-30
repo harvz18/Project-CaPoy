@@ -1,4 +1,8 @@
 import { Task, UserProfile } from "../types";
+import {
+  DISCOVERY_LOCATION_MAX_AGE_MS as CORE_DISCOVERY_LOCATION_MAX_AGE_MS,
+  DISCOVERY_MAX_DEVICE_ACCURACY_METERS as CORE_DISCOVERY_MAX_DEVICE_ACCURACY_METERS
+} from "../../functions/matching";
 
 export type Coordinates = {
   latitude?: number;
@@ -8,8 +12,8 @@ export type Coordinates = {
 const earthRadiusKm = 6371;
 export const CHECK_IN_LOCATION_MAX_AGE_MS = 10 * 60 * 1000;
 export const CHECK_IN_MAX_ACCURACY_METERS = 150;
-export const DISCOVERY_LOCATION_MAX_AGE_MS = 30 * 60 * 1000;
-export const DISCOVERY_MAX_DEVICE_ACCURACY_METERS = 200;
+export const DISCOVERY_LOCATION_MAX_AGE_MS = CORE_DISCOVERY_LOCATION_MAX_AGE_MS;
+export const DISCOVERY_MAX_DEVICE_ACCURACY_METERS = CORE_DISCOVERY_MAX_DEVICE_ACCURACY_METERS;
 
 export function parseCoordinate(value: string) {
   if (!value.trim()) return undefined;

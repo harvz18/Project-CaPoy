@@ -134,6 +134,16 @@ export type Rating = {
   feedback: string;
 };
 
+export type MatchScoreBreakdown = {
+  skill: number;
+  proximity: number;
+  availability: number;
+  verification: number;
+  experience: number;
+  rating: number;
+  completedTasks: number;
+};
+
 export type AppNotification = {
   id: string;
   userId: string;
@@ -149,6 +159,7 @@ export type AppNotification = {
   matchScore?: number;
   matchReasons?: string[];
   matchPolicyVersion?: number;
+  scoreBreakdown?: MatchScoreBreakdown;
   distanceKm?: number;
   openedAt?: string;
   applicationConvertedAt?: string;
@@ -172,6 +183,7 @@ export type TaskMatch = {
   distanceKm?: number;
   eligible?: boolean;
   matchPolicyVersion?: number;
+  scoreBreakdown?: MatchScoreBreakdown;
   createdAt: string;
   hiredAt?: string;
   rejectedAt?: string;

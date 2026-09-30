@@ -3,7 +3,9 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBadge } from "../../src/components/StatusBadge";
 import { useApp } from "../../src/context/AppContext";
-import { rankTaskMatches } from "../../src/domain/matching";
+import { rankTaskMatches, summarizeScoreBreakdown } from "../../src/domain/matching";
+import { TaskMatch } from "../../src/types";
+import { formatDistance } from "../../src/utils/location";
 
 const palette = {
   background: "#F7FAF8",
@@ -171,12 +173,7 @@ export default function TaskDetailsScreen() {
                 <View key={applicant.id} style={styles.workerCard}>
                   {(() => {
                     const match = rankedMatches.find((item) => item.workerId === applicant.id);
-                    return match ? (
-                      <View style={styles.skillRow}>
-                        <Text style={styles.skillChip}>{match.matchScore ?? 0}% match</Text>
-                        {(match.matchReasons ?? []).slice(0, 2).map((reason) => <Text key={reason} style={styles.workerNote}>{reason}</Text>)}
-                      </View>
-                    ) : null;
+                    return match ? <ApplicantMatchSummary match={match} /> : null;
                   })()}
                   <Pressable
                     accessibilityRole="button"
@@ -266,6 +263,34 @@ export default function TaskDetailsScreen() {
   );
 }
 
+function ApplicantMatchSummary({ match }: { match: TaskMatch }) {
+  const evaluated = match.matchScore !== undefined && match.matchPolicyVersion !== undefined;
+  const breakdown = summarizeScoreBreakdown(match.scoreBreakdown);
+
+  if (!evaluated) {
+    return (
+      <View style={styles.matchSummary}>
+        <Text style={styles.skillChip}>Match evaluation pending</Text>
+        <Text style={styles.workerNote}>Trusted score will appear after the matching service evaluates this application.</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.matchSummary}>
+      <View style={styles.skillRow}>
+        <Text style={styles.skillChip}>{match.eligible === false ? "Not eligible" : `${match.matchScore}% match`}</Text>
+        <Text style={styles.skillChip}>Policy v{match.matchPolicyVersion}</Text>
+        {match.distanceKm === undefined ? null : <Text style={styles.skillChip}>{formatDistance(match.distanceKm)}</Text>}
+      </View>
+      {breakdown ? <Text style={styles.breakdownText}>{breakdown}</Text> : null}
+      {(match.matchReasons ?? []).slice(0, 3).map((reason, index) => (
+        <Text key={`${index}-${reason}`} style={styles.workerNote}>{reason}</Text>
+      ))}
+    </View>
+  );
+}
+
 function TopBar({ title, onBack }: { title: string; onBack: () => void }) {
   return (
     <View style={styles.header}>
@@ -332,6 +357,8 @@ const styles = StyleSheet.create({
   workerName: { color: palette.text, fontSize: 16, lineHeight: 22, fontWeight: "900" },
   workerMeta: { color: palette.secondary, fontSize: 12, lineHeight: 16, fontWeight: "800" },
   workerNote: { color: palette.muted, fontSize: 12, lineHeight: 16, marginTop: 2 },
+  matchSummary: { gap: 6 },
+  breakdownText: { color: palette.muted, fontSize: 11, lineHeight: 16 },
   skillRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   skillChip: { overflow: "hidden", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: palette.surfaceContainer, color: palette.muted, fontSize: 12, fontWeight: "800" },
   workerActions: { flexDirection: "row", gap: 10 },
