@@ -5,11 +5,12 @@ TASKLINK is an Expo/React Native application that connects clients posting short
 ## Current release target
 
 - Android through Expo/EAS
+- Web beta through Expo static export and a connected Render Static Site
 - Firebase Authentication
 - Cloud Firestore
 - Firebase Storage
 
-Android is the configured and assessed release target. Web support can be added later as a separately tested platform.
+Android remains the primary assessed release target. Web exports are supported for beta checking, with a coordinate fallback instead of the native map component.
 
 ## Local setup
 
@@ -59,7 +60,17 @@ Versioned Firebase configuration is included in:
 
 The rules are deny-by-default and separate private `users` documents from authenticated-readable `publicProfiles`. Task and chat reads are scoped to open tasks or actual participants.
 
-Run `npm run test:rules:emulator` before deploying rules to a real project. The test suite uses the local `demo-tasklink` emulator project and does not access live Firebase data. Deployment is intentionally not automatic from this repository.
+Run `npm run test:rules:emulator` before deploying rules to a real project. The test suite uses the local `demo-tasklink` emulator project and does not access live Firebase data. Deployment is manual rather than automatic from this repository.
+
+## Online deployment status
+
+As of September 30, 2026:
+
+- Commit `080718e` is pushed to GitHub’s `tasklink` branch. A Render site linked to that branch with auto-deploy enabled should rebuild from it; confirm the completed build in Render because this workspace has no Render API credential.
+- Firestore rules and indexes are deployed to `tasklink-fb027`. The participant, sender, and receiver message indexes are all `READY`.
+- Cloud Functions are not deployed. Firebase requires the Blaze pay-as-you-go plan for Functions, and deployment artifacts can produce small storage charges.
+- Cloud Storage for Firebase also requires Blaze as of February 3, 2026. Upload/review features cannot be represented as fully online under a strict no-charge constraint.
+- No billing plan was enabled or changed by these deployment steps.
 
 ## Task workflow
 
@@ -134,7 +145,7 @@ npx firebase-tools@15.32.0 deploy --only firestore:rules,firestore:indexes,stora
 npx firebase-tools@15.32.0 deploy --only "functions:reviewWorkerVerification,functions:reviewPaymentEvidence,functions:setUserAccountStatus,functions:confirmCashPaymentReceived" --project tasklink-fb027
 ```
 
-Run the emulator tests first and deploy to a non-production Firebase project before production. Functions deployment requires the Blaze plan. These commands are documentation only; this implementation did not change your live Firebase project.
+Run the emulator tests first and deploy to a non-production Firebase project before production. Functions deployment requires the Blaze plan. The Firestore rules/indexes have been deployed to `tasklink-fb027`; the Functions commands remain documentation only and have not been run.
 
 ## Useful commands
 

@@ -15,13 +15,13 @@ The highest-priority beta feature is reliable location-based matching and notifi
 
 ## Current Baseline
 
-The project already has local implementations for authentication, the task lifecycle, matching, task maps, foreground location capture, chat, in-app notifications, optional push tokens, verification review, payment evidence, account suspension, and an administrator screen. Automated checks for Phases 1–5 passed locally during the previous implementation work.
+The project already has implementations for authentication, the task lifecycle, matching, task maps, foreground location capture, chat, in-app notifications, optional push tokens, verification review, payment evidence, account suspension, and an administrator screen. Automated checks for Phases 1–5 passed locally during the previous implementation work.
 
-However, the cloud functions, rules, indexes, push setup, administrator account, and physical-device flows have not yet been proven in a non-production Firebase environment. A feature must not be described as beta-ready merely because its local code or emulator test passes.
+On September 30, 2026, the tested Firestore rules and indexes were deployed to `tasklink-fb027`, and the web source commit was pushed to GitHub’s `tasklink` branch. All three message indexes reached `READY`. Cloud Functions, Storage rules, push setup, administrator provisioning, Render build completion, and physical-device flows remain unverified or undeployed. A feature must not be described as beta-ready merely because its local code or emulator test passes.
 
 | Requested behavior | Current state | Continuation work |
 | --- | --- | --- |
-| Lock full name after approval | Implemented locally for the current worker-approval path, including legacy verified workers; not deployed. | Add the employer approval/correction authority in Phase 2 and complete beta-device/cloud verification. |
+| Lock full name after approval | Implemented for the current worker-approval path, including legacy verified workers. Client code is pushed and Firestore enforcement is live; its trusted approval Function is not deployed. | Add employer approval/correction authority in Phase 2 and deploy the trusted backend only after billing approval. |
 | Address | Private, editable, normalized, and length-validated locally. Its approval/locking policy is still not finalized. | Confirm whether approval should also lock address; it remains editable under the current default. |
 | Superadmin restrictions | Missing as a distinct authority. The current `admin` callable can suspend or reactivate ordinary accounts. | Add a protected `superadmin` claim and move restriction authority to it if that is the approved policy. |
 | Smart matching | Implemented locally using availability, required skill/capability, distance, verification, experience, rating, and completed tasks. | Harden location freshness, define weights/eligibility, expose reasons, and verify with device/cloud tests. |
@@ -60,7 +60,7 @@ The continuation phases below are numbered independently from the original TASKL
 | Phase | Focus | Starting status | Priority |
 | --- | --- | --- | --- |
 | 0 | Requirements and policy lock | Not started | Required before schema changes |
-| 1 | Approved identity fields and address | Implemented locally; pending cloud/manual verification | High |
+| 1 | Approved identity fields and address | Client pushed and Firestore deployed; backend/manual verification pending | High |
 | 2 | Superadmin and account restrictions | Partially represented by admin suspension | High |
 | 3 | Geofenced discovery and nearby notifications | Implemented locally; not beta-proven | **Highest** |
 | 4 | Smart-match consistency and explainability | Implemented locally; needs hardening | High |
@@ -136,7 +136,7 @@ The continuation phases below are numbered independently from the original TASKL
 - An unapproved user can edit only the fields allowed by the final policy.
 - Existing profiles continue to load safely during migration.
 
-### Implementation status — Implemented locally, pending cloud/manual verification
+### Implementation status — Firestore deployed; trusted backend/manual verification pending
 
 - Added shared `identityStatus`, approval actor/time, and lock-time fields to private user profiles.
 - New taskers begin at `Pending Approval`; new employers begin at `Unverified`.
@@ -156,7 +156,10 @@ Phase 1 local verification:
 - 17/17 application workflow, matching, location, and identity unit tests passed.
 - 8/8 Functions tests passed.
 - 31/31 Firestore and Storage emulator tests passed.
-- No Firebase resources or production data were changed.
+- Firestore rules and indexes were deployed to `tasklink-fb027`; all three message indexes are `READY`.
+- Commit `080718e` was pushed to GitHub’s `tasklink` branch for the connected Render deployment workflow.
+- Render build completion could not be verified from this workspace because no Render API/CLI credential or GitHub deployment status is available.
+- Cloud Functions and Storage rules were not deployed because the no-charge constraint does not permit enabling or using billing-dependent services without explicit billing approval.
 
 ## Continuation Phase 2 — Superadmin and Account Restrictions
 
