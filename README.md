@@ -66,9 +66,9 @@ Run `npm run test:rules:emulator` before deploying rules to a real project. The 
 
 As of September 30, 2026:
 
-- Commit `080718e` is pushed to GitHub’s `tasklink` branch. A Render site linked to that branch with auto-deploy enabled should rebuild from it; confirm the completed build in Render because this workspace has no Render API credential.
-- Firestore rules and indexes are deployed to `tasklink-fb027`. The participant, sender, and receiver message indexes are all `READY`.
-- Cloud Functions are not deployed. Firebase requires the Blaze pay-as-you-go plan for Functions, and deployment artifacts can produce small storage charges.
+- Phase 2 commit `f3a795e` is pushed to GitHub’s `tasklink` branch. A Render site linked to that branch with auto-deploy enabled should rebuild from it; confirm the completed build in Render because this workspace has no Render API credential.
+- Phase 2 Firestore rules and the existing indexes are deployed to `tasklink-fb027`. The participant, sender, and receiver message indexes remain `READY`.
+- Cloud Functions are not deployed. This means the superadmin/report screens are present in the web build, but their trusted actions remain unavailable online. Firebase requires the Blaze pay-as-you-go plan for Functions, and deployment artifacts can produce small storage charges.
 - Cloud Storage for Firebase also requires Blaze as of February 3, 2026. Upload/review features cannot be represented as fully online under a strict no-charge constraint.
 - No billing plan was enabled or changed by these deployment steps.
 

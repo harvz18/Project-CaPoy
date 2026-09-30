@@ -61,7 +61,7 @@ The continuation phases below are numbered independently from the original TASKL
 | --- | --- | --- | --- |
 | 0 | Requirements and policy lock | Not started | Required before schema changes |
 | 1 | Approved identity fields and address | Client pushed and Firestore deployed; backend/manual verification pending | High |
-| 2 | Superadmin and account restrictions | Implemented locally; pending trusted provisioning/cloud verification | High |
+| 2 | Superadmin and account restrictions | Client pushed and Firestore deployed; Functions/provisioning/manual verification pending | High |
 | 3 | Geofenced discovery and nearby notifications | Implemented locally; not beta-proven | **Highest** |
 | 4 | Smart-match consistency and explainability | Implemented locally; needs hardening | High |
 | 5 | Foreground real-time map | Static/live user marker only | High |
@@ -198,7 +198,7 @@ Phase 1 local verification:
 - A normal admin cannot restrict users, correct locked identity fields, or grant authority.
 - A restricted user loses protected access without deleting historical records.
 
-### Implementation status — Implemented locally, pending trusted provisioning/cloud verification
+### Implementation status — Client pushed and Firestore deployed; trusted backend/provisioning pending
 
 - Added `superadmin: true` custom-claim recognition while keeping Firestore profile roles unable to grant authority.
 - Added a trusted `set-superadmin` provisioning script; it is not executed automatically and no beta account has been promoted.
@@ -219,8 +219,11 @@ Phase 2 local verification:
 - 13/13 Functions policy/helper tests passed.
 - 32/32 Firestore and Storage emulator tests passed with the final least-privilege rules.
 - Android and web exports passed with the superadmin and report routes.
+- Commit `f3a795e` was pushed to GitHub’s `tasklink` branch for the connected Render deployment workflow.
+- The final Phase 2 Firestore rules were deployed successfully to the free-tier `tasklink-fb027` project.
 - Cloud Functions were not deployed because doing so requires the Blaze plan; no billing setting was changed.
 - No superadmin claim was assigned because selecting the real privileged account requires an explicit owner decision.
+- Render build completion remains unverified because no Render API/CLI credential or GitHub deployment status is available in this workspace.
 
 ## Continuation Phase 3 — Geofenced Discovery and Nearby Notifications
 
