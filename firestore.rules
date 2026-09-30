@@ -76,12 +76,6 @@ service cloud.firestore {
         || (taskData.applicantIds is list && userId in taskData.applicantIds);
     }
 
-    function taskParticipantIds(taskData) {
-      return [taskData.clientId]
-        + taskData.applicantIds
-        + ('workerId' in taskData ? [taskData.workerId] : []);
-    }
-
     function isConversationWorker(taskData, workerId) {
       return ('workerId' in taskData && taskData.workerId == workerId)
         || (taskData.applicantIds is list && workerId in taskData.applicantIds);
