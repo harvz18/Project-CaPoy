@@ -346,16 +346,29 @@ export default function TaskStatusScreen() {
                   ) : null}
                   <Pressable
                     accessibilityRole="button"
+                    disabled={actionLoading || task.paymentStatus === "Submitted" || task.paymentStatus === "Verified"}
                     onPress={handleSubmitPaymentProof}
-                    style={({ pressed }) => [styles.paymentButton, pressed && styles.pressed]}
+                    style={({ pressed }) => [
+                      styles.paymentButton,
+                      (actionLoading || task.paymentStatus === "Submitted" || task.paymentStatus === "Verified") && styles.primaryActionDisabled,
+                      pressed && styles.pressed
+                    ]}
                   >
-                    <Text style={styles.paymentButtonText}>{actionLoading ? "Submitting..." : "Submit Payment Proof"}</Text>
+                    <Text style={styles.paymentButtonText}>
+                      {actionLoading
+                        ? "Submitting..."
+                        : task.paymentStatus === "Verified"
+                          ? "Payment Confirmed"
+                          : task.paymentStatus === "Submitted"
+                            ? "Waiting for Tasker Confirmation"
+                            : "Submit Payment Confirmation"}
+                    </Text>
                   </Pressable>
                 </>
               ) : (
                 <>
                   <Text style={styles.geoHint}>{task.proofOfPaymentText || "Waiting for client payment confirmation."}</Text>
-                  {currentUser?.id === task.workerId && task.paymentMethod === "COD" && task.paymentStatus === "Submitted" ? (
+                  {currentUser?.id === task.workerId && task.status === "Pending Approval" && task.paymentMethod === "COD" && task.paymentStatus === "Submitted" ? (
                     <Pressable accessibilityRole="button" disabled={actionLoading} onPress={handleConfirmCashPayment} style={styles.paymentButton}>
                       <Text style={styles.paymentButtonText}>{actionLoading ? "Confirming..." : "Confirm Cash Received"}</Text>
                     </Pressable>
@@ -482,7 +495,9 @@ function getPrimaryAction(
     const paymentReady = paymentStatus === "Verified";
     return paymentReady
       ? { label: "Confirm Finished", nextStatus: "Finished" as TaskStatus, enabled: true }
-      : { label: "Submit Payment First", enabled: false };
+      : paymentStatus === "Submitted"
+        ? { label: "Waiting for Tasker Payment Confirmation", enabled: false }
+        : { label: "Submit Payment First", enabled: false };
   }
 
   if (role === "client" && status === "Finished") {

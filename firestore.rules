@@ -374,7 +374,8 @@ service cloud.firestore {
 
     function validApplicationUpdate(taskId) {
       return hasRole('worker')
-        && currentUser().availabilityStatus == 'Available'
+        && currentUser().get('availabilityStatus', currentUser().get('availability', 'Available')) == 'Available'
+        && !('activeTaskId' in currentUser())
         && isOpenTask(resource.data)
         && !('workerId' in resource.data)
         && !('workerId' in request.resource.data)
@@ -453,6 +454,28 @@ service cloud.firestore {
             && request.resource.data.status == 'Disputed'
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'disputedAt', 'updatedAt']))
         );
+    }
+
+    function validAssignedWorkerPaymentConfirmation(taskId) {
+      return hasRole('worker')
+        && resource.data.workerId == request.auth.uid
+        && request.resource.data.workerId == request.auth.uid
+        && resource.data.status == 'Pending Approval'
+        && request.resource.data.status == 'Pending Approval'
+        && resource.data.paymentMethod == 'COD'
+        && resource.data.paymentStatus == 'Submitted'
+        && request.resource.data.paymentStatus == 'Verified'
+        && request.resource.data.workerConfirmedAt is string
+        && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.paymentMethod == 'COD'
+        && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.paymentStatus == 'Verified'
+        && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.workerId == request.auth.uid
+        && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.workerConfirmedAt
+          == request.resource.data.workerConfirmedAt
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'paymentStatus',
+          'workerConfirmedAt',
+          'updatedAt'
+        ]);
     }
 
     function validClientTaskUpdate(taskId) {
@@ -643,7 +666,8 @@ service cloud.firestore {
       allow update: if validClientTaskUpdate(taskId)
         || validApplicationUpdate(taskId)
         || validApplicationRemoval(taskId)
-        || validAssignedWorkerUpdate();
+        || validAssignedWorkerUpdate()
+        || validAssignedWorkerPaymentConfirmation(taskId);
       allow delete: if false;
     }
 
@@ -708,30 +732,49 @@ service cloud.firestore {
         && request.resource.data.paymentMethod in ['COD', 'GCash link']
         && request.resource.data.paymentStatus == 'Pending'
         && !('workerId' in request.resource.data);
-      allow update: if hasRole('client')
-        && task(taskId).clientId == request.auth.uid
-        && request.resource.data.taskId == taskId
-        && request.resource.data.clientId == request.auth.uid
-        && (
-          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['workerId', 'updatedAt'])
-            && taskAfter(taskId).status == 'Accepted'
-            && request.resource.data.workerId == taskAfter(taskId).workerId)
-          ||
-          (request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-              'paymentStatus',
-              'proofOfPaymentText',
-              'proofOfPaymentUrl',
-              'clientConfirmedAt',
-              'updatedAt'
-            ])
-            && request.resource.data.paymentStatus == 'Submitted'
-            && taskAfter(taskId).paymentStatus == 'Submitted'
-            && taskAfter(taskId).get('proofOfPaymentText', null)
-              == request.resource.data.get('proofOfPaymentText', null)
-            && taskAfter(taskId).get('proofOfPaymentUrl', null)
-              == request.resource.data.get('proofOfPaymentUrl', null)
-            && taskAfter(taskId).get('clientConfirmedAt', null)
-              == request.resource.data.get('clientConfirmedAt', null))
+      allow update: if (
+          hasRole('client')
+          && task(taskId).clientId == request.auth.uid
+          && request.resource.data.taskId == taskId
+          && request.resource.data.clientId == request.auth.uid
+          && (
+            (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['workerId', 'updatedAt'])
+              && taskAfter(taskId).status == 'Accepted'
+              && request.resource.data.workerId == taskAfter(taskId).workerId)
+            ||
+            (request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'paymentStatus',
+                'proofOfPaymentText',
+                'proofOfPaymentUrl',
+                'clientConfirmedAt',
+                'updatedAt'
+              ])
+              && request.resource.data.paymentStatus == 'Submitted'
+              && taskAfter(taskId).paymentStatus == 'Submitted'
+              && taskAfter(taskId).get('proofOfPaymentText', null)
+                == request.resource.data.get('proofOfPaymentText', null)
+              && taskAfter(taskId).get('proofOfPaymentUrl', null)
+                == request.resource.data.get('proofOfPaymentUrl', null)
+              && taskAfter(taskId).get('clientConfirmedAt', null)
+                == request.resource.data.get('clientConfirmedAt', null))
+          )
+        ) || (
+          hasRole('worker')
+          && task(taskId).workerId == request.auth.uid
+          && task(taskId).status == 'Pending Approval'
+          && task(taskId).paymentMethod == 'COD'
+          && resource.data.workerId == request.auth.uid
+          && resource.data.paymentMethod == 'COD'
+          && resource.data.paymentStatus == 'Submitted'
+          && request.resource.data.paymentStatus == 'Verified'
+          && request.resource.data.workerConfirmedAt is string
+          && taskAfter(taskId).paymentStatus == 'Verified'
+          && taskAfter(taskId).workerConfirmedAt == request.resource.data.workerConfirmedAt
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'paymentStatus',
+            'workerConfirmedAt',
+            'updatedAt'
+          ])
         );
       allow delete: if false;
     }

@@ -279,7 +279,7 @@ function ApplicantMatchSummary({ match }: { match: TaskMatch }) {
   return (
     <View style={styles.matchSummary}>
       <View style={styles.skillRow}>
-        <Text style={styles.skillChip}>{match.eligible === false ? "Not eligible" : `${match.matchScore}% match`}</Text>
+        <Text style={styles.skillChip}>{match.eligible === false ? "Open to apply" : `${match.matchScore}% match`}</Text>
         <Text style={styles.skillChip}>Policy v{match.matchPolicyVersion}</Text>
         {match.distanceKm === undefined ? null : <Text style={styles.skillChip}>{formatDistance(match.distanceKm)}</Text>}
       </View>

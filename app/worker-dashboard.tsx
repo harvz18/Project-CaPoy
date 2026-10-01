@@ -44,7 +44,7 @@ export default function WorkerDashboardScreen() {
   const finishedTasks = tasks.filter(
     (task) => task.workerId === currentUser?.id && (task.status === "Finished" || task.status === "Archived")
   );
-  const featuredJobs = rankedPostedTasks.filter(({ match }) => match.eligible).slice(0, 2);
+  const featuredJobs = rankedPostedTasks.slice(0, 2);
   const discoveryLocationIssue = getDiscoveryLocationIssue(currentUser);
 
   async function handleQuickApply(task: Task) {
@@ -155,7 +155,7 @@ export default function WorkerDashboardScreen() {
             height={208}
           />
           <View style={styles.locationBadge}>
-            <Text style={styles.locationText}>{rankedPostedTasks.filter(({ match }) => match.eligible).length} matching jobs near you</Text>
+            <Text style={styles.locationText}>{rankedPostedTasks.filter(({ match }) => match.eligible).length} recommended jobs near you</Text>
           </View>
         </View>
 

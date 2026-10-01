@@ -17,7 +17,6 @@ import {
   TaskActor
 } from "../domain/taskWorkflow";
 import { PaymentMethod, PaymentStatus, Task, TaskMatch, TaskStatus, UserProfile } from "../types";
-import { scoreWorkerForTask } from "../domain/matching";
 import { auth, db } from "./firebase";
 
 function requireDb() {
@@ -170,10 +169,6 @@ export async function applyToTask(taskId: string, worker: UserProfile) {
     const workerData = workerSnapshot.data() as UserProfile;
     assertCanApply(task, actor, workerData.availabilityStatus ?? workerData.availability);
     if (matchSnapshot.exists()) throw new Error("An application already exists for this task.");
-    const match = scoreWorkerForTask(task, { ...workerData, id: worker.id });
-    if (!match.eligible) {
-      throw new Error(match.reasons[0] ?? "Your profile is not eligible for this task.");
-    }
     transaction.set(matchRef, {
       id: matchRef.id, taskId, workerId: worker.id, clientId: task.clientId,
       acceptanceStatus: "Applied", createdAt: now, updatedAt: now
@@ -450,6 +445,48 @@ export async function updateTaskPaymentVerification(
         message: `Payment confirmation was submitted for ${task.title}.`, createdAt: now
       });
     }
+  });
+}
+
+export async function confirmCashPaymentReceipt(taskId: string, worker: UserProfile) {
+  const firestore = requireDb();
+  const actor: TaskActor = { id: worker.id, role: worker.role };
+  requireAuthActor(actor);
+  if (actor.role !== "worker") throw new Error("Only the assigned tasker can confirm cash receipt.");
+
+  const taskRef = doc(firestore, "tasks", taskId);
+  const paymentRef = doc(firestore, "payments", taskId);
+  const now = new Date().toISOString();
+  await runTransaction(firestore, async (transaction) => {
+    const [taskSnapshot, paymentSnapshot] = await Promise.all([
+      transaction.get(taskRef),
+      transaction.get(paymentRef)
+    ]);
+    if (!taskSnapshot.exists() || !paymentSnapshot.exists()) throw new Error("Task payment record not found.");
+
+    const task = { id: taskSnapshot.id, ...taskSnapshot.data() } as Task;
+    const payment = paymentSnapshot.data();
+    if (task.workerId !== worker.id) throw new Error("Only the assigned tasker can confirm cash receipt.");
+    if (task.status !== "Pending Approval") throw new Error("Submit the completed work before confirming cash receipt.");
+    if (task.paymentMethod !== "COD" || payment.paymentMethod !== "COD") {
+      throw new Error("This confirmation is available only for cash payments.");
+    }
+    if (task.paymentStatus !== "Submitted" || payment.paymentStatus !== "Submitted") {
+      throw new Error("Wait for the employer to submit the cash payment confirmation.");
+    }
+
+    const updates = { paymentStatus: "Verified" as const, workerConfirmedAt: now, updatedAt: now };
+    transaction.update(taskRef, updates);
+    transaction.update(paymentRef, updates);
+    setWorkflowNotification(transaction, {
+      id: `${taskId}_cash-confirmed_${worker.id}`,
+      userId: task.clientId,
+      taskId,
+      createdBy: worker.id,
+      notificationType: "Cash payment confirmed",
+      message: `Cash receipt was confirmed for ${task.title}.`,
+      createdAt: now
+    });
   });
 }
 

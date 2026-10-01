@@ -1,5 +1,5 @@
 const EARTH_RADIUS_KM = 6371;
-const MATCH_POLICY_VERSION = 3;
+const MATCH_POLICY_VERSION = 4;
 const DISCOVERY_LOCATION_MAX_AGE_MS = 30 * 60 * 1000;
 const DISCOVERY_MAX_DEVICE_ACCURACY_METERS = 200;
 const MATCH_POLICY_WEIGHTS = Object.freeze({
@@ -56,7 +56,7 @@ function scoreWorkerForTask(task, worker, now = Date.now()) {
   if (!capabilityMatch) reasons.push(`Missing required capability: ${task.requiredCapability || task.category}.`);
   if (unavailable) reasons.push("Worker is not currently available.");
   if (hasActiveTask) reasons.push("Worker already has an active task.");
-  if (!approvedIdentity) reasons.push("Identity must be approved before matching.");
+  if (!approvedIdentity) reasons.push("Identity verification is optional during beta testing.");
   if (!openTask) reasons.push("Task is not open for applications.");
   if (!unexpiredTask) reasons.push("Task has expired.");
   if (distance === undefined || radius <= 0) reasons.push("A valid worker location and preferred radius are required.");
@@ -64,7 +64,7 @@ function scoreWorkerForTask(task, worker, now = Date.now()) {
   if (!accurateLocation) reasons.push(`Device location accuracy must be within ${DISCOVERY_MAX_DEVICE_ACCURACY_METERS} meters.`);
   if (distance !== undefined && radius > 0 && distance > radius) reasons.push(`Task is outside the worker's ${radius} km preferred radius.`);
   const eligible = worker.role === "worker" && activeAccount &&
-    capabilityMatch && !unavailable && !hasActiveTask && approvedIdentity && openTask && unexpiredTask &&
+    capabilityMatch && !unavailable && !hasActiveTask && openTask && unexpiredTask &&
     freshLocation && accurateLocation && distance !== undefined && radius > 0 && distance <= radius;
   if (!eligible) return { eligible: false, score: 0, distanceKm: distance, reasons };
   const proximityRatio = Math.max(0, Math.min(1, 1 - (distance / radius)));
@@ -84,7 +84,7 @@ function scoreWorkerForTask(task, worker, now = Date.now()) {
     skill: MATCH_POLICY_WEIGHTS.skill,
     proximity,
     availability: MATCH_POLICY_WEIGHTS.availability,
-    verification: MATCH_POLICY_WEIGHTS.verification,
+    verification: approvedIdentity ? MATCH_POLICY_WEIGHTS.verification : 0,
     experience: hasExperience ? MATCH_POLICY_WEIGHTS.experience : 0,
     rating: ratingPoints,
     completedTasks: completedTaskPoints
@@ -94,7 +94,7 @@ function scoreWorkerForTask(task, worker, now = Date.now()) {
   reasons.push(`Matches ${task.requiredCapability || task.category}.`);
   reasons.push(`${distance.toFixed(1)} km away within the ${radius} km preferred radius.`);
   reasons.push("Available for work.");
-  reasons.push("Identity approved.");
+  reasons.push(approvedIdentity ? "Identity approved." : "Identity is not yet verified; beta access remains enabled.");
   if (hasExperience) reasons.push("Experience details provided.");
   if (hasRatingHistory) reasons.push(`Rating history: ${rating.toFixed(1)} out of 5.`);
   else reasons.push("New tasker with no rating history yet.");

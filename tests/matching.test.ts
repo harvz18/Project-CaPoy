@@ -32,7 +32,7 @@ test("a qualified nearby worker receives a predictable perfect score", () => {
   assert.equal(result.score, 100);
   assert.ok((result.distanceKm ?? 1) < 0.1);
   assert.ok(result.reasons.some((reason) => reason.includes("preferred radius")));
-  assert.equal(MATCH_POLICY_VERSION, 3);
+  assert.equal(MATCH_POLICY_VERSION, 4);
   assert.deepEqual(result.breakdown, {
     skill: 35,
     proximity: 30,
@@ -66,6 +66,19 @@ test("new unrated taskers remain eligible without receiving rating points", () =
   assert.equal(result.score, 90);
   assert.equal(result.breakdown?.rating, 0);
   assert.ok(result.reasons.some((reason) => reason.includes("no rating history")));
+});
+
+test("identity approval is an optional score bonus during beta", () => {
+  const result = scoreWorkerForTask(
+    task(),
+    worker({ verificationStatus: "Pending Verification", identityStatus: "Pending Approval" }),
+    Date.parse(now)
+  );
+
+  assert.equal(result.eligible, true);
+  assert.equal(result.score, 90);
+  assert.equal(result.breakdown?.verification, 0);
+  assert.ok(result.reasons.some((reason) => reason.includes("beta access remains enabled")));
 });
 
 test("missing capability and coordinates fail closed", () => {
@@ -152,12 +165,11 @@ test("manual discovery pins are accepted but still require freshness", () => {
   assert.equal(scoreWorkerForTask(task(), { ...manual, locationUpdatedAt: "2026-09-29T03:00:00.000Z" }, Date.parse(now)).eligible, false);
 });
 
-test("busy, assigned, restricted, unapproved, closed, and expired matches fail closed", () => {
+test("busy, assigned, restricted, closed, and expired matches fail closed", () => {
   const cases = [
     scoreWorkerForTask(task(), worker({ availabilityStatus: "Busy" }), Date.parse(now)),
     scoreWorkerForTask(task(), worker({ activeTaskId: "active-task" }), Date.parse(now)),
     scoreWorkerForTask(task(), worker({ accountStatus: "suspended" }), Date.parse(now)),
-    scoreWorkerForTask(task(), worker({ verificationStatus: "Pending Verification" }), Date.parse(now)),
     scoreWorkerForTask(task({ status: "Accepted" }), worker(), Date.parse(now)),
     scoreWorkerForTask(task({ expiresAt: now }), worker(), Date.parse(now))
   ];

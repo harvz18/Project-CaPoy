@@ -109,7 +109,7 @@ export default function JobsScreen() {
           <View style={styles.locationBadge}>
             <View style={styles.locationCopy}>
               <Text style={styles.locationTitle}>Nearby Jobs</Text>
-              <Text style={styles.locationText}>{discoveryLocationIssue ?? `${rankedJobs.filter(({ match }) => match.eligible).length} eligible jobs within your radius`}</Text>
+              <Text style={styles.locationText}>{discoveryLocationIssue ?? `${rankedJobs.filter(({ match }) => match.eligible).length} recommended jobs within your radius`}</Text>
             </View>
           </View>
           <Pressable accessibilityRole="button" disabled={actionLoading} onPress={refreshLocation} style={styles.refreshButton}>
@@ -220,9 +220,9 @@ function JobCard({
       <Text style={styles.jobDescription} numberOfLines={2}>{task.description}</Text>
       <View style={styles.matchRow}>
         <Text style={[styles.matchChip, match.eligible ? styles.matchChipGood : styles.matchChipWarn]}>
-          {match.eligible ? `${match.score}% match` : "Not eligible"}
+          {match.eligible ? `${match.score}% match` : "Open to apply"}
         </Text>
-        <Text style={styles.matchChip}>{match.reasons.slice(0, 2).join(" · ") || "Complete your worker profile."}</Text>
+        <Text style={styles.matchChip}>{match.reasons.slice(0, 2).join(" · ") || "Smart-match details unavailable."}</Text>
       </View>
       <View style={styles.jobInfoRow}>
         <Text style={styles.jobInfo}>{task.estimatedDuration}</Text>
@@ -232,8 +232,8 @@ function JobCard({
         <Pressable accessibilityRole="button" onPress={onOpen} style={styles.detailsButton}>
           <Text style={styles.detailsButtonText}>Details</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" disabled={!match.eligible || applying} onPress={onQuickAccept} style={[styles.quickButton, (!match.eligible || applying) && styles.quickButtonDisabled]}>
-          <Text style={styles.quickButtonText}>{applying ? "Applying..." : match.eligible ? "Quick Apply" : "Profile update needed"}</Text>
+        <Pressable accessibilityRole="button" disabled={applying} onPress={onQuickAccept} style={[styles.quickButton, applying && styles.quickButtonDisabled]}>
+          <Text style={styles.quickButtonText}>{applying ? "Applying..." : "Quick Apply"}</Text>
         </Pressable>
       </View>
     </Pressable>

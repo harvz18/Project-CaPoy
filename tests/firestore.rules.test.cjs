@@ -740,22 +740,33 @@ test("client and worker accounts can complete the full canonical task lifecycle"
   });
   await assertSucceeds(batch.commit());
 
-  await testEnvironment.withSecurityRulesDisabled(async (context) => {
-    const db = context.firestore();
-    const workerConfirmedAt = "2026-01-01T01:22:00.000Z";
-    await Promise.all([
-      updateDoc(doc(db, "tasks", TASK_ID), {
-        paymentStatus: "Verified",
-        workerConfirmedAt,
-        updatedAt: workerConfirmedAt
-      }),
-      updateDoc(doc(db, "payments", TASK_ID), {
-        paymentStatus: "Verified",
-        workerConfirmedAt,
-        updatedAt: workerConfirmedAt
-      })
-    ]);
+  const workerConfirmedAt = "2026-01-01T01:22:00.000Z";
+  const outsiderDb = dbFor(OUTSIDER_ID);
+  const forgedConfirmation = writeBatch(outsiderDb);
+  forgedConfirmation.update(doc(outsiderDb, "tasks", TASK_ID), {
+    paymentStatus: "Verified",
+    workerConfirmedAt,
+    updatedAt: workerConfirmedAt
   });
+  forgedConfirmation.update(doc(outsiderDb, "payments", TASK_ID), {
+    paymentStatus: "Verified",
+    workerConfirmedAt,
+    updatedAt: workerConfirmedAt
+  });
+  await assertFails(forgedConfirmation.commit());
+
+  batch = writeBatch(workerDb);
+  batch.update(doc(workerDb, "tasks", TASK_ID), {
+    paymentStatus: "Verified",
+    workerConfirmedAt,
+    updatedAt: workerConfirmedAt
+  });
+  batch.update(doc(workerDb, "payments", TASK_ID), {
+    paymentStatus: "Verified",
+    workerConfirmedAt,
+    updatedAt: workerConfirmedAt
+  });
+  await assertSucceeds(batch.commit());
 
   now = "2026-01-01T01:25:00.000Z";
   batch = writeBatch(clientDb);

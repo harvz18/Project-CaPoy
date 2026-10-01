@@ -62,10 +62,21 @@ test("new unrated workers remain eligible and only miss optional history points"
   assert.match(result.reasons.join(" "), /no rating history/);
 });
 
+test("unverified workers remain eligible while missing the optional verification bonus", () => {
+  const result = scoreWorkerForTask(
+    task(), worker({ verificationStatus: "Pending Verification", identityStatus: "Pending Approval" }), Date.parse(now)
+  );
+
+  assert.equal(result.eligible, true);
+  assert.equal(result.score, 90);
+  assert.equal(result.breakdown.verification, 0);
+  assert.match(result.reasons.join(" "), /beta access remains enabled/);
+});
+
 test("trusted match snapshots persist policy, score, reasons, distance, and breakdown", () => {
   const snapshot = buildMatchSnapshot(task(), worker(), Date.parse(now));
 
-  assert.equal(snapshot.matchPolicyVersion, 3);
+  assert.equal(snapshot.matchPolicyVersion, 4);
   assert.equal(snapshot.matchScore, 100);
   assert.equal(snapshot.eligible, true);
   assert.ok(snapshot.distanceKm >= 0);
@@ -95,13 +106,12 @@ test("worker outside their preferred radius is never notified", () => {
   assert.equal(result.eligible, false);
 });
 
-test("stale, inaccurate, busy, assigned, unapproved, and expired workers are never notified", () => {
+test("stale, inaccurate, busy, assigned, and expired workers are never notified", () => {
   const results = [
     scoreWorkerForTask(task(), worker({ locationUpdatedAt: "2026-09-29T03:29:59.999Z" }), Date.parse(now)),
     scoreWorkerForTask(task(), worker({ locationAccuracyMeters: 201 }), Date.parse(now)),
     scoreWorkerForTask(task(), worker({ availabilityStatus: "Busy" }), Date.parse(now)),
     scoreWorkerForTask(task(), worker({ activeTaskId: "active" }), Date.parse(now)),
-    scoreWorkerForTask(task(), worker({ verificationStatus: "Pending Verification" }), Date.parse(now)),
     scoreWorkerForTask(task({ expiresAt: now }), worker(), Date.parse(now))
   ];
   assert.ok(results.every((result) => !result.eligible));
@@ -112,7 +122,7 @@ test("manual pins can match for discovery but device accuracy is enforced", () =
 });
 
 test("matching notification policy is deterministic and independent from push opt-in", () => {
-  assert.equal(MATCH_POLICY_VERSION, 3);
+  assert.equal(MATCH_POLICY_VERSION, 4);
   assert.equal(
     MATCH_POLICY_WEIGHTS.skill + MATCH_POLICY_WEIGHTS.proximityMaximum +
       MATCH_POLICY_WEIGHTS.availability + MATCH_POLICY_WEIGHTS.verification +

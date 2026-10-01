@@ -660,3 +660,37 @@ TASKLINK can be described as approximately 80–90% functional for checking only
 - Claims of escrow, guaranteed payment, insurance, or emergency support.
 - A production launch before beta evidence and privacy/retention rules are complete.
 
+## Beta Workflow Unblocking Update (October 1, 2026)
+
+This update keeps identity verification available for later administrative review, but it is no longer a prerequisite for the employer/tasker workflow during beta testing.
+
+Implemented:
+
+- Taskers with `Pending Verification` can apply to open tasks. Missing skills, location, radius, or identity approval can lower or disqualify a smart-match recommendation, but recommendations no longer disable the Apply button or reject the application repository transaction.
+- Smart-match policy version 4 treats approved identity as an optional 10-point bonus. Authentication, active-account status, availability, task ownership, valid workflow states, and suspended-account enforcement remain mandatory.
+- All open tasks remain visible on the tasker dashboard. Non-recommended tasks are labeled `Open to apply` instead of `Profile update needed` or `Not eligible`.
+- The free beta COD path no longer depends on an undeployed callable Function. After the employer submits the cash-payment confirmation and the assigned tasker submits the work for approval, that assigned tasker can confirm receipt directly through one rules-protected Firestore transaction. The employer can then confirm the task as finished.
+- The COD confirmation requires matching task and payment records, `Pending Approval` status, `Submitted` payment status, and the authenticated assigned tasker. A different tasker cannot perform it.
+- The reviewed Firestore rules were deployed to the explicit `beta` alias (`tasklink-fb027`). The project remained on Firestore Standard free tier; no Functions deployment or billing change was made.
+
+Verified:
+
+- 35/35 application/domain tests passed.
+- 5/5 beta-preflight tests passed.
+- 26/26 Functions-source tests passed.
+- 34/34 Firestore and Storage emulator tests passed, including the pending-verification full lifecycle and rejection of a forged COD confirmation.
+- Expo Doctor passed all 18 checks.
+- Web and Android exports passed.
+
+Beta tester happy path (use `COD`):
+
+1. Register or sign in as an Employer and post a task.
+2. Register or sign in as a Tasker, open Jobs, and apply even if identity verification is still pending.
+3. The Employer opens the task, reviews applicants, and accepts the Tasker.
+4. The Tasker starts the task inside the configured worksite geofence, completes the work, and selects `Submit for Approval`.
+5. The Employer enters a COD confirmation and selects `Submit Payment Confirmation`.
+6. The assigned Tasker selects `Confirm Cash Received`.
+7. The Employer selects `Confirm Finished`, then may archive and rate the completed task.
+
+Current limitation: this no-charge completion path is for COD. GCash receipt uploads/review and other trusted backend workflows remain subject to the existing Storage/Functions beta limitations documented above.
+

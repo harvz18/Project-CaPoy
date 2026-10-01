@@ -40,10 +40,10 @@ import {
   subscribeToNotifications
 } from "../services/notificationService";
 import { disableCurrentPushToken, registerPushToken } from "../services/pushNotificationService";
-import { confirmCashPayment as confirmCashPaymentWithBackend } from "../services/adminService";
 import { addRatingToFirestore, subscribeToRatings } from "../services/ratingService";
 import {
   applyToTask,
+  confirmCashPaymentReceipt,
   createTaskInFirestore,
   rejectTaskApplication,
   subscribeToTaskMatchesForUser,
@@ -554,7 +554,7 @@ export function AppProvider({ children }: PropsWithChildren) {
   async function confirmCashPayment(taskId: string) {
     await runAction(async () => {
       if (!currentUser || currentUser.role !== "worker") throw new Error("Only the assigned worker can confirm cash receipt.");
-      await confirmCashPaymentWithBackend(taskId);
+      await confirmCashPaymentReceipt(taskId, currentUser);
     });
   }
 
