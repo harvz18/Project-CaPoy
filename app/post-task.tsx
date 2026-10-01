@@ -78,13 +78,6 @@ export default function PostTaskScreen() {
     }
   }
 
-  function setManualCoordinate(setValue: (value: string) => void, value: string) {
-    setValue(value);
-    setLocationSource("manual");
-    setLocationCapturedAt(new Date().toISOString());
-    setLocationAccuracyMeters(undefined);
-  }
-
   function selectMapCoordinate(coordinate: { latitude: number; longitude: number }) {
     setLatitude(String(coordinate.latitude));
     setLongitude(String(coordinate.longitude));
@@ -172,7 +165,7 @@ export default function PostTaskScreen() {
               <TextInput
                 accessibilityLabel="Task location"
                 onChangeText={setLocation}
-                placeholder="Enter your address"
+                placeholder="Street, barangay, or nearby landmark"
                 placeholderTextColor={palette.outline}
                 style={styles.locationInput}
                 value={location}
@@ -188,10 +181,13 @@ export default function PostTaskScreen() {
 
               <LocationMap
                 center={mapCenter}
+                interactive
                 markers={mapCenter ? [{ id: "selected", ...mapCenter, title: "Task pin" }] : []}
+                onSelectCoordinate={selectMapCoordinate}
                 radiusMeters={Number(geofenceRadius) || 500}
-                height={220}
+                height={260}
               />
+              <Text style={styles.helperText}>Move or zoom the map, then tap or click to place the task pin. Drag the pin to adjust it.</Text>
               <View style={styles.locationActionRow}>
                 <Pressable accessibilityRole="button" disabled={locating} onPress={useDeviceLocation} style={styles.locationButton}>
                   <Text style={styles.locationButtonText}>{locating ? "Getting location..." : "Use device location"}</Text>
@@ -201,10 +197,6 @@ export default function PostTaskScreen() {
                 </Pressable>
               </View>
               {locationMessage ? <Text style={styles.locationMessage}>{locationMessage}</Text> : null}
-              <View style={styles.twoColumn}>
-                <TextInput accessibilityLabel="Task latitude" keyboardType="decimal-pad" onChangeText={(value) => setManualCoordinate(setLatitude, value)} placeholder="Latitude" placeholderTextColor={palette.outline} style={[styles.input, styles.flex]} value={latitude} />
-                <TextInput accessibilityLabel="Task longitude" keyboardType="decimal-pad" onChangeText={(value) => setManualCoordinate(setLongitude, value)} placeholder="Longitude" placeholderTextColor={palette.outline} style={[styles.input, styles.flex]} value={longitude} />
-              </View>
 
               <View style={styles.radiusGrid}>
                 {radiusOptions.map((option) => {
@@ -230,7 +222,7 @@ export default function PostTaskScreen() {
                   <Text style={styles.coordinateLabel}>Pinned task area</Text>
                   <Text style={styles.coordinateAddress}>{location || "Address not entered"}</Text>
                 </View>
-                <Text style={styles.coordinateValue}>{latitude && longitude ? `${latitude}, ${longitude}` : "Pin not set"}</Text>
+                <Text style={[styles.coordinateValue, mapCenter && styles.coordinateValueSelected]}>{mapCenter ? "Pin selected" : "Pin not set"}</Text>
               </View>
             </View>
           </Field>
@@ -354,7 +346,7 @@ export default function PostTaskScreen() {
               showUserLocation
               height={360}
             />
-            <Text style={styles.helperText}>Tap the mobile map or drag the task pin. On web, enter coordinates manually.</Text>
+            <Text style={styles.helperText}>Move or zoom the map, then tap or click to place the task pin. Drag the pin to adjust it.</Text>
 
             <View style={styles.modalPanel}>
               <Text style={styles.fieldLabel}>Worker check radius</Text>
@@ -666,6 +658,7 @@ const styles = StyleSheet.create({
   coordinateLabel: { color: palette.muted, fontSize: 11, lineHeight: 14, fontWeight: "800" },
   coordinateAddress: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: "900", marginTop: 2 },
   coordinateValue: { color: palette.text, fontSize: 11, lineHeight: 14, fontWeight: "900", flexShrink: 0 },
+  coordinateValueSelected: { color: palette.primary },
   paymentChip: { flex: 1, minHeight: 42, borderRadius: 8, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, alignItems: "center", justifyContent: "center" },
   paymentChipSelected: { backgroundColor: palette.primary, borderColor: palette.primary },
   paymentText: { color: palette.muted, fontSize: 14, fontWeight: "800" },

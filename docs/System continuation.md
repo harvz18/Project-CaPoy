@@ -27,7 +27,7 @@ On September 30, 2026, the tested Firestore rules and indexes were deployed to `
 | Smart matching | Implemented locally using availability, required skill/capability, distance, verification, experience, rating, and completed tasks. | Harden location freshness, define weights/eligibility, expose reasons, and verify with device/cloud tests. |
 | Admin analytics | Only small live counts are shown for reviews, payments, disputes, and users. | Add real, data-backed operational analytics and date filters. |
 | Nearby-task geofencing notification | A task-created Cloud Function already evaluates eligible workers and creates deterministic nearby-task notifications. | Deploy to a test project, add freshness/telemetry protections, test push delivery, and prove boundary cases on devices. |
-| Real-time map | A real native map, task pin, radius circle, and device user marker exist. Location is captured on demand, not continuously watched. | Add a controlled foreground live-location session and explicitly define who may see it. |
+| Real-time map | Native active-task maps support foreground updates, and the web task flow now has an interactive OpenStreetMap preview with click/drag pin selection and a radius ring. | Complete physical Android movement checks and a Render browser smoke test. |
 
 ## Policy Decisions to Confirm Before Implementation
 
@@ -64,7 +64,7 @@ The continuation phases below are numbered independently from the original TASKL
 | 2 | Superadmin and account restrictions | Client pushed and Firestore deployed; Functions/provisioning/manual verification pending | High |
 | 3 | Geofenced discovery and nearby notifications | Client pushed and Firestore deployed; cloud Function/device proof pending | **Highest** |
 | 4 | Smart-match consistency and explainability | Implemented locally; needs hardening | High |
-| 5 | Foreground real-time map | Static/live user marker only | High |
+| 5 | Foreground real-time map | Native live map and interactive web task pin implemented; physical/Render checks pending | High |
 | 6 | Administrator analytics | Basic counters only | Medium |
 | 7 | Product and beta hardening | Source complete; physical accessibility/offline evidence pending | High |
 | 8 | Beta deployment and acceptance testing | Automated gate and Firestore beta deployment complete; distribution/device testing blocked | Release gate |
@@ -447,7 +447,9 @@ Phase 5 verification:
 - Expo Doctor passed all 18 checks.
 - Android and web Expo exports passed.
 - No Firebase rule, index, Function, or paid service change was required for this phase.
-- The source can be deployed to the connected Render workflow after commit/push, but Render serves the web fallback rather than the native `react-native-maps` view.
+- On October 1, 2026, the coordinate-entry web fallback was replaced with a Leaflet/OpenStreetMap preview. Employers can navigate and zoom, click/tap to place a task pin, drag the selected pin, and see the geofence radius. Taskers use the same interaction for their private matching-area pin; coordinates remain internal data rather than user-facing inputs.
+- The public OpenStreetMap tile endpoint is suitable only for controlled beta traffic under its usage policy and visible attribution. It is not treated as unlimited production infrastructure.
+- The source can be deployed to the connected Render workflow after commit/push; Render browser interaction still requires a smoke-test confirmation.
 - Physical Android verification is still required before claiming the Phase 5 exit criteria: walk/drive marker movement, permission removal, GPS off/on, foreground/background transitions, screen unmount, and independent inside/outside start/finish checks cannot be proven by the local automated suite.
 - A standalone production Android map can require a valid provider key and the provider's current setup/billing terms. No paid map service or billing setting was added.
 

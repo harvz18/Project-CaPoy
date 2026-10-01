@@ -10,7 +10,7 @@ TASKLINK is an Expo/React Native application that connects clients posting short
 - Cloud Firestore
 - Firebase Storage
 
-Android remains the primary assessed release target. Web exports are supported for beta checking, with a coordinate fallback instead of the native map component.
+Android remains the primary assessed release target. Web exports are supported for beta checking with an interactive Leaflet/OpenStreetMap map preview.
 
 ## Local setup
 
@@ -100,11 +100,11 @@ The UI reads `taskMatches` as the application source. `tasks.applicantIds` remai
 
 ## Location, maps, and matching
 
-TASKLINK requests foreground location only after the user taps a location action. Workers may save a manual location for job discovery, but starting and finishing an assigned task requires a fresh device location with acceptable accuracy inside the task radius. Exact worker coordinates remain in the private `users` and `workerProfiles` documents and are not copied to `publicProfiles`.
+TASKLINK requests foreground location only after the user taps a location action. Workers may save a private map pin for job discovery, but starting and finishing an assigned task requires a fresh device location with acceptable accuracy inside the task radius. Exact worker coordinates remain in the private `users` and `workerProfiles` documents and are not copied to `publicProfiles`.
 
 Job recommendations and applicant cards use a deterministic score based on required capability, distance, availability, verification, experience, rating, and completed work. Missing location or capability data fails closed instead of using a hidden Bacolod coordinate.
 
-Native Android maps work in Expo Go during development. Production Android builds need `GOOGLE_MAPS_API_KEY` in the local/EAS environment. Restrict that key to `com.tasklink.app` and the production signing certificate. Web uses a coordinate summary and manual/device-location fallback rather than the native map component.
+Native Android maps work in Expo Go during development. Production Android builds need `GOOGLE_MAPS_API_KEY` in the local/EAS environment. Restrict that key to `com.tasklink.app` and the production signing certificate. Web uses Leaflet with visibly attributed OpenStreetMap tiles for navigation, click/tap selection, draggable pins, and geofence previews. The public OpenStreetMap tile service is for controlled beta traffic here, not assumed to be unlimited production hosting.
 
 Eligible-worker in-app notification fan-out is implemented in `functions/` as a trusted Firestore trigger. It reads private worker coordinates on the server and never exposes them to clients. Deploying Cloud Functions requires a Firebase project on the Blaze plan; nothing is deployed automatically by this repository.
 

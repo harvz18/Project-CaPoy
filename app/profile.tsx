@@ -197,11 +197,13 @@ export default function ProfileScreen() {
     }
   }
 
-  function updateManualCoordinate(setValue: (value: string) => void, value: string) {
-    setValue(value);
+  function selectMapCoordinate(coordinate: { latitude: number; longitude: number }) {
+    setCurrentLatitude(String(coordinate.latitude));
+    setCurrentLongitude(String(coordinate.longitude));
     setLocationSource("manual");
     setLocationUpdatedAt(new Date().toISOString());
     setLocationAccuracyMeters(undefined);
+    setLocationMessage("Location pin updated. Save changes to keep it.");
   }
 
   return (
@@ -352,20 +354,19 @@ export default function ProfileScreen() {
 
               <LocationMap
                 center={mapCenter}
-                markers={mapCenter ? [{ id: "worker", ...mapCenter, title: "Your saved location" }] : []}
+                interactive
+                markers={mapCenter ? [{ id: "selected", ...mapCenter, title: "Your saved location" }] : []}
+                onSelectCoordinate={selectMapCoordinate}
                 radiusMeters={(Number(preferredRadiusKm) || 0) * 1000}
                 showUserLocation
-                height={180}
+                height={260}
               />
+              <Text style={styles.helperText}>Move or zoom the map, then tap or click to place your matching-area pin. Drag the pin to adjust it.</Text>
               <Pressable accessibilityRole="button" disabled={locating} onPress={useDeviceLocation} style={styles.locationButton}>
                 <Text style={styles.locationButtonText}>{locating ? "Getting location..." : "Use current device location"}</Text>
               </Pressable>
-              <Text style={styles.helperText}>Your exact coordinates stay in your private profile. Clients see only matching reasons and distance.</Text>
+              <Text style={styles.helperText}>Your saved pin stays in your private profile. Clients see only matching reasons and distance.</Text>
               {locationMessage ? <Text style={styles.locationMessage}>{locationMessage}</Text> : null}
-              <View style={styles.twoColumn}>
-                <Field label="Manual latitude" value={currentLatitude} onChangeText={(value) => updateManualCoordinate(setCurrentLatitude, value)} keyboardType="decimal-pad" placeholder="e.g. 10.6765" />
-                <Field label="Manual longitude" value={currentLongitude} onChangeText={(value) => updateManualCoordinate(setCurrentLongitude, value)} keyboardType="decimal-pad" placeholder="e.g. 122.9509" />
-              </View>
 
               <View style={styles.radiusGrid}>
                 {workerRadiusOptions.map((option) => {
