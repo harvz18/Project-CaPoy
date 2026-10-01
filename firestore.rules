@@ -379,17 +379,17 @@ service cloud.firestore {
         && isOpenTask(resource.data)
         && !('workerId' in resource.data)
         && !('workerId' in request.resource.data)
-        && resource.data.applicantIds is list
         && request.resource.data.applicantIds is list
-        && !(request.auth.uid in resource.data.applicantIds)
+        && resource.data.get('applicantIds', []) is list
+        && !(request.auth.uid in resource.data.get('applicantIds', []))
         && request.auth.uid in request.resource.data.applicantIds
         && request.resource.data.lastApplicationWorkerId == request.auth.uid
         && request.resource.data.lastApplicationMatchId
           == taskId + '_' + request.auth.uid
         && request.resource.data.lastApplicationAction == 'Applied'
         && matchAfter(request.resource.data.lastApplicationMatchId).acceptanceStatus == 'Applied'
-        && request.resource.data.applicantIds.hasAll(resource.data.applicantIds)
-        && request.resource.data.applicantIds.size() == resource.data.applicantIds.size() + 1
+        && request.resource.data.applicantIds.hasAll(resource.data.get('applicantIds', []))
+        && request.resource.data.applicantIds.size() == resource.data.get('applicantIds', []).size() + 1
         && request.resource.data.status == 'Applied'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'applicantIds',

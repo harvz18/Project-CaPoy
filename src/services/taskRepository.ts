@@ -5,6 +5,7 @@ import {
   onSnapshot,
   query,
   runTransaction,
+  setDoc,
   where,
   writeBatch,
   Transaction
@@ -160,6 +161,7 @@ export async function applyToTask(taskId: string, worker: UserProfile) {
   const matchRef = doc(firestore, "taskMatches", `${taskId}_${worker.id}`);
   const workerRef = doc(firestore, "users", worker.id);
   const now = new Date().toISOString();
+  let applicationNotification: WorkflowNotification | undefined;
   await runTransaction(firestore, async (transaction) => {
     const [taskSnapshot, matchSnapshot, workerSnapshot] = await Promise.all([
       transaction.get(taskRef), transaction.get(matchRef), transaction.get(workerRef)
@@ -181,11 +183,22 @@ export async function applyToTask(taskId: string, worker: UserProfile) {
       lastApplicationAction: "Applied",
       updatedAt: now
     });
-    setWorkflowNotification(transaction, {
-      id: `${taskId}_application_${worker.id}`, userId: task.clientId, taskId, createdBy: worker.id,
-      notificationType: "Worker application", message: `${worker.fullName} applied to ${task.title}.`, createdAt: now
-    });
+    applicationNotification = {
+      id: `${taskId}_application_${worker.id}`,
+      userId: task.clientId,
+      taskId,
+      createdBy: worker.id,
+      notificationType: "Worker application",
+      message: `${worker.fullName} applied to ${task.title}.`,
+      createdAt: now
+    };
   });
+
+  // A notification is useful but must never roll back a valid application.
+  if (applicationNotification) {
+    const { id, ...notification } = applicationNotification;
+    await setDoc(doc(firestore, "notifications", id), { ...notification, readStatus: false }).catch(() => undefined);
+  }
 }
 
 export async function withdrawTaskApplication(taskId: string, worker: UserProfile) {
