@@ -618,7 +618,8 @@ Completed safely:
 - Selected the existing `tasklink-fb027` project as the controlled beta target because it is the only TaskLink Firebase project available to the authenticated account. Added an explicit `beta` alias and deliberately no default/production alias.
 - Added a sanitized preview environment template, value-redacted normal/strict preflight commands, dynamic Android map-key injection, five preflight regression tests, and a single reproducible `test:beta:local` gate.
 - Added `docs/TASKLINK_BETA_ACCEPTANCE.md` with the four-account register, cloud/build gates, happy/failure/security/accessibility matrices, evidence requirements, defect severity, and rollback procedure.
-- The complete local gate passed: TypeScript; 34/34 application/domain tests; 5/5 beta-preflight tests; 25/25 Functions tests; 33/33 Firestore/Storage emulator tests; Expo Doctor 18/18; web export; and Android export.
+- The complete local gate passed: TypeScript; 34/34 application/domain tests; 5/5 beta-preflight tests; 25/25 Functions tests; 34/34 Firestore/Storage emulator tests; Expo Doctor 18/18; web export; and Android export.
+- Simplified employer access: registration now creates the selected employer/client or tasker/worker profile directly, the shared login routes from the stored role, and an existing idle account can switch modes from Profile. Emulator coverage proves both direct employer registration and the atomic tasker-to-employer transition.
 - Re-released the already-reviewed Firestore rules and verified all declared indexes through the explicit `beta` alias. Firebase resolved it to `tasklink-fb027`; the rules were already current and all three message indexes were `READY`. The database reports Standard edition with free tier enabled.
 - No Storage or Functions deployment was attempted, and no billing setting was enabled or changed.
 

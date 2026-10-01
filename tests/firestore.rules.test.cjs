@@ -462,6 +462,20 @@ test("registration can atomically create private, public, and role profiles", as
 
   await assertSucceeds(batch.commit());
 
+  const newClientId = "new-client";
+  const clientRegistrationDb = dbFor(newClientId);
+  const clientBatch = writeBatch(clientRegistrationDb);
+  clientBatch.set(doc(clientRegistrationDb, "users", newClientId), user(newClientId, "client"));
+  clientBatch.set(doc(clientRegistrationDb, "publicProfiles", newClientId), publicProfile(newClientId, "client"));
+  clientBatch.set(doc(clientRegistrationDb, "clientProfiles", newClientId), {
+    userId: newClientId,
+    businessName: "",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z"
+  });
+
+  await assertSucceeds(clientBatch.commit());
+
   const forgedUserId = "forged-approved-client";
   const forgedDb = dbFor(forgedUserId);
   const forgedBatch = writeBatch(forgedDb);
@@ -478,6 +492,26 @@ test("registration can atomically create private, public, and role profiles", as
     updatedAt: "2026-01-01T00:00:00.000Z"
   });
   await assertFails(forgedBatch.commit());
+});
+
+test("an idle tasker can switch to employer mode atomically", async () => {
+  const db = dbFor(WORKER_ID);
+  const batch = writeBatch(db);
+  const updatedAt = "2026-01-02T00:00:00.000Z";
+
+  batch.update(doc(db, "users", WORKER_ID), { role: "client", updatedAt });
+  batch.set(doc(db, "publicProfiles", WORKER_ID), {
+    ...publicProfile(WORKER_ID, "worker"),
+    role: "client",
+    updatedAt
+  });
+  batch.set(doc(db, "clientProfiles", WORKER_ID), {
+    userId: WORKER_ID,
+    businessName: "",
+    updatedAt
+  }, { merge: true });
+
+  await assertSucceeds(batch.commit());
 });
 
 test("only a client can create an open task owned by that client", async () => {

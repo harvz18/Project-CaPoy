@@ -49,6 +49,8 @@ The Firebase Auth SDK owns the session used by Firestore and Storage. Mobile ses
 
 SMS OTP is not implemented yet. The old fixed prototype code and shared fallback password have been removed. Do not describe the current password flow as phone verification.
 
+Employer and tasker accounts use the same login form. Registration selects the account type first and creates the matching `client` or `worker` profile directly; login reads that stored role and opens the correct dashboard. An existing idle account can change modes from Profile > Account Mode.
+
 ## Firebase security
 
 Versioned Firebase configuration is included in:

@@ -15,7 +15,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { workerCapabilities } from "../src/constants/capabilities";
 import { useApp } from "../src/context/AppContext";
-import { Role } from "../src/types";
+import { PublicRole, Role } from "../src/types";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -64,6 +64,7 @@ export default function LoginScreen() {
   const [fullName, setFullName] = useState("");
   const [registerMobileNumber, setRegisterMobileNumber] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
+  const [registerRole, setRegisterRole] = useState<PublicRole>("client");
   const [registerCapabilities, setRegisterCapabilities] = useState(["Cleaning"]);
   const [selectedBarangay, setSelectedBarangay] = useState(barangays[0]);
   const [barangayOpen, setBarangayOpen] = useState(false);
@@ -74,7 +75,7 @@ export default function LoginScreen() {
 
   async function handleLogin() {
     try {
-      const user = await login("worker", {
+      const user = await login({
         mobileNumber: mobileNumber.trim(),
         password
       });
@@ -87,15 +88,16 @@ export default function LoginScreen() {
   async function handleRegister() {
     try {
       await register({
-        role: "worker",
+        role: registerRole,
         fullName,
         mobileNumber: registerMobileNumber,
         password: registerPassword,
         address: selectedBarangay,
-        skills: registerCapabilities,
-        capabilities: registerCapabilities
+        skills: registerRole === "worker" ? registerCapabilities : [],
+        capabilities: registerRole === "worker" ? registerCapabilities : [],
+        businessName: registerRole === "client" ? fullName : undefined
       });
-      router.replace("/role-selection");
+      router.replace(getRoleRoute(registerRole));
     } catch {
       // AppContext exposes the readable error message.
     }
@@ -136,6 +138,7 @@ export default function LoginScreen() {
           <Text style={screenStyles.authNotice}>
             SMS OTP is not enabled yet. Use the password created with your account.
           </Text>
+          <Text style={screenStyles.authNotice}>Employers and taskers use this same login. Your saved account type opens the correct dashboard.</Text>
 
           <View style={screenStyles.section}>
             <Text style={screenStyles.label}>Mobile Number</Text>
@@ -196,6 +199,27 @@ export default function LoginScreen() {
                 </View>
               </View>
 
+              <Text style={screenStyles.label}>Create Account As</Text>
+              <View style={screenStyles.tabRow}>
+                {([
+                  { label: "Employer", role: "client" },
+                  { label: "Tasker", role: "worker" }
+                ] as const).map((option) => {
+                  const selected = registerRole === option.role;
+                  return (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                      key={option.role}
+                      onPress={() => setRegisterRole(option.role)}
+                      style={[screenStyles.tabButton, selected && screenStyles.tabButtonActive]}
+                    >
+                      <Text style={[screenStyles.tabText, selected && screenStyles.tabTextActive]}>{option.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
               <Text style={screenStyles.label}>Mobile Number</Text>
               <PhoneInput mobileNumber={registerMobileNumber} onChange={setRegisterMobileNumber} />
 
@@ -219,23 +243,29 @@ export default function LoginScreen() {
                 value={registerPassword}
               />
 
-              <Text style={screenStyles.label}>Worker Capabilities</Text>
-              <View style={screenStyles.capabilityGrid}>
-                {workerCapabilities.map((capability) => {
-                  const selected = registerCapabilities.includes(capability);
-                  return (
-                    <Pressable
-                      key={capability}
-                      onPress={() => toggleCapability(capability)}
-                      style={[screenStyles.capabilityChip, selected && screenStyles.capabilityChipSelected]}
-                    >
-                      <Text style={[screenStyles.capabilityText, selected && screenStyles.capabilityTextSelected]}>
-                        {capability}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
+              {registerRole === "worker" ? (
+                <>
+                  <Text style={screenStyles.label}>Worker Capabilities</Text>
+                  <View style={screenStyles.capabilityGrid}>
+                    {workerCapabilities.map((capability) => {
+                      const selected = registerCapabilities.includes(capability);
+                      return (
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityState={{ selected }}
+                          key={capability}
+                          onPress={() => toggleCapability(capability)}
+                          style={[screenStyles.capabilityChip, selected && screenStyles.capabilityChipSelected]}
+                        >
+                          <Text style={[screenStyles.capabilityText, selected && screenStyles.capabilityTextSelected]}>
+                            {capability}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </>
+              ) : null}
 
               <Pressable
                 accessibilityRole="button"
@@ -244,7 +274,7 @@ export default function LoginScreen() {
                 style={({ pressed }) => [screenStyles.primaryButton, pressed && screenStyles.pressed]}
               >
                 <Text style={screenStyles.primaryButtonText}>
-                  {actionLoading ? "Creating Account..." : "Complete Registration"}
+                  {actionLoading ? "Creating Account..." : `Create ${registerRole === "client" ? "Employer" : "Tasker"} Account`}
                 </Text>
               </Pressable>
             </View>

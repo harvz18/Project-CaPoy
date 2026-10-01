@@ -54,7 +54,7 @@ That command runs the secret-safe preflight, TypeScript, application/domain test
 | Application/domain tests | Pass, 34/34 |
 | Beta-preflight tests | Pass, 5/5 |
 | Functions tests | Pass, 25/25 |
-| Firestore/Storage emulator tests | Pass, 33/33 |
+| Firestore/Storage emulator tests | Pass, 34/34 |
 | Expo Doctor | Pass, 18/18 |
 | Web export | Pass |
 | Android export | Pass |

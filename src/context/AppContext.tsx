@@ -8,7 +8,6 @@ import {
   PaymentStatus,
   PublicRole,
   Rating,
-  Role,
   Task,
   TaskMatch,
   TaskStatus,
@@ -112,7 +111,7 @@ type AppContextValue = {
   appLoading: boolean;
   actionLoading: boolean;
   error: string | null;
-  login: (role: Role, input?: LoginInput) => Promise<UserProfile>;
+  login: (input: LoginInput) => Promise<UserProfile>;
   register: (input: RegisterInput) => Promise<void>;
   setRole: (role: PublicRole) => Promise<void>;
   logout: () => Promise<void>;
@@ -290,15 +289,15 @@ export function AppProvider({ children }: PropsWithChildren) {
     }
   }
 
-  async function login(role: Role, input?: LoginInput) {
+  async function login(input: LoginInput) {
     let authenticatedUser: UserProfile | undefined;
 
     await runAction(async () => {
-      const mobileNumber = input?.mobileNumber.trim() ?? "";
+      const mobileNumber = input.mobileNumber.trim();
       if (!mobileNumber) {
         throw new Error("Please enter your mobile number.");
       }
-      const authSession = await loginWithMobileNumber(mobileNumber, input?.password);
+      const authSession = await loginWithMobileNumber(mobileNumber, input.password);
       const [user, tokenAuthority] = await Promise.all([
         getUserProfile(authSession.localId),
         getCurrentAuthority(undefined, true)
@@ -358,6 +357,9 @@ export function AppProvider({ children }: PropsWithChildren) {
     await runAction(async () => {
       if (!currentUser) {
         throw new Error("Please log in before selecting a role.");
+      }
+      if (currentUser.activeTaskId) {
+        throw new Error("Finish your active task before switching account mode.");
       }
 
       const updates: Partial<UserProfile> = {
@@ -802,7 +804,7 @@ function validateTask(input: TaskInput) {
   }
 
   if (!hasValidCoordinates({ latitude: input.latitude, longitude: input.longitude }) || !input.locationSource) {
-    throw new Error("Set a valid task pin using device location, the map, or manual coordinates.");
+    throw new Error("Set a valid task pin using device location or the map.");
   }
 
   if (!input.geofenceRadius || input.geofenceRadius < 100 || input.geofenceRadius > 5000) {

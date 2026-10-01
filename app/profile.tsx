@@ -268,6 +268,20 @@ export default function ProfileScreen() {
           <Field label={currentUser?.role === "client" ? "Business Bio" : "Worker Bio"} value={bio} onChangeText={setBio} placeholder="Tell people about yourself" multiline />
         </SettingsCard>
 
+        <SettingsCard title="Account Mode">
+          <Text style={styles.helperText}>You are currently using TaskLink as {currentUser?.role === "client" ? "an employer" : "a tasker"}.</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ disabled: Boolean(currentUser?.activeTaskId) }}
+            disabled={Boolean(currentUser?.activeTaskId)}
+            onPress={() => router.push("/role-selection")}
+            style={[styles.locationButton, currentUser?.activeTaskId && styles.uploadDisabled]}
+          >
+            <Text style={styles.locationButtonText}>Switch account mode</Text>
+          </Pressable>
+          {currentUser?.activeTaskId ? <Text style={styles.helperText}>Finish the active task before switching account mode.</Text> : null}
+        </SettingsCard>
+
         {currentUser?.role === "worker" ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Capabilities</Text>
