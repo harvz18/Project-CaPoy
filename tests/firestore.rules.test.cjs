@@ -635,10 +635,9 @@ test("a worker can apply atomically but cannot assign themselves", async () => {
   );
 });
 
-test("a pending-verification worker can apply to a legacy open task without applicantIds", async () => {
+test("a pending-verification worker can apply to a legacy open task with null workflow fields", async () => {
   await testEnvironment.withSecurityRulesDisabled(async (context) => {
-    const legacyTask = taskData();
-    delete legacyTask.applicantIds;
+    const legacyTask = taskData({ applicantIds: null, workerId: null });
     await setDoc(doc(context.firestore(), "tasks", TASK_ID), legacyTask);
   });
 
