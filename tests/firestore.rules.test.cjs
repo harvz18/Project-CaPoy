@@ -15,6 +15,7 @@ const {
   or,
   orderBy,
   query,
+  runTransaction,
   setDoc,
   updateDoc,
   where,
@@ -638,32 +639,47 @@ test("a worker can apply atomically but cannot assign themselves", async () => {
 test("a pending-verification worker can apply to a legacy open task with null workflow fields", async () => {
   await testEnvironment.withSecurityRulesDisabled(async (context) => {
     const legacyTask = taskData({ applicantIds: null, workerId: null });
-    await setDoc(doc(context.firestore(), "tasks", TASK_ID), legacyTask);
+    const db = context.firestore();
+    await Promise.all([
+      setDoc(doc(db, "tasks", TASK_ID), legacyTask),
+      setDoc(doc(db, "users", WORKER_ID), {
+        ...user(WORKER_ID, "worker"),
+        accountStatus: "Pending",
+        activeTaskId: null
+      })
+    ]);
   });
 
   const workerDb = dbFor(WORKER_ID);
   const matchId = `${TASK_ID}_${WORKER_ID}`;
   const now = "2026-01-01T00:01:00.000Z";
-  const batch = writeBatch(workerDb);
-  batch.set(doc(workerDb, "taskMatches", matchId), {
-    id: matchId,
-    taskId: TASK_ID,
-    clientId: CLIENT_ID,
-    workerId: WORKER_ID,
-    acceptanceStatus: "Applied",
-    createdAt: now,
-    updatedAt: now
-  });
-  batch.update(doc(workerDb, "tasks", TASK_ID), {
-    applicantIds: [WORKER_ID],
-    status: "Applied",
-    lastApplicationWorkerId: WORKER_ID,
-    lastApplicationMatchId: matchId,
-    lastApplicationAction: "Applied",
-    updatedAt: now
-  });
-
-  await assertSucceeds(batch.commit());
+  await assertSucceeds(runTransaction(workerDb, async (transaction) => {
+    const taskRef = doc(workerDb, "tasks", TASK_ID);
+    const workerRef = doc(workerDb, "users", WORKER_ID);
+    const [taskSnapshot, workerSnapshot] = await Promise.all([
+      transaction.get(taskRef),
+      transaction.get(workerRef)
+    ]);
+    assert.equal(taskSnapshot.exists(), true);
+    assert.equal(workerSnapshot.exists(), true);
+    transaction.set(doc(workerDb, "taskMatches", matchId), {
+      id: matchId,
+      taskId: TASK_ID,
+      clientId: CLIENT_ID,
+      workerId: WORKER_ID,
+      acceptanceStatus: "Applied",
+      createdAt: now,
+      updatedAt: now
+    });
+    transaction.update(taskRef, {
+      applicantIds: [WORKER_ID],
+      status: "Applied",
+      lastApplicationWorkerId: WORKER_ID,
+      lastApplicationMatchId: matchId,
+      lastApplicationAction: "Applied",
+      updatedAt: now
+    });
+  }));
 });
 
 test("client and worker accounts can complete the full canonical task lifecycle", async () => {

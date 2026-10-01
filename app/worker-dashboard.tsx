@@ -179,6 +179,7 @@ export default function WorkerDashboardScreen() {
                 onOpen={() => router.push(`/task/${task.id}`)}
                 onQuickAccept={() => handleQuickApply(task)}
                 applying={actionLoading}
+                hasApplied={task.applicantIds?.includes(currentUser?.id ?? "") ?? false}
               />
             ))
           ) : (
@@ -219,13 +220,15 @@ function WorkerJobCard({
   match,
   onQuickAccept,
   onOpen,
-  applying
+  applying,
+  hasApplied
 }: {
   task: Task;
   match: MatchResult;
   onQuickAccept: () => void;
   onOpen: () => void;
   applying: boolean;
+  hasApplied: boolean;
 }) {
   return (
     <View style={styles.jobCard}>
@@ -243,8 +246,8 @@ function WorkerJobCard({
         <Pressable accessibilityRole="button" onPress={onOpen} style={styles.detailsButton}>
           <Text style={styles.detailsButtonText}>Details</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" disabled={applying} onPress={onQuickAccept} style={({ pressed }) => [styles.quickButton, applying && styles.disabled, pressed && styles.pressed]}>
-          <Text style={styles.quickButtonText}>{applying ? "Applying..." : "Quick Apply"}</Text>
+        <Pressable accessibilityRole="button" disabled={applying || hasApplied} onPress={onQuickAccept} style={({ pressed }) => [styles.quickButton, (applying || hasApplied) && styles.disabled, pressed && styles.pressed]}>
+          <Text style={styles.quickButtonText}>{hasApplied ? "Applied" : applying ? "Applying..." : "Quick Apply"}</Text>
         </Pressable>
       </View>
     </View>

@@ -163,14 +163,13 @@ export async function applyToTask(taskId: string, worker: UserProfile) {
   const now = new Date().toISOString();
   let applicationNotification: WorkflowNotification | undefined;
   await runTransaction(firestore, async (transaction) => {
-    const [taskSnapshot, matchSnapshot, workerSnapshot] = await Promise.all([
-      transaction.get(taskRef), transaction.get(matchRef), transaction.get(workerRef)
+    const [taskSnapshot, workerSnapshot] = await Promise.all([
+      transaction.get(taskRef), transaction.get(workerRef)
     ]);
     if (!taskSnapshot.exists() || !workerSnapshot.exists()) throw new Error("Task or worker profile not found.");
     const task = { id: taskSnapshot.id, ...taskSnapshot.data() } as Task;
     const workerData = workerSnapshot.data() as UserProfile;
     assertCanApply(task, actor, workerData.availabilityStatus ?? workerData.availability);
-    if (matchSnapshot.exists()) throw new Error("An application already exists for this task.");
     transaction.set(matchRef, {
       id: matchRef.id, taskId, workerId: worker.id, clientId: task.clientId,
       acceptanceStatus: "Applied", createdAt: now, updatedAt: now

@@ -12,10 +12,9 @@ service cloud.firestore {
 
     function hasEnabledAccount() {
       return signedIn()
-        && (
-          !('accountStatus' in currentUser())
-          || currentUser().accountStatus in ['active', 'pending_verification', 'Active', 'Pending Verification']
-        );
+        && !(currentUser().get('accountStatus', 'active') in [
+          'suspended', 'Suspended', 'restricted', 'Restricted', 'deleted', 'Deleted'
+        ]);
     }
 
     function hasRole(role) {
@@ -382,8 +381,9 @@ service cloud.firestore {
 
     function validApplicationUpdate(taskId) {
       return hasRole('worker')
-        && currentUser().get('availabilityStatus', currentUser().get('availability', 'Available')) == 'Available'
-        && currentUser().get('activeTaskId', '') == ''
+        && currentUser().get('availabilityStatus', currentUser().get('availability', 'Available'))
+          in ['Available', 'available']
+        && currentUser().get('activeTaskId', null) == null
         && isOpenTask(resource.data)
         && hasNoAssignedWorker(resource.data)
         && hasNoAssignedWorker(request.resource.data)
