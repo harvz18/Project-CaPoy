@@ -15,7 +15,7 @@ The highest-priority beta feature is reliable location-based matching and notifi
 
 ## Current Baseline
 
-The project already has implementations for authentication, the task lifecycle, matching, task maps, foreground location capture, chat, in-app notifications, optional push tokens, verification review, payment evidence, account suspension, and an administrator screen. Automated checks for Phases 1–5 passed locally during the previous implementation work.
+The project already has implementations for authentication, the task lifecycle, matching, task maps, foreground location capture, chat, in-app notifications, optional push tokens, verification review, payment evidence, account suspension, and administrator/superadministrator screens. Automated source and emulator checks for Phases 1–7 have passed; device/cloud acceptance remains incomplete.
 
 On September 30, 2026, the tested Firestore rules and indexes were deployed to `tasklink-fb027`, and the web source commit was pushed to GitHub’s `tasklink` branch. All three message indexes reached `READY`. Cloud Functions, Storage rules, push setup, administrator provisioning, Render build completion, and physical-device flows remain unverified or undeployed. A feature must not be described as beta-ready merely because its local code or emulator test passes.
 
@@ -66,8 +66,8 @@ The continuation phases below are numbered independently from the original TASKL
 | 4 | Smart-match consistency and explainability | Implemented locally; needs hardening | High |
 | 5 | Foreground real-time map | Static/live user marker only | High |
 | 6 | Administrator analytics | Basic counters only | Medium |
-| 7 | Product and beta hardening | Not started | High |
-| 8 | Beta deployment and acceptance testing | Not started | Release gate |
+| 7 | Product and beta hardening | Source complete; physical accessibility/offline evidence pending | High |
+| 8 | Beta deployment and acceptance testing | Automated gate and Firestore beta deployment complete; distribution/device testing blocked | Release gate |
 
 ## Continuation Phase 0 — Requirements and Policy Lock
 
@@ -608,6 +608,27 @@ The source-level Phase 7 work is complete. The phase’s physical accessibility/
 - The beta-readiness gate below is demonstrated rather than estimated.
 - A fresh environment can reproduce the preview build and test setup.
 - No critical or high-severity authorization, workflow, location, or data-exposure defect remains open.
+
+### Phase 8 implementation status (October 1, 2026)
+
+Completed safely:
+
+- Selected the existing `tasklink-fb027` project as the controlled beta target because it is the only TaskLink Firebase project available to the authenticated account. Added an explicit `beta` alias and deliberately no default/production alias.
+- Added a sanitized preview environment template, value-redacted normal/strict preflight commands, dynamic Android map-key injection, five preflight regression tests, and a single reproducible `test:beta:local` gate.
+- Added `docs/TASKLINK_BETA_ACCEPTANCE.md` with the four-account register, cloud/build gates, happy/failure/security/accessibility matrices, evidence requirements, defect severity, and rollback procedure.
+- The complete local gate passed: TypeScript; 34/34 application/domain tests; 5/5 beta-preflight tests; 25/25 Functions tests; 33/33 Firestore/Storage emulator tests; Expo Doctor 18/18; web export; and Android export.
+- Re-released the already-reviewed Firestore rules and verified all declared indexes through the explicit `beta` alias. Firebase resolved it to `tasklink-fb027`; the rules were already current and all three message indexes were `READY`. The database reports Standard edition with free tier enabled.
+- No Storage or Functions deployment was attempted, and no billing setting was enabled or changed.
+
+Current release blockers:
+
+- Strict preflight correctly fails distribution readiness because `EXPO_PUBLIC_SUPPORT_EMAIL` and `GOOGLE_MAPS_API_KEY` are not configured.
+- EAS is authenticated as `harvz1827`, while the configured project belongs to `shaolin18`; EAS denies build access. Ownership/project IDs were not modified to bypass this boundary.
+- Separate employer, tasker, admin, and superadmin beta accounts have not been provisioned. Staff provisioning requires account identifiers and trusted Firebase Admin credentials.
+- Functions-dependent geofence fan-out, push, moderation, payment/verification review, and analytics remain unavailable under the current no-charge constraint.
+- Physical Android map/location/push, offline/reconnect, TalkBack/large-font, four-account workflow, Render smoke, and cloud authorization evidence remain pending.
+
+Phase 8 is therefore in progress, not complete. The automated and free Firestore portions are ready and deployed; the 80–90% readiness claim remains blocked until the recorded distribution, account, backend, and physical-device evidence passes.
 
 Each continuation phase must keep all earlier tests passing and add tests for its new authorization and state transitions. Schema changes must remain backward-compatible with existing beta data until a reviewed migration is available.
 

@@ -66,8 +66,8 @@ Run `npm run test:rules:emulator` before deploying rules to a real project. The 
 
 As of October 1, 2026:
 
-- The verified Phase 7 source is published through GitHub’s `tasklink` branch. A Render site linked to that branch with auto-deploy enabled should rebuild from the pushed commit; confirm the completed build in Render because this workspace has no Render API credential.
-- The reviewed Phase 6 Firestore rules and indexes are deployed to `tasklink-fb027`. The participant, sender, receiver, and administrator analytics protections were exercised in the emulator before deployment.
+- The latest verified source, including the Phase 8 acceptance kit, is published through GitHub’s `tasklink` branch. A Render site linked to that branch with auto-deploy enabled should rebuild from the pushed commit; confirm the completed build in Render because this workspace has no Render API credential.
+- The reviewed Firestore rules and indexes were reverified through the Phase 8 `beta` alias and released to `tasklink-fb027`. All three declared message indexes are `READY`.
 - Cloud Functions are not deployed. This means trusted matching fan-out, remote push, moderation mutations, and analytics generation remain unavailable online. Firebase requires the Blaze pay-as-you-go plan for Functions, and deployment artifacts can produce small storage charges.
 - Cloud Storage for Firebase also requires Blaze as of February 3, 2026. Upload/review features cannot be represented as fully online under a strict no-charge constraint.
 - No billing plan was enabled or changed by these deployment steps.
@@ -79,6 +79,12 @@ The current client removes prototype names, ratings, counts, availability claims
 Set `EXPO_PUBLIC_SUPPORT_EMAIL` in local, EAS, and Render environments to a project-owned mailbox. When it is unset, the Help screen explicitly reports that beta support is not configured. No third-party remote crash processor or automated retention worker is represented as active.
 
 The controlled-beta limitations, location/payment statements, manual deletion process, retention targets, and tester matrix are documented in [docs/TASKLINK_BETA_OPERATIONS.md](docs/TASKLINK_BETA_OPERATIONS.md). Physical-device offline, large-font, screen-reader, and four-role acceptance evidence is still required before claiming the Phase 7 or overall beta gate is complete.
+
+## Phase 8 beta acceptance
+
+The repository now uses an explicit Firebase `beta` alias and intentionally has no default/production alias. Run `npm run beta:preflight` for a value-redacted configuration check, `npm run beta:preflight:strict` before APK distribution, and `npm run test:beta:local` for the complete automated local gate.
+
+Android standalone builds resolve `GOOGLE_MAPS_API_KEY` through `app.config.js`; the key must be configured in the EAS `preview` environment and restricted to the Android package/signing certificate. The reproducible setup, four-account fixture register, cloud deployment boundary, physical-device scenarios, evidence fields, and rollback procedure are in [docs/TASKLINK_BETA_ACCEPTANCE.md](docs/TASKLINK_BETA_ACCEPTANCE.md).
 
 ## Task workflow
 

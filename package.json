@@ -10,11 +10,15 @@
     "build:web": "expo export --platform web",
     "preview:web": "expo serve",
     "typecheck": "tsc --noEmit",
-    "test": "npm run typecheck && npm run test:workflow && npm run test:functions",
+    "beta:preflight": "node scripts/beta-preflight.mjs",
+    "beta:preflight:strict": "node scripts/beta-preflight.mjs --strict",
+    "test": "npm run typecheck && npm run test:workflow && npm run test:beta-preflight && npm run test:functions",
     "test:workflow": "tsx --test tests/taskWorkflow.test.ts tests/matching.test.ts tests/jobDiscovery.test.ts tests/locationTracking.test.ts tests/profileIdentity.test.ts tests/authority.test.ts",
+    "test:beta-preflight": "node --test tests/betaPreflight.test.mjs",
     "test:functions": "npm --prefix functions test",
     "test:rules": "node --test --test-concurrency=1 tests/firestore.rules.test.cjs tests/storage.rules.test.cjs",
-    "test:rules:emulator": "npx --yes firebase-tools@15.32.0 emulators:exec --project demo-tasklink --only firestore,storage \"npm run test:rules\""
+    "test:rules:emulator": "npx --yes firebase-tools@15.32.0 emulators:exec --project demo-tasklink --only firestore,storage \"npm run test:rules\"",
+    "test:beta:local": "npm run beta:preflight && npm test && npm run test:rules:emulator && npx expo-doctor && npm run build:web && npx expo export --platform android --output-dir dist-android"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
