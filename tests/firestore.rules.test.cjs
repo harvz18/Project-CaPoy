@@ -847,64 +847,72 @@ test("client and worker accounts can complete the full canonical task lifecycle"
 
 test("acceptance atomically selects one worker, rejects the rest, links payment, and marks the worker busy", async () => {
   await seedWorkflowTask();
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), "users", WORKER_ID), { activeTaskId: null });
+  });
   const db = dbFor(CLIENT_ID);
   const now = "2026-01-01T01:00:00.000Z";
-  const batch = writeBatch(db);
-  batch.update(doc(db, "tasks", TASK_ID), {
-    status: "Accepted",
-    workerId: WORKER_ID,
-    applicantIds: [WORKER_ID],
-    selectedMatchId: `${TASK_ID}_${WORKER_ID}`,
-    acceptedAt: now,
-    updatedAt: now
-  });
-  batch.update(doc(db, "payments", TASK_ID), { workerId: WORKER_ID, updatedAt: now });
-  batch.update(doc(db, "taskMatches", `${TASK_ID}_${WORKER_ID}`), {
-    acceptanceStatus: "Accepted",
-    hiredAt: now,
-    updatedAt: now
-  });
-  batch.update(doc(db, "taskMatches", `${TASK_ID}_${OUTSIDER_ID}`), {
-    acceptanceStatus: "Rejected",
-    rejectedAt: now,
-    updatedAt: now
-  });
-  batch.update(doc(db, "users", WORKER_ID), {
-    availabilityStatus: "Busy",
-    availability: "Busy",
-    activeTaskId: TASK_ID,
-    updatedAt: now
-  });
-  batch.update(doc(db, "workerProfiles", WORKER_ID), {
-    availabilityStatus: "Busy",
-    availability: "Busy",
-    updatedAt: now
-  });
-  batch.update(doc(db, "publicProfiles", WORKER_ID), {
-    availabilityStatus: "Busy",
-    availability: "Busy",
-    updatedAt: now
-  });
-  batch.set(doc(db, "notifications", `${TASK_ID}_accepted_${WORKER_ID}`), {
-    userId: WORKER_ID,
-    taskId: TASK_ID,
-    createdBy: CLIENT_ID,
-    notificationType: "Application accepted",
-    message: "Accepted",
-    readStatus: false,
-    createdAt: now
-  });
-  batch.set(doc(db, "notifications", `${TASK_ID}_rejected_${OUTSIDER_ID}`), {
-    userId: OUTSIDER_ID,
-    taskId: TASK_ID,
-    createdBy: CLIENT_ID,
-    notificationType: "Application update",
-    message: "Not selected",
-    readStatus: false,
-    createdAt: now
-  });
+  await assertSucceeds(runTransaction(db, async (transaction) => {
+    const taskRef = doc(db, "tasks", TASK_ID);
+    const selectedMatchRef = doc(db, "taskMatches", `${TASK_ID}_${WORKER_ID}`);
+    const rejectedMatchRef = doc(db, "taskMatches", `${TASK_ID}_${OUTSIDER_ID}`);
+    const [taskSnapshot, selectedMatchSnapshot, publicProfileSnapshot, rejectedMatchSnapshot] = await Promise.all([
+      transaction.get(taskRef),
+      transaction.get(selectedMatchRef),
+      transaction.get(doc(db, "publicProfiles", WORKER_ID)),
+      transaction.get(rejectedMatchRef)
+    ]);
+    assert.equal(taskSnapshot.exists(), true);
+    assert.equal(selectedMatchSnapshot.data().acceptanceStatus, "Applied");
+    assert.equal(publicProfileSnapshot.exists(), true);
+    assert.equal(rejectedMatchSnapshot.data().acceptanceStatus, "Applied");
 
-  await assertSucceeds(batch.commit());
+    transaction.update(taskRef, {
+      status: "Accepted",
+      workerId: WORKER_ID,
+      applicantIds: [WORKER_ID],
+      selectedMatchId: `${TASK_ID}_${WORKER_ID}`,
+      acceptedAt: now,
+      updatedAt: now
+    });
+    transaction.update(doc(db, "payments", TASK_ID), { workerId: WORKER_ID, updatedAt: now });
+    transaction.update(selectedMatchRef, { acceptanceStatus: "Accepted", hiredAt: now, updatedAt: now });
+    transaction.update(rejectedMatchRef, { acceptanceStatus: "Rejected", rejectedAt: now, updatedAt: now });
+    transaction.update(doc(db, "users", WORKER_ID), {
+      availabilityStatus: "Busy",
+      availability: "Busy",
+      activeTaskId: TASK_ID,
+      updatedAt: now
+    });
+    transaction.update(doc(db, "workerProfiles", WORKER_ID), {
+      availabilityStatus: "Busy",
+      availability: "Busy",
+      updatedAt: now
+    });
+    transaction.update(doc(db, "publicProfiles", WORKER_ID), {
+      availabilityStatus: "Busy",
+      availability: "Busy",
+      updatedAt: now
+    });
+    transaction.set(doc(db, "notifications", `${TASK_ID}_accepted_${WORKER_ID}`), {
+      userId: WORKER_ID,
+      taskId: TASK_ID,
+      createdBy: CLIENT_ID,
+      notificationType: "Application accepted",
+      message: "Accepted",
+      readStatus: false,
+      createdAt: now
+    });
+    transaction.set(doc(db, "notifications", `${TASK_ID}_rejected_${OUTSIDER_ID}`), {
+      userId: OUTSIDER_ID,
+      taskId: TASK_ID,
+      createdBy: CLIENT_ID,
+      notificationType: "Application update",
+      message: "Not selected",
+      readStatus: false,
+      createdAt: now
+    });
+  }));
   const [taskSnapshot, workerSnapshot, rejectedMatchSnapshot] = await Promise.all([
     getDoc(doc(db, "tasks", TASK_ID)),
     getDoc(doc(dbFor(WORKER_ID), "users", WORKER_ID)),

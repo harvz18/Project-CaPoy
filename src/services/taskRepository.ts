@@ -326,18 +326,17 @@ async function acceptApplicantInTransaction(
   const workerProfileRef = doc(firestore, "workerProfiles", workerId);
   const publicProfileRef = doc(firestore, "publicProfiles", workerId);
   const matchRefs = (task.applicantIds ?? []).map((id) => doc(firestore, "taskMatches", `${task.id}_${id}`));
-  const [selectedMatchSnapshot, workerUserSnapshot, workerProfileSnapshot, publicProfileSnapshot, ...matchSnapshots] =
+  const [selectedMatchSnapshot, publicProfileSnapshot, ...matchSnapshots] =
     await Promise.all([
-      transaction.get(selectedMatchRef), transaction.get(workerUserRef), transaction.get(workerProfileRef),
-      transaction.get(publicProfileRef), ...matchRefs.map((matchRef) => transaction.get(matchRef))
+      transaction.get(selectedMatchRef), transaction.get(publicProfileRef),
+      ...matchRefs.map((matchRef) => transaction.get(matchRef))
     ]);
   if (!selectedMatchSnapshot.exists() || selectedMatchSnapshot.data().acceptanceStatus !== "Applied" ||
-      !workerUserSnapshot.exists() || !workerProfileSnapshot.exists() || !publicProfileSnapshot.exists()) {
-    throw new Error("The selected application or worker profile is unavailable.");
+      !publicProfileSnapshot.exists()) {
+    throw new Error("The selected application or public worker profile is unavailable.");
   }
-  const workerData = workerUserSnapshot.data() as UserProfile;
-  if (workerData.activeTaskId ||
-      (workerData.availabilityStatus ?? workerData.availability ?? "Available") !== "Available") {
+  const workerData = publicProfileSnapshot.data() as UserProfile;
+  if ((workerData.availabilityStatus ?? workerData.availability ?? "Available").toLowerCase() !== "available") {
     throw new Error("The selected worker is no longer available.");
   }
   transaction.update(taskRef, {

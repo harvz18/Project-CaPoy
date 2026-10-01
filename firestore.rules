@@ -245,7 +245,7 @@ service cloud.firestore {
         ])
         && (
           (
-            !('activeTaskId' in resource.data)
+            resource.data.get('activeTaskId', null) == null
             && request.resource.data.activeTaskId is string
             && request.resource.data.availabilityStatus == 'Busy'
             && request.resource.data.availability == 'Busy'
