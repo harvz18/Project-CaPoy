@@ -10,52 +10,41 @@ interface PlanningScreenHeaderProps {
   nextEnabled?: boolean
   onBack?: () => void
   onNext?: () => void
+  showBackButton?: boolean
   title: string
 }
 
 export const PlanningScreenHeader: React.FC<PlanningScreenHeaderProps> = ({
   currentStep,
   label,
-  nextAccessibilityLabel = 'Continue to the next step',
-  nextEnabled = false,
   onBack,
-  onNext,
+  showBackButton = false,
   title,
 }) => {
   const { width } = useWindowDimensions()
   const isWide = width >= 768
-  const canGoNext = nextEnabled && Boolean(onNext)
 
   return (
     <>
       <View style={styles.appBar}>
         <View style={[styles.appBarContent, isWide && styles.appBarContentWide]}>
-          <Pressable
-            accessibilityLabel="Go back"
-            accessibilityRole="button"
-            disabled={!onBack}
-            hitSlop={8}
-            onPress={onBack}
-            style={({ pressed }) => [styles.navigationButton, pressed && styles.pressed]}
-          >
-            <Text style={styles.navigationIcon}>{'<'}</Text>
-          </Pressable>
+          {showBackButton ? (
+            <Pressable
+              accessibilityLabel="Go back to homepage"
+              accessibilityRole="button"
+              hitSlop={8}
+              onPress={onBack}
+              style={({ pressed }) => [styles.navigationButton, pressed && styles.pressed]}
+            >
+              <Text style={styles.navigationIcon}>{'<'}</Text>
+            </Pressable>
+          ) : (
+            <View style={styles.navigationButton} />
+          )}
 
           <Text numberOfLines={1} style={styles.title}>{title.toUpperCase()}</Text>
 
-          <Pressable
-            accessibilityLabel={nextAccessibilityLabel}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: !canGoNext }}
-            disabled={!canGoNext}
-            hitSlop={8}
-            onPress={onNext}
-            style={({ pressed }) => [styles.navigationButton, pressed && styles.pressed]}
-          >
-            <Text style={[styles.navigationIcon, !canGoNext && styles.navigationIconDisabled]}>
-              {'>'}
-            </Text>
-          </Pressable>
+          <View style={styles.navigationButton} />
         </View>
       </View>
 
@@ -99,7 +88,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'center',
   },
-  navigationIconDisabled: { color: 'rgba(255,255,255,0.32)' },
   title: {
     minWidth: 0,
     flex: 1,
