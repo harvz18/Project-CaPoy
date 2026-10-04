@@ -13,7 +13,7 @@
     "beta:preflight": "node scripts/beta-preflight.mjs",
     "beta:preflight:strict": "node scripts/beta-preflight.mjs --strict",
     "test": "npm run typecheck && npm run test:workflow && npm run test:beta-preflight && npm run test:functions",
-    "test:workflow": "tsx --test tests/taskWorkflow.test.ts tests/matching.test.ts tests/jobDiscovery.test.ts tests/locationTracking.test.ts tests/profileIdentity.test.ts tests/authority.test.ts",
+    "test:workflow": "tsx --test tests/taskWorkflow.test.ts tests/taskMarketplace.test.ts tests/matching.test.ts tests/jobDiscovery.test.ts tests/locationTracking.test.ts tests/profileIdentity.test.ts tests/authority.test.ts",
     "test:beta-preflight": "node --test tests/betaPreflight.test.mjs",
     "test:functions": "npm --prefix functions test",
     "test:rules": "node --test --test-concurrency=1 tests/firestore.rules.test.cjs tests/storage.rules.test.cjs",

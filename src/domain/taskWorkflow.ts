@@ -3,6 +3,8 @@ import { PaymentStatus, Role, Task, TaskStatus } from "../types";
 export type TaskActor = {
   id: string;
   role: Role;
+  capabilities?: string[];
+  skills?: string[];
 };
 
 export const TERMINAL_TASK_STATUSES: TaskStatus[] = ["Archived", "Cancelled", "Expired"];
@@ -54,8 +56,8 @@ export function assertTaskTransition(
 
   if (nextStatus === "Cancelled") {
     requireTaskClient(task, actor);
-    if (task.status !== "Finding Workers" && task.status !== "Applied") {
-      throw new Error("Only an unassigned task can be cancelled.");
+    if (!["Finding Workers", "Applied", "Accepted", "In Progress", "Pending Approval"].includes(task.status)) {
+      throw new Error("This task can no longer be cancelled.");
     }
     return;
   }
@@ -72,12 +74,16 @@ export function assertTaskTransition(
   throw new Error(`The transition from ${task.status} to ${nextStatus} is not allowed.`);
 }
 
-export function assertCanApply(task: Task, actor: TaskActor, availability?: string) {
+export function assertCanApply(task: Task, actor: TaskActor, proposedAmount?: string) {
   if (actor.role !== "worker") {
     throw new Error("Only workers can apply to tasks.");
   }
   if (task.clientId === actor.id) {
     throw new Error("You cannot apply to your own task.");
+  }
+  const capabilities = [...(actor.capabilities ?? []), ...(actor.skills ?? [])];
+  if (task.requiredCapability && capabilities.length && !capabilities.includes(task.requiredCapability)) {
+    throw new Error(`Your profile does not include the required capability: ${task.requiredCapability}.`);
   }
   if (task.workerId || (task.status !== "Finding Workers" && task.status !== "Applied")) {
     throw new Error("This task is no longer open for applications.");
@@ -85,8 +91,8 @@ export function assertCanApply(task: Task, actor: TaskActor, availability?: stri
   if (task.applicantIds?.includes(actor.id)) {
     throw new Error("You have already applied to this task.");
   }
-  if (availability && availability !== "Available") {
-    throw new Error("Set your availability to Available before applying.");
+  if (task.pricingMode === "bidding" && (!proposedAmount || Number(proposedAmount) <= 0)) {
+    throw new Error("Enter a valid proposed amount for this bidding task.");
   }
 }
 

@@ -8,13 +8,14 @@ function requireDb() {
 
 export async function submitVerificationRequest(input: {
   userId: string;
+  role?: "worker" | "client";
   validIdType: string;
   validIdPath: string;
   medicalCertificatePath: string;
 }) {
   if (!input.validIdType.trim()) throw new Error("Choose or enter the valid ID type.");
   if (!input.validIdPath || !input.medicalCertificatePath) {
-    throw new Error("Upload both a valid ID and medical certificate.");
+    throw new Error("Upload both a valid ID and a supporting clearance document.");
   }
 
   const firestore = requireDb();
@@ -27,11 +28,11 @@ export async function submitVerificationRequest(input: {
     verificationStatus: "Pending Verification" as const,
     updatedAt: now
   };
-  batch.update(doc(firestore, "users", input.userId), {
-    ...verificationUpdates,
-    identityStatus: "Pending Approval"
-  });
-  batch.set(doc(firestore, "workerProfiles", input.userId), { userId: input.userId, ...verificationUpdates }, { merge: true });
+  batch.update(doc(firestore, "users", input.userId), input.role === "client" ? {
+    verificationStatus: "Pending Verification",
+    updatedAt: now
+  } : { ...verificationUpdates, identityStatus: "Pending Approval" });
+  batch.set(doc(firestore, input.role === "client" ? "clientProfiles" : "workerProfiles", input.userId), { userId: input.userId, ...verificationUpdates }, { merge: true });
   batch.update(doc(firestore, "publicProfiles", input.userId), {
     verificationStatus: "Pending Verification",
     updatedAt: now

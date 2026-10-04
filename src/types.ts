@@ -15,8 +15,10 @@ export type TaskStatus =
   | "Expired";
 
 export type PaymentMethod = "COD" | "GCash link";
+export type DurationUnit = "hour" | "day" | "week" | "month";
+export type PricingMode = "fixed" | "bidding";
 export type PaymentStatus = "Pending" | "Submitted" | "Verified" | "Rejected";
-export type VerificationStatus = "Pending Verification" | "Verified" | "Rejected" | "Needs Resubmission";
+export type VerificationStatus = "Not Submitted" | "Pending Verification" | "Verified" | "Rejected" | "Needs Resubmission";
 export type IdentityStatus = "Unverified" | "Pending Approval" | "Approved" | "Rejected" | "Needs Resubmission";
 export type AccountStatus = "active" | "pending_verification" | "suspended" | "deleted";
 export type LocationSource = "device" | "manual" | "map";
@@ -91,6 +93,13 @@ export type Task = {
   requiredCapability?: string;
   wage: string;
   estimatedDuration: string;
+  durationValue?: number;
+  durationUnit?: DurationUnit;
+  scheduleStart?: string;
+  scheduleEnd?: string;
+  pricingMode?: PricingMode;
+  agreedAmount?: string;
+  perks?: string[];
   status: TaskStatus;
   paymentMethod: PaymentMethod;
   paymentStatus?: PaymentStatus;
@@ -132,6 +141,7 @@ export type Rating = {
   taskId: string;
   score: number;
   feedback: string;
+  createdAt?: string;
 };
 
 export type MatchScoreBreakdown = {
@@ -178,6 +188,7 @@ export type TaskMatch = {
   workerId: string;
   clientId: string;
   acceptanceStatus: "Applied" | "Accepted" | "Rejected" | "Withdrawn" | "Cancelled";
+  proposedAmount?: string;
   matchScore?: number;
   matchReasons?: string[];
   distanceKm?: number;
@@ -197,6 +208,7 @@ export type Payment = {
   taskId: string;
   clientId: string;
   workerId?: string;
+  agreedAmount?: string;
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
   proofOfPaymentUrl?: string;

@@ -43,6 +43,15 @@ export async function addRatingToFirestore(rating: Omit<Rating, "id">) {
       ...rating,
       createdAt: now
     });
+    transaction.set(doc(firestore, "notifications", `${rating.taskId}_review_${rating.reviewerId}`), {
+      userId: rating.targetUserId,
+      taskId: rating.taskId,
+      createdBy: rating.reviewerId,
+      notificationType: "New review",
+      message: `You received a ${rating.score}-star review for a completed task.`,
+      readStatus: false,
+      createdAt: now
+    });
   });
 
   return {

@@ -32,7 +32,7 @@ test("a qualified nearby worker receives a predictable perfect score", () => {
   assert.equal(result.score, 100);
   assert.ok((result.distanceKm ?? 1) < 0.1);
   assert.ok(result.reasons.some((reason) => reason.includes("preferred radius")));
-  assert.equal(MATCH_POLICY_VERSION, 4);
+  assert.equal(MATCH_POLICY_VERSION, 5);
   assert.deepEqual(result.breakdown, {
     skill: 35,
     proximity: 30,
@@ -165,10 +165,9 @@ test("manual discovery pins are accepted but still require freshness", () => {
   assert.equal(scoreWorkerForTask(task(), { ...manual, locationUpdatedAt: "2026-09-29T03:00:00.000Z" }, Date.parse(now)).eligible, false);
 });
 
-test("busy, assigned, restricted, closed, and expired matches fail closed", () => {
+test("global busy state stays discoverable while restricted, closed, and expired matches fail closed", () => {
+  assert.equal(scoreWorkerForTask(task(), worker({ availabilityStatus: "Busy", activeTaskId: "active-task" }), Date.parse(now)).eligible, true);
   const cases = [
-    scoreWorkerForTask(task(), worker({ availabilityStatus: "Busy" }), Date.parse(now)),
-    scoreWorkerForTask(task(), worker({ activeTaskId: "active-task" }), Date.parse(now)),
     scoreWorkerForTask(task(), worker({ accountStatus: "suspended" }), Date.parse(now)),
     scoreWorkerForTask(task({ status: "Accepted" }), worker(), Date.parse(now)),
     scoreWorkerForTask(task({ expiresAt: now }), worker(), Date.parse(now))

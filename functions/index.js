@@ -1,5 +1,5 @@
 const { initializeApp } = require("firebase-admin/app");
-const { getFirestore } = require("firebase-admin/firestore");
+const { FieldValue, getFirestore } = require("firebase-admin/firestore");
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { logger } = require("firebase-functions");
@@ -13,6 +13,7 @@ const {
 } = require("./matching");
 const { buildExpoPushMessage, isExpoPushToken, isNotificationCategoryEnabled } = require("./push");
 const { buildIdentityReview } = require("./identity");
+const { findConflictingAssignment } = require("./marketplace");
 const {
   authorityFromClaims,
   buildAccountStatusChange,
@@ -73,6 +74,151 @@ function writeAudit(transaction, db, entry) {
   });
 }
 
+exports.acceptTaskApplication = onCall({ region: REGION }, async (request) => {
+  const clientId = requireSignedIn(request);
+  const taskId = requiredString(request.data?.taskId, "taskId");
+  const workerId = requiredString(request.data?.workerId, "workerId");
+  if (workerId === clientId) throw new HttpsError("failed-precondition", "Employers cannot accept themselves for their own task.");
+  const db = getFirestore();
+  const taskRef = db.collection("tasks").doc(taskId);
+  const matchRef = db.collection("taskMatches").doc(`${taskId}_${workerId}`);
+  const paymentRef = db.collection("payments").doc(taskId);
+  const workerRef = db.collection("users").doc(workerId);
+  const workerProfileRef = db.collection("workerProfiles").doc(workerId);
+  const publicProfileRef = db.collection("publicProfiles").doc(workerId);
+  const acceptedAt = nowIso();
+
+  await db.runTransaction(async (transaction) => {
+    const assignedQuery = db.collection("tasks").where("workerId", "==", workerId);
+    const [taskSnapshot, matchSnapshot, paymentSnapshot, clientSnapshot, workerSnapshot, assignedSnapshot] = await Promise.all([
+      transaction.get(taskRef), transaction.get(matchRef), transaction.get(paymentRef),
+      transaction.get(db.collection("users").doc(clientId)), transaction.get(workerRef),
+      transaction.get(assignedQuery)
+    ]);
+    if (!taskSnapshot.exists || !matchSnapshot.exists || !paymentSnapshot.exists || !workerSnapshot.exists) {
+      throw new HttpsError("not-found", "Task, application, payment, or tasker was not found.");
+    }
+    const task = { id: taskSnapshot.id, ...taskSnapshot.data() };
+    const match = matchSnapshot.data();
+    if (!clientSnapshot.exists || clientSnapshot.data().role !== "client" || task.clientId !== clientId) {
+      throw new HttpsError("permission-denied", "Only the employer who posted this task can accept an applicant.");
+    }
+    if (task.status !== "Applied" || task.workerId || match.acceptanceStatus !== "Applied") {
+      throw new HttpsError("failed-precondition", "This application is no longer available for acceptance.");
+    }
+    const conflict = findConflictingAssignment(
+      assignedSnapshot.docs.map((item) => ({ id: item.id, ...item.data() })), task, taskId
+    );
+    if (conflict) {
+      throw new HttpsError("failed-precondition", `This tasker already has a confirmed task that overlaps this schedule (${conflict.title ?? conflict.id}).`);
+    }
+
+    const allMatches = await transaction.get(db.collection("taskMatches").where("taskId", "==", taskId));
+    const agreedAmount = task.pricingMode === "bidding" ? match.proposedAmount : task.wage;
+    if (!agreedAmount || Number(agreedAmount) <= 0) {
+      throw new HttpsError("failed-precondition", "The selected application does not have a valid agreed amount.");
+    }
+    transaction.update(taskRef, {
+      status: "Accepted", workerId, applicantIds: [workerId], selectedMatchId: matchRef.id,
+      agreedAmount: String(agreedAmount), acceptedAt, updatedAt: acceptedAt
+    });
+    transaction.update(paymentRef, { workerId, agreedAmount: String(agreedAmount), updatedAt: acceptedAt });
+    allMatches.docs.forEach((document) => {
+      const candidate = document.data();
+      if (candidate.acceptanceStatus !== "Applied") return;
+      const accepted = candidate.workerId === workerId;
+      transaction.update(document.ref, accepted
+        ? { acceptanceStatus: "Accepted", hiredAt: acceptedAt, updatedAt: acceptedAt }
+        : { acceptanceStatus: "Rejected", rejectedAt: acceptedAt, updatedAt: acceptedAt });
+      transaction.set(db.collection("notifications").doc(`${taskId}_${accepted ? "accepted" : "rejected"}_${candidate.workerId}`), {
+        userId: candidate.workerId, taskId, createdBy: clientId,
+        notificationType: accepted ? "Application accepted" : "Application update",
+        message: accepted ? `Your application for ${task.title} was accepted.` : `Another tasker was selected for ${task.title}.`,
+        readStatus: false, createdAt: acceptedAt
+      });
+    });
+    const availabilityUpdate = { availabilityStatus: "Busy", availability: "Busy", activeTaskId: taskId, updatedAt: acceptedAt };
+    transaction.update(workerRef, availabilityUpdate);
+    transaction.set(workerProfileRef, availabilityUpdate, { merge: true });
+    transaction.set(publicProfileRef, availabilityUpdate, { merge: true });
+  });
+  return { ok: true, status: "Accepted" };
+});
+
+exports.cancelTask = onCall({ region: REGION }, async (request) => {
+  const clientId = requireSignedIn(request);
+  const taskId = requiredString(request.data?.taskId, "taskId");
+  const db = getFirestore();
+  const taskRef = db.collection("tasks").doc(taskId);
+  const cancelledAt = nowIso();
+  await db.runTransaction(async (transaction) => {
+    const taskSnapshot = await transaction.get(taskRef);
+    if (!taskSnapshot.exists) throw new HttpsError("not-found", "Task was not found.");
+    const task = { id: taskSnapshot.id, ...taskSnapshot.data() };
+    if (task.clientId !== clientId) {
+      throw new HttpsError("permission-denied", "Only the employer who posted this task can cancel it.");
+    }
+    if (!["Finding Workers", "Applied", "Accepted", "In Progress", "Pending Approval"].includes(task.status)) {
+      throw new HttpsError("failed-precondition", "This task can no longer be cancelled.");
+    }
+    const [matches, otherAssignments] = await Promise.all([
+      transaction.get(db.collection("taskMatches").where("taskId", "==", taskId)),
+      task.workerId
+        ? transaction.get(db.collection("tasks").where("workerId", "==", task.workerId))
+        : Promise.resolve(null)
+    ]);
+    transaction.update(taskRef, { status: "Cancelled", cancelledAt, updatedAt: cancelledAt });
+    matches.docs.forEach((document) => {
+      if (!["Applied", "Accepted"].includes(document.data().acceptanceStatus)) return;
+      transaction.update(document.ref, { acceptanceStatus: "Cancelled", cancelledAt, updatedAt: cancelledAt });
+      transaction.set(db.collection("notifications").doc(`${taskId}_cancelled_${document.data().workerId}`), {
+        userId: document.data().workerId, taskId, createdBy: clientId,
+        notificationType: "Task cancelled", message: `${task.title} was cancelled by the employer.`,
+        readStatus: false, createdAt: cancelledAt
+      });
+    });
+    if (task.workerId) {
+      const nextAssignment = otherAssignments.docs.map((document) => ({ id: document.id, ...document.data() })).find((item) =>
+        item.id !== taskId && ["Accepted", "In Progress", "Pending Approval"].includes(item.status)
+      );
+      const availability = nextAssignment
+        ? { availabilityStatus: "Busy", availability: "Busy", activeTaskId: nextAssignment.id, updatedAt: cancelledAt }
+        : { availabilityStatus: "Available", availability: "Available", activeTaskId: FieldValue.delete(), updatedAt: cancelledAt };
+      transaction.update(db.collection("users").doc(task.workerId), availability);
+      transaction.set(db.collection("workerProfiles").doc(task.workerId), availability, { merge: true });
+      transaction.set(db.collection("publicProfiles").doc(task.workerId), availability, { merge: true });
+    }
+  });
+  return { ok: true, status: "Cancelled" };
+});
+
+exports.updateRatingAggregate = onDocumentCreated(
+  { document: "ratings/{ratingId}", region: REGION },
+  async (event) => {
+    const rating = event.data?.data();
+    if (!rating?.targetUserId) return;
+    const db = getFirestore();
+    const ratings = await db.collection("ratings").where("targetUserId", "==", rating.targetUserId).get();
+    const scores = ratings.docs.map((document) => Number(document.data().score)).filter((score) => Number.isFinite(score));
+    if (!scores.length) return;
+    const ratingTotal = scores.reduce((total, score) => total + score, 0);
+    const aggregate = {
+      rating: Number((ratingTotal / scores.length).toFixed(2)),
+      ratingCount: scores.length,
+      ratingTotal,
+      updatedAt: nowIso()
+    };
+    const userSnapshot = await db.collection("users").doc(rating.targetUserId).get();
+    if (!userSnapshot.exists) return;
+    const roleProfile = userSnapshot.data().role === "worker" ? "workerProfiles" : "clientProfiles";
+    const batch = db.batch();
+    batch.update(db.collection("users").doc(rating.targetUserId), aggregate);
+    batch.set(db.collection("publicProfiles").doc(rating.targetUserId), aggregate, { merge: true });
+    batch.set(db.collection(roleProfile).doc(rating.targetUserId), aggregate, { merge: true });
+    await batch.commit();
+  }
+);
+
 exports.reviewWorkerVerification = onCall({ region: REGION }, async (request) => {
   const adminId = requireAdmin(request);
   const userId = requiredString(request.data?.userId, "userId");
@@ -102,8 +248,8 @@ exports.reviewWorkerVerification = onCall({ region: REGION }, async (request) =>
     if (verificationSnapshot.data().status !== "Pending Verification") {
       throw new HttpsError("failed-precondition", "This verification request has already been reviewed.");
     }
-    if (userSnapshot.data().role !== "worker") {
-      throw new HttpsError("failed-precondition", "Only worker accounts can be verified.");
+    if (!["worker", "client"].includes(userSnapshot.data().role)) {
+      throw new HttpsError("failed-precondition", "Only employer and tasker accounts can be verified.");
     }
 
     const review = {
@@ -115,15 +261,18 @@ exports.reviewWorkerVerification = onCall({ region: REGION }, async (request) =>
     };
     const identityReview = buildIdentityReview(decision, reviewedAt, adminId);
     transaction.update(requestRef, review);
-    transaction.update(userRef, { verificationStatus: decision, ...identityReview, updatedAt: reviewedAt });
-    transaction.set(workerRef, { verificationStatus: decision, updatedAt: reviewedAt }, { merge: true });
+    const role = userSnapshot.data().role;
+    transaction.update(userRef, role === "worker"
+      ? { verificationStatus: decision, ...identityReview, updatedAt: reviewedAt }
+      : { verificationStatus: decision, updatedAt: reviewedAt });
+    transaction.set(role === "worker" ? workerRef : db.collection("clientProfiles").doc(userId), { verificationStatus: decision, updatedAt: reviewedAt }, { merge: true });
     transaction.set(publicRef, { verificationStatus: decision, updatedAt: reviewedAt }, { merge: true });
     transaction.set(db.collection("notifications").doc(), {
       userId,
       createdBy: adminId,
       notificationType: "Verification review",
       message: decision === "Verified"
-        ? "Your worker verification was approved."
+        ? "Your TaskLink verification was approved."
         : `Your worker verification needs attention: ${reason}`,
       readStatus: false,
       createdAt: reviewedAt

@@ -7,6 +7,7 @@ import LocationMap from "../src/components/LocationMap";
 import { StatusBadge } from "../src/components/StatusBadge";
 import { workerCapabilities } from "../src/constants/capabilities";
 import { useApp } from "../src/context/AppContext";
+import { getScheduleBasedAvailability, getUserTaskHistory } from "../src/domain/taskMarketplace";
 import { isIdentityLocked } from "../src/domain/profileIdentity";
 import { captureForegroundLocation } from "../src/services/locationService";
 import { pickAndUploadPrivateDocument, pickAndUploadProfilePhoto } from "../src/services/fileUploadService";
@@ -64,7 +65,6 @@ export default function ProfileScreen() {
   const [documentsChanged, setDocumentsChanged] = useState(false);
   const [uploadingField, setUploadingField] = useState<string>();
   const [uploadMessage, setUploadMessage] = useState("");
-  const [availability, setAvailability] = useState(currentUser?.availability ?? currentUser?.availabilityStatus ?? "Available");
   const [currentLatitude, setCurrentLatitude] = useState(String(currentUser?.currentLatitude ?? ""));
   const [currentLongitude, setCurrentLongitude] = useState(String(currentUser?.currentLongitude ?? ""));
   const [locationSource, setLocationSource] = useState(currentUser?.locationSource);
@@ -88,6 +88,9 @@ export default function ProfileScreen() {
   const completedOrPosted = currentUser?.role === "client"
     ? tasks.filter((task) => task.clientId === currentUser.id).length
     : currentUser?.completedTasks ?? 0;
+  const taskHistory = currentUser && currentUser.role !== "admin"
+    ? getUserTaskHistory(tasks, currentUser.id, currentUser.role)
+    : undefined;
   const memberSince = currentUser?.createdAt && Number.isFinite(new Date(currentUser.createdAt).getTime())
     ? String(new Date(currentUser.createdAt).getFullYear())
     : "Not recorded";
@@ -114,8 +117,6 @@ export default function ProfileScreen() {
         profilePhotoUrl: currentUser?.role === "worker" ? profilePhotoUrl : undefined,
         experienceDescription: currentUser?.role === "worker" ? experienceDescription : undefined,
         yearsOfExperience: currentUser?.role === "worker" ? yearsOfExperience : undefined,
-        availability: currentUser?.role === "worker" ? availability : undefined,
-        availabilityStatus: currentUser?.role === "worker" && availability !== "Unavailable" ? availability : undefined,
         currentLatitude: currentUser?.role === "worker" ? parseCoordinate(currentLatitude) : undefined,
         currentLongitude: currentUser?.role === "worker" ? parseCoordinate(currentLongitude) : undefined,
         locationSource: currentUser?.role === "worker" ? locationSource : undefined,
@@ -124,9 +125,10 @@ export default function ProfileScreen() {
         preferredRadiusKm: currentUser?.role === "worker" ? Number(preferredRadiusKm) || 5 : undefined,
         businessName: currentUser?.role === "client" ? bio : undefined
       });
-      if (currentUser?.role === "worker" && documentsChanged) {
+      if (currentUser && documentsChanged) {
         await submitVerificationRequest({
           userId: currentUser.id,
+          role: currentUser.role === "client" ? "client" : "worker",
           validIdType,
           validIdPath: validIdUrl,
           medicalCertificatePath: medicalCertificateUrl
@@ -228,7 +230,7 @@ export default function ProfileScreen() {
                 <Text style={styles.profilePhotoText}>{fullName[0] ?? "U"}</Text>
               </View>
               <View style={styles.verifiedPill}>
-                <Text style={styles.verifiedText}>{currentUser?.verificationStatus ?? "Pending Verification"}</Text>
+                <Text style={styles.verifiedText}>{currentUser?.verificationStatus ?? "Not Submitted"}</Text>
               </View>
             </View>
             <View style={styles.profileCopy}>
@@ -238,9 +240,12 @@ export default function ProfileScreen() {
                 <Text style={styles.reviewCount}>({reviewCountLabel})</Text>
               </View>
               <Text style={styles.bio}>{bio}</Text>
-              {currentUser?.role === "worker" ? <StatusBadge status={currentUser.availabilityStatus ?? "Available"} /> : null}
+              {currentUser?.role === "worker" ? <StatusBadge status={getScheduleBasedAvailability(tasks, currentUser.id)} /> : null}
               <View style={styles.statsGrid}>
-                <StatBox label={currentUser?.role === "client" ? "Tasks Posted" : "Jobs Completed"} value={String(completedOrPosted)} />
+                <StatBox label={taskHistory?.totalLabel ?? (currentUser?.role === "client" ? "Tasks Posted" : "Jobs Completed")} value={String(taskHistory?.total ?? completedOrPosted)} />
+                <StatBox label={taskHistory?.acceptedLabel ?? "Accepted"} value={String(taskHistory?.accepted ?? 0)} />
+                <StatBox label="Completed" value={String(taskHistory?.completed ?? completedOrPosted)} />
+                <StatBox label="Cancelled" value={String(taskHistory?.cancelled ?? 0)} />
                 <StatBox label="Member since" value={memberSince} />
               </View>
             </View>
@@ -299,13 +304,13 @@ export default function ProfileScreen() {
           </View>
         ) : null}
 
-        {currentUser?.role === "worker" ? (
+        {currentUser ? (
           <>
-            <SettingsCard title="Worker Verification">
+            <SettingsCard title="User Verification">
               <View style={styles.verificationStatusRow}>
                 <Text style={styles.settingTitle}>Status</Text>
                 <View style={styles.verificationBadge}>
-                  <Text style={styles.verificationBadgeText}>{currentUser?.verificationStatus ?? "Pending Verification"}</Text>
+                  <Text style={styles.verificationBadgeText}>{currentUser?.verificationStatus ?? "Not Submitted"}</Text>
                 </View>
               </View>
               <UploadField
@@ -336,16 +341,16 @@ export default function ProfileScreen() {
               />
               <UploadField
                 disabled={uploadingField === "medical-certificate"}
-                label="Medical Certificate"
+                label={currentUser.role === "worker" ? "Medical Certificate / Clearance" : "Barangay or Police Clearance"}
                 value={medicalCertificateUrl}
                 placeholder="Tap to upload medical certificate"
                 onSelect={() => uploadVerificationDocument("medical-certificate")}
               />
-              <Text style={styles.helperText}>Upload the required documents so the account can be reviewed.</Text>
+              <Text style={styles.helperText}>Documents are private and available only to you and authorized administrators.</Text>
               {uploadMessage ? <Text style={styles.locationMessage}>{uploadMessage}</Text> : null}
             </SettingsCard>
 
-            <SettingsCard title="Service Area">
+            {currentUser.role === "worker" ? <SettingsCard title="Service Area">
               <View style={styles.serviceHeader}>
                 <View style={styles.flex}>
                   <Text style={styles.settingTitle}>Availability</Text>
@@ -353,17 +358,7 @@ export default function ProfileScreen() {
                 </View>
               </View>
               <View style={styles.skillRow}>
-                {(["Available", "Busy", "Unavailable"] as const).map((item) => (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: availability === item }}
-                    key={item}
-                    onPress={() => setAvailability(item)}
-                    style={[styles.availabilityChip, availability === item && styles.availabilityChipSelected]}
-                  >
-                    <Text style={[styles.availabilityText, availability === item && styles.availabilityTextSelected]}>{item}</Text>
-                  </Pressable>
-                ))}
+                <Text style={styles.helperText}>Availability is determined automatically from your confirmed task schedules.</Text>
               </View>
 
               <LocationMap
@@ -400,7 +395,7 @@ export default function ProfileScreen() {
                   );
                 })}
               </View>
-            </SettingsCard>
+            </SettingsCard> : null}
           </>
         ) : null}
 

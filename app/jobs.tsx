@@ -8,6 +8,7 @@ import { StatusBadge } from "../src/components/StatusBadge";
 import { useApp } from "../src/context/AppContext";
 import { MatchResult, rankTasksForWorker } from "../src/domain/matching";
 import { filterAndSortRankedJobs, getJobCategories, JobSort } from "../src/domain/jobDiscovery";
+import { formatTaskDuration, formatTaskPrice, formatTaskSchedule } from "../src/domain/taskMarketplace";
 import { captureForegroundLocation } from "../src/services/locationService";
 import { Task } from "../src/types";
 import { formatDistance, getDiscoveryLocationIssue } from "../src/utils/location";
@@ -37,7 +38,7 @@ const sortOptions: Array<{ label: string; value: JobSort }> = [
 export default function JobsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { tasks, acceptTask, currentUser, updateProfile, actionLoading, error } = useApp();
+  const { tasks, acceptTask, currentUser, getUserById, updateProfile, actionLoading, error } = useApp();
   const [activeFilter, setActiveFilter] = useState("");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<JobSort>("recommended");
@@ -175,9 +176,10 @@ export default function JobsScreen() {
               <JobCard
                 key={task.id}
                 task={task}
+                employerName={getUserById(task.clientId)?.fullName ?? "TaskLink employer"}
                 match={match}
                 onOpen={() => router.push(`/task/${task.id}`)}
-                onQuickAccept={() => handleQuickApply(task)}
+                onQuickAccept={() => task.pricingMode === "bidding" ? router.push(`/task/${task.id}`) : handleQuickApply(task)}
                 applying={actionLoading}
                 hasApplied={task.applicantIds?.includes(currentUser?.id ?? "") ?? false}
               />
@@ -200,6 +202,7 @@ export default function JobsScreen() {
 
 function JobCard({
   task,
+  employerName,
   match,
   onOpen,
   onQuickAccept,
@@ -207,6 +210,7 @@ function JobCard({
   hasApplied
 }: {
   task: Task;
+  employerName: string;
   match: MatchResult;
   onOpen: () => void;
   onQuickAccept: () => void;
@@ -216,11 +220,14 @@ function JobCard({
   return (
     <Pressable accessibilityRole="button" onPress={onOpen} style={({ pressed }) => [styles.jobCard, pressed && styles.pressed]}>
       <View style={styles.priceRow}>
-        <Text style={styles.price}>P{task.wage}</Text>
+        <Text style={styles.price}>{formatTaskPrice(task)}</Text>
       </View>
       <Text style={styles.jobTitle}>{task.title}</Text>
+      <Text style={styles.employerName}>Posted by {employerName}</Text>
+      <Text style={styles.jobMeta}>{formatTaskSchedule(task)}</Text>
       <Text style={styles.jobMeta}>{formatDistance(match.distanceKm)} · {task.locationAddress ?? task.location}</Text>
       <Text style={styles.jobDescription} numberOfLines={2}>{task.description}</Text>
+      {task.perks?.length ? <Text style={styles.perksText}>Perks: {task.perks.slice(0, 2).join(" · ")}</Text> : null}
       <View style={styles.matchRow}>
         <Text style={[styles.matchChip, match.eligible ? styles.matchChipGood : styles.matchChipWarn]}>
           {match.eligible ? `${match.score}% match` : "Open to apply"}
@@ -228,7 +235,7 @@ function JobCard({
         <Text style={styles.matchChip}>{match.reasons.slice(0, 2).join(" · ") || "Smart-match details unavailable."}</Text>
       </View>
       <View style={styles.jobInfoRow}>
-        <Text style={styles.jobInfo}>{task.estimatedDuration}</Text>
+        <Text style={styles.jobInfo}>{formatTaskDuration(task)}</Text>
         <Text style={styles.jobInfo}>{task.requiredCapability ?? task.category}</Text>
       </View>
       <View style={styles.actionRow}>
@@ -236,7 +243,7 @@ function JobCard({
           <Text style={styles.detailsButtonText}>Details</Text>
         </Pressable>
         <Pressable accessibilityRole="button" disabled={applying || hasApplied} onPress={onQuickAccept} style={[styles.quickButton, (applying || hasApplied) && styles.quickButtonDisabled]}>
-          <Text style={styles.quickButtonText}>{hasApplied ? "Applied" : applying ? "Applying..." : "Quick Apply"}</Text>
+          <Text style={styles.quickButtonText}>{hasApplied ? "Applied" : applying ? "Applying..." : task.pricingMode === "bidding" ? "Enter Bid" : "Quick Apply"}</Text>
         </Pressable>
       </View>
     </Pressable>
@@ -358,8 +365,10 @@ const styles = StyleSheet.create({
   priceRow: { alignItems: "flex-end" },
   price: { color: palette.primary, fontSize: 20, lineHeight: 28, fontWeight: "900" },
   jobTitle: { color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "800" },
+  employerName: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "800" },
   jobMeta: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "800" },
   jobDescription: { color: palette.muted, fontSize: 14, lineHeight: 20 },
+  perksText: { color: palette.secondary, fontSize: 12, lineHeight: 17, fontWeight: "800" },
   matchRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   matchChip: { overflow: "hidden", borderRadius: 999, paddingHorizontal: 9, paddingVertical: 5, backgroundColor: palette.surfaceHigh, color: palette.muted, fontSize: 11, lineHeight: 14, fontWeight: "900" },
   matchChipGood: { backgroundColor: "#EAF8F1", color: "#0B7A52" },

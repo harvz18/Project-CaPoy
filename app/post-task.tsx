@@ -6,7 +6,8 @@ import LocationMap from "../src/components/LocationMap";
 import { workerCapabilities } from "../src/constants/capabilities";
 import { useApp } from "../src/context/AppContext";
 import { captureForegroundLocation } from "../src/services/locationService";
-import { PaymentMethod } from "../src/types";
+import { DurationUnit, PaymentMethod, PricingMode } from "../src/types";
+import { durationToMilliseconds } from "../src/domain/taskMarketplace";
 import { parseCoordinate } from "../src/utils/location";
 
 const palette = {
@@ -26,7 +27,12 @@ const palette = {
 };
 
 const categories = ["Delivery assistance", "Basic repair", "Cleaning"];
-const durations = ["1 Hour", "2 Hours", "Half Day", "Whole Day"];
+const durationUnits: Array<{ label: string; value: DurationUnit }> = [
+  { label: "Hours", value: "hour" },
+  { label: "Days", value: "day" },
+  { label: "Weeks", value: "week" },
+  { label: "Months", value: "month" }
+];
 const radiusOptions = [
   { label: "Nearby", value: "300", helper: "Same street or nearby block" },
   { label: "Barangay", value: "500", helper: "Good for most local tasks" },
@@ -51,7 +57,11 @@ export default function PostTaskScreen() {
   const [geofenceRadius, setGeofenceRadius] = useState("500");
   const [requiredCapability, setRequiredCapability] = useState("Delivery assistance");
   const [wage, setWage] = useState("");
-  const [estimatedDuration, setEstimatedDuration] = useState("2 Hours");
+  const [pricingMode, setPricingMode] = useState<PricingMode>("fixed");
+  const [durationValue, setDurationValue] = useState("1");
+  const [durationUnit, setDurationUnit] = useState<DurationUnit>("day");
+  const [scheduleStart, setScheduleStart] = useState("");
+  const [perksText, setPerksText] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("COD");
   const [mapOpen, setMapOpen] = useState(false);
   const [categoryOpen, setCategoryOpen] = useState(false);
@@ -95,6 +105,11 @@ export default function PostTaskScreen() {
 
   async function handlePostTask() {
     try {
+      const durationNumber = Number(durationValue);
+      const parsedStart = parseLocalSchedule(scheduleStart);
+      const scheduleEnd = parsedStart && Number.isFinite(durationNumber)
+        ? new Date(parsedStart.getTime() + durationToMilliseconds(durationNumber, durationUnit)).toISOString()
+        : "";
       const task = await createTask({
         title,
         description,
@@ -108,8 +123,14 @@ export default function PostTaskScreen() {
         locationAccuracyMeters,
         locationSource,
         requiredCapability,
-        wage,
-        estimatedDuration,
+        wage: pricingMode === "fixed" ? wage : "",
+        estimatedDuration: `${durationValue} ${durationValue === "1" ? durationUnit : `${durationUnit}s`}`,
+        durationValue: durationNumber,
+        durationUnit,
+        scheduleStart: parsedStart?.toISOString() ?? "",
+        scheduleEnd,
+        pricingMode,
+        perks: perksText.split(",").map((perk) => perk.trim()).filter(Boolean),
         paymentMethod
       });
       router.replace(`/task/${task.id}`);
@@ -249,8 +270,26 @@ export default function PostTaskScreen() {
             </View>
           </Field>
 
+          <Field label="Pricing">
+            <View style={styles.paymentRow}>
+              {(["fixed", "bidding"] as PricingMode[]).map((mode) => (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: pricingMode === mode }}
+                  key={mode}
+                  onPress={() => setPricingMode(mode)}
+                  style={[styles.paymentChip, pricingMode === mode && styles.paymentChipSelected]}
+                >
+                  <Text style={[styles.paymentText, pricingMode === mode && styles.paymentTextSelected]}>
+                    {mode === "fixed" ? "Fixed Price" : "Open for Bidding"}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </Field>
+
           <View style={styles.twoColumn}>
-            <Field label="Wage Offer (P)" style={styles.flex}>
+            {pricingMode === "fixed" ? <Field label="Budget (₱)" style={styles.flex}>
               <TextInput
                 keyboardType="numeric"
                 onChangeText={setWage}
@@ -259,19 +298,33 @@ export default function PostTaskScreen() {
                 style={styles.input}
                 value={wage}
               />
-            </Field>
+            </Field> : <View style={styles.flex}><Text style={styles.helperText}>Taskers will propose an amount when they apply.</Text></View>}
 
-            <Field label="Duration" style={styles.flex}>
+            <Field label="Duration unit" style={styles.flex}>
               <Pressable
                 accessibilityRole="button"
                 onPress={() => setDurationOpen(true)}
                 style={({ pressed }) => [styles.selectButton, pressed && styles.pressed]}
               >
-                <Text style={styles.selectValue}>{estimatedDuration}</Text>
+                <Text style={styles.selectValue}>{durationUnits.find((item) => item.value === durationUnit)?.label}</Text>
                 <Text style={styles.selectChevron}>v</Text>
               </Pressable>
             </Field>
           </View>
+
+          <View style={styles.twoColumn}>
+            <Field label="Duration value" style={styles.flex}>
+              <TextInput keyboardType="numeric" onChangeText={setDurationValue} placeholder="1" placeholderTextColor={palette.outline} style={styles.input} value={durationValue} />
+            </Field>
+            <Field label="Starts (YYYY-MM-DD HH:MM)" style={styles.flex}>
+              <TextInput onChangeText={setScheduleStart} placeholder="2026-10-10 08:00" placeholderTextColor={palette.outline} style={styles.input} value={scheduleStart} />
+            </Field>
+          </View>
+
+          <Field label="Perks (Optional)">
+            <TextInput onChangeText={setPerksText} placeholder="Free lunch, transportation allowance" placeholderTextColor={palette.outline} style={styles.input} value={perksText} />
+            <Text style={styles.helperText}>Separate multiple perks with commas. Perks do not change the monetary payment.</Text>
+          </Field>
 
           <Field label="Payment Method">
             <View style={styles.paymentRow}>
@@ -383,18 +436,25 @@ export default function PostTaskScreen() {
       />
 
       <PickerModal
-        options={durations}
-        selectedValue={estimatedDuration}
+        options={durationUnits.map((item) => item.label)}
+        selectedValue={durationUnits.find((item) => item.value === durationUnit)?.label ?? "Days"}
         title="Duration"
         visible={durationOpen}
         onClose={() => setDurationOpen(false)}
-        onSelect={(duration) => {
-          setEstimatedDuration(duration);
+        onSelect={(label) => {
+          setDurationUnit(durationUnits.find((item) => item.label === label)?.value ?? "day");
           setDurationOpen(false);
         }}
       />
     </SafeAreaView>
   );
+}
+
+function parseLocalSchedule(value: string) {
+  const match = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})$/);
+  if (!match) return undefined;
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), Number(match[4]), Number(match[5]));
+  return Number.isFinite(date.getTime()) ? date : undefined;
 }
 
 function PickerModal({

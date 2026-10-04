@@ -10,6 +10,7 @@ import {
   writeBatch,
   Transaction
 } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
 import {
   assertCanApply,
   assertCanRejectApplicant,
@@ -17,8 +18,8 @@ import {
   assertTaskTransition,
   TaskActor
 } from "../domain/taskWorkflow";
-import { PaymentMethod, PaymentStatus, Task, TaskMatch, TaskStatus, UserProfile } from "../types";
-import { auth, db } from "./firebase";
+import { DurationUnit, PaymentMethod, PaymentStatus, PricingMode, Task, TaskMatch, TaskStatus, UserProfile } from "../types";
+import { auth, db, functions } from "./firebase";
 
 function requireDb() {
   if (!db) throw new Error("Firebase is not configured. Please check the EXPO_PUBLIC_FIREBASE_* values.");
@@ -51,6 +52,12 @@ export type TaskInput = {
   requiredCapability?: string;
   wage: string;
   estimatedDuration: string;
+  durationValue: number;
+  durationUnit: DurationUnit;
+  scheduleStart: string;
+  scheduleEnd: string;
+  pricingMode: PricingMode;
+  perks: string[];
   paymentMethod: PaymentMethod;
 };
 
@@ -131,6 +138,12 @@ export async function createTaskInFirestore(input: TaskInput) {
     requiredCapability: input.requiredCapability ?? input.category,
     wage: input.wage,
     estimatedDuration: input.estimatedDuration,
+    durationValue: input.durationValue,
+    durationUnit: input.durationUnit,
+    scheduleStart: input.scheduleStart,
+    scheduleEnd: input.scheduleEnd,
+    pricingMode: input.pricingMode,
+    perks: input.perks,
     status: "Finding Workers" as const,
     paymentMethod: input.paymentMethod,
     paymentStatus: "Pending" as const,
@@ -153,26 +166,24 @@ export async function createTaskInFirestore(input: TaskInput) {
   return { id: taskRef.id, ...task } as Task;
 }
 
-export async function applyToTask(taskId: string, worker: UserProfile) {
+export async function applyToTask(taskId: string, worker: UserProfile, proposedAmount?: string) {
   const firestore = requireDb();
-  const actor: TaskActor = { id: worker.id, role: worker.role };
+  const actor: TaskActor = { id: worker.id, role: worker.role, capabilities: worker.capabilities, skills: worker.skills };
   requireAuthActor(actor);
   const taskRef = doc(firestore, "tasks", taskId);
   const matchRef = doc(firestore, "taskMatches", `${taskId}_${worker.id}`);
-  const workerRef = doc(firestore, "users", worker.id);
   const now = new Date().toISOString();
   let applicationNotification: WorkflowNotification | undefined;
   await runTransaction(firestore, async (transaction) => {
-    const [taskSnapshot, workerSnapshot] = await Promise.all([
-      transaction.get(taskRef), transaction.get(workerRef)
-    ]);
-    if (!taskSnapshot.exists() || !workerSnapshot.exists()) throw new Error("Task or worker profile not found.");
+    const taskSnapshot = await transaction.get(taskRef);
+    if (!taskSnapshot.exists()) throw new Error("Task not found.");
     const task = { id: taskSnapshot.id, ...taskSnapshot.data() } as Task;
-    const workerData = workerSnapshot.data() as UserProfile;
-    assertCanApply(task, actor, workerData.availabilityStatus ?? workerData.availability);
+    const normalizedBid = proposedAmount?.trim();
+    assertCanApply(task, actor, normalizedBid);
     transaction.set(matchRef, {
       id: matchRef.id, taskId, workerId: worker.id, clientId: task.clientId,
-      acceptanceStatus: "Applied", createdAt: now, updatedAt: now
+      acceptanceStatus: "Applied", ...(normalizedBid ? { proposedAmount: normalizedBid } : {}),
+      createdAt: now, updatedAt: now
     });
     transaction.update(taskRef, {
       status: "Applied",
@@ -188,7 +199,9 @@ export async function applyToTask(taskId: string, worker: UserProfile) {
       taskId,
       createdBy: worker.id,
       notificationType: "Worker application",
-      message: `${worker.fullName} applied to ${task.title}.`,
+      message: task.pricingMode === "bidding"
+        ? `${worker.fullName} bid ₱${normalizedBid} for ${task.title}.`
+        : `${worker.fullName} applied to ${task.title}.`,
       createdAt: now
     };
   });
@@ -198,6 +211,15 @@ export async function applyToTask(taskId: string, worker: UserProfile) {
     const { id, ...notification } = applicationNotification;
     await setDoc(doc(firestore, "notifications", id), { ...notification, readStatus: false }).catch(() => undefined);
   }
+  await setDoc(doc(firestore, "notifications", `${taskId}_application_confirmation_${worker.id}`), {
+    userId: worker.id,
+    taskId,
+    createdBy: worker.id,
+    notificationType: "Application submitted",
+    message: proposedAmount ? `Your bid of ₱${proposedAmount.trim()} was submitted.` : "Your application was submitted successfully.",
+    readStatus: false,
+    createdAt: now
+  }).catch(() => undefined);
 }
 
 export async function withdrawTaskApplication(taskId: string, worker: UserProfile) {
@@ -267,6 +289,20 @@ export async function updateTaskStatusInFirestore(
   actor: UserProfile,
   workerId?: string
 ) {
+  if (status === "Accepted") {
+    if (!functions) throw new Error("Firebase Functions is not configured.");
+    requireAuthActor({ id: actor.id, role: actor.role });
+    const acceptApplication = httpsCallable(functions, "acceptTaskApplication");
+    await acceptApplication({ taskId, workerId });
+    return;
+  }
+  if (status === "Cancelled") {
+    if (!functions) throw new Error("Firebase Functions is not configured.");
+    requireAuthActor({ id: actor.id, role: actor.role });
+    const cancelTask = httpsCallable(functions, "cancelTask");
+    await cancelTask({ taskId });
+    return;
+  }
   const firestore = requireDb();
   const taskActor: TaskActor = { id: actor.id, role: actor.role };
   requireAuthActor(taskActor);
@@ -277,14 +313,6 @@ export async function updateTaskStatusInFirestore(
     if (!taskSnapshot.exists()) throw new Error("Task not found.");
     const task = { id: taskSnapshot.id, ...taskSnapshot.data() } as Task;
     assertTaskTransition(task, status, taskActor, workerId);
-    if (status === "Accepted") {
-      await acceptApplicantInTransaction(transaction, task, workerId as string, actor, now);
-      return;
-    }
-    if (status === "Cancelled") {
-      await cancelTaskInTransaction(transaction, task, actor, now);
-      return;
-    }
     if (status === "Finished") {
       await finishTaskInTransaction(transaction, task, actor, now);
       return;
@@ -308,83 +336,6 @@ export async function updateTaskStatusInFirestore(
         userId: recipientId, taskId, createdBy: actor.id, notificationType, message, createdAt: now
       });
     }
-  });
-}
-
-async function acceptApplicantInTransaction(
-  transaction: Transaction,
-  task: Task,
-  workerId: string,
-  client: UserProfile,
-  now: string
-) {
-  const firestore = requireDb();
-  const taskRef = doc(firestore, "tasks", task.id);
-  const paymentRef = doc(firestore, "payments", task.id);
-  const selectedMatchRef = doc(firestore, "taskMatches", `${task.id}_${workerId}`);
-  const workerUserRef = doc(firestore, "users", workerId);
-  const workerProfileRef = doc(firestore, "workerProfiles", workerId);
-  const publicProfileRef = doc(firestore, "publicProfiles", workerId);
-  const matchRefs = (task.applicantIds ?? []).map((id) => doc(firestore, "taskMatches", `${task.id}_${id}`));
-  const [selectedMatchSnapshot, publicProfileSnapshot, ...matchSnapshots] =
-    await Promise.all([
-      transaction.get(selectedMatchRef), transaction.get(publicProfileRef),
-      ...matchRefs.map((matchRef) => transaction.get(matchRef))
-    ]);
-  if (!selectedMatchSnapshot.exists() || selectedMatchSnapshot.data().acceptanceStatus !== "Applied" ||
-      !publicProfileSnapshot.exists()) {
-    throw new Error("The selected application or public worker profile is unavailable.");
-  }
-  const workerData = publicProfileSnapshot.data() as UserProfile;
-  if ((workerData.availabilityStatus ?? workerData.availability ?? "Available").toLowerCase() !== "available") {
-    throw new Error("The selected worker is no longer available.");
-  }
-  transaction.update(taskRef, {
-    status: "Accepted",
-    workerId,
-    applicantIds: [workerId],
-    selectedMatchId: selectedMatchRef.id,
-    acceptedAt: now,
-    updatedAt: now
-  });
-  transaction.update(paymentRef, { workerId, updatedAt: now });
-  transaction.update(selectedMatchRef, { acceptanceStatus: "Accepted", hiredAt: now, updatedAt: now });
-  transaction.update(workerUserRef, {
-    availabilityStatus: "Busy", availability: "Busy", activeTaskId: task.id, updatedAt: now
-  });
-  transaction.update(workerProfileRef, { availabilityStatus: "Busy", availability: "Busy", updatedAt: now });
-  transaction.update(publicProfileRef, { availabilityStatus: "Busy", availability: "Busy", updatedAt: now });
-  setWorkflowNotification(transaction, {
-    id: `${task.id}_accepted_${workerId}`, userId: workerId, taskId: task.id, createdBy: client.id,
-    notificationType: "Application accepted", message: `Your application for ${task.title} was accepted.`, createdAt: now
-  });
-  matchSnapshots.forEach((matchSnapshot) => {
-    if (!matchSnapshot.exists()) return;
-    const match = matchSnapshot.data() as TaskMatch;
-    if (match.workerId === workerId || match.acceptanceStatus !== "Applied") return;
-    transaction.update(matchSnapshot.ref, { acceptanceStatus: "Rejected", rejectedAt: now, updatedAt: now });
-    setWorkflowNotification(transaction, {
-      id: `${task.id}_rejected_${match.workerId}`, userId: match.workerId, taskId: task.id, createdBy: client.id,
-      notificationType: "Application update", message: `Another worker was selected for ${task.title}.`, createdAt: now
-    });
-  });
-}
-
-async function cancelTaskInTransaction(transaction: Transaction, task: Task, client: UserProfile, now: string) {
-  const firestore = requireDb();
-  const taskRef = doc(firestore, "tasks", task.id);
-  const matchSnapshots = await Promise.all((task.applicantIds ?? []).map(
-    (applicantId) => transaction.get(doc(firestore, "taskMatches", `${task.id}_${applicantId}`))
-  ));
-  transaction.update(taskRef, { status: "Cancelled", cancelledAt: now, updatedAt: now });
-  matchSnapshots.forEach((matchSnapshot) => {
-    if (!matchSnapshot.exists() || matchSnapshot.data().acceptanceStatus !== "Applied") return;
-    const match = matchSnapshot.data() as TaskMatch;
-    transaction.update(matchSnapshot.ref, { acceptanceStatus: "Cancelled", cancelledAt: now, updatedAt: now });
-    setWorkflowNotification(transaction, {
-      id: `${task.id}_cancelled_${match.workerId}`, userId: match.workerId, taskId: task.id, createdBy: client.id,
-      notificationType: "Task cancelled", message: `${task.title} was cancelled by the client.`, createdAt: now
-    });
   });
 }
 

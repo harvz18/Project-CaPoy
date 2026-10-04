@@ -6,6 +6,7 @@ import { BottomNavIcon } from "../src/components/BottomNavIcon";
 import LocationMap from "../src/components/LocationMap";
 import { StatusBadge } from "../src/components/StatusBadge";
 import { useApp } from "../src/context/AppContext";
+import { formatTaskPrice, getScheduleBasedAvailability } from "../src/domain/taskMarketplace";
 import { MatchResult, rankTasksForWorker } from "../src/domain/matching";
 import { Task } from "../src/types";
 import { formatDistance, getDiscoveryLocationIssue } from "../src/utils/location";
@@ -68,7 +69,7 @@ export default function WorkerDashboardScreen() {
             <Text style={styles.heroText}>{discoveryLocationIssue ?? "Your discovery location is current. Matching jobs inside your preferred radius will appear here."}</Text>
           </View>
           <View style={styles.availabilityPill}>
-            <Text style={styles.availabilityText}>{currentUser?.availabilityStatus ?? "Not set"}</Text>
+            <Text style={styles.availabilityText}>{currentUser ? getScheduleBasedAvailability(tasks, currentUser.id) : "Not set"}</Text>
           </View>
         </View>
 
@@ -233,7 +234,7 @@ function WorkerJobCard({
   return (
     <View style={styles.jobCard}>
       <View style={styles.priceRow}>
-        <Text style={styles.price}>P{task.wage}</Text>
+        <Text style={styles.price}>{formatTaskPrice(task)}</Text>
       </View>
       <Text style={styles.jobTitle}>{task.title}</Text>
       <Text style={styles.jobMeta}>{formatDistance(match.distanceKm)} · {task.locationAddress ?? task.location}</Text>
@@ -262,7 +263,7 @@ function ApplicationCard({ task, onOpen }: { task: Task; onOpen: () => void }) {
           <Text style={styles.applicationTitle}>{task.title}</Text>
           <Text style={styles.applicationMeta}>{getApplicationMessage(task.status)}</Text>
         </View>
-        <Text style={styles.applicationPrice}>P{task.wage}</Text>
+        <Text style={styles.applicationPrice}>{formatTaskPrice(task)}</Text>
       </View>
       <View style={styles.applicationFooter}>
         <StatusBadge status={task.status} />
@@ -340,7 +341,7 @@ function HistoryRow({
           <Text style={styles.historyJobTitle}>{task.title}</Text>
           <Text style={styles.historyJobMeta}>{task.location}</Text>
         </View>
-        <Text style={styles.historyAmount}>P{task.wage}</Text>
+        <Text style={styles.historyAmount}>{formatTaskPrice(task)}</Text>
       </Pressable>
       <View style={styles.historyDivider} />
       {onChat || onRate ? (

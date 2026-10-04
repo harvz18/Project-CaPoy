@@ -76,7 +76,7 @@ test("unverified workers remain eligible while missing the optional verification
 test("trusted match snapshots persist policy, score, reasons, distance, and breakdown", () => {
   const snapshot = buildMatchSnapshot(task(), worker(), Date.parse(now));
 
-  assert.equal(snapshot.matchPolicyVersion, 4);
+  assert.equal(snapshot.matchPolicyVersion, 5);
   assert.equal(snapshot.matchScore, 100);
   assert.equal(snapshot.eligible, true);
   assert.ok(snapshot.distanceKm >= 0);
@@ -106,12 +106,11 @@ test("worker outside their preferred radius is never notified", () => {
   assert.equal(result.eligible, false);
 });
 
-test("stale, inaccurate, busy, assigned, and expired workers are never notified", () => {
+test("stale, inaccurate, and expired workers are never notified while global busy state stays discoverable", () => {
+  assert.equal(scoreWorkerForTask(task(), worker({ availabilityStatus: "Busy", activeTaskId: "active" }), Date.parse(now)).eligible, true);
   const results = [
     scoreWorkerForTask(task(), worker({ locationUpdatedAt: "2026-09-29T03:29:59.999Z" }), Date.parse(now)),
     scoreWorkerForTask(task(), worker({ locationAccuracyMeters: 201 }), Date.parse(now)),
-    scoreWorkerForTask(task(), worker({ availabilityStatus: "Busy" }), Date.parse(now)),
-    scoreWorkerForTask(task(), worker({ activeTaskId: "active" }), Date.parse(now)),
     scoreWorkerForTask(task({ expiresAt: now }), worker(), Date.parse(now))
   ];
   assert.ok(results.every((result) => !result.eligible));
@@ -122,7 +121,7 @@ test("manual pins can match for discovery but device accuracy is enforced", () =
 });
 
 test("matching notification policy is deterministic and independent from push opt-in", () => {
-  assert.equal(MATCH_POLICY_VERSION, 4);
+  assert.equal(MATCH_POLICY_VERSION, 5);
   assert.equal(
     MATCH_POLICY_WEIGHTS.skill + MATCH_POLICY_WEIGHTS.proximityMaximum +
       MATCH_POLICY_WEIGHTS.availability + MATCH_POLICY_WEIGHTS.verification +

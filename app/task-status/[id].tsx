@@ -5,6 +5,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import LocationMap from "../../src/components/LocationMap";
 import { StatusBadge } from "../../src/components/StatusBadge";
 import { useApp } from "../../src/context/AppContext";
+import { formatTaskDuration, formatTaskPrice, formatTaskSchedule } from "../../src/domain/taskMarketplace";
 import { useForegroundLocationWatch } from "../../src/hooks/useForegroundLocationWatch";
 import { PaymentStatus, Task, TaskStatus } from "../../src/types";
 import {
@@ -241,10 +242,11 @@ export default function TaskStatusScreen() {
             <View style={styles.jobHeader}>
               <View style={styles.jobTitleBlock}>
                 <Text style={styles.title}>{task.title}</Text>
-                <Text style={styles.metaText}>Estimated duration: {task.estimatedDuration}</Text>
+                <Text style={styles.metaText}>Duration: {formatTaskDuration(task)}</Text>
+                <Text style={styles.metaText}>Schedule: {formatTaskSchedule(task)}</Text>
               </View>
               <View style={styles.priceBlock}>
-                <Text style={styles.price}>P{task.wage}</Text>
+                <Text style={styles.price}>{formatTaskPrice(task)}</Text>
                 <Text style={styles.rateText}>Fixed Rate</Text>
               </View>
             </View>
@@ -430,7 +432,8 @@ export default function TaskStatusScreen() {
               </Pressable>
             ) : null}
 
-            {currentUser?.role === "client" && task.clientId === currentUser.id && taskIsOpenForApplications ? (
+            {currentUser?.role === "client" && task.clientId === currentUser.id &&
+            ["Finding Workers", "Applied", "Accepted", "In Progress", "Pending Approval"].includes(task.status) ? (
               <Pressable style={styles.dangerAction} onPress={() => handleSecondaryWorkflowAction("cancel")}>
                 <Text style={styles.dangerActionText}>Cancel Task</Text>
               </Pressable>

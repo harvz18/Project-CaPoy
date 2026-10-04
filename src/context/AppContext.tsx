@@ -3,9 +3,11 @@ import {
   AppNotification,
   Authority,
   ChatMessage,
+  DurationUnit,
   NotificationPreferences,
   PaymentMethod,
   PaymentStatus,
+  PricingMode,
   PublicRole,
   Rating,
   Task,
@@ -94,6 +96,12 @@ type TaskInput = {
   requiredCapability?: string;
   wage: string;
   estimatedDuration: string;
+  durationValue: number;
+  durationUnit: DurationUnit;
+  scheduleStart: string;
+  scheduleEnd: string;
+  pricingMode: PricingMode;
+  perks: string[];
   paymentMethod: PaymentMethod;
 };
 
@@ -118,7 +126,7 @@ type AppContextValue = {
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
   getUserById: (userId?: string) => UserProfile | undefined;
   createTask: (input: TaskInput) => Promise<Task>;
-  acceptTask: (taskId: string) => Promise<void>;
+  acceptTask: (taskId: string, proposedAmount?: string) => Promise<void>;
   withdrawApplication: (taskId: string) => Promise<void>;
   rejectApplication: (taskId: string, workerId: string) => Promise<void>;
   updateTaskStatus: (taskId: string, status: TaskStatus, workerId?: string) => Promise<void>;
@@ -456,7 +464,7 @@ export function AppProvider({ children }: PropsWithChildren) {
     return createdTask;
   }
 
-  async function acceptTask(taskId: string) {
+  async function acceptTask(taskId: string, proposedAmount?: string) {
     await runAction(async () => {
       if (!currentUser) {
         throw new Error("Please log in before applying to a task.");
@@ -468,8 +476,8 @@ export function AppProvider({ children }: PropsWithChildren) {
 
       const task = tasks.find((item) => item.id === taskId);
       if (!task) throw new Error("Task not found.");
-      assertCanApply(task, currentUser, currentUser.availabilityStatus ?? currentUser.availability);
-      await applyToTask(taskId, currentUser);
+      assertCanApply(task, currentUser, proposedAmount?.trim());
+      await applyToTask(taskId, currentUser, proposedAmount);
       await recordMatchingApplication(taskId, currentUser.id).catch(() => undefined);
     });
   }
@@ -811,8 +819,19 @@ function validateTask(input: TaskInput) {
     throw new Error("Choose a task service radius from 100 to 5,000 meters.");
   }
 
-  if (!input.wage.trim() || Number(input.wage) <= 0) {
+  if (input.pricingMode === "fixed" && (!input.wage.trim() || Number(input.wage) <= 0)) {
     throw new Error("Enter a valid wage offer.");
+  }
+  if (!Number.isInteger(input.durationValue) || input.durationValue < 1 || input.durationValue > 365) {
+    throw new Error("Enter a duration from 1 to 365.");
+  }
+  const scheduleStart = Date.parse(input.scheduleStart);
+  const scheduleEnd = Date.parse(input.scheduleEnd);
+  if (!Number.isFinite(scheduleStart) || !Number.isFinite(scheduleEnd) || scheduleEnd <= scheduleStart) {
+    throw new Error("Enter a valid schedule with an end after the start.");
+  }
+  if (input.perks.some((perk) => perk.length > 80) || input.perks.length > 10) {
+    throw new Error("Add up to 10 perks, with 80 characters per perk.");
   }
 }
 

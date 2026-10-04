@@ -158,7 +158,7 @@ export default function AdminScreen() {
           {error ? <Text style={styles.error}>{error}</Text> : null}
         </View>
 
-        <Section title="Worker verification queue" empty="No worker documents are waiting for review.">
+        <Section title="User verification queue" empty="No verification documents are waiting for review.">
           {pendingVerifications.map((item) => (
             <View key={item.id} style={styles.card}>
               <Text style={styles.cardTitle}>{nameFor(item.userId)}</Text>
@@ -319,7 +319,7 @@ function AnalyticsPanel({
             <Stat label="Restricted accounts" value={analytics.accounts.restricted} />
           </MetricGroup>
 
-          <MetricGroup title="Current verification snapshot" note="Latest state of all submitted worker verification requests.">
+          <MetricGroup title="Current verification snapshot" note="Latest state of all submitted employer and tasker verification requests.">
             <Stat label="Pending" value={analytics.verification.pending} />
             <Stat label="Approved" value={analytics.verification.approved} />
             <Stat label="Rejected" value={analytics.verification.rejected} />

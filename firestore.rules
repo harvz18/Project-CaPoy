@@ -161,8 +161,6 @@ service cloud.firestore {
           'address',
           'skills',
           'capabilities',
-          'availabilityStatus',
-          'availability',
           'businessName',
           'profilePhotoUrl',
           'experienceDescription',
@@ -224,13 +222,10 @@ service cloud.firestore {
             && verificationAfter(request.auth.uid).medicalCertificatePath == request.resource.data.medicalCertificateUrl
           )
         )
-        && (
-          !('activeTaskId' in resource.data)
-          || !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-            'availabilityStatus',
-            'availability'
-          ])
-        );
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'availabilityStatus',
+          'availability'
+        ]);
     }
 
     function validWorkflowPrivateWorkerUpdate(userId) {
@@ -347,13 +342,10 @@ service cloud.firestore {
             && verificationAfter(userId).medicalCertificatePath == request.resource.data.medicalCertificateUrl
           )
         )
-        && (
-          !('activeTaskId' in currentUser())
-          || !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-            'availabilityStatus',
-            'availability'
-          ])
-        );
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'availabilityStatus',
+          'availability'
+        ]);
     }
 
     function validPublicProfileFields() {
@@ -381,9 +373,15 @@ service cloud.firestore {
 
     function validApplicationUpdate(taskId) {
       return hasRole('worker')
-        && currentUser().get('availabilityStatus', currentUser().get('availability', 'Available'))
-          in ['Available', 'available']
-        && currentUser().get('activeTaskId', null) == null
+        && resource.data.clientId != request.auth.uid
+        && (
+          !('requiredCapability' in resource.data)
+          || (!('capabilities' in currentUser()) && !('skills' in currentUser()))
+          || (currentUser().get('capabilities', []) is list
+            && currentUser().get('capabilities', []).hasAny([resource.data.requiredCapability]))
+          || (currentUser().get('skills', []) is list
+            && currentUser().get('skills', []).hasAny([resource.data.requiredCapability]))
+        )
         && isOpenTask(resource.data)
         && hasNoAssignedWorker(resource.data)
         && hasNoAssignedWorker(request.resource.data)
@@ -611,7 +609,9 @@ service cloud.firestore {
             'ratingCount',
             'ratingTotal',
             'completedTasks',
-            'createdAt'
+            'createdAt',
+            'availabilityStatus',
+            'availability'
           ])
         ) || validWorkflowVisibleWorkerUpdate(userId);
       allow delete: if false;
@@ -647,6 +647,18 @@ service cloud.firestore {
         && request.resource.data.status == 'Finding Workers'
         && request.resource.data.paymentMethod in ['COD', 'GCash link']
         && request.resource.data.paymentStatus == 'Pending'
+        && (!('pricingMode' in request.resource.data)
+          || request.resource.data.pricingMode in ['fixed', 'bidding'])
+        && (!('durationValue' in request.resource.data)
+          || (request.resource.data.durationValue is int
+            && request.resource.data.durationValue >= 1
+            && request.resource.data.durationValue <= 365))
+        && (!('durationUnit' in request.resource.data)
+          || request.resource.data.durationUnit in ['hour', 'day', 'week', 'month'])
+        && (!('scheduleStart' in request.resource.data) || request.resource.data.scheduleStart is string)
+        && (!('scheduleEnd' in request.resource.data) || request.resource.data.scheduleEnd is string)
+        && (!('perks' in request.resource.data)
+          || (request.resource.data.perks is list && request.resource.data.perks.size() <= 10))
         && (!('expiresAt' in request.resource.data) || request.resource.data.expiresAt is string)
         && request.resource.data.applicantIds is list
         && request.resource.data.applicantIds.size() == 0
@@ -682,15 +694,29 @@ service cloud.firestore {
         && (resource.data.workerId == request.auth.uid || resource.data.clientId == request.auth.uid));
       allow create: if hasEnabledAccount()
         && request.resource.data.keys().hasOnly([
-          'id', 'taskId', 'workerId', 'clientId', 'acceptanceStatus', 'createdAt', 'updatedAt'
+          'id', 'taskId', 'workerId', 'clientId', 'acceptanceStatus', 'proposedAmount', 'createdAt', 'updatedAt'
         ])
         && matchId == request.resource.data.taskId + '_' + request.resource.data.workerId
         && request.resource.data.taskId is string
         && request.resource.data.clientId == task(request.resource.data.taskId).clientId
         && hasRole('worker')
         && request.resource.data.workerId == request.auth.uid
+        && task(request.resource.data.taskId).clientId != request.auth.uid
+        && (
+          !('requiredCapability' in task(request.resource.data.taskId))
+          || (!('capabilities' in currentUser()) && !('skills' in currentUser()))
+          || (currentUser().get('capabilities', []) is list
+            && currentUser().get('capabilities', []).hasAny([task(request.resource.data.taskId).requiredCapability]))
+          || (currentUser().get('skills', []) is list
+            && currentUser().get('skills', []).hasAny([task(request.resource.data.taskId).requiredCapability]))
+        )
         && isOpenTask(task(request.resource.data.taskId))
         && hasNoAssignedWorker(task(request.resource.data.taskId))
+        && (
+          task(request.resource.data.taskId).get('pricingMode', 'fixed') == 'fixed'
+          || (request.resource.data.proposedAmount is string
+            && request.resource.data.proposedAmount.matches('[1-9][0-9]*([.][0-9]{1,2})?'))
+        )
         && request.resource.data.acceptanceStatus == 'Applied';
       allow update: if hasEnabledAccount()
         && request.resource.data.workerId == resource.data.workerId
@@ -787,7 +813,7 @@ service cloud.firestore {
 
     match /verificationRequests/{userId} {
       allow read: if isAdmin() || (hasEnabledAccount() && request.auth.uid == userId);
-      allow create, update: if hasRole('worker')
+      allow create, update: if (hasRole('worker') || hasRole('client'))
         && request.auth.uid == userId
         && request.resource.data.keys().hasOnly([
           'userId', 'validIdType', 'validIdPath', 'medicalCertificatePath',

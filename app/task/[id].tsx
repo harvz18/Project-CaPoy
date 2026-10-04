@@ -1,9 +1,11 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBadge } from "../../src/components/StatusBadge";
 import { useApp } from "../../src/context/AppContext";
 import { rankTaskMatches, summarizeScoreBreakdown } from "../../src/domain/matching";
+import { formatTaskDuration, formatTaskPrice, formatTaskSchedule } from "../../src/domain/taskMarketplace";
 import { TaskMatch } from "../../src/types";
 import { formatDistance } from "../../src/utils/location";
 
@@ -31,6 +33,8 @@ export default function TaskDetailsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { currentUser, users, getUserById, tasks, taskMatches, acceptTask, rejectApplication, updateTaskStatus } = useApp();
+  const [proposedAmount, setProposedAmount] = useState("");
+  const [actionError, setActionError] = useState("");
   const task = tasks.find((item) => item.id === id);
 
   if (!task) {
@@ -62,6 +66,7 @@ export default function TaskDetailsScreen() {
   const applicantCount = applicantIds.length;
   const hasAcceptedWorker = task.status === "Accepted" && Boolean(task.workerId);
   const worker = getUserById(task.workerId);
+  const employer = getUserById(task.clientId);
   const hasApplied = Boolean(currentUser?.id && task.applicantIds?.includes(currentUser.id));
 
   async function handleWorkerAccept() {
@@ -69,8 +74,13 @@ export default function TaskDetailsScreen() {
     if (!taskId) {
       return;
     }
-    await acceptTask(taskId);
-    router.replace(`/task-status/${taskId}`);
+    try {
+      setActionError("");
+      await acceptTask(taskId, proposedAmount);
+      router.replace(`/task-status/${taskId}`);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Unable to apply.");
+    }
   }
 
   async function handleClientAcceptWorker(workerId: string) {
@@ -99,8 +109,8 @@ export default function TaskDetailsScreen() {
               <Text style={styles.description}>{task.description}</Text>
             </View>
             <View style={styles.priceBlock}>
-              <Text style={styles.price}>P{task.wage}</Text>
-              <Text style={styles.rateText}>Fixed Rate</Text>
+              <Text style={styles.price}>{formatTaskPrice(task)}</Text>
+              <Text style={styles.rateText}>{task.pricingMode === "bidding" ? "Employer selects the preferred bid" : "Fixed Price"}</Text>
             </View>
           </View>
           <StatusBadge status={task.status} />
@@ -108,12 +118,19 @@ export default function TaskDetailsScreen() {
 
         <View style={styles.detailsGrid}>
           <DetailBox label="Location" value={task.location} />
-          <DetailBox label="Duration" value={task.estimatedDuration} />
+          <DetailBox label="Duration" value={formatTaskDuration(task)} />
           <DetailBox label="Payment" value={task.paymentMethod} />
           <DetailBox label="Applicants" value={hasAcceptedWorker ? "1 accepted" : `${applicantCount} applied`} />
           <DetailBox label="Capability" value={task.requiredCapability ?? task.category} />
           <DetailBox label="Task Radius" value={`${task.geofenceRadius ?? 500} meters`} />
+          <DetailBox label="Employer" value={`${employer?.fullName ?? "TaskLink employer"}${employer?.verificationStatus === "Verified" ? " · Verified" : ""}${employer?.rating ? ` · ${employer.rating.toFixed(1)}/5` : ""}`} />
+          <DetailBox label="Schedule" value={formatTaskSchedule(task)} />
         </View>
+
+        {task.perks?.length ? <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Perks</Text>
+          <View style={styles.skillRow}>{task.perks.map((perk) => <Text key={perk} style={styles.skillChip}>{perk}</Text>)}</View>
+        </View> : null}
 
         {isClient ? (
           <View style={styles.section}>
@@ -173,7 +190,7 @@ export default function TaskDetailsScreen() {
                 <View key={applicant.id} style={styles.workerCard}>
                   {(() => {
                     const match = rankedMatches.find((item) => item.workerId === applicant.id);
-                    return match ? <ApplicantMatchSummary match={match} /> : null;
+                    return match ? <ApplicantMatchSummary match={match} showBid={task.pricingMode === "bidding"} /> : null;
                   })()}
                   <Pressable
                     accessibilityRole="button"
@@ -238,9 +255,21 @@ export default function TaskDetailsScreen() {
                   <Text style={styles.primaryButtonText}>Open Task Status</Text>
                 </Pressable>
               ) : (
-                <Pressable style={styles.primaryButtonLarge} onPress={handleWorkerAccept}>
-                  <Text style={styles.primaryButtonText}>Apply</Text>
-                </Pressable>
+                <View style={styles.applyBox}>
+                  {task.pricingMode === "bidding" ? <TextInput
+                    accessibilityLabel="Proposed amount"
+                    keyboardType="numeric"
+                    onChangeText={setProposedAmount}
+                    placeholder="Your proposed amount (₱)"
+                    placeholderTextColor={palette.outline}
+                    style={styles.bidInput}
+                    value={proposedAmount}
+                  /> : null}
+                  <Pressable style={styles.primaryButtonLarge} onPress={handleWorkerAccept}>
+                    <Text style={styles.primaryButtonText}>{task.pricingMode === "bidding" ? "Submit Bid" : "Apply"}</Text>
+                  </Pressable>
+                  {actionError ? <Text style={styles.errorText}>{actionError}</Text> : null}
+                </View>
               )
             ) : (
               <Pressable style={styles.primaryButtonLarge} onPress={() => router.push(`/task-status/${task.id}`)}>
@@ -263,13 +292,14 @@ export default function TaskDetailsScreen() {
   );
 }
 
-function ApplicantMatchSummary({ match }: { match: TaskMatch }) {
+function ApplicantMatchSummary({ match, showBid }: { match: TaskMatch; showBid?: boolean }) {
   const evaluated = match.matchScore !== undefined && match.matchPolicyVersion !== undefined;
   const breakdown = summarizeScoreBreakdown(match.scoreBreakdown);
 
   if (!evaluated) {
     return (
       <View style={styles.matchSummary}>
+        {showBid && match.proposedAmount ? <Text style={styles.bidChip}>Bid: ₱{match.proposedAmount}</Text> : null}
         <Text style={styles.skillChip}>Match evaluation pending</Text>
         <Text style={styles.workerNote}>Trusted score will appear after the matching service evaluates this application.</Text>
       </View>
@@ -279,6 +309,7 @@ function ApplicantMatchSummary({ match }: { match: TaskMatch }) {
   return (
     <View style={styles.matchSummary}>
       <View style={styles.skillRow}>
+        {showBid && match.proposedAmount ? <Text style={styles.bidChip}>Bid: ₱{match.proposedAmount}</Text> : null}
         <Text style={styles.skillChip}>{match.eligible === false ? "Open to apply" : `${match.matchScore}% match`}</Text>
         <Text style={styles.skillChip}>Policy v{match.matchPolicyVersion}</Text>
         {match.distanceKm === undefined ? null : <Text style={styles.skillChip}>{formatDistance(match.distanceKm)}</Text>}
@@ -378,4 +409,8 @@ const styles = StyleSheet.create({
   disabledButton: { backgroundColor: palette.surfaceHigh },
   rejectButton: { minHeight: 42, borderRadius: 10, borderWidth: 1, borderColor: "#B91C1C", alignItems: "center", justifyContent: "center", backgroundColor: palette.surface },
   rejectButtonText: { color: "#B91C1C", fontSize: 13, lineHeight: 18, fontWeight: "900" },
+  applyBox: { gap: 10 },
+  bidInput: { minHeight: 48, borderWidth: 1, borderColor: palette.outlineVariant, borderRadius: 10, paddingHorizontal: 14, backgroundColor: palette.surface, color: palette.text },
+  bidChip: { overflow: "hidden", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: "#FFF2DB", color: palette.secondary, fontSize: 13, fontWeight: "900" },
+  errorText: { color: "#B91C1C", fontSize: 13, lineHeight: 18, fontWeight: "700" },
 });

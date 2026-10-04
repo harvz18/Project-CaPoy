@@ -34,7 +34,7 @@ export default function WorkerPublicProfileScreen() {
   const worker = getUserById(id);
   const skills = worker?.capabilities?.length ? worker.capabilities : worker?.skills ?? [];
   const name = worker?.fullName ?? "Worker profile";
-  const verificationStatus = worker?.verificationStatus ?? "Not submitted";
+  const verificationStatus = worker?.verificationStatus ?? "Not Submitted";
   const experienceText =
     worker?.experienceDescription ||
     (worker?.yearsOfExperience ? `${worker.yearsOfExperience} of local task experience.` : "Experience details not provided yet.");

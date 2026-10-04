@@ -5,6 +5,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { BottomNavIcon } from "../src/components/BottomNavIcon";
 import { StatusBadge } from "../src/components/StatusBadge";
 import { useApp } from "../src/context/AppContext";
+import { formatTaskPrice, getScheduleBasedAvailability } from "../src/domain/taskMarketplace";
 import { Task } from "../src/types";
 
 const palette = {
@@ -38,7 +39,7 @@ export default function ClientDashboardScreen() {
   const finishedTasks = clientTasks.filter((task) => task.status === "Finished");
   const archivedTasks = clientTasks.filter((task) => task.status === "Archived");
   const registeredWorkers = users.filter((user) => user.role === "worker");
-  const availableWorkers = registeredWorkers.filter((user) => user.availabilityStatus === "Available");
+  const availableWorkers = registeredWorkers.filter((user) => getScheduleBasedAvailability(tasks, user.id) === "Available");
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
@@ -101,7 +102,7 @@ export default function ClientDashboardScreen() {
                 icon={task.title[0] ?? "T"}
                 title={task.title}
                 subtitle={`Completed by ${users.find((user) => user.id === task.workerId)?.fullName ?? "worker"}`}
-                amount={`P${task.wage}`}
+                amount={formatTaskPrice(task)}
                 onPress={() => router.push(`/task-status/${task.id}`)}
               />
             ))
@@ -159,7 +160,7 @@ export default function ClientDashboardScreen() {
 function getVerifiedWorkTotal(tasks: Task[]) {
   return tasks
     .filter((task) => ["Finished", "Archived"].includes(task.status) && task.paymentStatus === "Verified")
-    .reduce((total, task) => total + Number(task.wage || 0), 0)
+    .reduce((total, task) => total + Number(task.agreedAmount || task.wage || 0), 0)
     .toLocaleString("en-PH");
 }
 
@@ -197,7 +198,7 @@ function ClientJobCard({ task, onPress }: { task: Task; onPress: () => void }) {
     <View style={[styles.jobCard, { borderLeftColor: palette.primary }]}>
       <View style={styles.rowBetween}>
         <StatusBadge status={task.status} />
-        <Text style={styles.priceText}>P{task.wage}</Text>
+        <Text style={styles.priceText}>{formatTaskPrice(task)}</Text>
       </View>
       <Text style={styles.jobTitle}>{task.title}</Text>
       <Text style={styles.smallMuted}>{task.location}</Text>
@@ -248,7 +249,7 @@ function ArchivedTaskRow({ task, onPress }: { task: Task; onPress: () => void })
           <Text style={styles.smallMuted}>{task.location}</Text>
         </View>
       </View>
-      <Text style={styles.successText}>P{task.wage}</Text>
+      <Text style={styles.successText}>{formatTaskPrice(task)}</Text>
     </Pressable>
   );
 }

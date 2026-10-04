@@ -130,13 +130,14 @@ test("requires verified payment before completion", () => {
   );
 });
 
-test("application policy accepts only available workers on open tasks", () => {
-  assert.doesNotThrow(() => assertCanApply(task("Finding Workers", { applicantIds: [] }), WORKER, "Available"));
-  assert.throws(() => assertCanApply(task("Finding Workers", { applicantIds: [] }), CLIENT, "Available"));
-  assert.throws(() => assertCanApply(task("Finding Workers", { applicantIds: [] }), WORKER, "Busy"));
-  assert.throws(() => assertCanApply(task("Applied"), WORKER, "Available"));
+test("application policy is task-specific and requires a bid only for bidding tasks", () => {
+  assert.doesNotThrow(() => assertCanApply(task("Finding Workers", { applicantIds: [] }), WORKER));
+  assert.doesNotThrow(() => assertCanApply(task("Finding Workers", { applicantIds: [], pricingMode: "bidding" }), WORKER, "750"));
+  assert.throws(() => assertCanApply(task("Finding Workers", { applicantIds: [], pricingMode: "bidding" }), WORKER));
+  assert.throws(() => assertCanApply(task("Finding Workers", { applicantIds: [] }), CLIENT));
+  assert.throws(() => assertCanApply(task("Applied"), WORKER));
   assert.throws(() =>
-    assertCanApply(task("Accepted", { applicantIds: [], workerId: OTHER_WORKER.id }), WORKER, "Available")
+    assertCanApply(task("Accepted", { applicantIds: [], workerId: OTHER_WORKER.id }), WORKER)
   );
 });
 
