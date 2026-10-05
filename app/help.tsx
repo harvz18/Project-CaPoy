@@ -14,11 +14,11 @@ const sections = [
   },
   {
     title: "Payments",
-    body: "TaskLink records participant-submitted payment evidence and review status. It does not transfer, hold, settle, or escrow money. Confirm payment outside the app using the agreed COD or GCash process."
+    body: "TaskLink records participant-confirmed payment status. It does not transfer, hold, settle, or escrow money. The free web demo uses COD so both participants can complete the payment-confirmation flow without paid file storage."
   },
   {
     title: "Connectivity",
-    body: "Authentication, tasks, chat, uploads, and status changes require Firebase connectivity. Do not repeat a mutation immediately after an uncertain network failure; first refresh and check the current task state."
+    body: "Authentication, tasks, chat, notifications, and status changes require Firebase connectivity. Document uploads are paused in the free web demo. Do not repeat a mutation immediately after an uncertain network failure; first refresh and check the current task state."
   },
   {
     title: "Privacy and retention",
@@ -62,10 +62,10 @@ export default function HelpScreen() {
         <View style={styles.supportCard}>
           <Text style={styles.cardTitle}>Beta support contact</Text>
           <Text selectable style={styles.contact}>{supportContactLabel()}</Text>
-          <Text style={styles.cardBody}>{hasSupportEmail ? "Include your role and reproduction steps. Do not send passwords or private keys." : "Set EXPO_PUBLIC_SUPPORT_EMAIL before distributing this build, or contact the project coordinator who supplied the beta."}</Text>
-          <Pressable accessibilityRole="link" disabled={!hasSupportEmail} onPress={() => void contactSupport()} style={[styles.contactButton, !hasSupportEmail && styles.disabled]}>
-            <Text style={styles.contactButtonText}>{hasSupportEmail ? "Email Beta Support" : "Support Email Not Configured"}</Text>
-          </Pressable>
+          <Text style={styles.cardBody}>{hasSupportEmail ? "Include your role and reproduction steps. Do not send passwords or private keys." : "For this controlled demo, report issues directly to the project coordinator who provided your test account."}</Text>
+          {hasSupportEmail ? <Pressable accessibilityRole="link" onPress={() => void contactSupport()} style={styles.contactButton}>
+            <Text style={styles.contactButtonText}>Email Beta Support</Text>
+          </Pressable> : null}
         </View>
       </ScrollView>
     </SafeAreaView>

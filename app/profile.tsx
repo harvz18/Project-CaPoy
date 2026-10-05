@@ -6,6 +6,7 @@ import { BottomNavIcon } from "../src/components/BottomNavIcon";
 import LocationMap from "../src/components/LocationMap";
 import { StatusBadge } from "../src/components/StatusBadge";
 import { workerCapabilities } from "../src/constants/capabilities";
+import { FREE_WEB_DEMO } from "../src/config/release";
 import { useApp } from "../src/context/AppContext";
 import { getScheduleBasedAvailability, getUserTaskHistory } from "../src/domain/taskMarketplace";
 import { isIdentityLocked } from "../src/domain/profileIdentity";
@@ -313,13 +314,6 @@ export default function ProfileScreen() {
                   <Text style={styles.verificationBadgeText}>{currentUser?.verificationStatus ?? "Not Submitted"}</Text>
                 </View>
               </View>
-              <UploadField
-                disabled={uploadingField === "profile-photo"}
-                label="Profile Photo"
-                value={profilePhotoUrl}
-                placeholder="Tap to upload profile photo"
-                onSelect={uploadProfilePhoto}
-              />
               <Field label="Years of Experience" value={yearsOfExperience} onChangeText={setYearsOfExperience} placeholder="e.g. 2 years" />
               <Field
                 label="Experience Description"
@@ -328,25 +322,38 @@ export default function ProfileScreen() {
                 placeholder="Describe your work experience"
                 multiline
               />
-              <Field label="Valid ID Type" value={validIdType} onChangeText={(value) => {
-                setValidIdType(value);
-                setDocumentsChanged(true);
-              }} placeholder="e.g. National ID, Driver's License" />
-              <UploadField
-                disabled={uploadingField === "valid-id"}
-                label="Valid ID"
-                value={validIdUrl}
-                placeholder="Tap to upload valid ID"
-                onSelect={() => uploadVerificationDocument("valid-id")}
-              />
-              <UploadField
-                disabled={uploadingField === "medical-certificate"}
-                label={currentUser.role === "worker" ? "Medical Certificate / Clearance" : "Barangay or Police Clearance"}
-                value={medicalCertificateUrl}
-                placeholder="Tap to upload medical certificate"
-                onSelect={() => uploadVerificationDocument("medical-certificate")}
-              />
-              <Text style={styles.helperText}>Documents are private and available only to you and authorized administrators.</Text>
+              {FREE_WEB_DEMO ? (
+                <Text style={styles.helperText}>Document and profile-photo uploads are paused in the free web demo because Firebase Storage is not enabled. Verification is optional and does not block posting, applying, hiring, or completing a task.</Text>
+              ) : (
+                <>
+                  <UploadField
+                    disabled={uploadingField === "profile-photo"}
+                    label="Profile Photo"
+                    value={profilePhotoUrl}
+                    placeholder="Tap to upload profile photo"
+                    onSelect={uploadProfilePhoto}
+                  />
+                  <Field label="Valid ID Type" value={validIdType} onChangeText={(value) => {
+                    setValidIdType(value);
+                    setDocumentsChanged(true);
+                  }} placeholder="e.g. National ID, Driver's License" />
+                  <UploadField
+                    disabled={uploadingField === "valid-id"}
+                    label="Valid ID"
+                    value={validIdUrl}
+                    placeholder="Tap to upload valid ID"
+                    onSelect={() => uploadVerificationDocument("valid-id")}
+                  />
+                  <UploadField
+                    disabled={uploadingField === "medical-certificate"}
+                    label={currentUser.role === "worker" ? "Medical Certificate / Clearance" : "Barangay or Police Clearance"}
+                    value={medicalCertificateUrl}
+                    placeholder="Tap to upload supporting clearance"
+                    onSelect={() => uploadVerificationDocument("medical-certificate")}
+                  />
+                  <Text style={styles.helperText}>Documents are private and available only to you and authorized administrators.</Text>
+                </>
+              )}
               {uploadMessage ? <Text style={styles.locationMessage}>{uploadMessage}</Text> : null}
             </SettingsCard>
 

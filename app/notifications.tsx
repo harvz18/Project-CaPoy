@@ -5,8 +5,10 @@ import { AppCard } from "../src/components/AppCard";
 import { EmptyState } from "../src/components/EmptyState";
 import { ScreenContainer } from "../src/components/ScreenContainer";
 import { StatusBadge } from "../src/components/StatusBadge";
+import { FREE_WEB_DEMO } from "../src/config/release";
 import { useApp } from "../src/context/AppContext";
 import { AppNotification, NotificationPreferences } from "../src/types";
+
 
 export default function NotificationsScreen() {
   const router = useRouter();
@@ -65,11 +67,17 @@ export default function NotificationsScreen() {
       </View>
 
       <AppCard>
-        <Text style={localStyles.sectionTitle}>Push settings</Text>
-        <PreferenceRow disabled={saving} label="Android push notifications" onValueChange={(value) => void updatePreference({ pushEnabled: value })} value={notificationPreferences.pushEnabled} />
-        <PreferenceRow disabled={saving} label="Messages" onValueChange={(value) => void updatePreference({ messagesEnabled: value })} value={notificationPreferences.messagesEnabled} />
-        <PreferenceRow disabled={saving} label="Task updates" onValueChange={(value) => void updatePreference({ taskUpdatesEnabled: value })} value={notificationPreferences.taskUpdatesEnabled} />
-        <PreferenceRow disabled={saving} label="Matching jobs" onValueChange={(value) => void updatePreference({ matchingEnabled: value })} value={notificationPreferences.matchingEnabled} />
+        <Text style={localStyles.sectionTitle}>{FREE_WEB_DEMO ? "In-app notifications" : "Push settings"}</Text>
+        {FREE_WEB_DEMO ? (
+          <Text style={localStyles.message}>Task applications, hiring, status, payment, completion, review, and chat updates appear here. Remote Android push is paused in the free web demo.</Text>
+        ) : (
+          <>
+            <PreferenceRow disabled={saving} label="Android push notifications" onValueChange={(value) => void updatePreference({ pushEnabled: value })} value={notificationPreferences.pushEnabled} />
+            <PreferenceRow disabled={saving} label="Messages" onValueChange={(value) => void updatePreference({ messagesEnabled: value })} value={notificationPreferences.messagesEnabled} />
+            <PreferenceRow disabled={saving} label="Task updates" onValueChange={(value) => void updatePreference({ taskUpdatesEnabled: value })} value={notificationPreferences.taskUpdatesEnabled} />
+            <PreferenceRow disabled={saving} label="Matching jobs" onValueChange={(value) => void updatePreference({ matchingEnabled: value })} value={notificationPreferences.matchingEnabled} />
+          </>
+        )}
         {settingsError ? <Text style={localStyles.error}>{settingsError}</Text> : null}
       </AppCard>
 

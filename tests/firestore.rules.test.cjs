@@ -80,6 +80,7 @@ function taskData(overrides = {}) {
     description: "Replace a leaking fitting",
     category: "Plumbing",
     budget: 1200,
+    wage: "1200",
     location: "Bacolod City",
     latitude: 10.6765,
     longitude: 122.9509,
@@ -515,6 +516,39 @@ test("an idle tasker can switch to employer mode atomically", async () => {
   await assertSucceeds(batch.commit());
 });
 
+test("an idle employer can switch to tasker mode atomically", async () => {
+  const db = dbFor(CLIENT_ID);
+  const batch = writeBatch(db);
+  const updatedAt = "2026-01-02T00:00:00.000Z";
+
+  batch.update(doc(db, "users", CLIENT_ID), {
+    role: "worker",
+    availabilityStatus: "Available",
+    availability: "Available",
+    verificationStatus: "Pending Verification",
+    preferredRadiusKm: 5,
+    updatedAt
+  });
+  batch.set(doc(db, "publicProfiles", CLIENT_ID), {
+    ...publicProfile(CLIENT_ID, "client"),
+    role: "worker",
+    availabilityStatus: "Available",
+    availability: "Available",
+    verificationStatus: "Pending Verification",
+    updatedAt
+  });
+  batch.set(doc(db, "workerProfiles", CLIENT_ID), {
+    userId: CLIENT_ID,
+    availabilityStatus: "Available",
+    availability: "Available",
+    verificationStatus: "Pending Verification",
+    preferredRadiusKm: 5,
+    updatedAt
+  }, { merge: true });
+
+  await assertSucceeds(batch.commit());
+});
+
 test("only a client can create an open task owned by that client", async () => {
   const clientDb = dbFor(CLIENT_ID);
   const workerDb = dbFor(WORKER_ID);
@@ -731,10 +765,11 @@ test("client and worker accounts can complete the full canonical task lifecycle"
     workerId: WORKER_ID,
     applicantIds: [WORKER_ID],
     selectedMatchId: matchId,
+    agreedAmount: "1200",
     acceptedAt: now,
     updatedAt: now
   });
-  batch.update(paymentRef, { workerId: WORKER_ID, updatedAt: now });
+  batch.update(paymentRef, { workerId: WORKER_ID, agreedAmount: "1200", updatedAt: now });
   batch.update(doc(clientDb, "taskMatches", matchId), {
     acceptanceStatus: "Accepted",
     hiredAt: now,
@@ -872,10 +907,11 @@ test("acceptance atomically selects one worker, rejects the rest, links payment,
       workerId: WORKER_ID,
       applicantIds: [WORKER_ID],
       selectedMatchId: `${TASK_ID}_${WORKER_ID}`,
+      agreedAmount: "1200",
       acceptedAt: now,
       updatedAt: now
     });
-    transaction.update(doc(db, "payments", TASK_ID), { workerId: WORKER_ID, updatedAt: now });
+    transaction.update(doc(db, "payments", TASK_ID), { workerId: WORKER_ID, agreedAmount: "1200", updatedAt: now });
     transaction.update(selectedMatchRef, { acceptanceStatus: "Accepted", hiredAt: now, updatedAt: now });
     transaction.update(rejectedMatchRef, { acceptanceStatus: "Rejected", rejectedAt: now, updatedAt: now });
     transaction.update(doc(db, "users", WORKER_ID), {
@@ -932,6 +968,7 @@ test("acceptance is denied when its required worker and payment writes are omitt
     workerId: WORKER_ID,
     applicantIds: [WORKER_ID],
     selectedMatchId: `${TASK_ID}_${WORKER_ID}`,
+    agreedAmount: "1200",
     acceptedAt: "2026-01-01T01:00:00.000Z",
     updatedAt: "2026-01-01T01:00:00.000Z"
   }));
@@ -1082,6 +1119,50 @@ test("cancelling an open task also closes its active application matches", async
   }
   await assertSucceeds(batch.commit());
   assert.equal((await getDoc(doc(db, "tasks", TASK_ID))).data().status, "Cancelled");
+});
+
+test("cancelling an assigned task releases the tasker atomically", async () => {
+  await seedWorkflowTask({
+    status: "In Progress",
+    applicantIds: [WORKER_ID],
+    workerId: WORKER_ID,
+    selectedMatchId: `${TASK_ID}_${WORKER_ID}`,
+    agreedAmount: "1200"
+  });
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
+    await Promise.all([
+      updateDoc(doc(db, "taskMatches", `${TASK_ID}_${WORKER_ID}`), { acceptanceStatus: "Accepted" }),
+      updateDoc(doc(db, "users", WORKER_ID), {
+        availabilityStatus: "Busy", availability: "Busy", activeTaskId: TASK_ID
+      }),
+      updateDoc(doc(db, "workerProfiles", WORKER_ID), {
+        availabilityStatus: "Busy", availability: "Busy"
+      }),
+      updateDoc(doc(db, "publicProfiles", WORKER_ID), {
+        availabilityStatus: "Busy", availability: "Busy"
+      })
+    ]);
+  });
+  const db = dbFor(CLIENT_ID);
+  const now = "2026-01-01T02:00:00.000Z";
+  const batch = writeBatch(db);
+  batch.update(doc(db, "tasks", TASK_ID), { status: "Cancelled", cancelledAt: now, updatedAt: now });
+  batch.update(doc(db, "taskMatches", `${TASK_ID}_${WORKER_ID}`), {
+    acceptanceStatus: "Cancelled", cancelledAt: now, updatedAt: now
+  });
+  batch.update(doc(db, "users", WORKER_ID), {
+    availabilityStatus: "Available", availability: "Available", activeTaskId: deleteField(), updatedAt: now
+  });
+  batch.update(doc(db, "workerProfiles", WORKER_ID), {
+    availabilityStatus: "Available", availability: "Available", updatedAt: now
+  });
+  batch.update(doc(db, "publicProfiles", WORKER_ID), {
+    availabilityStatus: "Available", availability: "Available", updatedAt: now
+  });
+  await assertSucceeds(batch.commit());
+  assert.equal((await getDoc(doc(db, "tasks", TASK_ID))).data().status, "Cancelled");
+  assert.equal((await getDoc(doc(dbFor(WORKER_ID), "users", WORKER_ID))).data().activeTaskId, undefined);
 });
 
 test("either assigned participant can dispute an active task but an outsider cannot", async () => {

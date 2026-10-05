@@ -328,7 +328,7 @@ export default function PostTaskScreen() {
 
           <Field label="Payment Method">
             <View style={styles.paymentRow}>
-              {(["COD", "GCash link"] as PaymentMethod[]).map((method) => (
+              {(["COD"] as PaymentMethod[]).map((method) => (
                 <Pressable
                   accessibilityRole="button"
                   accessibilityState={{ selected: paymentMethod === method }}
@@ -340,6 +340,7 @@ export default function PostTaskScreen() {
                 </Pressable>
               ))}
             </View>
+            <Text style={styles.helperText}>The free web demo uses cash confirmation so the full payment and completion flow works without paid cloud storage.</Text>
           </Field>
 
           <Field label="Additional Notes (Optional)">

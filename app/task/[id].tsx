@@ -32,7 +32,7 @@ export default function TaskDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { currentUser, users, getUserById, tasks, taskMatches, acceptTask, rejectApplication, updateTaskStatus } = useApp();
+  const { currentUser, users, ratings, getUserById, tasks, taskMatches, acceptTask, rejectApplication, updateTaskStatus } = useApp();
   const [proposedAmount, setProposedAmount] = useState("");
   const [actionError, setActionError] = useState("");
   const task = tasks.find((item) => item.id === id);
@@ -67,6 +67,10 @@ export default function TaskDetailsScreen() {
   const hasAcceptedWorker = task.status === "Accepted" && Boolean(task.workerId);
   const worker = getUserById(task.workerId);
   const employer = getUserById(task.clientId);
+  const employerScores = ratings.filter((rating) => rating.targetUserId === task.clientId).map((rating) => rating.score);
+  const employerRating = employerScores.length
+    ? employerScores.reduce((total, score) => total + score, 0) / employerScores.length
+    : employer?.rating;
   const hasApplied = Boolean(currentUser?.id && task.applicantIds?.includes(currentUser.id));
 
   async function handleWorkerAccept() {
@@ -123,7 +127,7 @@ export default function TaskDetailsScreen() {
           <DetailBox label="Applicants" value={hasAcceptedWorker ? "1 accepted" : `${applicantCount} applied`} />
           <DetailBox label="Capability" value={task.requiredCapability ?? task.category} />
           <DetailBox label="Task Radius" value={`${task.geofenceRadius ?? 500} meters`} />
-          <DetailBox label="Employer" value={`${employer?.fullName ?? "TaskLink employer"}${employer?.verificationStatus === "Verified" ? " · Verified" : ""}${employer?.rating ? ` · ${employer.rating.toFixed(1)}/5` : ""}`} />
+          <DetailBox label="Employer" value={`${employer?.fullName ?? "TaskLink employer"}${employer?.verificationStatus === "Verified" ? " · Verified" : ""}${employerRating ? ` · ${employerRating.toFixed(1)}/5` : ""}`} />
           <DetailBox label="Schedule" value={formatTaskSchedule(task)} />
         </View>
 

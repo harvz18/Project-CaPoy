@@ -4,13 +4,14 @@ TASKLINK is an Expo/React Native application that connects clients posting short
 
 ## Current release target
 
-- Android through Expo/EAS
-- Web beta through Expo static export and a connected Render Static Site
+The active no-cost demo target is the web build published through Expo static export and a connected Render Static Site. It uses:
+
 - Firebase Authentication
 - Cloud Firestore
-- Firebase Storage
+- Leaflet with OpenStreetMap tiles
+- In-app task, chat, and workflow notifications
 
-Android remains the primary assessed release target. Web exports are supported for beta checking with an interactive Leaflet/OpenStreetMap map preview.
+The web demo intentionally does not require Google Maps, Cloud Functions, Cloud Storage, EAS, or a Firebase billing upgrade.
 
 ## Local setup
 
@@ -66,19 +67,20 @@ Run `npm run test:rules:emulator` before deploying rules to a real project. The 
 
 ## Online deployment status
 
-As of October 1, 2026:
+As of October 5, 2026:
 
-- The latest verified source, including the Phase 8 acceptance kit, is published through GitHub’s `tasklink` branch. A Render site linked to that branch with auto-deploy enabled should rebuild from the pushed commit; confirm the completed build in Render because this workspace has no Render API credential.
-- The reviewed Firestore rules and indexes were reverified through the Phase 8 `beta` alias and released to `tasklink-fb027`. All three declared message indexes are `READY`.
-- Cloud Functions are not deployed. This means trusted matching fan-out, remote push, moderation mutations, and analytics generation remain unavailable online. Firebase requires the Blaze pay-as-you-go plan for Functions, and deployment artifacts can produce small storage charges.
-- Cloud Storage for Firebase also requires Blaze as of February 3, 2026. Upload/review features cannot be represented as fully online under a strict no-charge constraint.
-- No billing plan was enabled or changed by these deployment steps.
+- The no-cost web demo is released from GitHub's `tasklink` branch. The connected Render Static Site rebuilds from that branch.
+- The reviewed Firestore rules and indexes are released to `tasklink-fb027`.
+- Posting, applying, hiring, rejecting, withdrawing, chatting, starting, payment confirmation, completion approval, cancellation, ratings, and account-mode switching run directly against authenticated Firestore transactions.
+- A tasker can apply to multiple open tasks but can hold only one confirmed assignment at a time. Finishing or cancelling it releases the tasker for another assignment.
+- The demo uses COD with confirmation by both participants. Uploads, document verification, remote push, nearby-worker fan-out, automated moderation, and analytics generation are visibly paused.
+- Cloud Functions and Cloud Storage are not deployed, and no billing plan was enabled or changed.
 
 ## Phase 7 beta hardening
 
 The current client removes prototype names, ratings, counts, availability claims, and location fallbacks from operational screens. Job search, category filters, and sorting operate on live task data. Critical listener failures expose Retry Sync and Dismiss actions, while risky mutations keep their own result/loading states. A local error boundary prevents a render failure from becoming an unexplained blank screen.
 
-Set `EXPO_PUBLIC_SUPPORT_EMAIL` in local, EAS, and Render environments to a project-owned mailbox. When it is unset, the Help screen explicitly reports that beta support is not configured. No third-party remote crash processor or automated retention worker is represented as active.
+Set `EXPO_PUBLIC_SUPPORT_EMAIL` in local, EAS, and Render environments to a project-owned mailbox if email support is wanted. When it is unset, the Help screen directs controlled-demo testers to their project coordinator without displaying a missing-requirement warning. No third-party remote crash processor or automated retention worker is represented as active.
 
 The controlled-beta limitations, location/payment statements, manual deletion process, retention targets, and tester matrix are documented in [docs/TASKLINK_BETA_OPERATIONS.md](docs/TASKLINK_BETA_OPERATIONS.md). Physical-device offline, large-font, screen-reader, and four-role acceptance evidence is still required before claiming the Phase 7 or overall beta gate is complete.
 
@@ -108,13 +110,13 @@ Job recommendations and applicant cards use a deterministic score based on requi
 
 Native Android maps work in Expo Go during development. Production Android builds need `GOOGLE_MAPS_API_KEY` in the local/EAS environment. Restrict that key to `com.tasklink.app` and the production signing certificate. Web uses Leaflet with visibly attributed OpenStreetMap tiles for navigation, click/tap selection, draggable pins, and geofence previews. The public OpenStreetMap tile service is for controlled beta traffic here, not assumed to be unlimited production hosting.
 
-Eligible-worker in-app notification fan-out is implemented in `functions/` as a trusted Firestore trigger. It reads private worker coordinates on the server and never exposes them to clients. Deploying Cloud Functions requires a Firebase project on the Blaze plan; nothing is deployed automatically by this repository.
+Nearby-worker notification fan-out is implemented in `functions/` as an optional trusted Firestore trigger, but it is not used by the no-cost web demo. Workers discover and filter open tasks from the live job feed, which never exposes another user's private coordinates.
 
 ## Chat and notifications
 
 Task conversations use deterministic `taskId_workerId` IDs, so a client can communicate with separate applicants without overwriting another applicant's chat. Message listeners are participant-scoped, load the newest 100 records, and can page backward. Opening a conversation writes receiver-only read receipts.
 
-The Notifications screen supports unread state, deep links, category preferences, and an explicit Android push opt-in. Expo push tokens are stored per user/device. Trusted Cloud Functions create message notifications and send push payloads with a delivery ledger, retryable request failures, and automatic disabling of tokens rejected as unregistered.
+The no-cost web demo supports unread state, deep links, and in-app notifications for applications, hiring, task status, COD confirmation, completion, ratings, cancellation, and chat. Remote Android push remains optional source code and is visibly paused in this release because its trusted sender requires Cloud Functions.
 
 Remote push does not work in Expo Go on current Android SDK releases. Use an EAS development/preview build and configure the Android FCM credentials for the EAS project. The app never asks for notification permission until the user enables push in the Notifications screen.
 
