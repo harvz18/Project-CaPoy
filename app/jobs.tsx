@@ -2,7 +2,7 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { BottomNavIcon } from "../src/components/BottomNavIcon";
+import { AnimatedBottomNav } from "../src/components/AnimatedBottomNav";
 import LocationMap from "../src/components/LocationMap";
 import { StatusBadge } from "../src/components/StatusBadge";
 import { useApp } from "../src/context/AppContext";
@@ -89,9 +89,6 @@ export default function JobsScreen() {
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Pressable accessibilityLabel="Go back" accessibilityRole="button" onPress={() => router.back()} style={styles.iconButton}>
-            <Text style={styles.backText}>Back</Text>
-          </Pressable>
           <Text style={styles.brand}>TASKLINK</Text>
         </View>
         <View style={styles.avatar}>
@@ -195,7 +192,7 @@ export default function JobsScreen() {
         {error ? <Text style={styles.locationMessage}>{error}</Text> : null}
       </ScrollView>
 
-      <BottomNav active="jobs" router={router} bottom={insets.bottom} />
+      <AnimatedBottomNav active="jobs" role={currentUser?.role} />
     </SafeAreaView>
   );
 }
@@ -281,36 +278,10 @@ function getApplicationMessage(status: Task["status"]) {
   return "Track this task status.";
 }
 
-function BottomNav({ active, router, bottom }: { active: string; router: ReturnType<typeof useRouter>; bottom: number }) {
-  const items = [
-    { key: "home", label: "Home", route: "/worker-dashboard" },
-    { key: "jobs", label: "Jobs", route: "/jobs" },
-    { key: "chat", label: "Chat", route: "/chat" },
-    { key: "profile", label: "Profile", route: "/profile" }
-  ] as const;
-
-  return (
-    <View style={[styles.bottomNav, { paddingBottom: Math.max(bottom, 10) }]}>
-      {items.map((item) => {
-        const selected = item.key === active;
-        const color = selected ? "#684000" : palette.muted;
-        return (
-          <Pressable accessibilityLabel={item.label} accessibilityRole="button" accessibilityState={{ selected }} key={item.key} onPress={() => router.push(item.route as never)} style={[styles.navItem, selected && styles.navItemActive]}>
-            <BottomNavIcon name={item.key} color={color} />
-            <Text style={[styles.navLabel, selected && styles.navTextActive]}>{item.label}</Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.background },
   header: { minHeight: 56, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: palette.surface, borderBottomWidth: 1, borderBottomColor: "#EDF1EF" },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
-  iconButton: { minWidth: 48, minHeight: 44, alignItems: "center", justifyContent: "center" },
-  backText: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "900" },
   brand: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "900" },
   avatar: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: palette.secondaryContainer, borderWidth: 1, borderColor: palette.outlineVariant },
   avatarText: { color: "#684000", fontWeight: "900" },
@@ -385,10 +356,5 @@ const styles = StyleSheet.create({
   emptyTitle: { color: palette.textStrong, fontSize: 18, lineHeight: 26, fontWeight: "900" },
   emptyText: { color: palette.muted, fontSize: 14, lineHeight: 20, textAlign: "center" },
   errorMessage: { color: "#BA1A1A", fontSize: 13, lineHeight: 18, fontWeight: "700", paddingHorizontal: 16, paddingTop: 10 },
-  bottomNav: { position: "absolute", left: 0, right: 0, bottom: 0, minHeight: 72, paddingHorizontal: 8, paddingTop: 8, borderTopLeftRadius: 12, borderTopRightRadius: 12, borderTopWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, flexDirection: "row", justifyContent: "space-around", elevation: 10 },
-  navItem: { minWidth: 66, borderRadius: 24, alignItems: "center", justifyContent: "center", paddingVertical: 4 },
-  navItemActive: { backgroundColor: palette.secondaryContainer },
-  navLabel: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "600" },
-  navTextActive: { color: "#684000" },
   pressed: { opacity: 0.78, transform: [{ scale: 0.99 }] }
 });

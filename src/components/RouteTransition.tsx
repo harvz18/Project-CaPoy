@@ -4,6 +4,7 @@ import { AccessibilityInfo, Animated, Easing, Platform, StyleSheet } from "react
 
 const WEB_TRANSITION_DURATION_MS = 180;
 const WEB_SLIDE_DISTANCE_PX = 14;
+let lastTabIndex: number | undefined;
 
 export function usePrefersReducedMotion() {
   const [reduceMotion, setReduceMotion] = useState(true);
@@ -24,26 +25,43 @@ export function usePrefersReducedMotion() {
   return reduceMotion;
 }
 
-export function RouteTransition({ children, reduceMotion }: PropsWithChildren<{ reduceMotion: boolean }>) {
-  const progress = useRef(new Animated.Value(1)).current;
+export function RouteTransition({ children, reduceMotion, routeName }: PropsWithChildren<{
+  reduceMotion: boolean;
+  routeName: string;
+}>) {
+  const opacity = useRef(new Animated.Value(1)).current;
+  const translateX = useRef(new Animated.Value(0)).current;
 
   useFocusEffect(useCallback(() => {
     if (Platform.OS !== "web" || reduceMotion) {
-      progress.setValue(1);
+      opacity.setValue(1);
+      translateX.setValue(0);
       return () => undefined;
     }
 
-    progress.setValue(0);
-    const animation = Animated.timing(progress, {
-      toValue: 1,
-      duration: WEB_TRANSITION_DURATION_MS,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false
-    });
+    const tabIndex = getTabIndex(routeName);
+    const direction = tabIndex !== undefined && lastTabIndex !== undefined && tabIndex < lastTabIndex ? -1 : 1;
+    if (tabIndex !== undefined) lastTabIndex = tabIndex;
+    opacity.setValue(0.97);
+    translateX.setValue(direction * WEB_SLIDE_DISTANCE_PX);
+    const animation = Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: WEB_TRANSITION_DURATION_MS,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false
+      }),
+      Animated.timing(translateX, {
+        toValue: 0,
+        duration: WEB_TRANSITION_DURATION_MS,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false
+      })
+    ]);
     animation.start();
 
     return () => animation.stop();
-  }, [progress, reduceMotion]));
+  }, [opacity, reduceMotion, routeName, translateX]));
 
   if (Platform.OS !== "web") return children;
 
@@ -52,13 +70,8 @@ export function RouteTransition({ children, reduceMotion }: PropsWithChildren<{ 
       style={[
         styles.container,
         {
-          opacity: progress.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] }),
-          transform: [{
-            translateX: progress.interpolate({
-              inputRange: [0, 1],
-              outputRange: [WEB_SLIDE_DISTANCE_PX, 0]
-            })
-          }]
+          opacity,
+          transform: [{ translateX }]
         }
       ]}
     >
@@ -70,3 +83,11 @@ export function RouteTransition({ children, reduceMotion }: PropsWithChildren<{ 
 const styles = StyleSheet.create({
   container: { flex: 1 }
 });
+
+function getTabIndex(routeName: string) {
+  if (routeName === "worker-dashboard" || routeName === "client-dashboard") return 0;
+  if (routeName === "jobs" || routeName === "post-task") return 1;
+  if (routeName === "chat/index" || routeName === "chat/[id]") return 2;
+  if (routeName === "profile") return 3;
+  return undefined;
+}

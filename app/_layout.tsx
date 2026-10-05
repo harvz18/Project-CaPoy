@@ -156,8 +156,8 @@ function ProtectedNavigator() {
         </View>
       ) : null}
       <Stack
-        screenLayout={({ children }) => (
-          <RouteTransition reduceMotion={reduceMotion}>{children}</RouteTransition>
+        screenLayout={({ children, route: screenRoute }) => (
+          <RouteTransition reduceMotion={reduceMotion} routeName={screenRoute.name}>{children}</RouteTransition>
         )}
         screenOptions={{
           animation: reduceMotion ? "none" : "slide_from_right",

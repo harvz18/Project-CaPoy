@@ -1,8 +1,8 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { BottomNavIcon } from "../src/components/BottomNavIcon";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { AnimatedBottomNav } from "../src/components/AnimatedBottomNav";
 import { StatusBadge } from "../src/components/StatusBadge";
 import { useApp } from "../src/context/AppContext";
 import { formatTaskPrice, getScheduleBasedAvailability } from "../src/domain/taskMarketplace";
@@ -144,7 +144,7 @@ export default function ClientDashboardScreen() {
           )}
         </View>
       </ScrollView>
-      <BottomNav active="home" router={router} />
+      <AnimatedBottomNav active="home" role={currentUser?.role} />
       <Pressable
         accessibilityLabel="Post a task"
         accessibilityRole="button"
@@ -272,31 +272,6 @@ function WorkerRow({ name, rating }: { name: string; rating: string }) {
   );
 }
 
-function BottomNav({ active, router }: { active: string; router: ReturnType<typeof useRouter> }) {
-  const insets = useSafeAreaInsets();
-  const items = [
-    { key: "home", label: "Home", route: "/client-dashboard" },
-    { key: "jobs", label: "Jobs", route: "/post-task" },
-    { key: "chat", label: "Chat", route: "/chat" },
-    { key: "profile", label: "Profile", route: "/profile" }
-  ];
-
-  return (
-    <View style={[styles.bottomNav, { paddingBottom: Math.max(insets.bottom, 10) }]}>
-      {items.map((item) => {
-        const selected = item.key === active;
-        const color = selected ? "#684000" : palette.muted;
-        return (
-          <Pressable accessibilityLabel={item.label} accessibilityRole="button" accessibilityState={{ selected }} key={item.key} onPress={() => router.push(item.route as never)} style={[styles.navItem, selected && styles.navItemActive]}>
-            <BottomNavIcon name={item.key as "home" | "jobs" | "chat" | "profile"} color={color} />
-            <Text style={[styles.navLabel, selected && styles.navTextActive]}>{item.label}</Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.background },
   header: {
@@ -402,28 +377,6 @@ const styles = StyleSheet.create({
   tipCard: { padding: 16, borderRadius: 12, backgroundColor: "#FFF8EE", borderWidth: 1, borderColor: "#E7C18C", flexDirection: "row", alignItems: "center", gap: 12 },
   tipIcon: { color: palette.secondary, fontSize: 18, fontWeight: "900" },
   tipText: { color: "#684000", flex: 1, fontSize: 12, lineHeight: 16 },
-  bottomNav: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    minHeight: 72,
-    paddingHorizontal: 8,
-    paddingTop: 8,
-    paddingBottom: 10,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-    borderTopWidth: 1,
-    borderColor: palette.outlineVariant,
-    backgroundColor: palette.surface,
-    flexDirection: "row",
-    justifyContent: "space-around",
-    elevation: 10
-  },
-  navItem: { minWidth: 66, borderRadius: 24, alignItems: "center", justifyContent: "center", paddingVertical: 4 },
-  navItemActive: { backgroundColor: palette.secondaryContainer },
-  navLabel: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "600" },
-  navTextActive: { color: "#684000" },
   fab: { position: "absolute", right: 20, bottom: 88, minWidth: 64, height: 56, paddingHorizontal: 12, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: palette.secondaryContainer, elevation: 12 },
   fabText: { color: "#684000", fontSize: 13, lineHeight: 18, fontWeight: "900" },
   pressed: { opacity: 0.78, transform: [{ scale: 0.99 }] }

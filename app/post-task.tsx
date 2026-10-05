@@ -2,6 +2,7 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { AnimatedBottomNav } from "../src/components/AnimatedBottomNav";
 import LocationMap from "../src/components/LocationMap";
 import { workerCapabilities } from "../src/constants/capabilities";
 import { useApp } from "../src/context/AppContext";
@@ -153,7 +154,7 @@ export default function PostTaskScreen() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 116 + insets.bottom }]} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 202 + insets.bottom }]} showsVerticalScrollIndicator={false}>
         <View>
           <Text style={styles.heroTitle}>Need a hand?</Text>
           <Text style={styles.heroText}>Describe what you need help with and find a neighbor to help you today.</Text>
@@ -366,7 +367,7 @@ export default function PostTaskScreen() {
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
       </ScrollView>
 
-      <View style={[styles.bottomAction, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+      <View style={[styles.bottomAction, { bottom: 58 + Math.max(insets.bottom, 10), paddingBottom: 16 }]}>
         <Pressable
           accessibilityRole="button"
           accessibilityState={{ disabled: actionLoading }}
@@ -377,6 +378,8 @@ export default function PostTaskScreen() {
           <Text style={styles.postButtonText}>{actionLoading ? "Posting..." : "Post Job Now"}</Text>
         </Pressable>
       </View>
+
+      <AnimatedBottomNav active="jobs" role={currentUser?.role} />
 
       <Modal animationType="slide" visible={mapOpen} onRequestClose={() => setMapOpen(false)}>
         <SafeAreaView style={styles.mapModalSafeArea} edges={["top", "left", "right"]}>

@@ -2,7 +2,7 @@ import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { BottomNavIcon } from "../../src/components/BottomNavIcon";
+import { AnimatedBottomNav } from "../../src/components/AnimatedBottomNav";
 import { useApp } from "../../src/context/AppContext";
 import { ChatMessage, Task } from "../../src/types";
 
@@ -104,7 +104,7 @@ export default function ChatInboxScreen() {
         </View>
       </ScrollView>
 
-      <BottomNav active="chat" router={router} bottom={insets.bottom} role={currentUser?.role} />
+      <AnimatedBottomNav active="chat" role={currentUser?.role} />
     </SafeAreaView>
   );
 }
@@ -197,41 +197,6 @@ function ConversationRow({ conversation, onPress }: { conversation: Conversation
       </View>
       {conversation.unread ? <View style={styles.unreadDot} /> : null}
     </Pressable>
-  );
-}
-
-function BottomNav({
-  active,
-  router,
-  bottom,
-  role
-}: {
-  active: string;
-  router: ReturnType<typeof useRouter>;
-  bottom: number;
-  role?: string;
-}) {
-  const homeRoute = role === "client" ? "/client-dashboard" : "/worker-dashboard";
-  const items = [
-    { key: "home", label: "Home", route: homeRoute },
-    { key: "jobs", label: "Jobs", route: "/jobs" },
-    { key: "chat", label: "Chat", route: "/chat" },
-    { key: "profile", label: "Profile", route: "/profile" }
-  ] as const;
-
-  return (
-    <View style={[styles.bottomNav, { paddingBottom: Math.max(bottom, 10) }]}>
-      {items.map((item) => {
-        const selected = item.key === active;
-        const color = selected ? "#684000" : palette.muted;
-        return (
-          <Pressable accessibilityLabel={item.label} accessibilityRole="button" accessibilityState={{ selected }} key={item.key} onPress={() => router.push(item.route as never)} style={[styles.navItem, selected && styles.navItemActive]}>
-            <BottomNavIcon name={item.key} color={color} />
-            <Text style={[styles.navLabel, selected && styles.navTextActive]}>{item.label}</Text>
-          </Pressable>
-        );
-      })}
-    </View>
   );
 }
 
@@ -339,26 +304,5 @@ const styles = StyleSheet.create({
   taskTitle: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
   previewText: { color: palette.muted, fontSize: 14, lineHeight: 20 },
   unreadDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: palette.secondaryContainer },
-  bottomNav: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    minHeight: 72,
-    paddingHorizontal: 8,
-    paddingTop: 8,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-    borderTopWidth: 1,
-    borderColor: palette.outlineVariant,
-    backgroundColor: palette.surface,
-    flexDirection: "row",
-    justifyContent: "space-around",
-    elevation: 10
-  },
-  navItem: { minWidth: 66, borderRadius: 24, alignItems: "center", justifyContent: "center", paddingVertical: 4 },
-  navItemActive: { backgroundColor: palette.secondaryContainer },
-  navLabel: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "600" },
-  navTextActive: { color: "#684000" },
   pressed: { opacity: 0.78, transform: [{ scale: 0.99 }] }
 });
