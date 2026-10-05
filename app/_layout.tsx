@@ -7,6 +7,7 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppProvider, useApp } from "../src/context/AppContext";
 import { AppErrorBoundary } from "../src/components/AppErrorBoundary";
+import { RouteTransition, usePrefersReducedMotion } from "../src/components/RouteTransition";
 import { colors } from "../src/theme";
 import { configureNotificationChannel } from "../src/services/pushNotificationService";
 import { markNotificationOpened } from "../src/services/notificationService";
@@ -45,6 +46,7 @@ function ProtectedNavigator() {
   const workerOnlyRoutes = ["worker-dashboard", "jobs"];
   const staffRoutes = ["admin", "superadmin"];
   const offline = networkState.isConnected === false || networkState.isInternetReachable === false;
+  const reduceMotion = usePrefersReducedMotion();
 
   useEffect(() => {
     void configureNotificationChannel().catch(() => undefined);
@@ -154,7 +156,11 @@ function ProtectedNavigator() {
         </View>
       ) : null}
       <Stack
+        screenLayout={({ children }) => (
+          <RouteTransition reduceMotion={reduceMotion}>{children}</RouteTransition>
+        )}
         screenOptions={{
+          animation: reduceMotion ? "none" : "slide_from_right",
           headerShown: false,
           headerStyle: { backgroundColor: colors.background },
           headerShadowVisible: false,
@@ -188,7 +194,7 @@ function ProtectedNavigator() {
 }
 
 const styles = StyleSheet.create({
-  navigator: { flex: 1 },
+  navigator: { flex: 1, overflow: "hidden" },
   loadingScreen: {
     flex: 1,
     alignItems: "center",
