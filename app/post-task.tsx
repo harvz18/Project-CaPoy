@@ -3,6 +3,12 @@ import { useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AnimatedBottomNav } from "../src/components/AnimatedBottomNav";
+import {
+  DateTimePickerSheet,
+  formatFriendlyDate,
+  formatLocalDateTime,
+  parseLocalDateTime
+} from "../src/components/DateTimePickerSheet";
 import LocationMap from "../src/components/LocationMap";
 import { workerCapabilities } from "../src/constants/capabilities";
 import { useApp } from "../src/context/AppContext";
@@ -67,6 +73,8 @@ export default function PostTaskScreen() {
   const [mapOpen, setMapOpen] = useState(false);
   const [categoryOpen, setCategoryOpen] = useState(false);
   const [durationOpen, setDurationOpen] = useState(false);
+  const [schedulePickerOpen, setSchedulePickerOpen] = useState(false);
+  const [scheduleMinimum, setScheduleMinimum] = useState(() => new Date());
   const mapCenter = parseCoordinate(latitude) !== undefined && parseCoordinate(longitude) !== undefined
     ? { latitude: parseCoordinate(latitude) as number, longitude: parseCoordinate(longitude) as number }
     : undefined;
@@ -107,7 +115,7 @@ export default function PostTaskScreen() {
   async function handlePostTask() {
     try {
       const durationNumber = Number(durationValue);
-      const parsedStart = parseLocalSchedule(scheduleStart);
+      const parsedStart = parseLocalDateTime(scheduleStart);
       const scheduleEnd = parsedStart && Number.isFinite(durationNumber)
         ? new Date(parsedStart.getTime() + durationToMilliseconds(durationNumber, durationUnit)).toISOString()
         : "";
@@ -289,9 +297,9 @@ export default function PostTaskScreen() {
             </View>
           </Field>
 
-          <View style={styles.twoColumn}>
-            {pricingMode === "fixed" ? <Field label="Budget (₱)" style={styles.flex}>
+          {pricingMode === "fixed" ? <Field label="Budget (₱)">
               <TextInput
+                accessibilityLabel="Task budget in pesos"
                 keyboardType="numeric"
                 onChangeText={setWage}
                 placeholder="500"
@@ -299,8 +307,12 @@ export default function PostTaskScreen() {
                 style={styles.input}
                 value={wage}
               />
-            </Field> : <View style={styles.flex}><Text style={styles.helperText}>Taskers will propose an amount when they apply.</Text></View>}
+            </Field> : <Text style={styles.helperText}>Taskers will propose an amount when they apply.</Text>}
 
+          <View style={styles.twoColumn}>
+            <Field label="Duration value" style={styles.flex}>
+              <TextInput accessibilityLabel="Task duration value" keyboardType="numeric" onChangeText={setDurationValue} placeholder="1" placeholderTextColor={palette.outline} style={styles.input} value={durationValue} />
+            </Field>
             <Field label="Duration unit" style={styles.flex}>
               <Pressable
                 accessibilityRole="button"
@@ -313,14 +325,26 @@ export default function PostTaskScreen() {
             </Field>
           </View>
 
-          <View style={styles.twoColumn}>
-            <Field label="Duration value" style={styles.flex}>
-              <TextInput keyboardType="numeric" onChangeText={setDurationValue} placeholder="1" placeholderTextColor={palette.outline} style={styles.input} value={durationValue} />
-            </Field>
-            <Field label="Starts (YYYY-MM-DD HH:MM)" style={styles.flex}>
-              <TextInput onChangeText={setScheduleStart} placeholder="2026-10-10 08:00" placeholderTextColor={palette.outline} style={styles.input} value={scheduleStart} />
-            </Field>
-          </View>
+          <Field label="When should the task start?">
+            <Pressable
+              accessibilityLabel={scheduleStart ? `Task starts ${formatFriendlyDate(parseLocalDateTime(scheduleStart) ?? new Date())}` : "Choose task start date and time"}
+              accessibilityRole="button"
+              onPress={() => {
+                setScheduleMinimum(new Date());
+                setSchedulePickerOpen(true);
+              }}
+              style={({ pressed }) => [styles.dateButton, pressed && styles.pressed]}
+            >
+              <View style={styles.dateIcon}><Text style={styles.dateIconText}>DATE</Text></View>
+              <View style={styles.dateCopy}>
+                <Text style={[styles.dateValue, !scheduleStart && styles.datePlaceholder]}>
+                  {scheduleStart ? formatFriendlyDate(parseLocalDateTime(scheduleStart) ?? new Date()) : "Choose date and time"}
+                </Text>
+                <Text style={styles.dateHint}>A calendar and time picker will open.</Text>
+              </View>
+              <Text style={styles.dateChevron}>›</Text>
+            </Pressable>
+          </Field>
 
           <Field label="Perks (Optional)">
             <TextInput onChangeText={setPerksText} placeholder="Free lunch, transportation allowance" placeholderTextColor={palette.outline} style={styles.input} value={perksText} />
@@ -450,15 +474,17 @@ export default function PostTaskScreen() {
           setDurationOpen(false);
         }}
       />
+
+      <DateTimePickerSheet
+        minimumDate={scheduleMinimum}
+        onClose={() => setSchedulePickerOpen(false)}
+        onConfirm={(value) => setScheduleStart(formatLocalDateTime(value))}
+        title="Choose task start"
+        value={parseLocalDateTime(scheduleStart)}
+        visible={schedulePickerOpen}
+      />
     </SafeAreaView>
   );
-}
-
-function parseLocalSchedule(value: string) {
-  const match = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})$/);
-  if (!match) return undefined;
-  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), Number(match[4]), Number(match[5]));
-  return Number.isFinite(date.getTime()) ? date : undefined;
 }
 
 function PickerModal({
@@ -477,10 +503,16 @@ function PickerModal({
   onSelect: (value: string) => void;
 }) {
   return (
-    <Modal animationType="fade" transparent visible={visible} onRequestClose={onClose}>
+    <Modal animationType="slide" transparent visible={visible} onRequestClose={onClose}>
       <Pressable style={styles.pickerBackdrop} onPress={onClose}>
-        <View style={styles.pickerSheet}>
-          <Text style={styles.pickerTitle}>{title}</Text>
+        <Pressable onPress={() => undefined} style={styles.pickerSheet}>
+          <View style={styles.pickerHandle} />
+          <View style={styles.pickerHeader}>
+            <Text style={styles.pickerTitle}>{title}</Text>
+            <Pressable accessibilityLabel="Close picker" accessibilityRole="button" onPress={onClose} style={styles.pickerCloseButton}>
+              <Text style={styles.pickerCloseText}>Close</Text>
+            </Pressable>
+          </View>
           {options.map((option) => {
             const selected = selectedValue === option;
             return (
@@ -495,7 +527,7 @@ function PickerModal({
               </Pressable>
             );
           })}
-        </View>
+        </Pressable>
       </Pressable>
     </Modal>
   );
@@ -727,6 +759,14 @@ const styles = StyleSheet.create({
   paymentChipSelected: { backgroundColor: palette.primary, borderColor: palette.primary },
   paymentText: { color: palette.muted, fontSize: 14, fontWeight: "800" },
   paymentTextSelected: { color: palette.white },
+  dateButton: { minHeight: 70, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, padding: 10, flexDirection: "row", alignItems: "center", gap: 11 },
+  dateIcon: { width: 44, height: 44, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "#E5F1EE" },
+  dateIconText: { color: palette.primary, fontSize: 9, lineHeight: 12, fontWeight: "900", letterSpacing: 0.6 },
+  dateCopy: { flex: 1 },
+  dateValue: { color: palette.text, fontSize: 15, lineHeight: 21, fontWeight: "900" },
+  datePlaceholder: { color: palette.outline, fontWeight: "700" },
+  dateHint: { color: palette.muted, fontSize: 11, lineHeight: 15, marginTop: 2 },
+  dateChevron: { color: palette.primary, fontSize: 24, lineHeight: 28, fontWeight: "900" },
   textArea: { minHeight: 96, paddingTop: 12 },
   helperText: { color: palette.muted, fontSize: 12, lineHeight: 16 },
   tipCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.secondaryFixed, backgroundColor: "#FFF8EE", flexDirection: "row", gap: 8 },
@@ -825,9 +865,13 @@ const styles = StyleSheet.create({
   },
   largeMapMeta: { color: palette.secondary, fontSize: 12, lineHeight: 16, fontWeight: "900", marginTop: 2 },
   modalPanel: { padding: 14, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, gap: 10 },
-  pickerBackdrop: { flex: 1, padding: 24, backgroundColor: "rgba(24,28,28,0.32)", alignItems: "center", justifyContent: "center" },
-  pickerSheet: { width: "100%", maxWidth: 420, borderRadius: 12, padding: 12, backgroundColor: palette.surface, gap: 4 },
-  pickerTitle: { color: palette.textStrong, fontSize: 16, lineHeight: 24, fontWeight: "900", paddingHorizontal: 8, paddingVertical: 8 },
+  pickerBackdrop: { flex: 1, paddingHorizontal: 16, paddingTop: 24, backgroundColor: "rgba(24,28,28,0.42)", alignItems: "center", justifyContent: "flex-end" },
+  pickerSheet: { width: "100%", maxWidth: 520, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 12, paddingBottom: 20, backgroundColor: palette.surface, gap: 4 },
+  pickerHandle: { width: 42, height: 4, borderRadius: 2, alignSelf: "center", backgroundColor: palette.outlineVariant, marginBottom: 8 },
+  pickerHeader: { minHeight: 48, paddingHorizontal: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  pickerTitle: { color: palette.textStrong, fontSize: 18, lineHeight: 24, fontWeight: "900", flex: 1 },
+  pickerCloseButton: { minHeight: 40, paddingHorizontal: 10, alignItems: "center", justifyContent: "center" },
+  pickerCloseText: { color: palette.primary, fontSize: 13, fontWeight: "900" },
   pickerOption: { minHeight: 48, borderRadius: 8, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   pickerOptionSelected: { backgroundColor: "#E5F1EE" },
   pickerOptionText: { color: palette.text, fontSize: 16, lineHeight: 24, fontWeight: "700", flex: 1 },

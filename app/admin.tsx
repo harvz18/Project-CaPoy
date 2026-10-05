@@ -2,6 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Href, useRouter } from "expo-router";
+import {
+  DateTimePickerSheet,
+  formatFriendlyDate,
+  formatLocalDate,
+  parseLocalDate
+} from "../src/components/DateTimePickerSheet";
 import { useApp } from "../src/context/AppContext";
 import {
   getPrivateFileUrl,
@@ -260,6 +266,7 @@ function AnalyticsPanel({
   preset: AdminAnalyticsRangePreset;
   startDate: string;
 }) {
+  const [datePicker, setDatePicker] = useState<"start" | "end">();
   const latestDays = analytics?.daily.slice(-14) ?? [];
   return (
     <View style={styles.analyticsSection}>
@@ -290,8 +297,14 @@ function AnalyticsPanel({
 
       {preset === "custom" ? (
         <View style={styles.customRangeRow}>
-          <TextInput accessibilityLabel="Analytics start date" onChangeText={onStartDateChange} placeholder="YYYY-MM-DD" style={styles.dateInput} value={startDate} />
-          <TextInput accessibilityLabel="Analytics end date" onChangeText={onEndDateChange} placeholder="YYYY-MM-DD" style={styles.dateInput} value={endDate} />
+          <Pressable accessibilityLabel={`Analytics start date ${formatAnalyticsDate(startDate)}`} accessibilityRole="button" onPress={() => setDatePicker("start")} style={styles.dateInput}>
+            <Text style={styles.dateInputLabel}>From</Text>
+            <Text style={styles.dateInputValue}>{formatAnalyticsDate(startDate)}</Text>
+          </Pressable>
+          <Pressable accessibilityLabel={`Analytics end date ${formatAnalyticsDate(endDate)}`} accessibilityRole="button" onPress={() => setDatePicker("end")} style={styles.dateInput}>
+            <Text style={styles.dateInputLabel}>To</Text>
+            <Text style={styles.dateInputValue}>{formatAnalyticsDate(endDate)}</Text>
+          </Pressable>
           <Pressable accessibilityRole="button" disabled={loading} onPress={onRefresh} style={[styles.applyRangeButton, loading && styles.disabled]}>
             <Text style={styles.applyRangeButtonText}>Apply dates</Text>
           </Pressable>
@@ -382,8 +395,32 @@ function AnalyticsPanel({
           </View>
         </>
       ) : loading ? <Text style={styles.analyticsLoading}>Generating sanitized analytics...</Text> : null}
+
+      <DateTimePickerSheet
+        minimumDate={datePicker === "end" ? parseLocalDate(startDate) : undefined}
+        mode="date"
+        onClose={() => setDatePicker(undefined)}
+        onConfirm={(value) => {
+          const formatted = formatLocalDate(value);
+          if (datePicker === "start") {
+            onStartDateChange(formatted);
+            const currentEnd = parseLocalDate(endDate);
+            if (!currentEnd || value > currentEnd) onEndDateChange(formatted);
+          } else {
+            onEndDateChange(formatted);
+          }
+        }}
+        title={datePicker === "start" ? "Choose start date" : "Choose end date"}
+        value={parseLocalDate(datePicker === "start" ? startDate : endDate)}
+        visible={datePicker !== undefined}
+      />
     </View>
   );
+}
+
+function formatAnalyticsDate(value: string) {
+  const parsed = parseLocalDate(value);
+  return parsed ? formatFriendlyDate(parsed, "date") : "Choose date";
 }
 
 function MetricGroup({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
@@ -441,7 +478,9 @@ const styles = StyleSheet.create({
   filterButtonText: { color: colors.text, fontSize: 12, fontWeight: "800" },
   filterButtonTextActive: { color: colors.white },
   customRangeRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  dateInput: { minHeight: 42, minWidth: 140, flexGrow: 1, borderRadius: 9, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, backgroundColor: colors.card, color: colors.text },
+  dateInput: { minHeight: 52, minWidth: 150, flexGrow: 1, borderRadius: 9, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: colors.card, justifyContent: "center" },
+  dateInputLabel: { color: colors.muted, fontSize: 10, lineHeight: 13, fontWeight: "800", textTransform: "uppercase" },
+  dateInputValue: { color: colors.text, fontSize: 13, lineHeight: 18, fontWeight: "900" },
   applyRangeButton: { minHeight: 42, borderRadius: 9, paddingHorizontal: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.primary },
   applyRangeButtonText: { color: colors.white, fontSize: 12, fontWeight: "900" },
   analyticsUnavailable: { padding: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.warning, backgroundColor: colors.warningLight, gap: 4 },
