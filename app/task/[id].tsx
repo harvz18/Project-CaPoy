@@ -4,7 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBadge } from "../../src/components/StatusBadge";
 import { useApp } from "../../src/context/AppContext";
-import { rankTaskMatches, scoreWorkerForTask, summarizeScoreBreakdown } from "../../src/domain/matching";
+import { rankTaskMatches, summarizeScoreBreakdown } from "../../src/domain/matching";
 import { formatTaskDuration, formatTaskPrice, formatTaskSchedule } from "../../src/domain/taskMarketplace";
 import { TaskMatch } from "../../src/types";
 import { formatDistance } from "../../src/utils/location";
@@ -72,7 +72,6 @@ export default function TaskDetailsScreen() {
     ? employerScores.reduce((total, score) => total + score, 0) / employerScores.length
     : employer?.rating;
   const hasApplied = Boolean(currentUser?.id && task.applicantIds?.includes(currentUser.id));
-  const workerMatch = currentUser?.role === "worker" ? scoreWorkerForTask(task, currentUser) : undefined;
 
   async function handleWorkerAccept() {
     const taskId = task?.id;
@@ -261,29 +260,18 @@ export default function TaskDetailsScreen() {
                 </Pressable>
               ) : (
                 <View style={styles.applyBox}>
-                  {workerMatch?.eligible ? (
-                    <>
-                      {task.pricingMode === "bidding" ? <TextInput
-                        accessibilityLabel="Proposed amount"
-                        keyboardType="numeric"
-                        onChangeText={setProposedAmount}
-                        placeholder="Your proposed amount (₱)"
-                        placeholderTextColor={palette.outline}
-                        style={styles.bidInput}
-                        value={proposedAmount}
-                      /> : null}
-                      <Pressable style={styles.primaryButtonLarge} onPress={handleWorkerAccept}>
-                        <Text style={styles.primaryButtonText}>{task.pricingMode === "bidding" ? "Submit Bid" : "Apply"}</Text>
-                      </Pressable>
-                    </>
-                  ) : (
-                    <>
-                      <Text style={styles.errorText}>{workerMatch?.reasons.slice(0, 3).join(" ") ?? "Complete your tasker profile before applying."}</Text>
-                      <Pressable style={styles.primaryButtonLarge} onPress={() => router.push("/profile")}>
-                        <Text style={styles.primaryButtonText}>Update Tasker Profile</Text>
-                      </Pressable>
-                    </>
-                  )}
+                  {task.pricingMode === "bidding" ? <TextInput
+                    accessibilityLabel="Proposed amount"
+                    keyboardType="numeric"
+                    onChangeText={setProposedAmount}
+                    placeholder="Your proposed amount (₱)"
+                    placeholderTextColor={palette.outline}
+                    style={styles.bidInput}
+                    value={proposedAmount}
+                  /> : null}
+                  <Pressable style={styles.primaryButtonLarge} onPress={handleWorkerAccept}>
+                    <Text style={styles.primaryButtonText}>{task.pricingMode === "bidding" ? "Submit Bid" : "Apply"}</Text>
+                  </Pressable>
                   {actionError ? <Text style={styles.errorText}>{actionError}</Text> : null}
                 </View>
               )

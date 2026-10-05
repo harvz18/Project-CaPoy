@@ -221,6 +221,89 @@ test("private profiles are owner-only while public profiles are authenticated-re
   assert.equal(publicSnapshot.data().address, undefined);
 });
 
+test("worker dashboard startup queries are all authorized", async () => {
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
+    const now = "2026-01-01T00:00:00.000Z";
+    await Promise.all([
+      setDoc(doc(db, "tasks", "open-task"), taskData()),
+      setDoc(doc(db, "tasks", "applied-task"), taskData({
+        status: "Applied",
+        applicantIds: [WORKER_ID]
+      })),
+      setDoc(doc(db, "tasks", "assigned-task"), taskData({
+        status: "Accepted",
+        applicantIds: [WORKER_ID],
+        workerId: WORKER_ID
+      })),
+      setDoc(doc(db, "taskMatches", "applied-task_worker-1"), {
+        id: "applied-task_worker-1",
+        taskId: "applied-task",
+        clientId: CLIENT_ID,
+        workerId: WORKER_ID,
+        acceptanceStatus: "Applied",
+        createdAt: now,
+        updatedAt: now
+      }),
+      setDoc(doc(db, "messages", "message-1"), {
+        taskId: "applied-task",
+        senderId: CLIENT_ID,
+        receiverId: WORKER_ID,
+        text: "Hello",
+        timestamp: now
+      }),
+      setDoc(doc(db, "ratings", "rating-1"), {
+        taskId: "finished-task",
+        reviewerId: CLIENT_ID,
+        targetUserId: WORKER_ID,
+        score: 5,
+        comment: "Great work",
+        createdAt: now
+      }),
+      setDoc(doc(db, "notifications", "notification-1"), {
+        userId: WORKER_ID,
+        taskId: "applied-task",
+        createdBy: CLIENT_ID,
+        notificationType: "Application update",
+        message: "Application received",
+        readStatus: false,
+        createdAt: now
+      }),
+      setDoc(doc(db, "notificationPreferences", WORKER_ID), {
+        userId: WORKER_ID,
+        pushEnabled: true,
+        updatedAt: now
+      })
+    ]);
+  });
+
+  const workerDb = dbFor(WORKER_ID);
+  const startupReads = [
+    ["private profile", () => getDoc(doc(workerDb, "users", WORKER_ID))],
+    ["public profiles", () => getDocs(collection(workerDb, "publicProfiles"))],
+    ["open tasks", () => getDocs(query(collection(workerDb, "tasks"), where("status", "in", ["Finding Workers", "Applied"])))],
+    ["applied tasks", () => getDocs(query(collection(workerDb, "tasks"), where("applicantIds", "array-contains", WORKER_ID)))],
+    ["assigned tasks", () => getDocs(query(collection(workerDb, "tasks"), where("workerId", "==", WORKER_ID)))],
+    ["task matches", () => getDocs(query(collection(workerDb, "taskMatches"), where("workerId", "==", WORKER_ID)))],
+    ["messages", () => getDocs(query(
+      collection(workerDb, "messages"),
+      or(where("senderId", "==", WORKER_ID), where("receiverId", "==", WORKER_ID)),
+      orderBy("timestamp", "desc"),
+      limit(100)
+    ))],
+    ["ratings", () => getDocs(query(collection(workerDb, "ratings"), orderBy("createdAt", "desc")))],
+    ["notifications", () => getDocs(query(collection(workerDb, "notifications"), where("userId", "==", WORKER_ID)))],
+    ["notification preferences", () => getDoc(doc(workerDb, "notificationPreferences", WORKER_ID))]
+  ];
+
+  for (const [label, startupRead] of startupReads) {
+    await assert.doesNotReject(
+      () => assertSucceeds(startupRead()),
+      `Expected the ${label} startup read to be authorized.`
+    );
+  }
+});
+
 test("account status cannot be self-changed and suspended accounts lose application access", async () => {
   const workerDb = dbFor(WORKER_ID);
   const suspendedDb = dbFor(SUSPENDED_ID);
@@ -670,7 +753,7 @@ test("a worker can apply atomically but cannot assign themselves", async () => {
   );
 });
 
-test("application capability checks reject an incomplete tasker profile and allow a qualified one", async () => {
+test("beta applications remain open when a tasker is not a recommended capability match", async () => {
   await testEnvironment.withSecurityRulesDisabled(async (context) => {
     const db = context.firestore();
     await Promise.all([
@@ -704,10 +787,6 @@ test("application capability checks reject an incomplete tasker profile and allo
     return batch.commit();
   };
 
-  await assertFails(apply());
-  await testEnvironment.withSecurityRulesDisabled(async (context) => {
-    await updateDoc(doc(context.firestore(), "users", WORKER_ID), { capabilities: ["Laundry"] });
-  });
   await assertSucceeds(apply());
 });
 

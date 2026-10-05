@@ -52,17 +52,17 @@ service cloud.firestore {
     }
 
     function isTaskClient(taskData) {
-      return hasEnabledAccount() && taskData.clientId == request.auth.uid;
+      return hasEnabledAccount() && taskData.get('clientId', '') == request.auth.uid;
     }
 
     function isTaskWorker(taskData) {
-      return hasEnabledAccount() && 'workerId' in taskData && taskData.workerId == request.auth.uid;
+      return hasEnabledAccount() && taskData.get('workerId', '') == request.auth.uid;
     }
 
     function isTaskApplicant(taskData) {
       return hasEnabledAccount()
-        && taskData.applicantIds is list
-        && request.auth.uid in taskData.applicantIds;
+        && taskData.get('applicantIds', []) is list
+        && request.auth.uid in taskData.get('applicantIds', []);
     }
 
     function isTaskParticipant(taskData) {
@@ -88,7 +88,7 @@ service cloud.firestore {
     }
 
     function isOpenTask(taskData) {
-      return taskData.status in ['Finding Workers', 'Applied'];
+      return taskData.get('status', '') in ['Finding Workers', 'Applied'];
     }
 
     function applicationApplicantIds(taskData) {
@@ -417,13 +417,6 @@ service cloud.firestore {
     function validApplicationUpdate(taskId) {
       return hasRole('worker')
         && resource.data.clientId != request.auth.uid
-        && (
-          !('requiredCapability' in resource.data)
-          || (currentUser().get('capabilities', []) is list
-            && currentUser().get('capabilities', []).hasAny([resource.data.requiredCapability]))
-          || (currentUser().get('skills', []) is list
-            && currentUser().get('skills', []).hasAny([resource.data.requiredCapability]))
-        )
         && isOpenTask(resource.data)
         && hasNoAssignedWorker(resource.data)
         && hasNoAssignedWorker(request.resource.data)
@@ -711,7 +704,11 @@ service cloud.firestore {
     }
 
     match /tasks/{taskId} {
-      allow read: if isAdmin() || (hasEnabledAccount() && (isOpenTask(resource.data) || isTaskParticipant(resource.data)));
+      allow read: if isAdmin();
+      allow read: if hasEnabledAccount() && resource.data.status in ['Finding Workers', 'Applied'];
+      allow read: if hasEnabledAccount() && resource.data.clientId == request.auth.uid;
+      allow read: if hasEnabledAccount() && resource.data.workerId == request.auth.uid;
+      allow read: if hasEnabledAccount() && request.auth.uid in resource.data.applicantIds;
       allow create: if hasRole('client')
         && request.resource.data.clientId == request.auth.uid
         && request.resource.data.status == 'Finding Workers'
@@ -772,13 +769,6 @@ service cloud.firestore {
         && hasRole('worker')
         && request.resource.data.workerId == request.auth.uid
         && task(request.resource.data.taskId).clientId != request.auth.uid
-        && (
-          !('requiredCapability' in task(request.resource.data.taskId))
-          || (currentUser().get('capabilities', []) is list
-            && currentUser().get('capabilities', []).hasAny([task(request.resource.data.taskId).requiredCapability]))
-          || (currentUser().get('skills', []) is list
-            && currentUser().get('skills', []).hasAny([task(request.resource.data.taskId).requiredCapability]))
-        )
         && isOpenTask(task(request.resource.data.taskId))
         && hasNoAssignedWorker(task(request.resource.data.taskId))
         && (

@@ -179,11 +179,7 @@ export default function JobsScreen() {
                 employerName={getUserById(task.clientId)?.fullName ?? "TaskLink employer"}
                 match={match}
                 onOpen={() => router.push(`/task/${task.id}`)}
-                onQuickAccept={() => !match.eligible
-                  ? router.push("/profile")
-                  : task.pricingMode === "bidding"
-                    ? router.push(`/task/${task.id}`)
-                    : handleQuickApply(task)}
+                onQuickAccept={() => task.pricingMode === "bidding" ? router.push(`/task/${task.id}`) : handleQuickApply(task)}
                 applying={actionLoading}
                 hasApplied={task.applicantIds?.includes(currentUser?.id ?? "") ?? false}
               />
@@ -234,7 +230,7 @@ function JobCard({
       {task.perks?.length ? <Text style={styles.perksText}>Perks: {task.perks.slice(0, 2).join(" · ")}</Text> : null}
       <View style={styles.matchRow}>
         <Text style={[styles.matchChip, match.eligible ? styles.matchChipGood : styles.matchChipWarn]}>
-          {match.eligible ? `${match.score}% match` : "Profile update needed"}
+          {match.eligible ? `${match.score}% match` : "Open to apply"}
         </Text>
         <Text style={styles.matchChip}>{match.reasons.slice(0, 2).join(" · ") || "Smart-match details unavailable."}</Text>
       </View>
@@ -247,15 +243,7 @@ function JobCard({
           <Text style={styles.detailsButtonText}>Details</Text>
         </Pressable>
         <Pressable accessibilityRole="button" disabled={applying || hasApplied} onPress={onQuickAccept} style={[styles.quickButton, (applying || hasApplied) && styles.quickButtonDisabled]}>
-          <Text style={styles.quickButtonText}>{hasApplied
-            ? "Applied"
-            : applying
-              ? "Applying..."
-              : !match.eligible
-                ? "Update Profile"
-                : task.pricingMode === "bidding"
-                  ? "Enter Bid"
-                  : "Quick Apply"}</Text>
+          <Text style={styles.quickButtonText}>{hasApplied ? "Applied" : applying ? "Applying..." : task.pricingMode === "bidding" ? "Enter Bid" : "Quick Apply"}</Text>
         </Pressable>
       </View>
     </Pressable>
