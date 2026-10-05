@@ -4,7 +4,7 @@ TASKLINK is an Expo/React Native application that connects clients posting short
 
 ## Current release target
 
-The active no-cost demo target is the web build published through Expo static export and a connected Render Static Site. It uses:
+The active no-cost demo target is the web build published through Expo static export and Firebase Hosting. It uses:
 
 - Firebase Authentication
 - Cloud Firestore
@@ -69,7 +69,7 @@ Run `npm run test:rules:emulator` before deploying rules to a real project. The 
 
 As of October 5, 2026:
 
-- The no-cost web demo is released from GitHub's `tasklink` branch. The connected Render Static Site rebuilds from that branch.
+- The no-cost web demo is published at [tasklink-fb027.web.app](https://tasklink-fb027.web.app) from the verified `tasklink` branch source.
 - The reviewed Firestore rules and indexes are released to `tasklink-fb027`.
 - Posting, applying, hiring, rejecting, withdrawing, chatting, starting, payment confirmation, completion approval, cancellation, ratings, and account-mode switching run directly against authenticated Firestore transactions.
 - A tasker can apply to multiple open tasks but can hold only one confirmed assignment at a time. Finishing or cancelling it releases the tasker for another assignment.
