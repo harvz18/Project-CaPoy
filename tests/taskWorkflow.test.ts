@@ -132,6 +132,14 @@ test("requires verified payment before completion", () => {
 
 test("application policy is task-specific and requires a bid only for bidding tasks", () => {
   assert.doesNotThrow(() => assertCanApply(task("Finding Workers", { applicantIds: [] }), WORKER));
+  assert.throws(
+    () => assertCanApply(task("Finding Workers", { applicantIds: [], requiredCapability: "Laundry" }), WORKER),
+    /required capability: Laundry/
+  );
+  assert.doesNotThrow(() => assertCanApply(
+    task("Finding Workers", { applicantIds: [], requiredCapability: "Laundry" }),
+    { ...WORKER, capabilities: ["Laundry"] }
+  ));
   assert.doesNotThrow(() => assertCanApply(task("Finding Workers", { applicantIds: [], pricingMode: "bidding" }), WORKER, "750"));
   assert.throws(() => assertCanApply(task("Finding Workers", { applicantIds: [], pricingMode: "bidding" }), WORKER));
   assert.throws(() => assertCanApply(task("Finding Workers", { applicantIds: [] }), CLIENT));

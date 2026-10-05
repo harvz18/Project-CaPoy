@@ -178,7 +178,11 @@ export default function WorkerDashboardScreen() {
                 task={task}
                 match={match}
                 onOpen={() => router.push(`/task/${task.id}`)}
-                onQuickAccept={() => handleQuickApply(task)}
+                onQuickAccept={() => !match.eligible
+                  ? router.push("/profile")
+                  : task.pricingMode === "bidding"
+                    ? router.push(`/task/${task.id}`)
+                    : handleQuickApply(task)}
                 applying={actionLoading}
                 hasApplied={task.applicantIds?.includes(currentUser?.id ?? "") ?? false}
               />
@@ -248,7 +252,15 @@ function WorkerJobCard({
           <Text style={styles.detailsButtonText}>Details</Text>
         </Pressable>
         <Pressable accessibilityRole="button" disabled={applying || hasApplied} onPress={onQuickAccept} style={({ pressed }) => [styles.quickButton, (applying || hasApplied) && styles.disabled, pressed && styles.pressed]}>
-          <Text style={styles.quickButtonText}>{hasApplied ? "Applied" : applying ? "Applying..." : "Quick Apply"}</Text>
+          <Text style={styles.quickButtonText}>{hasApplied
+            ? "Applied"
+            : applying
+              ? "Applying..."
+              : !match.eligible
+                ? "Update Profile"
+                : task.pricingMode === "bidding"
+                  ? "Enter Bid"
+                  : "Quick Apply"}</Text>
         </Pressable>
       </View>
     </View>

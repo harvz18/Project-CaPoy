@@ -670,6 +670,47 @@ test("a worker can apply atomically but cannot assign themselves", async () => {
   );
 });
 
+test("application capability checks reject an incomplete tasker profile and allow a qualified one", async () => {
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
+    await Promise.all([
+      setDoc(doc(db, "tasks", TASK_ID), taskData({ requiredCapability: "Laundry" })),
+      updateDoc(doc(db, "users", WORKER_ID), { capabilities: [], skills: [] })
+    ]);
+  });
+
+  const workerDb = dbFor(WORKER_ID);
+  const matchId = `${TASK_ID}_${WORKER_ID}`;
+  const now = "2026-01-01T00:01:00.000Z";
+  const apply = () => {
+    const batch = writeBatch(workerDb);
+    batch.update(doc(workerDb, "tasks", TASK_ID), {
+      applicantIds: [WORKER_ID],
+      status: "Applied",
+      lastApplicationWorkerId: WORKER_ID,
+      lastApplicationMatchId: matchId,
+      lastApplicationAction: "Applied",
+      updatedAt: now
+    });
+    batch.set(doc(workerDb, "taskMatches", matchId), {
+      id: matchId,
+      taskId: TASK_ID,
+      clientId: CLIENT_ID,
+      workerId: WORKER_ID,
+      acceptanceStatus: "Applied",
+      createdAt: now,
+      updatedAt: now
+    });
+    return batch.commit();
+  };
+
+  await assertFails(apply());
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), "users", WORKER_ID), { capabilities: ["Laundry"] });
+  });
+  await assertSucceeds(apply());
+});
+
 test("a pending-verification worker can apply to a legacy open task with null workflow fields", async () => {
   await testEnvironment.withSecurityRulesDisabled(async (context) => {
     const legacyTask = taskData({ applicantIds: null, workerId: null });

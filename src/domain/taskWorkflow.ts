@@ -82,7 +82,7 @@ export function assertCanApply(task: Task, actor: TaskActor, proposedAmount?: st
     throw new Error("You cannot apply to your own task.");
   }
   const capabilities = [...(actor.capabilities ?? []), ...(actor.skills ?? [])];
-  if (task.requiredCapability && capabilities.length && !capabilities.includes(task.requiredCapability)) {
+  if (task.requiredCapability && !capabilities.includes(task.requiredCapability)) {
     throw new Error(`Your profile does not include the required capability: ${task.requiredCapability}.`);
   }
   if (task.workerId || (task.status !== "Finding Workers" && task.status !== "Applied")) {
