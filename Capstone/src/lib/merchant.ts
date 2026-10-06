@@ -2,6 +2,7 @@ import { supabase, supabaseConfig } from './supabase'
 import type { CateringServiceType } from './catalog'
 import {
   categoryDetailsForStorage,
+  getCateringPricingOptions,
   isLegacyCategoryDetails,
   normalizeCategoryDetails,
   type ServiceCategoryDetails,
@@ -273,6 +274,10 @@ const findCategoryId = async (categoryName: string) => {
 
 const amountFromListing = (value: ServiceListingReviewValue) => {
   if (value.pricing.model === 'customQuote') return null
+  const cateringOptions = getCateringPricingOptions(value.information.categoryDetails)
+  if (cateringOptions.length > 0) {
+    return Math.min(...cateringOptions.map((option) => option.pricePerHead))
+  }
   return value.pricing.amount ?? 0
 }
 
@@ -1162,7 +1167,7 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
   const { data, error } = await context.client
     .from('bookings')
     .select(
-      'id, event_id, service_id, amount, provider_amount, status, requested_date, requested_time, client_notes, created_at, profiles(full_name, email), events(name, event_type, event_date, event_time, guest_count, venue, location), services(name, description, service_categories(name)), service_packages(name, description, inclusions), payments!inner(status)'
+      'id, event_id, service_id, amount, provider_amount, status, requested_date, requested_time, client_notes, catering_option_name, catering_option_snapshot, created_at, profiles(full_name, email), events(name, event_type, event_date, event_time, guest_count, venue, location), services(name, description, service_categories(name)), service_packages(name, description, inclusions), payments!inner(status)'
     )
     .eq('provider_id', context.providerId)
     .neq('status', 'payment_required')
@@ -1231,6 +1236,7 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
       budgetPerHead: bookingDetails?.budget_per_head == null
         ? undefined
         : numberFrom(bookingDetails.budget_per_head),
+      cateringOptionName: textFrom(record.catering_option_name) || undefined,
       clientEmail: textFrom(profile?.email),
       clientNotes: textFrom(record.client_notes),
       dietaryNotes: textFrom(bookingDetails?.dietary_notes) || undefined,
@@ -1269,6 +1275,7 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
       amount: request.amount,
       attendeeCount: request.attendeeCount,
       budgetPerHead: request.budgetPerHead,
+      cateringOptionName: request.cateringOptionName,
       clientNotes: request.clientNotes,
       dietaryNotes: request.dietaryNotes,
       id: request.id,

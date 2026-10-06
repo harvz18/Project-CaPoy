@@ -97,6 +97,7 @@ const servicesFor = (request: MerchantBookingRequest): MerchantBookedService[] =
         amount: request.amount,
         attendeeCount: request.attendeeCount,
         budgetPerHead: request.budgetPerHead,
+        cateringOptionName: request.cateringOptionName,
         clientNotes: request.clientNotes,
         dietaryNotes: request.dietaryNotes,
         id: request.id,
@@ -122,6 +123,7 @@ const requestForService = (
   amount: service.amount,
   attendeeCount: service.attendeeCount,
   budgetPerHead: service.budgetPerHead,
+  cateringOptionName: service.cateringOptionName,
   clientNotes: service.clientNotes,
   dietaryNotes: service.dietaryNotes,
   id: service.id,
@@ -321,10 +323,16 @@ export const BookingRequestDetailsScreen: React.FC<BookingRequestDetailsScreenPr
                   </View>
                 ) : null}
 
-                {service.mealType || service.attendeeCount || service.budgetPerHead || service.outsideFood ? (
+                {service.mealType || service.attendeeCount || service.budgetPerHead || service.cateringOptionName ? (
                   <View style={styles.bookingDetailsCard}>
                     <Text style={styles.miniLabel}>CLIENT BOOKING DETAILS</Text>
                     <View style={styles.bookingDetailsGrid}>
+                      {service.cateringOptionName ? (
+                        <View style={styles.bookingDetailItem}>
+                          <MaterialIcons color={palette.primaryContainer} name="restaurant-menu" size={17} />
+                          <Text style={styles.bookingDetailText}>{service.cateringOptionName}</Text>
+                        </View>
+                      ) : null}
                       {service.mealType ? (
                         <View style={styles.bookingDetailItem}>
                           <MaterialIcons color={palette.primaryContainer} name="restaurant" size={17} />
@@ -343,14 +351,8 @@ export const BookingRequestDetailsScreen: React.FC<BookingRequestDetailsScreenPr
                         <View style={styles.bookingDetailItem}>
                           <MaterialIcons color={palette.primaryContainer} name="payments" size={17} />
                           <Text style={styles.bookingDetailText}>
-                            {formatPrice(service.budgetPerHead)} per head budget
+                            {formatPrice(service.budgetPerHead)} selected price per head
                           </Text>
-                        </View>
-                      ) : null}
-                      {service.outsideFood ? (
-                        <View style={styles.bookingDetailItem}>
-                          <MaterialIcons color={palette.primaryContainer} name="takeout-dining" size={17} />
-                          <Text style={styles.bookingDetailText}>Bringing outside food or drinks</Text>
                         </View>
                       ) : null}
                     </View>

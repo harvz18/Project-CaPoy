@@ -10,14 +10,19 @@ import {
   View,
 } from 'react-native'
 import { Text } from '../components/AppText'
-import type { CatalogService } from '../lib/catalog'
+import { formatPeso, type CatalogService } from '../lib/catalog'
+import { customerPriceFromProviderPrice } from '../lib/pricing'
+import { calculateCateringPrice } from '../lib/service-category-details'
 
 interface CoordinatorDetailsScreenProps {
   assigning?: boolean
+  eventGuestCount?: number
   isAssigned?: boolean
   mode?: 'explore' | 'planning'
   onBack?: () => void
   onSelectProvider?: () => void
+  onSelectPackage?: (packageId: string, cateringOptionChoices: Record<string, string>) => void
+  selectingPackageId?: string
   service?: CatalogService
 }
 
@@ -26,17 +31,23 @@ const initialsFrom = (name: string) =>
 
 export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> = ({
   assigning = false,
+  eventGuestCount = 0,
   isAssigned = false,
   mode = 'planning',
   onBack,
   onSelectProvider,
+  onSelectPackage,
+  selectingPackageId = '',
   service,
 }) => {
   const { width } = useWindowDimensions()
   const isWide = width >= 768
   const name = service?.name ?? 'Event Coordinator'
   const canAssign = mode === 'planning' && Boolean(service?.coordinatorUserId)
+  const isAvailable = service?.coordinatorAvailable !== false
   const reviews = service?.coordinatorReviews ?? []
+  const packages = service?.coordinatorPackages ?? []
+  const [cateringChoices, setCateringChoices] = React.useState<Record<string, string>>({})
   const averageRating = reviews.length
     ? reviews.reduce((total, review) => total + review.rating, 0) / reviews.length
     : 0
@@ -57,6 +68,7 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
           <Text style={styles.headerTitle}>Coordinator Profile</Text>
           <View style={styles.iconButton} />
         </View>
+
       </View>
 
       <ScrollView
@@ -87,8 +99,15 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
             </View>
             <Text style={styles.name}>{name}</Text>
             <Text style={styles.subtitle}>
-              Coordinates your event details, booked providers, schedules, and action items in one workspace.
+              {service?.description || 'Coordinates your event details, booked providers, schedules, and action items in one workspace.'}
             </Text>
+            <Text style={styles.fee}>{formatPeso(service?.minPrice ?? 0)} per event</Text>
+            {service?.coordinatorSpecializations?.length ? (
+              <Text style={styles.specializations}>{service.coordinatorSpecializations.join(' • ')}</Text>
+            ) : null}
+            {!isAvailable ? (
+              <Text style={styles.unavailable}>{service?.coordinatorUnavailableReason || 'Unavailable for your event schedule.'}</Text>
+            ) : null}
           </View>
         </View>
 
@@ -116,12 +135,96 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
           </View>
         </View>
 
+        <View style={styles.packagesSection}>
+          <View>
+            <Text style={styles.reviewsEyebrow}>CURATED RECOMMENDATIONS</Text>
+            <Text style={styles.reviewsTitle}>Coordinator packages</Text>
+            <Text style={styles.packageIntro}>Choose a package to add its current provider services to your plan, or book the coordinator only below.</Text>
+          </View>
+          {packages.length ? <View style={styles.packageList}>{packages.map((item) => {
+            const cateringItems = item.items.filter((packageItem) => packageItem.requiresCateringOption)
+            const packageChoices = Object.fromEntries(cateringItems.flatMap((packageItem) => {
+              const optionId = cateringChoices[`${item.id}:${packageItem.serviceId}`]
+              return optionId ? [[packageItem.serviceId, optionId]] : []
+            }))
+            const choicesComplete = cateringItems.every((packageItem) => {
+              const optionId = packageChoices[packageItem.serviceId]
+              const option = packageItem.cateringOptions.find((candidate) => candidate.id === optionId)
+              return option ? calculateCateringPrice(option, eventGuestCount).fitsGuestCount : false
+            })
+            const dynamicSubtotal = item.items.reduce((total, packageItem) => {
+              if (!packageItem.requiresCateringOption) return total + packageItem.estimatedAmount
+              const optionId = packageChoices[packageItem.serviceId]
+              const option = packageItem.cateringOptions.find((candidate) => candidate.id === optionId)
+              if (!option) return total
+              const calculation = calculateCateringPrice(option, eventGuestCount)
+              return total + customerPriceFromProviderPrice(calculation.providerSubtotal, packageItem.commissionRate)
+            }, 0)
+            const displayedSubtotal = cateringItems.length && choicesComplete
+              ? dynamicSubtotal
+              : item.serviceSubtotal
+            const packageCanBeSelected = item.isAvailable && choicesComplete
+            return <View key={item.id} style={styles.packageCard}>
+              <View style={styles.packageHeading}>
+                <View style={styles.profileCopy}>
+                  <Text style={styles.packageEvent}>{item.eventType.replace(/([A-Z])/g, ' $1').toUpperCase()}</Text>
+                  <Text style={styles.packageName}>{item.name}</Text>
+                </View>
+                <Text style={styles.packagePrice}>{formatPeso(displayedSubtotal)}</Text>
+              </View>
+              {item.description ? <Text style={styles.packageDescription}>{item.description}</Text> : null}
+              <View style={styles.packageItems}>{item.items.map((packageItem) => <View key={packageItem.serviceId}>
+                <View style={styles.packageItem}>
+                  <Text style={styles.packageItemCategory}>{packageItem.categoryName}</Text>
+                  <View style={styles.packageItemCopy}>
+                    <Text style={styles.packageItemName}>{packageItem.serviceName}</Text>
+                    <Text style={styles.packageItemProvider}>{packageItem.providerName}</Text>
+                  </View>
+                  <Text style={styles.packageItemPrice}>{formatPeso(packageItem.estimatedAmount)}</Text>
+                </View>
+                {packageItem.requiresCateringOption ? <View style={styles.cateringChoices}>
+                  <Text style={styles.cateringChoiceLabel}>Choose a menu for {eventGuestCount} guests</Text>
+                  {packageItem.cateringOptions.map((option) => {
+                    const calculation = calculateCateringPrice(option, eventGuestCount)
+                    const choiceKey = `${item.id}:${packageItem.serviceId}`
+                    const selected = cateringChoices[choiceKey] === option.id
+                    const amount = customerPriceFromProviderPrice(calculation.providerSubtotal, packageItem.commissionRate)
+                    return <Pressable
+                      key={option.id}
+                      disabled={!calculation.fitsGuestCount}
+                      onPress={() => setCateringChoices((current) => ({ ...current, [choiceKey]: option.id }))}
+                      style={[styles.cateringChoice, selected && styles.cateringChoiceSelected, !calculation.fitsGuestCount && styles.cateringChoiceDisabled]}
+                    >
+                      <MaterialCommunityIcons color={selected ? palette.primaryContainer : palette.muted} name={selected ? 'radiobox-marked' : 'radiobox-blank'} size={18} />
+                      <View style={styles.packageItemCopy}><Text style={styles.cateringChoiceName}>{option.name}</Text><Text style={styles.packageItemProvider}>{formatPeso(customerPriceFromProviderPrice(option.pricePerHead, packageItem.commissionRate))}/head · {option.minimumGuests}-{option.maximumGuests} guests</Text></View>
+                      <Text style={styles.packageItemPrice}>{formatPeso(amount)}</Text>
+                      {!calculation.fitsGuestCount ? <Text style={styles.cateringChoiceError}>{calculation.reason}</Text> : null}
+                    </Pressable>
+                  })}
+                </View> : null}
+              </View>)}</View>
+              <View style={styles.packageTotal}><Text style={styles.packageTotalLabel}>Coordinator + services</Text><Text style={styles.packageTotalValue}>{formatPeso((service?.minPrice ?? 0) + displayedSubtotal)}</Text></View>
+              {!item.isAvailable ? <Text style={styles.unavailable}>{item.unavailableReason}</Text> : null}
+              {item.isAvailable && cateringItems.length > 0 && !choicesComplete ? <Text style={styles.unavailable}>Choose one compatible option for every catering service.</Text> : null}
+              {mode === 'planning' ? <Pressable
+                accessibilityRole="button"
+                disabled={!isAvailable || !packageCanBeSelected || Boolean(selectingPackageId)}
+                onPress={() => onSelectPackage?.(item.id, packageChoices)}
+                style={[styles.packageButton, (!isAvailable || !packageCanBeSelected || Boolean(selectingPackageId)) && styles.assignButtonDisabled]}
+              >
+                {selectingPackageId === item.id ? <ActivityIndicator color="#FFFFFF" size="small" /> : <MaterialCommunityIcons color="#FFFFFF" name="package-variant-closed-plus" size={19} />}
+                <Text style={styles.assignButtonText}>{selectingPackageId === item.id ? 'Selecting package...' : 'Choose coordinator package'}</Text>
+              </Pressable> : null}
+            </View>
+          })}</View> : <View style={styles.emptyReviews}><MaterialCommunityIcons color={palette.muted} name="package-variant" size={27} /><Text style={styles.emptyReviewsTitle}>No active packages</Text><Text style={styles.emptyReviewsCopy}>You can still book this coordinator without a package.</Text></View>}
+        </View>
+
         <View style={styles.privacyCard}>
           <MaterialCommunityIcons color={palette.success} name="shield-check-outline" size={22} />
           <View style={styles.privacyCopy}>
             <Text style={styles.privacyTitle}>Access is limited to this event</Text>
             <Text style={styles.privacyText}>
-              {name} receives an invitation first. Event, booking, and provider details are shared only after acceptance.
+              {name} receives a booking request first. Event, booking, and provider details are shared only after acceptance.
             </Text>
           </View>
         </View>
@@ -183,14 +286,14 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
       {canAssign ? (
         <View style={styles.actionBar}>
           <Pressable
-            accessibilityLabel={isAssigned ? `${name} has an invitation or assignment` : `Invite ${name} to this event`}
+            accessibilityLabel={isAssigned ? `${name} has a pending or accepted booking` : `Request ${name} for this event`}
             accessibilityRole="button"
-            accessibilityState={{ disabled: assigning || isAssigned }}
-            disabled={assigning || isAssigned}
+            accessibilityState={{ disabled: assigning || isAssigned || !isAvailable }}
+            disabled={assigning || isAssigned || !isAvailable}
             onPress={onSelectProvider}
             style={({ pressed }) => [
               styles.assignButton,
-              (assigning || isAssigned) && styles.assignButtonDisabled,
+              (assigning || isAssigned || !isAvailable) && styles.assignButtonDisabled,
               pressed && styles.assignButtonPressed,
             ]}
           >
@@ -202,7 +305,7 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
               />
             )}
             <Text style={styles.assignButtonText}>
-              {assigning ? 'Sending invitation...' : isAssigned ? 'Invitation sent or accepted' : 'Invite coordinator'}
+              {assigning ? 'Sending request...' : isAssigned ? 'Booking requested or accepted' : !isAvailable ? 'Unavailable for this schedule' : 'Book coordinator only'}
             </Text>
           </Pressable>
         </View>
@@ -243,6 +346,36 @@ const styles = StyleSheet.create({
   rolePillText: { color: palette.primaryContainer, fontSize: 10, fontWeight: '700', letterSpacing: 1.1 },
   name: { color: palette.text, fontSize: 29, fontWeight: '700', lineHeight: 36 },
   subtitle: { maxWidth: 700, color: palette.muted, fontSize: 15, lineHeight: 23 },
+  fee: { color: palette.primaryContainer, fontSize: 18, lineHeight: 25, fontWeight: '700' },
+  specializations: { color: palette.muted, fontSize: 12, lineHeight: 18 },
+  unavailable: { color: '#A12A35', fontSize: 12, lineHeight: 18, fontWeight: '700' },
+  packagesSection: { borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 22, gap: 15 },
+  packageIntro: { color: palette.muted, fontSize: 12, lineHeight: 18, marginTop: 5 },
+  packageList: { gap: 13 },
+  packageCard: { borderWidth: 1, borderColor: palette.border, borderRadius: 16, backgroundColor: palette.surface, padding: 17 },
+  packageHeading: { flexDirection: 'row', alignItems: 'flex-start', gap: 14 },
+  packageEvent: { color: palette.primaryContainer, fontSize: 9, fontWeight: '700', letterSpacing: 0.8 },
+  packageName: { color: palette.text, fontSize: 18, lineHeight: 24, fontWeight: '700' },
+  packagePrice: { color: palette.primaryContainer, fontSize: 15, lineHeight: 22, fontWeight: '700' },
+  packageDescription: { color: palette.muted, fontSize: 12, lineHeight: 18, marginTop: 8 },
+  packageItems: { borderTopWidth: 1, borderTopColor: palette.border, gap: 8, marginTop: 13, paddingTop: 12 },
+  packageItem: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  packageItemCategory: { width: 82, color: palette.primaryContainer, fontSize: 9, fontWeight: '700' },
+  packageItemCopy: { flex: 1, minWidth: 0 },
+  packageItemName: { color: palette.text, fontSize: 12, fontWeight: '700' },
+  packageItemProvider: { color: palette.muted, fontSize: 9, marginTop: 1 },
+  packageItemPrice: { color: palette.text, fontSize: 11, fontWeight: '600' },
+  cateringChoices: { gap: 7, marginLeft: 92, marginTop: 8 },
+  cateringChoiceLabel: { color: palette.primaryContainer, fontSize: 10, lineHeight: 15, fontWeight: '700' },
+  cateringChoice: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: palette.border, borderRadius: 10, padding: 10 },
+  cateringChoiceSelected: { borderColor: palette.primaryContainer, backgroundColor: palette.surfaceTint },
+  cateringChoiceDisabled: { opacity: 0.55 },
+  cateringChoiceName: { color: palette.text, fontSize: 11, lineHeight: 16, fontWeight: '700' },
+  cateringChoiceError: { width: '100%', color: '#A12A35', fontSize: 9, lineHeight: 14, marginLeft: 26 },
+  packageTotal: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 10, backgroundColor: palette.surfaceTint, padding: 12, marginTop: 13 },
+  packageTotalLabel: { color: palette.muted, fontSize: 10, fontWeight: '700' },
+  packageTotalValue: { color: palette.primaryContainer, fontSize: 14, fontWeight: '700' },
+  packageButton: { minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 12, backgroundColor: palette.primaryContainer, marginTop: 12 },
   detailsGrid: { gap: 14 },
   detailsGridWide: { flexDirection: 'row' },
   detailCard: { flex: 1, minHeight: 170, borderRadius: 18, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface, padding: 20, gap: 10 },

@@ -40,7 +40,9 @@ interface CoordinatorScreenProps {
   onCreateTask?: (input: CreateCoordinatorTaskInput) => Promise<CoordinatorResult>
   onMessageProvider?: (event: CoordinatorEvent, service: CoordinatorBookedService) => void
   onOpenNotifications?: () => void
+  onOpenPackages?: () => void
   onOpenProfile?: () => void
+  onOpenServiceProfile?: () => void
   onRefresh?: () => void
   onRespondInvitation?: (invitation: CoordinatorInvitation, accepted: boolean) => void
   onSignOut?: () => void
@@ -390,9 +392,9 @@ const InvitationCard: React.FC<{
         <MaterialIcons color={palette.primaryContainer} name="mark-email-unread" size={21} />
       </View>
       <View style={styles.invitationCopy}>
-        <Text style={styles.invitationEyebrow}>EVENT COORDINATION INVITATION</Text>
+        <Text style={styles.invitationEyebrow}>COORDINATOR BOOKING REQUEST</Text>
         <Text style={styles.invitationTitle}>{invitation.eventName}</Text>
-        <Text style={styles.invitationClient}>Invited by {invitation.clientName}</Text>
+        <Text style={styles.invitationClient}>Requested by {invitation.clientName}</Text>
       </View>
     </View>
     <View style={styles.invitationMeta}>
@@ -403,6 +405,9 @@ const InvitationCard: React.FC<{
       {invitation.guestCount ? (
         <Text style={styles.invitationMetaText}>{invitation.guestCount} guests</Text>
       ) : null}
+      <Text style={styles.invitationMetaText}>
+        {invitation.currency} {invitation.coordinationFee.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+      </Text>
     </View>
     <Text style={styles.invitationNotice}>
       Accept to unlock the booked services, client instructions, tasks, and provider conversations for this event.
@@ -425,7 +430,7 @@ const InvitationCard: React.FC<{
         {busy ? <ActivityIndicator color="#FFFFFF" size="small" /> : (
           <MaterialIcons color="#FFFFFF" name="check" size={17} />
         )}
-        <Text style={styles.acceptButtonText}>{busy ? 'Responding...' : 'Accept assignment'}</Text>
+        <Text style={styles.acceptButtonText}>{busy ? 'Responding...' : 'Accept booking'}</Text>
       </Pressable>
     </View>
   </View>
@@ -510,7 +515,9 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
   onCreateTask,
   onMessageProvider,
   onOpenNotifications,
+  onOpenPackages,
   onOpenProfile,
+  onOpenServiceProfile,
   onRefresh,
   onRespondInvitation,
   onSignOut,
@@ -647,6 +654,22 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
             </View>
           </View>
           <View style={styles.headerActions}>
+            <Pressable
+              accessibilityLabel="Manage coordinator packages"
+              accessibilityRole="button"
+              onPress={onOpenPackages}
+              style={({ pressed }) => [styles.iconButton, pressed && styles.pressedSurface]}
+            >
+              <MaterialIcons color={palette.primary} name="inventory-2" size={21} />
+            </Pressable>
+            <Pressable
+              accessibilityLabel="Open coordinator service profile"
+              accessibilityRole="button"
+              onPress={onOpenServiceProfile}
+              style={({ pressed }) => [styles.iconButton, pressed && styles.pressedSurface]}
+            >
+              <MaterialIcons color={palette.primary} name="storefront" size={22} />
+            </Pressable>
             <Pressable
               accessibilityLabel="Open notifications"
               accessibilityRole="button"
@@ -875,7 +898,7 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
             <View style={styles.sectionHeader}>
               <View>
                 <Text style={styles.sectionEyebrow}>AWAITING YOUR RESPONSE</Text>
-                <Text style={styles.sectionTitle}>Event invitations</Text>
+                <Text style={styles.sectionTitle}>Booking requests</Text>
               </View>
               <Text style={styles.sectionCount}>{dashboard.invitations.length} pending</Text>
             </View>
@@ -905,12 +928,12 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
             </View>
             <Text style={styles.emptyTitle}>No accepted events yet</Text>
             <Text style={styles.emptyText}>
-              Client invitations appear above. Event schedules, booked services, instructions,
-              and tasks become available only after you accept an invitation.
+              Client booking requests appear above. Event schedules, booked services,
+              instructions, and tasks become available only after you accept a request.
             </Text>
             <Pressable onPress={onRefresh} style={({ pressed }) => [styles.refreshButton, pressed && styles.pressed]}>
               <MaterialIcons color={palette.primaryContainer} name="refresh" size={18} />
-              <Text style={styles.refreshButtonText}>Check assignments</Text>
+              <Text style={styles.refreshButtonText}>Check booking requests</Text>
             </Pressable>
           </View>
         ) : activeView === 'overview' ? (

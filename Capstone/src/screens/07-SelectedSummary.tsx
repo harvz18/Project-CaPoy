@@ -34,12 +34,14 @@ export interface AssignedCoordinatorSummary {
   avatarUrl: string
   id: string
   name: string
+  price: number
   status: 'accepted' | 'pending'
 }
 
 interface SelectedSummaryScreenProps {
   assignedCoordinator?: AssignedCoordinatorSummary
   coordinatorAssignmentStatus?: 'accepted' | 'pending' | 'awaiting_assignment'
+  coordinatorPackage?: { id: string; name: string; serviceSubtotal: number }
   budget?: number
   removingServiceId?: string
   selectedServices?: SelectedSummaryService[]
@@ -48,6 +50,7 @@ interface SelectedSummaryScreenProps {
   onAddService?: () => void
   onBack?: () => void
   onOpenMenu?: () => void
+  onRemoveCoordinator?: () => void
   onRemoveService?: (service: SelectedSummaryService) => void
   onSelectService?: (service: SelectedServiceId) => void
   onSelectTab?: (tab: SelectedSummaryTab) => void
@@ -59,6 +62,7 @@ const formatCurrency = (value: number) =>
 export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
   assignedCoordinator,
   coordinatorAssignmentStatus,
+  coordinatorPackage,
   budget = 40000,
   removingServiceId = '',
   selectedServices = [],
@@ -67,6 +71,7 @@ export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
   onAddService,
   onBack,
   onOpenMenu,
+  onRemoveCoordinator,
   onRemoveService,
   onSelectService,
   onSelectTab,
@@ -153,16 +158,31 @@ export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
             <View style={styles.coordinatorCopy}>
               <Text style={styles.coordinatorEyebrow}>
                 {assignedCoordinator.status === 'pending'
-                  ? 'COORDINATOR INVITATION PENDING'
-                  : 'ASSIGNED EVENT COORDINATOR'}
+                  ? 'COORDINATOR BOOKING PENDING'
+                  : 'BOOKED EVENT COORDINATOR'}
               </Text>
               <Text style={styles.coordinatorName}>{assignedCoordinator.name}</Text>
+              <Text style={styles.coordinatorFee}>PHP {formatCurrency(assignedCoordinator.price)}</Text>
               <Text style={styles.coordinatorDetail}>
                 {assignedCoordinator.status === 'pending'
-                  ? 'Access begins only after the coordinator accepts your invitation.'
+                  ? 'Access begins only after the coordinator accepts your booking request.'
                   : 'Has access to this event, booked services, and your provider instructions.'}
               </Text>
+              {coordinatorPackage ? (
+                <View style={styles.coordinatorPackageBadge}>
+                  <MaterialCommunityIcons color={palette.primaryContainer} name="package-variant" size={14} />
+                  <Text style={styles.coordinatorPackageText}>{coordinatorPackage.name} · PHP {formatCurrency(coordinatorPackage.serviceSubtotal)}</Text>
+                </View>
+              ) : null}
             </View>
+            <Pressable
+              accessibilityLabel="Remove coordinator booking"
+              accessibilityRole="button"
+              onPress={onRemoveCoordinator}
+              style={({ pressed }) => [styles.coordinatorRemove, pressed && styles.removeButtonPressed]}
+            >
+              <MaterialCommunityIcons color={palette.primaryContainer} name="close" size={20} />
+            </Pressable>
           </View>
         ) : coordinatorAssignmentStatus === 'awaiting_assignment' ? (
           <View style={styles.coordinatorCard}>
@@ -170,10 +190,10 @@ export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
               <MaterialCommunityIcons color={palette.white} name="account-search" size={25} />
             </View>
             <View style={styles.coordinatorCopy}>
-              <Text style={styles.coordinatorEyebrow}>COORDINATOR ASSIGNMENT PENDING</Text>
-              <Text style={styles.coordinatorName}>MULTIVENT is finding your coordinator</Text>
+              <Text style={styles.coordinatorEyebrow}>LEGACY COORDINATOR STATUS</Text>
+              <Text style={styles.coordinatorName}>Choose a coordinator when you are ready</Text>
               <Text style={styles.coordinatorDetail}>
-                We are matching an available coordinator to your event. You will be notified when the assignment is confirmed.
+                Automatic matching is no longer used. Browse Event Organizers or continue without a coordinator.
               </Text>
             </View>
           </View>
@@ -337,7 +357,10 @@ const styles = StyleSheet.create({
   coordinatorCopy: { flex: 1, gap: 3 },
   coordinatorEyebrow: { color: palette.primaryContainer, fontSize: 9, fontWeight: '700', letterSpacing: 0.8 },
   coordinatorName: { color: palette.text, fontSize: 15, fontWeight: '700' },
+  coordinatorFee: { color: palette.primaryContainer, fontSize: 13, fontWeight: '700' },
   coordinatorDetail: { color: palette.secondary, fontSize: 11, lineHeight: 16 },
+  coordinatorPackageBadge: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 10, backgroundColor: '#F8EFF1', paddingHorizontal: 8, paddingVertical: 5, marginTop: 3 },
+  coordinatorPackageText: { color: palette.primaryContainer, fontSize: 9, lineHeight: 13, fontWeight: '700' },
   coordinatorRemove: {
     width: 36,
     height: 36,

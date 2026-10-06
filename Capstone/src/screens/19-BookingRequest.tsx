@@ -26,6 +26,7 @@ export interface MerchantBookedService {
   amount: number
   attendeeCount?: number
   budgetPerHead?: number
+  cateringOptionName?: string
   clientNotes?: string
   dietaryNotes?: string
   id: string
@@ -47,6 +48,7 @@ export interface MerchantBookingRequest {
   amount: number
   attendeeCount?: number
   budgetPerHead?: number
+  cateringOptionName?: string
   clientEmail?: string
   clientNotes?: string
   dietaryNotes?: string

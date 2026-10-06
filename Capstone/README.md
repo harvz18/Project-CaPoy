@@ -35,6 +35,18 @@ npm run lint
 Run the SQL files in `database/` in numeric order. For an existing project that already has
 the tables, apply `06_booking_system_security.sql` to enable the booking, messaging,
 notification, payment, review, availability, and row-level-security rules used by the app.
+Apply `53_coordinator_marketplace.sql` after migration 52 for the Revision 2 Phase 1 coordinator
+business model. It replaces automatic/staff assignment with optional client-selected paid booking
+requests while preserving existing coordinator history. See
+[`docs/PHASE_1_COORDINATOR_MARKETPLACE.md`](docs/PHASE_1_COORDINATOR_MARKETPLACE.md).
+Apply `54_coordinator_packages.sql` after migration 53 for Revision 2 Phase 2. Coordinators can
+curate real marketplace services into event-type packages without copying provider listings or
+bypassing provider booking decisions. See
+[`docs/PHASE_2_COORDINATOR_PACKAGES.md`](docs/PHASE_2_COORDINATOR_PACKAGES.md).
+Apply `55_catering_pricing_revision.sql` after migration 54 for Revision 2 Phase 3. Catering
+providers can publish multiple menu options with per-head prices and guest ranges; client and
+coordinator-package totals use the event guest count and preserve the chosen option in booking
+snapshots. See [`docs/PHASE_3_CATERING_PRICING.md`](docs/PHASE_3_CATERING_PRICING.md).
 Apply `07_service_listing_details.sql` so pricing models, pricing units, pricing notes, package
 units, and all uploaded service photos remain available on the client service-detail screen.
 For existing databases that used the `02_event_planning_flow_no_rls.sql` setup, also apply
@@ -73,9 +85,8 @@ publishing, expanded audit history, and provider-safe service deletion. Then app
 `23_service_revision_comparison.sql` so updated services preserve their last approved version for
 the admin/superadmin before-and-after review. Apply `24_provider_service_availability.sql` to give
 providers a separately confirmed Live / Not live control without changing moderation status.
-Apply `25_client_coordinator_assignment.sql` so clients can browse active coordinators under Event
-Organizer, assign or replace one on their event, and share that event's selected and booked services
-with the coordinator workspace.
+Migration 25 originally introduced client coordinator selection. Its assignment assumptions are
+superseded by migration 53, which requires a priced service profile and coordinator acceptance.
 Apply `26_catering_service_types.sql` so catering providers can declare whether they offer plated,
 buffet, and/or packed meals and clients can only select the configured booking options.
 Apply `27_client_booking_changes.sql` so clients can cancel active event bookings or request a new

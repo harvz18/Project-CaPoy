@@ -12,6 +12,7 @@ import type {
   EventType,
   VenueStatus,
 } from '../screens/04-EventCreation'
+import type { CateringPricingOption } from './service-category-details'
 
 type PlanningResult = {
   bookingId?: string
@@ -50,10 +51,10 @@ type EventDraftInput = {
 type ServiceSelectionInput = {
   attendeeCount: number
   budgetPerHead: number
+  cateringOption?: CateringPricingOption
   estimatedTotal: number
   mealType?: string
   notes: string
-  outsideFood: boolean
   service: CatalogService
 }
 
@@ -62,9 +63,16 @@ export type ClientPlanningState = {
     avatarUrl: string
     id: string
     name: string
+    price: number
     status: 'accepted' | 'pending'
   }
   coordinatorAssignmentStatus?: 'accepted' | 'pending' | 'awaiting_assignment'
+  coordinatorPreference?: 'undecided' | 'skipped' | 'selected'
+  coordinatorPackage?: {
+    id: string
+    name: string
+    serviceSubtotal: number
+  }
   event?: EventCreationValue
   draftSummary?: ClientEventDraftSummary
   lastPayment?: {
@@ -216,7 +224,7 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
   const { data: event } = await client
     .from('events')
     .select(
-      'id, coordinator_id, pending_coordinator_id, coordinator_assignment_status, name, event_type, event_date, event_time, guest_count, total_budget, venue_status, venue, location, status, updated_at'
+      'id, coordinator_id, pending_coordinator_id, coordinator_assignment_status, coordinator_preference, coordinator_fee_amount, name, event_type, event_date, event_time, guest_count, total_budget, venue_status, venue, location, status, updated_at'
     )
     .eq('client_id', userId)
     .neq('status', 'cancelled')
@@ -231,17 +239,22 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
       ? event.pending_coordinator_id
       : event.coordinator_id
   const { data: coordinatorRows } = visibleCoordinatorId
-    ? await client.rpc('list_available_event_coordinators')
+    ? await client.rpc('list_bookable_event_coordinators', { target_event_id: event.id })
     : { data: [] }
   const assignedCoordinatorRow = Array.isArray(coordinatorRows)
     ? coordinatorRows.find((row) => row?.id === visibleCoordinatorId)
     : undefined
 
-  const [{ data: selections }, { data: payments }, { data: scheduleChecks }] = await Promise.all([
+  const [
+    { data: selections },
+    { data: payments },
+    { data: scheduleChecks },
+    { data: coordinatorPackageRows },
+  ] = await Promise.all([
     client
       .from('event_service_selections')
       .select(
-        'id, service_id, service_name, category_name, estimated_amount, attendee_count, status, updated_at, selected_provider_snapshot, services(cover_image_url)'
+        'id, service_id, service_name, category_name, estimated_amount, attendee_count, catering_option_name, status, updated_at, selected_provider_snapshot, services(cover_image_url)'
       )
       .eq('event_id', event.id)
       .not('status', 'in', '(declined,cancelled)')
@@ -258,6 +271,11 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
       .select('id, status, checked_at, requested_start_at')
       .eq('event_id', event.id)
       .order('checked_at', { ascending: false })
+      .limit(1),
+    client
+      .from('event_coordinator_package_selections')
+      .select('package_id, package_name, service_subtotal')
+      .eq('event_id', event.id)
       .limit(1),
   ])
 
@@ -317,11 +335,23 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
   ]
 
   return {
+    coordinatorPackage: coordinatorPackageRows?.[0]
+      ? {
+          id: String(coordinatorPackageRows[0].package_id ?? ''),
+          name: String(coordinatorPackageRows[0].package_name ?? 'Coordinator package'),
+          serviceSubtotal: Number(coordinatorPackageRows[0].service_subtotal ?? 0),
+        }
+      : undefined,
     coordinatorAssignmentStatus: ['accepted', 'pending', 'awaiting_assignment'].includes(
       String(event.coordinator_assignment_status)
     )
       ? (event.coordinator_assignment_status as 'accepted' | 'pending' | 'awaiting_assignment')
       : undefined,
+    coordinatorPreference: ['undecided', 'skipped', 'selected'].includes(
+      String(event.coordinator_preference)
+    )
+      ? (event.coordinator_preference as 'undecided' | 'skipped' | 'selected')
+      : 'undecided',
     assignedCoordinator: assignedCoordinatorRow
       ? {
           avatarUrl:
@@ -333,6 +363,7 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
             typeof assignedCoordinatorRow.full_name === 'string'
               ? assignedCoordinatorRow.full_name
               : 'Event Coordinator',
+          price: Number(event.coordinator_fee_amount ?? 0),
           status:
             event.coordinator_assignment_status === 'pending' ? 'pending' : 'accepted',
         }
@@ -408,8 +439,10 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
         category: selection.category_name || 'SERVICE',
         commissionAmount: Number(snapshot.commissionAmount ?? 0),
         commissionRate: Number(snapshot.commissionRate ?? 0),
-        detail: selection.attendee_count
-          ? `${selection.attendee_count} Guests`
+        detail: selection.catering_option_name
+          ? `${selection.catering_option_name} · ${selection.attendee_count ?? 0} Guests`
+          : selection.attendee_count
+            ? `${selection.attendee_count} Guests`
           : selection.category_name || 'Service',
         id:
           typeof snapshot.mockServiceId === 'string'
@@ -695,7 +728,7 @@ export const savePlanningPayment = async (
         client
           .from('event_service_selections')
           .select(
-            'id, provider_id, service_id, package_id, estimated_amount, notes, service_name, status, selected_provider_snapshot, provider_profiles(user_id)'
+            'id, provider_id, service_id, package_id, estimated_amount, notes, service_name, status, selected_provider_snapshot, catering_option_id, catering_option_name, catering_option_snapshot, provider_profiles(user_id)'
           )
           .eq('event_id', event.eventId)
           .eq('client_id', event.userId)
@@ -760,6 +793,9 @@ export const savePlanningPayment = async (
 
       const bookingPayload = {
         amount,
+        catering_option_id: selection.catering_option_id,
+        catering_option_name: selection.catering_option_name,
+        catering_option_snapshot: selection.catering_option_snapshot,
         client_id: event.userId,
         client_notes: selection.notes,
         commission_amount: commissionAmount,
@@ -923,14 +959,66 @@ export const assignCoordinatorToEvent = async (
       return { ok: false, message: 'Choose an available event coordinator first.' }
     }
 
-    const { error } = await client.rpc('assign_event_coordinator', {
+    const { error } = await client.rpc('assign_event_coordinator_only', {
       target_coordinator_id: coordinator.coordinatorUserId,
       target_event_id: event.eventId,
     })
 
     return error
       ? { ok: false, message: error.message }
-      : { ok: true, message: `Invitation sent to ${coordinator.name}. They must accept before receiving event access.` }
+      : { ok: true, message: `Booking request sent to ${coordinator.name}. They must accept before receiving event access.` }
+  } catch (error) {
+    return { ok: false, message: toMessage(error) }
+  }
+}
+
+export const chooseCoordinatorPackage = async (
+  packageId: string,
+  cateringOptionChoices: Record<string, string> = {}
+): Promise<PlanningResult> => {
+  try {
+    const client = getClient()
+    const event = await ensureDraftEvent()
+    if (!client || !event || !isUuid(packageId)) {
+      return { ok: false, message: 'Choose an available coordinator package first.' }
+    }
+    const { error } = await client.rpc('choose_coordinator_package_with_options', {
+      catering_option_choices: cateringOptionChoices,
+      target_event_id: event.eventId,
+      target_package_id: packageId,
+    })
+    return error
+      ? {
+          ok: false,
+          message: error.message.toLowerCase().includes('choose_coordinator_package_with_options')
+            ? 'Catering-aware coordinator packages are not installed yet. Apply database/55_catering_pricing_revision.sql.'
+            : error.message,
+        }
+      : { ok: true, message: 'Coordinator package selected. Each provider will still review its own booking request.' }
+  } catch (error) {
+    return { ok: false, message: toMessage(error) }
+  }
+}
+
+export const setCoordinatorPreference = async (
+  preference: 'undecided' | 'skipped'
+): Promise<PlanningResult> => {
+  try {
+    const client = getClient()
+    const event = await ensureDraftEvent()
+
+    if (!client || !event) {
+      return { ok: false, message: 'Unable to load your event plan.' }
+    }
+
+    const { error } = await client.rpc('set_event_coordinator_preference', {
+      target_event_id: event.eventId,
+      target_preference: preference,
+    })
+
+    return error
+      ? { ok: false, message: error.message }
+      : { ok: true }
   } catch (error) {
     return { ok: false, message: toMessage(error) }
   }
@@ -945,7 +1033,7 @@ export const removeCoordinatorFromEvent = async (): Promise<PlanningResult> => {
       return { ok: false, message: 'Unable to load your event plan.' }
     }
 
-    const { error } = await client.rpc('remove_event_coordinator', {
+    const { error } = await client.rpc('remove_event_coordinator_and_package', {
       target_event_id: event.eventId,
     })
 
@@ -971,11 +1059,39 @@ export const saveServiceSelection = async (
     const providerId = value.service.bookingProviderId ?? value.service.providerId
     const serviceId = value.service.bookingServiceId ?? value.service.id
     const packageId = value.service.bookingPackageId ?? value.service.packageId
-    const providerAmount = value.service.pricingUnit === 'person' && value.attendeeCount > 0
+    let providerAmount = value.service.pricingUnit === 'person' && value.attendeeCount > 0
       ? value.service.providerMinPrice * value.attendeeCount
       : value.service.providerMinPrice
+    let estimatedTotal = value.estimatedTotal
+    let authoritativeOption: Record<string, unknown> = value.cateringOption ?? {}
+    if (value.cateringOption && isUuid(serviceId)) {
+      const { data: pricingData, error: pricingError } = await client.rpc(
+        'calculate_event_service_price',
+        {
+          target_catering_option_id: value.cateringOption.id,
+          target_event_id: event.eventId,
+          target_service_id: serviceId,
+        }
+      )
+      if (pricingError) {
+        return {
+          ok: false,
+          message: pricingError.message.toLowerCase().includes('calculate_event_service_price')
+            ? 'Catering pricing is not installed yet. Apply database/55_catering_pricing_revision.sql.'
+            : pricingError.message,
+        }
+      }
+      const pricing = pricingData && typeof pricingData === 'object'
+        ? pricingData as Record<string, unknown>
+        : {}
+      providerAmount = Number(pricing.providerAmount ?? providerAmount)
+      estimatedTotal = Number(pricing.customerAmount ?? estimatedTotal)
+      authoritativeOption = pricing.cateringOption && typeof pricing.cateringOption === 'object'
+        ? pricing.cateringOption as Record<string, unknown>
+        : value.cateringOption
+    }
     const commissionAmount = Math.round(
-      Math.max(0, value.estimatedTotal - providerAmount) * 100
+      Math.max(0, estimatedTotal - providerAmount) * 100
     ) / 100
     const selectionPayload = {
       event_id: event.eventId,
@@ -986,11 +1102,24 @@ export const saveServiceSelection = async (
       category_id: isUuid(value.service.categoryDbId) ? value.service.categoryDbId : null,
       service_name: value.service.name,
       category_name: value.service.categoryName,
-      estimated_amount: value.estimatedTotal,
+      estimated_amount: estimatedTotal,
       attendee_count: value.attendeeCount || null,
-      budget_per_head: value.budgetPerHead || null,
+      budget_per_head: value.cateringOption && value.attendeeCount > 0
+        ? Math.round((estimatedTotal / value.attendeeCount) * 100) / 100
+        : value.budgetPerHead || null,
       meal_type: value.mealType ?? null,
-      outside_food: value.outsideFood,
+      outside_food: false,
+      catering_option_id: value.cateringOption?.id ?? null,
+      catering_option_name: value.cateringOption?.name ?? null,
+      catering_option_snapshot: value.cateringOption
+        ? {
+            ...authoritativeOption,
+            calculatedAmount: estimatedTotal,
+            guestCount: value.attendeeCount,
+            providerAmount,
+            selectedAt: new Date().toISOString(),
+          }
+        : {},
       dietary_notes: value.notes,
       notes: value.notes,
       status: 'selected',
@@ -1002,6 +1131,13 @@ export const saveServiceSelection = async (
         providerAmount,
         providerLocation: value.service.location ?? null,
         providerName: value.service.providerName,
+        cateringOption: value.cateringOption
+          ? {
+              id: value.cateringOption.id,
+              name: value.cateringOption.name,
+              pricePerHead: value.cateringOption.pricePerHead,
+            }
+          : null,
         rating: value.service.rating,
         remainingBudgetCurrency: 'PHP',
       },

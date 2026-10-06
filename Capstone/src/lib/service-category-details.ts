@@ -16,6 +16,29 @@ export type ServiceCategoryDetails = {
 
 export type CategoryDetailFact = { label: string; value: string }
 
+export type CateringMenuSection = {
+  id: string
+  items: string[]
+  name: string
+}
+
+export type CateringPricingOption = {
+  id: string
+  maximumGuests: number
+  menuSections: CateringMenuSection[]
+  minimumGuests: number
+  name: string
+  pricePerHead: number
+}
+
+export type CateringPriceCalculation = {
+  fitsGuestCount: boolean
+  guestCount: number
+  providerSubtotal: number
+  reason?: string
+  unitPrice: number
+}
+
 const asObject = (value: unknown): Record<string, unknown> =>
   value && typeof value === 'object' && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -29,6 +52,84 @@ const number = (value: unknown) => {
 const list = (value: unknown) => Array.isArray(value)
   ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
   : []
+
+export const getCateringPricingOptions = (
+  value: unknown,
+  legacyPricePerHead = 0
+): CateringPricingOption[] => {
+  const details = asObject(value)
+  const optionRows = Array.isArray(details.pricingOptions)
+    ? details.pricingOptions.map(asObject)
+    : []
+  const parsed = optionRows.flatMap((option, index) => {
+    const id = text(option.id)
+    const name = text(option.name)
+    const pricePerHead = number(option.pricePerHead)
+    const minimumGuests = number(option.minimumGuests)
+    const maximumGuests = number(option.maximumGuests)
+    const menuSections = Array.isArray(option.menuSections)
+      ? option.menuSections.map(asObject).map((section, sectionIndex) => ({
+          id: text(section.id) || `section-${index + 1}-${sectionIndex + 1}`,
+          items: list(section.items),
+          name: text(section.name),
+        }))
+      : []
+
+    if (!id || !name || pricePerHead <= 0 || minimumGuests <= 0 || maximumGuests < minimumGuests) {
+      return []
+    }
+    return [{ id, maximumGuests, menuSections, minimumGuests, name, pricePerHead }]
+  })
+
+  if (parsed.length > 0) return parsed
+
+  // Legacy listings stored one shared per-person price and menu. Convert only
+  // that unambiguous shape; old package-priced listings remain untouched.
+  if (details.kind !== 'catering' || details.pricingBasis !== 'per_person' || legacyPricePerHead <= 0) {
+    return []
+  }
+
+  const minimumGuests = number(details.minimumGuests)
+  const maximumGuests = number(details.maximumGuests)
+  if (minimumGuests <= 0 || maximumGuests < minimumGuests) return []
+
+  const menuSections = Array.isArray(details.menuSections)
+    ? details.menuSections.map(asObject).map((section, index) => ({
+        id: text(section.id) || `legacy-section-${index + 1}`,
+        items: list(section.items),
+        name: text(section.name),
+      }))
+    : []
+
+  return [{
+    id: 'legacy-default',
+    maximumGuests,
+    menuSections,
+    minimumGuests,
+    name: text(details.optionName) || 'Catering menu',
+    pricePerHead: legacyPricePerHead,
+  }]
+}
+
+export const calculateCateringPrice = (
+  option: CateringPricingOption,
+  guestCount: number
+): CateringPriceCalculation => {
+  const guests = Math.max(0, Math.floor(Number(guestCount) || 0))
+  const providerSubtotal = Math.round(option.pricePerHead * guests * 100) / 100
+  let reason: string | undefined
+  if (guests <= 0) reason = 'Set the event guest count before choosing catering.'
+  else if (guests < option.minimumGuests) reason = `Requires at least ${option.minimumGuests} guests.`
+  else if (guests > option.maximumGuests) reason = `Supports up to ${option.maximumGuests} guests.`
+
+  return {
+    fitsGuestCount: !reason,
+    guestCount: guests,
+    providerSubtotal,
+    reason,
+    unitPrice: option.pricePerHead,
+  }
+}
 
 export const serviceCategoryKind = (categoryName: string): ServiceCategoryKind => {
   const name = categoryName.trim().toLowerCase()
@@ -45,7 +146,9 @@ export const serviceCategoryKind = (categoryName: string): ServiceCategoryKind =
 export const emptyCategoryDetails = (categoryName: string): ServiceCategoryDetails => ({
   kind: serviceCategoryKind(categoryName),
   schemaVersion: 1,
-  ...(serviceCategoryKind(categoryName) === 'catering' ? { pricingBasis: 'package' } : {}),
+  ...(serviceCategoryKind(categoryName) === 'catering'
+    ? { pricingBasis: 'per_person', pricingOptions: [] }
+    : {}),
 })
 
 export const normalizeCategoryDetails = (
@@ -62,7 +165,7 @@ export const hasEnteredCategoryDetails = (value: unknown) => {
   const source = asObject(value)
   return Object.entries(source).some(([key, item]) => {
     if (key === 'kind' || key === 'schemaVersion') return false
-    if (key === 'pricingBasis' && item === 'package') return false
+    if (key === 'pricingBasis' && item === 'per_person') return false
     if (Array.isArray(item)) return item.length > 0
     if (typeof item === 'boolean') return item
     if (typeof item === 'number') return item !== 0
@@ -76,8 +179,22 @@ export const isLegacyCategoryDetails = (value: unknown) =>
 export const categoryDetailsForStorage = (
   categoryName: string,
   value: unknown
-): Record<string, unknown> =>
-  isLegacyCategoryDetails(value) ? {} : normalizeCategoryDetails(categoryName, value)
+): Record<string, unknown> => {
+  if (isLegacyCategoryDetails(value)) return {}
+  const normalized = normalizeCategoryDetails(categoryName, value)
+  if (normalized.kind !== 'catering') return normalized
+  const options = getCateringPricingOptions(normalized)
+  if (options.length === 0) return normalized
+  return {
+    ...normalized,
+    // Keep the legacy aggregate fields during the transition so older clients
+    // and the Phase 1 category validator can still read the listing safely.
+    maximumGuests: Math.max(...options.map((option) => option.maximumGuests)),
+    menuSections: options[0].menuSections,
+    minimumGuests: Math.min(...options.map((option) => option.minimumGuests)),
+    pricingBasis: 'per_person',
+  }
+}
 
 const requirePositive = (errors: string[], value: unknown, message: string, minimum = 0) => {
   if (number(value) <= minimum) errors.push(message)
@@ -98,10 +215,23 @@ export const validateCategoryDetails = (
   }
 
   if (details.kind === 'catering') {
-    const minimum = number(details.minimumGuests)
-    const maximum = number(details.maximumGuests)
-    if (minimum <= 0) errors.push('Minimum guests must be greater than zero.')
-    if (maximum < minimum) errors.push('Maximum guests must be at least the minimum guests.')
+    const rawOptions = Array.isArray(details.pricingOptions) ? details.pricingOptions.map(asObject) : []
+    if (rawOptions.length === 0) errors.push('Add at least one catering menu and pricing option.')
+    const optionIds = rawOptions.map((option) => text(option.id)).filter(Boolean)
+    if (new Set(optionIds).size !== rawOptions.length) errors.push('Every catering option needs a unique ID.')
+    rawOptions.forEach((option, index) => {
+      const label = `Catering option ${index + 1}`
+      if (!text(option.name)) errors.push(`${label} needs a name.`)
+      if (number(option.pricePerHead) <= 0) errors.push(`${label} price per head must be greater than zero.`)
+      const minimum = number(option.minimumGuests)
+      const maximum = number(option.maximumGuests)
+      if (minimum <= 0) errors.push(`${label} minimum guests must be greater than zero.`)
+      if (maximum < minimum) errors.push(`${label} maximum guests must be at least the minimum guests.`)
+      const menus = Array.isArray(option.menuSections) ? option.menuSections.map(asObject) : []
+      if (!menus.some((menu) => text(menu.name) && list(menu.items).length > 0)) {
+        errors.push(`${label} needs at least one named menu section with an item.`)
+      }
+    })
   }
 
   if (details.kind === 'venues') {
@@ -183,11 +313,15 @@ export const summarizeCategoryDetails = (
   } else if (detail.kind === 'catering') {
     add('Catering types', joined(detail.cateringTypes))
     add('Cuisine', joined(detail.cuisines))
-    add('Pricing basis', text(detail.pricingBasis) === 'per_person' ? 'Per person' : 'Package')
-    if (number(detail.minimumGuests) > 0 || number(detail.maximumGuests) > 0) {
+    const options = getCateringPricingOptions(detail)
+    add('Menu options', options.map((option) =>
+      `${option.name} - PHP ${option.pricePerHead.toLocaleString('en-PH')}/head (${option.minimumGuests}-${option.maximumGuests} guests)`
+    ).join(' | '))
+    if (options.length === 0) add('Pricing basis', text(detail.pricingBasis) === 'per_person' ? 'Per person' : 'Package')
+    if (options.length === 0 && (number(detail.minimumGuests) > 0 || number(detail.maximumGuests) > 0)) {
       add('Guest range', `${number(detail.minimumGuests)}–${number(detail.maximumGuests)} guests`)
     }
-    const menus = Array.isArray(detail.menuSections) ? detail.menuSections.map(asObject) : []
+    const menus = options.length === 0 && Array.isArray(detail.menuSections) ? detail.menuSections.map(asObject) : []
     add('Menu', menus.map((menu) => `${text(menu.name)}: ${joined(menu.items)}`).filter(Boolean).join(' · '))
     add('Dietary options', joined(detail.dietaryOptions))
   } else if (detail.kind === 'venues') {

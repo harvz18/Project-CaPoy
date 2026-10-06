@@ -32,9 +32,11 @@ import {
 } from './lib/catalog'
 import {
   assignCoordinatorToEvent,
+  chooseCoordinatorPackage,
   ClientEventDraftSummary,
   closeCurrentEventDraft,
   fetchClientPlanningState,
+  removeCoordinatorFromEvent,
   removeServiceSelection,
   replaceServiceSelection,
   saveBudgetPlan,
@@ -44,6 +46,7 @@ import {
   saveProviderInstructions,
   saveScheduleCheck,
   saveServiceSelection,
+  setCoordinatorPreference,
 } from './lib/planning'
 import {
   cancelClientEventBookings,
@@ -130,6 +133,8 @@ import { ChangePasswordScreen } from './screens/22.4-ChangePassword'
 import { MerchantNotification, NotificationScreen } from './screens/22.5-Notification'
 import { CoordinatorScreen } from './screens/23-Coordinator'
 import { CoordinatorRemittanceDetailsScreen } from './screens/23.1-CoordinatorRemittanceDetails'
+import { CoordinatorServiceProfileScreen } from './screens/23.2-CoordinatorServiceProfile'
+import { CoordinatorPackagesScreen } from './screens/23.3-CoordinatorPackages'
 import { OnboardingScreen } from './screens/01-Onboarding'
 import { LoginScreen } from './screens/01.1-Login'
 import { ForgotPasswordScreen } from './screens/01.1.1-ForgotPassword'
@@ -141,6 +146,7 @@ import { PendingApprovalScreen } from './screens/02.2.1-PendingApproval'
 import { RejectedApplicationScreen } from './screens/02.2.2-RejectedApplication'
 import { VerificationScreen } from './screens/02.3-Verification'
 import { BudgetAllocationScreen } from './screens/05-BudgetAllocation'
+import { CoordinatorChoiceScreen } from './screens/05.1-CoordinatorChoice'
 import {
   EventCreationScreen,
   EventCreationValue,
@@ -151,6 +157,7 @@ import { CoordinatorDetailsScreen } from './screens/06.1-CoordinatorDetails'
 import { ServiceDetailsScreen } from './screens/08-ServiceDetails'
 import {
   emptyCategoryDetails,
+  getCateringPricingOptions,
   isLegacyCategoryDetails,
   normalizeCategoryDetails,
   validateCategoryDetails,
@@ -258,11 +265,14 @@ type AppScreen =
   | 'coordinatorHome'
   | 'coordinatorNotifications'
   | 'coordinatorRemittanceDetails'
+  | 'coordinatorServiceProfile'
+  | 'coordinatorPackages'
   | 'assistantHome'
   | 'customerServiceHome'
   | 'adminHome'
   | 'superadminHome'
   | 'budgetAllocation'
+  | 'coordinatorChoice'
   | 'budgetTracker'
   | 'categoryBrowse'
   | 'coordinatorDetails'
@@ -504,7 +514,17 @@ export const App: React.FC = () => {
   const [coordinatorAssignmentStatus, setCoordinatorAssignmentStatus] = React.useState<
     'accepted' | 'pending' | 'awaiting_assignment' | undefined
   >()
+  const [coordinatorPreference, setCoordinatorPreferenceState] = React.useState<
+    'undecided' | 'skipped' | 'selected'
+  >('undecided')
+  const [selectedCoordinatorPackage, setSelectedCoordinatorPackage] = React.useState<{
+    id: string
+    name: string
+    serviceSubtotal: number
+  }>()
+  const [busyCoordinatorChoice, setBusyCoordinatorChoice] = React.useState<'browse' | 'skip' | ''>('')
   const [assigningCoordinatorId, setAssigningCoordinatorId] = React.useState('')
+  const [selectingCoordinatorPackageId, setSelectingCoordinatorPackageId] = React.useState('')
   const [scheduleProviders, setScheduleProviders] = React.useState<ScheduleProvider[]>([])
   const [replacementTarget, setReplacementTarget] =
     React.useState<ScheduleConflictProvider>()
@@ -855,7 +875,7 @@ export const App: React.FC = () => {
   const selectedEstimatedTotal = selectedServices.reduce(
     (total, service) => total + service.price,
     0
-  )
+  ) + (assignedCoordinator?.price ?? 0)
   const remainingBudget = Math.max(0, totalBudget - selectedEstimatedTotal)
   const currentService = catalogServices.find((service) => service.id === currentServiceId)
   const currentReviewServiceId = currentService?.bookingServiceId ?? currentService?.id
@@ -1051,6 +1071,8 @@ export const App: React.FC = () => {
     if (planningState.totalBudget !== undefined) setTotalBudget(planningState.totalBudget)
     setAssignedCoordinator(planningState.assignedCoordinator)
     setCoordinatorAssignmentStatus(planningState.coordinatorAssignmentStatus)
+    setCoordinatorPreferenceState(planningState.coordinatorPreference ?? 'undecided')
+    setSelectedCoordinatorPackage(planningState.coordinatorPackage)
     setClientEventDraft(planningState.draftSummary)
     setSelectedServices(planningState.selectedServices)
     setLastPayment(planningState.lastPayment)
@@ -1410,6 +1432,8 @@ export const App: React.FC = () => {
           setClientEventDraft(undefined)
           setAssignedCoordinator(undefined)
           setCoordinatorAssignmentStatus(undefined)
+          setCoordinatorPreferenceState('undecided')
+          setSelectedCoordinatorPackage(undefined)
           setAssigningCoordinatorId('')
           setReplacementTarget(undefined)
           setScheduleProviders([])
@@ -1495,8 +1519,33 @@ export const App: React.FC = () => {
 
       setTotalBudget(budget)
       setMaxPlanningStep((current) => Math.max(current, 3))
-      openPlanningHub('forward')
+      const refreshedCatalog = await loadClientCatalogServices()
+      setCatalogServices(refreshedCatalog)
+      setScreen('coordinatorChoice')
     })
+  }
+
+  const handleCoordinatorChoice = async (choice: 'browse' | 'skip') => {
+    if (busyCoordinatorChoice) return
+    setBusyCoordinatorChoice(choice)
+
+    if (choice === 'browse') {
+      setSelectedCategory('eventOrganizers')
+      setServiceBrowseMode('planning')
+      setBusyCoordinatorChoice('')
+      openPlanningHub('forward')
+      return
+    }
+
+    const result = await setCoordinatorPreference('skipped')
+    setBusyCoordinatorChoice('')
+    if (!result.ok) {
+      setToastMessage(result.message ?? 'Unable to save your coordinator choice.')
+      return
+    }
+    setCoordinatorPreferenceState('skipped')
+    setSelectedCategory('catering')
+    openPlanningHub('forward')
   }
 
   const handleEventContinue = async (value: EventCreationValue, nextScreen: AppScreen) => {
@@ -1555,7 +1604,13 @@ export const App: React.FC = () => {
 
     if (step === 1) setScreen('eventCreation')
     if (step === 2) setScreen('budgetAllocation')
-    if (step === 3) setScreen(selectedServices.length > 0 ? 'selectedSummary' : 'categoryBrowse')
+    if (step === 3) setScreen(
+      selectedServices.length > 0 || assignedCoordinator
+        ? 'selectedSummary'
+        : coordinatorPreference === 'undecided'
+          ? 'coordinatorChoice'
+          : 'categoryBrowse'
+    )
     if (step === 4) {
       if (scheduleProviders.length > 0) {
         setScreen(
@@ -1719,7 +1774,9 @@ export const App: React.FC = () => {
         Math.max(0, value.estimatedTotal - providerPrice) * 100
       ) / 100,
       commissionRate: value.service.commissionRate,
-      detail: value.attendeeCount > 0 ? `${value.attendeeCount} Guests` : value.service.detail,
+      detail: value.cateringOption
+        ? `${value.cateringOption.name} · ${value.attendeeCount} Guests`
+        : value.attendeeCount > 0 ? `${value.attendeeCount} Guests` : value.service.detail,
       imageLabel: value.service.imageLabel,
       imageUrl: value.service.imageUrl,
       name: value.service.name,
@@ -1766,9 +1823,56 @@ export const App: React.FC = () => {
       avatarUrl: currentService.imageUrl,
       id: currentService.id,
       name: currentService.name,
+      price: currentService.minPrice,
       status: 'pending',
     })
-    setToastMessage(result.message ?? `Invitation sent to ${currentService.name}.`)
+    setCoordinatorPreferenceState('selected')
+    setCoordinatorAssignmentStatus('pending')
+    setSelectedCategory('catering')
+    setToastMessage(result.message ?? `Booking request sent to ${currentService.name}.`)
+    await refreshLiveData()
+    setScreen('selectedSummary')
+  }
+
+  const handleRemoveCoordinator = async () => {
+    if (!assignedCoordinator || assigningCoordinatorId) return
+    setAssigningCoordinatorId(assignedCoordinator.id)
+    const result = await removeCoordinatorFromEvent()
+    setAssigningCoordinatorId('')
+    if (!result.ok) {
+      setToastMessage(result.message ?? 'Unable to remove this coordinator booking.')
+      return
+    }
+    setAssignedCoordinator(undefined)
+    setCoordinatorAssignmentStatus(undefined)
+    setCoordinatorPreferenceState('undecided')
+    setSelectedCoordinatorPackage(undefined)
+    setToastMessage('Coordinator booking removed. You can choose another or continue without one.')
+  }
+
+  const handleChooseCoordinatorPackage = async (
+    packageId: string,
+    cateringOptionChoices: Record<string, string>
+  ) => {
+    if (!currentService?.coordinatorUserId || assigningCoordinatorId || selectingCoordinatorPackageId) return
+    setSelectingCoordinatorPackageId(packageId)
+    const result = await chooseCoordinatorPackage(packageId, cateringOptionChoices)
+    setSelectingCoordinatorPackageId('')
+    if (!result.ok) {
+      setToastMessage(result.message ?? 'Unable to select this coordinator package.')
+      return
+    }
+    setAssignedCoordinator({
+      avatarUrl: currentService.imageUrl,
+      id: currentService.id,
+      name: currentService.name,
+      price: currentService.minPrice,
+      status: 'pending',
+    })
+    setCoordinatorPreferenceState('selected')
+    setCoordinatorAssignmentStatus('pending')
+    setSelectedCategory('catering')
+    setToastMessage(result.message ?? 'Coordinator package selected.')
     await refreshLiveData()
     setScreen('selectedSummary')
   }
@@ -2171,6 +2275,8 @@ export const App: React.FC = () => {
     setSelectedServices([])
     setAssignedCoordinator(undefined)
     setCoordinatorAssignmentStatus(undefined)
+    setCoordinatorPreferenceState('undecided')
+    setSelectedCoordinatorPackage(undefined)
     setScheduleProviders([])
     setReplacementTarget(undefined)
     setLastPayment(undefined)
@@ -2570,13 +2676,16 @@ export const App: React.FC = () => {
             }}
             onNext={(value) => {
               const details = normalizeCategoryDetails(value.category, value.categoryDetails)
-              const pricingBasis = details.kind === 'catering'
-                ? String(details.pricingBasis ?? 'package')
-                : ''
+              const cateringOptions = getCateringPricingOptions(details)
+              const cateringStartingPrice = cateringOptions.length
+                ? Math.min(...cateringOptions.map((option) => option.pricePerHead))
+                : undefined
               const nextPricing = details.kind === 'catering'
                 ? {
                     ...merchantServicePricing,
-                    unit: pricingBasis === 'per_person' ? 'person' as const : 'event' as const,
+                    amount: cateringStartingPrice,
+                    model: 'fixed' as const,
+                    unit: 'person' as const,
                     cateringServiceTypes: Array.isArray(details.cateringTypes)
                       ? details.cateringTypes.flatMap((item) => {
                           const normalized = String(item).toLowerCase()
@@ -2932,7 +3041,9 @@ export const App: React.FC = () => {
             onCreateTask={handleCreateCoordinatorTask}
             onMessageProvider={(event, service) => void handleCoordinatorMessageProvider(event, service)}
             onOpenNotifications={() => setScreen('coordinatorNotifications')}
+            onOpenPackages={() => setScreen('coordinatorPackages')}
             onOpenProfile={() => openAccountProfile('coordinatorHome')}
+            onOpenServiceProfile={() => setScreen('coordinatorServiceProfile')}
             onRefresh={() => void loadCoordinatorWorkspace(true)}
             onRespondInvitation={(invitation, accepted) =>
               void handleCoordinatorInvitationResponse(invitation, accepted)
@@ -2943,6 +3054,23 @@ export const App: React.FC = () => {
             onToggleTask={(task) => void handleCoordinatorTaskToggle(task)}
             unreadNotificationCount={notifications.filter((notification) => !notification.isRead).length}
             userName={userName}
+          />
+        )
+      case 'coordinatorServiceProfile':
+        return (
+          <CoordinatorServiceProfileScreen
+            onBack={() => setScreen('coordinatorHome')}
+            onSaved={(message) => {
+              setToastMessage(message)
+              void refreshLiveData()
+            }}
+          />
+        )
+      case 'coordinatorPackages':
+        return (
+          <CoordinatorPackagesScreen
+            onBack={() => setScreen('coordinatorHome')}
+            onSaved={setToastMessage}
           />
         )
       case 'coordinatorNotifications':
@@ -3089,6 +3217,15 @@ export const App: React.FC = () => {
             />
           </Animated.View>
         )
+      case 'coordinatorChoice':
+        return (
+          <CoordinatorChoiceScreen
+            busyChoice={busyCoordinatorChoice}
+            onBack={() => setScreen('budgetAllocation')}
+            onBrowse={() => void handleCoordinatorChoice('browse')}
+            onSkip={() => void handleCoordinatorChoice('skip')}
+          />
+        )
       case 'categoryBrowse':
         return (
           <Animated.View
@@ -3097,6 +3234,7 @@ export const App: React.FC = () => {
             <CategoryBrowseScreen
             categories={serviceCategories}
             categoryName={catalogCategoryName(selectedCategory)}
+              eventGuestCount={eventDetails.guestCount}
             mode={serviceBrowseMode}
             services={
               serviceBrowseMode === 'explore'
@@ -3121,6 +3259,12 @@ export const App: React.FC = () => {
               if (replacementTarget) {
                 setReplacementTarget(undefined)
                 setScreen('scheduleConflict')
+              } else if (
+                serviceBrowseMode === 'planning'
+                && selectedCategory === 'eventOrganizers'
+                && coordinatorPreference === 'undecided'
+              ) {
+                setScreen('coordinatorChoice')
               } else if (serviceBrowseMode === 'planning') openBudgetAllocationFromServices()
               else setScreen('clientHome')
             }}
@@ -3158,12 +3302,16 @@ export const App: React.FC = () => {
             mode={serviceBrowseMode}
             onBack={() => setScreen('categoryBrowse')}
             onSelectProvider={() => void handleAssignCoordinator()}
+            eventGuestCount={eventDetails.guestCount}
+            onSelectPackage={(packageId, choices) => void handleChooseCoordinatorPackage(packageId, choices)}
+            selectingPackageId={selectingCoordinatorPackageId}
             service={currentService}
           />
         )
       case 'serviceDetails':
         return (
           <ServiceDetailsScreen
+            eventGuestCount={eventDetails.guestCount}
             mode={serviceBrowseMode}
             service={currentService}
             hasBudget={totalBudget > 0}
@@ -3180,6 +3328,7 @@ export const App: React.FC = () => {
           <SelectedSummaryScreen
             assignedCoordinator={assignedCoordinator}
             coordinatorAssignmentStatus={coordinatorAssignmentStatus}
+            coordinatorPackage={selectedCoordinatorPackage}
             budget={totalBudget}
             removingServiceId={removingServiceId}
             selectedServices={selectedServices}
@@ -3188,6 +3337,7 @@ export const App: React.FC = () => {
             onAddService={openPlanningHub}
             onBack={openPlanningHub}
             onOpenMenu={() => setScreen('clientHome')}
+            onRemoveCoordinator={() => void handleRemoveCoordinator()}
             onRemoveService={handleRemoveSelection}
             onSelectService={(service) => {
               setCurrentServiceId(service)

@@ -41,6 +41,8 @@ export interface CoordinatorInvitation {
   requestedAt?: string
   time?: string
   venue?: string
+  coordinationFee: number
+  currency: string
 }
 
 export interface CoordinatorEvent {
@@ -61,6 +63,45 @@ export interface CoordinatorEvent {
   totalBudget?: number
   type?: string
   venue?: string
+  coordinationFee: number
+  currency: string
+}
+
+export interface CoordinatorServiceProfile {
+  coordinationFee: number
+  currency: string
+  description: string
+  isAcceptingBookings: boolean
+  specializations: string[]
+}
+
+export interface CoordinatorManagedPackageItem {
+  categoryName: string
+  isAvailable: boolean
+  pricingUnit: string
+  providerName: string
+  serviceId: string
+  serviceName: string
+  serviceStatus: string
+}
+
+export interface CoordinatorManagedPackage {
+  description: string
+  eventType: 'wedding' | 'preWedding' | 'postWedding'
+  id: string
+  items: CoordinatorManagedPackageItem[]
+  name: string
+  status: 'draft' | 'active' | 'inactive'
+  updatedAt?: string
+}
+
+export interface SaveCoordinatorPackageInput {
+  description: string
+  eventType: CoordinatorManagedPackage['eventType']
+  id?: string
+  name: string
+  serviceIds: string[]
+  status: CoordinatorManagedPackage['status']
 }
 
 export interface CoordinatorTask {
@@ -176,6 +217,8 @@ const parseDashboard = (value: unknown): CoordinatorDashboard => {
       return [{
         bookingCount: numberFrom(row.booking_count),
         clientName: textFrom(row.client_name, 'Client'),
+        coordinationFee: numberFrom(row.coordination_fee),
+        currency: textFrom(row.currency, 'PHP'),
         completedTaskCount: numberFrom(row.completed_task_count),
         confirmedBookingCount: numberFrom(row.confirmed_booking_count),
         date: optionalText(row.event_date),
@@ -243,6 +286,8 @@ const parseDashboard = (value: unknown): CoordinatorDashboard => {
 
       return [{
         clientName: textFrom(row.client_name, 'Client'),
+        coordinationFee: numberFrom(row.coordination_fee),
+        currency: textFrom(row.currency, 'PHP'),
         date: optionalText(row.event_date),
         eventId,
         eventName,
@@ -283,10 +328,15 @@ export const fetchCoordinatorDashboard = async (): Promise<CoordinatorResult<Coo
     return { data: emptyCoordinatorDashboard(), message: unavailableMessage, ok: false }
   }
 
-  const [{ data, error }, { data: instructionData, error: instructionError }] =
+  const [
+    { data, error },
+    { data: instructionData, error: instructionError },
+    { data: feeData },
+  ] =
     await Promise.all([
       supabase.rpc('get_coordinator_dashboard'),
       supabase.rpc('get_my_coordinator_instructions'),
+      supabase.rpc('get_my_coordinator_booking_fees'),
     ])
   if (error) {
     return { data: emptyCoordinatorDashboard(), message: error.message, ok: false }
@@ -303,6 +353,15 @@ export const fetchCoordinatorDashboard = async (): Promise<CoordinatorResult<Coo
   }
 
   const dashboard = parseDashboard(data)
+  const feesByEvent = new Map(
+    (Array.isArray(feeData) ? feeData : []).map((entry) => {
+      const row = recordFrom(entry)
+      return [textFrom(row.event_id), {
+        coordinationFee: numberFrom(row.coordination_fee),
+        currency: textFrom(row.currency, 'PHP'),
+      }] as const
+    })
+  )
   const instructionsByEvent = new Map<string, CoordinatorServiceInstruction[]>()
   for (const entry of Array.isArray(instructionData) ? instructionData : []) {
     const row = recordFrom(entry)
@@ -329,8 +388,13 @@ export const fetchCoordinatorDashboard = async (): Promise<CoordinatorResult<Coo
   return {
     data: {
       ...dashboard,
+      invitations: dashboard.invitations.map((invitation) => ({
+        ...invitation,
+        ...(feesByEvent.get(invitation.eventId) ?? {}),
+      })),
       events: dashboard.events.map((event) => ({
         ...event,
+        ...(feesByEvent.get(event.id) ?? {}),
         instructions: instructionsByEvent.get(event.id) ?? [],
       })),
     },
@@ -454,4 +518,122 @@ export const respondToCoordinatorInvitation = async (
   }
 
   return { ok: true }
+}
+
+export const fetchCoordinatorServiceProfile = async (): Promise<CoordinatorResult<CoordinatorServiceProfile>> => {
+  if (!supabase || !supabaseConfig.isConfigured) {
+    return { message: unavailableMessage, ok: false }
+  }
+
+  const { data, error } = await supabase.rpc('get_my_coordinator_service_profile')
+  if (error) return { message: error.message, ok: false }
+  const row = recordFrom(data)
+
+  return {
+    data: {
+      coordinationFee: numberFrom(row.coordination_fee),
+      currency: textFrom(row.currency, 'PHP'),
+      description: textFrom(row.description),
+      isAcceptingBookings: row.is_accepting_bookings === true,
+      specializations: Array.isArray(row.specializations)
+        ? row.specializations.filter((item): item is string => typeof item === 'string')
+        : [],
+    },
+    ok: true,
+  }
+}
+
+export const saveCoordinatorServiceProfile = async (
+  profile: CoordinatorServiceProfile
+): Promise<CoordinatorResult<CoordinatorServiceProfile>> => {
+  if (!supabase || !supabaseConfig.isConfigured) {
+    return { message: unavailableMessage, ok: false }
+  }
+
+  const { error } = await supabase.rpc('save_my_coordinator_service_profile', {
+    target_coordination_fee: profile.coordinationFee,
+    target_description: profile.description,
+    target_is_accepting_bookings: profile.isAcceptingBookings,
+    target_specializations: profile.specializations,
+  })
+  if (error) return { message: error.message, ok: false }
+  return { data: profile, ok: true }
+}
+
+export const fetchCoordinatorPackages = async (): Promise<CoordinatorResult<CoordinatorManagedPackage[]>> => {
+  if (!supabase || !supabaseConfig.isConfigured) {
+    return { data: [], message: unavailableMessage, ok: false }
+  }
+  const { data, error } = await supabase.rpc('get_my_coordinator_packages')
+  if (error) return { data: [], message: error.message, ok: false }
+
+  return {
+    data: (Array.isArray(data) ? data : []).flatMap((entry) => {
+      const row = recordFrom(entry)
+      const id = textFrom(row.id)
+      if (!id) return []
+      const eventType = ['wedding', 'preWedding', 'postWedding'].includes(String(row.event_type))
+        ? row.event_type as CoordinatorManagedPackage['eventType']
+        : 'wedding'
+      const status = ['draft', 'active', 'inactive'].includes(String(row.status))
+        ? row.status as CoordinatorManagedPackage['status']
+        : 'draft'
+      return [{
+        description: textFrom(row.description),
+        eventType,
+        id,
+        items: (Array.isArray(row.items) ? row.items : []).flatMap((entry) => {
+          const item = recordFrom(entry)
+          const serviceId = textFrom(item.service_id)
+          if (!serviceId) return []
+          return [{
+            categoryName: textFrom(item.category_name, 'Service'),
+            isAvailable: item.is_available === true,
+            pricingUnit: textFrom(item.pricing_unit, 'event'),
+            providerName: textFrom(item.provider_name, 'Provider'),
+            serviceId,
+            serviceName: textFrom(item.service_name, 'Service'),
+            serviceStatus: textFrom(item.service_status, 'draft'),
+          }]
+        }),
+        name: textFrom(row.name, 'Coordinator package'),
+        status,
+        updatedAt: optionalText(row.updated_at),
+      }]
+    }),
+    ok: true,
+  }
+}
+
+export const saveCoordinatorPackage = async (
+  input: SaveCoordinatorPackageInput
+): Promise<CoordinatorResult<string>> => {
+  if (!supabase || !supabaseConfig.isConfigured) {
+    return { message: unavailableMessage, ok: false }
+  }
+  const { data, error } = await supabase.rpc('save_my_coordinator_package', {
+    package_description: input.description,
+    package_event_type: input.eventType,
+    package_name: input.name,
+    package_status: input.status,
+    target_package_id: input.id ?? null,
+    target_service_ids: input.serviceIds,
+  })
+  return error
+    ? { message: error.message, ok: false }
+    : { data: textFrom(data), ok: true }
+}
+
+export const setCoordinatorPackageStatus = async (
+  packageId: string,
+  status: 'active' | 'inactive'
+): Promise<CoordinatorResult> => {
+  if (!supabase || !supabaseConfig.isConfigured) {
+    return { message: unavailableMessage, ok: false }
+  }
+  const { error } = await supabase.rpc('set_my_coordinator_package_status', {
+    target_package_id: packageId,
+    target_status: status,
+  })
+  return error ? { message: error.message, ok: false } : { ok: true }
 }

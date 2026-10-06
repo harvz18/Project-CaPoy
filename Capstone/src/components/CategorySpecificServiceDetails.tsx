@@ -257,6 +257,75 @@ const MenuBuilder = ({ onChange, value }: { onChange: (value: JsonRecord[]) => v
   )
 }
 
+const CateringOptionsBuilder = ({ details, set }: {
+  details: ServiceCategoryDetails
+  set: (key: string, value: unknown) => void
+}) => {
+  const configured = Array.isArray(details.pricingOptions)
+    ? details.pricingOptions.map(asRecord)
+    : []
+  const legacyMenus = Array.isArray(details.menuSections) ? details.menuSections.map(asRecord) : []
+  const options = configured.length > 0 ? configured : []
+  const update = (index: number, patch: JsonRecord) => set(
+    'pricingOptions',
+    options.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item)
+  )
+
+  return (
+    <Section
+      title="Menu & Pricing Options"
+      description="Clients choose one option. Each price is charged per event guest."
+    >
+      {options.map((option, index) => (
+        <View key={textValue(option.id) || index} style={styles.repeatCard}>
+          <TextField
+            label="Option name"
+            onChange={(name) => update(index, { name })}
+            placeholder="e.g., Fine Dining Menu"
+            value={option.name}
+          />
+          <NumberField
+            label="Price per head"
+            min={1}
+            onChange={(pricePerHead) => update(index, { pricePerHead })}
+            suffix="PHP / guest"
+            value={option.pricePerHead}
+          />
+          <View style={styles.twoColumns}>
+            <NumberField label="Minimum Guests" min={1} onChange={(minimumGuests) => update(index, { minimumGuests })} value={option.minimumGuests} />
+            <NumberField label="Maximum Guests" min={1} onChange={(maximumGuests) => update(index, { maximumGuests })} value={option.maximumGuests} />
+          </View>
+          <MenuBuilder onChange={(menuSections) => update(index, { menuSections })} value={option.menuSections} />
+          <Pressable
+            onPress={() => set('pricingOptions', options.filter((_, itemIndex) => itemIndex !== index))}
+            style={styles.removeButton}
+          >
+            <Text style={styles.removeText}>Remove catering option</Text>
+          </Pressable>
+        </View>
+      ))}
+      {options.length === 0 && legacyMenus.length > 0 ? (
+        <Text style={styles.integrationNote}>
+          This legacy listing has one shared menu. Add an option below to assign its per-head price and guest range.
+        </Text>
+      ) : null}
+      <Pressable
+        onPress={() => set('pricingOptions', [...options, {
+          id: newId('catering-option'),
+          maximumGuests: details.maximumGuests,
+          menuSections: options.length === 0 ? legacyMenus : [],
+          minimumGuests: details.minimumGuests,
+          name: '',
+          pricePerHead: undefined,
+        }])}
+        style={styles.addButton}
+      >
+        <Text style={styles.addButtonText}>+ Add catering option</Text>
+      </Pressable>
+    </Section>
+  )
+}
+
 const VenueSpaces = ({ details, set }: { details: ServiceCategoryDetails; set: (key: string, value: unknown) => void }) => {
   const spaces = Array.isArray(details.spaces) ? details.spaces.map(asRecord) : []
   const combinations = Array.isArray(details.combinations) ? details.combinations.map(asRecord) : []
@@ -365,15 +434,9 @@ export const CategorySpecificServiceDetails: React.FC<Props> = ({ categoryName, 
           <ChoiceField label="Catering Type" multiple onChange={(next) => set('cateringTypes', next)} options={presets.cateringTypes} value={asList(details.cateringTypes)} />
           {asList(details.cateringTypes).includes('Other') ? <TextField label="Other Catering Type" onChange={(next) => set('cateringTypeOther', next)} value={details.cateringTypeOther} /> : null}
           <TagField label="Cuisine" onChange={(next) => set('cuisines', next)} options={presets.cuisines} value={details.cuisines} />
-          <ChoiceField label="Pricing Basis" onChange={(next) => set('pricingBasis', next)} options={[{ label: 'Per Person', value: 'per_person' }, { label: 'Package', value: 'package' }]} value={textValue(details.pricingBasis) || 'package'} />
-          <Text style={styles.integrationNote}>Set the actual amount on the existing Pricing screen. This selection controls whether the amount is per person or per event.</Text>
-          {details.pricingBasis === 'package' ? <NumberField label="Guests Included" onChange={(next) => set('guestsIncluded', next)} suffix="guests" value={details.guestsIncluded} /> : null}
-          <View style={styles.twoColumns}>
-            <NumberField label="Minimum Guests" min={1} onChange={(next) => set('minimumGuests', next)} value={details.minimumGuests} />
-            <NumberField label="Maximum Guests" min={1} onChange={(next) => set('maximumGuests', next)} value={details.maximumGuests} />
-          </View>
+          <Text style={styles.integrationNote}>Catering is priced per head using the event&apos;s Expected / Anticipated Guests.</Text>
         </Section>
-        <MenuBuilder onChange={(next) => set('menuSections', next)} value={details.menuSections} />
+        <CateringOptionsBuilder details={details} set={set} />
         <Section title="Service Inclusions">
           <ChoiceField label="Dietary Options" multiple onChange={(next) => set('dietaryOptions', next)} options={presets.dietary} value={asList(details.dietaryOptions)} />
           <ToggleField label="Drinks Included" onChange={(next) => set('drinksIncluded', next)} value={details.drinksIncluded} />

@@ -13,7 +13,10 @@ import {
   View,
 } from 'react-native'
 import type { CateringServiceType } from '../lib/catalog'
-import type { ServiceCategoryDetails } from '../lib/service-category-details'
+import {
+  getCateringPricingOptions,
+  type ServiceCategoryDetails,
+} from '../lib/service-category-details'
 
 export type ServicePricingModel = 'fixed' | 'startingAt' | 'customQuote'
 export type ServicePricingUnit = 'event' | 'person' | 'hour' | 'day'
@@ -104,14 +107,21 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
 }) => {
   const { width } = useWindowDimensions()
   const isWide = width >= 768
+  const isCatering = categoryName.toLowerCase().includes('cater')
+  const cateringOptions = getCateringPricingOptions(categoryDetails)
+  const cateringStartingPrice = cateringOptions.length
+    ? Math.min(...cateringOptions.map((option) => option.pricePerHead))
+    : undefined
   const categoryPricingUnit = categoryDetails?.kind === 'catering'
-    ? categoryDetails.pricingBasis === 'per_person' ? 'person' as const : 'event' as const
+    ? 'person' as const
     : undefined
   const [model, setModel] = React.useState<ServicePricingModel>(
     initialValue?.model ?? 'fixed'
   )
   const [amountInput, setAmountInput] = React.useState(
-    initialValue?.amount && initialValue.amount > 0 ? String(initialValue.amount) : ''
+    cateringStartingPrice
+      ? String(cateringStartingPrice)
+      : initialValue?.amount && initialValue.amount > 0 ? String(initialValue.amount) : ''
   )
   const [unit, setUnit] = React.useState<ServicePricingUnit>(
     categoryPricingUnit ?? initialValue?.unit ?? 'event'
@@ -132,13 +142,21 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
   )
   const [submitted, setSubmitted] = React.useState(false)
 
-  const isCatering = categoryName.toLowerCase().includes('cater')
-  const requiresAmount = model !== 'customQuote'
-  const amount = parseAmount(amountInput)
+  React.useEffect(() => {
+    if (!isCatering || !cateringStartingPrice) return
+    setModel('fixed')
+    setUnit('person')
+    setAmountInput(String(cateringStartingPrice))
+  }, [cateringStartingPrice, isCatering])
+
+  const effectiveModel = isCatering ? 'fixed' : model
+  const requiresAmount = effectiveModel !== 'customQuote'
+  const amount = cateringStartingPrice ?? parseAmount(amountInput)
   const amountMissing = submitted && requiresAmount && !amount
   const cateringTypesMissing = submitted && isCatering && selectedCateringTypes.length === 0
 
   const handleModelChange = (nextModel: ServicePricingModel) => {
+    if (isCatering) return
     setModel(nextModel)
     setSubmitted(false)
   }
@@ -152,7 +170,7 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
       cateringServiceTypes: isCatering ? selectedCateringTypes : [],
       currency: 'PHP',
       details: details.trim(),
-      model,
+      model: effectiveModel,
       unit: requiresAmount ? unit : undefined,
     })
   }
@@ -162,7 +180,7 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
     cateringServiceTypes: isCatering ? selectedCateringTypes : [],
     currency: 'PHP',
     details: details.trim(),
-    model,
+    model: effectiveModel,
     unit: requiresAmount ? unit : undefined,
   })
 
@@ -294,6 +312,7 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
                       model === 'startingAt' ? 'Starting price in Philippine pesos' : 'Price in Philippine pesos'
                     }
                     inputMode="decimal"
+                    editable={!isCatering}
                     keyboardType="decimal-pad"
                     onChangeText={(value) => setAmountInput(sanitizeAmount(value))}
                     placeholder="0.00"
@@ -309,7 +328,9 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
                     Enter an amount greater than zero.
                   </Text>
                 ) : (
-                  <Text style={styles.helperText}>This is the amount you receive. MULTIVENT adds its service fee on top for the client-facing price.</Text>
+                  <Text style={styles.helperText}>{isCatering
+                    ? 'This is the lowest configured menu price. Clients choose an option and the event guest count determines the subtotal.'
+                    : 'This is the amount you receive. MULTIVENT adds its service fee on top for the client-facing price.'}</Text>
                 )}
               </View>
 

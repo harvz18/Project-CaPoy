@@ -103,8 +103,8 @@ const permissionGroupDefinitions = [
   { key: 'permissions', label: 'Roles and feature access', description: 'Change role defaults and individual staff access.', codes: ['users.permissions.manage'] },
   { key: 'providers', label: 'Provider approvals', description: 'View and review provider applications, then approve or reject them.', codes: ['providers.view', 'providers.review', 'providers.approve', 'providers.reject'] },
   { key: 'services', label: 'Service approvals', description: 'View and review service submissions, then approve or decline them.', codes: ['services.view', 'services.review', 'services.approve', 'services.reject'] },
-  { key: 'coordinators-create', label: 'Create coordinators', description: 'Create employed Event Coordinator accounts.', codes: ['coordinators.create'] },
-  { key: 'coordinators', label: 'Coordinator assignments', description: 'View the coordinator workforce and assign or replace event coordinators.', codes: ['coordinators.view', 'coordinators.assign', 'coordinators.reassign'] },
+  { key: 'coordinators-create', label: 'Create coordinator accounts', description: 'Provision Event Coordinator provider accounts.', codes: ['coordinators.create'] },
+  { key: 'coordinators', label: 'Coordinator bookings', description: 'View client-selected coordinator booking activity and availability.', codes: ['coordinators.view', 'coordinators.assign', 'coordinators.reassign'] },
   { key: 'events', label: 'Event operations', description: 'View bookings and events and manage their operational workflow.', codes: ['events.view', 'events.manage'] },
   { key: 'finance', label: 'Revenue and cash flow', description: 'View commission revenue, transaction records, and platform cash movement.', codes: ['revenue.view', 'cashflow.view'] },
   { key: 'payments', label: 'Payment verification', description: 'Verify payment records when the payment workflow requires staff review.', codes: ['payment.verify'] },
@@ -129,9 +129,9 @@ const permissionActionLabels: Record<string, string> = {
   'services.approve': 'Approve service submissions',
   'services.reject': 'Decline service submissions',
   'coordinators.create': 'Create coordinator accounts',
-  'coordinators.view': 'View coordinator workforce',
-  'coordinators.assign': 'Assign coordinators',
-  'coordinators.reassign': 'Replace coordinators',
+  'coordinators.view': 'View coordinator bookings',
+  'coordinators.assign': 'Legacy coordinator permission',
+  'coordinators.reassign': 'Legacy coordinator permission',
   'events.view': 'View events and bookings',
   'events.manage': 'Manage event operations',
   'revenue.view': 'View commission revenue',
@@ -235,7 +235,7 @@ const copy: Record<BusinessSection, { eyebrow: string; title: string; descriptio
   revenue: { eyebrow: 'FINANCE', title: 'Revenue', description: 'Commission earned by MULTIVENT from completed payment activity.' },
   cashflow: { eyebrow: 'FINANCE', title: 'Cash flow', description: 'Gross receipts, provider payables, releases, refunds, and adjustments.' },
   remittances: { eyebrow: 'OFFICE OPERATIONS', title: 'Cash remittances', description: 'Coordinator cash handoffs recorded at the MULTIVENT office.' },
-  coordinators: { eyebrow: 'WORKFORCE', title: 'Coordinator queue', description: 'Events stay valid while MULTIVENT finds a conflict-free coordinator.' },
+  coordinators: { eyebrow: 'MARKETPLACE', title: 'Coordinator bookings', description: 'Clients choose paid coordinators directly; MULTIVENT does not assign or rematch them.' },
   support: { eyebrow: 'CUSTOMER SERVICE', title: 'Support tickets', description: 'Platform-related account, booking, payment, and technical concerns.' },
   permissions: { eyebrow: 'GOVERNANCE', title: 'Roles & permissions', description: 'Dynamic feature access and internal account provisioning.' },
 }
@@ -384,12 +384,9 @@ function CashFlowScreen() {
 function OperationalQueue({ section }: { section: Exclude<BusinessSection, 'revenue' | 'permissions'> }) {
   const { can } = useStaff()
   const [rows, setRows] = useState<Row[]>([])
-  const [coordinators, setCoordinators] = useState<Row[]>([])
   const [supportAgents, setSupportAgents] = useState<Row[]>([])
   const [remittanceEvents, setRemittanceEvents] = useState<Row[]>([])
   const [remittanceExpectations, setRemittanceExpectations] = useState<Row[]>([])
-  const [availabilityRows, setAvailabilityRows] = useState<Row[]>([])
-  const [availability, setAvailability] = useState({ coordinatorId: '', startsAt: '', endsAt: '', status: 'unavailable', reason: '' })
   const [remittance, setRemittance] = useState({ eventId: '', bookingId: '', expected: '', received: '', reference: '', notes: '' })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -413,16 +410,7 @@ function OperationalQueue({ section }: { section: Exclude<BusinessSection, 'reve
     setLoading(true); setError('')
     let result: { data: unknown; error: { message: string } | null }
     if (section === 'coordinators') {
-      const [queue, people, availabilityResult] = await Promise.all([
-        supabase.rpc('list_unassigned_events'),
-        supabase.rpc('list_available_event_coordinators'),
-        supabase.from('coordinator_availability').select('id,coordinator_id,starts_at,ends_at,status,reason,created_at').gte('ends_at', new Date().toISOString()).order('starts_at').limit(100),
-      ])
-      result = queue
-      setCoordinators(Array.isArray(people.data) ? people.data as Row[] : [])
-      setAvailabilityRows(availabilityResult.data || [])
-      const schedulingError = people.error || availabilityResult.error
-      if (schedulingError) setError(schedulingError.message)
+      result = await supabase.rpc('list_unassigned_events')
     } else if (section === 'support') {
       const [ticketResult, agentResult] = await Promise.all([
         supabase.from('support_tickets').select('id,ticket_number,user_id,event_id,booking_id,category,subject,description,status,priority,assigned_to,resolved_at,first_responded_at,last_message_at,closed_at,created_at,updated_at,profiles!support_tickets_user_id_fkey(full_name,email,phone,default_role,account_status),assignee:profiles!support_tickets_assigned_to_fkey(full_name,email),events(name,event_date,status),bookings(status,amount,services(name),payments(id,provider,provider_reference,amount,status,paid_at,verified_at))').order('updated_at', { ascending: false }).limit(250),
@@ -451,22 +439,6 @@ function OperationalQueue({ section }: { section: Exclude<BusinessSection, 'reve
     const timer = window.setTimeout(() => void load(), 0)
     return () => window.clearTimeout(timer)
   }, [load])
-
-  async function assign(eventId: string, coordinatorId: string) {
-    const supabase = getSupabase(); if (!supabase || !coordinatorId) return
-    setBusy(`assign:${eventId}`)
-    const { error: actionError } = await supabase.rpc('staff_assign_event_coordinator', { target_event_id: eventId, target_coordinator_id: coordinatorId })
-    setBusy('')
-    if (actionError) setError(actionError.message); else void load()
-  }
-
-  async function retryAssignment(eventId: string) {
-    const supabase = getSupabase(); if (!supabase) return
-    setBusy(`retry:${eventId}`)
-    const { error: actionError } = await supabase.rpc('retry_event_coordinator_assignment', { target_event_id: eventId })
-    setBusy('')
-    if (actionError) setError(actionError.message); else void load()
-  }
 
   async function updateTicket(ticketId: string, status: string, priority: string | null = null) {
     const supabase = getSupabase(); if (!supabase) return
@@ -604,38 +576,6 @@ function OperationalQueue({ section }: { section: Exclude<BusinessSection, 'reve
     if (status === 'verified' && !window.confirm('Verify this fully received cash remittance?')) return
     setBusy(id)
     const { error: actionError } = await supabase.rpc('review_cash_remittance', { target_remittance_id: id, new_status: status, reason })
-    setBusy('')
-    if (actionError) setError(actionError.message); else void load()
-  }
-
-  async function addAvailability(event: React.FormEvent) {
-    event.preventDefault()
-    const supabase = getSupabase(); if (!supabase) return
-    const startsAt = new Date(availability.startsAt)
-    const endsAt = new Date(availability.endsAt)
-    if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime()) || endsAt <= startsAt) {
-      setError('Availability must end after it starts.')
-      return
-    }
-    const { data: authData } = await supabase.auth.getUser()
-    setBusy('availability')
-    const { error: actionError } = await supabase.from('coordinator_availability').insert({
-      coordinator_id: availability.coordinatorId,
-      starts_at: startsAt.toISOString(),
-      ends_at: endsAt.toISOString(),
-      status: availability.status,
-      reason: availability.reason.trim() || null,
-      created_by: authData.user?.id || null,
-    })
-    setBusy('')
-    if (actionError) setError(actionError.message)
-    else { setAvailability({ coordinatorId: '', startsAt: '', endsAt: '', status: 'unavailable', reason: '' }); void load() }
-  }
-
-  async function removeAvailability(id: string) {
-    const supabase = getSupabase(); if (!supabase) return
-    setBusy(`availability:${id}`)
-    const { error: actionError } = await supabase.from('coordinator_availability').delete().eq('id', id)
     setBusy('')
     if (actionError) setError(actionError.message); else void load()
   }
@@ -811,7 +751,7 @@ function OperationalQueue({ section }: { section: Exclude<BusinessSection, 'reve
           )}
         </form>
       )}
-      {section === 'coordinators' && can('coordinators.assign') && <form className="panel remittance-form" onSubmit={addAvailability}><header><div><span className="eyebrow">WORKFORCE CALENDAR</span><h2>Add leave or availability record</h2><p>Blocking records immediately recheck future assignments. Overlapping records are rejected.</p></div></header><div><label>Coordinator<select required value={availability.coordinatorId} onChange={(event) => setAvailability({...availability,coordinatorId:event.target.value})}><option value="">Select coordinator</option>{coordinators.map((person) => <option key={String(person.id)} value={String(person.id)}>{String(person.full_name)}</option>)}</select></label><label>Starts<input required type="datetime-local" value={availability.startsAt} onChange={(event) => setAvailability({...availability,startsAt:event.target.value})}/></label><label>Ends<input required type="datetime-local" value={availability.endsAt} min={availability.startsAt || undefined} onChange={(event) => setAvailability({...availability,endsAt:event.target.value})}/></label><label>Status<select value={availability.status} onChange={(event) => setAvailability({...availability,status:event.target.value})}><option value="unavailable">Unavailable</option><option value="on_leave">On leave</option><option value="available">Available</option></select></label><label className="remittance-notes">Reason<input maxLength={500} value={availability.reason} onChange={(event) => setAvailability({...availability,reason:event.target.value})}/></label><button className="primary-button" disabled={busy === 'availability'}>{busy === 'availability' ? 'Saving…' : 'Save availability'}</button></div>{availabilityRows.length > 0 && <footer className="availability-summary">{availabilityRows.slice(0,10).map((item) => { const coordinator = coordinators.find((person) => String(person.id) === String(item.coordinator_id)); return <article key={String(item.id)}><div><StatusBadge value={String(item.status)} /><strong>{String(coordinator?.full_name || 'Coordinator')}</strong></div><span>{formatDateTime(item.starts_at)} – {formatDateTime(item.ends_at)}</span>{Boolean(item.reason) && <small>{String(item.reason)}</small>}<button type="button" disabled={busy === `availability:${String(item.id)}`} onClick={() => void removeAvailability(String(item.id))}>{busy === `availability:${String(item.id)}` ? 'Removing…' : 'Remove'}</button></article> })}</footer>}</form>}
+      {section === 'coordinators' && <section className="panel"><header><div><span className="eyebrow">CLIENT-SELECTED SERVICE</span><h2>No staff assignment queue</h2><p>Coordinators publish their own fee and availability. Clients send booking requests directly, and coordinators accept or reject them from their workspace.</p></div></header></section>}
       <section className="panel data-panel">
         {section === 'support' && <><div className="support-queue-filters"><input value={supportSearch} onChange={(event) => setSupportSearch(event.target.value)} placeholder="Search ticket, user, category, or description…" aria-label="Search support tickets"/><select value={supportPriority} onChange={(event) => setSupportPriority(event.target.value)} aria-label="Filter support priority"><option value="all">All priorities</option>{['urgent','high','normal','low'].map((priority) => <option key={priority} value={priority}>{priority}</option>)}</select><select value={supportAssignment} onChange={(event) => setSupportAssignment(event.target.value)} aria-label="Filter support assignment"><option value="all">All assignments</option><option value="unassigned">Unassigned</option>{supportAgents.map((agent) => <option key={String(agent.id)} value={String(agent.id)}>{String(agent.full_name)}</option>)}</select></div><div className="filter-strip"><span>Status</span><SegmentedFilter ariaLabel="Filter support tickets by status" value={supportStatus} onChange={setSupportStatus} options={[["all", "All"], ["active", "Active queue"], ["open", "Open"], ["in_progress", "In progress"], ["waiting_for_user", "Waiting for user"], ["resolved", "Resolved"], ["closed", "Closed"]]} /></div></>}
         {section === 'remittances' && <div className="filter-strip"><span>Status</span><SegmentedFilter ariaLabel="Filter cash remittances by status" value={remittanceStatus} onChange={setRemittanceStatus} options={[["all", "All"], ["pending", "Pending"], ["partially_remitted", "Partial"], ["remitted", "Remitted"], ["verified", "Verified"], ["disputed", "Disputed"]]} /></div>}
@@ -852,7 +792,7 @@ function OperationalQueue({ section }: { section: Exclude<BusinessSection, 'reve
               <td data-label="Event"><strong>{String(row.name || 'Untitled event')}</strong><small className="table-subtitle">{String(row.event_type || 'Event')}</small></td>
               <td data-label="Schedule">{row.starts_at ? formatDateTime(row.starts_at) : `${formatDate(String(row.event_date || ''))} ${String(row.event_time || '').slice(0, 5)}`}</td>
               <td data-label="Client">{String(row.client_name || 'Client')}</td><td data-label="Reason">{String(row.assignment_note || 'Awaiting staff assignment')}</td>
-              <td data-label="Assignment"><div className="coordinator-actions"><select className="inline-select" disabled={busy === `assign:${String(row.id)}` || busy === `retry:${String(row.id)}` || !can('coordinators.assign')} defaultValue="" onChange={(event) => void assign(String(row.id), event.target.value)}><option value="" disabled>Select coordinator</option>{coordinators.map((person) => <option key={String(person.id)} value={String(person.id)}>{String(person.full_name)}</option>)}</select><button type="button" className="table-action" disabled={busy === `assign:${String(row.id)}` || busy === `retry:${String(row.id)}` || !can('coordinators.assign')} onClick={() => void retryAssignment(String(row.id))}>{busy === `retry:${String(row.id)}` ? 'Retrying…' : 'Retry automatic'}</button></div></td>
+              <td data-label="Assignment"><span className="subtle-copy">Client selection required</span></td>
             </> : section === 'support' ? <>
               <td data-label="Ticket"><strong>MV-{String(row.ticket_number).padStart(6, '0')}</strong><small className="table-subtitle">{formatDate(String(row.created_at))}</small></td>
               <td data-label="Concern"><button className="table-link" onClick={() => void openTicket(row)}><strong>{String(row.subject)}</strong><small className="table-subtitle">{String(row.category).replaceAll('_', ' ')}</small></button></td>

@@ -7,8 +7,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
-  
   TextInput,
   useWindowDimensions,
   View,
@@ -20,7 +18,12 @@ import {
   formatServicePrice,
 } from '../lib/catalog'
 import { customerPriceFromProviderPrice } from '../lib/pricing'
-import { summarizeCategoryDetails } from '../lib/service-category-details'
+import {
+  calculateCateringPrice,
+  getCateringPricingOptions,
+  summarizeCategoryDetails,
+  type CateringPricingOption,
+} from '../lib/service-category-details'
 import type { ReviewSentiment, ServiceReviewInsights } from '../lib/reviews'
 
 export type MealType = CateringServiceType
@@ -28,14 +31,15 @@ export type MealType = CateringServiceType
 export interface ServiceSelectionValue {
   attendeeCount: number
   budgetPerHead: number
+  cateringOption?: CateringPricingOption
   estimatedTotal: number
   mealType?: MealType
   notes: string
-  outsideFood: boolean
   service: CatalogService
 }
 
 interface ServiceDetailsScreenProps {
+  eventGuestCount?: number
   hasBudget?: boolean
   mode?: 'explore' | 'planning'
   remainingBudget?: number
@@ -89,8 +93,6 @@ const reviews = [
 const formatCurrency = (value: number) =>
   Math.max(0, Math.floor(value)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 
-const digitsOnly = (value: string) => value.replace(/\D/g, '').slice(0, 8)
-
 const pricingUnitLabel = (unit?: 'event' | 'person' | 'hour' | 'day') => {
   if (unit === 'person') return 'per person'
   if (unit === 'hour') return 'per hour'
@@ -100,6 +102,7 @@ const pricingUnitLabel = (unit?: 'event' | 'person' | 'hour' | 'day') => {
 }
 
 export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
+  eventGuestCount = 0,
   hasBudget,
   mode = 'planning',
   remainingBudget = 45000,
@@ -118,10 +121,8 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   const heroHeight = Math.max(280, Math.min(460, height * 0.42))
   const [heroIndex, setHeroIndex] = React.useState(0)
   const [mealType, setMealType] = React.useState<MealType>()
-  const [attendeeDigits, setAttendeeDigits] = React.useState('')
-  const [budgetDigits, setBudgetDigits] = React.useState('')
+  const [selectedCateringOptionId, setSelectedCateringOptionId] = React.useState('')
   const [notes, setNotes] = React.useState('')
-  const [outsideFood, setOutsideFood] = React.useState(false)
   const [isAddingSelection, setIsAddingSelection] = React.useState(false)
   const [expandedSentiment, setExpandedSentiment] = React.useState<ReviewSentiment>()
   const [selectedPackageId, setSelectedPackageId] = React.useState(
@@ -149,9 +150,17 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   React.useEffect(() => {
     setSelectedPackageId(service?.packageId ?? '')
     setMealType(service?.cateringServiceTypes?.[0])
+    const options = getCateringPricingOptions(service?.categoryDetails, service?.providerMinPrice)
+    setSelectedCateringOptionId(options.length === 1 ? options[0].id : '')
     setHeroIndex(0)
     setExpandedSentiment(undefined)
-  }, [service?.cateringServiceTypes, service?.id, service?.packageId])
+  }, [
+    service?.cateringServiceTypes,
+    service?.categoryDetails,
+    service?.id,
+    service?.packageId,
+    service?.providerMinPrice,
+  ])
 
   if (!service) {
     return (
@@ -168,20 +177,29 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     )
   }
 
-  const attendeeCount = attendeeDigits ? Number(attendeeDigits) : 0
+  const attendeeCount = Math.max(0, Math.floor(eventGuestCount || 0))
   const categoryFacts = summarizeCategoryDetails(service.categoryName, service.categoryDetails)
-  const budgetPerHead = budgetDigits ? Number(budgetDigits) : 0
   const isCatering = service.categoryId === 'catering'
+  const cateringOptions = getCateringPricingOptions(service.categoryDetails, service.providerMinPrice)
+  const selectedCateringOption = cateringOptions.find((option) => option.id === selectedCateringOptionId)
+  const cateringCalculation = selectedCateringOption
+    ? calculateCateringPrice(selectedCateringOption, attendeeCount)
+    : undefined
+  const budgetPerHead = selectedCateringOption?.pricePerHead ?? 0
   const availableMealTypes = service.cateringServiceTypes ?? []
-  const cateringSelectionUnavailable = isCatering && !mealType
+  const cateringSelectionUnavailable = isCatering && (
+    !selectedCateringOption || !cateringCalculation?.fitsGuestCount
+  )
   const selectedPackage = service.packages?.find((item) => item.id === selectedPackageId)
   const selectedUnit = selectedPackage?.unit ?? service.pricingUnit ?? 'event'
   const selectedPrice = selectedPackage?.price ?? service.minPrice
   const selectedProviderPrice = selectedPackage?.providerPrice ?? service.providerMinPrice
   const requiresQuote = service.pricingModel === 'customQuote' || selectedPrice <= 0
-  const providerEstimatedTotal = selectedUnit === 'person' && attendeeCount > 0
-    ? selectedProviderPrice * attendeeCount
-    : selectedProviderPrice
+  const providerEstimatedTotal = isCatering
+    ? cateringCalculation?.providerSubtotal ?? 0
+    : selectedUnit === 'person' && attendeeCount > 0
+      ? selectedProviderPrice * attendeeCount
+      : selectedProviderPrice
   const estimatedTotal =
     requiresQuote
       ? 0
@@ -200,19 +218,26 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
       await onAddSelection({
         attendeeCount,
         budgetPerHead,
+        cateringOption: selectedCateringOption,
         estimatedTotal,
         mealType,
         notes,
-        outsideFood,
-        service: selectedPackage
+        service: isCatering && selectedCateringOption
           ? {
+              ...service,
+              minPrice: customerPriceFromProviderPrice(selectedCateringOption.pricePerHead, service.commissionRate),
+              pricingUnit: 'person',
+              providerMinPrice: selectedCateringOption.pricePerHead,
+            }
+          : selectedPackage
+            ? {
               ...service,
               minPrice: selectedPackage.price,
               packageId: selectedPackage.id,
               pricingUnit: selectedPackage.unit ?? service.pricingUnit,
               providerMinPrice: selectedPackage.providerPrice,
             }
-          : service,
+            : service,
       })
     } finally {
       setIsAddingSelection(false)
@@ -500,41 +525,61 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
               </View>
             ) : null}
 
-            <View style={[styles.inputGrid, isWide && styles.inputGridWide]}>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>ATTENDEE COUNT</Text>
-                <View style={styles.inputShell}>
-                  <TextInput
-                    accessibilityLabel="Attendee count"
-                    inputMode="numeric"
-                    keyboardType="number-pad"
-                    onChangeText={(value) => setAttendeeDigits(digitsOnly(value))}
-                    placeholder="150"
-                    placeholderTextColor={palette.secondaryFixedDim}
-                    style={styles.fieldInput}
-                    value={attendeeDigits}
-                  />
-                  <Text style={styles.inputSuffix}>pax</Text>
+            {isCatering ? (
+              <View style={styles.cateringOptionsSection}>
+                <View style={styles.guestCountCard}>
+                  <View>
+                    <Text style={styles.inputLabel}>EXPECTED / ANTICIPATED GUESTS</Text>
+                    <Text style={styles.guestCountValue}>{attendeeCount.toLocaleString('en-PH')} guests</Text>
+                  </View>
+                  <MaterialCommunityIcons color={palette.primary} name="account-group-outline" size={28} />
                 </View>
+                <Text style={styles.cateringInstruction}>Choose one provider menu and pricing option.</Text>
+                {cateringOptions.map((option) => {
+                  const calculation = calculateCateringPrice(option, attendeeCount)
+                  const selected = option.id === selectedCateringOptionId
+                  const customerUnitPrice = customerPriceFromProviderPrice(option.pricePerHead, service.commissionRate)
+                  const customerSubtotal = customerPriceFromProviderPrice(calculation.providerSubtotal, service.commissionRate)
+                  return (
+                    <Pressable
+                      key={option.id}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: selected, disabled: !calculation.fitsGuestCount }}
+                      disabled={!calculation.fitsGuestCount}
+                      onPress={() => setSelectedCateringOptionId(option.id)}
+                      style={[styles.cateringOptionCard, selected && styles.cateringOptionCardSelected, !calculation.fitsGuestCount && styles.cateringOptionCardDisabled]}
+                    >
+                      <View style={styles.cateringOptionHeading}>
+                        <View style={styles.packageTitleRow}>
+                          <MaterialCommunityIcons color={selected ? palette.primary : palette.secondary} name={selected ? 'radiobox-marked' : 'radiobox-blank'} size={22} />
+                          <View>
+                            <Text style={styles.cateringOptionName}>{option.name}</Text>
+                            <Text style={styles.cateringOptionRange}>{option.minimumGuests}-{option.maximumGuests} guests</Text>
+                          </View>
+                        </View>
+                        <View style={styles.cateringOptionPriceGroup}>
+                          <Text style={styles.cateringOptionUnit}>{formatPeso(customerUnitPrice)} / head</Text>
+                          <Text style={styles.cateringOptionSubtotal}>{formatPeso(customerSubtotal)} total</Text>
+                        </View>
+                      </View>
+                      {option.menuSections.map((section) => (
+                        <View key={section.id} style={styles.cateringMenuSection}>
+                          <Text style={styles.cateringMenuName}>{section.name}</Text>
+                          <Text style={styles.cateringMenuItems}>{section.items.join(', ')}</Text>
+                        </View>
+                      ))}
+                      {!calculation.fitsGuestCount ? <Text style={styles.cateringMismatch}>{calculation.reason} This option does not fit your event.</Text> : null}
+                    </Pressable>
+                  )
+                })}
+                {cateringOptions.length === 0 ? (
+                  <View style={styles.unavailableNotice}>
+                    <MaterialCommunityIcons color={palette.secondary} name="alert-circle-outline" size={20} />
+                    <Text style={styles.unavailableNoticeText}>This provider must add a per-head catering option before this service can be selected.</Text>
+                  </View>
+                ) : null}
               </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>YOUR BUDGET PER HEAD</Text>
-                <View style={styles.inputShell}>
-                  <Text style={styles.inputPrefix}>PHP</Text>
-                  <TextInput
-                    accessibilityLabel="Budget per head in Philippine pesos"
-                    inputMode="numeric"
-                    keyboardType="number-pad"
-                    onChangeText={(value) => setBudgetDigits(digitsOnly(value))}
-                    placeholder="1500"
-                    placeholderTextColor={palette.secondaryFixedDim}
-                    style={[styles.fieldInput, styles.fieldInputWithPrefix]}
-                    value={budgetDigits ? formatCurrency(Number(budgetDigits)) : ''}
-                  />
-                </View>
-              </View>
-            </View>
+            ) : null}
 
             <View style={styles.notesSection}>
               <View style={styles.inputGroup}>
@@ -552,19 +597,6 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                 />
               </View>
 
-              <View style={styles.outsideFoodCard}>
-                <View style={styles.outsideFoodCopy}>
-                  <Text style={styles.outsideFoodTitle}>Bringing outside food or drinks?</Text>
-                  <Text style={styles.outsideFoodSubtitle}>Corkage fees may apply</Text>
-                </View>
-                <Switch
-                  accessibilityLabel="Bringing outside food or drinks"
-                  onValueChange={setOutsideFood}
-                  thumbColor={palette.white}
-                  trackColor={{ false: palette.surfaceVariant, true: palette.primary }}
-                  value={outsideFood}
-                />
-              </View>
             </View>
             </View>
           ) : null}
@@ -1112,6 +1144,23 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   unavailableNoticeText: { minWidth: 0, flex: 1, color: palette.secondary, fontSize: 12, lineHeight: 18 },
+  cateringOptionsSection: { gap: 12, marginBottom: 32 },
+  guestCountCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 14, backgroundColor: '#F8EFF1', padding: 16 },
+  guestCountValue: { color: palette.primary, fontSize: 22, lineHeight: 29, fontWeight: '700', marginTop: 5 },
+  cateringInstruction: { color: palette.secondary, fontSize: 13, lineHeight: 19 },
+  cateringOptionCard: { gap: 10, borderWidth: 1, borderColor: palette.surfaceVariant, borderRadius: 14, backgroundColor: palette.surfaceLowest, padding: 16 },
+  cateringOptionCardSelected: { borderWidth: 2, borderColor: palette.primary, backgroundColor: '#FCF5F6' },
+  cateringOptionCardDisabled: { opacity: 0.62, backgroundColor: palette.surfaceLow },
+  cateringOptionHeading: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
+  cateringOptionName: { color: palette.text, fontSize: 16, lineHeight: 22, fontWeight: '700' },
+  cateringOptionRange: { color: palette.secondary, fontSize: 11, lineHeight: 16, marginTop: 2 },
+  cateringOptionPriceGroup: { alignItems: 'flex-end' },
+  cateringOptionUnit: { color: palette.primary, fontSize: 13, lineHeight: 19, fontWeight: '700' },
+  cateringOptionSubtotal: { color: palette.text, fontSize: 11, lineHeight: 16, marginTop: 2 },
+  cateringMenuSection: { borderTopWidth: 1, borderTopColor: palette.surfaceVariant, paddingTop: 8 },
+  cateringMenuName: { color: palette.text, fontSize: 12, lineHeight: 17, fontWeight: '700' },
+  cateringMenuItems: { color: palette.secondary, fontSize: 11, lineHeight: 17, marginTop: 2 },
+  cateringMismatch: { color: '#A12A35', fontSize: 11, lineHeight: 17, fontWeight: '700' },
   inputGrid: { gap: 24, marginBottom: 40 },
   inputGridWide: { flexDirection: 'row' },
   inputGroup: { flex: 1, gap: 12 },
@@ -1201,20 +1250,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
-  outsideFoodCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 16,
-    borderWidth: 1,
-    borderColor: palette.surfaceVariant,
-    borderRadius: 12,
-    backgroundColor: palette.surfaceLowest,
-    padding: 18,
-  },
-  outsideFoodCopy: { flex: 1 },
-  outsideFoodTitle: { color: palette.text, fontSize: 17, lineHeight: 24, fontWeight: '600' },
-  outsideFoodSubtitle: { color: palette.secondary, fontSize: 14, lineHeight: 20, marginTop: 2 },
   reviewsSection: { paddingTop: 40, paddingBottom: 64 },
   liveReviewCard: { alignItems: 'center', borderWidth: 1, borderColor: palette.surfaceVariant, borderRadius: 16, backgroundColor: palette.surfaceLowest, padding: 28 },
   liveReviewRating: { color: palette.primary, fontSize: 44, lineHeight: 48, fontWeight: '700' },

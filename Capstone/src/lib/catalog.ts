@@ -4,7 +4,12 @@ import {
   DEFAULT_COMMISSION_RATE,
   normalizeCommissionRate,
 } from './pricing'
-import { normalizeCategoryDetails, type ServiceCategoryDetails } from './service-category-details'
+import {
+  getCateringPricingOptions,
+  normalizeCategoryDetails,
+  type CateringPricingOption,
+  type ServiceCategoryDetails,
+} from './service-category-details'
 
 export type CatalogCategoryId =
   | 'venues'
@@ -31,6 +36,32 @@ export interface CoordinatorReview {
   rating: number
 }
 
+export interface CoordinatorPackageItem {
+  cateringOptions: CateringPricingOption[]
+  categoryName: string
+  commissionRate: number
+  customerUnitPrice: number
+  estimatedAmount: number
+  pricingUnit: 'event' | 'person' | 'hour' | 'day'
+  requiresCateringOption: boolean
+  providerId: string
+  providerName: string
+  providerPrice: number
+  serviceId: string
+  serviceName: string
+}
+
+export interface CoordinatorPackage {
+  description: string
+  eventType: 'wedding' | 'preWedding' | 'postWedding'
+  id: string
+  isAvailable: boolean
+  items: CoordinatorPackageItem[]
+  name: string
+  serviceSubtotal: number
+  unavailableReason?: string
+}
+
 export const fallbackServiceCategories: ServiceCategoryOption[] = [
   { id: 'attire', name: 'Attire' },
   { id: 'catering', name: 'Catering' },
@@ -48,6 +79,10 @@ export interface CatalogService {
   bookingServiceId?: string
   coordinatorUserId?: string
   coordinatorReviews?: CoordinatorReview[]
+  coordinatorPackages?: CoordinatorPackage[]
+  coordinatorAvailable?: boolean
+  coordinatorUnavailableReason?: string
+  coordinatorSpecializations?: string[]
   id: string
   categoryId: CatalogCategoryId
   categoryDbId?: string
@@ -380,9 +415,10 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
 export const fetchAvailableCoordinators = async (): Promise<CatalogService[]> => {
   if (!supabase || !supabaseConfig.isConfigured) return []
 
-  const [{ data, error }, { data: reviewData }] = await Promise.all([
-    supabase.rpc('list_available_event_coordinators'),
+  const [{ data, error }, { data: reviewData }, { data: packageData }] = await Promise.all([
+    supabase.rpc('list_bookable_event_coordinators'),
     supabase.rpc('list_event_coordinator_review_data'),
+    supabase.rpc('list_bookable_coordinator_packages'),
   ])
   if (error || !Array.isArray(data)) return []
 
@@ -392,6 +428,58 @@ export const fetchAvailableCoordinators = async (): Promise<CatalogService[]> =>
       return [textFrom(row.coordinator_id, ''), row]
     })
   )
+  const packagesByCoordinator = new Map<string, CoordinatorPackage[]>()
+  for (const entry of Array.isArray(packageData) ? packageData : []) {
+    const row = entry as Record<string, unknown>
+    const coordinatorId = textFrom(row.coordinator_id, '')
+    const packageId = textFrom(row.id, '')
+    if (!coordinatorId || !packageId) continue
+    const eventType = ['wedding', 'preWedding', 'postWedding'].includes(String(row.event_type))
+      ? row.event_type as CoordinatorPackage['eventType']
+      : 'wedding'
+    const items = Array.isArray(row.items)
+      ? row.items.flatMap((entry) => {
+          if (!entry || typeof entry !== 'object') return []
+          const item = entry as Record<string, unknown>
+          const serviceId = textFrom(item.service_id, '')
+          if (!serviceId) return []
+          const pricingUnit = ['event', 'person', 'hour', 'day'].includes(String(item.pricing_unit))
+            ? item.pricing_unit as CoordinatorPackageItem['pricingUnit']
+            : 'event'
+          return [{
+            cateringOptions: getCateringPricingOptions({
+              kind: 'catering',
+              pricingBasis: 'per_person',
+              pricingOptions: Array.isArray(item.catering_options) ? item.catering_options : [],
+              schemaVersion: 1,
+            }),
+            categoryName: textFrom(item.category_name, 'Service'),
+            commissionRate: normalizeCommissionRate(item.commission_rate, DEFAULT_COMMISSION_RATE),
+            customerUnitPrice: numberFrom(item.customer_unit_price, 0),
+            estimatedAmount: numberFrom(item.estimated_amount, 0),
+            pricingUnit,
+            requiresCateringOption: item.requires_catering_option === true,
+            providerId: textFrom(item.provider_id, ''),
+            providerName: textFrom(item.provider_name, 'Provider'),
+            providerPrice: numberFrom(item.provider_price, 0),
+            serviceId,
+            serviceName: textFrom(item.service_name, 'Service'),
+          }]
+        })
+      : []
+    const packages = packagesByCoordinator.get(coordinatorId) ?? []
+    packages.push({
+      description: textFrom(row.description, ''),
+      eventType,
+      id: packageId,
+      isAvailable: row.is_available === true,
+      items,
+      name: textFrom(row.name, 'Coordinator package'),
+      serviceSubtotal: numberFrom(row.service_subtotal, 0),
+      unavailableReason: textFrom(row.unavailable_reason, '') || undefined,
+    })
+    packagesByCoordinator.set(coordinatorId, packages)
+  }
 
   return data.flatMap((entry) => {
     if (!entry || typeof entry !== 'object') return []
@@ -403,6 +491,7 @@ export const fetchAvailableCoordinators = async (): Promise<CatalogService[]> =>
     const reviewRow = reviewRows.get(coordinatorUserId)
     const averageRating = Number(reviewRow?.average_rating ?? 0)
     const reviewCount = Number(reviewRow?.review_count ?? 0)
+    const coordinationFee = numberFrom(row.coordination_fee, 0)
     const reviews = Array.isArray(reviewRow?.reviews)
       ? reviewRow.reviews.flatMap((reviewEntry) => {
           const review = reviewEntry as Record<string, unknown>
@@ -423,25 +512,37 @@ export const fetchAvailableCoordinators = async (): Promise<CatalogService[]> =>
       categoryId: 'eventOrganizers' as const,
       categoryName: 'Event Organizer',
       commissionRate: 0,
+      coordinatorAvailable: row.is_available !== false,
+      coordinatorUnavailableReason: textFrom(row.unavailable_reason, ''),
+      coordinatorSpecializations: Array.isArray(row.specializations)
+        ? row.specializations.filter((item): item is string => typeof item === 'string')
+        : [],
+      coordinatorPackages: packagesByCoordinator.get(coordinatorUserId) ?? [],
       coordinatorUserId,
       coordinatorReviews: reviews,
-      description: `${name} can coordinate your event plan and keep your booked services organized.`,
+      description: textFrom(
+        row.description,
+        `${name} can coordinate your event plan and keep your booked services organized.`
+      ),
       detail: 'Event Coordinator',
       id: `coordinator:${coordinatorUserId}`,
       imageLabel: `${name}, Event Coordinator`,
       imageUrl: usableImageUrl(row.avatar_url),
       isMock: false,
       kind: 'coordinator' as const,
-      minPrice: 0,
+      minPrice: coordinationFee,
       name,
-      pricingModel: 'customQuote' as const,
-      providerMinPrice: 0,
+      pricingModel: 'fixed' as const,
+      pricingUnit: 'event' as const,
+      providerMinPrice: coordinationFee,
       providerName: name,
       rating: reviewCount > 0 && Number.isFinite(averageRating)
         ? averageRating.toFixed(1)
         : 'New',
       reviewCount,
-      tags: ['EVENT ORGANIZER', 'COORDINATOR'],
+      tags: ['EVENT ORGANIZER', 'COORDINATOR', ...(Array.isArray(row.specializations)
+        ? row.specializations.filter((item): item is string => typeof item === 'string')
+        : [])],
     }]
   })
 }
@@ -476,7 +577,10 @@ export const fetchServiceCategories = async (): Promise<ServiceCategoryOption[]>
 }
 
 export const loadClientCatalogServices = async (): Promise<CatalogService[]> => {
-  // Coordinators are MULTIVENT employees assigned by workforce scheduling.
-  // Only marketplace service listings belong in client browsing.
-  return fetchCatalogServices()
+  const [services, coordinators] = await Promise.all([
+    fetchCatalogServices(),
+    fetchAvailableCoordinators(),
+  ])
+
+  return [...services, ...coordinators]
 }

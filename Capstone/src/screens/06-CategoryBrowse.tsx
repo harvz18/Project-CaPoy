@@ -14,6 +14,8 @@ import {
 import { PlanningScreenHeader } from '../components/PlanningScreenHeader'
 import { ClientBottomNavigation, ClientMainTab } from '../components/ClientBottomNavigation'
 import { CatalogService, formatServicePrice, ServiceCategoryOption } from '../lib/catalog'
+import { customerPriceFromProviderPrice } from '../lib/pricing'
+import { calculateCateringPrice, getCateringPricingOptions } from '../lib/service-category-details'
 
 export type CategoryBrowseFilter = 'plated' | 'buffet' | 'packed' | 'under500'
 export type CategoryBrowseVendor = string
@@ -22,6 +24,7 @@ export type CategoryBrowseTab = ClientMainTab | 'vendors' | 'budget'
 interface CategoryBrowseScreenProps {
   categoryName?: string
   categories?: ServiceCategoryOption[]
+  eventGuestCount?: number
   hasBudget?: boolean
   mode?: 'explore' | 'planning'
   services?: CatalogService[]
@@ -66,6 +69,7 @@ const formatCurrency = (value: number) =>
 export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   categoryName = 'Services',
   categories = [],
+  eventGuestCount = 0,
   hasBudget,
   mode = 'planning',
   services = [],
@@ -92,7 +96,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   const hasSetBudget = hasBudget ?? remainingBudget > 0
   const useHorizontalCards = width >= 640
   const [internalSearch, setInternalSearch] = React.useState('')
-  const [selectedFilter, setSelectedFilter] = React.useState<CategoryBrowseFilter>('buffet')
+  const [selectedFilter, setSelectedFilter] = React.useState<CategoryBrowseFilter>()
   const [selectedExploreCategory, setSelectedExploreCategory] = React.useState('All')
   const [pendingReplacement, setPendingReplacement] = React.useState<CatalogService>()
   const [isReplacing, setIsReplacing] = React.useState(false)
@@ -101,6 +105,17 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     () => ['All', ...Array.from(new Set(services.map((service) => service.categoryName)))],
     [services]
   )
+
+  const cateringFit = React.useCallback((vendor: CatalogService) => {
+    if (vendor.categoryId !== 'catering') return { fits: true, reason: '' }
+    const options = getCateringPricingOptions(vendor.categoryDetails, vendor.providerMinPrice)
+    if (options.length === 0) return { fits: false, reason: 'Provider pricing options required' }
+    const calculations = options.map((option) => calculateCateringPrice(option, eventGuestCount))
+    const match = calculations.find((calculation) => calculation.fitsGuestCount)
+    return match
+      ? { fits: true, reason: `${eventGuestCount} guests supported` }
+      : { fits: false, reason: calculations[0]?.reason ?? 'Guest count not supported' }
+  }, [eventGuestCount])
 
   const visibleVendors = services.filter((vendor) => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -113,6 +128,13 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
       return false
     }
 
+    if (!isExploreMode && vendor.categoryId === 'catering' && selectedFilter) {
+      if (selectedFilter === 'under500') {
+        const options = getCateringPricingOptions(vendor.categoryDetails, vendor.providerMinPrice)
+        if (!options.some((option) => customerPriceFromProviderPrice(option.pricePerHead, vendor.commissionRate) < 500)) return false
+      } else if (!vendor.cateringServiceTypes?.includes(selectedFilter)) return false
+    }
+
     if (!normalizedQuery) return true
 
     return (
@@ -120,7 +142,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
       vendor.providerName.toLowerCase().includes(normalizedQuery) ||
       vendor.tags.some((tag) => tag.toLowerCase().includes(normalizedQuery))
     )
-  })
+  }).sort((left, right) => Number(cateringFit(right).fits) - Number(cateringFit(left).fits))
 
   const handleSearchChange = (value: string) => {
     setInternalSearch(value)
@@ -128,7 +150,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   }
 
   const handleFilterChange = (filter: CategoryBrowseFilter) => {
-    setSelectedFilter(filter)
+    setSelectedFilter((current) => current === filter ? undefined : filter)
     onSelectFilter?.(filter)
   }
 
@@ -378,6 +400,12 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                 </View>
 
                 <Text style={styles.price}>{formatServicePrice(vendor)}</Text>
+
+                {vendor.categoryId === 'catering' && eventGuestCount > 0 ? (
+                  <Text style={cateringFit(vendor).fits ? styles.guestFit : styles.guestMismatch}>
+                    {cateringFit(vendor).fits ? 'Fits event guest count' : cateringFit(vendor).reason}
+                  </Text>
+                ) : null}
 
                 <View style={styles.tagsRow}>
                   {vendor.tags.map((tag) => (
@@ -894,6 +922,8 @@ const styles = StyleSheet.create({
     lineHeight: 26,
     fontWeight: '500',
   },
+  guestFit: { color: '#2E6D4E', fontSize: 11, lineHeight: 16, fontWeight: '700', marginTop: 3 },
+  guestMismatch: { color: '#A12A35', fontSize: 11, lineHeight: 16, fontWeight: '700', marginTop: 3 },
   tagsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',

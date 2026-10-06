@@ -74,7 +74,7 @@ const pageCopy: Record<OperationSection, { eyebrow: string; title: string; descr
   revenue: { eyebrow: 'FINANCE', title: 'Revenue', description: 'Track MULTIVENT commission earnings and provider net amounts.' },
   cashflow: { eyebrow: 'FINANCE', title: 'Cash flow', description: 'Follow money entering and leaving MULTIVENT operations.' },
   remittances: { eyebrow: 'OFFICE OPERATIONS', title: 'Cash remittances', description: 'Record and verify coordinator cash handoffs.' },
-  coordinators: { eyebrow: 'WORKFORCE', title: 'Coordinator queue', description: 'Resolve pending assignments and view workforce availability.' },
+  coordinators: { eyebrow: 'MARKETPLACE', title: 'Coordinator bookings', description: 'View client-selected coordinator requests and provider availability.' },
   support: { eyebrow: 'CUSTOMER SERVICE', title: 'Support tickets', description: 'Handle platform, account, booking, and payment concerns.' },
   permissions: { eyebrow: 'GOVERNANCE', title: 'Roles & permissions', description: 'Configure feature access and create internal accounts.' },
   audit: { eyebrow: 'GOVERNANCE', title: 'Audit log', description: 'Trace privileged actions and system changes.' },
