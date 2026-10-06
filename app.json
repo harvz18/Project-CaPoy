@@ -15,11 +15,18 @@
       "output": "single"
     },
     "android": {
-      "package": "com.tasklink.app"
+      "package": "com.tasklink.app",
+      "googleServicesFile": "./google-services.json"
     },
     "plugins": [
       "expo-router",
-      "expo-notifications",
+      [
+        "expo-notifications",
+        {
+          "color": "#005C55",
+          "defaultChannel": "tasklink-updates"
+        }
+      ],
       "expo-asset"
     ],
     "experiments": {
@@ -28,9 +35,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "7a7d5f05-f8f2-45cb-a820-31bdff543ef0"
+        "projectId": "1ae0d465-4d23-45b5-91dd-a29fef56cdcd"
       }
     },
-    "owner": "shaolin18"
+    "owner": "harvz1827"
   }
 }

@@ -26,7 +26,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       [
         "expo-image-picker",
         {
-          photosPermission: "TASKLINK lets you select a profile photo from your library."
+          photosPermission: "TASKLINK lets you select a profile photo from your library.",
+          microphonePermission: false
         }
       ]
     ]
