@@ -47,6 +47,10 @@ Apply `55_catering_pricing_revision.sql` after migration 54 for Revision 2 Phase
 providers can publish multiple menu options with per-head prices and guest ranges; client and
 coordinator-package totals use the event guest count and preserve the chosen option in booking
 snapshots. See [`docs/PHASE_3_CATERING_PRICING.md`](docs/PHASE_3_CATERING_PRICING.md).
+Apply `56_payment_revenue_revision.sql` after migration 55 for Revision 2 Phase 5. New quotes use
+the 5% platform fee, 40% initial client payment, and separately held 30% provider allocation;
+historical financial snapshots remain unchanged. See
+[`docs/PHASE_5_PAYMENT_REVENUE_REVISION.md`](docs/PHASE_5_PAYMENT_REVENUE_REVISION.md).
 Apply `07_service_listing_details.sql` so pricing models, pricing units, pricing notes, package
 units, and all uploaded service photos remain available on the client service-detail screen.
 For existing databases that used the `02_event_planning_flow_no_rls.sql` setup, also apply

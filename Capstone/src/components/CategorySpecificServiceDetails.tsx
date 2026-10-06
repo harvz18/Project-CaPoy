@@ -7,6 +7,7 @@ import {
   View,
 } from 'react-native'
 import { Text } from './AppText'
+import { MultiSelectField } from './MultiSelectField'
 import {
   normalizeCategoryDetails,
   serviceCategoryKind,
@@ -87,22 +88,32 @@ const ChoiceField = ({ label, multiple = false, onChange, options, value }: {
   value: string | string[]
 }) => {
   const selected = Array.isArray(value) ? value : value ? [value] : []
-  const toggle = (next: string) => {
-    if (!multiple) return onChange(next)
-    onChange(selected.includes(next) ? selected.filter((item) => item !== next) : [...selected, next])
+  const normalizedOptions = options.map((raw) => typeof raw === 'string'
+    ? { label: raw, value: raw }
+    : raw)
+
+  if (multiple) {
+    return (
+      <MultiSelectField
+        label={label}
+        onApply={onChange}
+        options={normalizedOptions}
+        selectedValues={selected}
+      />
+    )
   }
+
   return (
     <Field label={label}>
       <View style={styles.chips}>
-        {options.map((raw) => {
-          const option = typeof raw === 'string' ? { label: raw, value: raw } : raw
+        {normalizedOptions.map((option) => {
           const active = selected.includes(option.value)
           return (
             <Pressable
-              accessibilityRole={multiple ? 'checkbox' : 'radio'}
-              accessibilityState={multiple ? { checked: active } : { selected: active }}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: active }}
               key={option.value}
-              onPress={() => toggle(option.value)}
+              onPress={() => onChange(option.value)}
               style={({ pressed }) => [styles.chip, active && styles.chipActive, pressed && styles.pressed]}
             >
               <Text style={[styles.chipText, active && styles.chipTextActive]}>{option.label}</Text>
@@ -218,11 +229,15 @@ const TagField = ({ label, onChange, options = [], value }: {
     setDraft('')
   }
   return (
-    <Field label={label}>
-      {options.length ? <View style={styles.chips}>{options.map((option) => {
-        const active = selected.includes(option)
-        return <Pressable key={option} onPress={() => onChange(active ? selected.filter((item) => item !== option) : [...selected, option])} style={[styles.chip, active && styles.chipActive]}><Text style={[styles.chipText, active && styles.chipTextActive]}>{option}</Text></Pressable>
-      })}</View> : null}
+    <View style={styles.field}>
+      {options.length ? (
+        <MultiSelectField
+          label={label}
+          onApply={onChange}
+          options={options.map((option) => ({ label: option, value: option }))}
+          selectedValues={selected}
+        />
+      ) : <Text style={styles.label}>{label}</Text>}
       <View style={styles.tagInputRow}>
         <TextInput
           onChangeText={setDraft}
@@ -236,7 +251,7 @@ const TagField = ({ label, onChange, options = [], value }: {
         <Pressable onPress={add} style={styles.smallButton}><Text style={styles.smallButtonText}>Add</Text></Pressable>
       </View>
       {customSelected.length ? <View style={styles.selectedTags}>{customSelected.map((item) => <Pressable accessibilityLabel={`Remove ${item}`} key={item} onPress={() => onChange(selected.filter((value) => value !== item))} style={styles.selectedTag}><Text style={styles.selectedTagText}>{item}  ×</Text></Pressable>)}</View> : null}
-    </Field>
+    </View>
   )
 }
 

@@ -32,9 +32,12 @@ export interface SelectedSummaryService {
 
 export interface AssignedCoordinatorSummary {
   avatarUrl: string
+  commissionAmount: number
+  commissionRate: number
   id: string
   name: string
   price: number
+  providerPrice: number
   status: 'accepted' | 'pending'
 }
 

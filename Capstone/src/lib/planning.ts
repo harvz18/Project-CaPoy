@@ -1,7 +1,11 @@
 import { supabase, supabaseConfig } from './supabase'
 import { CatalogService } from './catalog'
 import {
+  calculatePaymentBreakdown,
+  commissionFromProviderPrice,
   customerPriceFromProviderPrice,
+  DEFAULT_INITIAL_PAYMENT_RATE,
+  DEFAULT_PROVIDER_INITIAL_RATE,
   normalizeCommissionRate,
 } from './pricing'
 import type { SubmitReviewValue } from '../screens'
@@ -61,9 +65,12 @@ type ServiceSelectionInput = {
 export type ClientPlanningState = {
   assignedCoordinator?: {
     avatarUrl: string
+    commissionAmount: number
+    commissionRate: number
     id: string
     name: string
     price: number
+    providerPrice: number
     status: 'accepted' | 'pending'
   }
   coordinatorAssignmentStatus?: 'accepted' | 'pending' | 'awaiting_assignment'
@@ -238,12 +245,21 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
     event.coordinator_assignment_status === 'pending'
       ? event.pending_coordinator_id
       : event.coordinator_id
-  const { data: coordinatorRows } = visibleCoordinatorId
-    ? await client.rpc('list_bookable_event_coordinators', { target_event_id: event.id })
-    : { data: [] }
+  const [{ data: coordinatorRows }, { data: configuredCommissionRate }] = await Promise.all([
+    visibleCoordinatorId
+      ? client.rpc('list_bookable_event_coordinators', { target_event_id: event.id })
+      : Promise.resolve({ data: [] }),
+    client.rpc('get_public_commission_rate'),
+  ])
   const assignedCoordinatorRow = Array.isArray(coordinatorRows)
     ? coordinatorRows.find((row) => row?.id === visibleCoordinatorId)
     : undefined
+  const coordinatorCommissionRate = normalizeCommissionRate(configuredCommissionRate)
+  const coordinatorProviderPrice = Number(event.coordinator_fee_amount ?? 0)
+  const coordinatorCommissionAmount = commissionFromProviderPrice(
+    coordinatorProviderPrice,
+    coordinatorCommissionRate
+  )
 
   const [
     { data: selections },
@@ -358,12 +374,18 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
             typeof assignedCoordinatorRow.avatar_url === 'string'
               ? assignedCoordinatorRow.avatar_url
               : '',
+          commissionAmount: coordinatorCommissionAmount,
+          commissionRate: coordinatorCommissionRate,
           id: `coordinator:${assignedCoordinatorRow.id}`,
           name:
             typeof assignedCoordinatorRow.full_name === 'string'
               ? assignedCoordinatorRow.full_name
               : 'Event Coordinator',
-          price: Number(event.coordinator_fee_amount ?? 0),
+          price: customerPriceFromProviderPrice(
+            coordinatorProviderPrice,
+            coordinatorCommissionRate
+          ),
+          providerPrice: coordinatorProviderPrice,
           status:
             event.coordinator_assignment_status === 'pending' ? 'pending' : 'accepted',
         }
@@ -718,11 +740,17 @@ export const savePlanningPayment = async (
       return { ok: false, message: 'Accept the booking and cancellation terms first.' }
     }
 
-    const [{ data: eventRow, error: eventError }, { data: selections, error: selectionError }] =
+    const [
+      { data: eventRow, error: eventError },
+      { data: selections, error: selectionError },
+      { data: configuredCommissionRate },
+    ] =
       await Promise.all([
         client
           .from('events')
-          .select('event_date, event_time, name')
+          .select(
+            'event_date, event_time, name, coordinator_id, pending_coordinator_id, coordinator_assignment_status, coordinator_fee_amount'
+          )
           .eq('id', event.eventId)
           .single(),
         client
@@ -733,6 +761,7 @@ export const savePlanningPayment = async (
           .eq('event_id', event.eventId)
           .eq('client_id', event.userId)
           .in('status', ['selected', 'requested']),
+        client.rpc('get_public_commission_rate'),
       ])
 
     if (eventError) return { ok: false, message: eventError.message }
@@ -741,11 +770,16 @@ export const savePlanningPayment = async (
     const requestableSelections = (selections ?? []).filter(
       (selection) => isUuid(selection.provider_id) && isUuid(selection.service_id)
     )
+    const coordinatorId = eventRow.coordinator_assignment_status === 'pending'
+      ? eventRow.pending_coordinator_id
+      : eventRow.coordinator_id
+    const hasCoordinatorPayment = isUuid(coordinatorId)
+      && Number(eventRow.coordinator_fee_amount ?? 0) > 0
 
-    if (requestableSelections.length === 0) {
+    if (requestableSelections.length === 0 && !hasCoordinatorPayment) {
       return {
         ok: false,
-        message: 'Add at least one published provider service before finalizing the booking.',
+        message: 'Add a provider service or coordinator before finalizing the booking.',
       }
     }
 
@@ -802,6 +836,7 @@ export const savePlanningPayment = async (
         commission_model: 'added_to_customer',
         commission_rate: commissionRate,
         event_id: event.eventId,
+        financial_terms_version: 'phase5-v1',
         package_id: selection.package_id,
         provider_id: selection.provider_id,
         provider_amount: providerAmount,
@@ -846,53 +881,144 @@ export const savePlanningPayment = async (
     }
 
     const paymentReference = `demo-${Date.now()}`
-    const paymentRows = bookingRows.map((booking) => ({
-      amount:
-        value.paymentType === 'deposit'
-          ? Math.round(booking.providerAmount * 0.3 * 100) / 100
-          : booking.amount,
-      booking_id: booking.id,
-      currency: 'PHP',
-      event_id: event.eventId,
-      metadata: {
+    const paymentRows: Array<Record<string, unknown>> = bookingRows.map((booking) => {
+      const breakdown = calculatePaymentBreakdown([{
         commissionAmount: booking.commissionAmount,
-        commissionModel: 'added_to_customer',
-        commissionRate: booking.commissionRate,
-        eventName: eventRow.name,
-        items,
-        paymentType: value.paymentType,
-        providerAmount: booking.providerAmount,
-        termsAccepted: value.termsAccepted,
-      },
-      paid_at: now,
-      payer_id: event.userId,
-      provider: value.method,
-      provider_reference: `${paymentReference}-${booking.id.slice(0, 8)}`,
-      status: 'paid',
-    }))
+        price: booking.amount,
+        providerPrice: booking.providerAmount,
+      }])
+
+      return {
+        amount: value.paymentType === 'deposit'
+          ? breakdown.initialPayment
+          : breakdown.clientTotal,
+        booking_id: booking.id,
+        client_total: breakdown.clientTotal,
+        currency: 'PHP',
+        event_id: event.eventId,
+        held_unallocated_amount: value.paymentType === 'deposit'
+          ? breakdown.heldUnallocatedAmount
+          : 0,
+        initial_payment_rate: DEFAULT_INITIAL_PAYMENT_RATE,
+        metadata: {
+          accountingVersion: 'phase5-v1',
+          clientTotal: breakdown.clientTotal,
+          commissionAmount: booking.commissionAmount,
+          commissionModel: 'added_to_customer',
+          commissionRate: booking.commissionRate,
+          eventName: eventRow.name,
+          heldUnallocatedAmount: value.paymentType === 'deposit'
+            ? breakdown.heldUnallocatedAmount
+            : 0,
+          items,
+          paymentType: value.paymentType,
+          platformFeeAmount: breakdown.platformFee,
+          providerAmount: booking.providerAmount,
+          providerBalance: value.paymentType === 'deposit' ? breakdown.providerBalance : 0,
+          providerInitialAllocation: breakdown.providerInitialAllocation,
+          serviceSubtotal: breakdown.serviceSubtotal,
+          termsAccepted: value.termsAccepted,
+        },
+        paid_at: now,
+        payer_id: event.userId,
+        platform_fee_amount: breakdown.platformFee,
+        platform_fee_rate: booking.commissionRate,
+        provider: value.method,
+        provider_initial_allocation: breakdown.providerInitialAllocation,
+        provider_initial_rate: DEFAULT_PROVIDER_INITIAL_RATE,
+        provider_reference: `${paymentReference}-${booking.id.slice(0, 8)}`,
+        service_subtotal: breakdown.serviceSubtotal,
+        status: 'paid',
+      }
+    })
+
+    if (hasCoordinatorPayment && coordinatorId) {
+      const coordinatorProviderAmount = Number(eventRow.coordinator_fee_amount ?? 0)
+      const coordinatorCommissionRate = normalizeCommissionRate(configuredCommissionRate)
+      const coordinatorCommissionAmount = commissionFromProviderPrice(
+        coordinatorProviderAmount,
+        coordinatorCommissionRate
+      )
+      const breakdown = calculatePaymentBreakdown([{
+        commissionAmount: coordinatorCommissionAmount,
+        price: customerPriceFromProviderPrice(
+          coordinatorProviderAmount,
+          coordinatorCommissionRate
+        ),
+        providerPrice: coordinatorProviderAmount,
+      }])
+
+      paymentRows.push({
+        amount: value.paymentType === 'deposit'
+          ? breakdown.initialPayment
+          : breakdown.clientTotal,
+        booking_id: null,
+        client_total: breakdown.clientTotal,
+        coordinator_id: coordinatorId,
+        currency: 'PHP',
+        event_id: event.eventId,
+        held_unallocated_amount: value.paymentType === 'deposit'
+          ? breakdown.heldUnallocatedAmount
+          : 0,
+        initial_payment_rate: DEFAULT_INITIAL_PAYMENT_RATE,
+        metadata: {
+          accountingVersion: 'phase5-v1',
+          clientTotal: breakdown.clientTotal,
+          commissionAmount: coordinatorCommissionAmount,
+          commissionModel: 'added_to_customer',
+          commissionRate: coordinatorCommissionRate,
+          eventName: eventRow.name,
+          heldUnallocatedAmount: value.paymentType === 'deposit'
+            ? breakdown.heldUnallocatedAmount
+            : 0,
+          items,
+          paymentScope: 'coordinator_service',
+          paymentType: value.paymentType,
+          platformFeeAmount: breakdown.platformFee,
+          providerAmount: coordinatorProviderAmount,
+          providerBalance: value.paymentType === 'deposit' ? breakdown.providerBalance : 0,
+          providerInitialAllocation: breakdown.providerInitialAllocation,
+          serviceSubtotal: breakdown.serviceSubtotal,
+          termsAccepted: value.termsAccepted,
+        },
+        paid_at: now,
+        payer_id: event.userId,
+        payment_scope: 'coordinator_service',
+        platform_fee_amount: breakdown.platformFee,
+        platform_fee_rate: coordinatorCommissionRate,
+        provider: value.method,
+        provider_initial_allocation: breakdown.providerInitialAllocation,
+        provider_initial_rate: DEFAULT_PROVIDER_INITIAL_RATE,
+        provider_reference: `${paymentReference}-coord-${coordinatorId.slice(0, 8)}`,
+        service_subtotal: breakdown.serviceSubtotal,
+        status: 'paid',
+      })
+    }
     const { error: paymentError } = await client.from('payments').insert(paymentRows)
 
     if (paymentError) return { ok: false, message: paymentError.message }
 
-    const { error: bookingStatusError } = await client
-      .from('bookings')
-      .update({ status: 'requested', updated_at: now })
-      .in(
-        'id',
-        bookingRows.map((booking) => booking.id)
-      )
+    if (bookingRows.length > 0) {
+      const { error: bookingStatusError } = await client
+        .from('bookings')
+        .update({ status: 'requested', updated_at: now })
+        .in(
+          'id',
+          bookingRows.map((booking) => booking.id)
+        )
 
-    if (bookingStatusError) return { ok: false, message: bookingStatusError.message }
+      if (bookingStatusError) return { ok: false, message: bookingStatusError.message }
 
-    const { error: selectionStatusError } = await client
-      .from('event_service_selections')
-      .update({ status: 'requested', updated_at: now })
-      .in(
-        'id',
-        bookingRows.map((booking) => booking.selectionId)
-      )
+      const { error: selectionStatusError } = await client
+        .from('event_service_selections')
+        .update({ status: 'requested', updated_at: now })
+        .in(
+          'id',
+          bookingRows.map((booking) => booking.selectionId)
+        )
 
-    if (selectionStatusError) return { ok: false, message: selectionStatusError.message }
+      if (selectionStatusError) return { ok: false, message: selectionStatusError.message }
+    }
 
     const { error: eventStatusError } = await client
       .from('events')

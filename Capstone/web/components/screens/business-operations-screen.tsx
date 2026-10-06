@@ -293,8 +293,8 @@ function RevenueScreen() {
         <section className="stat-grid">
           {[
             ['Client payment value', data.gross_amount, 'Includes MULTIVENT commission'],
-            ['Commission revenue', data.commission_amount, `${Number(data.commission_rate ?? 0.10) * 100}% added to provider prices`],
-            ['Provider service value', data.provider_net_amount, 'Provider-listed amount payable'],
+            ['Commission revenue', data.commission_amount, `${Number(data.commission_rate ?? 0.05) * 100}% added to provider prices`],
+            ['Accepted provider payable', data.provider_net_amount, 'Excludes allocations still held for acceptance'],
             ['This month', currentMonth.commission, commissionChange],
           ].map(([label, value, detail], index) => (
             <article className="stat-card" key={String(label)}>

@@ -1,5 +1,4 @@
 import { Text } from '../components/AppText'
-import { MaterialCommunityIcons } from '@expo/vector-icons'
 import React from 'react'
 import {
   KeyboardAvoidingView,
@@ -13,6 +12,7 @@ import {
   View,
 } from 'react-native'
 import type { CateringServiceType } from '../lib/catalog'
+import { MultiSelectField } from '../components/MultiSelectField'
 import {
   getCateringPricingOptions,
   type ServiceCategoryDetails,
@@ -40,13 +40,12 @@ interface Step2PricingScreenProps {
 
 const cateringServiceTypes: Array<{
   description: string
-  icon: React.ComponentProps<typeof MaterialCommunityIcons>['name']
   id: CateringServiceType
   label: string
 }> = [
-  { id: 'plated', icon: 'silverware-fork-knife', label: 'Plated', description: 'Individually served meals.' },
-  { id: 'buffet', icon: 'food-variant', label: 'Buffet', description: 'Self-service or staffed buffet.' },
-  { id: 'packed', icon: 'food-takeout-box-outline', label: 'Packed', description: 'Boxed or packed meals.' },
+  { id: 'plated', label: 'Plated', description: 'Individually served meals.' },
+  { id: 'buffet', label: 'Buffet', description: 'Self-service or staffed buffet.' },
+  { id: 'packed', label: 'Packed', description: 'Boxed or packed meals.' },
 ]
 
 const pricingModels: Array<{
@@ -183,15 +182,6 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
     model: effectiveModel,
     unit: requiresAmount ? unit : undefined,
   })
-
-  const toggleCateringType = (value: CateringServiceType) => {
-    setSubmitted(false)
-    setSelectedCateringTypes((current) =>
-      current.includes(value)
-        ? current.filter((item) => item !== value)
-        : [...current, value]
-    )
-  }
 
   return (
     <KeyboardAvoidingView
@@ -385,54 +375,21 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
           )}
 
           {isCatering && !cateringTypesManagedInDetails ? (
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Available Catering Styles</Text>
-              <Text style={styles.helperText}>
-                Select at least one. Clients can only choose the styles enabled here.
-              </Text>
-              <View style={styles.cateringTypeGrid}>
-                {cateringServiceTypes.map((option) => {
-                  const selected = selectedCateringTypes.includes(option.id)
-
-                  return (
-                    <Pressable
-                      key={option.id}
-                      accessibilityLabel={`${option.label}. ${option.description}`}
-                      accessibilityRole="checkbox"
-                      accessibilityState={{ checked: selected }}
-                      onPress={() => toggleCateringType(option.id)}
-                      style={({ pressed }) => [
-                        styles.cateringTypeCard,
-                        selected && styles.cateringTypeCardSelected,
-                        pressed && styles.pricingModelCardPressed,
-                      ]}
-                    >
-                      <MaterialCommunityIcons
-                        color={selected ? palette.primaryContainer : palette.secondary}
-                        name={option.icon}
-                        size={28}
-                      />
-                      <View style={styles.cateringTypeCopy}>
-                        <Text style={[styles.cateringTypeLabel, selected && styles.pricingModelLabelSelected]}>
-                          {option.label}
-                        </Text>
-                        <Text style={styles.pricingModelDescription}>{option.description}</Text>
-                      </View>
-                      <MaterialCommunityIcons
-                        color={selected ? palette.primaryContainer : palette.placeholder}
-                        name={selected ? 'checkbox-marked-circle' : 'checkbox-blank-circle-outline'}
-                        size={22}
-                      />
-                    </Pressable>
-                  )
-                })}
-              </View>
-              {cateringTypesMissing ? (
-                <Text accessibilityRole="alert" style={styles.errorText}>
-                  Select at least one catering style.
-                </Text>
-              ) : null}
-            </View>
+            <MultiSelectField
+              error={cateringTypesMissing ? 'Select at least one catering style.' : undefined}
+              helper="Clients can only choose the styles enabled here."
+              label="Available Catering Styles"
+              onApply={(values) => {
+                setSubmitted(false)
+                setSelectedCateringTypes(values as CateringServiceType[])
+              }}
+              options={cateringServiceTypes.map((option) => ({
+                description: option.description,
+                label: option.label,
+                value: option.id,
+              }))}
+              selectedValues={selectedCateringTypes}
+            />
           ) : isCatering ? (
             <View style={styles.quoteNotice}>
               <View style={styles.quoteNoticeIcon}>
@@ -691,22 +648,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   quoteNoticeText: { minWidth: 0, flex: 1, color: palette.secondary, fontSize: 12, lineHeight: 18 },
-  cateringTypeGrid: { gap: 8, marginTop: 4 },
-  cateringTypeCard: {
-    minHeight: 70,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderWidth: 1,
-    borderColor: palette.surfaceContainerHigh,
-    borderRadius: 8,
-    backgroundColor: palette.inputBackground,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  cateringTypeCardSelected: { borderColor: palette.primaryContainer, backgroundColor: palette.primaryPill },
-  cateringTypeCopy: { minWidth: 0, flex: 1 },
-  cateringTypeLabel: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '600' },
   detailsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   optionalLabel: { color: palette.placeholder, fontSize: 12, lineHeight: 16 },
   input: {

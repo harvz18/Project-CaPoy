@@ -10,6 +10,7 @@ import {
 } from 'react-native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { PlanningScreenHeader } from '../components/PlanningScreenHeader'
+import { calculatePaymentBreakdown } from '../lib/pricing'
 
 export type PaymentType = 'deposit' | 'full'
 export type PaymentMethod = 'eWallet' | 'bankTransfer'
@@ -60,28 +61,28 @@ const defaultItems: PaymentOrderItem[] = [
     id: 'venue',
     name: 'Venue Rental',
     description: 'Grand Hall & Gardens',
-    price: 250000,
-    providerPrice: 227272.73,
-    commissionAmount: 22727.27,
-    commissionRate: 0.1,
+    price: 262500,
+    providerPrice: 250000,
+    commissionAmount: 12500,
+    commissionRate: 0.05,
   },
   {
     id: 'catering',
     name: 'Catering Package',
     description: 'Premium 4-Course (150 pax)',
-    price: 180000,
-    providerPrice: 163636.36,
-    commissionAmount: 16363.64,
-    commissionRate: 0.1,
+    price: 189000,
+    providerPrice: 180000,
+    commissionAmount: 9000,
+    commissionRate: 0.05,
   },
   {
     id: 'photoVideo',
     name: 'Photography & Videography',
     description: 'Full Day Coverage',
-    price: 85000,
-    providerPrice: 77272.73,
-    commissionAmount: 7727.27,
-    commissionRate: 0.1,
+    price: 89250,
+    providerPrice: 85000,
+    commissionAmount: 4250,
+    commissionRate: 0.05,
   },
 ]
 
@@ -109,16 +110,14 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
   const [paymentMethod, setPaymentMethod] = React.useState<PaymentMethod>('eWallet')
   const [termsAccepted, setTermsAccepted] = React.useState(false)
   const [showTermsError, setShowTermsError] = React.useState(false)
-  const subtotal = items.reduce((total, item) => total + item.price, 0)
-  const providerSubtotal = items.reduce((total, item) => total + item.providerPrice, 0)
-  const serviceFee = items.reduce((total, item) => total + item.commissionAmount, 0)
+  const breakdown = calculatePaymentBreakdown(items)
   const commissionRates = Array.from(new Set(items.map((item) => item.commissionRate)))
   const feeLabel = commissionRates.length === 1
     ? `MULTIVENT Service Fee (${Math.round(commissionRates[0] * 100)}%)`
     : 'MULTIVENT Service Fee'
-  const deposit = Math.round(providerSubtotal * 0.3 * 100) / 100
-  const amountDue = paymentType === 'deposit' ? deposit : subtotal
-  const remainingBalance = Math.max(0, subtotal - amountDue)
+  const amountDue = paymentType === 'deposit'
+    ? breakdown.initialPayment
+    : breakdown.clientTotal
 
   const handlePay = () => {
     if (isProcessing) return
@@ -195,18 +194,18 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
           <Text style={styles.sectionTitle}>How much would you like to pay?</Text>
           <View style={[styles.paymentTypeGrid, isWide && styles.paymentTypeGridWide]}>
             <PaymentTypeCard
-              description="Paid to your selected providers to reserve their services."
-              detail="30%"
-              label="Pay Deposit"
+              description="Includes the 30% provider allocation and the 5% platform fee."
+              detail="40% of service subtotal"
+              label="Pay Initial Payment"
               onPress={() => setPaymentType('deposit')}
-              price={formatCurrency(deposit)}
+              price={formatCurrency(breakdown.initialPayment)}
               selected={paymentType === 'deposit'}
             />
             <PaymentTypeCard
               description="Settle everything now for peace of mind."
               label="Pay in Full"
               onPress={() => setPaymentType('full')}
-              price={formatCurrency(subtotal)}
+              price={formatCurrency(breakdown.clientTotal)}
               selected={paymentType === 'full'}
             />
           </View>
@@ -214,18 +213,34 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
 
         <View style={styles.breakdownCard}>
           <Text style={styles.breakdownTitle}>Payment Breakdown</Text>
-          <BreakdownRow label="Provider Services" value={formatCurrency(providerSubtotal)} />
-          <BreakdownRow muted label={`${feeLabel} (Included)`} value={formatCurrency(serviceFee)} />
+          <BreakdownRow label="Service Subtotal" value={formatCurrency(breakdown.serviceSubtotal)} />
+          <BreakdownRow label={feeLabel} value={formatCurrency(breakdown.platformFee)} />
+          <BreakdownRow label="Client Total" value={formatCurrency(breakdown.clientTotal)} />
+          {paymentType === 'deposit' && (
+            <>
+              <BreakdownRow
+                muted
+                label="Provider Initial Allocation (30%, held until acceptance)"
+                value={formatCurrency(breakdown.providerInitialAllocation)}
+              />
+              <BreakdownRow
+                muted
+                label="Held / Unallocated"
+                value={formatCurrency(breakdown.heldUnallocatedAmount)}
+              />
+            </>
+          )}
           <View style={styles.breakdownDivider} />
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>
-              {paymentType === 'deposit' ? 'Deposit Due Now' : 'Total Due Now'}
+              {paymentType === 'deposit' ? 'Initial Payment Due Now' : 'Total Due Now'}
             </Text>
             <Text style={styles.totalValue}>{formatCurrency(amountDue)}</Text>
           </View>
           {paymentType === 'deposit' && (
             <Text style={styles.balanceText}>
-              Remaining provider balance and MULTIVENT service fee: {formatCurrency(remainingBalance)}
+              Remaining client balance: {formatCurrency(breakdown.remainingClientBalance)}
+              {' \u2022 '}Provider service balance: {formatCurrency(breakdown.providerBalance)}
             </Text>
           )}
         </View>
@@ -323,7 +338,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
             <Text style={styles.payButtonText}>
               {isProcessing
                 ? 'Finalizing booking...'
-                : `${paymentType === 'deposit' ? 'Pay Deposit' : 'Pay in Full'} · ${formatCurrency(amountDue).replace(' ', '')}`}
+                : `${paymentType === 'deposit' ? 'Pay Initial Payment' : 'Pay in Full'} · ${formatCurrency(amountDue).replace(' ', '')}`}
             </Text>
           </Pressable>
         </View>

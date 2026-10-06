@@ -252,7 +252,7 @@ function TableScreen({ section, copy }: { section: LegacyTableSection; copy: typ
       : section === 'bookings'
         ? [['all', 'All'], ['requested', 'Requested'], ['approved', 'Approved'], ['payment_required', 'Payment required'], ['paid', 'Paid'], ['confirmed', 'Confirmed'], ['completed', 'Completed'], ['cancelled', 'Cancelled'], ['expired', 'Expired'], ['rejected', 'Rejected']]
         : section === 'payments'
-          ? [['all', 'All'], ['fully_paid', 'Fully paid'], ['deposit_paid', '30% paid']]
+          ? [['all', 'All'], ['fully_paid', 'Fully paid'], ['deposit_paid', '40% initial payment']]
           : section === 'reviews'
             ? [['all', 'All'], ['positive', 'Positive'], ['negative', 'Negative'], ['failed', 'Needs retry'], ['pending', 'Waiting'], ['processing', 'Analyzing'], ['processed', 'Analyzed'], ['not_requested', 'Rating only']]
             : []

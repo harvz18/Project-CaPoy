@@ -415,12 +415,19 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
 export const fetchAvailableCoordinators = async (): Promise<CatalogService[]> => {
   if (!supabase || !supabaseConfig.isConfigured) return []
 
-  const [{ data, error }, { data: reviewData }, { data: packageData }] = await Promise.all([
+  const [
+    { data, error },
+    { data: reviewData },
+    { data: packageData },
+    { data: configuredCommissionRate },
+  ] = await Promise.all([
     supabase.rpc('list_bookable_event_coordinators'),
     supabase.rpc('list_event_coordinator_review_data'),
     supabase.rpc('list_bookable_coordinator_packages'),
+    supabase.rpc('get_public_commission_rate'),
   ])
   if (error || !Array.isArray(data)) return []
+  const commissionRate = normalizeCommissionRate(configuredCommissionRate)
 
   const reviewRows = new Map(
     (Array.isArray(reviewData) ? reviewData : []).map((entry) => {
@@ -511,7 +518,7 @@ export const fetchAvailableCoordinators = async (): Promise<CatalogService[]> =>
     return [{
       categoryId: 'eventOrganizers' as const,
       categoryName: 'Event Organizer',
-      commissionRate: 0,
+      commissionRate,
       coordinatorAvailable: row.is_available !== false,
       coordinatorUnavailableReason: textFrom(row.unavailable_reason, ''),
       coordinatorSpecializations: Array.isArray(row.specializations)
@@ -530,7 +537,7 @@ export const fetchAvailableCoordinators = async (): Promise<CatalogService[]> =>
       imageUrl: usableImageUrl(row.avatar_url),
       isMock: false,
       kind: 'coordinator' as const,
-      minPrice: coordinationFee,
+      minPrice: customerPriceFromProviderPrice(coordinationFee, commissionRate),
       name,
       pricingModel: 'fixed' as const,
       pricingUnit: 'event' as const,

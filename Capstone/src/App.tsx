@@ -13,6 +13,7 @@ import {
 } from '@expo-google-fonts/inter'
 
 import { supabase } from './lib/supabase'
+import { calculatePaymentBreakdown, DEFAULT_COMMISSION_RATE } from './lib/pricing'
 import {
   fetchServiceReviewInsights,
   fetchServiceReviewSummaries,
@@ -848,15 +849,28 @@ export const App: React.FC = () => {
     (service) => service.categoryId === selectedCategory
   )
   const visibleCatalogServices = categoryServices
-  const paymentItems: PaymentOrderItem[] = selectedServices.map((service) => ({
-    commissionAmount: service.commissionAmount,
-    commissionRate: service.commissionRate,
-    description: service.detail,
-    id: service.id,
-    name: service.name,
-    price: service.price,
-    providerPrice: service.providerPrice,
-  }))
+  const paymentItems: PaymentOrderItem[] = [
+    ...selectedServices.map((service) => ({
+      commissionAmount: service.commissionAmount,
+      commissionRate: service.commissionRate,
+      description: service.detail,
+      id: service.id,
+      name: service.name,
+      price: service.price,
+      providerPrice: service.providerPrice,
+    })),
+    ...(assignedCoordinator
+      ? [{
+          commissionAmount: assignedCoordinator.commissionAmount,
+          commissionRate: assignedCoordinator.commissionRate,
+          description: 'Event Coordination',
+          id: assignedCoordinator.id,
+          name: assignedCoordinator.name,
+          price: assignedCoordinator.price,
+          providerPrice: assignedCoordinator.providerPrice,
+        }]
+      : []),
+  ]
   const payableItems =
     paymentItems.length > 0
       ? paymentItems
@@ -864,7 +878,7 @@ export const App: React.FC = () => {
           {
             description: 'Add services first to build a real order.',
             commissionAmount: 0,
-            commissionRate: 0.1,
+            commissionRate: DEFAULT_COMMISSION_RATE,
             id: 'empty-plan',
             name: 'No selected services yet',
             price: 0,
@@ -1671,9 +1685,12 @@ export const App: React.FC = () => {
 
     setAssignedCoordinator({
       avatarUrl: currentService.imageUrl,
+      commissionAmount: Math.max(0, currentService.minPrice - currentService.providerMinPrice),
+      commissionRate: currentService.commissionRate,
       id: currentService.id,
       name: currentService.name,
       price: currentService.minPrice,
+      providerPrice: currentService.providerMinPrice,
       status: 'pending',
     })
     setCoordinatorPreferenceState('selected')
@@ -1714,9 +1731,12 @@ export const App: React.FC = () => {
     }
     setAssignedCoordinator({
       avatarUrl: currentService.imageUrl,
+      commissionAmount: Math.max(0, currentService.minPrice - currentService.providerMinPrice),
+      commissionRate: currentService.commissionRate,
       id: currentService.id,
       name: currentService.name,
       price: currentService.minPrice,
+      providerPrice: currentService.providerMinPrice,
       status: 'pending',
     })
     setCoordinatorPreferenceState('selected')
@@ -2199,7 +2219,7 @@ export const App: React.FC = () => {
         ...standalonePackageServices.filter((service) => service.id !== editingMerchantServiceId),
       ]
     : []
-  const packageCommissionRate = catalogServices[0]?.commissionRate ?? 0.1
+  const packageCommissionRate = catalogServices[0]?.commissionRate ?? DEFAULT_COMMISSION_RATE
 
   const renderScreen = () => {
     switch (screen) {
@@ -3368,18 +3388,11 @@ export const App: React.FC = () => {
                 name: item.name,
                 price:
                   lastPayment?.paymentType === 'deposit'
-                    ? Math.round(item.price * 0.3)
+                    ? calculatePaymentBreakdown([item]).initialPayment
                     : item.price,
               })),
               referenceNumber: `MV-${Date.now().toString().slice(-8)}`,
-              serviceFee: payableItems.reduce(
-                (total, item) => total + (
-                  lastPayment?.paymentType === 'deposit'
-                    ? Math.round(item.commissionAmount * 0.3)
-                    : item.commissionAmount
-                ),
-                0
-              ),
+              serviceFee: calculatePaymentBreakdown(payableItems).platformFee,
             } satisfies ConfirmationReceipt}
             onBackHome={() => setScreen('clientHome')}
             onViewBookings={() => setScreen('bookings')}

@@ -14,6 +14,7 @@ import {
   View,
 } from 'react-native'
 import type { ServicePricingUnit } from './17.1-Step2Pricing'
+import { DEFAULT_COMMISSION_RATE } from '../lib/pricing'
 
 export interface ServicePackageValue {
   currency: 'PHP'
@@ -85,7 +86,7 @@ const BackIcon = () => (
 
 export const Step2AddPackageScreen: React.FC<Step2AddPackageScreenProps> = ({
   availableServices = [],
-  commissionRate = 0.1,
+  commissionRate = DEFAULT_COMMISSION_RATE,
   initialValue,
   isDeleting = false,
   isSaving = false,
