@@ -3,16 +3,12 @@ import React, { useEffect, useRef, useState } from 'react'
 import {
   Animated,
   Image,
-  Modal,
   Pressable,
   StyleSheet,
-  
   useWindowDimensions,
   View,
 } from 'react-native'
-import { useVideoPlayer, VideoView } from 'expo-video'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import merchantSignupVideo from '../../images/MerchantSignupMP4.mp4'
 import { colors, radius, spacing } from '../theme/tokens'
 import { typography } from '../theme/typography'
 
@@ -46,7 +42,6 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
 }) => {
   const { height, width } = useWindowDimensions()
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null)
-  const [isProviderVideoVisible, setIsProviderVideoVisible] = useState(false)
   const hoverAnimations = useRef({
     client: new Animated.Value(0),
     provider: new Animated.Value(0),
@@ -56,11 +51,6 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
     provider: new Animated.Value(1),
   }).current
   const actionsEntranceAnimation = useRef(new Animated.Value(1)).current
-  const providerVideoEntrance = useRef(new Animated.Value(0)).current
-  const providerVideoPlayer = useVideoPlayer(merchantSignupVideo, (videoPlayer) => {
-    videoPlayer.loop = false
-    videoPlayer.muted = true
-  })
   const isCompact = height < 700
   const isWide = width >= 700
 
@@ -94,39 +84,8 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
     }).start()
   }, [actionsEntranceAnimation, entranceDelay])
 
-  useEffect(() => {
-    if (!isProviderVideoVisible) {
-      providerVideoPlayer.pause()
-      return
-    }
-
-    providerVideoPlayer.currentTime = 0
-    providerVideoPlayer.play()
-    providerVideoEntrance.setValue(0)
-    Animated.timing(providerVideoEntrance, {
-      toValue: 1,
-      duration: 420,
-      useNativeDriver: true,
-    }).start()
-  }, [isProviderVideoVisible, providerVideoEntrance, providerVideoPlayer])
-
-  useEffect(() => {
-    const subscription = providerVideoPlayer.addListener('playToEnd', () => {
-      setIsProviderVideoVisible(false)
-      onSelectRole('provider')
-    })
-
-    return () => subscription.remove()
-  }, [onSelectRole, providerVideoPlayer])
-
   const handleContinue = () => {
     if (!selectedRole) return
-
-    if (selectedRole === 'provider') {
-      setIsProviderVideoVisible(true)
-      return
-    }
-
     onSelectRole(selectedRole)
   }
 
@@ -260,38 +219,6 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
         </View>
       </View>
 
-      <Modal
-        animationType="none"
-        transparent
-        visible={isProviderVideoVisible}
-        onRequestClose={() => setIsProviderVideoVisible(false)}
-      >
-        <View style={styles.videoModalBackdrop}>
-          <Animated.View
-            style={[
-              styles.videoModal,
-              {
-                opacity: providerVideoEntrance,
-                transform: [
-                  {
-                    scale: providerVideoEntrance.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.82, 1],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          >
-            <VideoView
-              contentFit="cover"
-              nativeControls={false}
-              player={providerVideoPlayer}
-              style={styles.providerVideo}
-            />
-          </Animated.View>
-        </View>
-      </Modal>
     </SafeAreaView>
   )
 }

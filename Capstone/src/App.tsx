@@ -4,7 +4,6 @@ import { Animated, Easing, Pressable, StyleSheet, Text, useWindowDimensions, Vie
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
 import * as ImagePicker from 'expo-image-picker'
-import { useVideoPlayer, VideoView } from 'expo-video'
 import { useFonts } from 'expo-font'
 import {
   Inter_400Regular,
@@ -13,7 +12,6 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter'
 
-import clientSignupVideo from '../images/ClientSignupMP4.mp4'
 import { supabase } from './lib/supabase'
 import {
   fetchServiceReviewInsights,
@@ -38,13 +36,11 @@ import {
   fetchClientPlanningState,
   removeCoordinatorFromEvent,
   removeServiceSelection,
-  replaceServiceSelection,
   saveBudgetPlan,
   saveEventFeedback,
   saveEventDraft,
   savePlanningPayment,
   saveProviderInstructions,
-  saveScheduleCheck,
   saveServiceSelection,
   setCoordinatorPreference,
 } from './lib/planning'
@@ -145,7 +141,7 @@ import { MerchantSignupScreen } from './screens/02.2-MerchantSignup'
 import { PendingApprovalScreen } from './screens/02.2.1-PendingApproval'
 import { RejectedApplicationScreen } from './screens/02.2.2-RejectedApplication'
 import { VerificationScreen } from './screens/02.3-Verification'
-import { BudgetAllocationScreen } from './screens/05-BudgetAllocation'
+import { BudgetAllocationScreen, BudgetPriority } from './screens/05-BudgetAllocation'
 import { CoordinatorChoiceScreen } from './screens/05.1-CoordinatorChoice'
 import {
   EventCreationScreen,
@@ -162,25 +158,14 @@ import {
   normalizeCategoryDetails,
   validateCategoryDetails,
 } from './lib/service-category-details'
-import {
-  AssignedCoordinatorSummary,
-  SelectedSummaryScreen,
-  SelectedSummaryService,
-} from './screens/07-SelectedSummary'
+import type { AssignedCoordinatorSummary, SelectedSummaryService } from './screens/07-SelectedSummary'
 import { RoleHomePlaceholderScreen } from './screens/RoleHomePlaceholder'
 import {
   InstructionModuleScreen,
   InstructionModuleService,
 } from './screens/10-InstructionModule'
-import {
-  ScheduleNoConflictScreen,
-  ScheduleProvider,
-} from './screens/09-Schedule(No-Conflict)'
-import {
-  ScheduleConflictProvider,
-  ScheduleConflictScreen,
-} from './screens/09-Schedule(Conflict)'
 import { PlanningStepNavigationProvider } from './components/PlanningStepIndicator'
+import { PlanningSwipeContainer } from './components/PlanningSwipeContainer'
 import { BookingItem, BookingScreen } from './screens/11-BookingScreen'
 import { BookingDetailsScreen } from './screens/11.1-BookingDetails'
 import {
@@ -232,7 +217,6 @@ type AppScreen =
   | 'forgotPassword'
   | 'newPassword'
   | 'roleSelection'
-  | 'clientSignupIntro'
   | 'clientSignup'
   | 'merchantSignup'
   | 'verification'
@@ -277,10 +261,7 @@ type AppScreen =
   | 'categoryBrowse'
   | 'coordinatorDetails'
   | 'serviceDetails'
-  | 'selectedSummary'
   | 'instructionModule'
-  | 'scheduleConflict'
-  | 'scheduleNoConflict'
   | 'bookings'
   | 'bookingDetails'
   | 'payment'
@@ -307,7 +288,6 @@ type AccountRole =
 const screensWithOwnEntrance = new Set<AppScreen>([
   'onboarding',
   'roleSelection',
-  'clientSignupIntro',
   'merchantSignup',
   'eventCreation',
   'budgetAllocation',
@@ -321,60 +301,6 @@ type UserMetadata = {
   email?: unknown
   full_name?: unknown
   name?: unknown
-}
-
-interface ClientSignupIntroScreenProps {
-  onComplete: () => void
-}
-
-const ClientSignupIntroScreen: React.FC<ClientSignupIntroScreenProps> = ({ onComplete }) => {
-  const player = useVideoPlayer(clientSignupVideo, (videoPlayer) => {
-    videoPlayer.loop = false
-    videoPlayer.muted = true
-    videoPlayer.play()
-  })
-  const entranceAnimation = React.useRef(new Animated.Value(0)).current
-
-  React.useEffect(() => {
-    Animated.parallel([
-      Animated.timing(entranceAnimation, {
-        toValue: 1,
-        duration: 420,
-        useNativeDriver: true,
-      }),
-    ]).start()
-  }, [entranceAnimation])
-
-  React.useEffect(() => {
-    const subscription = player.addListener('playToEnd', onComplete)
-    return () => subscription.remove()
-  }, [onComplete, player])
-
-  return (
-    <Animated.View
-      style={[
-        styles.clientSignupIntroFrame,
-        {
-          opacity: entranceAnimation,
-          transform: [
-            {
-              scale: entranceAnimation.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0.82, 1],
-              }),
-            },
-          ],
-        },
-      ]}
-    >
-      <VideoView
-        contentFit="cover"
-        nativeControls={false}
-        player={player}
-        style={styles.clientSignupIntroVideo}
-      />
-    </Animated.View>
-  )
 }
 
 const DEFAULT_BUDGET = 0
@@ -452,7 +378,7 @@ export const App: React.FC = () => {
 
     requestAnimationFrame(() => {
       const animation = Animated.timing(screenTransitionProgress, {
-        duration: screensWithOwnEntrance.has(nextScreen) ? 360 : 280,
+        duration: 220,
         easing: Easing.out(Easing.cubic),
         toValue: 1,
         useNativeDriver: true,
@@ -525,9 +451,6 @@ export const App: React.FC = () => {
   const [busyCoordinatorChoice, setBusyCoordinatorChoice] = React.useState<'browse' | 'skip' | ''>('')
   const [assigningCoordinatorId, setAssigningCoordinatorId] = React.useState('')
   const [selectingCoordinatorPackageId, setSelectingCoordinatorPackageId] = React.useState('')
-  const [scheduleProviders, setScheduleProviders] = React.useState<ScheduleProvider[]>([])
-  const [replacementTarget, setReplacementTarget] =
-    React.useState<ScheduleConflictProvider>()
   const [maxPlanningStep, setMaxPlanningStep] = React.useState(1)
   const [clientEventDraft, setClientEventDraft] =
     React.useState<ClientEventDraftSummary>()
@@ -535,6 +458,7 @@ export const App: React.FC = () => {
   const [merchantRequests, setMerchantRequests] = React.useState<MerchantBookingRequest[]>([])
   const [merchantServices, setMerchantServices] = React.useState<MerchantServiceListing[]>([])
   const [totalBudget, setTotalBudget] = React.useState(DEFAULT_BUDGET)
+  const [budgetPriorities, setBudgetPriorities] = React.useState<BudgetPriority[]>([])
   const [eventDetails, setEventDetails] =
     React.useState<EventCreationValue>(DEFAULT_EVENT)
   const [lastPayment, setLastPayment] = React.useState<PaymentValue>()
@@ -646,7 +570,6 @@ export const App: React.FC = () => {
   }
 
   const openPlanningHub = (direction?: 'forward' | 'back') => {
-    setReplacementTarget(undefined)
     setServiceBrowseMode('planning')
     const hasDirection = direction === 'forward' || direction === 'back'
     if (hasDirection) categoryBrowseEntrance.setValue(direction === 'forward' ? width : -width)
@@ -660,7 +583,7 @@ export const App: React.FC = () => {
       }).start()
     }
   }
-  const openSelectedPlan = () => setScreen('selectedSummary')
+  const openSelectedPlan = openPlanningHub
   const openEventCreation = () => {
     eventCreationEntrance.setValue(width)
     eventCreationExit.setValue(1)
@@ -925,11 +848,6 @@ export const App: React.FC = () => {
     (service) => service.categoryId === selectedCategory
   )
   const visibleCatalogServices = categoryServices
-  const replacementCatalogServices = replacementTarget
-    ? visibleCatalogServices.filter(
-        (service) => !service.isMock && service.providerName !== replacementTarget.name
-      )
-    : visibleCatalogServices
   const paymentItems: PaymentOrderItem[] = selectedServices.map((service) => ({
     commissionAmount: service.commissionAmount,
     commissionRate: service.commissionRate,
@@ -1076,7 +994,6 @@ export const App: React.FC = () => {
     setClientEventDraft(planningState.draftSummary)
     setSelectedServices(planningState.selectedServices)
     setLastPayment(planningState.lastPayment)
-    setScheduleProviders(planningState.scheduleProviders ?? [])
     setMaxPlanningStep(planningState.maxPlanningStep ?? 1)
     setCurrentServiceId((current) =>
       services.some((service) => service.id === current) ? current : services[0]?.id ?? ''
@@ -1429,14 +1346,13 @@ export const App: React.FC = () => {
           setUserAvatarUrl('')
           setAccountProfileError('')
           setMaxPlanningStep(1)
+          setBudgetPriorities([])
           setClientEventDraft(undefined)
           setAssignedCoordinator(undefined)
           setCoordinatorAssignmentStatus(undefined)
           setCoordinatorPreferenceState('undecided')
           setSelectedCoordinatorPackage(undefined)
           setAssigningCoordinatorId('')
-          setReplacementTarget(undefined)
-          setScheduleProviders([])
           setScreen('roleSelection')
         }
         return
@@ -1495,7 +1411,7 @@ export const App: React.FC = () => {
 
   const handleRoleSelection = (role: UserRole) => {
     if (role === 'client') {
-      setScreen('clientSignupIntro')
+      setScreen('clientSignup')
       return
     }
 
@@ -1508,7 +1424,8 @@ export const App: React.FC = () => {
     }).start()
   }
 
-  const handleBudgetContinue = async (budget: number, priorities: string[]) => {
+  const handleBudgetContinue = async (budget: number, priorities: BudgetPriority[]) => {
+    setBudgetPriorities(priorities)
     await runOnce('save-budget-plan', async () => {
       const result = await saveBudgetPlan({ budget, priorities })
 
@@ -1551,7 +1468,6 @@ export const App: React.FC = () => {
   const handleEventContinue = async (value: EventCreationValue, nextScreen: AppScreen) => {
     await runOnce('save-event-details', async () => {
       setEventDetails(value)
-      setScheduleProviders([])
 
       const result = await saveEventDraft(value)
       if (!result.ok) {
@@ -1576,91 +1492,26 @@ export const App: React.FC = () => {
     })
   }
 
-  const runScheduleCheck = async () => {
-    const completed = await runOnce('check-provider-schedule', async () => {
-      const scheduleResult = await saveScheduleCheck()
-
-      if (!scheduleResult.ok) {
-        setToastMessage(scheduleResult.message ?? 'Unable to check provider availability.')
-        return false
-      }
-
-      setScheduleProviders(scheduleResult.providers ?? [])
-      const hasConflict = scheduleResult.status === 'conflict'
-      setMaxPlanningStep((current) =>
-        hasConflict ? Math.min(current, 4) : Math.max(current, 5)
-      )
-      setScreen(hasConflict ? 'scheduleConflict' : 'scheduleNoConflict')
-      return true
-    })
-    return completed ?? false
-  }
-
   const handlePlanningStepPress = (step: number) => {
     if (step < 1 || step > maxPlanningStep) return
 
-    setReplacementTarget(undefined)
     setServiceBrowseMode('planning')
 
     if (step === 1) setScreen('eventCreation')
     if (step === 2) setScreen('budgetAllocation')
-    if (step === 3) setScreen(
-      selectedServices.length > 0 || assignedCoordinator
-        ? 'selectedSummary'
-        : coordinatorPreference === 'undecided'
-          ? 'coordinatorChoice'
-          : 'categoryBrowse'
-    )
-    if (step === 4) {
-      if (scheduleProviders.length > 0) {
-        setScreen(
-          scheduleProviders.some((provider) => !provider.available)
-            ? 'scheduleConflict'
-            : 'scheduleNoConflict'
-        )
+    if (step === 3) {
+      if (
+        coordinatorPreference === 'undecided'
+        && !assignedCoordinator
+        && selectedServices.length === 0
+      ) {
+        setScreen('coordinatorChoice')
       } else {
-        setScreen('instructionModule')
+        setScreen('categoryBrowse')
       }
     }
+    if (step === 4) setScreen('instructionModule')
     if (step === 5) setScreen('payment')
-  }
-
-  const handleScheduleDateChange = async (date: string) => {
-    const nextEvent = { ...eventDetails, date }
-    const result = await saveEventDraft(nextEvent)
-
-    if (!result.ok) {
-      setToastMessage(result.message ?? 'Unable to update the event date.')
-      return false
-    }
-
-    setEventDetails(nextEvent)
-    setScheduleProviders([])
-    return runScheduleCheck()
-  }
-
-  const handleProviderReplacement = async (vendorId: string) => {
-    if (!replacementTarget) return false
-    const service = catalogServices.find((item) => item.id === vendorId)
-    if (!service) {
-      setToastMessage('The selected provider service is no longer available.')
-      return false
-    }
-
-    const result = await replaceServiceSelection({
-      selectionId: replacementTarget.id,
-      service,
-    })
-
-    if (!result.ok) {
-      setToastMessage(result.message ?? 'Unable to change the service provider.')
-      return false
-    }
-
-    setReplacementTarget(undefined)
-    await refreshLiveData()
-    setToastMessage(`Provider changed to ${service.providerName}. Rechecking the schedule.`)
-    return runScheduleCheck()
   }
 
   React.useEffect(() => {
@@ -1793,12 +1644,11 @@ export const App: React.FC = () => {
           )
         : [...current, nextSelection]
     })
-    setScheduleProviders([])
     setMaxPlanningStep((current) => Math.min(current, 4))
 
     setToastMessage('Service added. Providers are notified only after final booking.')
     await refreshLiveData()
-    setScreen('selectedSummary')
+    openPlanningHub()
   }
 
   const handleAssignCoordinator = async () => {
@@ -1831,7 +1681,7 @@ export const App: React.FC = () => {
     setSelectedCategory('catering')
     setToastMessage(result.message ?? `Booking request sent to ${currentService.name}.`)
     await refreshLiveData()
-    setScreen('selectedSummary')
+    openPlanningHub()
   }
 
   const handleRemoveCoordinator = async () => {
@@ -1874,7 +1724,7 @@ export const App: React.FC = () => {
     setSelectedCategory('catering')
     setToastMessage(result.message ?? 'Coordinator package selected.')
     await refreshLiveData()
-    setScreen('selectedSummary')
+    openPlanningHub()
   }
 
   const handleRemoveSelection = async (service: SelectedSummaryService) => {
@@ -1893,7 +1743,6 @@ export const App: React.FC = () => {
     }
 
     setSelectedServices((current) => current.filter((item) => item.id !== service.id))
-    setScheduleProviders([])
     setMaxPlanningStep((current) =>
       Math.min(current, selectedServices.length === 1 ? 3 : 4)
     )
@@ -2272,13 +2121,12 @@ export const App: React.FC = () => {
 
     setEventDetails({ ...DEFAULT_EVENT })
     setTotalBudget(DEFAULT_BUDGET)
+    setBudgetPriorities([])
     setSelectedServices([])
     setAssignedCoordinator(undefined)
     setCoordinatorAssignmentStatus(undefined)
     setCoordinatorPreferenceState('undecided')
     setSelectedCoordinatorPackage(undefined)
-    setScheduleProviders([])
-    setReplacementTarget(undefined)
     setLastPayment(undefined)
     setMaxPlanningStep(1)
     setClientEventDraft(undefined)
@@ -2287,18 +2135,14 @@ export const App: React.FC = () => {
     return true
   }
 
-  const continueClientDraft = () => {
-    handlePlanningStepPress(Math.max(1, maxPlanningStep))
-  }
+  const continueClientDraft = () => handlePlanningStepPress(Math.max(1, maxPlanningStep))
 
   const renderClientHome = () => (
     <ClientHomeScreen
       draftEvent={clientEventDraft}
       userAvatarUrl={userAvatarUrl}
       userName={userName}
-      remainingBudget={remainingBudget}
       selectedServiceCount={selectedServices.length}
-      totalBudget={totalBudget}
       onOpenActiveEvent={continueClientDraft}
       onStartNewEvent={startNewClientEvent}
       onOpenProfile={() => openAccountProfile('clientHome')}
@@ -2310,13 +2154,6 @@ export const App: React.FC = () => {
         setIsClientNavigationVisible(direction === 'up')
       }}
       onSeeAllVenues={openPlanningHub}
-      onSelectAction={(action) => {
-        if (action === 'newEvent') void startNewClientEvent()
-        if (action === 'budget') setScreen('budgetAllocation')
-        if (action === 'vendors') openPlanningHub()
-        if (action === 'ledger') setScreen('eventLedger')
-        if (action === 'tasks') setScreen('selectedSummary')
-      }}
       onSelectRecommendation={() => {
         const recommendedService = catalogServices[0]
         if (recommendedService?.id) {
@@ -2409,14 +2246,6 @@ export const App: React.FC = () => {
               onSelectRole={handleRoleSelection}
             />
           </Animated.View>
-        )
-      case 'clientSignupIntro':
-        return (
-          <ClientSignupIntroScreen
-            onComplete={() => {
-              setScreen('clientSignup')
-            }}
-          />
         )
       case 'clientSignup':
         return (
@@ -3183,9 +3012,11 @@ export const App: React.FC = () => {
           >
             <BudgetAllocationScreen
               initialBudget={totalBudget}
+              initialPriorities={budgetPriorities}
               isProcessing={activeGuardedActionCount > 0}
               onBack={openEventCreationFromBudget}
               onContinue={(value) => handleBudgetContinue(value.budget, value.priorities)}
+              onPrioritiesChange={setBudgetPriorities}
               onSkip={() => handleBudgetContinue(0, [])}
             />
           </Animated.View>
@@ -3236,30 +3067,20 @@ export const App: React.FC = () => {
             categoryName={catalogCategoryName(selectedCategory)}
               eventGuestCount={eventDetails.guestCount}
             mode={serviceBrowseMode}
-            services={
-              serviceBrowseMode === 'explore'
-                ? catalogServices
-                : replacementTarget
-                  ? replacementCatalogServices
-                  : visibleCatalogServices
-            }
+            services={serviceBrowseMode === 'explore' ? catalogServices : visibleCatalogServices}
             hasBudget={totalBudget > 0}
             selectedServiceCount={selectedServices.length}
+            selectedServices={selectedServices}
+            assignedCoordinator={assignedCoordinator}
+            coordinatorAssignmentStatus={coordinatorAssignmentStatus}
+            coordinatorPackage={selectedCoordinatorPackage}
+            budget={totalBudget}
+            totalEstimatedCost={selectedEstimatedTotal}
+            removingServiceId={removingServiceId}
             remainingBudget={remainingBudget}
-            replacementContext={
-              replacementTarget
-                ? {
-                    currentProviderName: replacementTarget.name,
-                    serviceName: replacementTarget.serviceName ?? 'Selected service',
-                  }
-                : undefined
-            }
             showBottomNavigation={false}
             onBack={() => {
-              if (replacementTarget) {
-                setReplacementTarget(undefined)
-                setScreen('scheduleConflict')
-              } else if (
+              if (
                 serviceBrowseMode === 'planning'
                 && selectedCategory === 'eventOrganizers'
                 && coordinatorPreference === 'undecided'
@@ -3268,16 +3089,22 @@ export const App: React.FC = () => {
               } else if (serviceBrowseMode === 'planning') openBudgetAllocationFromServices()
               else setScreen('clientHome')
             }}
-            onConfirmReplacement={handleProviderReplacement}
-            onOpenBudget={() => setScreen('budgetAllocation')}
-            onOpenSelectedServices={() => setScreen('selectedSummary')}
+            onContinueSelectedServices={() => {
+              setMaxPlanningStep((current) => Math.max(current, 4))
+              setScreen('instructionModule')
+            }}
+            onAddService={openPlanningHub}
+            onRemoveCoordinator={() => void handleRemoveCoordinator()}
+            onRemoveService={handleRemoveSelection}
+            onSelectService={(serviceId) => {
+              setCurrentServiceId(serviceId)
+              setScreen('serviceDetails')
+            }}
             onOpenSort={() => setScreen('categoryBrowse')}
             onSelectCategory={(category) => {
-              if (replacementTarget) return
               setSelectedCategory(categoryNameToId(category.name))
             }}
             onSelectVendor={(vendorId) => {
-              if (replacementTarget) return
               setCurrentServiceId(vendorId)
               const selectedVendor = catalogServices.find((service) => service.id === vendorId)
               setScreen(
@@ -3323,45 +3150,10 @@ export const App: React.FC = () => {
             reviewInsightsLoading={serviceReviewInsightsLoading}
           />
         )
-      case 'selectedSummary':
-        return (
-          <SelectedSummaryScreen
-            assignedCoordinator={assignedCoordinator}
-            coordinatorAssignmentStatus={coordinatorAssignmentStatus}
-            coordinatorPackage={selectedCoordinatorPackage}
-            budget={totalBudget}
-            removingServiceId={removingServiceId}
-            selectedServices={selectedServices}
-            showBottomNavigation={false}
-            totalEstimatedCost={selectedEstimatedTotal}
-            onAddService={openPlanningHub}
-            onBack={openPlanningHub}
-            onOpenMenu={() => setScreen('clientHome')}
-            onRemoveCoordinator={() => void handleRemoveCoordinator()}
-            onRemoveService={handleRemoveSelection}
-            onSelectService={(service) => {
-              setCurrentServiceId(service)
-              setScreen('serviceDetails')
-            }}
-            onSelectTab={(tab) => {
-              if (tab === 'plan') {
-                if (selectedServices.length > 0) {
-                  setMaxPlanningStep((current) => Math.max(current, 4))
-                  setScreen('instructionModule')
-                } else {
-                  setScreen('categoryBrowse')
-                }
-              } else if (tab === 'guestList') setScreen('guestList')
-              else if (tab === 'budget') setScreen('budgetAllocation')
-              else if (tab === 'settings') setScreen('clientHome')
-              else openClientTab(tab)
-            }}
-          />
-        )
       case 'instructionModule':
         return (
           <InstructionModuleScreen
-            onBack={() => setScreen('selectedSummary')}
+            onBack={() => openPlanningHub('back')}
             services={instructionServices}
             onSaveContinue={async (value) => {
               if (!supabase) {
@@ -3388,37 +3180,9 @@ export const App: React.FC = () => {
                 return
               }
 
-              await runScheduleCheck()
-            }}
-          />
-        )
-      case 'scheduleConflict':
-        return (
-          <ScheduleConflictScreen
-            eventDate={eventDetails.date}
-            onBack={() => setScreen('instructionModule')}
-            providers={scheduleProviders}
-            onConfirmDateChange={handleScheduleDateChange}
-            onChooseDifferentProvider={(provider) => {
-              setReplacementTarget(provider)
-              setSelectedCategory(categoryNameToId(provider.category ?? ''))
-              setServiceBrowseMode('planning')
-              setScreen('categoryBrowse')
-            }}
-            onMessageProvider={() => setScreen('messages')}
-            onRecheckAvailability={runScheduleCheck}
-          />
-        )
-      case 'scheduleNoConflict':
-        return (
-          <ScheduleNoConflictScreen
-            providers={scheduleProviders}
-            onBack={() => setScreen('instructionModule')}
-            onContinueToPayment={() => {
               setMaxPlanningStep((current) => Math.max(current, 5))
-              setScreen(selectedServices.length > 0 ? 'payment' : 'selectedSummary')
+              setScreen(selectedServices.length > 0 ? 'payment' : 'categoryBrowse')
             }}
-            onSelectProvider={() => setScreen('instructionModule')}
           />
         )
       case 'messages':
@@ -3558,7 +3322,7 @@ export const App: React.FC = () => {
         return (
           <RoleHomePlaceholderScreen
             description="Guest counts already feed the catering estimate. The full guest list workspace will manage invites, RSVPs, and meal notes."
-            onBackToRoleSelection={() => setScreen('selectedSummary')}
+            onBackToRoleSelection={openPlanningHub}
             roleLabel="Guests"
             title="Your guest list workspace is being prepared."
             userName={userName}
@@ -3570,7 +3334,7 @@ export const App: React.FC = () => {
             event={paymentEvent}
             isProcessing={isFinalizingPayment}
             items={payableItems}
-            onBack={() => setScreen('scheduleNoConflict')}
+            onBack={() => setScreen('instructionModule')}
             onOpenCancellationPolicy={() => setScreen('payment')}
             onOpenTerms={() => setScreen('payment')}
             onPay={(value) => {
@@ -3629,7 +3393,7 @@ export const App: React.FC = () => {
             showBottomNavigation={false}
             onOpenMenu={() => setScreen('clientHome')}
             onOpenProfile={() => openAccountProfile('bookings')}
-            onSelectEvent={() => setScreen('selectedSummary')}
+            onSelectEvent={openPlanningHub}
             onSelectBooking={(booking) => {
               setSelectedBooking(booking)
               setScreen('bookingDetails')
@@ -3751,6 +3515,37 @@ export const App: React.FC = () => {
     return null
   }
 
+  const planningSwipeStep =
+    screen === 'eventCreation'
+      ? 1
+      : screen === 'budgetAllocation'
+        ? 2
+        : screen === 'categoryBrowse'
+          ? 3
+          : screen === 'instructionModule'
+            ? 4
+            : screen === 'payment'
+              ? 5
+              : 0
+  const renderedScreen = renderScreen()
+  const screenWithPlanningSwipe = planningSwipeStep > 0 ? (
+    <PlanningSwipeContainer
+      currentStep={planningSwipeStep}
+      onSwipeLeft={
+        planningSwipeStep < maxPlanningStep
+          ? () => handlePlanningStepPress(planningSwipeStep + 1)
+          : undefined
+      }
+      onSwipeRight={
+        planningSwipeStep > 1
+          ? () => handlePlanningStepPress(planningSwipeStep - 1)
+          : undefined
+      }
+    >
+      {renderedScreen}
+    </PlanningSwipeContainer>
+  ) : renderedScreen
+
   return (
     <SafeAreaProvider>
       <StatusBar style={screen === 'clientHome' ? 'light' : 'dark'} />
@@ -3764,7 +3559,7 @@ export const App: React.FC = () => {
             maxReachableStep={maxPlanningStep}
             onStepPress={handlePlanningStepPress}
           >
-            {renderScreen()}
+            {screenWithPlanningSwipe}
           </PlanningStepNavigationProvider>
         </ScreenMotionFrame>
 
@@ -3809,16 +3604,6 @@ const styles = StyleSheet.create({
   },
   screenTransitionOverlay: {
     ...StyleSheet.absoluteFill,
-  },
-  clientSignupIntroFrame: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
-    overflow: 'hidden',
-  },
-  clientSignupIntroVideo: {
-    width: '100%',
-    height: '112%',
   },
   draftButtonPressed: {
     opacity: 0.82,

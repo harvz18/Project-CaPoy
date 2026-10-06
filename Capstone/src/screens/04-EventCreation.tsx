@@ -339,6 +339,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
         nextEnabled={isStepComplete && !isProcessing}
         onBack={isProcessing ? undefined : onClose}
         onNext={handleContinue}
+        showBackButton
         title="Create Event"
       />
 

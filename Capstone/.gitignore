@@ -13,6 +13,10 @@ node_modules
 dist
 *.local
 
+# Python-generated artifacts
+__pycache__/
+*.py[cod]
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

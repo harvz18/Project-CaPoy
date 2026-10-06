@@ -166,7 +166,7 @@ export const InstructionModuleScreen: React.FC<InstructionModuleScreenProps> = (
       <PlanningScreenHeader
         currentStep={4}
         label="Provider Requests"
-        nextAccessibilityLabel="Save requests and check the schedule"
+        nextAccessibilityLabel="Save provider requests and continue to payment"
         nextEnabled={services.length > 0 && !isSaving}
         onBack={onBack}
         onNext={handleSave}

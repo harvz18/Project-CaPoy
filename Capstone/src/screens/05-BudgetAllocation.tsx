@@ -40,6 +40,7 @@ interface BudgetAllocationScreenProps {
   onBack?: () => void
   onBudgetChange?: (budget: number) => void
   onContinue?: (value: BudgetAllocationValue) => void
+  onPrioritiesChange?: (priorities: BudgetPriority[]) => void
   onSkip?: () => void
 }
 
@@ -63,6 +64,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
   onBack,
   onBudgetChange,
   onContinue,
+  onPrioritiesChange,
   onSkip,
 }) => {
   const { width } = useWindowDimensions()
@@ -114,7 +116,9 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
 
   const togglePriority = (priority: BudgetPriority) => {
     if (priorities.includes(priority)) {
-      setPriorities(priorities.filter((item) => item !== priority))
+      const nextPriorities = priorities.filter((item) => item !== priority)
+      setPriorities(nextPriorities)
+      onPrioritiesChange?.(nextPriorities)
       return
     }
 
@@ -123,7 +127,9 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
       return
     }
 
-    setPriorities([...priorities, priority])
+    const nextPriorities = [...priorities, priority]
+    setPriorities(nextPriorities)
+    onPrioritiesChange?.(nextPriorities)
   }
 
   const handleContinue = () => {
@@ -163,15 +169,12 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
             <View style={styles.introCopy}>
               <Text style={styles.title}>What's Your Budget?</Text>
               <Text style={styles.subtitle}>
-                Set a starting point. We'll adjust as you explore.
+                Set a starting point. You can adjust as you explore.
               </Text>
             </View>
 
             {hasBudgetInput ? (
               <View style={[styles.budgetCard, styles.budgetInputCard]}>
-                <View style={styles.currencyBadge}>
-                  <Text style={styles.currencyBadgeText}>PHP</Text>
-                </View>
                 <TextInput
                   accessibilityLabel="Event budget in Philippine pesos"
                   autoFocus
@@ -429,6 +432,9 @@ const styles = StyleSheet.create({
   },
   budgetInputCard: { gap: 10 },
   currencyBadge: {
+    position: 'absolute',
+    left: 24,
+    zIndex: 1,
     minWidth: 44,
     alignItems: 'center',
     justifyContent: 'center',
@@ -445,6 +451,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
   removeBudgetButton: {
+    position: 'absolute',
+    right: 16,
+    zIndex: 1,
     width: 36,
     height: 36,
     alignItems: 'center',
@@ -500,7 +509,7 @@ const styles = StyleSheet.create({
   },
   budgetInput: {
     height: 96,
-    flex: 1,
+    width: '100%',
     color: palette.primaryContainer,
     fontSize: 40,
     lineHeight: 48,

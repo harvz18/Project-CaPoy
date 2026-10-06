@@ -14,15 +14,13 @@ import {
 import { ClientMainTab } from '../components/ClientBottomNavigation'
 import type { ClientEventDraftSummary } from '../lib/planning'
 
-export type ClientHomeAction = 'newEvent' | 'budget' | 'vendors' | 'ledger' | 'tasks'
+export type ClientHomeAction = 'newEvent' | 'vendors' | 'tasks'
 export type ClientHomeTab = ClientMainTab
 export type ClientHomeRecommendation = 'glasshouse' | 'aesthete'
 
 interface ClientHomeScreenProps {
   draftEvent?: ClientEventDraftSummary
-  remainingBudget?: number
   selectedServiceCount?: number
-  totalBudget?: number
   userAvatarUrl?: string
   userName?: string
   searchValue?: string
@@ -33,7 +31,6 @@ interface ClientHomeScreenProps {
   onOpenProfile?: () => void
   onScrollDirectionChange?: (direction: 'down' | 'up') => void
   onSeeAllVenues?: () => void
-  onSelectAction?: (action: ClientHomeAction) => void
   onSelectRecommendation?: (recommendation: ClientHomeRecommendation) => void
   onSelectTab?: (tab: ClientHomeTab) => void
 }
@@ -94,18 +91,13 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   onOpenProfile,
   onScrollDirectionChange,
   onSeeAllVenues,
-  onSelectAction,
   onSelectRecommendation,
   onStartNewEvent,
-  remainingBudget,
-  totalBudget,
   userAvatarUrl,
   userName,
 }) => {
   const { width } = useWindowDimensions()
   const isWide = width >= 768
-  const budget = remainingBudget ?? 0
-  const hasSetBudget = (totalBudget ?? 0) > 0
   const lastScrollY = React.useRef(0)
   const [isDraftPromptVisible, setIsDraftPromptVisible] = React.useState(false)
   const [isStartingNewEvent, setIsStartingNewEvent] = React.useState(false)
@@ -204,10 +196,6 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
         </View>
 
         <View style={styles.referenceSection}>
-          <View style={styles.referenceSectionHeader}>
-            <Text style={styles.referenceSectionTitle}>QUICK TOOLS<Text style={styles.sectionDot}></Text></Text>
-            <Text style={styles.liveSync}>Live Sync</Text>
-          </View>
           {draftEvent ? (
             <Pressable
               accessibilityLabel={`Continue planning ${draftEvent.name}`}
@@ -253,40 +241,6 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
               </View>
             </Pressable>
           ) : null}
-          <View style={styles.financeGrid}>
-            <Pressable
-              accessibilityLabel="Open budget"
-              accessibilityRole="button"
-              onPress={() => onSelectAction?.('budget')}
-              style={styles.financeCard}
-            >
-              <View style={styles.budgetCardContent}>
-                <Image accessibilityLabel="Budget illustration" source={require('../../images/BudgetSVG.png')} style={styles.budgetImage} />
-                <View style={styles.budgetCardCopy}>
-                  <Text style={styles.financeLabel}>
-                    {hasSetBudget ? 'BUDGET AVAILABLE' : 'PAYMENT PLAN'}
-                  </Text>
-                  <Text style={[styles.financeValue, !hasSetBudget && styles.financeValueCompact]}>
-                    {hasSetBudget ? `₱${budget.toLocaleString()}` : 'Actual service costs'}
-                  </Text>
-                </View>
-              </View>
-            </Pressable>
-            <Pressable
-              accessibilityLabel="Open event ledger"
-              accessibilityRole="button"
-              onPress={() => onSelectAction?.('ledger')}
-              style={styles.financeCard}
-            >
-              <View style={styles.budgetCardContent}>
-                <Image accessibilityLabel="Event ledger illustration" source={require('../../images/EventLedgerSVG.png')} style={styles.eventLedgerImage} />
-                <View style={styles.budgetCardCopy}>
-                  <Text style={styles.financeLabel}>EVENT LEDGER</Text>
-                  <Text style={styles.financeValue}>-- Transactions</Text>
-                </View>
-              </View>
-            </Pressable>
-          </View>
         </View>
 
         <View style={styles.referenceSection}>

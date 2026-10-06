@@ -1,6 +1,9 @@
 import { Text } from '../components/AppText'
 import React from 'react'
+import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons'
+import { BlurView } from 'expo-blur'
 import {
+  Animated,
   Image,
   Modal,
   Pressable,
@@ -16,6 +19,7 @@ import { ClientBottomNavigation, ClientMainTab } from '../components/ClientBotto
 import { CatalogService, formatServicePrice, ServiceCategoryOption } from '../lib/catalog'
 import { customerPriceFromProviderPrice } from '../lib/pricing'
 import { calculateCateringPrice, getCateringPricingOptions } from '../lib/service-category-details'
+import type { AssignedCoordinatorSummary, SelectedSummaryService } from './07-SelectedSummary'
 
 export type CategoryBrowseFilter = 'plated' | 'buffet' | 'packed' | 'under500'
 export type CategoryBrowseVendor = string
@@ -29,6 +33,13 @@ interface CategoryBrowseScreenProps {
   mode?: 'explore' | 'planning'
   services?: CatalogService[]
   selectedServiceCount?: number
+  selectedServices?: SelectedSummaryService[]
+  assignedCoordinator?: AssignedCoordinatorSummary
+  coordinatorAssignmentStatus?: 'accepted' | 'pending' | 'awaiting_assignment'
+  coordinatorPackage?: { id: string; name: string; serviceSubtotal: number }
+  budget?: number
+  totalEstimatedCost?: number
+  removingServiceId?: string
   remainingBudget?: number
   replacementContext?: {
     currentProviderName: string
@@ -39,8 +50,11 @@ interface CategoryBrowseScreenProps {
   sortLabel?: string
   onBack?: () => void
   onChangeSearch?: (value: string) => void
-  onOpenBudget?: () => void
-  onOpenSelectedServices?: () => void
+  onContinueSelectedServices?: () => void
+  onAddService?: () => void
+  onRemoveCoordinator?: () => void
+  onRemoveService?: (service: SelectedSummaryService) => void
+  onSelectService?: (serviceId: string) => void
   onOpenSort?: () => void
   onConfirmReplacement?: (vendorId: string) => boolean | Promise<boolean>
   onSelectFilter?: (filter: CategoryBrowseFilter) => void
@@ -74,6 +88,13 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   mode = 'planning',
   services = [],
   selectedServiceCount = 0,
+  selectedServices = [],
+  assignedCoordinator,
+  coordinatorAssignmentStatus,
+  coordinatorPackage,
+  budget = 0,
+  totalEstimatedCost = 0,
+  removingServiceId = '',
   remainingBudget = 45000,
   replacementContext,
   showBottomNavigation = true,
@@ -81,8 +102,11 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   sortLabel = 'Top rated',
   onBack,
   onChangeSearch,
-  onOpenBudget,
-  onOpenSelectedServices,
+  onContinueSelectedServices,
+  onAddService,
+  onRemoveCoordinator,
+  onRemoveService,
+  onSelectService,
   onOpenSort,
   onConfirmReplacement,
   onSelectFilter,
@@ -94,12 +118,17 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   const isWide = width >= 768
   const isExploreMode = mode === 'explore'
   const hasSetBudget = hasBudget ?? remainingBudget > 0
+  const hasPlanSelections = selectedServiceCount > 0
+    || Boolean(assignedCoordinator)
+    || coordinatorAssignmentStatus === 'awaiting_assignment'
   const useHorizontalCards = width >= 640
   const [internalSearch, setInternalSearch] = React.useState('')
   const [selectedFilter, setSelectedFilter] = React.useState<CategoryBrowseFilter>()
   const [selectedExploreCategory, setSelectedExploreCategory] = React.useState('All')
   const [pendingReplacement, setPendingReplacement] = React.useState<CatalogService>()
   const [isReplacing, setIsReplacing] = React.useState(false)
+  const [isSelectedServicesOpen, setIsSelectedServicesOpen] = React.useState(false)
+  const selectedServicesSheetOffset = React.useRef(new Animated.Value(480)).current
   const query = searchValue ?? internalSearch
   const exploreCategories = React.useMemo(
     () => ['All', ...Array.from(new Set(services.map((service) => service.categoryName)))],
@@ -154,6 +183,44 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     onSelectFilter?.(filter)
   }
 
+  React.useEffect(() => {
+    if (!isSelectedServicesOpen) return
+
+    selectedServicesSheetOffset.setValue(480)
+    Animated.timing(selectedServicesSheetOffset, {
+      duration: 320,
+      toValue: 0,
+      useNativeDriver: true,
+    }).start()
+  }, [isSelectedServicesOpen, selectedServicesSheetOffset])
+
+  React.useEffect(() => {
+    if (!isExploreMode) return
+
+    selectedServicesSheetOffset.setValue(480)
+    setIsSelectedServicesOpen(false)
+  }, [isExploreMode, selectedServicesSheetOffset])
+
+  React.useEffect(() => {
+    if (
+      selectedServices.length === 0
+      && !assignedCoordinator
+      && coordinatorAssignmentStatus !== 'awaiting_assignment'
+    ) {
+      setIsSelectedServicesOpen(false)
+    }
+  }, [assignedCoordinator, coordinatorAssignmentStatus, selectedServices.length])
+
+  const closeSelectedServices = () => {
+    Animated.timing(selectedServicesSheetOffset, {
+      duration: 260,
+      toValue: 480,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) setIsSelectedServicesOpen(false)
+    })
+  }
+
   return (
     <View style={styles.screen}>
       {isExploreMode ? (
@@ -171,7 +238,9 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
           nextAccessibilityLabel="Review selected services"
           nextEnabled={!replacementContext && selectedServiceCount > 0}
           onBack={onBack}
-          onNext={replacementContext ? undefined : onOpenSelectedServices}
+          onNext={
+            replacementContext ? undefined : () => setIsSelectedServicesOpen(true)
+          }
           title={replacementContext ? 'Change Provider' : 'Choose Services'}
         />
       )}
@@ -181,7 +250,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
           styles.content,
           !isExploreMode &&
             !replacementContext &&
-            selectedServiceCount > 0 &&
+            hasPlanSelections &&
             styles.contentWithSelectedServicesAction,
           isWide ? styles.horizontalPaddingWide : styles.horizontalPaddingMobile,
         ]}
@@ -198,23 +267,20 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
             </Text>
           </View>
         ) : !isExploreMode ? (
-          <Pressable
+          <View
             accessibilityLabel={
               hasSetBudget
                 ? `Remaining budget: ${formatCurrency(remainingBudget)} pesos`
                 : 'No budget set. Pay actual service costs'
             }
-            accessibilityRole="button"
-            onPress={onOpenBudget}
-            style={({ pressed }) => [styles.budgetPill, pressed && styles.budgetPressed]}
+            style={styles.budgetPill}
           >
             <Text style={styles.budgetText}>
               {hasSetBudget
                 ? `Remaining Budget: ₱${formatCurrency(remainingBudget)}`
                 : 'Pay actual service costs'}
             </Text>
-            <Text style={styles.chevron}>⌄</Text>
-          </Pressable>
+          </View>
         ) : null}
 
         <View style={styles.categoryHeader}>
@@ -450,19 +516,19 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
         </View>
       </ScrollView>
 
-      {!isExploreMode && !replacementContext && selectedServiceCount > 0 ? (
+      {!isExploreMode && !replacementContext && hasPlanSelections ? (
         <View style={styles.selectedServicesBar}>
           <Pressable
-            accessibilityLabel={`Open selected services. ${selectedServiceCount} selected`}
+            accessibilityLabel={`Open event plan. ${selectedServiceCount} services selected`}
             accessibilityRole="button"
-            onPress={onOpenSelectedServices}
+            onPress={() => setIsSelectedServicesOpen(true)}
             style={({ pressed }) => [
               styles.selectedServicesButton,
               pressed && styles.selectedServicesButtonPressed,
             ]}
           >
             <View>
-              <Text style={styles.selectedServicesButtonText}>Selected Services</Text>
+              <Text style={styles.selectedServicesButtonText}>Event Plan</Text>
               <Text style={styles.selectedServicesButtonHint}>
                 Review your current event selections
               </Text>
@@ -470,10 +536,219 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
             <View style={styles.selectedServicesCount}>
               <Text style={styles.selectedServicesCountText}>{selectedServiceCount}</Text>
             </View>
-            <Text style={styles.selectedServicesArrow}>{'\u2192'}</Text>
           </Pressable>
         </View>
       ) : null}
+
+      <Modal
+        animationType="fade"
+        onRequestClose={closeSelectedServices}
+        transparent
+        visible={isSelectedServicesOpen}
+      >
+        <View style={styles.selectedServicesOverlay}>
+          <BlurView intensity={36} tint="dark" style={StyleSheet.absoluteFill} />
+          <View pointerEvents="none" style={styles.selectedServicesScrim} />
+          <Animated.View
+            accessibilityViewIsModal
+            style={[
+              styles.selectedServicesSheet,
+              { transform: [{ translateY: selectedServicesSheetOffset }] },
+            ]}
+          >
+            <View style={styles.selectedServicesSheetHeader}>
+              <View>
+                <Text style={styles.selectedServicesSheetEyebrow}>YOUR EVENT PLAN</Text>
+                <Text style={styles.selectedServicesSheetTitle}>Review Services</Text>
+              </View>
+              <Pressable
+                accessibilityLabel="Close selected services"
+                accessibilityRole="button"
+                hitSlop={8}
+                onPress={closeSelectedServices}
+                style={({ pressed }) => [styles.sheetCloseButton, pressed && styles.pressed]}
+              >
+                <Text style={styles.sheetCloseText}>×</Text>
+              </Pressable>
+            </View>
+
+            <ScrollView
+              contentContainerStyle={styles.selectedServicesSheetContent}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.reviewBudgetCard}>
+                <View style={styles.reviewTotalCopy}>
+                  <Text style={styles.reviewTotalLabel}>TOTAL ESTIMATED COST</Text>
+                  <Text style={styles.reviewTotalValue}>
+                    PHP {formatCurrency(totalEstimatedCost)}
+                  </Text>
+                </View>
+                {budget > 0 ? (
+                  <View style={styles.reviewAllocationBlock}>
+                    <View style={styles.reviewAllocationLabels}>
+                      <Text style={styles.reviewBudgetLabel}>Budget: PHP {formatCurrency(budget)}</Text>
+                      <Text style={styles.reviewAllocatedLabel}>
+                        {Math.min(100, Math.round((totalEstimatedCost / budget) * 100))}% Allocated
+                      </Text>
+                    </View>
+                    <View
+                      accessibilityLabel={`${Math.min(100, Math.round((totalEstimatedCost / budget) * 100))} percent of budget allocated`}
+                      accessibilityRole="progressbar"
+                      style={styles.reviewProgressTrack}
+                    >
+                      <View
+                        style={[
+                          styles.reviewProgressFill,
+                          {
+                            width: `${Math.min(100, Math.round((totalEstimatedCost / budget) * 100))}%` as `${number}%`,
+                          },
+                        ]}
+                      />
+                    </View>
+                  </View>
+                ) : (
+                  <View style={styles.reviewActualCostBlock}>
+                    <Text style={styles.reviewActualCostEyebrow}>NO BUDGET SET</Text>
+                    <Text style={styles.reviewActualCostText}>Pay actual service costs</Text>
+                  </View>
+                )}
+              </View>
+
+              {assignedCoordinator ? (
+                <View style={styles.reviewCoordinatorCard}>
+                  {assignedCoordinator.avatarUrl ? (
+                    <Image
+                      accessibilityLabel={`${assignedCoordinator.name}, assigned event coordinator`}
+                      source={{ uri: assignedCoordinator.avatarUrl }}
+                      style={styles.reviewCoordinatorAvatar}
+                    />
+                  ) : (
+                    <View style={styles.reviewCoordinatorFallback}>
+                      <MaterialCommunityIcons color={palette.onPrimary} name="account-tie" size={22} />
+                    </View>
+                  )}
+                  <View style={styles.reviewCoordinatorCopy}>
+                    <Text style={styles.reviewCoordinatorEyebrow}>
+                      {assignedCoordinator.status === 'pending'
+                        ? 'COORDINATOR INVITATION PENDING'
+                        : 'ASSIGNED EVENT COORDINATOR'}
+                    </Text>
+                    <Text style={styles.reviewCoordinatorName}>{assignedCoordinator.name}</Text>
+                    {coordinatorPackage ? (
+                      <Text style={styles.reviewCoordinatorPackage}>
+                        {coordinatorPackage.name} · PHP {formatCurrency(coordinatorPackage.serviceSubtotal)}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <Pressable
+                    accessibilityLabel="Remove coordinator booking"
+                    accessibilityRole="button"
+                    hitSlop={8}
+                    onPress={onRemoveCoordinator}
+                    style={({ pressed }) => [styles.reviewRemoveButton, pressed && styles.pressed]}
+                  >
+                    <MaterialCommunityIcons color={palette.primaryContainer} name="close" size={20} />
+                  </Pressable>
+                </View>
+              ) : coordinatorAssignmentStatus === 'awaiting_assignment' ? (
+                <View style={styles.reviewCoordinatorCard}>
+                  <View style={styles.reviewCoordinatorFallback}>
+                    <MaterialCommunityIcons color={palette.onPrimary} name="account-search" size={22} />
+                  </View>
+                  <View style={styles.reviewCoordinatorCopy}>
+                    <Text style={styles.reviewCoordinatorEyebrow}>COORDINATOR ASSIGNMENT PENDING</Text>
+                    <Text style={styles.reviewCoordinatorName}>MULTIVENT is finding your coordinator</Text>
+                  </View>
+                </View>
+              ) : null}
+
+              <Text style={styles.reviewServicesHeading}>Selected Services</Text>
+              {selectedServices.map((service) => (
+                <Pressable
+                  key={service.id}
+                  accessibilityLabel={`Open ${service.name}, ${service.status}`}
+                  accessibilityRole="button"
+                  onPress={() => {
+                    closeSelectedServices()
+                    onSelectService?.(service.id)
+                  }}
+                  style={({ pressed }) => [styles.selectedServiceRow, pressed && styles.pressed]}
+                >
+                  <Image
+                    accessibilityLabel={service.imageLabel}
+                    source={{ uri: service.imageUrl }}
+                    style={styles.selectedServiceImage}
+                  />
+                  <View style={styles.selectedServiceCopy}>
+                    <Text style={styles.selectedServiceCategory}>{service.category}</Text>
+                    <Text style={styles.selectedServiceName}>{service.name}</Text>
+                    <Text style={styles.selectedServiceDetail}>{service.detail}</Text>
+                  </View>
+                  {service.status === 'Selected' ? (
+                    <Pressable
+                      accessibilityLabel={`Remove ${service.name} from selected services`}
+                      accessibilityRole="button"
+                      accessibilityState={{ disabled: removingServiceId === service.id }}
+                      disabled={removingServiceId === service.id}
+                      hitSlop={8}
+                      onPress={(event) => {
+                        event.stopPropagation()
+                        onRemoveService?.(service)
+                      }}
+                      style={({ pressed }) => [
+                        styles.reviewRemoveButton,
+                        removingServiceId === service.id && styles.reviewRemoveButtonDisabled,
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <MaterialCommunityIcons
+                        color={palette.primaryContainer}
+                        name={removingServiceId === service.id ? 'progress-clock' : 'trash-can-outline'}
+                        size={18}
+                      />
+                    </Pressable>
+                  ) : null}
+                  <Text style={styles.selectedServicePrice}>
+                    PHP {formatCurrency(service.price)}
+                  </Text>
+                </Pressable>
+              ))}
+
+              <Pressable
+                accessibilityLabel="Add another service"
+                accessibilityRole="button"
+                onPress={() => {
+                  closeSelectedServices()
+                  onAddService?.()
+                }}
+                style={({ pressed }) => [styles.reviewAddServiceButton, pressed && styles.pressed]}
+              >
+                <Text style={styles.reviewAddServiceIcon}>+</Text>
+                <Text style={styles.reviewAddServiceText}>Add Service</Text>
+              </Pressable>
+            </ScrollView>
+
+            <Pressable
+              accessibilityLabel="Continue with selected services"
+              accessibilityRole="button"
+              accessibilityState={{ disabled: selectedServices.length === 0 }}
+              disabled={selectedServices.length === 0}
+              onPress={() => {
+                closeSelectedServices()
+                onContinueSelectedServices?.()
+              }}
+              style={({ pressed }) => [
+                styles.sheetContinueButton,
+                selectedServices.length === 0 && styles.sheetContinueButtonDisabled,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Text style={styles.sheetContinueText}>CONTINUE</Text>
+              <MaterialIcons color={palette.onPrimary} name="arrow-forward" size={18} />
+            </Pressable>
+          </Animated.View>
+        </View>
+      </Modal>
 
       <Modal
         animationType="fade"
@@ -683,6 +958,287 @@ const styles = StyleSheet.create({
   selectedServicesButtonPressed: {
     opacity: 0.9,
     transform: [{ scale: 0.99 }],
+  },
+  selectedServicesOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    overflow: 'hidden',
+  },
+  selectedServicesScrim: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(0, 0, 0, 0.24)',
+  },
+  selectedServicesSheet: {
+    width: '100%',
+    maxHeight: '82%',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    backgroundColor: palette.background,
+    paddingHorizontal: 20,
+    paddingTop: 22,
+    paddingBottom: 24,
+  },
+  selectedServicesSheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 18,
+  },
+  selectedServicesSheetEyebrow: {
+    color: palette.primaryContainer,
+    fontSize: 10,
+    lineHeight: 14,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+  },
+  selectedServicesSheetTitle: {
+    color: palette.text,
+    fontSize: 26,
+    lineHeight: 32,
+    fontWeight: '700',
+    marginTop: 4,
+  },
+  sheetCloseButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 18,
+    backgroundColor: palette.surfaceContainerHigh,
+  },
+  sheetCloseText: {
+    color: palette.text,
+    fontSize: 26,
+    lineHeight: 28,
+    fontWeight: '300',
+  },
+  selectedServicesSheetContent: {
+    gap: 12,
+    paddingBottom: 18,
+  },
+  reviewBudgetCard: {
+    gap: 16,
+    borderWidth: 1,
+    borderColor: palette.outlineVariant,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+  },
+  reviewTotalCopy: {
+    gap: 4,
+  },
+  reviewTotalLabel: {
+    color: palette.secondary,
+    fontSize: 10,
+    lineHeight: 14,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  reviewTotalValue: {
+    color: palette.primaryContainer,
+    fontSize: 28,
+    lineHeight: 34,
+    fontWeight: '700',
+  },
+  reviewAllocationBlock: {
+    gap: 8,
+  },
+  reviewAllocationLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  reviewBudgetLabel: {
+    flex: 1,
+    color: palette.secondary,
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  reviewAllocatedLabel: {
+    color: palette.primaryContainer,
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: '700',
+  },
+  reviewProgressTrack: {
+    height: 8,
+    overflow: 'hidden',
+    borderRadius: 4,
+    backgroundColor: palette.surfaceContainerHigh,
+  },
+  reviewProgressFill: {
+    height: '100%',
+    borderRadius: 4,
+    backgroundColor: palette.primaryContainer,
+  },
+  reviewActualCostBlock: {
+    gap: 4,
+  },
+  reviewActualCostEyebrow: {
+    color: palette.primaryContainer,
+    fontSize: 10,
+    lineHeight: 14,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  reviewActualCostText: {
+    color: palette.secondary,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  reviewCoordinatorCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: palette.outlineVariant,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    padding: 12,
+  },
+  reviewCoordinatorAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+  },
+  reviewCoordinatorFallback: {
+    width: 42,
+    height: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 21,
+    backgroundColor: palette.primaryContainer,
+  },
+  reviewCoordinatorCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  reviewCoordinatorEyebrow: {
+    color: palette.primaryContainer,
+    fontSize: 9,
+    lineHeight: 13,
+    fontWeight: '800',
+    letterSpacing: 0.7,
+  },
+  reviewCoordinatorName: {
+    color: palette.text,
+    fontSize: 14,
+    lineHeight: 19,
+    fontWeight: '700',
+  },
+  reviewCoordinatorPackage: {
+    color: palette.secondary,
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: '600',
+  },
+  reviewServicesHeading: {
+    color: palette.text,
+    fontSize: 17,
+    lineHeight: 23,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  selectedServiceRow: {
+    minHeight: 76,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderColor: palette.surfaceVariant,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    padding: 10,
+  },
+  selectedServiceImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 10,
+  },
+  selectedServiceCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  selectedServiceCategory: {
+    color: palette.primaryContainer,
+    fontSize: 10,
+    lineHeight: 14,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  selectedServiceName: {
+    color: palette.text,
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '700',
+  },
+  selectedServiceDetail: {
+    color: palette.secondary,
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  selectedServicePrice: {
+    maxWidth: 92,
+    color: palette.primaryContainer,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '800',
+  },
+  reviewRemoveButton: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+    backgroundColor: '#F8EDEF',
+  },
+  reviewRemoveButtonDisabled: {
+    opacity: 0.55,
+  },
+  reviewAddServiceButton: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: palette.primaryContainer,
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  reviewAddServiceIcon: {
+    color: palette.primaryContainer,
+    fontSize: 22,
+    lineHeight: 24,
+    fontWeight: '500',
+  },
+  reviewAddServiceText: {
+    color: palette.primaryContainer,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  sheetContinueButton: {
+    minHeight: 54,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 27,
+    backgroundColor: palette.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+  },
+  sheetContinueButtonDisabled: { opacity: 0.48 },
+  sheetContinueText: {
+    color: palette.onPrimary,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '800',
+    letterSpacing: 1.1,
   },
   budgetPill: {
     alignSelf: 'center',
