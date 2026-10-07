@@ -113,6 +113,9 @@ const servicesFor = (request: MerchantBookingRequest): MerchantBookedService[] =
         serviceName: request.serviceName || request.packageName,
         status: request.status,
         submittedAt: request.submittedAt,
+        venueBookedHours: request.venueBookedHours,
+        venueEndAt: request.venueEndAt,
+        venueOptionName: request.venueOptionName,
       }]
 
 const requestForService = (
@@ -139,6 +142,9 @@ const requestForService = (
   serviceName: service.serviceName,
   status: service.status,
   submittedAt: service.submittedAt,
+  venueBookedHours: service.venueBookedHours,
+  venueEndAt: service.venueEndAt,
+  venueOptionName: service.venueOptionName,
 })
 
 const hasEventDateArrived = (value: string) => {
@@ -323,7 +329,7 @@ export const BookingRequestDetailsScreen: React.FC<BookingRequestDetailsScreenPr
                   </View>
                 ) : null}
 
-                {service.mealType || service.attendeeCount || service.budgetPerHead || service.cateringOptionName ? (
+                {service.mealType || service.attendeeCount || service.budgetPerHead || service.cateringOptionName || service.venueOptionName ? (
                   <View style={styles.bookingDetailsCard}>
                     <Text style={styles.miniLabel}>CLIENT BOOKING DETAILS</Text>
                     <View style={styles.bookingDetailsGrid}>
@@ -331,6 +337,15 @@ export const BookingRequestDetailsScreen: React.FC<BookingRequestDetailsScreenPr
                         <View style={styles.bookingDetailItem}>
                           <MaterialIcons color={palette.primaryContainer} name="restaurant-menu" size={17} />
                           <Text style={styles.bookingDetailText}>{service.cateringOptionName}</Text>
+                        </View>
+                      ) : null}
+                      {service.venueOptionName ? (
+                        <View style={styles.bookingDetailItem}>
+                          <MaterialIcons color={palette.primaryContainer} name="meeting-room" size={17} />
+                          <Text style={styles.bookingDetailText}>
+                            {service.venueOptionName} · {service.venueBookedHours ?? 0} hours
+                            {service.venueEndAt ? ` · ends ${formatTime(service.venueEndAt.slice(11, 16))}` : ''}
+                          </Text>
                         </View>
                       ) : null}
                       {service.mealType ? (

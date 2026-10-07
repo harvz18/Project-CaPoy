@@ -1172,7 +1172,7 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
   const { data, error } = await context.client
     .from('bookings')
     .select(
-      'id, event_id, service_id, amount, provider_amount, status, requested_date, requested_time, client_notes, catering_option_name, catering_option_snapshot, created_at, profiles(full_name, email), events(name, event_type, event_date, event_time, guest_count, venue, location), services(name, description, service_categories(name)), service_packages(name, description, inclusions), payments!inner(status)'
+      'id, event_id, service_id, amount, provider_amount, status, requested_date, requested_time, client_notes, catering_option_name, catering_option_snapshot, venue_option_name, venue_booked_hours, venue_end_at, created_at, profiles(full_name, email), events(name, event_type, event_date, event_time, guest_count, venue, location), services(name, description, service_categories(name)), service_packages(name, description, inclusions), payments!inner(status)'
     )
     .eq('provider_id', context.providerId)
     .neq('status', 'payment_required')
@@ -1269,6 +1269,11 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
       status: mapRequestStatus(textFrom(record.status)),
       submittedAt: textFrom(record.created_at),
       venue: textFrom(event?.venue),
+      venueBookedHours: record.venue_booked_hours == null
+        ? undefined
+        : numberFrom(record.venue_booked_hours),
+      venueEndAt: textFrom(record.venue_end_at) || undefined,
+      venueOptionName: textFrom(record.venue_option_name) || undefined,
     }
   })
 
@@ -1296,6 +1301,9 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
       serviceName: request.serviceName,
       status: request.status,
       submittedAt: request.submittedAt,
+      venueBookedHours: request.venueBookedHours,
+      venueEndAt: request.venueEndAt,
+      venueOptionName: request.venueOptionName,
     }
     const existing = grouped.get(groupId)
 

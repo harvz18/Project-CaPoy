@@ -1,6 +1,6 @@
 import React from 'react'
 import type { RealtimeChannel } from '@supabase/supabase-js'
-import { Animated, Easing, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
+import { Alert, Animated, Easing, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
 import * as ImagePicker from 'expo-image-picker'
@@ -31,6 +31,7 @@ import {
 } from './lib/catalog'
 import {
   assignCoordinatorToEvent,
+  calculateServiceQuote,
   chooseCoordinatorPackage,
   ClientEventDraftSummary,
   closeCurrentEventDraft,
@@ -43,6 +44,7 @@ import {
   savePlanningPayment,
   saveProviderInstructions,
   saveServiceSelection,
+  setCategoryBudgetAllocation,
   setCoordinatorPreference,
 } from './lib/planning'
 import {
@@ -354,6 +356,21 @@ const getMetadataName = (metadata: UserMetadata) => {
   }
 
   return ''
+}
+
+const confirmReplacement = (title: string, message: string) => {
+  if (Platform.OS === 'web') return Promise.resolve(globalThis.confirm(`${title}\n\n${message}`))
+  return new Promise<boolean>((resolve) => {
+    Alert.alert(
+      title,
+      message,
+      [
+        { onPress: () => resolve(false), style: 'cancel', text: 'Cancel' },
+        { onPress: () => resolve(true), style: 'destructive', text: 'Replace' },
+      ],
+      { cancelable: true, onDismiss: () => resolve(false) }
+    )
+  })
 }
 
 export const App: React.FC = () => {
@@ -810,6 +827,30 @@ export const App: React.FC = () => {
     0
   ) + (assignedCoordinator?.price ?? 0)
   const remainingBudget = Math.max(0, totalBudget - selectedEstimatedTotal)
+  const budgetKeyByCategory: Record<CatalogCategoryId, BudgetPriority> = {
+    attire: 'gownRental',
+    catering: 'catering',
+    eventOrganizers: 'eventOrganizer',
+    florists: 'floral',
+    hosts: 'hostEmcee',
+    photography: 'photoVideo',
+    soundLights: 'soundLights',
+    venues: 'venue',
+  }
+  const selectedBudgetKey = budgetKeyByCategory[selectedCategory]
+  const selectedCategoryBudget = budgetAllocations.find(
+    (allocation) => allocation.categoryKey === selectedBudgetKey
+  )?.amount ?? 0
+  const allocatedBudgetTotal = budgetAllocations.reduce(
+    (sum, allocation) => sum + allocation.amount, 0
+  )
+  const categoryBudgetMaximum = Math.max(
+    selectedCategoryBudget,
+    totalBudget - allocatedBudgetTotal + selectedCategoryBudget
+  )
+  const categoryBudgetLocked = selectedServices.some(
+    (service) => service.category.toLowerCase() === catalogCategoryName(selectedCategory).toLowerCase()
+  ) || (selectedCategory === 'eventOrganizers' && Boolean(assignedCoordinator))
   const currentService = catalogServices.find((service) => service.id === currentServiceId)
   const currentReviewServiceId = currentService?.bookingServiceId ?? currentService?.id
 
@@ -1637,6 +1678,18 @@ export const App: React.FC = () => {
       return
     }
 
+    const existingCategorySelection = selectedServices.find((service) =>
+      service.category.toLowerCase() === value.service.categoryName.toLowerCase()
+        && service.id !== value.service.id
+    )
+    if (existingCategorySelection) {
+      const confirmed = await confirmReplacement(
+        `Replace selected ${value.service.categoryName}?`,
+        `${existingCategorySelection.name} will be replaced by ${value.service.name}.`
+      )
+      if (!confirmed) return
+    }
+
     const result = await saveServiceSelection(value)
 
     if (!result.ok) {
@@ -1644,29 +1697,35 @@ export const App: React.FC = () => {
       return
     }
 
-    const providerPrice = value.service.pricingUnit === 'person' && value.attendeeCount > 0
+    const fallbackProviderPrice = value.service.pricingUnit === 'person' && value.attendeeCount > 0
       ? value.service.providerMinPrice * value.attendeeCount
       : value.service.providerMinPrice
+    const providerPrice = result.providerAmount ?? fallbackProviderPrice
+    const calculatedAmount = result.calculatedAmount ?? value.estimatedTotal
     const nextSelection: SelectedSummaryService = {
       id: value.service.id,
       category: value.service.categoryName.toUpperCase(),
       commissionAmount: Math.round(
-        Math.max(0, value.estimatedTotal - providerPrice) * 100
+        Math.max(0, calculatedAmount - providerPrice) * 100
       ) / 100,
       commissionRate: value.service.commissionRate,
-      detail: value.cateringOption
+      detail: value.venueOption
+        ? `${value.venueOption.name} · ${value.venueBookedHours} hours`
+        : value.cateringOption
         ? `${value.cateringOption.name} · ${value.attendeeCount} Guests`
         : value.attendeeCount > 0 ? `${value.attendeeCount} Guests` : value.service.detail,
       imageLabel: value.service.imageLabel,
       imageUrl: value.service.imageUrl,
       name: value.service.name,
-      price: value.estimatedTotal,
+      price: calculatedAmount,
       providerPrice,
       status: 'Selected',
     }
 
     setSelectedServices((current) => {
-      const existingIndex = current.findIndex((service) => service.id === nextSelection.id)
+      const existingIndex = current.findIndex((service) =>
+        service.id === nextSelection.id || service.category === nextSelection.category
+      )
       return existingIndex >= 0
         ? current.map((service, index) =>
             index === existingIndex ? nextSelection : service
@@ -1740,7 +1799,21 @@ export const App: React.FC = () => {
   ) => {
     if (!currentService?.coordinatorUserId || assigningCoordinatorId || selectingCoordinatorPackageId) return
     setSelectingCoordinatorPackageId(packageId)
-    const result = await chooseCoordinatorPackage(packageId, cateringOptionChoices)
+    let result = await chooseCoordinatorPackage(packageId, cateringOptionChoices)
+    if (result.ok && result.requiresConfirmation) {
+      const conflictText = (result.conflicts ?? [])
+        .map((conflict) => `${conflict.currentService} → ${conflict.replacementService}`)
+        .join('\n')
+      const confirmed = await confirmReplacement(
+        'Replace conflicting services?',
+        `This package replaces one service in each listed category:\n\n${conflictText}`
+      )
+      if (!confirmed) {
+        setSelectingCoordinatorPackageId('')
+        return
+      }
+      result = await chooseCoordinatorPackage(packageId, cateringOptionChoices, true)
+    }
     setSelectingCoordinatorPackageId('')
     if (!result.ok) {
       setToastMessage(result.message ?? 'Unable to select this coordinator package.')
@@ -3119,9 +3192,12 @@ export const App: React.FC = () => {
             coordinatorAssignmentStatus={coordinatorAssignmentStatus}
             coordinatorPackage={selectedCoordinatorPackage}
             budget={totalBudget}
+            categoryBudget={selectedCategoryBudget}
+            categoryBudgetLocked={categoryBudgetLocked}
+            categoryBudgetMaximum={categoryBudgetMaximum}
             totalEstimatedCost={selectedEstimatedTotal}
             removingServiceId={removingServiceId}
-            remainingBudget={remainingBudget}
+            remainingBudget={Math.max(0, totalBudget - allocatedBudgetTotal)}
             showBottomNavigation={false}
             onBack={() => {
               if (
@@ -3132,6 +3208,22 @@ export const App: React.FC = () => {
                 setScreen('coordinatorChoice')
               } else if (serviceBrowseMode === 'planning') openBudgetAllocationFromServices()
               else setScreen('clientHome')
+            }}
+            onCategoryBudgetChange={async (amount) => {
+              const result = await setCategoryBudgetAllocation(selectedBudgetKey, amount)
+              if (!result.ok) {
+                setToastMessage(result.message ?? 'Unable to update this category budget.')
+                return false
+              }
+              setBudgetAllocations((current) => {
+                const existing = current.findIndex((item) => item.categoryKey === selectedBudgetKey)
+                const next = { amount, categoryKey: selectedBudgetKey, label: catalogCategoryName(selectedCategory) }
+                return existing >= 0
+                  ? current.map((item, index) => index === existing ? next : item)
+                  : [...current, next]
+              })
+              setCatalogServices(await loadClientCatalogServices())
+              return true
             }}
             onContinueSelectedServices={() => {
               setMaxPlanningStep((current) => Math.max(current, 4))
@@ -3169,6 +3261,9 @@ export const App: React.FC = () => {
         return (
           <CoordinatorDetailsScreen
             assigning={assigningCoordinatorId === currentService?.id}
+            categoryBudgets={Object.fromEntries(
+              budgetAllocations.map((allocation) => [allocation.categoryKey, allocation.amount])
+            )}
             isAssigned={assignedCoordinator?.id === currentService?.id}
             mode={serviceBrowseMode}
             onBack={() => setScreen('categoryBrowse')}
@@ -3182,12 +3277,20 @@ export const App: React.FC = () => {
       case 'serviceDetails':
         return (
           <ServiceDetailsScreen
+            eventDate={eventDetails.date}
             eventGuestCount={eventDetails.guestCount}
+            eventTime={eventDetails.time}
             mode={serviceBrowseMode}
             service={currentService}
             hasBudget={totalBudget > 0}
             remainingBudget={remainingBudget}
             onAddSelection={handleAddSelection}
+            onCalculateQuote={(value) => calculateServiceQuote({
+              optionId: value.optionId,
+              packageId: value.packageId,
+              quantity: value.quantity,
+              serviceId: value.service.bookingServiceId ?? value.service.id,
+            })}
             onBack={() => setScreen('categoryBrowse')}
             onReadAllReviews={() => setScreen('serviceDetails')}
             reviewInsights={serviceReviewInsights}

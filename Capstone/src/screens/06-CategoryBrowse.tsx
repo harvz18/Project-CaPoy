@@ -5,11 +5,11 @@ import { BlurView } from 'expo-blur'
 import {
   Animated,
   Image,
+  LayoutChangeEvent,
   Modal,
   Pressable,
   ScrollView,
   StyleSheet,
-  
   TextInput,
   useWindowDimensions,
   View,
@@ -18,10 +18,10 @@ import { PlanningScreenHeader } from '../components/PlanningScreenHeader'
 import { ClientBottomNavigation, ClientMainTab } from '../components/ClientBottomNavigation'
 import { CatalogService, formatServicePrice, ServiceCategoryOption } from '../lib/catalog'
 import { customerPriceFromProviderPrice } from '../lib/pricing'
-import { calculateCateringPrice, getCateringPricingOptions } from '../lib/service-category-details'
+import { calculateCateringPrice, getCateringPricingOptions, getVenueBookingOptions } from '../lib/service-category-details'
 import type { AssignedCoordinatorSummary, SelectedSummaryService } from './07-SelectedSummary'
 
-export type CategoryBrowseFilter = 'plated' | 'buffet' | 'packed' | 'under500'
+export type CategoryBrowseFilter = string
 export type CategoryBrowseVendor = string
 export type CategoryBrowseTab = ClientMainTab | 'vendors' | 'budget'
 
@@ -38,6 +38,9 @@ interface CategoryBrowseScreenProps {
   coordinatorAssignmentStatus?: 'accepted' | 'pending' | 'awaiting_assignment'
   coordinatorPackage?: { id: string; name: string; serviceSubtotal: number }
   budget?: number
+  categoryBudget?: number
+  categoryBudgetLocked?: boolean
+  categoryBudgetMaximum?: number
   totalEstimatedCost?: number
   removingServiceId?: string
   remainingBudget?: number
@@ -50,6 +53,7 @@ interface CategoryBrowseScreenProps {
   sortLabel?: string
   onBack?: () => void
   onChangeSearch?: (value: string) => void
+  onCategoryBudgetChange?: (amount: number) => Promise<boolean> | boolean
   onContinueSelectedServices?: () => void
   onAddService?: () => void
   onRemoveCoordinator?: () => void
@@ -93,6 +97,9 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   coordinatorAssignmentStatus,
   coordinatorPackage,
   budget = 0,
+  categoryBudget = 0,
+  categoryBudgetLocked = false,
+  categoryBudgetMaximum = budget,
   totalEstimatedCost = 0,
   removingServiceId = '',
   remainingBudget = 45000,
@@ -102,6 +109,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   sortLabel = 'Top rated',
   onBack,
   onChangeSearch,
+  onCategoryBudgetChange,
   onContinueSelectedServices,
   onAddService,
   onRemoveCoordinator,
@@ -124,6 +132,8 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   const useHorizontalCards = width >= 640
   const [internalSearch, setInternalSearch] = React.useState('')
   const [selectedFilter, setSelectedFilter] = React.useState<CategoryBrowseFilter>()
+  const [budgetTrackWidth, setBudgetTrackWidth] = React.useState(1)
+  const [draftCategoryBudget, setDraftCategoryBudget] = React.useState(categoryBudget)
   const [selectedExploreCategory, setSelectedExploreCategory] = React.useState('All')
   const [pendingReplacement, setPendingReplacement] = React.useState<CatalogService>()
   const [isReplacing, setIsReplacing] = React.useState(false)
@@ -134,6 +144,53 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     () => ['All', ...Array.from(new Set(services.map((service) => service.categoryName)))],
     [services]
   )
+  React.useEffect(() => setDraftCategoryBudget(categoryBudget), [categoryBudget])
+  React.useEffect(() => setSelectedFilter(undefined), [categoryName])
+
+  const categoryFilters = React.useMemo(() => {
+    const options: Array<{ id: string; label: string }> = [
+      { id: 'withinBudget', label: 'Within Budget' },
+      { id: 'available', label: 'Available' },
+      { id: 'rating4', label: '4+ Rating' },
+      { id: 'priceLow', label: 'Lower Price' },
+    ]
+    const records: Array<Record<string, unknown>> = services.map(
+      (service) => service.categoryDetails ?? {}
+    )
+    if (categoryName.toLowerCase().includes('venue')) {
+      options.push(
+        { id: 'capacity', label: `Fits ${eventGuestCount} Guests` },
+        { id: 'indoor', label: 'Indoor' },
+        { id: 'outdoor', label: 'Outdoor' },
+        { id: 'amenities', label: 'With Amenities' }
+      )
+    } else if (categoryName.toLowerCase().includes('cater')) {
+      options.push(
+        ...filters,
+        { id: 'guestCapacity', label: 'Fits Guest Count' }
+      )
+      Array.from(new Set(records.flatMap((record) => Array.isArray(record.cuisines)
+        ? record.cuisines.filter((item): item is string => typeof item === 'string') : [])))
+        .slice(0, 4).forEach((value) => options.push({ id: `cuisine:${value}`, label: value }))
+      Array.from(new Set(records.flatMap((record) => Array.isArray(record.cateringTypes)
+        ? record.cateringTypes.filter((item): item is string => typeof item === 'string') : [])))
+        .slice(0, 4).forEach((value) => options.push({ id: `cateringType:${value}`, label: value }))
+    } else if (categoryName.toLowerCase().includes('photo')) {
+      options.push(
+        { id: 'photoVideo', label: 'Photo + Video' },
+        { id: 'drone', label: 'Drone' },
+        { id: 'coverage8', label: '8+ Hours' }
+      )
+    } else if (categoryName.toLowerCase().includes('host')) {
+      Array.from(new Set(records.flatMap((record) => Array.isArray(record.languages)
+        ? record.languages.filter((item): item is string => typeof item === 'string') : [])))
+        .slice(0, 5).forEach((value) => options.push({ id: `language:${value}`, label: value }))
+      Array.from(new Set(records.flatMap((record) => Array.isArray(record.hostingStyles)
+        ? record.hostingStyles.filter((item): item is string => typeof item === 'string') : [])))
+        .slice(0, 5).forEach((value) => options.push({ id: `style:${value}`, label: value }))
+    }
+    return options
+  }, [categoryName, eventGuestCount, services])
 
   const cateringFit = React.useCallback((vendor: CatalogService) => {
     if (vendor.categoryId !== 'catering') return { fits: true, reason: '' }
@@ -166,11 +223,34 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
       return false
     }
 
-    if (!isExploreMode && vendor.categoryId === 'catering' && selectedFilter) {
+    if (!isExploreMode && selectedFilter) {
+      const details: Record<string, unknown> = vendor.categoryDetails ?? {}
+      const recommendation = vendor.budgetRecommendation
+      const stringList = (key: string) => Array.isArray(details[key])
+        ? (details[key] as unknown[]).filter((item): item is string => typeof item === 'string')
+        : []
+      if (selectedFilter === 'withinBudget' && !recommendation?.isWithinBudget) return false
+      if (selectedFilter === 'available' && recommendation?.availabilityStatus === 'unavailable') return false
+      if (selectedFilter === 'rating4' && (Number.parseFloat(vendor.rating) || 0) < 4) return false
+      if (selectedFilter === 'priceLow' && vendor.minPrice > Math.max(categoryBudget, remainingBudget)) return false
       if (selectedFilter === 'under500') {
         const options = getCateringPricingOptions(vendor.categoryDetails, vendor.providerMinPrice)
         if (!options.some((option) => customerPriceFromProviderPrice(option.pricePerHead, vendor.commissionRate) < 500)) return false
-      } else if (!vendor.cateringServiceTypes?.includes(selectedFilter)) return false
+      }
+      if (['plated', 'buffet', 'packed'].includes(selectedFilter)
+        && !vendor.cateringServiceTypes?.includes(selectedFilter as 'plated' | 'buffet' | 'packed')) return false
+      if (selectedFilter === 'guestCapacity' && !cateringFit(vendor).fits) return false
+      if (selectedFilter.startsWith('cuisine:') && !stringList('cuisines').includes(selectedFilter.slice(8))) return false
+      if (selectedFilter.startsWith('cateringType:') && !stringList('cateringTypes').includes(selectedFilter.slice(14))) return false
+      if (selectedFilter === 'capacity' && !getVenueBookingOptions(details).some((option) => option.capacity >= eventGuestCount)) return false
+      if (selectedFilter === 'indoor' && !getVenueBookingOptions(details).some((option) => option.spaceType.toLowerCase().includes('indoor'))) return false
+      if (selectedFilter === 'outdoor' && !getVenueBookingOptions(details).some((option) => option.spaceType.toLowerCase().includes('outdoor'))) return false
+      if (selectedFilter === 'amenities' && !['airConditioning', 'chairs', 'tables', 'parking', 'restrooms', 'dressingRoom', 'kitchen', 'wifi', 'stage', 'pwdAccessibility'].some((key) => details[key] === true)) return false
+      if (selectedFilter === 'photoVideo' && !(details.photoCoverage === true && details.videoCoverage === true)) return false
+      if (selectedFilter === 'drone' && details.droneCoverage !== true) return false
+      if (selectedFilter === 'coverage8' && Number(details.coverageDurationHours ?? 0) < 8) return false
+      if (selectedFilter.startsWith('language:') && !stringList('languages').includes(selectedFilter.slice(9))) return false
+      if (selectedFilter.startsWith('style:') && !stringList('hostingStyles').includes(selectedFilter.slice(6))) return false
     }
 
     if (!normalizedQuery) return true
@@ -222,6 +302,26 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   const handleFilterChange = (filter: CategoryBrowseFilter) => {
     setSelectedFilter((current) => current === filter ? undefined : filter)
     onSelectFilter?.(filter)
+  }
+
+  const commitCategoryBudget = async (amount: number) => {
+    if (categoryBudgetLocked) return
+    const normalized = Math.max(0, Math.min(Math.round(amount / 100) * 100, categoryBudgetMaximum))
+    setDraftCategoryBudget(normalized)
+    const saved = await onCategoryBudgetChange?.(normalized)
+    if (saved === false) setDraftCategoryBudget(categoryBudget)
+  }
+
+  const handleBudgetTrackPress = (event: { nativeEvent: { locationX: number } }) => {
+    if (categoryBudgetLocked || budgetTrackWidth <= 1 || categoryBudgetMaximum <= 0) return
+    void commitCategoryBudget(
+      (Math.max(0, Math.min(event.nativeEvent.locationX / budgetTrackWidth, 1)))
+        * categoryBudgetMaximum
+    )
+  }
+
+  const handleBudgetTrackLayout = (event: LayoutChangeEvent) => {
+    setBudgetTrackWidth(Math.max(event.nativeEvent.layout.width, 1))
   }
 
   React.useEffect(() => {
@@ -331,6 +431,42 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
           </Text>
         </View>
 
+        {!isExploreMode && !replacementContext && hasSetBudget ? (
+          <View style={styles.categoryBudgetCard}>
+            <View style={styles.categoryBudgetHeading}>
+              <View>
+                <Text style={styles.categoryBudgetEyebrow}>{categoryName.toUpperCase()} BUDGET</Text>
+                <Text style={styles.categoryBudgetAmount}>PHP {formatCurrency(draftCategoryBudget)}</Text>
+              </View>
+              <Text style={categoryBudgetLocked ? styles.categoryBudgetLocked : styles.categoryBudgetEditable}>
+                {categoryBudgetLocked ? 'Locked to selection' : 'Adjustable'}
+              </Text>
+            </View>
+            <Pressable
+              accessibilityLabel={`${categoryName} budget ${formatCurrency(draftCategoryBudget)} pesos`}
+              accessibilityRole="adjustable"
+              disabled={categoryBudgetLocked}
+              onLayout={handleBudgetTrackLayout}
+              onPress={handleBudgetTrackPress}
+              style={styles.categoryBudgetTrackTouch}
+            >
+              <View style={styles.categoryBudgetTrack}>
+                <View style={[styles.categoryBudgetFill, { width: `${categoryBudgetMaximum > 0 ? Math.min(draftCategoryBudget / categoryBudgetMaximum, 1) * 100 : 0}%` }]} />
+                <View style={[styles.categoryBudgetThumb, { left: `${categoryBudgetMaximum > 0 ? Math.min(draftCategoryBudget / categoryBudgetMaximum, 1) * 100 : 0}%` }]} />
+              </View>
+            </Pressable>
+            <View style={styles.categoryBudgetFooter}>
+              <Text style={styles.categoryBudgetHint}>Remaining overall budget: PHP {formatCurrency(remainingBudget)}</Text>
+              {!categoryBudgetLocked ? (
+                <View style={styles.categoryBudgetButtons}>
+                  <Pressable onPress={() => void commitCategoryBudget(draftCategoryBudget - 500)} style={styles.categoryBudgetStep}><Text style={styles.categoryBudgetStepText}>-500</Text></Pressable>
+                  <Pressable onPress={() => void commitCategoryBudget(draftCategoryBudget + 500)} style={styles.categoryBudgetStep}><Text style={styles.categoryBudgetStepText}>+500</Text></Pressable>
+                </View>
+              ) : null}
+            </View>
+          </View>
+        ) : null}
+
         {isExploreMode ? (
           <ScrollView
             contentContainerStyle={styles.exploreCategoryContent}
@@ -408,7 +544,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
           />
         </View>
 
-        {!isExploreMode && categoryName.toLowerCase().includes('catering') ? (
+        {!isExploreMode ? (
           <>
             <ScrollView
               contentContainerStyle={styles.filterContent}
@@ -416,7 +552,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
               showsHorizontalScrollIndicator={false}
               style={styles.filterScroller}
             >
-              {filters.map((filter) => {
+              {categoryFilters.map((filter) => {
                 const isSelected = filter.id === selectedFilter
 
                 return (
@@ -1420,6 +1556,29 @@ const styles = StyleSheet.create({
     lineHeight: 29,
     fontWeight: '700',
   },
+  categoryBudgetCard: {
+    gap: 12,
+    borderWidth: 1,
+    borderColor: palette.outlineVariant,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    marginBottom: 18,
+  },
+  categoryBudgetHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  categoryBudgetEyebrow: { color: palette.secondary, fontSize: 10, lineHeight: 14, fontWeight: '800', letterSpacing: 1 },
+  categoryBudgetAmount: { color: palette.primaryContainer, fontSize: 22, lineHeight: 29, fontWeight: '800', marginTop: 2 },
+  categoryBudgetLocked: { color: palette.primaryContainer, fontSize: 11, lineHeight: 16, fontWeight: '700' },
+  categoryBudgetEditable: { color: '#287A49', fontSize: 11, lineHeight: 16, fontWeight: '700' },
+  categoryBudgetTrackTouch: { paddingVertical: 10 },
+  categoryBudgetTrack: { height: 6, borderRadius: 3, backgroundColor: palette.surfaceContainerHigh },
+  categoryBudgetFill: { height: 6, borderRadius: 3, backgroundColor: palette.primaryContainer },
+  categoryBudgetThumb: { position: 'absolute', top: -6, width: 18, height: 18, borderRadius: 9, marginLeft: -9, backgroundColor: palette.primaryContainer, borderWidth: 3, borderColor: '#FFFFFF' },
+  categoryBudgetFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  categoryBudgetHint: { flex: 1, color: palette.secondary, fontSize: 11, lineHeight: 16 },
+  categoryBudgetButtons: { flexDirection: 'row', gap: 6 },
+  categoryBudgetStep: { borderRadius: 12, backgroundColor: palette.surfaceContainerHigh, paddingHorizontal: 10, paddingVertical: 6 },
+  categoryBudgetStepText: { color: palette.primaryContainer, fontSize: 11, lineHeight: 14, fontWeight: '700' },
   searchField: {
     width: '100%',
     height: 50,

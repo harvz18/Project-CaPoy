@@ -16,7 +16,7 @@ import type {
   EventType,
   VenueStatus,
 } from '../screens/04-EventCreation'
-import type { CateringPricingOption } from './service-category-details'
+import type { CateringPricingOption, VenueBookingOption } from './service-category-details'
 import type {
   BudgetPriority,
   CategoryBudgetAllocation,
@@ -24,7 +24,13 @@ import type {
 
 type PlanningResult = {
   bookingId?: string
+  calculatedAmount?: number
   conflictCount?: number
+  conflicts?: Array<{
+    categoryKey: string
+    currentService: string
+    replacementService: string
+  }>
   ok: boolean
   message?: string
   providers?: Array<{
@@ -36,6 +42,9 @@ type PlanningResult = {
     name: string
     serviceName?: string
   }>
+  providerAmount?: number
+  requiresConfirmation?: boolean
+  replacedSelectionId?: string
   selectionId?: string
   status?: 'available' | 'conflict'
 }
@@ -65,6 +74,8 @@ type ServiceSelectionInput = {
   mealType?: string
   notes: string
   service: CatalogService
+  venueBookedHours?: number
+  venueOption?: VenueBookingOption
 }
 
 export type ClientPlanningState = {
@@ -133,6 +144,42 @@ export type ClientEventDraftSummary = {
   status: 'draft' | 'planning'
   totalSteps: number
   updatedAt: string
+}
+
+export const calculateServiceQuote = async ({
+  optionId,
+  packageId,
+  quantity,
+  serviceId,
+}: {
+  optionId?: string
+  packageId?: string
+  quantity?: number
+  serviceId: string
+}): Promise<PlanningResult> => {
+  try {
+    const client = getClient()
+    const event = await ensureDraftEvent()
+    if (!client || !event || !isUuid(serviceId)) {
+      return { ok: false, message: 'Choose a published service to calculate its event price.' }
+    }
+    const { data, error } = await client.rpc('calculate_event_service_quote', {
+      target_event_id: event.eventId,
+      target_option_id: optionId ?? null,
+      target_package_id: packageId && isUuid(packageId) ? packageId : null,
+      target_quantity: quantity ?? null,
+      target_service_id: serviceId,
+    })
+    if (error) return { ok: false, message: error.message }
+    const quote = data && typeof data === 'object' ? data as Record<string, unknown> : {}
+    return {
+      calculatedAmount: Number(quote.customerAmount ?? 0),
+      ok: true,
+      providerAmount: Number(quote.providerAmount ?? 0),
+    }
+  } catch (error) {
+    return { ok: false, message: toMessage(error) }
+  }
 }
 
 const defaultEventName = 'My Event Plan'
@@ -287,7 +334,7 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
     client
       .from('event_service_selections')
       .select(
-        'id, service_id, service_name, category_name, estimated_amount, attendee_count, catering_option_name, status, updated_at, selected_provider_snapshot, services(cover_image_url)'
+        'id, service_id, service_name, category_name, estimated_amount, attendee_count, catering_option_name, venue_option_name, venue_booked_hours, status, updated_at, selected_provider_snapshot, services(cover_image_url)'
       )
       .eq('event_id', event.id)
       .not('status', 'in', '(declined,cancelled)')
@@ -313,7 +360,7 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
     client
       .from('event_budget_items')
       .select(
-        'category_key, label, allocated_amount, estimated_amount, priority_rank, is_priority, allocation_version'
+        'category_key, label, allocated_amount, estimated_amount, priority_rank, is_priority, allocation_version, is_selection_locked'
       )
       .eq('event_id', event.id)
       .order('priority_rank', { ascending: true }),
@@ -391,6 +438,7 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
       amount: Number(item.allocated_amount ?? item.estimated_amount ?? 0),
       categoryKey: item.category_key as BudgetPriority,
       label: String(item.label ?? priorityLabels[item.category_key] ?? 'Service'),
+      locked: item.is_selection_locked === true,
     })),
     budgetPriorities: savedBudgetPriorities,
     coordinatorBudgetCost:
@@ -510,7 +558,9 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
         category: selection.category_name || 'SERVICE',
         commissionAmount: Number(snapshot.commissionAmount ?? 0),
         commissionRate: Number(snapshot.commissionRate ?? 0),
-        detail: selection.catering_option_name
+        detail: selection.venue_option_name
+          ? `${selection.venue_option_name} · ${selection.venue_booked_hours ?? 0} hours`
+          : selection.catering_option_name
           ? `${selection.catering_option_name} · ${selection.attendee_count ?? 0} Guests`
           : selection.attendee_count
             ? `${selection.attendee_count} Guests`
@@ -742,7 +792,7 @@ export const saveBudgetPlan = async ({
     }
 
     const priorityRank = new Map(priorities.map((priority, index) => [priority, index + 1]))
-    const { error } = await client.rpc('save_my_event_budget_allocations', {
+    const { error } = await client.rpc('save_my_event_budget_allocations_phase9', {
       target_allocations: allocations.map((allocation, index) => ({
         amount: allocation.amount,
         category_key: allocation.categoryKey,
@@ -753,10 +803,40 @@ export const saveBudgetPlan = async ({
     })
 
     if (error) {
-      throw new Error(`Unable to save your budget allocations: ${error.message}`)
+      throw new Error(
+        error.message.toLowerCase().includes('save_my_event_budget_allocations_phase9')
+          ? 'Phase 9 budget locking is not installed yet. Apply database/60_service_selection_revision.sql.'
+          : `Unable to save your budget allocations: ${error.message}`
+      )
     }
 
     return { ok: true }
+  } catch (error) {
+    return { ok: false, message: toMessage(error) }
+  }
+}
+
+export const setCategoryBudgetAllocation = async (
+  categoryKey: BudgetPriority,
+  amount: number
+): Promise<PlanningResult> => {
+  try {
+    const client = getClient()
+    const event = await ensureDraftEvent()
+    if (!client || !event) return { ok: false, message: 'Unable to load your event plan.' }
+    const { error } = await client.rpc('set_my_category_budget_allocation', {
+      target_amount: amount,
+      target_category_key: categoryKey,
+      target_event_id: event.eventId,
+    })
+    return error
+      ? {
+          ok: false,
+          message: error.message.toLowerCase().includes('set_my_category_budget_allocation')
+            ? 'Phase 9 category budgets are not installed yet. Apply database/60_service_selection_revision.sql.'
+            : error.message,
+        }
+      : { ok: true }
   } catch (error) {
     return { ok: false, message: toMessage(error) }
   }
@@ -806,7 +886,7 @@ export const savePlanningPayment = async (
         client
           .from('event_service_selections')
           .select(
-            'id, provider_id, service_id, package_id, estimated_amount, notes, service_name, status, selected_provider_snapshot, catering_option_id, catering_option_name, catering_option_snapshot, provider_profiles(user_id)'
+            'id, provider_id, service_id, package_id, estimated_amount, notes, service_name, status, selected_provider_snapshot, catering_option_id, catering_option_name, catering_option_snapshot, venue_option_id, venue_option_name, venue_option_snapshot, venue_booked_hours, venue_setup_start_at, venue_start_at, venue_end_at, provider_profiles(user_id)'
           )
           .eq('event_id', event.eventId)
           .eq('client_id', event.userId)
@@ -816,6 +896,19 @@ export const savePlanningPayment = async (
 
     if (eventError) return { ok: false, message: eventError.message }
     if (selectionError) return { ok: false, message: selectionError.message }
+
+    const { error: phase9ValidationError } = await client.rpc(
+      'validate_my_phase9_selections',
+      { target_event_id: event.eventId }
+    )
+    if (phase9ValidationError) {
+      return {
+        ok: false,
+        message: phase9ValidationError.message.toLowerCase().includes('validate_my_phase9_selections')
+          ? 'Phase 9 checkout validation is not installed yet. Apply database/60_service_selection_revision.sql.'
+          : phase9ValidationError.message,
+      }
+    }
 
     const requestableSelections = (selections ?? []).filter(
       (selection) => isUuid(selection.provider_id) && isUuid(selection.service_id)
@@ -895,6 +988,13 @@ export const savePlanningPayment = async (
         service_id: selection.service_id,
         status: 'payment_required',
         updated_at: now,
+        venue_booked_hours: selection.venue_booked_hours,
+        venue_end_at: selection.venue_end_at,
+        venue_option_id: selection.venue_option_id,
+        venue_option_name: selection.venue_option_name,
+        venue_option_snapshot: selection.venue_option_snapshot,
+        venue_setup_start_at: selection.venue_setup_start_at,
+        venue_start_at: selection.venue_start_at,
       }
       const isNew = !existingBooking?.id
       const bookingResult = existingBooking?.id
@@ -1150,7 +1250,8 @@ export const assignCoordinatorToEvent = async (
 
 export const chooseCoordinatorPackage = async (
   packageId: string,
-  cateringOptionChoices: Record<string, string> = {}
+  cateringOptionChoices: Record<string, string> = {},
+  replaceConflicts = false
 ): Promise<PlanningResult> => {
   try {
     const client = getClient()
@@ -1158,18 +1259,32 @@ export const chooseCoordinatorPackage = async (
     if (!client || !event || !isUuid(packageId)) {
       return { ok: false, message: 'Choose an available coordinator package first.' }
     }
-    const { error } = await client.rpc('choose_coordinator_package_with_options', {
+    const { data, error } = await client.rpc('choose_coordinator_package_phase9', {
       catering_option_choices: cateringOptionChoices,
+      replace_conflicts: replaceConflicts,
       target_event_id: event.eventId,
       target_package_id: packageId,
     })
-    return error
-      ? {
-          ok: false,
-          message: error.message.toLowerCase().includes('choose_coordinator_package_with_options')
-            ? 'Catering-aware coordinator packages are not installed yet. Apply database/55_catering_pricing_revision.sql.'
-            : error.message,
-        }
+    if (error) return {
+      ok: false,
+      message: error.message.toLowerCase().includes('choose_coordinator_package_phase9')
+        ? 'Phase 9 package conflict checks are not installed yet. Apply database/60_service_selection_revision.sql.'
+        : error.message,
+    }
+    const result = data && typeof data === 'object' ? data as Record<string, unknown> : {}
+    const conflicts = Array.isArray(result.conflicts)
+      ? result.conflicts.flatMap((item) => {
+          if (!item || typeof item !== 'object') return []
+          const row = item as Record<string, unknown>
+          return [{
+            categoryKey: String(row.categoryKey ?? ''),
+            currentService: String(row.currentService ?? 'Current service'),
+            replacementService: String(row.replacementService ?? 'Package service'),
+          }]
+        })
+      : []
+    return result.requiresConfirmation === true
+      ? { conflicts, ok: true, requiresConfirmation: true }
       : { ok: true, message: 'Coordinator package selected. Each provider will still review its own booking request.' }
   } catch (error) {
     return { ok: false, message: toMessage(error) }
@@ -1235,6 +1350,36 @@ export const saveServiceSelection = async (
     const providerId = value.service.bookingProviderId ?? value.service.providerId
     const serviceId = value.service.bookingServiceId ?? value.service.id
     const packageId = value.service.bookingPackageId ?? value.service.packageId
+    if (isUuid(serviceId)) {
+      const { data, error } = await client.rpc('save_my_event_service_selection', {
+        replace_existing: true,
+        target_event_id: event.eventId,
+        target_meal_type: value.mealType ?? null,
+        target_notes: value.notes,
+        target_option_id: value.venueOption?.id ?? value.cateringOption?.id ?? null,
+        target_package_id: isUuid(packageId) ? packageId : null,
+        target_quantity: value.venueBookedHours ?? null,
+        target_service_id: serviceId,
+      })
+      if (error) {
+        return {
+          ok: false,
+          message: error.message.toLowerCase().includes('save_my_event_service_selection')
+            ? 'Phase 9 service selection is not installed yet. Apply database/60_service_selection_revision.sql.'
+            : error.message,
+        }
+      }
+      const result = data && typeof data === 'object' ? data as Record<string, unknown> : {}
+      return {
+        calculatedAmount: Number(result.customerAmount ?? value.estimatedTotal),
+        ok: true,
+        providerAmount: Number(result.providerAmount ?? value.service.providerMinPrice),
+        replacedSelectionId: typeof result.replacedSelectionId === 'string'
+          ? result.replacedSelectionId
+          : undefined,
+        selectionId: typeof result.selectionId === 'string' ? result.selectionId : undefined,
+      }
+    }
     let providerAmount = value.service.pricingUnit === 'person' && value.attendeeCount > 0
       ? value.service.providerMinPrice * value.attendeeCount
       : value.service.providerMinPrice

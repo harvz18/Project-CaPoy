@@ -39,6 +39,26 @@ export type CateringPriceCalculation = {
   unitPrice: number
 }
 
+export type VenueBookingOption = {
+  areaSqm: number
+  capacity: number
+  id: string
+  kind: 'space' | 'combination'
+  name: string
+  resourceIds: string[]
+  spaceType: string
+}
+
+export type VenueBookingRules = {
+  closingTime: string
+  durationIncrementHours: number
+  maximumBookingHours?: number
+  minimumBookingHours: number
+  openingTime: string
+  setupAllowanceHours: number
+  setupAllowanceBillable: boolean
+}
+
 const asObject = (value: unknown): Record<string, unknown> =>
   value && typeof value === 'object' && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -52,6 +72,63 @@ const number = (value: unknown) => {
 const list = (value: unknown) => Array.isArray(value)
   ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
   : []
+
+export const getVenueBookingOptions = (value: unknown): VenueBookingOption[] => {
+  const details = asObject(value)
+  const spaces = Array.isArray(details.spaces) ? details.spaces.map(asObject) : []
+  const availableSpaces = spaces.filter((space) => text(space.id) && text(space.name))
+  const byId = new Map(availableSpaces.map((space) => [text(space.id), space]))
+  const options: VenueBookingOption[] = availableSpaces.map((space) => ({
+    areaSqm: number(space.areaSqm),
+    capacity: number(space.capacity),
+    id: text(space.id),
+    kind: 'space',
+    name: text(space.name),
+    resourceIds: [text(space.id)],
+    spaceType: text(space.spaceType) || 'Indoor',
+  }))
+
+  const combinations = Array.isArray(details.combinations)
+    ? details.combinations.map(asObject)
+    : []
+  combinations.forEach((combination) => {
+    const resourceIds = list(combination.spaceIds).filter((id) => byId.has(id))
+    if (!text(combination.id) || !text(combination.name) || resourceIds.length < 2) return
+    const includedSpaces = resourceIds.map((id) => byId.get(id) ?? {})
+    options.push({
+      areaSqm: number(combination.combinedAreaSqm) || includedSpaces.reduce(
+        (sum, space) => sum + number(space.areaSqm), 0
+      ),
+      capacity: number(combination.combinedCapacity) || number(combination.capacity),
+      id: text(combination.id),
+      kind: 'combination',
+      name: text(combination.name),
+      resourceIds,
+      spaceType: Array.from(new Set(includedSpaces.map((space) => text(space.spaceType))))
+        .filter(Boolean)
+        .join(' + ') || 'Mixed',
+    })
+  })
+
+  return options
+}
+
+export const getVenueBookingRules = (value: unknown): VenueBookingRules => {
+  const details = asObject(value)
+  const setupValue = Math.max(0, number(details.setupAllowance))
+  const maximum = number(details.maximumBookingHours)
+  const durationIncrement = number(details.bookingDurationIncrementHours)
+
+  return {
+    closingTime: text(details.closingTime),
+    durationIncrementHours: durationIncrement > 0 ? Math.max(durationIncrement, 0.25) : 1,
+    maximumBookingHours: maximum > 0 ? maximum : undefined,
+    minimumBookingHours: Math.max(number(details.minimumBookingHours), 1),
+    openingTime: text(details.openingTime),
+    setupAllowanceBillable: details.setupAllowanceBillable === true,
+    setupAllowanceHours: details.setupAllowanceUnit === 'days' ? setupValue * 24 : setupValue,
+  }
+}
 
 export const getCateringPricingOptions = (
   value: unknown,
@@ -237,21 +314,44 @@ export const validateCategoryDetails = (
   if (details.kind === 'venues') {
     const spaces = Array.isArray(details.spaces) ? details.spaces.map(asObject) : []
     if (spaces.length === 0) errors.push('Add at least one venue space or hall.')
+    const spaceIds = spaces.map((space) => text(space.id)).filter(Boolean)
+    if (new Set(spaceIds).size !== spaces.length) {
+      errors.push('Every venue space needs a unique ID.')
+    }
     spaces.forEach((space, index) => {
       if (!text(space.name)) errors.push(`Space ${index + 1} needs a name.`)
       requirePositive(errors, space.areaSqm, `Space ${index + 1} area must be greater than zero.`)
       requirePositive(errors, space.capacity, `Space ${index + 1} capacity must be greater than zero.`)
     })
-    const ids = new Set(spaces.map((space) => text(space.id)).filter(Boolean))
+    const ids = new Set(spaceIds)
     const combinations = Array.isArray(details.combinations)
       ? details.combinations.map(asObject)
       : []
+    const optionIds = [...spaceIds, ...combinations.map((combination) => text(combination.id))]
+      .filter(Boolean)
+    if (new Set(optionIds).size !== spaces.length + combinations.length) {
+      errors.push('Every venue space and combination needs a unique ID.')
+    }
     combinations.forEach((combination, index) => {
       const selectedIds = list(combination.spaceIds)
+      if (!text(combination.name)) errors.push(`Combination ${index + 1} needs a name.`)
+      requirePositive(errors, combination.combinedAreaSqm,
+        `Combination ${index + 1} area must be greater than zero.`)
+      requirePositive(errors, combination.combinedCapacity,
+        `Combination ${index + 1} capacity must be greater than zero.`)
       if (selectedIds.length < 2) errors.push(`Combination ${index + 1} must contain at least two spaces.`)
       if (new Set(selectedIds).size !== selectedIds.length) errors.push(`Combination ${index + 1} contains a duplicate space.`)
       if (selectedIds.some((id) => !ids.has(id))) errors.push(`Combination ${index + 1} contains an unavailable space.`)
     })
+    if (number(details.minimumBookingHours) < 0) errors.push('Minimum booking hours cannot be negative.')
+    if (number(details.maximumBookingHours) > 0
+      && number(details.maximumBookingHours) < Math.max(number(details.minimumBookingHours), 1)) {
+      errors.push('Maximum booking hours must be at least the minimum booking hours.')
+    }
+    if (number(details.bookingDurationIncrementHours) > 0
+      && number(details.bookingDurationIncrementHours) < 0.25) {
+      errors.push('Booking duration increment must be at least 0.25 hours.')
+    }
   }
 
   if (details.kind === 'photography') {
@@ -331,8 +431,23 @@ export const summarizeCategoryDetails = (
     add('Spaces / halls', spaces.map((space) => `${text(space.name)} (${number(space.capacity)} guests, ${number(space.areaSqm)} sqm)`).join(' · '))
     const combinations = Array.isArray(detail.combinations) ? detail.combinations.map(asObject) : []
     add('Expandable spaces', combinations.map((item) => text(item.name)).filter(Boolean).join(', '))
+    const amenityLabels: Record<string, string> = {
+      airConditioning: 'Air conditioning', chairs: 'Chairs', tables: 'Tables',
+      parking: 'Parking', restrooms: 'Restrooms', dressingRoom: 'Dressing room',
+      kitchen: 'Kitchen', wifi: 'Wi-Fi', stage: 'Stage', pwdAccessibility: 'PWD accessibility',
+    }
+    add('Amenities', Object.entries(amenityLabels).flatMap(([key, label]) => {
+      if (detail[key] !== true) return []
+      const quantity = number(detail[`${key}Quantity`])
+      return [quantity > 0 ? `${label} (${quantity})` : label]
+    }).join(', '))
     add('Other inclusions', joined(detail.otherInclusions))
     add('Operating hours', text(detail.openingTime) && text(detail.closingTime) ? `${text(detail.openingTime)}–${text(detail.closingTime)}` : '')
+    add('Setup / ingress allowance', duration(detail.setupAllowance, detail.setupAllowanceUnit))
+    add('Minimum booking', duration(detail.minimumBookingHours, 'hours'))
+    add('Maximum booking', duration(detail.maximumBookingHours, 'hours'))
+    add('Duration increment', duration(detail.bookingDurationIncrementHours, 'hours'))
+    add('Setup / ingress billed', yesNo(detail.setupAllowanceBillable))
   } else if (detail.kind === 'event_organizer') {
     add('Specializations', joined(detail.specializations))
     add('Coordination services', joined(detail.coordinationTypes))

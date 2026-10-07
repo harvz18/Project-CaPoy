@@ -21,8 +21,11 @@ import { customerPriceFromProviderPrice } from '../lib/pricing'
 import {
   calculateCateringPrice,
   getCateringPricingOptions,
+  getVenueBookingOptions,
+  getVenueBookingRules,
   summarizeCategoryDetails,
   type CateringPricingOption,
+  type VenueBookingOption,
 } from '../lib/service-category-details'
 import type { ReviewSentiment, ServiceReviewInsights } from '../lib/reviews'
 
@@ -36,15 +39,32 @@ export interface ServiceSelectionValue {
   mealType?: MealType
   notes: string
   service: CatalogService
+  venueBookedHours?: number
+  venueOption?: VenueBookingOption
+}
+
+type ServiceQuotePreview = {
+  calculatedAmount?: number
+  message?: string
+  ok: boolean
+  providerAmount?: number
 }
 
 interface ServiceDetailsScreenProps {
   eventGuestCount?: number
+  eventDate?: string
+  eventTime?: string
   hasBudget?: boolean
   mode?: 'explore' | 'planning'
   remainingBudget?: number
   service?: CatalogService
   onAddSelection?: (value: ServiceSelectionValue) => Promise<void> | void
+  onCalculateQuote?: (value: {
+    optionId?: string
+    packageId?: string
+    quantity?: number
+    service: CatalogService
+  }) => Promise<ServiceQuotePreview>
   onBack?: () => void
   onReadAllReviews?: () => void
   reviewInsights?: ServiceReviewInsights
@@ -103,11 +123,14 @@ const pricingUnitLabel = (unit?: 'event' | 'person' | 'hour' | 'day') => {
 
 export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   eventGuestCount = 0,
+  eventDate = '',
+  eventTime = '',
   hasBudget,
   mode = 'planning',
   remainingBudget = 45000,
   service,
   onAddSelection,
+  onCalculateQuote,
   onBack,
   onReadAllReviews,
   reviewInsights,
@@ -122,8 +145,16 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   const [heroIndex, setHeroIndex] = React.useState(0)
   const [mealType, setMealType] = React.useState<MealType>()
   const [selectedCateringOptionId, setSelectedCateringOptionId] = React.useState('')
+  const [selectedVenueOptionId, setSelectedVenueOptionId] = React.useState('')
+  const [venueHours, setVenueHours] = React.useState('')
   const [notes, setNotes] = React.useState('')
   const [isAddingSelection, setIsAddingSelection] = React.useState(false)
+  const [authoritativeQuote, setAuthoritativeQuote] = React.useState<{
+    customerAmount: number
+    providerAmount: number
+  }>()
+  const [quoteError, setQuoteError] = React.useState('')
+  const [quoteLoading, setQuoteLoading] = React.useState(false)
   const [expandedSentiment, setExpandedSentiment] = React.useState<ReviewSentiment>()
   const [selectedPackageId, setSelectedPackageId] = React.useState(
     service?.packageId ?? ''
@@ -152,14 +183,94 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     setMealType(service?.cateringServiceTypes?.[0])
     const options = getCateringPricingOptions(service?.categoryDetails, service?.providerMinPrice)
     setSelectedCateringOptionId(options.length === 1 ? options[0].id : '')
+    const venueOptions = getVenueBookingOptions(service?.categoryDetails)
+    setSelectedVenueOptionId(venueOptions.length === 1 ? venueOptions[0].id : '')
+    const venueRules = getVenueBookingRules(service?.categoryDetails)
+    setVenueHours(String(venueRules.minimumBookingHours))
     setHeroIndex(0)
     setExpandedSentiment(undefined)
+    setAuthoritativeQuote(undefined)
+    setQuoteError('')
+    setQuoteLoading(false)
   }, [
     service?.cateringServiceTypes,
     service?.categoryDetails,
     service?.id,
     service?.packageId,
     service?.providerMinPrice,
+  ])
+
+  React.useEffect(() => {
+    setAuthoritativeQuote(undefined)
+    setQuoteError('')
+    setQuoteLoading(false)
+
+    if (
+      !service
+      || !onCalculateQuote
+      || isExploreMode
+      || (service.isMock && !service.bookingServiceId)
+    ) return
+
+    const isCateringService = service.categoryId === 'catering'
+    const isVenueService = service.categoryId === 'venues'
+    const requestedHours = Number(venueHours)
+    if (isCateringService && !selectedCateringOptionId) return
+    if (isVenueService && (
+      !selectedVenueOptionId
+      || !Number.isFinite(requestedHours)
+      || requestedHours <= 0
+    )) return
+
+    let cancelled = false
+    setQuoteLoading(true)
+    const timer = setTimeout(() => {
+      void onCalculateQuote({
+        optionId: isVenueService ? selectedVenueOptionId
+          : isCateringService ? selectedCateringOptionId : undefined,
+        packageId: selectedPackageId || service.packageId,
+        quantity: isVenueService ? requestedHours : undefined,
+        service,
+      }).then((result) => {
+        if (cancelled) return
+        const customerAmount = Number(result.calculatedAmount)
+        const providerAmount = Number(result.providerAmount)
+        if (
+          result.ok
+          && Number.isFinite(customerAmount)
+          && customerAmount > 0
+          && Number.isFinite(providerAmount)
+          && providerAmount > 0
+        ) {
+          setAuthoritativeQuote({ customerAmount, providerAmount })
+          setQuoteError('')
+        } else {
+          setAuthoritativeQuote(undefined)
+          setQuoteError(result.message ?? 'The current event price could not be calculated.')
+        }
+        setQuoteLoading(false)
+      }).catch((error: unknown) => {
+        if (cancelled) return
+        setAuthoritativeQuote(undefined)
+        setQuoteError(error instanceof Error
+          ? error.message
+          : 'The current event price could not be calculated.')
+        setQuoteLoading(false)
+      })
+    }, 250)
+
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [
+    isExploreMode,
+    onCalculateQuote,
+    selectedCateringOptionId,
+    selectedPackageId,
+    selectedVenueOptionId,
+    service,
+    venueHours,
   ])
 
   if (!service) {
@@ -180,6 +291,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   const attendeeCount = Math.max(0, Math.floor(eventGuestCount || 0))
   const categoryFacts = summarizeCategoryDetails(service.categoryName, service.categoryDetails)
   const isCatering = service.categoryId === 'catering'
+  const isVenue = service.categoryId === 'venues'
   const cateringOptions = getCateringPricingOptions(service.categoryDetails, service.providerMinPrice)
   const selectedCateringOption = cateringOptions.find((option) => option.id === selectedCateringOptionId)
   const cateringCalculation = selectedCateringOption
@@ -190,27 +302,68 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   const cateringSelectionUnavailable = isCatering && (
     !selectedCateringOption || !cateringCalculation?.fitsGuestCount
   )
+  const venueOptions = getVenueBookingOptions(service.categoryDetails)
+  const venueRules = getVenueBookingRules(service.categoryDetails)
+  const selectedVenueOption = venueOptions.find((option) => option.id === selectedVenueOptionId)
+  const parsedVenueHours = Number(venueHours)
+  const venueIncrementValid = Number.isFinite(parsedVenueHours)
+    && parsedVenueHours > 0
+    && Math.abs(parsedVenueHours / venueRules.durationIncrementHours
+      - Math.round(parsedVenueHours / venueRules.durationIncrementHours)) < 0.000001
+  const venueSelectionUnavailable = isVenue && (
+    !selectedVenueOption
+    || selectedVenueOption.capacity < Math.max(attendeeCount, 1)
+    || !venueIncrementValid
+    || parsedVenueHours < venueRules.minimumBookingHours
+    || (venueRules.maximumBookingHours !== undefined
+      && parsedVenueHours > venueRules.maximumBookingHours)
+  )
   const selectedPackage = service.packages?.find((item) => item.id === selectedPackageId)
   const selectedUnit = selectedPackage?.unit ?? service.pricingUnit ?? 'event'
   const selectedPrice = selectedPackage?.price ?? service.minPrice
   const selectedProviderPrice = selectedPackage?.providerPrice ?? service.providerMinPrice
   const requiresQuote = service.pricingModel === 'customQuote' || selectedPrice <= 0
-  const providerEstimatedTotal = isCatering
+  const locallyEstimatedProviderTotal = isCatering
     ? cateringCalculation?.providerSubtotal ?? 0
+    : isVenue && selectedUnit === 'hour'
+      ? selectedProviderPrice * parsedVenueHours
+        + (venueRules.setupAllowanceBillable
+          ? selectedProviderPrice * venueRules.setupAllowanceHours
+          : 0)
     : selectedUnit === 'person' && attendeeCount > 0
       ? selectedProviderPrice * attendeeCount
       : selectedProviderPrice
+  const providerEstimatedTotal = authoritativeQuote?.providerAmount
+    ?? locallyEstimatedProviderTotal
   const estimatedTotal =
-    requiresQuote
-      ? 0
-      : customerPriceFromProviderPrice(providerEstimatedTotal, service.commissionRate)
+    authoritativeQuote?.customerAmount
+      ?? (requiresQuote
+        ? 0
+        : customerPriceFromProviderPrice(providerEstimatedTotal, service.commissionRate))
+  const requiresAuthoritativeQuote = Boolean(
+    onCalculateQuote
+    && !isExploreMode
+    && !(service.isMock && !service.bookingServiceId)
+  )
+  const authoritativeQuoteUnavailable = requiresAuthoritativeQuote
+    && (quoteLoading || Boolean(quoteError) || !authoritativeQuote)
   const estimatedDisplay =
-    requiresQuote
-      ? 'Quote required'
+    quoteLoading
+      ? 'Calculating...'
+      : quoteError
+        ? 'Price unavailable'
+      : requiresQuote && !authoritativeQuote
+        ? 'Quote required'
       : `PHP ${formatCurrency(estimatedTotal)}`
 
   const handleAddSelection = async () => {
-    if (!onAddSelection || isAddingSelection || cateringSelectionUnavailable) return
+    if (
+      !onAddSelection
+      || isAddingSelection
+      || cateringSelectionUnavailable
+      || venueSelectionUnavailable
+      || authoritativeQuoteUnavailable
+    ) return
 
     setIsAddingSelection(true)
 
@@ -222,6 +375,8 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
         estimatedTotal,
         mealType,
         notes,
+        venueBookedHours: isVenue ? parsedVenueHours : undefined,
+        venueOption: selectedVenueOption,
         service: isCatering && selectedCateringOption
           ? {
               ...service,
@@ -581,6 +736,73 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
               </View>
             ) : null}
 
+            {isVenue ? (
+              <View style={styles.cateringOptionsSection}>
+                <View style={styles.guestCountCard}>
+                  <View>
+                    <Text style={styles.inputLabel}>EVENT REQUIREMENT</Text>
+                    <Text style={styles.guestCountValue}>{attendeeCount.toLocaleString('en-PH')} guests</Text>
+                    {eventDate && eventTime ? (
+                      <Text style={styles.cateringOptionRange}>{eventDate} at {eventTime}</Text>
+                    ) : null}
+                  </View>
+                  <MaterialCommunityIcons color={palette.primary} name="office-building-marker-outline" size={28} />
+                </View>
+                <Text style={styles.cateringInstruction}>Choose one provider-configured space or combination.</Text>
+                {venueOptions.map((option) => {
+                  const selected = option.id === selectedVenueOptionId
+                  const capacityFits = option.capacity >= Math.max(attendeeCount, 1)
+                  return (
+                    <Pressable
+                      key={option.id}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: selected, disabled: !capacityFits }}
+                      disabled={!capacityFits}
+                      onPress={() => setSelectedVenueOptionId(option.id)}
+                      style={[styles.cateringOptionCard, selected && styles.cateringOptionCardSelected, !capacityFits && styles.cateringOptionCardDisabled]}
+                    >
+                      <View style={styles.cateringOptionHeading}>
+                        <View style={styles.packageTitleRow}>
+                          <MaterialCommunityIcons color={selected ? palette.primary : palette.secondary} name={selected ? 'radiobox-marked' : 'radiobox-blank'} size={22} />
+                          <View>
+                            <Text style={styles.cateringOptionName}>{option.name}</Text>
+                            <Text style={styles.cateringOptionRange}>{option.kind === 'combination' ? 'Expandable combination' : 'Individual space'} · {option.spaceType}</Text>
+                          </View>
+                        </View>
+                      </View>
+                      <Text style={styles.cateringMenuItems}>Capacity: {option.capacity} guests · Area: {option.areaSqm || 'Not specified'} sqm</Text>
+                      {!capacityFits ? <Text style={styles.cateringMismatch}>Capacity is below the event guest count.</Text> : null}
+                    </Pressable>
+                  )
+                })}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>BOOKING DURATION (HOURS)</Text>
+                  <TextInput
+                    accessibilityLabel="Venue booking duration in hours"
+                    keyboardType="decimal-pad"
+                    onChangeText={(value) => setVenueHours(value.replace(/[^\d.]/g, ''))}
+                    placeholder={String(venueRules.minimumBookingHours)}
+                    placeholderTextColor={palette.secondaryFixedDim}
+                    style={styles.notesInput}
+                    value={venueHours}
+                  />
+                  <Text style={styles.cateringOptionRange}>
+                    {venueRules.minimumBookingHours} hour minimum · {venueRules.durationIncrementHours} hour increments
+                    {venueRules.maximumBookingHours ? ` · ${venueRules.maximumBookingHours} hour maximum` : ''}
+                  </Text>
+                  <Text style={styles.cateringOptionRange}>
+                    Operating hours: {venueRules.openingTime || 'Not specified'}-{venueRules.closingTime || 'Not specified'} · Setup/ingress: {venueRules.setupAllowanceHours} hours{venueRules.setupAllowanceBillable ? ' (billable)' : ' (not billed)'}
+                  </Text>
+                </View>
+                {venueOptions.length === 0 ? (
+                  <View style={styles.unavailableNotice}>
+                    <MaterialCommunityIcons color={palette.secondary} name="alert-circle-outline" size={20} />
+                    <Text style={styles.unavailableNoticeText}>This provider must configure a venue space before the service can be selected.</Text>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+
             <View style={styles.notesSection}>
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>DIETARY REQUIREMENTS &amp; NOTES</Text>
@@ -814,6 +1036,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
               <View>
                 <Text style={styles.estimatedLabel}>ESTIMATED TOTAL</Text>
                 <Text style={styles.estimatedValue}>{estimatedDisplay}</Text>
+                {quoteError ? <Text style={styles.quoteError}>{quoteError}</Text> : null}
               </View>
             ) : null}
 
@@ -824,13 +1047,13 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                   : `Add to selection for ${formatCurrency(estimatedTotal)} pesos`
               }
               accessibilityRole="button"
-              accessibilityState={{ disabled: isAddingSelection || cateringSelectionUnavailable }}
-              disabled={isAddingSelection || cateringSelectionUnavailable}
+              accessibilityState={{ disabled: isAddingSelection || cateringSelectionUnavailable || venueSelectionUnavailable || authoritativeQuoteUnavailable }}
+              disabled={isAddingSelection || cateringSelectionUnavailable || venueSelectionUnavailable || authoritativeQuoteUnavailable}
               onPress={handleAddSelection}
               style={({ pressed }) => [
                 styles.addButton,
                 isWide && styles.addButtonWide,
-                (isAddingSelection || cateringSelectionUnavailable) && styles.addButtonDisabled,
+                (isAddingSelection || cateringSelectionUnavailable || venueSelectionUnavailable || authoritativeQuoteUnavailable) && styles.addButtonDisabled,
                 pressed && styles.addPressed,
               ]}
             >
@@ -839,6 +1062,12 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                   ? 'Adding...'
                   : cateringSelectionUnavailable
                     ? 'Catering Options Unavailable'
+                    : venueSelectionUnavailable
+                      ? 'Venue Option or Duration Required'
+                    : quoteLoading
+                      ? 'Calculating Event Price...'
+                      : quoteError
+                        ? 'Event Price Unavailable'
                     : 'Add to Selection'}
               </Text>
               {!isWide ? <Text style={styles.addDivider}>|</Text> : null}
@@ -1332,6 +1561,7 @@ const styles = StyleSheet.create({
   bottomActionContent: { width: '100%', maxWidth: 1200, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 24 },
   estimatedLabel: { color: palette.secondary, fontSize: 11, lineHeight: 15, fontWeight: '700', letterSpacing: 1.1 },
   estimatedValue: { color: palette.text, fontSize: 20, lineHeight: 27, fontWeight: '700', marginTop: 2 },
+  quoteError: { color: palette.primary, fontSize: 11, lineHeight: 15, marginTop: 2, maxWidth: 420 },
   addButton: { width: '100%', minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, borderRadius: 25, backgroundColor: palette.primary, paddingHorizontal: 24, paddingVertical: 13 },
   addButtonWide: { width: 'auto', minWidth: 280 },
   addButtonText: { color: palette.white, fontSize: 16, lineHeight: 22, fontWeight: '500' },

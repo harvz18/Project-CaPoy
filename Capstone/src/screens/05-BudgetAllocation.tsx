@@ -34,6 +34,7 @@ export type CategoryBudgetAllocation = {
   amount: number
   categoryKey: BudgetPriority
   label: string
+  locked?: boolean
 }
 
 export interface BudgetAllocationValue {
@@ -147,6 +148,7 @@ interface AllocationSliderProps {
   icon: MaterialIconName
   label: string
   legacyPriority: boolean
+  locked: boolean
   maxAmount: number
   onChange: (amount: number) => void
 }
@@ -158,6 +160,7 @@ const AllocationSlider: React.FC<AllocationSliderProps> = ({
   icon,
   label,
   legacyPriority,
+  locked,
   maxAmount,
   onChange,
 }) => {
@@ -168,23 +171,23 @@ const AllocationSlider: React.FC<AllocationSliderProps> = ({
 
   const updateFromPosition = React.useCallback(
     (position: number) => {
-      if (budget <= 0 || trackWidth <= 1) return
+      if (budget <= 0 || trackWidth <= 1 || locked) return
       const ratio = Math.max(0, Math.min(position / trackWidth, 1))
       const requested = Math.round((ratio * budget) / step) * step
       onChange(Math.max(minimum, Math.min(requested, maxAmount)))
     },
-    [budget, maxAmount, minimum, onChange, step, trackWidth]
+    [budget, locked, maxAmount, minimum, onChange, step, trackWidth]
   )
 
   const panResponder = React.useMemo(
     () =>
       PanResponder.create({
-        onMoveShouldSetPanResponder: () => budget > 0,
+        onMoveShouldSetPanResponder: () => budget > 0 && !locked,
         onPanResponderGrant: (event) => updateFromPosition(event.nativeEvent.locationX),
         onPanResponderMove: (event) => updateFromPosition(event.nativeEvent.locationX),
-        onStartShouldSetPanResponder: () => budget > 0,
+        onStartShouldSetPanResponder: () => budget > 0 && !locked,
       }),
-    [budget, updateFromPosition]
+    [budget, locked, updateFromPosition]
   )
 
   const handleTrackLayout = (event: LayoutChangeEvent) => {
@@ -213,7 +216,9 @@ const AllocationSlider: React.FC<AllocationSliderProps> = ({
           </View>
           <View style={styles.categoryCopy}>
             <Text style={styles.categoryLabel}>{label}</Text>
-            {minimum > 0 ? (
+            {locked ? (
+              <Text style={styles.reservedLabel}>Locked to selected service amount</Text>
+            ) : minimum > 0 ? (
               <Text style={styles.reservedLabel}>
                 {formatMoney(minimum)} committed coordinator cost
               </Text>
@@ -227,7 +232,7 @@ const AllocationSlider: React.FC<AllocationSliderProps> = ({
           <Text style={styles.amountCurrency}>₱</Text>
           <TextInput
             accessibilityLabel={`${label} budget allocation`}
-            editable={budget > 0}
+            editable={budget > 0 && !locked}
             inputMode="decimal"
             keyboardType="decimal-pad"
             onChangeText={handleAmountChange}
@@ -246,7 +251,7 @@ const AllocationSlider: React.FC<AllocationSliderProps> = ({
         accessibilityLabel={`${label}: ${formatMoney(amount)} of ${formatMoney(budget)}`}
         accessibilityRole="adjustable"
         accessibilityValue={{ max: budget, min: minimum, now: amount }}
-        disabled={budget <= 0}
+        disabled={budget <= 0 || locked}
         onAccessibilityAction={(event) => {
           if (event.nativeEvent.actionName === 'increment') adjust(1)
           if (event.nativeEvent.actionName === 'decrement') adjust(-1)
@@ -299,6 +304,10 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
   const budgetTooLow = coordinatorMinimum > budget
   const allocationExceeded = totalAllocated > budget
   const legacyPriorities = React.useMemo(() => new Set(initialPriorities), [initialPriorities])
+  const lockedCategories = React.useMemo(
+    () => new Set(initialAllocations.filter((item) => item.locked).map((item) => item.categoryKey)),
+    [initialAllocations]
+  )
 
   React.useEffect(() => {
     setAllocations((current) => clampAllocations(current, budget, coordinatorMinimum))
@@ -344,6 +353,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
         amount: sanitizeMoney(allocations[category.id]),
         categoryKey: category.id,
         label: category.label,
+        locked: lockedCategories.has(category.id),
       }))
       .filter((allocation) => allocation.amount > 0)
     const priorities = [...savedAllocations]
@@ -490,6 +500,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
                   key={category.id}
                   label={category.label}
                   legacyPriority={legacyPriorities.has(category.id)}
+                  locked={lockedCategories.has(category.id)}
                   maxAmount={Math.max(maximum, minimum)}
                   onChange={(nextAmount) => handleAllocationChange(category.id, nextAmount)}
                 />

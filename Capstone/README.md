@@ -65,6 +65,11 @@ catalog results prioritize services whose event-aware customer total fits the ma
 allocation while keeping over-budget or unavailable options visible for comparison. Catering uses
 a guest-compatible option's calculated total. See
 [`docs/PHASE_8_BUDGET_AWARE_RECOMMENDATIONS.md`](docs/PHASE_8_BUDGET_AWARE_RECOMMENDATIONS.md).
+Apply `60_service_selection_revision.sql` after migration 59 for Revision 2 Phase 9. Category
+budgets can be adjusted from the catalog, one active service is enforced per category, and venue
+spaces/combinations use authoritative duration, capacity, operating-hour, overlap, and pricing
+validation with immutable selection and booking snapshots. See
+[`docs/PHASE_9_SERVICE_SELECTION.md`](docs/PHASE_9_SERVICE_SELECTION.md).
 Apply `07_service_listing_details.sql` so pricing models, pricing units, pricing notes, package
 units, and all uploaded service photos remain available on the client service-detail screen.
 For existing databases that used the `02_event_planning_flow_no_rls.sql` setup, also apply

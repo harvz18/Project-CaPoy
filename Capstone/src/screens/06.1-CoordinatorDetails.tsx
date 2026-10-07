@@ -6,6 +6,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  TextInput,
   useWindowDimensions,
   View,
 } from 'react-native'
@@ -16,6 +17,7 @@ import { calculateCateringPrice } from '../lib/service-category-details'
 
 interface CoordinatorDetailsScreenProps {
   assigning?: boolean
+  categoryBudgets?: Record<string, number>
   eventGuestCount?: number
   isAssigned?: boolean
   mode?: 'explore' | 'planning'
@@ -29,8 +31,21 @@ interface CoordinatorDetailsScreenProps {
 const initialsFrom = (name: string) =>
   name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || 'EC'
 
+const categoryBudgetKey = (categoryName: string) => {
+  const name = categoryName.toLowerCase()
+  if (name.includes('photo')) return 'photoVideo'
+  if (name.includes('venue') || name.includes('estate')) return 'venue'
+  if (name.includes('flor')) return 'floral'
+  if (name.includes('attire') || name.includes('gown')) return 'gownRental'
+  if (name.includes('organizer') || name.includes('coordinator')) return 'eventOrganizer'
+  if (name.includes('host') || name.includes('emcee')) return 'hostEmcee'
+  if (name.includes('sound') || name.includes('light')) return 'soundLights'
+  return 'catering'
+}
+
 export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> = ({
   assigning = false,
+  categoryBudgets = {},
   eventGuestCount = 0,
   isAssigned = false,
   mode = 'planning',
@@ -143,24 +158,57 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
           </View>
           {packages.length ? <View style={styles.packageList}>{packages.map((item) => {
             const cateringItems = item.items.filter((packageItem) => packageItem.requiresCateringOption)
-            const packageChoices = Object.fromEntries(cateringItems.flatMap((packageItem) => {
+            const venueItems = item.items.filter((packageItem) => packageItem.venueOptions.length > 0)
+            const packageChoices: Record<string, string> = Object.fromEntries(cateringItems.flatMap((packageItem) => {
               const optionId = cateringChoices[`${item.id}:${packageItem.serviceId}`]
               return optionId ? [[packageItem.serviceId, optionId]] : []
             }))
-            const choicesComplete = cateringItems.every((packageItem) => {
+            venueItems.forEach((packageItem) => {
+              const optionId = cateringChoices[`${item.id}:venueOption:${packageItem.serviceId}`]
+              const hours = cateringChoices[`${item.id}:venueHours:${packageItem.serviceId}`]
+              if (optionId) packageChoices[`venueOption:${packageItem.serviceId}`] = optionId
+              if (hours) packageChoices[`venueHours:${packageItem.serviceId}`] = hours
+            })
+            const cateringChoicesComplete = cateringItems.every((packageItem) => {
               const optionId = packageChoices[packageItem.serviceId]
               const option = packageItem.cateringOptions.find((candidate) => candidate.id === optionId)
               return option ? calculateCateringPrice(option, eventGuestCount).fitsGuestCount : false
             })
-            const dynamicSubtotal = item.items.reduce((total, packageItem) => {
-              if (!packageItem.requiresCateringOption) return total + packageItem.estimatedAmount
+            const venueChoicesComplete = venueItems.every((packageItem) => {
+              const option = packageItem.venueOptions.find((candidate) =>
+                candidate.id === packageChoices[`venueOption:${packageItem.serviceId}`]
+              )
+              const hours = Number(packageChoices[`venueHours:${packageItem.serviceId}`])
+              const rules = packageItem.venueRules
+              return Boolean(option && option.capacity >= eventGuestCount && rules
+                && hours >= rules.minimumBookingHours
+                && (!rules.maximumBookingHours || hours <= rules.maximumBookingHours)
+                && Math.abs(hours / rules.durationIncrementHours
+                  - Math.round(hours / rules.durationIncrementHours)) < 0.000001)
+            })
+            const choicesComplete = cateringChoicesComplete && venueChoicesComplete
+            const calculatedItemAmount = (packageItem: (typeof item.items)[number]) => {
+              if (packageItem.venueOptions.length > 0) {
+                const hours = Number(packageChoices[`venueHours:${packageItem.serviceId}`])
+                if (!Number.isFinite(hours) || hours <= 0) return packageItem.estimatedAmount
+                const billedHours = hours + (packageItem.venueRules?.setupAllowanceBillable
+                  ? packageItem.venueRules.setupAllowanceHours : 0)
+                const providerAmount = packageItem.pricingUnit === 'hour'
+                  ? packageItem.providerPrice * billedHours
+                  : packageItem.providerPrice
+                return customerPriceFromProviderPrice(providerAmount, packageItem.commissionRate)
+              }
+              if (!packageItem.requiresCateringOption) return packageItem.estimatedAmount
               const optionId = packageChoices[packageItem.serviceId]
               const option = packageItem.cateringOptions.find((candidate) => candidate.id === optionId)
-              if (!option) return total
+              if (!option) return packageItem.estimatedAmount
               const calculation = calculateCateringPrice(option, eventGuestCount)
-              return total + customerPriceFromProviderPrice(calculation.providerSubtotal, packageItem.commissionRate)
-            }, 0)
-            const displayedSubtotal = cateringItems.length && choicesComplete
+              return customerPriceFromProviderPrice(calculation.providerSubtotal, packageItem.commissionRate)
+            }
+            const dynamicSubtotal = item.items.reduce(
+              (total, packageItem) => total + calculatedItemAmount(packageItem), 0
+            )
+            const displayedSubtotal = (cateringItems.length || venueItems.length) && choicesComplete
               ? dynamicSubtotal
               : item.serviceSubtotal
             const packageCanBeSelected = item.isAvailable && choicesComplete
@@ -173,14 +221,28 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
                 <Text style={styles.packagePrice}>{formatPeso(displayedSubtotal)}</Text>
               </View>
               {item.description ? <Text style={styles.packageDescription}>{item.description}</Text> : null}
-              <View style={styles.packageItems}>{item.items.map((packageItem) => <View key={packageItem.serviceId}>
+              <View style={styles.packageItems}>{item.items.map((packageItem) => {
+                const calculatedAmount = calculatedItemAmount(packageItem)
+                const categoryBudget = categoryBudgets[categoryBudgetKey(packageItem.categoryName)] ?? 0
+                const budgetDifference = calculatedAmount - categoryBudget
+                return <View key={packageItem.serviceId}>
                 <View style={styles.packageItem}>
                   <Text style={styles.packageItemCategory}>{packageItem.categoryName}</Text>
                   <View style={styles.packageItemCopy}>
                     <Text style={styles.packageItemName}>{packageItem.serviceName}</Text>
                     <Text style={styles.packageItemProvider}>{packageItem.providerName}</Text>
                   </View>
-                  <Text style={styles.packageItemPrice}>{formatPeso(packageItem.estimatedAmount)}</Text>
+                  <View style={styles.packageItemPriceBlock}>
+                    <Text style={styles.packageItemPrice}>{formatPeso(calculatedAmount)}</Text>
+                    <Text style={categoryBudget <= 0 || budgetDifference > 0
+                      ? styles.packageBudgetWarning : styles.packageBudgetFit}>
+                      {categoryBudget <= 0
+                        ? 'No category budget'
+                        : budgetDifference > 0
+                          ? `${formatPeso(budgetDifference)} over budget`
+                          : 'Within budget'}
+                    </Text>
+                  </View>
                 </View>
                 {packageItem.requiresCateringOption ? <View style={styles.cateringChoices}>
                   <Text style={styles.cateringChoiceLabel}>Choose a menu for {eventGuestCount} guests</Text>
@@ -202,10 +264,46 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
                     </Pressable>
                   })}
                 </View> : null}
-              </View>)}</View>
+                {packageItem.venueOptions.length > 0 ? <View style={styles.cateringChoices}>
+                  <Text style={styles.cateringChoiceLabel}>Choose a venue option and booking duration</Text>
+                  {packageItem.venueOptions.map((option) => {
+                    const choiceKey = `${item.id}:venueOption:${packageItem.serviceId}`
+                    const selected = cateringChoices[choiceKey] === option.id
+                    const capacityFits = option.capacity >= eventGuestCount
+                    return <Pressable
+                      key={option.id}
+                      disabled={!capacityFits}
+                      onPress={() => setCateringChoices((current) => ({ ...current, [choiceKey]: option.id }))}
+                      style={[styles.cateringChoice, selected && styles.cateringChoiceSelected, !capacityFits && styles.cateringChoiceDisabled]}
+                    >
+                      <MaterialCommunityIcons color={selected ? palette.primaryContainer : palette.muted} name={selected ? 'radiobox-marked' : 'radiobox-blank'} size={18} />
+                      <View style={styles.packageItemCopy}>
+                        <Text style={styles.cateringChoiceName}>{option.name}</Text>
+                        <Text style={styles.packageItemProvider}>{option.spaceType} · {option.capacity} guests · {option.areaSqm || 'Unspecified'} sqm</Text>
+                      </View>
+                      {!capacityFits ? <Text style={styles.cateringChoiceError}>Below event capacity</Text> : null}
+                    </Pressable>
+                  })}
+                  <TextInput
+                    accessibilityLabel={`Venue booking hours for ${packageItem.serviceName}`}
+                    keyboardType="decimal-pad"
+                    onChangeText={(value) => setCateringChoices((current) => ({
+                      ...current,
+                      [`${item.id}:venueHours:${packageItem.serviceId}`]: value.replace(/[^\d.]/g, ''),
+                    }))}
+                    placeholder={`${packageItem.venueRules?.minimumBookingHours ?? 1} booking hours`}
+                    placeholderTextColor={palette.muted}
+                    style={styles.venueHoursInput}
+                    value={cateringChoices[`${item.id}:venueHours:${packageItem.serviceId}`] ?? ''}
+                  />
+                  <Text style={styles.packageItemProvider}>
+                    {packageItem.venueRules?.minimumBookingHours ?? 1} hour minimum · {packageItem.venueRules?.durationIncrementHours ?? 1} hour increments · Setup/ingress {packageItem.venueRules?.setupAllowanceHours ?? 0} hours
+                  </Text>
+                </View> : null}
+              </View>})}</View>
               <View style={styles.packageTotal}><Text style={styles.packageTotalLabel}>Coordinator + services</Text><Text style={styles.packageTotalValue}>{formatPeso((service?.minPrice ?? 0) + displayedSubtotal)}</Text></View>
               {!item.isAvailable ? <Text style={styles.unavailable}>{item.unavailableReason}</Text> : null}
-              {item.isAvailable && cateringItems.length > 0 && !choicesComplete ? <Text style={styles.unavailable}>Choose one compatible option for every catering service.</Text> : null}
+              {item.isAvailable && (cateringItems.length > 0 || venueItems.length > 0) && !choicesComplete ? <Text style={styles.unavailable}>Choose every compatible catering and venue option before continuing.</Text> : null}
               {mode === 'planning' ? <Pressable
                 accessibilityRole="button"
                 disabled={!isAvailable || !packageCanBeSelected || Boolean(selectingPackageId)}
@@ -365,6 +463,9 @@ const styles = StyleSheet.create({
   packageItemName: { color: palette.text, fontSize: 12, fontWeight: '700' },
   packageItemProvider: { color: palette.muted, fontSize: 9, marginTop: 1 },
   packageItemPrice: { color: palette.text, fontSize: 11, fontWeight: '600' },
+  packageItemPriceBlock: { alignItems: 'flex-end', gap: 2 },
+  packageBudgetFit: { color: palette.success, fontSize: 8, fontWeight: '700' },
+  packageBudgetWarning: { color: '#A12A35', fontSize: 8, fontWeight: '700' },
   cateringChoices: { gap: 7, marginLeft: 92, marginTop: 8 },
   cateringChoiceLabel: { color: palette.primaryContainer, fontSize: 10, lineHeight: 15, fontWeight: '700' },
   cateringChoice: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: palette.border, borderRadius: 10, padding: 10 },
@@ -372,6 +473,7 @@ const styles = StyleSheet.create({
   cateringChoiceDisabled: { opacity: 0.55 },
   cateringChoiceName: { color: palette.text, fontSize: 11, lineHeight: 16, fontWeight: '700' },
   cateringChoiceError: { width: '100%', color: '#A12A35', fontSize: 9, lineHeight: 14, marginLeft: 26 },
+  venueHoursInput: { minHeight: 44, borderWidth: 1, borderColor: '#D8C4C8', borderRadius: 10, backgroundColor: '#FFFFFF', color: palette.text, fontSize: 14, paddingHorizontal: 12, paddingVertical: 9 },
   packageTotal: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 10, backgroundColor: palette.surfaceTint, padding: 12, marginTop: 13 },
   packageTotalLabel: { color: palette.muted, fontSize: 10, fontWeight: '700' },
   packageTotalValue: { color: palette.primaryContainer, fontSize: 14, fontWeight: '700' },

@@ -482,6 +482,12 @@ export const CategorySpecificServiceDetails: React.FC<Props> = ({ categoryName, 
         <Section title="Operations">
           <View style={styles.twoColumns}><TextField label="Opening Time" onChange={(next) => set('openingTime', next)} placeholder="08:00" value={details.openingTime} /><TextField label="Closing Time" onChange={(next) => set('closingTime', next)} placeholder="22:00" value={details.closingTime} /></View>
           <DurationField amount={details.setupAllowance} amountLabel="Setup / Ingress Allowance" onAmountChange={(next) => set('setupAllowance', next)} onUnitChange={(next) => set('setupAllowanceUnit', next)} unit={details.setupAllowanceUnit || 'hours'} units={['hours', 'days']} />
+          <ToggleField label="Setup / Ingress Time Is Billable" onChange={(next) => set('setupAllowanceBillable', next)} value={details.setupAllowanceBillable} />
+          <View style={styles.twoColumns}>
+            <NumberField label="Minimum Booking" min={1} onChange={(next) => set('minimumBookingHours', next)} suffix="hours" value={details.minimumBookingHours} />
+            <NumberField label="Maximum Booking (optional)" min={1} onChange={(next) => set('maximumBookingHours', next)} suffix="hours" value={details.maximumBookingHours} />
+          </View>
+          <NumberField label="Booking Duration Increment" min={0.25} onChange={(next) => set('bookingDurationIncrementHours', next)} suffix="hours" value={details.bookingDurationIncrementHours} />
         </Section>
       </> : null}
 
