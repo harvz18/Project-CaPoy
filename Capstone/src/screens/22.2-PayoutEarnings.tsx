@@ -40,10 +40,33 @@ export interface EarningsDataPoint {
 export interface PayoutEarningsSummary {
   availableBalance: number
   currency: string
+  heldBalance: number
   lifetimeEarnings: number
   nextPayoutDate?: string
   pendingBalance: number
   periodEarnings: number
+  remainingReceivable: number
+}
+
+export interface ProviderPaymentConfirmation {
+  amountEarned: number
+  amountHeld: number
+  amountPaidOut: number
+  amountWithdrawable: number
+  balanceStatus: string
+  bookingId: string
+  creditedAt?: string
+  eventId: string
+  eventName: string
+  eventStatus: string
+  fundsStatus: string
+  initialProviderShare: number
+  paidAt?: string
+  paymentStatus: string
+  payoutStatus: string
+  remainingServiceBalance: number
+  serviceAmount: number
+  serviceName: string
 }
 
 export interface PayoutTransaction {
@@ -75,6 +98,7 @@ interface PayoutEarningsScreenProps {
   onRequestPayout?: (amount: number) => void
   onSavePayoutAccount?: (value: PayoutAccountInput) => Promise<boolean>
   onSelectTransaction?: (transaction: PayoutTransaction) => void
+  paymentConfirmations?: ProviderPaymentConfirmation[]
   payoutAccount?: PayoutAccount | null
   summary?: Partial<PayoutEarningsSummary>
   transactions?: PayoutTransaction[]
@@ -83,9 +107,11 @@ interface PayoutEarningsScreenProps {
 const defaultSummary: PayoutEarningsSummary = {
   availableBalance: 0,
   currency: 'PHP',
+  heldBalance: 0,
   lifetimeEarnings: 0,
   pendingBalance: 0,
   periodEarnings: 0,
+  remainingReceivable: 0,
 }
 
 const periodOptions: Array<{ id: PayoutEarningsPeriod; label: string }> = [
@@ -145,6 +171,7 @@ export const PayoutEarningsScreen: React.FC<PayoutEarningsScreenProps> = ({
   onRequestPayout,
   onSavePayoutAccount,
   onSelectTransaction,
+  paymentConfirmations = [],
   payoutAccount = null,
   summary,
   transactions = [],
@@ -271,6 +298,55 @@ export const PayoutEarningsScreen: React.FC<PayoutEarningsScreenProps> = ({
             label="LIFETIME EARNINGS"
             value={formatCurrency(value.lifetimeEarnings, value.currency)}
           />
+        </View>
+
+        <View style={[styles.card, styles.confirmationSection]}>
+          <View style={styles.transactionHeader}>
+            <View>
+              <Text style={styles.sectionTitle}>Payment confirmations</Text>
+              <Text style={styles.sectionSubtitle}>
+                Held funds, accepted shares, and remaining service balances
+              </Text>
+            </View>
+            <View style={styles.transactionCountBadge}>
+              <Text style={styles.transactionCount}>{paymentConfirmations.length}</Text>
+            </View>
+          </View>
+
+          <View style={styles.confirmationTotals}>
+            <View style={styles.confirmationTotalItem}>
+              <Text style={styles.confirmationTotalLabel}>HELD BY MULTIVENT</Text>
+              <Text style={styles.confirmationTotalValue}>
+                {formatCurrency(value.heldBalance, value.currency)}
+              </Text>
+            </View>
+            <View style={styles.confirmationTotalItem}>
+              <Text style={styles.confirmationTotalLabel}>REMAINING RECEIVABLE</Text>
+              <Text style={styles.confirmationTotalValue}>
+                {formatCurrency(value.remainingReceivable, value.currency)}
+              </Text>
+            </View>
+          </View>
+
+          {paymentConfirmations.length ? (
+            <View style={styles.confirmationList}>
+              {paymentConfirmations.map((confirmation, index) => (
+                <PaymentConfirmationCard
+                  confirmation={confirmation}
+                  currency={value.currency}
+                  key={confirmation.bookingId}
+                  last={index === paymentConfirmations.length - 1}
+                />
+              ))}
+            </View>
+          ) : (
+            <View style={styles.emptyTransactions}>
+              <Text style={styles.emptyTitle}>No confirmed client payments yet</Text>
+              <Text style={styles.emptyText}>
+                Paid booking requests and their held or credited amounts will appear here.
+              </Text>
+            </View>
+          )}
         </View>
 
         <View style={[styles.dashboardGrid, isWide && styles.dashboardGridWide]}>
@@ -587,6 +663,82 @@ const SummaryCard = ({
   </View>
 )
 
+const PaymentConfirmationCard = ({
+  confirmation,
+  currency,
+  last,
+}: {
+  confirmation: ProviderPaymentConfirmation
+  currency: string
+  last: boolean
+}) => (
+  <View style={[styles.confirmationCard, !last && styles.confirmationCardBorder]}>
+    <View style={styles.confirmationHeading}>
+      <View style={styles.confirmationHeadingCopy}>
+        <Text numberOfLines={1} style={styles.confirmationEvent}>{confirmation.eventName}</Text>
+        <Text numberOfLines={1} style={styles.confirmationService}>{confirmation.serviceName}</Text>
+      </View>
+      <View style={styles.fundsBadge}>
+        <Text style={styles.fundsBadgeText}>{confirmation.fundsStatus.toUpperCase()}</Text>
+      </View>
+    </View>
+    <View style={styles.confirmationAmounts}>
+      <ConfirmationAmount
+        currency={currency}
+        label="SERVICE AMOUNT"
+        value={confirmation.serviceAmount}
+      />
+      <ConfirmationAmount
+        currency={currency}
+        label="INITIAL PROVIDER SHARE"
+        value={confirmation.initialProviderShare}
+      />
+      <ConfirmationAmount
+        currency={currency}
+        label="REMAINING SERVICE BALANCE"
+        value={confirmation.remainingServiceBalance}
+      />
+    </View>
+    <Text style={styles.accountBreakdownLabel}>MULTIVENT ACCOUNT BREAKDOWN</Text>
+    <View style={styles.confirmationAmounts}>
+      <ConfirmationAmount currency={currency} label="AMOUNT EARNED" value={confirmation.amountEarned} />
+      <ConfirmationAmount currency={currency} label="AMOUNT HELD" value={confirmation.amountHeld} />
+    </View>
+    <View style={styles.confirmationStatuses}>
+      <Text style={styles.confirmationStatusText}>{confirmation.paymentStatus}</Text>
+      <Text style={styles.confirmationStatusDot}>•</Text>
+      <Text style={styles.confirmationStatusText}>{confirmation.balanceStatus}</Text>
+      <Text style={styles.confirmationStatusDot}>•</Text>
+      <Text style={styles.confirmationStatusText}>{confirmation.payoutStatus}</Text>
+    </View>
+    <Text style={styles.confirmationEventStatus}>
+      Event status: {confirmation.eventStatus.replace(/\b\w/g, (letter) => letter.toUpperCase())}
+    </Text>
+  </View>
+)
+
+const ConfirmationAmount = ({
+  currency,
+  label,
+  value,
+}: {
+  currency: string
+  label: string
+  value: number
+}) => (
+  <View style={styles.confirmationAmountItem}>
+    <Text style={styles.confirmationAmountLabel}>{label}</Text>
+    <Text
+      adjustsFontSizeToFit
+      minimumFontScale={0.72}
+      numberOfLines={1}
+      style={styles.confirmationAmountValue}
+    >
+      {formatCurrency(value, currency)}
+    </Text>
+  </View>
+)
+
 const PayoutDestination = ({
   account,
   currency,
@@ -736,8 +888,9 @@ const PayoutNotice = () => (
     <View style={styles.infoCopy}>
       <Text style={styles.infoTitle}>About payout timing</Text>
       <Text style={styles.infoText}>
-        Booking payments become available after the service is completed. Bank processing may take
-        1–3 business days.
+        Your eligible initial share becomes available after the client payment is confirmed and you
+        accept the booking. Remaining service balances follow the final-payment workflow. Bank
+        processing may take 1–3 business days.
       </Text>
     </View>
   </View>
@@ -988,6 +1141,93 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: 4,
   },
+  confirmationSection: { marginBottom: 14 },
+  confirmationTotals: {
+    flexDirection: 'row',
+    gap: 10,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: palette.surfaceContainerLow,
+    padding: 12,
+  },
+  confirmationTotalItem: { minWidth: 0, flex: 1 },
+  confirmationTotalLabel: {
+    color: palette.muted,
+    fontSize: 8,
+    lineHeight: 11,
+    fontWeight: '700',
+    letterSpacing: 0.45,
+  },
+  confirmationTotalValue: {
+    color: palette.text,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '700',
+    marginTop: 3,
+  },
+  confirmationList: { paddingHorizontal: 16 },
+  confirmationCard: { paddingVertical: 14 },
+  confirmationCardBorder: { borderBottomWidth: 1, borderBottomColor: palette.border },
+  confirmationHeading: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  confirmationHeadingCopy: { minWidth: 0, flex: 1 },
+  confirmationEvent: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '700' },
+  confirmationService: { color: palette.secondary, fontSize: 10, lineHeight: 15, marginTop: 1 },
+  fundsBadge: {
+    maxWidth: '48%',
+    borderRadius: 999,
+    backgroundColor: palette.pendingSoft,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  fundsBadgeText: {
+    color: palette.pending,
+    fontSize: 7,
+    lineHeight: 10,
+    fontWeight: '800',
+    letterSpacing: 0.35,
+    textAlign: 'center',
+  },
+  confirmationAmounts: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  accountBreakdownLabel: {
+    color: palette.muted,
+    fontSize: 7,
+    lineHeight: 10,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    marginTop: 12,
+  },
+  confirmationAmountItem: {
+    minWidth: 0,
+    flex: 1,
+    borderRadius: 7,
+    backgroundColor: palette.surfaceContainerLow,
+    padding: 9,
+  },
+  confirmationAmountLabel: {
+    minHeight: 20,
+    color: palette.muted,
+    fontSize: 7,
+    lineHeight: 10,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  confirmationAmountValue: {
+    color: palette.text,
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: '700',
+    marginTop: 3,
+  },
+  confirmationStatuses: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 10 },
+  confirmationStatusText: { color: palette.secondary, fontSize: 9, lineHeight: 13 },
+  confirmationStatusDot: { color: palette.muted, fontSize: 9, lineHeight: 13 },
+  confirmationEventStatus: { color: palette.muted, fontSize: 9, lineHeight: 13, marginTop: 5 },
   dashboardGrid: { gap: 14 },
   dashboardGridWide: { flexDirection: 'row', alignItems: 'flex-start' },
   mainColumn: { gap: 14 },

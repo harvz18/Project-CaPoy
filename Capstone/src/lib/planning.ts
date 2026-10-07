@@ -17,6 +17,10 @@ import type {
   VenueStatus,
 } from '../screens/04-EventCreation'
 import type { CateringPricingOption } from './service-category-details'
+import type {
+  BudgetPriority,
+  CategoryBudgetAllocation,
+} from '../screens/05-BudgetAllocation'
 
 type PlanningResult = {
   bookingId?: string
@@ -37,8 +41,9 @@ type PlanningResult = {
 }
 
 type BudgetPlanInput = {
+  allocations: CategoryBudgetAllocation[]
   budget: number
-  priorities: string[]
+  priorities: BudgetPriority[]
 }
 
 type EventDraftInput = {
@@ -74,12 +79,15 @@ export type ClientPlanningState = {
     status: 'accepted' | 'pending'
   }
   coordinatorAssignmentStatus?: 'accepted' | 'pending' | 'awaiting_assignment'
+  coordinatorBudgetCost?: number
   coordinatorPreference?: 'undecided' | 'skipped' | 'selected'
   coordinatorPackage?: {
     id: string
     name: string
     serviceSubtotal: number
   }
+  budgetAllocations?: CategoryBudgetAllocation[]
+  budgetPriorities?: BudgetPriority[]
   event?: EventCreationValue
   draftSummary?: ClientEventDraftSummary
   lastPayment?: {
@@ -139,6 +147,14 @@ const priorityLabels: Record<string, string> = {
   soundLights: 'Sound & Lights',
   venue: 'Venue',
 }
+
+const priorityFromLabel: Record<string, BudgetPriority> = Object.entries(priorityLabels).reduce(
+  (result, [priority, label]) => ({
+    ...result,
+    [label.toLowerCase()]: priority as BudgetPriority,
+  }),
+  {} as Record<string, BudgetPriority>
+)
 
 const getClient = () => {
   if (!supabase || !supabaseConfig.isConfigured) {
@@ -266,6 +282,7 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
     { data: payments },
     { data: scheduleChecks },
     { data: coordinatorPackageRows },
+    { data: budgetItems },
   ] = await Promise.all([
     client
       .from('event_service_selections')
@@ -293,6 +310,13 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
       .select('package_id, package_name, service_subtotal')
       .eq('event_id', event.id)
       .limit(1),
+    client
+      .from('event_budget_items')
+      .select(
+        'category_key, label, allocated_amount, estimated_amount, priority_rank, is_priority, allocation_version'
+      )
+      .eq('event_id', event.id)
+      .order('priority_rank', { ascending: true }),
   ])
 
   const latestPayment = (selections ?? []).length > 0 ? payments?.[0] : undefined
@@ -349,8 +373,33 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
     'Review schedule',
     'Complete payment',
   ]
+  const phase7BudgetItems = (budgetItems ?? []).filter(
+    (item) => item.allocation_version === 'phase7-v1' && item.category_key
+  )
+  const savedBudgetPriorities = (budgetItems ?? [])
+    .filter((item) => item.is_priority)
+    .map((item) => {
+      const categoryKey = String(item.category_key ?? '') as BudgetPriority
+      if (categoryKey in priorityLabels) return categoryKey
+      return priorityFromLabel[String(item.label ?? '').toLowerCase()]
+    })
+    .filter((priority): priority is BudgetPriority => Boolean(priority))
+    .slice(0, 3)
 
   return {
+    budgetAllocations: phase7BudgetItems.map((item) => ({
+      amount: Number(item.allocated_amount ?? item.estimated_amount ?? 0),
+      categoryKey: item.category_key as BudgetPriority,
+      label: String(item.label ?? priorityLabels[item.category_key] ?? 'Service'),
+    })),
+    budgetPriorities: savedBudgetPriorities,
+    coordinatorBudgetCost:
+      visibleCoordinatorId && coordinatorProviderPrice > 0
+        ? customerPriceFromProviderPrice(
+            coordinatorProviderPrice,
+            coordinatorCommissionRate
+          )
+        : 0,
     coordinatorPackage: coordinatorPackageRows?.[0]
       ? {
           id: String(coordinatorPackageRows[0].package_id ?? ''),
@@ -680,30 +729,31 @@ export const saveEventDraft = async (
 }
 
 export const saveBudgetPlan = async ({
+  allocations,
   budget,
   priorities,
 }: BudgetPlanInput): Promise<PlanningResult> => {
   try {
     const client = getClient()
-    const event = await ensureDraftEvent(budget)
+    const event = await ensureDraftEvent()
 
     if (!client || !event) {
       return { ok: false, message: 'Supabase is not configured or no user is signed in.' }
     }
 
-    await client.from('event_budget_items').delete().eq('event_id', event.eventId)
+    const priorityRank = new Map(priorities.map((priority, index) => [priority, index + 1]))
+    const { error } = await client.rpc('save_my_event_budget_allocations', {
+      target_allocations: allocations.map((allocation, index) => ({
+        amount: allocation.amount,
+        category_key: allocation.categoryKey,
+        priority_rank: priorityRank.get(allocation.categoryKey) ?? priorities.length + index + 1,
+      })),
+      target_budget: budget,
+      target_event_id: event.eventId,
+    })
 
-    if (priorities.length > 0) {
-      const items = priorities.map((priority, index) => ({
-        event_id: event.eventId,
-        label: priorityLabels[priority] ?? priority,
-        estimated_amount: 0,
-        priority_rank: index + 1,
-        is_priority: true,
-        status: 'planned',
-      }))
-
-      await client.from('event_budget_items').insert(items)
+    if (error) {
+      throw new Error(`Unable to save your budget allocations: ${error.message}`)
     }
 
     return { ok: true }

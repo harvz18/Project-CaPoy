@@ -146,6 +146,15 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
       : { fits: false, reason: calculations[0]?.reason ?? 'Guest count not supported' }
   }, [eventGuestCount])
 
+  const recommendationRank = React.useCallback((vendor: CatalogService) => {
+    const recommendation = vendor.budgetRecommendation
+    if (!recommendation || recommendation.categoryBudget <= 0) return 1
+    if (recommendation.isRecommended) return 4
+    if (recommendation.isWithinBudget) return 3
+    if (recommendation.calculatedAmount) return 0
+    return 2
+  }, [])
+
   const visibleVendors = services.filter((vendor) => {
     const normalizedQuery = query.trim().toLowerCase()
 
@@ -171,7 +180,39 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
       vendor.providerName.toLowerCase().includes(normalizedQuery) ||
       vendor.tags.some((tag) => tag.toLowerCase().includes(normalizedQuery))
     )
-  }).sort((left, right) => Number(cateringFit(right).fits) - Number(cateringFit(left).fits))
+  }).sort((left, right) => {
+    if (!isExploreMode) {
+      const recommendationDifference = recommendationRank(right) - recommendationRank(left)
+      if (recommendationDifference !== 0) return recommendationDifference
+
+      const leftAvailability = left.budgetRecommendation?.availabilityStatus === 'unavailable' ? 0 : 1
+      const rightAvailability = right.budgetRecommendation?.availabilityStatus === 'unavailable' ? 0 : 1
+      if (leftAvailability !== rightAvailability) return rightAvailability - leftAvailability
+    }
+
+    const guestFitDifference = Number(cateringFit(right).fits) - Number(cateringFit(left).fits)
+    if (guestFitDifference !== 0) return guestFitDifference
+    const leftRating = Number.parseFloat(left.rating) || 0
+    const rightRating = Number.parseFloat(right.rating) || 0
+    return rightRating - leftRating || left.name.localeCompare(right.name)
+  })
+  const hasCategoryRecommendationBudget = !isExploreMode && visibleVendors.some(
+    (vendor) => (vendor.budgetRecommendation?.categoryBudget ?? 0) > 0
+  )
+  const vendorSections = hasCategoryRecommendationBudget
+    ? [
+        {
+          id: 'recommended',
+          label: 'Recommended Within Budget',
+          vendors: visibleVendors.filter((vendor) => vendor.budgetRecommendation?.isRecommended),
+        },
+        {
+          id: 'review',
+          label: 'Over Budget or Needs Review',
+          vendors: visibleVendors.filter((vendor) => !vendor.budgetRecommendation?.isRecommended),
+        },
+      ].filter((section) => section.vendors.length > 0)
+    : [{ id: 'all', label: '', vendors: visibleVendors }]
 
   const handleSearchChange = (value: string) => {
     setInternalSearch(value)
@@ -412,7 +453,15 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
         ) : null}
 
         <View style={styles.resultsList}>
-          {visibleVendors.map((vendor) => (
+          {vendorSections.map((section) => (
+            <View key={section.id} style={styles.recommendationSection}>
+              {section.label ? (
+                <View style={styles.recommendationSectionHeading}>
+                  <Text style={styles.recommendationSectionTitle}>{section.label}</Text>
+                  <Text style={styles.recommendationSectionCount}>{section.vendors.length}</Text>
+                </View>
+              ) : null}
+              {section.vendors.map((vendor) => (
             <Pressable
               key={vendor.id}
               accessibilityLabel={`Open ${vendor.name}, rated ${vendor.rating}`}
@@ -467,7 +516,66 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
 
                 <Text style={styles.price}>{formatServicePrice(vendor)}</Text>
 
-                {vendor.categoryId === 'catering' && eventGuestCount > 0 ? (
+                {!isExploreMode
+                  && vendor.budgetRecommendation
+                  && vendor.budgetRecommendation.categoryBudget > 0 ? (
+                  <View style={styles.recommendationBlock}>
+                    <View style={styles.recommendationHeadingRow}>
+                      <View
+                        style={[
+                          styles.recommendationBadge,
+                          vendor.budgetRecommendation.isRecommended
+                            ? styles.recommendationBadgeFit
+                            : styles.recommendationBadgeReview,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.recommendationBadgeText,
+                            vendor.budgetRecommendation.isRecommended
+                              ? styles.recommendationBadgeTextFit
+                              : styles.recommendationBadgeTextReview,
+                          ]}
+                        >
+                          {vendor.budgetRecommendation.isWithinBudget
+                            ? 'WITHIN BUDGET'
+                            : vendor.budgetRecommendation.calculatedAmount
+                              ? 'OVER BUDGET'
+                              : 'PRICE CHECK NEEDED'}
+                        </Text>
+                      </View>
+                      <Text style={styles.categoryBudgetText}>
+                        Category: ₱{formatCurrency(vendor.budgetRecommendation.categoryBudget)}
+                      </Text>
+                    </View>
+                    {vendor.budgetRecommendation.calculatedAmount ? (
+                      <>
+                        <Text style={styles.calculatedPrice}>
+                          Event estimate: ₱{formatCurrency(vendor.budgetRecommendation.calculatedAmount)}
+                        </Text>
+                        {vendor.budgetRecommendation.pricingBasis ? (
+                          <Text style={styles.pricingBasis}>
+                            {vendor.budgetRecommendation.pricingBasis}
+                          </Text>
+                        ) : null}
+                      </>
+                    ) : null}
+                    {vendor.budgetRecommendation.recommendedOptionName ? (
+                      <Text style={styles.recommendedOption}>
+                        Best fitting option: {vendor.budgetRecommendation.recommendedOptionName}
+                      </Text>
+                    ) : null}
+                    <Text
+                      style={
+                        vendor.budgetRecommendation.isRecommended
+                          ? styles.recommendationReasonFit
+                          : styles.recommendationReasonReview
+                      }
+                    >
+                      {vendor.budgetRecommendation.reason}
+                    </Text>
+                  </View>
+                ) : vendor.categoryId === 'catering' && eventGuestCount > 0 ? (
                   <Text style={cateringFit(vendor).fits ? styles.guestFit : styles.guestMismatch}>
                     {cateringFit(vendor).fits ? 'Fits event guest count' : cateringFit(vendor).reason}
                   </Text>
@@ -499,6 +607,8 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                 ) : null}
               </View>
             </Pressable>
+              ))}
+            </View>
           ))}
 
           {visibleVendors.length === 0 ? (
@@ -1395,6 +1505,33 @@ const styles = StyleSheet.create({
     gap: 16,
     marginBottom: 80,
   },
+  recommendationSection: {
+    gap: 14,
+  },
+  recommendationSectionHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  recommendationSectionTitle: {
+    color: palette.primaryContainer,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  recommendationSectionCount: {
+    minWidth: 26,
+    height: 26,
+    color: palette.primaryContainer,
+    fontSize: 11,
+    lineHeight: 26,
+    fontWeight: '800',
+    textAlign: 'center',
+    borderRadius: 13,
+    backgroundColor: '#F2E7E9',
+  },
   vendorCard: {
     overflow: 'hidden',
     borderWidth: 1,
@@ -1477,6 +1614,67 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 26,
     fontWeight: '500',
+  },
+  recommendationBlock: {
+    gap: 4,
+    marginTop: 9,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    padding: 10,
+  },
+  recommendationHeadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  recommendationBadge: {
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  recommendationBadgeFit: { backgroundColor: '#DDEFE5' },
+  recommendationBadgeReview: { backgroundColor: '#F8E0E2' },
+  recommendationBadgeText: {
+    fontSize: 9,
+    lineHeight: 13,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+  },
+  recommendationBadgeTextFit: { color: '#245E43' },
+  recommendationBadgeTextReview: { color: '#8E2430' },
+  categoryBudgetText: {
+    color: palette.secondary,
+    fontSize: 10,
+    lineHeight: 14,
+    fontWeight: '700',
+  },
+  calculatedPrice: {
+    color: palette.primaryContainer,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '700',
+  },
+  pricingBasis: {
+    color: palette.secondary,
+    fontSize: 10,
+    lineHeight: 14,
+  },
+  recommendedOption: {
+    color: palette.secondary,
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  recommendationReasonFit: {
+    color: '#2E6D4E',
+    fontSize: 10,
+    lineHeight: 15,
+  },
+  recommendationReasonReview: {
+    color: '#8E2430',
+    fontSize: 10,
+    lineHeight: 15,
   },
   guestFit: { color: '#2E6D4E', fontSize: 11, lineHeight: 16, fontWeight: '700', marginTop: 3 },
   guestMismatch: { color: '#A12A35', fontSize: 11, lineHeight: 16, fontWeight: '700', marginTop: 3 },

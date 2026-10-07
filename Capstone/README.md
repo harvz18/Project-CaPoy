@@ -51,6 +51,20 @@ Apply `56_payment_revenue_revision.sql` after migration 55 for Revision 2 Phase 
 the 5% platform fee, 40% initial client payment, and separately held 30% provider allocation;
 historical financial snapshots remain unchanged. See
 [`docs/PHASE_5_PAYMENT_REVENUE_REVISION.md`](docs/PHASE_5_PAYMENT_REVENUE_REVISION.md).
+Apply `57_payment_hold_provider_acceptance.sql` after migration 56 for Revision 2 Phase 6. Paid
+provider and coordinator allocations remain held until the individual recipient accepts; only the
+eligible 30% initial share then enters the internal withdrawable balance. Rejections remain held for
+replacement or refund, and the final 70% is not fabricated. See
+[`docs/PHASE_6_PAYMENT_HOLD_ACCEPTANCE.md`](docs/PHASE_6_PAYMENT_HOLD_ACCEPTANCE.md).
+Apply `58_budget_allocation_revision.sql` after migration 57 for Revision 2 Phase 7. Clients can
+divide the event total among service categories with sliders or exact inputs; database validation
+prevents overspending and reserves a selected coordinator's customer-facing fee exactly once. See
+[`docs/PHASE_7_BUDGET_ALLOCATION.md`](docs/PHASE_7_BUDGET_ALLOCATION.md).
+Apply `59_budget_aware_recommendations.sql` after migration 58 for Revision 2 Phase 8. Planning
+catalog results prioritize services whose event-aware customer total fits the matching category
+allocation while keeping over-budget or unavailable options visible for comparison. Catering uses
+a guest-compatible option's calculated total. See
+[`docs/PHASE_8_BUDGET_AWARE_RECOMMENDATIONS.md`](docs/PHASE_8_BUDGET_AWARE_RECOMMENDATIONS.md).
 Apply `07_service_listing_details.sql` so pricing models, pricing units, pricing notes, package
 units, and all uploaded service photos remain available on the client service-detail screen.
 For existing databases that used the `02_event_planning_flow_no_rls.sql` setup, also apply

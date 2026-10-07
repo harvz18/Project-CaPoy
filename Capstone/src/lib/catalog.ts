@@ -62,6 +62,20 @@ export interface CoordinatorPackage {
   unavailableReason?: string
 }
 
+export interface BudgetRecommendation {
+  availabilityStatus: 'available' | 'schedule_required' | 'unavailable'
+  calculatedAmount?: number
+  categoryBudget: number
+  categoryKey: string
+  guestRequirementMet: boolean
+  isRecommended: boolean
+  isWithinBudget: boolean
+  pricingBasis: string
+  reason: string
+  recommendedOptionId?: string
+  recommendedOptionName?: string
+}
+
 export const fallbackServiceCategories: ServiceCategoryOption[] = [
   { id: 'attire', name: 'Attire' },
   { id: 'catering', name: 'Catering' },
@@ -77,6 +91,7 @@ export interface CatalogService {
   bookingPackageId?: string
   bookingProviderId?: string
   bookingServiceId?: string
+  budgetRecommendation?: BudgetRecommendation
   coordinatorUserId?: string
   coordinatorReviews?: CoordinatorReview[]
   coordinatorPackages?: CoordinatorPackage[]
@@ -583,11 +598,58 @@ export const fetchServiceCategories = async (): Promise<ServiceCategoryOption[]>
   return categories.sort((left, right) => left.name.localeCompare(right.name))
 }
 
+export const fetchBudgetAwareRecommendations = async (): Promise<
+  Map<string, BudgetRecommendation>
+> => {
+  const recommendations = new Map<string, BudgetRecommendation>()
+  if (!supabase || !supabaseConfig.isConfigured) return recommendations
+
+  const { data, error } = await supabase.rpc(
+    'list_my_budget_aware_service_recommendations'
+  )
+  if (error || !Array.isArray(data)) return recommendations
+
+  data.forEach((entry) => {
+    if (!entry || typeof entry !== 'object') return
+    const row = entry as Record<string, unknown>
+    const itemId = textFrom(row.item_id, '')
+    if (!itemId) return
+    const availabilityStatus = ['available', 'schedule_required', 'unavailable'].includes(
+      String(row.availability_status)
+    )
+      ? row.availability_status as BudgetRecommendation['availabilityStatus']
+      : 'schedule_required'
+    const calculatedAmount = Number(row.calculated_amount)
+
+    recommendations.set(itemId, {
+      availabilityStatus,
+      calculatedAmount: Number.isFinite(calculatedAmount) && calculatedAmount > 0
+        ? calculatedAmount
+        : undefined,
+      categoryBudget: numberFrom(row.category_budget, 0),
+      categoryKey: textFrom(row.category_key, ''),
+      guestRequirementMet: row.guest_requirement_met === true,
+      isRecommended: row.is_recommended === true,
+      isWithinBudget: row.is_within_budget === true,
+      pricingBasis: textFrom(row.pricing_basis, ''),
+      reason: textFrom(row.recommendation_reason, ''),
+      recommendedOptionId: textFrom(row.recommended_option_id, '') || undefined,
+      recommendedOptionName: textFrom(row.recommended_option_name, '') || undefined,
+    })
+  })
+
+  return recommendations
+}
+
 export const loadClientCatalogServices = async (): Promise<CatalogService[]> => {
-  const [services, coordinators] = await Promise.all([
+  const [services, coordinators, recommendations] = await Promise.all([
     fetchCatalogServices(),
     fetchAvailableCoordinators(),
+    fetchBudgetAwareRecommendations(),
   ])
 
-  return [...services, ...coordinators]
+  return [...services, ...coordinators].map((service) => ({
+    ...service,
+    budgetRecommendation: recommendations.get(service.bookingServiceId ?? service.id),
+  }))
 }

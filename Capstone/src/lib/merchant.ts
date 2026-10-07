@@ -23,6 +23,7 @@ import type {
   PayoutEarningsPeriod,
   PayoutEarningsSummary,
   PayoutTransaction,
+  ProviderPaymentConfirmation,
   ServicePackageValue,
   ServiceListingReviewValue,
   ServicePricingUnit,
@@ -71,6 +72,7 @@ export interface MerchantPackageListing {
 
 export interface MerchantPayoutDashboard {
   earningsTrend: Array<{ amount: number; label: string }>
+  paymentConfirmations: ProviderPaymentConfirmation[]
   payoutAccount: PayoutAccount | null
   summary: PayoutEarningsSummary
   transactions: PayoutTransaction[]
@@ -84,13 +86,16 @@ export interface MerchantPayoutDashboardResult {
 
 export const emptyMerchantPayoutDashboard = (): MerchantPayoutDashboard => ({
   earningsTrend: [],
+  paymentConfirmations: [],
   payoutAccount: null,
   summary: {
     availableBalance: 0,
     currency: 'PHP',
+    heldBalance: 0,
     lifetimeEarnings: 0,
     pendingBalance: 0,
     periodEarnings: 0,
+    remainingReceivable: 0,
   },
   transactions: [],
 })
@@ -1444,20 +1449,15 @@ export const saveBookingDecision = async (
     }
 
     const isDecline = 'reason' in value
-    const nextStatus = isDecline || value.decision === 'declined' ? 'rejected' : 'confirmed'
-    const { data: booking, error } = await context.client
-      .from('bookings')
-      .update({
-        provider_notes: isDecline
-          ? [value.reasonLabel, value.message].filter(Boolean).join(': ')
-          : value.providerNote,
-        status: nextStatus,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', value.request.id)
-      .eq('provider_id', context.providerId)
-      .select('client_id, services(name)')
-      .single()
+    const accepted = !isDecline && value.decision !== 'declined'
+    const responseNote = isDecline
+      ? [value.reasonLabel, value.message].filter(Boolean).join(': ')
+      : value.providerNote
+    const { error } = await context.client.rpc('respond_to_provider_booking', {
+      accept_booking: accepted,
+      response_note: responseNote || null,
+      target_booking_id: value.request.id,
+    })
 
     if (error) {
       return { ok: false, message: error.message }
@@ -1466,22 +1466,6 @@ export const saveBookingDecision = async (
     if (isDecline && value.blockRequestedDate) {
       await saveAvailabilityCalendar({
         entries: [{ date: value.request.eventDate, status: 'unavailable' }],
-      })
-    }
-
-    if (booking?.client_id) {
-      const service = nested(booking.services) as Record<string, unknown> | undefined
-      const serviceName = textFrom(service?.name, value.request.packageName)
-
-      await context.client.from('notifications').insert({
-        body:
-          nextStatus === 'confirmed'
-            ? `${serviceName} accepted your booking request.`
-            : `${serviceName} could not accept your booking request.`,
-        resource_id: value.request.id,
-        resource_type: 'booking',
-        title: nextStatus === 'confirmed' ? 'Booking confirmed' : 'Booking declined',
-        user_id: booking.client_id,
       })
     }
 
@@ -1519,15 +1503,24 @@ export const fetchMerchantPayoutDashboard = async (
       return { ok: false, message: notReady }
     }
 
-    const { data, error } = await context.client.rpc('get_my_provider_earnings', {
-      target_period: period,
-    })
+    const [earningsResult, confirmationsResult] = await Promise.all([
+      context.client.rpc('get_my_provider_earnings', { target_period: period }),
+      context.client.rpc('get_my_provider_payment_confirmations'),
+    ])
 
-    if (error) {
-      return { ok: false, message: error.message }
+    if (earningsResult.error || confirmationsResult.error) {
+      return {
+        ok: false,
+        message: earningsResult.error?.message ?? confirmationsResult.error?.message,
+      }
     }
 
-    const payload = (data ?? {}) as Record<string, unknown>
+    const payload = (earningsResult.data ?? {}) as Record<string, unknown>
+    const confirmationsPayload = (confirmationsResult.data ?? {}) as Record<string, unknown>
+    const confirmationSummary = (confirmationsPayload.summary ?? {}) as Record<string, unknown>
+    const confirmationRows = Array.isArray(confirmationsPayload.items)
+      ? confirmationsPayload.items
+      : []
     const summaryRow = (payload.summary ?? {}) as Record<string, unknown>
     const accountRow = payload.payoutAccount as Record<string, unknown> | null | undefined
     const trendRows = Array.isArray(payload.earningsTrend) ? payload.earningsTrend : []
@@ -1581,6 +1574,30 @@ export const fetchMerchantPayoutDashboard = async (
       } satisfies PayoutTransaction
     })
 
+    const paymentConfirmations = confirmationRows.map((row) => {
+      const record = row as Record<string, unknown>
+      return {
+        amountEarned: numberFrom(record.amountEarned),
+        amountHeld: numberFrom(record.amountHeld),
+        amountPaidOut: numberFrom(record.amountPaidOut),
+        amountWithdrawable: numberFrom(record.amountWithdrawable),
+        balanceStatus: textFrom(record.balanceStatus, 'Not Yet Eligible'),
+        bookingId: textFrom(record.bookingId),
+        creditedAt: textFrom(record.creditedAt) || undefined,
+        eventId: textFrom(record.eventId),
+        eventName: textFrom(record.eventName, 'Event'),
+        eventStatus: textFrom(record.eventStatus, 'planning'),
+        fundsStatus: textFrom(record.fundsStatus, 'Payment Held'),
+        initialProviderShare: numberFrom(record.initialProviderShare),
+        paidAt: textFrom(record.paidAt) || undefined,
+        paymentStatus: textFrom(record.paymentStatus, 'Awaiting Client Payment'),
+        payoutStatus: textFrom(record.payoutStatus, 'Not Yet Eligible'),
+        remainingServiceBalance: numberFrom(record.remainingServiceBalance),
+        serviceAmount: numberFrom(record.serviceAmount),
+        serviceName: textFrom(record.serviceName, 'Service'),
+      } satisfies ProviderPaymentConfirmation
+    })
+
     return {
       ok: true,
       data: {
@@ -1588,13 +1605,16 @@ export const fetchMerchantPayoutDashboard = async (
           const record = row as Record<string, unknown>
           return { amount: numberFrom(record.amount), label: textFrom(record.label) }
         }),
+        paymentConfirmations,
         payoutAccount,
         summary: {
           availableBalance: numberFrom(summaryRow.availableBalance),
           currency: textFrom(summaryRow.currency, 'PHP'),
+          heldBalance: numberFrom(confirmationSummary.heldBalance),
           lifetimeEarnings: numberFrom(summaryRow.lifetimeEarnings),
           pendingBalance: numberFrom(summaryRow.pendingBalance),
           periodEarnings: numberFrom(summaryRow.periodEarnings),
+          remainingReceivable: numberFrom(confirmationSummary.remainingReceivable),
         },
         transactions,
       },

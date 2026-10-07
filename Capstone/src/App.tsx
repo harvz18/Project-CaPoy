@@ -142,7 +142,12 @@ import { MerchantSignupScreen } from './screens/02.2-MerchantSignup'
 import { PendingApprovalScreen } from './screens/02.2.1-PendingApproval'
 import { RejectedApplicationScreen } from './screens/02.2.2-RejectedApplication'
 import { VerificationScreen } from './screens/02.3-Verification'
-import { BudgetAllocationScreen, BudgetPriority } from './screens/05-BudgetAllocation'
+import { BudgetAllocationScreen } from './screens/05-BudgetAllocation'
+import type {
+  BudgetAllocationValue,
+  BudgetPriority,
+  CategoryBudgetAllocation,
+} from './screens/05-BudgetAllocation'
 import { CoordinatorChoiceScreen } from './screens/05.1-CoordinatorChoice'
 import {
   EventCreationScreen,
@@ -460,6 +465,10 @@ export const App: React.FC = () => {
   const [merchantServices, setMerchantServices] = React.useState<MerchantServiceListing[]>([])
   const [totalBudget, setTotalBudget] = React.useState(DEFAULT_BUDGET)
   const [budgetPriorities, setBudgetPriorities] = React.useState<BudgetPriority[]>([])
+  const [budgetAllocations, setBudgetAllocations] = React.useState<
+    CategoryBudgetAllocation[]
+  >([])
+  const [coordinatorBudgetCost, setCoordinatorBudgetCost] = React.useState(0)
   const [eventDetails, setEventDetails] =
     React.useState<EventCreationValue>(DEFAULT_EVENT)
   const [lastPayment, setLastPayment] = React.useState<PaymentValue>()
@@ -1001,6 +1010,9 @@ export const App: React.FC = () => {
     setServiceCategories(categories)
     if (planningState.event) setEventDetails(planningState.event)
     if (planningState.totalBudget !== undefined) setTotalBudget(planningState.totalBudget)
+    setBudgetAllocations(planningState.budgetAllocations ?? [])
+    setBudgetPriorities(planningState.budgetPriorities ?? [])
+    setCoordinatorBudgetCost(planningState.coordinatorBudgetCost ?? 0)
     setAssignedCoordinator(planningState.assignedCoordinator)
     setCoordinatorAssignmentStatus(planningState.coordinatorAssignmentStatus)
     setCoordinatorPreferenceState(planningState.coordinatorPreference ?? 'undecided')
@@ -1361,6 +1373,8 @@ export const App: React.FC = () => {
           setAccountProfileError('')
           setMaxPlanningStep(1)
           setBudgetPriorities([])
+          setBudgetAllocations([])
+          setCoordinatorBudgetCost(0)
           setClientEventDraft(undefined)
           setAssignedCoordinator(undefined)
           setCoordinatorAssignmentStatus(undefined)
@@ -1438,17 +1452,18 @@ export const App: React.FC = () => {
     }).start()
   }
 
-  const handleBudgetContinue = async (budget: number, priorities: BudgetPriority[]) => {
-    setBudgetPriorities(priorities)
+  const handleBudgetContinue = async (value: BudgetAllocationValue) => {
     await runOnce('save-budget-plan', async () => {
-      const result = await saveBudgetPlan({ budget, priorities })
+      const result = await saveBudgetPlan(value)
 
       if (!result.ok) {
         setToastMessage(result.message ?? 'Unable to save your budget preferences.')
         return
       }
 
-      setTotalBudget(budget)
+      setBudgetPriorities(value.priorities)
+      setBudgetAllocations(value.allocations)
+      setTotalBudget(value.budget)
       setMaxPlanningStep((current) => Math.max(current, 3))
       const refreshedCatalog = await loadClientCatalogServices()
       setCatalogServices(refreshedCatalog)
@@ -1693,6 +1708,7 @@ export const App: React.FC = () => {
       providerPrice: currentService.providerMinPrice,
       status: 'pending',
     })
+    setCoordinatorBudgetCost(currentService.minPrice)
     setCoordinatorPreferenceState('selected')
     setCoordinatorAssignmentStatus('pending')
     setSelectedCategory('catering')
@@ -1711,6 +1727,7 @@ export const App: React.FC = () => {
       return
     }
     setAssignedCoordinator(undefined)
+    setCoordinatorBudgetCost(0)
     setCoordinatorAssignmentStatus(undefined)
     setCoordinatorPreferenceState('undecided')
     setSelectedCoordinatorPackage(undefined)
@@ -1739,6 +1756,7 @@ export const App: React.FC = () => {
       providerPrice: currentService.providerMinPrice,
       status: 'pending',
     })
+    setCoordinatorBudgetCost(currentService.minPrice)
     setCoordinatorPreferenceState('selected')
     setCoordinatorAssignmentStatus('pending')
     setSelectedCategory('catering')
@@ -2142,6 +2160,8 @@ export const App: React.FC = () => {
     setEventDetails({ ...DEFAULT_EVENT })
     setTotalBudget(DEFAULT_BUDGET)
     setBudgetPriorities([])
+    setBudgetAllocations([])
+    setCoordinatorBudgetCost(0)
     setSelectedServices([])
     setAssignedCoordinator(undefined)
     setCoordinatorAssignmentStatus(undefined)
@@ -2832,6 +2852,7 @@ export const App: React.FC = () => {
               setSelectedPayoutTransaction(transaction)
               setScreen('providerTransactionDetails')
             }}
+            paymentConfirmations={merchantPayoutDashboard.paymentConfirmations}
             payoutAccount={merchantPayoutDashboard.payoutAccount}
             summary={merchantPayoutDashboard.summary}
             transactions={merchantPayoutDashboard.transactions}
@@ -3031,13 +3052,16 @@ export const App: React.FC = () => {
             style={[styles.screenTransition, { transform: [{ translateX: budgetAllocationEntrance }] }]}
           >
             <BudgetAllocationScreen
+              coordinatorCost={coordinatorBudgetCost}
+              initialAllocations={budgetAllocations}
               initialBudget={totalBudget}
               initialPriorities={budgetPriorities}
               isProcessing={activeGuardedActionCount > 0}
               onBack={openEventCreationFromBudget}
-              onContinue={(value) => handleBudgetContinue(value.budget, value.priorities)}
-              onPrioritiesChange={setBudgetPriorities}
-              onSkip={() => handleBudgetContinue(0, [])}
+              onContinue={handleBudgetContinue}
+              onSkip={() =>
+                handleBudgetContinue({ allocations: [], budget: 0, priorities: [] })
+              }
             />
           </Animated.View>
         )
