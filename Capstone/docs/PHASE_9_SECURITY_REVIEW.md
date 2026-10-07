@@ -30,4 +30,5 @@ Scope: MULTIVENT application authorization, Supabase RLS boundaries, privileged 
 - Database audit inserts performed in the same transaction as a failing operation are rolled back with that operation. Application/API gateway logs are still needed for failed authentication and rejected-request monitoring.
 - Existing audit rows created before migration `38` are not rewritten or redacted by the migration.
 - Project owners and holders of the Supabase service-role key remain database administrators and can bypass ordinary RLS by design.
-- Phase 10 budget-allocation UI changes remain intentionally unimplemented until the approved design is provided.
+- Revision 2 budget allocation and selection locking are implemented by migrations `58` and `60`;
+  their authenticated staging regression cases are tracked in `PHASE_10_REGRESSION_INTEGRATION.md`.
