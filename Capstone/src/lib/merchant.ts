@@ -1172,7 +1172,7 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
   const { data, error } = await context.client
     .from('bookings')
     .select(
-      'id, event_id, service_id, amount, provider_amount, status, requested_date, requested_time, client_notes, catering_option_name, catering_option_snapshot, venue_option_name, venue_booked_hours, venue_end_at, created_at, profiles(full_name, email), events(name, event_type, event_date, event_time, guest_count, venue, location), services(name, description, service_categories(name)), service_packages(name, description, inclusions), payments!inner(status)'
+      'id, event_id, service_id, amount, provider_amount, status, requested_date, requested_time, client_notes, catering_option_name, catering_option_snapshot, venue_option_name, venue_booked_hours, venue_end_at, created_at, profiles(full_name, email), events(name, event_type, event_date, event_time, guest_count, venue, location), services(name, description, service_categories(name)), service_packages(name, description, inclusions), payments!inner(status, amount, service_subtotal, platform_fee_amount, provider_initial_allocation, paid_at, verified_at, created_at, metadata)'
     )
     .eq('provider_id', context.providerId)
     .neq('status', 'payment_required')
@@ -1208,11 +1208,20 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
     const service = nested(record.services) as Record<string, unknown> | undefined
     const serviceCategory = nested(service?.service_categories) as Record<string, unknown> | undefined
     const servicePackage = nested(record.service_packages) as Record<string, unknown> | undefined
+    const payment = nested(record.payments) as Record<string, unknown> | undefined
+    const paymentMetadata = payment?.metadata && typeof payment.metadata === 'object'
+      ? payment.metadata as Record<string, unknown>
+      : {}
     const packageInclusions = Array.isArray(servicePackage?.inclusions)
       ? servicePackage.inclusions.filter((item): item is string => typeof item === 'string')
       : []
     const eventId = textFrom(record.event_id)
     const serviceId = textFrom(record.service_id)
+    const serviceAmount = numberFrom(
+      payment?.service_subtotal,
+      numberFrom(record.provider_amount, numberFrom(record.amount))
+    )
+    const initialProviderShare = numberFrom(payment?.provider_initial_allocation)
     const bookingDetails = (selectionRows ?? []).find(
       (selection) => selection.event_id === eventId && selection.service_id === serviceId
     )
@@ -1234,7 +1243,7 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
       .filter((instruction) => instruction.body.length > 0 || instruction.tags.length > 0)
 
     return {
-      amount: numberFrom(record.provider_amount, numberFrom(record.amount)),
+      amount: serviceAmount,
       attendeeCount: bookingDetails?.attendee_count == null
         ? undefined
         : numberFrom(bookingDetails.attendee_count),
@@ -1245,6 +1254,7 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
       clientEmail: textFrom(profile?.email),
       clientNotes: textFrom(record.client_notes),
       dietaryNotes: textFrom(bookingDetails?.dietary_notes) || undefined,
+      downpaymentAmount: numberFrom(payment?.amount),
       clientName: textFrom(profile?.full_name, textFrom(profile?.email, 'Client')),
       currency: 'PHP' as const,
       eventDate: toIsoDate(record.requested_date ?? event?.event_date),
@@ -1258,6 +1268,12 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
       packageDescription: textFrom(servicePackage?.description, textFrom(service?.description)),
       packageInclusions,
       packageName: textFrom(servicePackage?.name, textFrom(service?.name, 'Service request')),
+      paymentStatus: metadataText(paymentMetadata, 'paymentType', 'full') === 'deposit'
+        ? 'Downpayment confirmed'
+        : 'Full payment confirmed',
+      platformFeePaid: numberFrom(payment?.platform_fee_amount),
+      initialProviderShare,
+      remainingServiceBalance: Math.max(0, serviceAmount - initialProviderShare),
       mealType: (['plated', 'buffet', 'packed'].includes(textFrom(bookingDetails?.meal_type))
         ? textFrom(bookingDetails?.meal_type)
         : undefined) as 'plated' | 'buffet' | 'packed' | undefined,
@@ -1288,11 +1304,16 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
       cateringOptionName: request.cateringOptionName,
       clientNotes: request.clientNotes,
       dietaryNotes: request.dietaryNotes,
+      downpaymentAmount: request.downpaymentAmount,
       id: request.id,
       instructions: request.instructions ?? [],
       packageDescription: request.packageDescription,
       packageInclusions: request.packageInclusions ?? [],
       packageName: request.packageName,
+      paymentStatus: request.paymentStatus,
+      platformFeePaid: request.platformFeePaid,
+      initialProviderShare: request.initialProviderShare,
+      remainingServiceBalance: request.remainingServiceBalance,
       mealType: request.mealType,
       outsideFood: request.outsideFood,
       requestedTime: request.requestedTime,
@@ -1310,6 +1331,10 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
     if (existing) {
       if (existing.services?.some((item) => item.id === service.id)) return
       existing.amount += request.amount
+      existing.downpaymentAmount = (existing.downpaymentAmount ?? 0) + (request.downpaymentAmount ?? 0)
+      existing.platformFeePaid = (existing.platformFeePaid ?? 0) + (request.platformFeePaid ?? 0)
+      existing.initialProviderShare = (existing.initialProviderShare ?? 0) + (request.initialProviderShare ?? 0)
+      existing.remainingServiceBalance = (existing.remainingServiceBalance ?? 0) + (request.remainingServiceBalance ?? 0)
       existing.services = [...(existing.services ?? []), service]
       return
     }

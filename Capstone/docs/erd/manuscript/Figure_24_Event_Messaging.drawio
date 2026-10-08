@@ -1,0 +1,504 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mxfile host="app.diagrams.net" modified="2026-10-08T00:00:00.000Z" agent="OpenAI Codex" version="24.7.17" type="device" compressed="false">
+  <diagram id="diagram_manuscript_22_messaging" name="Figure 24 - Event Messaging">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="990" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title_manuscript_22_messaging" value="MULTIVENT ERD - Event Messaging" style="text;html=1;align=center;verticalAlign=middle;fontSize=22;fontStyle=1;fontColor=#111111;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="24" y="18" width="1352" height="34" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle_manuscript_22_messaging" value="Figure 24 | 5 entities | 8 foreign-key relationships | selective manuscript attributes" style="text;html=1;align=center;verticalAlign=middle;fontSize=11;fontColor=#555555;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="24" y="54" width="1352" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_manuscript_22_messaging_1_conversation_participants_conversation_id_fkey" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#374151;strokeWidth=2.25;jumpStyle=arc;jumpSize=12;startArrow=ERzeroToMany;startFill=0;endArrow=ERone;endFill=0;fontSize=13;fontColor=#1F2937;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="anchor_manuscript_22_messaging_conversation_participants_conversation_id_r" target="anchor_manuscript_22_messaging_conversations_id_r" data-fk="conversation_participants_conversation_id_fkey" data-source-table="conversation_participants" data-source-column="conversation_id" data-target-table="conversations" data-target-column="id" data-route="642.0,558.0;660.0,558.0;660.0,762.0;642.0,762.0" data-manuscript="1">
+          <mxGeometry x="-0.62" y="0" width="0" height="0" as="geometry" relative="1">
+            <Array as="points">
+              <mxPoint x="660.0" y="558.0" />
+              <mxPoint x="660.0" y="762.0" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fk_label_manuscript_22_messaging_1_conversation_participants_conversation_id_fkey" value="conversation_id" style="text;html=1;align=center;verticalAlign=middle;fontSize=13;fontColor=#1F2937;fillColor=#FFFFFF;strokeColor=none;spacing=2;" vertex="1" parent="1" data-fk-label="conversation_participants_conversation_id_fkey" connectable="0">
+          <mxGeometry x="591.0" y="649.0" width="138" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_manuscript_22_messaging_2_conversation_participants_user_id_fkey" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#374151;strokeWidth=2.25;jumpStyle=arc;jumpSize=12;startArrow=ERzeroToMany;startFill=0;endArrow=ERone;endFill=0;fontSize=13;fontColor=#1F2937;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="anchor_manuscript_22_messaging_conversation_participants_user_id_r" target="anchor_manuscript_22_messaging_profiles_id_r" data-fk="conversation_participants_user_id_fkey" data-source-table="conversation_participants" data-source-column="user_id" data-target-table="profiles" data-target-column="id" data-route="642.0,588.0;675.0,588.0;675.0,264.0;642.0,264.0" data-manuscript="1">
+          <mxGeometry x="-0.62" y="0" width="0" height="0" as="geometry" relative="1">
+            <Array as="points">
+              <mxPoint x="675.0" y="588.0" />
+              <mxPoint x="675.0" y="264.0" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fk_label_manuscript_22_messaging_2_conversation_participants_user_id_fkey" value="user_id" style="text;html=1;align=center;verticalAlign=middle;fontSize=13;fontColor=#1F2937;fillColor=#FFFFFF;strokeColor=none;spacing=2;" vertex="1" parent="1" data-fk-label="conversation_participants_user_id_fkey" connectable="0">
+          <mxGeometry x="638.0" y="415.0" width="74" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_manuscript_22_messaging_3_conversations_event_id_fkey" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#374151;strokeWidth=2.25;jumpStyle=arc;jumpSize=12;startArrow=ERzeroToMany;startFill=0;endArrow=ERzeroToOne;endFill=0;fontSize=13;fontColor=#1F2937;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="anchor_manuscript_22_messaging_conversations_event_id_r" target="anchor_manuscript_22_messaging_events_id_l" data-fk="conversations_event_id_fkey" data-source-table="conversations" data-source-column="event_id" data-target-table="events" data-target-column="id" data-route="642.0,792.0;700.0,792.0;700.0,600.0;758.0,600.0" data-manuscript="1">
+          <mxGeometry x="-0.62" y="0" width="0" height="0" as="geometry" relative="1">
+            <Array as="points">
+              <mxPoint x="700.0" y="792.0" />
+              <mxPoint x="700.0" y="600.0" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fk_label_manuscript_22_messaging_3_conversations_event_id_fkey" value="event_id" style="text;html=1;align=center;verticalAlign=middle;fontSize=13;fontColor=#1F2937;fillColor=#FFFFFF;strokeColor=none;spacing=2;" vertex="1" parent="1" data-fk-label="conversations_event_id_fkey" connectable="0">
+          <mxGeometry x="659.0" y="685.0" width="82" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_manuscript_22_messaging_4_events_client_id_fkey" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#374151;strokeWidth=2.25;jumpStyle=arc;jumpSize=12;startArrow=ERzeroToMany;startFill=0;endArrow=ERone;endFill=0;fontSize=13;fontColor=#1F2937;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="anchor_manuscript_22_messaging_events_client_id_l" target="anchor_manuscript_22_messaging_profiles_id_l" data-fk="events_client_id_fkey" data-source-table="events" data-source-column="client_id" data-target-table="profiles" data-target-column="id" data-route="758.0,630.0;685.0,630.0;685.0,187.0;20.0,187.0;20.0,264.0;63.0,264.0" data-manuscript="1">
+          <mxGeometry x="-0.62" y="0" width="0" height="0" as="geometry" relative="1">
+            <Array as="points">
+              <mxPoint x="685.0" y="630.0" />
+              <mxPoint x="685.0" y="187.0" />
+              <mxPoint x="20.0" y="187.0" />
+              <mxPoint x="20.0" y="264.0" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fk_label_manuscript_22_messaging_4_events_client_id_fkey" value="client_id" style="text;html=1;align=center;verticalAlign=middle;fontSize=13;fontColor=#1F2937;fillColor=#FFFFFF;strokeColor=none;spacing=2;" vertex="1" parent="1" data-fk-label="events_client_id_fkey" connectable="0">
+          <mxGeometry x="307.5" y="176.0" width="90" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_manuscript_22_messaging_5_events_coordinator_id_fkey" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#374151;strokeWidth=2.25;jumpStyle=arc;jumpSize=12;startArrow=ERzeroToMany;startFill=0;endArrow=ERzeroToOne;endFill=0;fontSize=13;fontColor=#1F2937;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="anchor_manuscript_22_messaging_events_coordinator_id_l" target="anchor_manuscript_22_messaging_profiles_id_r" data-fk="events_coordinator_id_fkey" data-source-table="events" data-source-column="coordinator_id" data-target-table="profiles" data-target-column="id" data-route="758.0,660.0;640.0,660.0;640.0,264.0;642.0,264.0" data-manuscript="1">
+          <mxGeometry x="-0.62" y="0" width="0" height="0" as="geometry" relative="1">
+            <Array as="points">
+              <mxPoint x="640.0" y="660.0" />
+              <mxPoint x="640.0" y="264.0" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fk_label_manuscript_22_messaging_5_events_coordinator_id_fkey" value="coordinator_id" style="text;html=1;align=center;verticalAlign=middle;fontSize=13;fontColor=#1F2937;fillColor=#FFFFFF;strokeColor=none;spacing=2;" vertex="1" parent="1" data-fk-label="events_coordinator_id_fkey" connectable="0">
+          <mxGeometry x="575.0" y="451.0" width="130" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_manuscript_22_messaging_6_events_pending_coordinator_id_fkey" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#374151;strokeWidth=2.25;jumpStyle=arc;jumpSize=12;startArrow=ERzeroToMany;startFill=0;endArrow=ERzeroToOne;endFill=0;fontSize=13;fontColor=#1F2937;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="anchor_manuscript_22_messaging_events_pending_coordinator_id_l" target="anchor_manuscript_22_messaging_profiles_id_l" data-fk="events_pending_coordinator_id_fkey" data-source-table="events" data-source-column="pending_coordinator_id" data-target-table="profiles" data-target-column="id" data-route="758.0,810.0;670.0,810.0;670.0,885.0;35.0,885.0;35.0,264.0;63.0,264.0" data-manuscript="1">
+          <mxGeometry x="-0.62" y="0" width="0" height="0" as="geometry" relative="1">
+            <Array as="points">
+              <mxPoint x="670.0" y="810.0" />
+              <mxPoint x="670.0" y="885.0" />
+              <mxPoint x="35.0" y="885.0" />
+              <mxPoint x="35.0" y="264.0" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fk_label_manuscript_22_messaging_6_events_pending_coordinator_id_fkey" value="pending_coordinator_id" style="text;html=1;align=center;verticalAlign=middle;fontSize=13;fontColor=#1F2937;fillColor=#FFFFFF;strokeColor=none;spacing=2;" vertex="1" parent="1" data-fk-label="events_pending_coordinator_id_fkey" connectable="0">
+          <mxGeometry x="255.5" y="874.0" width="194" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_manuscript_22_messaging_7_messages_conversation_id_fkey" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#374151;strokeWidth=2.25;jumpStyle=arc;jumpSize=12;startArrow=ERzeroToMany;startFill=0;endArrow=ERone;endFill=0;fontSize=13;fontColor=#1F2937;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="anchor_manuscript_22_messaging_messages_conversation_id_l" target="anchor_manuscript_22_messaging_conversations_id_l" data-fk="messages_conversation_id_fkey" data-source-table="messages" data-source-column="conversation_id" data-target-table="conversations" data-target-column="id" data-route="758.0,336.0;700.0,336.0;700.0,172.0;20.0,172.0;20.0,762.0;63.0,762.0" data-manuscript="1">
+          <mxGeometry x="-0.62" y="0" width="0" height="0" as="geometry" relative="1">
+            <Array as="points">
+              <mxPoint x="700.0" y="336.0" />
+              <mxPoint x="700.0" y="172.0" />
+              <mxPoint x="20.0" y="172.0" />
+              <mxPoint x="20.0" y="762.0" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fk_label_manuscript_22_messaging_7_messages_conversation_id_fkey" value="conversation_id" style="text;html=1;align=center;verticalAlign=middle;fontSize=13;fontColor=#1F2937;fillColor=#FFFFFF;strokeColor=none;spacing=2;" vertex="1" parent="1" data-fk-label="messages_conversation_id_fkey" connectable="0">
+          <mxGeometry x="291.0" y="147.0" width="138" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_manuscript_22_messaging_8_messages_sender_id_fkey" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#374151;strokeWidth=2.25;jumpStyle=arc;jumpSize=12;startArrow=ERzeroToMany;startFill=0;endArrow=ERone;endFill=0;fontSize=13;fontColor=#1F2937;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="anchor_manuscript_22_messaging_messages_sender_id_l" target="anchor_manuscript_22_messaging_profiles_id_r" data-fk="messages_sender_id_fkey" data-source-table="messages" data-source-column="sender_id" data-target-table="profiles" data-target-column="id" data-route="758.0,366.0;625.0,366.0;625.0,264.0;642.0,264.0" data-manuscript="1">
+          <mxGeometry x="-0.62" y="0" width="0" height="0" as="geometry" relative="1">
+            <Array as="points">
+              <mxPoint x="625.0" y="366.0" />
+              <mxPoint x="625.0" y="264.0" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fk_label_manuscript_22_messaging_8_messages_sender_id_fkey" value="sender_id" style="text;html=1;align=center;verticalAlign=middle;fontSize=13;fontColor=#1F2937;fillColor=#FFFFFF;strokeColor=none;spacing=2;" vertex="1" parent="1" data-fk-label="messages_sender_id_fkey" connectable="0">
+          <mxGeometry x="646.5" y="355.0" width="90" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="table_manuscript_22_messaging_profiles" value="" style="group;html=1;" vertex="1" parent="1" data-table="profiles" data-manuscript="1" connectable="0">
+          <mxGeometry x="70" y="205.0" width="565" height="194" as="geometry" />
+        </mxCell>
+        <mxCell id="table_manuscript_22_messaging_profiles_header" value="profiles" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=9;fontSize=18;fontStyle=1;fontColor=#FFFFFF;fillColor=#B45519;strokeColor=#404040;strokeWidth=1.4;" vertex="1" parent="table_manuscript_22_messaging_profiles">
+          <mxGeometry x="0" y="0" width="565" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_profiles_id_marker" value="PK/FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_profiles" connectable="0">
+          <mxGeometry x="0" y="44" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_profiles_id" value="id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_profiles" data-column-table="profiles" data-column="id" connectable="0">
+          <mxGeometry x="70" y="44" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_profiles_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_profiles" connectable="0">
+          <mxGeometry x="425" y="44" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_profiles_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_profiles" data-anchor-table="profiles" data-anchor-column="id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="58.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_profiles_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_profiles" data-anchor-table="profiles" data-anchor-column="id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="58.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_profiles_full_name_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_profiles" connectable="0">
+          <mxGeometry x="0" y="74" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_profiles_full_name" value="full_name ?" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_profiles" data-column-table="profiles" data-column="full_name" connectable="0">
+          <mxGeometry x="70" y="74" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_profiles_full_name_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_profiles" connectable="0">
+          <mxGeometry x="425" y="74" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_profiles_full_name_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_profiles" data-anchor-table="profiles" data-anchor-column="full_name" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="88.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_profiles_full_name_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_profiles" data-anchor-table="profiles" data-anchor-column="full_name" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="88.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_profiles_email_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_profiles" connectable="0">
+          <mxGeometry x="0" y="104" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_profiles_email" value="email ?" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_profiles" data-column-table="profiles" data-column="email" connectable="0">
+          <mxGeometry x="70" y="104" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_profiles_email_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_profiles" connectable="0">
+          <mxGeometry x="425" y="104" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_profiles_email_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_profiles" data-anchor-table="profiles" data-anchor-column="email" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="118.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_profiles_email_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_profiles" data-anchor-table="profiles" data-anchor-column="email" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="118.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_profiles_default_role_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_profiles" connectable="0">
+          <mxGeometry x="0" y="134" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_profiles_default_role" value="default_role" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_profiles" data-column-table="profiles" data-column="default_role" connectable="0">
+          <mxGeometry x="70" y="134" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_profiles_default_role_type" value="user_role" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_profiles" connectable="0">
+          <mxGeometry x="425" y="134" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_profiles_default_role_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_profiles" data-anchor-table="profiles" data-anchor-column="default_role" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="148.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_profiles_default_role_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_profiles" data-anchor-table="profiles" data-anchor-column="default_role" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="148.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_profiles_account_status_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_profiles" connectable="0">
+          <mxGeometry x="0" y="164" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_profiles_account_status" value="account_status" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_profiles" data-column-table="profiles" data-column="account_status" connectable="0">
+          <mxGeometry x="70" y="164" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_profiles_account_status_type" value="account_status" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_profiles" connectable="0">
+          <mxGeometry x="425" y="164" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_profiles_account_status_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_profiles" data-anchor-table="profiles" data-anchor-column="account_status" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="178.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_profiles_account_status_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_profiles" data-anchor-table="profiles" data-anchor-column="account_status" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="178.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="table_manuscript_22_messaging_conversation_participants" value="" style="group;html=1;" vertex="1" parent="1" data-table="conversation_participants" data-manuscript="1" connectable="0">
+          <mxGeometry x="70" y="499.0" width="565" height="104" as="geometry" />
+        </mxCell>
+        <mxCell id="table_manuscript_22_messaging_conversation_participants_header" value="conversation_participants" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=9;fontSize=18;fontStyle=1;fontColor=#FFFFFF;fillColor=#B45519;strokeColor=#404040;strokeWidth=1.4;" vertex="1" parent="table_manuscript_22_messaging_conversation_participants">
+          <mxGeometry x="0" y="0" width="565" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_conversation_participants_conversation_id_marker" value="PK/FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_conversation_participants" connectable="0">
+          <mxGeometry x="0" y="44" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_conversation_participants_conversation_id" value="conversation_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_conversation_participants" data-column-table="conversation_participants" data-column="conversation_id" connectable="0">
+          <mxGeometry x="70" y="44" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_conversation_participants_conversation_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_conversation_participants" connectable="0">
+          <mxGeometry x="425" y="44" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_conversation_participants_conversation_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_conversation_participants" data-anchor-table="conversation_participants" data-anchor-column="conversation_id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="58.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_conversation_participants_conversation_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_conversation_participants" data-anchor-table="conversation_participants" data-anchor-column="conversation_id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="58.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_conversation_participants_user_id_marker" value="PK/FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_conversation_participants" connectable="0">
+          <mxGeometry x="0" y="74" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_conversation_participants_user_id" value="user_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_conversation_participants" data-column-table="conversation_participants" data-column="user_id" connectable="0">
+          <mxGeometry x="70" y="74" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_conversation_participants_user_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_conversation_participants" connectable="0">
+          <mxGeometry x="425" y="74" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_conversation_participants_user_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_conversation_participants" data-anchor-table="conversation_participants" data-anchor-column="user_id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="88.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_conversation_participants_user_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_conversation_participants" data-anchor-table="conversation_participants" data-anchor-column="user_id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="88.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="table_manuscript_22_messaging_messages" value="" style="group;html=1;" vertex="1" parent="1" data-table="messages" data-manuscript="1" connectable="0">
+          <mxGeometry x="765" y="247.0" width="565" height="194" as="geometry" />
+        </mxCell>
+        <mxCell id="table_manuscript_22_messaging_messages_header" value="messages" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=9;fontSize=18;fontStyle=1;fontColor=#FFFFFF;fillColor=#B45519;strokeColor=#404040;strokeWidth=1.4;" vertex="1" parent="table_manuscript_22_messaging_messages">
+          <mxGeometry x="0" y="0" width="565" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_messages_id_marker" value="PK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_messages" connectable="0">
+          <mxGeometry x="0" y="44" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_messages_id" value="id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_messages" data-column-table="messages" data-column="id" connectable="0">
+          <mxGeometry x="70" y="44" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_messages_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_messages" connectable="0">
+          <mxGeometry x="425" y="44" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_messages_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_messages" data-anchor-table="messages" data-anchor-column="id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="58.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_messages_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_messages" data-anchor-table="messages" data-anchor-column="id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="58.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_messages_conversation_id_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_messages" connectable="0">
+          <mxGeometry x="0" y="74" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_messages_conversation_id" value="conversation_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_messages" data-column-table="messages" data-column="conversation_id" connectable="0">
+          <mxGeometry x="70" y="74" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_messages_conversation_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_messages" connectable="0">
+          <mxGeometry x="425" y="74" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_messages_conversation_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_messages" data-anchor-table="messages" data-anchor-column="conversation_id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="88.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_messages_conversation_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_messages" data-anchor-table="messages" data-anchor-column="conversation_id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="88.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_messages_sender_id_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_messages" connectable="0">
+          <mxGeometry x="0" y="104" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_messages_sender_id" value="sender_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_messages" data-column-table="messages" data-column="sender_id" connectable="0">
+          <mxGeometry x="70" y="104" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_messages_sender_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_messages" connectable="0">
+          <mxGeometry x="425" y="104" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_messages_sender_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_messages" data-anchor-table="messages" data-anchor-column="sender_id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="118.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_messages_sender_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_messages" data-anchor-table="messages" data-anchor-column="sender_id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="118.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_messages_body_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_messages" connectable="0">
+          <mxGeometry x="0" y="134" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_messages_body" value="body" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_messages" data-column-table="messages" data-column="body" connectable="0">
+          <mxGeometry x="70" y="134" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_messages_body_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_messages" connectable="0">
+          <mxGeometry x="425" y="134" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_messages_body_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_messages" data-anchor-table="messages" data-anchor-column="body" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="148.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_messages_body_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_messages" data-anchor-table="messages" data-anchor-column="body" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="148.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_messages_read_at_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_messages" connectable="0">
+          <mxGeometry x="0" y="164" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_messages_read_at" value="read_at ?" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_messages" data-column-table="messages" data-column="read_at" connectable="0">
+          <mxGeometry x="70" y="164" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_messages_read_at_type" value="timestamp with time zone" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_messages" connectable="0">
+          <mxGeometry x="425" y="164" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_messages_read_at_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_messages" data-anchor-table="messages" data-anchor-column="read_at" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="178.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_messages_read_at_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_messages" data-anchor-table="messages" data-anchor-column="read_at" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="178.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="table_manuscript_22_messaging_events" value="" style="group;html=1;" vertex="1" parent="1" data-table="events" data-manuscript="1" connectable="0">
+          <mxGeometry x="765" y="541.0" width="565" height="284" as="geometry" />
+        </mxCell>
+        <mxCell id="table_manuscript_22_messaging_events_header" value="events" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=9;fontSize=18;fontStyle=1;fontColor=#FFFFFF;fillColor=#B45519;strokeColor=#404040;strokeWidth=1.4;" vertex="1" parent="table_manuscript_22_messaging_events">
+          <mxGeometry x="0" y="0" width="565" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_events_id_marker" value="PK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_events" connectable="0">
+          <mxGeometry x="0" y="44" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_events_id" value="id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_events" data-column-table="events" data-column="id" connectable="0">
+          <mxGeometry x="70" y="44" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_events_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_events" connectable="0">
+          <mxGeometry x="425" y="44" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_events_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_events" data-anchor-table="events" data-anchor-column="id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="58.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_events_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_events" data-anchor-table="events" data-anchor-column="id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="58.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_events_client_id_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_events" connectable="0">
+          <mxGeometry x="0" y="74" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_events_client_id" value="client_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_events" data-column-table="events" data-column="client_id" connectable="0">
+          <mxGeometry x="70" y="74" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_events_client_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_events" connectable="0">
+          <mxGeometry x="425" y="74" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_events_client_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_events" data-anchor-table="events" data-anchor-column="client_id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="88.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_events_client_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_events" data-anchor-table="events" data-anchor-column="client_id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="88.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_events_coordinator_id_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_events" connectable="0">
+          <mxGeometry x="0" y="104" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_events_coordinator_id" value="coordinator_id ?" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_events" data-column-table="events" data-column="coordinator_id" connectable="0">
+          <mxGeometry x="70" y="104" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_events_coordinator_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_events" connectable="0">
+          <mxGeometry x="425" y="104" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_events_coordinator_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_events" data-anchor-table="events" data-anchor-column="coordinator_id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="118.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_events_coordinator_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_events" data-anchor-table="events" data-anchor-column="coordinator_id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="118.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_events_name_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_events" connectable="0">
+          <mxGeometry x="0" y="134" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_events_name" value="name" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_events" data-column-table="events" data-column="name" connectable="0">
+          <mxGeometry x="70" y="134" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_events_name_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_events" connectable="0">
+          <mxGeometry x="425" y="134" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_events_name_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_events" data-anchor-table="events" data-anchor-column="name" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="148.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_events_name_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_events" data-anchor-table="events" data-anchor-column="name" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="148.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_events_event_type_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_events" connectable="0">
+          <mxGeometry x="0" y="164" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_events_event_type" value="event_type ?" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_events" data-column-table="events" data-column="event_type" connectable="0">
+          <mxGeometry x="70" y="164" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_events_event_type_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_events" connectable="0">
+          <mxGeometry x="425" y="164" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_events_event_type_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_events" data-anchor-table="events" data-anchor-column="event_type" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="178.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_events_event_type_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_events" data-anchor-table="events" data-anchor-column="event_type" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="178.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_events_event_date_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_events" connectable="0">
+          <mxGeometry x="0" y="194" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_events_event_date" value="event_date ?" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_events" data-column-table="events" data-column="event_date" connectable="0">
+          <mxGeometry x="70" y="194" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_events_event_date_type" value="date" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_events" connectable="0">
+          <mxGeometry x="425" y="194" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_events_event_date_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_events" data-anchor-table="events" data-anchor-column="event_date" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="208.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_events_event_date_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_events" data-anchor-table="events" data-anchor-column="event_date" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="208.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_events_total_budget_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_events" connectable="0">
+          <mxGeometry x="0" y="224" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_events_total_budget" value="total_budget ?" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_events" data-column-table="events" data-column="total_budget" connectable="0">
+          <mxGeometry x="70" y="224" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_events_total_budget_type" value="numeric(12,2)" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_events" connectable="0">
+          <mxGeometry x="425" y="224" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_events_total_budget_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_events" data-anchor-table="events" data-anchor-column="total_budget" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="238.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_events_total_budget_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_events" data-anchor-table="events" data-anchor-column="total_budget" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="238.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_events_pending_coordinator_id_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_events" connectable="0">
+          <mxGeometry x="0" y="254" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_events_pending_coordinator_id" value="pending_coordinator_id ?" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_events" data-column-table="events" data-column="pending_coordinator_id" connectable="0">
+          <mxGeometry x="70" y="254" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_events_pending_coordinator_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_events" connectable="0">
+          <mxGeometry x="425" y="254" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_events_pending_coordinator_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_events" data-anchor-table="events" data-anchor-column="pending_coordinator_id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="268.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_events_pending_coordinator_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_events" data-anchor-table="events" data-anchor-column="pending_coordinator_id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="268.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="table_manuscript_22_messaging_conversations" value="" style="group;html=1;" vertex="1" parent="1" data-table="conversations" data-manuscript="1" connectable="0">
+          <mxGeometry x="70" y="703.0" width="565" height="164" as="geometry" />
+        </mxCell>
+        <mxCell id="table_manuscript_22_messaging_conversations_header" value="conversations" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=9;fontSize=18;fontStyle=1;fontColor=#FFFFFF;fillColor=#B45519;strokeColor=#404040;strokeWidth=1.4;" vertex="1" parent="table_manuscript_22_messaging_conversations">
+          <mxGeometry x="0" y="0" width="565" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_conversations_id_marker" value="PK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_conversations" connectable="0">
+          <mxGeometry x="0" y="44" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_conversations_id" value="id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_conversations" data-column-table="conversations" data-column="id" connectable="0">
+          <mxGeometry x="70" y="44" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_conversations_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_conversations" connectable="0">
+          <mxGeometry x="425" y="44" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_conversations_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_conversations" data-anchor-table="conversations" data-anchor-column="id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="58.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_conversations_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_conversations" data-anchor-table="conversations" data-anchor-column="id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="58.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_conversations_event_id_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_conversations" connectable="0">
+          <mxGeometry x="0" y="74" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_conversations_event_id" value="event_id ?" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_conversations" data-column-table="conversations" data-column="event_id" connectable="0">
+          <mxGeometry x="70" y="74" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_conversations_event_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_conversations" connectable="0">
+          <mxGeometry x="425" y="74" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_conversations_event_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_conversations" data-anchor-table="conversations" data-anchor-column="event_id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="88.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_conversations_event_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_conversations" data-anchor-table="conversations" data-anchor-column="event_id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="88.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_conversations_booking_id_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_conversations" connectable="0">
+          <mxGeometry x="0" y="104" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_conversations_booking_id" value="booking_id ?" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_conversations" data-column-table="conversations" data-column="booking_id" connectable="0">
+          <mxGeometry x="70" y="104" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_conversations_booking_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_conversations" connectable="0">
+          <mxGeometry x="425" y="104" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_conversations_booking_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_conversations" data-anchor-table="conversations" data-anchor-column="booking_id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="118.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_conversations_booking_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_conversations" data-anchor-table="conversations" data-anchor-column="booking_id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="118.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_conversations_title_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_conversations" connectable="0">
+          <mxGeometry x="0" y="134" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_conversations_title" value="title ?" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_conversations" data-column-table="conversations" data-column="title" connectable="0">
+          <mxGeometry x="70" y="134" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_22_messaging_conversations_title_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_22_messaging_conversations" connectable="0">
+          <mxGeometry x="425" y="134" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_conversations_title_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_conversations" data-anchor-table="conversations" data-anchor-column="title" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="148.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_22_messaging_conversations_title_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_22_messaging_conversations" data-anchor-table="conversations" data-anchor-column="title" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="148.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="note_manuscript_22_messaging" value="Selective manuscript view: all PK/FK columns and essential business attributes are shown. See the Complete Technical ERD for every column and relationship." style="text;html=1;align=center;verticalAlign=middle;fontSize=10;fontColor=#555555;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="24" y="966" width="1352" height="16" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

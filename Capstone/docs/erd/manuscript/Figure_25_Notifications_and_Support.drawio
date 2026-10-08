@@ -1,0 +1,478 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mxfile host="app.diagrams.net" modified="2026-10-08T00:00:00.000Z" agent="OpenAI Codex" version="24.7.17" type="device" compressed="false">
+  <diagram id="diagram_manuscript_23_notifications_support" name="Figure 25 - Notifications and Support">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="990" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title_manuscript_23_notifications_support" value="MULTIVENT ERD - Notifications and Support" style="text;html=1;align=center;verticalAlign=middle;fontSize=22;fontStyle=1;fontColor=#111111;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="24" y="18" width="1352" height="34" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle_manuscript_23_notifications_support" value="Figure 25 | 4 entities | 5 foreign-key relationships | selective manuscript attributes" style="text;html=1;align=center;verticalAlign=middle;fontSize=11;fontColor=#555555;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="24" y="54" width="1352" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_manuscript_23_notifications_support_1_notifications_user_id_fkey" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#374151;strokeWidth=2.25;jumpStyle=arc;jumpSize=12;startArrow=ERzeroToMany;startFill=0;endArrow=ERone;endFill=0;fontSize=13;fontColor=#1F2937;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="anchor_manuscript_23_notifications_support_notifications_user_id_l" target="anchor_manuscript_23_notifications_support_profiles_id_r" data-fk="notifications_user_id_fkey" data-source-table="notifications" data-source-column="user_id" data-target-table="profiles" data-target-column="id" data-route="758.0,306.0;700.0,306.0;700.0,351.0;642.0,351.0" data-manuscript="1">
+          <mxGeometry x="-0.62" y="0" width="0" height="0" as="geometry" relative="1">
+            <Array as="points">
+              <mxPoint x="700.0" y="306.0" />
+              <mxPoint x="700.0" y="351.0" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fk_label_manuscript_23_notifications_support_1_notifications_user_id_fkey" value="user_id" style="text;html=1;align=center;verticalAlign=middle;fontSize=13;fontColor=#1F2937;fillColor=#FFFFFF;strokeColor=none;spacing=2;" vertex="1" parent="1" data-fk-label="notifications_user_id_fkey" connectable="0">
+          <mxGeometry x="681.56" y="295.0" width="74" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_manuscript_23_notifications_support_2_support_messages_sender_id_fkey" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#374151;strokeWidth=2.25;jumpStyle=arc;jumpSize=12;startArrow=ERzeroToMany;startFill=0;endArrow=ERone;endFill=0;fontSize=13;fontColor=#1F2937;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="anchor_manuscript_23_notifications_support_support_messages_sender_id_r" target="anchor_manuscript_23_notifications_support_profiles_id_l" data-fk="support_messages_sender_id_fkey" data-source-table="support_messages" data-source-column="sender_id" data-target-table="profiles" data-target-column="id" data-route="642.0,705.0;700.0,705.0;700.0,199.0;20.0,199.0;20.0,351.0;63.0,351.0" data-manuscript="1">
+          <mxGeometry x="-0.62" y="0" width="0" height="0" as="geometry" relative="1">
+            <Array as="points">
+              <mxPoint x="700.0" y="705.0" />
+              <mxPoint x="700.0" y="199.0" />
+              <mxPoint x="20.0" y="199.0" />
+              <mxPoint x="20.0" y="351.0" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fk_label_manuscript_23_notifications_support_2_support_messages_sender_id_fkey" value="sender_id" style="text;html=1;align=center;verticalAlign=middle;fontSize=13;fontColor=#1F2937;fillColor=#FFFFFF;strokeColor=none;spacing=2;" vertex="1" parent="1" data-fk-label="support_messages_sender_id_fkey" connectable="0">
+          <mxGeometry x="315.0" y="188.0" width="90" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_manuscript_23_notifications_support_3_support_messages_ticket_id_fkey" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#374151;strokeWidth=2.25;jumpStyle=arc;jumpSize=12;startArrow=ERzeroToMany;startFill=0;endArrow=ERone;endFill=0;fontSize=13;fontColor=#1F2937;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="anchor_manuscript_23_notifications_support_support_messages_ticket_id_r" target="anchor_manuscript_23_notifications_support_support_tickets_id_l" data-fk="support_messages_ticket_id_fkey" data-source-table="support_messages" data-source-column="ticket_id" data-target-table="support_tickets" data-target-column="id" data-route="642.0,675.0;715.0,675.0;715.0,570.0;758.0,570.0" data-manuscript="1">
+          <mxGeometry x="-0.62" y="0" width="0" height="0" as="geometry" relative="1">
+            <Array as="points">
+              <mxPoint x="715.0" y="675.0" />
+              <mxPoint x="715.0" y="570.0" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fk_label_manuscript_23_notifications_support_3_support_messages_ticket_id_fkey" value="ticket_id" style="text;html=1;align=center;verticalAlign=middle;fontSize=13;fontColor=#1F2937;fillColor=#FFFFFF;strokeColor=none;spacing=2;" vertex="1" parent="1" data-fk-label="support_messages_ticket_id_fkey" connectable="0">
+          <mxGeometry x="670.0" y="611.5" width="90" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_manuscript_23_notifications_support_4_support_tickets_assigned_to_fkey" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#374151;strokeWidth=2.25;jumpStyle=arc;jumpSize=12;startArrow=ERzeroToMany;startFill=0;endArrow=ERzeroToOne;endFill=0;fontSize=13;fontColor=#1F2937;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="anchor_manuscript_23_notifications_support_support_tickets_assigned_to_l" target="anchor_manuscript_23_notifications_support_profiles_id_r" data-fk="support_tickets_assigned_to_fkey" data-source-table="support_tickets" data-source-column="assigned_to" data-target-table="profiles" data-target-column="id" data-route="758.0,840.0;685.0,840.0;685.0,351.0;642.0,351.0" data-manuscript="1">
+          <mxGeometry x="-0.62" y="0" width="0" height="0" as="geometry" relative="1">
+            <Array as="points">
+              <mxPoint x="685.0" y="840.0" />
+              <mxPoint x="685.0" y="351.0" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fk_label_manuscript_23_notifications_support_4_support_tickets_assigned_to_fkey" value="assigned_to" style="text;html=1;align=center;verticalAlign=middle;fontSize=13;fontColor=#1F2937;fillColor=#FFFFFF;strokeColor=none;spacing=2;" vertex="1" parent="1" data-fk-label="support_tickets_assigned_to_fkey" connectable="0">
+          <mxGeometry x="650.0" y="584.5" width="106" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_manuscript_23_notifications_support_5_support_tickets_user_id_fkey" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#374151;strokeWidth=2.25;jumpStyle=arc;jumpSize=12;startArrow=ERzeroToMany;startFill=0;endArrow=ERone;endFill=0;fontSize=13;fontColor=#1F2937;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="anchor_manuscript_23_notifications_support_support_tickets_user_id_l" target="anchor_manuscript_23_notifications_support_profiles_id_l" data-fk="support_tickets_user_id_fkey" data-source-table="support_tickets" data-source-column="user_id" data-target-table="profiles" data-target-column="id" data-route="758.0,630.0;715.0,630.0;715.0,873.0;35.0,873.0;35.0,351.0;63.0,351.0" data-manuscript="1">
+          <mxGeometry x="-0.62" y="0" width="0" height="0" as="geometry" relative="1">
+            <Array as="points">
+              <mxPoint x="715.0" y="630.0" />
+              <mxPoint x="715.0" y="873.0" />
+              <mxPoint x="35.0" y="873.0" />
+              <mxPoint x="35.0" y="351.0" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fk_label_manuscript_23_notifications_support_5_support_tickets_user_id_fkey" value="user_id" style="text;html=1;align=center;verticalAlign=middle;fontSize=13;fontColor=#1F2937;fillColor=#FFFFFF;strokeColor=none;spacing=2;" vertex="1" parent="1" data-fk-label="support_tickets_user_id_fkey" connectable="0">
+          <mxGeometry x="338.0" y="862.0" width="74" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="table_manuscript_23_notifications_support_profiles" value="" style="group;html=1;" vertex="1" parent="1" data-table="profiles" data-manuscript="1" connectable="0">
+          <mxGeometry x="70" y="292.0" width="565" height="194" as="geometry" />
+        </mxCell>
+        <mxCell id="table_manuscript_23_notifications_support_profiles_header" value="profiles" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=9;fontSize=18;fontStyle=1;fontColor=#FFFFFF;fillColor=#B45519;strokeColor=#404040;strokeWidth=1.4;" vertex="1" parent="table_manuscript_23_notifications_support_profiles">
+          <mxGeometry x="0" y="0" width="565" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_profiles_id_marker" value="PK/FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_profiles" connectable="0">
+          <mxGeometry x="0" y="44" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_profiles_id" value="id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_profiles" data-column-table="profiles" data-column="id" connectable="0">
+          <mxGeometry x="70" y="44" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_profiles_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_profiles" connectable="0">
+          <mxGeometry x="425" y="44" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_profiles_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_profiles" data-anchor-table="profiles" data-anchor-column="id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="58.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_profiles_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_profiles" data-anchor-table="profiles" data-anchor-column="id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="58.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_profiles_full_name_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_profiles" connectable="0">
+          <mxGeometry x="0" y="74" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_profiles_full_name" value="full_name ?" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_profiles" data-column-table="profiles" data-column="full_name" connectable="0">
+          <mxGeometry x="70" y="74" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_profiles_full_name_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_profiles" connectable="0">
+          <mxGeometry x="425" y="74" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_profiles_full_name_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_profiles" data-anchor-table="profiles" data-anchor-column="full_name" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="88.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_profiles_full_name_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_profiles" data-anchor-table="profiles" data-anchor-column="full_name" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="88.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_profiles_email_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_profiles" connectable="0">
+          <mxGeometry x="0" y="104" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_profiles_email" value="email ?" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_profiles" data-column-table="profiles" data-column="email" connectable="0">
+          <mxGeometry x="70" y="104" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_profiles_email_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_profiles" connectable="0">
+          <mxGeometry x="425" y="104" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_profiles_email_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_profiles" data-anchor-table="profiles" data-anchor-column="email" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="118.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_profiles_email_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_profiles" data-anchor-table="profiles" data-anchor-column="email" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="118.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_profiles_default_role_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_profiles" connectable="0">
+          <mxGeometry x="0" y="134" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_profiles_default_role" value="default_role" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_profiles" data-column-table="profiles" data-column="default_role" connectable="0">
+          <mxGeometry x="70" y="134" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_profiles_default_role_type" value="user_role" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_profiles" connectable="0">
+          <mxGeometry x="425" y="134" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_profiles_default_role_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_profiles" data-anchor-table="profiles" data-anchor-column="default_role" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="148.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_profiles_default_role_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_profiles" data-anchor-table="profiles" data-anchor-column="default_role" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="148.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_profiles_account_status_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_profiles" connectable="0">
+          <mxGeometry x="0" y="164" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_profiles_account_status" value="account_status" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_profiles" data-column-table="profiles" data-column="account_status" connectable="0">
+          <mxGeometry x="70" y="164" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_profiles_account_status_type" value="account_status" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_profiles" connectable="0">
+          <mxGeometry x="425" y="164" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_profiles_account_status_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_profiles" data-anchor-table="profiles" data-anchor-column="account_status" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="178.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_profiles_account_status_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_profiles" data-anchor-table="profiles" data-anchor-column="account_status" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="178.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="table_manuscript_23_notifications_support_notifications" value="" style="group;html=1;" vertex="1" parent="1" data-table="notifications" data-manuscript="1" connectable="0">
+          <mxGeometry x="765" y="217.0" width="565" height="194" as="geometry" />
+        </mxCell>
+        <mxCell id="table_manuscript_23_notifications_support_notifications_header" value="notifications" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=9;fontSize=18;fontStyle=1;fontColor=#FFFFFF;fillColor=#B45519;strokeColor=#404040;strokeWidth=1.4;" vertex="1" parent="table_manuscript_23_notifications_support_notifications">
+          <mxGeometry x="0" y="0" width="565" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_notifications_id_marker" value="PK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_notifications" connectable="0">
+          <mxGeometry x="0" y="44" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_notifications_id" value="id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_notifications" data-column-table="notifications" data-column="id" connectable="0">
+          <mxGeometry x="70" y="44" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_notifications_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_notifications" connectable="0">
+          <mxGeometry x="425" y="44" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_notifications_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_notifications" data-anchor-table="notifications" data-anchor-column="id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="58.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_notifications_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_notifications" data-anchor-table="notifications" data-anchor-column="id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="58.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_notifications_user_id_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_notifications" connectable="0">
+          <mxGeometry x="0" y="74" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_notifications_user_id" value="user_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_notifications" data-column-table="notifications" data-column="user_id" connectable="0">
+          <mxGeometry x="70" y="74" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_notifications_user_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_notifications" connectable="0">
+          <mxGeometry x="425" y="74" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_notifications_user_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_notifications" data-anchor-table="notifications" data-anchor-column="user_id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="88.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_notifications_user_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_notifications" data-anchor-table="notifications" data-anchor-column="user_id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="88.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_notifications_title_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_notifications" connectable="0">
+          <mxGeometry x="0" y="104" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_notifications_title" value="title" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_notifications" data-column-table="notifications" data-column="title" connectable="0">
+          <mxGeometry x="70" y="104" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_notifications_title_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_notifications" connectable="0">
+          <mxGeometry x="425" y="104" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_notifications_title_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_notifications" data-anchor-table="notifications" data-anchor-column="title" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="118.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_notifications_title_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_notifications" data-anchor-table="notifications" data-anchor-column="title" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="118.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_notifications_body_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_notifications" connectable="0">
+          <mxGeometry x="0" y="134" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_notifications_body" value="body ?" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_notifications" data-column-table="notifications" data-column="body" connectable="0">
+          <mxGeometry x="70" y="134" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_notifications_body_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_notifications" connectable="0">
+          <mxGeometry x="425" y="134" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_notifications_body_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_notifications" data-anchor-table="notifications" data-anchor-column="body" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="148.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_notifications_body_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_notifications" data-anchor-table="notifications" data-anchor-column="body" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="148.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_notifications_status_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_notifications" connectable="0">
+          <mxGeometry x="0" y="164" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_notifications_status" value="status" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_notifications" data-column-table="notifications" data-column="status" connectable="0">
+          <mxGeometry x="70" y="164" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_notifications_status_type" value="notification_status" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_notifications" connectable="0">
+          <mxGeometry x="425" y="164" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_notifications_status_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_notifications" data-anchor-table="notifications" data-anchor-column="status" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="178.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_notifications_status_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_notifications" data-anchor-table="notifications" data-anchor-column="status" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="178.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="table_manuscript_23_notifications_support_support_tickets" value="" style="group;html=1;" vertex="1" parent="1" data-table="support_tickets" data-manuscript="1" connectable="0">
+          <mxGeometry x="765" y="511.0" width="565" height="344" as="geometry" />
+        </mxCell>
+        <mxCell id="table_manuscript_23_notifications_support_support_tickets_header" value="support_tickets" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=9;fontSize=18;fontStyle=1;fontColor=#FFFFFF;fillColor=#B45519;strokeColor=#404040;strokeWidth=1.4;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets">
+          <mxGeometry x="0" y="0" width="565" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_tickets_id_marker" value="PK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" connectable="0">
+          <mxGeometry x="0" y="44" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_tickets_id" value="id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" data-column-table="support_tickets" data-column="id" connectable="0">
+          <mxGeometry x="70" y="44" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_tickets_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" connectable="0">
+          <mxGeometry x="425" y="44" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_support_tickets_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" data-anchor-table="support_tickets" data-anchor-column="id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="58.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_support_tickets_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" data-anchor-table="support_tickets" data-anchor-column="id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="58.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_tickets_ticket_number_marker" value="UQ" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" connectable="0">
+          <mxGeometry x="0" y="74" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_tickets_ticket_number" value="ticket_number" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" data-column-table="support_tickets" data-column="ticket_number" connectable="0">
+          <mxGeometry x="70" y="74" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_tickets_ticket_number_type" value="bigint" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" connectable="0">
+          <mxGeometry x="425" y="74" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_support_tickets_ticket_number_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" data-anchor-table="support_tickets" data-anchor-column="ticket_number" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="88.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_support_tickets_ticket_number_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" data-anchor-table="support_tickets" data-anchor-column="ticket_number" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="88.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_tickets_user_id_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" connectable="0">
+          <mxGeometry x="0" y="104" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_tickets_user_id" value="user_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" data-column-table="support_tickets" data-column="user_id" connectable="0">
+          <mxGeometry x="70" y="104" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_tickets_user_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" connectable="0">
+          <mxGeometry x="425" y="104" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_support_tickets_user_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" data-anchor-table="support_tickets" data-anchor-column="user_id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="118.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_support_tickets_user_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" data-anchor-table="support_tickets" data-anchor-column="user_id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="118.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_tickets_event_id_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" connectable="0">
+          <mxGeometry x="0" y="134" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_tickets_event_id" value="event_id ?" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" data-column-table="support_tickets" data-column="event_id" connectable="0">
+          <mxGeometry x="70" y="134" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_tickets_event_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" connectable="0">
+          <mxGeometry x="425" y="134" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_support_tickets_event_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" data-anchor-table="support_tickets" data-anchor-column="event_id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="148.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_support_tickets_event_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" data-anchor-table="support_tickets" data-anchor-column="event_id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="148.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_tickets_booking_id_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" connectable="0">
+          <mxGeometry x="0" y="164" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_tickets_booking_id" value="booking_id ?" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" data-column-table="support_tickets" data-column="booking_id" connectable="0">
+          <mxGeometry x="70" y="164" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_tickets_booking_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" connectable="0">
+          <mxGeometry x="425" y="164" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_support_tickets_booking_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" data-anchor-table="support_tickets" data-anchor-column="booking_id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="178.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_support_tickets_booking_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" data-anchor-table="support_tickets" data-anchor-column="booking_id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="178.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_tickets_category_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" connectable="0">
+          <mxGeometry x="0" y="194" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_tickets_category" value="category" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" data-column-table="support_tickets" data-column="category" connectable="0">
+          <mxGeometry x="70" y="194" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_tickets_category_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" connectable="0">
+          <mxGeometry x="425" y="194" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_support_tickets_category_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" data-anchor-table="support_tickets" data-anchor-column="category" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="208.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_support_tickets_category_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" data-anchor-table="support_tickets" data-anchor-column="category" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="208.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_tickets_subject_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" connectable="0">
+          <mxGeometry x="0" y="224" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_tickets_subject" value="subject" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" data-column-table="support_tickets" data-column="subject" connectable="0">
+          <mxGeometry x="70" y="224" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_tickets_subject_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" connectable="0">
+          <mxGeometry x="425" y="224" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_support_tickets_subject_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" data-anchor-table="support_tickets" data-anchor-column="subject" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="238.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_support_tickets_subject_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" data-anchor-table="support_tickets" data-anchor-column="subject" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="238.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_tickets_status_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" connectable="0">
+          <mxGeometry x="0" y="254" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_tickets_status" value="status" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" data-column-table="support_tickets" data-column="status" connectable="0">
+          <mxGeometry x="70" y="254" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_tickets_status_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" connectable="0">
+          <mxGeometry x="425" y="254" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_support_tickets_status_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" data-anchor-table="support_tickets" data-anchor-column="status" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="268.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_support_tickets_status_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" data-anchor-table="support_tickets" data-anchor-column="status" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="268.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_tickets_priority_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" connectable="0">
+          <mxGeometry x="0" y="284" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_tickets_priority" value="priority" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" data-column-table="support_tickets" data-column="priority" connectable="0">
+          <mxGeometry x="70" y="284" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_tickets_priority_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" connectable="0">
+          <mxGeometry x="425" y="284" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_support_tickets_priority_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" data-anchor-table="support_tickets" data-anchor-column="priority" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="298.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_support_tickets_priority_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" data-anchor-table="support_tickets" data-anchor-column="priority" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="298.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_tickets_assigned_to_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" connectable="0">
+          <mxGeometry x="0" y="314" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_tickets_assigned_to" value="assigned_to ?" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" data-column-table="support_tickets" data-column="assigned_to" connectable="0">
+          <mxGeometry x="70" y="314" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_tickets_assigned_to_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" connectable="0">
+          <mxGeometry x="425" y="314" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_support_tickets_assigned_to_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" data-anchor-table="support_tickets" data-anchor-column="assigned_to" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="328.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_support_tickets_assigned_to_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_support_tickets" data-anchor-table="support_tickets" data-anchor-column="assigned_to" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="328.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="table_manuscript_23_notifications_support_support_messages" value="" style="group;html=1;" vertex="1" parent="1" data-table="support_messages" data-manuscript="1" connectable="0">
+          <mxGeometry x="70" y="586.0" width="565" height="194" as="geometry" />
+        </mxCell>
+        <mxCell id="table_manuscript_23_notifications_support_support_messages_header" value="support_messages" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=9;fontSize=18;fontStyle=1;fontColor=#FFFFFF;fillColor=#B45519;strokeColor=#404040;strokeWidth=1.4;" vertex="1" parent="table_manuscript_23_notifications_support_support_messages">
+          <mxGeometry x="0" y="0" width="565" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_messages_id_marker" value="PK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_messages" connectable="0">
+          <mxGeometry x="0" y="44" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_messages_id" value="id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_messages" data-column-table="support_messages" data-column="id" connectable="0">
+          <mxGeometry x="70" y="44" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_messages_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_messages" connectable="0">
+          <mxGeometry x="425" y="44" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_support_messages_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_support_messages" data-anchor-table="support_messages" data-anchor-column="id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="58.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_support_messages_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_support_messages" data-anchor-table="support_messages" data-anchor-column="id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="58.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_messages_ticket_id_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_messages" connectable="0">
+          <mxGeometry x="0" y="74" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_messages_ticket_id" value="ticket_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_messages" data-column-table="support_messages" data-column="ticket_id" connectable="0">
+          <mxGeometry x="70" y="74" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_messages_ticket_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_messages" connectable="0">
+          <mxGeometry x="425" y="74" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_support_messages_ticket_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_support_messages" data-anchor-table="support_messages" data-anchor-column="ticket_id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="88.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_support_messages_ticket_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_support_messages" data-anchor-table="support_messages" data-anchor-column="ticket_id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="88.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_messages_sender_id_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_messages" connectable="0">
+          <mxGeometry x="0" y="104" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_messages_sender_id" value="sender_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_messages" data-column-table="support_messages" data-column="sender_id" connectable="0">
+          <mxGeometry x="70" y="104" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_messages_sender_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_messages" connectable="0">
+          <mxGeometry x="425" y="104" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_support_messages_sender_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_support_messages" data-anchor-table="support_messages" data-anchor-column="sender_id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="118.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_support_messages_sender_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_support_messages" data-anchor-table="support_messages" data-anchor-column="sender_id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="118.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_messages_body_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_messages" connectable="0">
+          <mxGeometry x="0" y="134" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_messages_body" value="body" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_messages" data-column-table="support_messages" data-column="body" connectable="0">
+          <mxGeometry x="70" y="134" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_messages_body_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_messages" connectable="0">
+          <mxGeometry x="425" y="134" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_support_messages_body_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_support_messages" data-anchor-table="support_messages" data-anchor-column="body" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="148.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_support_messages_body_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_support_messages" data-anchor-table="support_messages" data-anchor-column="body" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="148.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_messages_is_internal_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_messages" connectable="0">
+          <mxGeometry x="0" y="164" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_messages_is_internal" value="is_internal" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_messages" data-column-table="support_messages" data-column="is_internal" connectable="0">
+          <mxGeometry x="70" y="164" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_23_notifications_support_support_messages_is_internal_type" value="boolean" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_23_notifications_support_support_messages" connectable="0">
+          <mxGeometry x="425" y="164" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_support_messages_is_internal_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_support_messages" data-anchor-table="support_messages" data-anchor-column="is_internal" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="178.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_23_notifications_support_support_messages_is_internal_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_23_notifications_support_support_messages" data-anchor-table="support_messages" data-anchor-column="is_internal" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="178.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="note_manuscript_23_notifications_support" value="Selective manuscript view: all PK/FK columns and essential business attributes are shown. See the Complete Technical ERD for every column and relationship." style="text;html=1;align=center;verticalAlign=middle;fontSize=10;fontColor=#555555;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="24" y="966" width="1352" height="16" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

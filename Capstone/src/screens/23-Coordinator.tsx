@@ -102,6 +102,52 @@ const statusLabel = (value: string) =>
 const pesoLabel = (value: number) =>
   `PHP ${Math.max(0, Math.floor(value)).toLocaleString('en-PH')}`
 
+const CoordinatorFinancialSummary: React.FC<{
+  financial: CoordinatorEvent['financial']
+}> = ({ financial }) => (
+  <View style={styles.financialCard}>
+    <View style={styles.financialHeader}>
+      <View style={styles.financialHeaderCopy}>
+        <Text style={styles.financialEyebrow}>PAYMENT &amp; COORDINATOR BALANCE</Text>
+        <Text style={styles.financialStatus}>{financial.paymentStatus}</Text>
+      </View>
+      <MaterialIcons
+        color={financial.paymentConfirmed ? palette.success : palette.secondary}
+        name={financial.paymentConfirmed ? 'verified' : 'hourglass-empty'}
+        size={20}
+      />
+    </View>
+    {financial.paymentConfirmed ? (
+      <View style={styles.financialGrid}>
+        <View style={styles.financialItem}>
+          <Text style={styles.financialLabel}>COORDINATION FEE</Text>
+          <Text style={styles.financialValue}>{pesoLabel(financial.coordinationFee)}</Text>
+        </View>
+        <View style={styles.financialItem}>
+          <Text style={styles.financialLabel}>CLIENT DOWNPAYMENT</Text>
+          <Text style={styles.financialValue}>{pesoLabel(financial.downpaymentAmount)}</Text>
+        </View>
+        <View style={styles.financialItem}>
+          <Text style={styles.financialLabel}>INITIAL COORDINATOR SHARE</Text>
+          <Text style={styles.financialValue}>{pesoLabel(financial.initialCoordinatorShare)}</Text>
+        </View>
+        <View style={styles.financialItem}>
+          <Text style={styles.financialLabel}>REMAINING COORDINATOR BALANCE</Text>
+          <Text style={styles.financialValue}>{pesoLabel(financial.remainingCoordinatorBalance)}</Text>
+        </View>
+      </View>
+    ) : null}
+    <Text style={styles.financialExplanation}>
+      {financial.paymentConfirmed
+        ? `The downpayment already includes MULTIVENT's ${pesoLabel(financial.platformFeePaid)} commission. The remaining balance above is based only on your coordination fee.`
+        : financial.balanceStatus}
+    </Text>
+    {financial.paymentConfirmed ? (
+      <Text style={styles.financialBalanceStatus}>{financial.balanceStatus}</Text>
+    ) : null}
+  </View>
+)
+
 const taskIsOverdue = (task: CoordinatorTask) => {
   if (!task.dueAt || task.status === 'completed') return false
   return new Date(task.dueAt).getTime() < Date.now()
@@ -227,6 +273,15 @@ const EventCard: React.FC<{
                 {event.confirmedBookingCount}/{event.bookingCount} providers secured
               </Text>
             </View>
+
+            <CoordinatorFinancialSummary financial={event.financial} />
+
+            {event.clientNotes ? (
+              <View style={styles.clientRequestNote}>
+                <Text style={styles.instructionLabel}>CLIENT EVENT NOTE</Text>
+                <Text style={styles.instructionBody}>{event.clientNotes}</Text>
+              </View>
+            ) : null}
 
             {event.instructions.length ? (
               <View style={styles.coordinatorInstructionsBlock}>
@@ -385,7 +440,11 @@ const InvitationCard: React.FC<{
   busy?: boolean
   invitation: CoordinatorInvitation
   onRespond?: (invitation: CoordinatorInvitation, accepted: boolean) => void
-}> = ({ busy, invitation, onRespond }) => (
+}> = ({ busy, invitation, onRespond }) => {
+  const [expanded, setExpanded] = React.useState(false)
+  const cannotAccept = busy || !invitation.financial.canAccept
+
+  return (
   <View style={styles.invitationCard}>
     <View style={styles.invitationHeader}>
       <View style={styles.invitationIcon}>
@@ -410,8 +469,66 @@ const InvitationCard: React.FC<{
       </Text>
     </View>
     <Text style={styles.invitationNotice}>
-      Accept to unlock the booked services, client instructions, tasks, and provider conversations for this event.
+      {invitation.financial.canAccept
+        ? 'Review the request below, then accept to add the event to your coordinator workspace.'
+        : 'You can review or decline this request now. Acceptance unlocks as soon as the client downpayment is confirmed.'}
     </Text>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ expanded }}
+      onPress={() => setExpanded((current) => !current)}
+      style={({ pressed }) => [styles.invitationDisclosure, pressed && styles.pressedSurface]}
+    >
+      <Text style={styles.invitationDisclosureText}>
+        {expanded ? 'Hide client request' : 'View client request and payment'}
+      </Text>
+      <MaterialIcons
+        color={palette.primaryContainer}
+        name={expanded ? 'expand-less' : 'expand-more'}
+        size={19}
+      />
+    </Pressable>
+    {expanded ? (
+      <View style={styles.invitationExpanded}>
+        <View style={styles.requestFacts}>
+          <Text style={styles.requestFact}>Event type: {statusLabel(invitation.eventType || 'Event')}</Text>
+          <Text style={styles.requestFact}>Time: {timeLabel(invitation.time)}</Text>
+          {invitation.packageName ? (
+            <Text style={styles.requestFact}>Coordinator package: {invitation.packageName}</Text>
+          ) : null}
+        </View>
+        {invitation.clientNotes ? (
+          <View style={styles.clientRequestNote}>
+            <Text style={styles.instructionLabel}>CLIENT EVENT NOTE</Text>
+            <Text style={styles.instructionBody}>{invitation.clientNotes}</Text>
+          </View>
+        ) : null}
+        <View style={styles.requestServicesBlock}>
+          <Text style={styles.financialEyebrow}>SELECTED SERVICES</Text>
+          {invitation.selectedServices.length ? invitation.selectedServices.map((service) => (
+            <View key={service.id} style={styles.requestServiceRow}>
+              <MaterialIcons color={palette.primaryContainer} name="business-center" size={15} />
+              <View style={styles.requestServiceCopy}>
+                <Text style={styles.requestServiceName}>{service.serviceName}</Text>
+                <Text style={styles.requestServiceMeta}>
+                  {service.providerName} · {service.categoryName}
+                </Text>
+                {service.cateringOptionName || service.venueOptionName ? (
+                  <Text style={styles.requestServiceMeta}>
+                    {service.cateringOptionName || service.venueOptionName}
+                    {service.venueBookedHours ? ` · ${service.venueBookedHours} hours` : ''}
+                  </Text>
+                ) : null}
+                {service.notes ? <Text style={styles.requestServiceNote}>{service.notes}</Text> : null}
+              </View>
+            </View>
+          )) : (
+            <Text style={styles.noServicesText}>No marketplace services have been selected yet.</Text>
+          )}
+        </View>
+        <CoordinatorFinancialSummary financial={invitation.financial} />
+      </View>
+    ) : null}
     <View style={styles.invitationActions}>
       <Pressable
         accessibilityRole="button"
@@ -423,9 +540,10 @@ const InvitationCard: React.FC<{
       </Pressable>
       <Pressable
         accessibilityRole="button"
-        disabled={busy}
+        accessibilityState={{ disabled: cannotAccept }}
+        disabled={cannotAccept}
         onPress={() => onRespond?.(invitation, true)}
-        style={({ pressed }) => [styles.acceptButton, pressed && styles.addButtonPressed, busy && styles.disabled]}
+        style={({ pressed }) => [styles.acceptButton, pressed && styles.addButtonPressed, cannotAccept && styles.disabled]}
       >
         {busy ? <ActivityIndicator color="#FFFFFF" size="small" /> : (
           <MaterialIcons color="#FFFFFF" name="check" size={17} />
@@ -434,7 +552,8 @@ const InvitationCard: React.FC<{
       </Pressable>
     </View>
   </View>
-)
+  )
+}
 
 const TaskRow: React.FC<{
   busy?: boolean
@@ -1264,6 +1383,17 @@ const styles = StyleSheet.create({
   invitationMeta: { gap: 3, borderTopWidth: 1, borderTopColor: palette.border, marginTop: 12, paddingTop: 10 },
   invitationMetaText: { color: palette.secondary, fontSize: 10, lineHeight: 15 },
   invitationNotice: { color: palette.secondary, fontSize: 9, lineHeight: 14, marginTop: 10 },
+  invitationDisclosure: { minHeight: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, borderWidth: 1, borderColor: palette.border, borderRadius: 8, backgroundColor: palette.surfaceLow, marginTop: 10, paddingHorizontal: 10 },
+  invitationDisclosureText: { color: palette.primaryContainer, fontSize: 10, lineHeight: 14, fontWeight: '700' },
+  invitationExpanded: { gap: 10, borderTopWidth: 1, borderTopColor: palette.border, marginTop: 12, paddingTop: 12 },
+  requestFacts: { gap: 3 },
+  requestFact: { color: palette.secondary, fontSize: 10, lineHeight: 15 },
+  requestServicesBlock: { gap: 7 },
+  requestServiceRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderRadius: 8, backgroundColor: palette.surfaceLow, padding: 9 },
+  requestServiceCopy: { minWidth: 0, flex: 1 },
+  requestServiceName: { color: palette.text, fontSize: 10, lineHeight: 15, fontWeight: '700' },
+  requestServiceMeta: { color: palette.secondary, fontSize: 9, lineHeight: 13, marginTop: 1 },
+  requestServiceNote: { color: palette.text, fontSize: 9, lineHeight: 14, marginTop: 4 },
   invitationActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 13 },
   declineButton: { minHeight: 38, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#D8C5C8', borderRadius: 9, paddingHorizontal: 15 },
   declineButtonText: { color: palette.primaryContainer, fontSize: 10, lineHeight: 14, fontWeight: '700' },
@@ -1299,6 +1429,18 @@ const styles = StyleSheet.create({
   progressFill: { height: '100%', borderRadius: 3, backgroundColor: palette.primaryContainer },
   eventFooter: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginTop: 8 },
   eventFooterText: { color: palette.secondary, fontSize: 8, lineHeight: 12 },
+  financialCard: { gap: 9, borderWidth: 1, borderColor: '#D7E5DC', borderRadius: 9, backgroundColor: '#F4FAF6', marginTop: 13, padding: 11 },
+  financialHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
+  financialHeaderCopy: { minWidth: 0, flex: 1 },
+  financialEyebrow: { color: palette.secondary, fontSize: 7, lineHeight: 11, fontWeight: '700', letterSpacing: 0.7 },
+  financialStatus: { color: palette.text, fontSize: 11, lineHeight: 16, fontWeight: '700', marginTop: 2 },
+  financialGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  financialItem: { minWidth: '47%', flexGrow: 1, borderRadius: 7, backgroundColor: palette.surface, padding: 8 },
+  financialLabel: { color: palette.secondary, fontSize: 7, lineHeight: 10, fontWeight: '700', letterSpacing: 0.4 },
+  financialValue: { color: palette.primaryContainer, fontSize: 11, lineHeight: 16, fontWeight: '700', marginTop: 2 },
+  financialExplanation: { color: palette.secondary, fontSize: 9, lineHeight: 14 },
+  financialBalanceStatus: { color: palette.success, fontSize: 9, lineHeight: 14, fontWeight: '600' },
+  clientRequestNote: { gap: 4, borderLeftWidth: 3, borderLeftColor: palette.primaryContainer, borderRadius: 7, backgroundColor: palette.primarySoft, marginTop: 11, padding: 10 },
   coordinatorInstructionsBlock: { gap: 8, borderWidth: 1, borderColor: '#D9C4C8', borderRadius: 9, backgroundColor: palette.primarySoft, marginTop: 13, padding: 10 },
   coordinatorInstructionsHeading: { flexDirection: 'row', alignItems: 'flex-start', gap: 7 },
   coordinatorInstructionsCaption: { color: palette.secondary, fontSize: 8, lineHeight: 12, marginTop: 2 },

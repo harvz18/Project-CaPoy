@@ -1,0 +1,266 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3508" height="2480" viewBox="0 0 3508 2480">
+<rect width="100%" height="100%" fill="white"/>
+<style>text{font-family:Arial,sans-serif;fill:#000}.title{font-size:48px;font-weight:700}.subtitle{font-size:27px}.header{font-size:24px;font-weight:700;fill:#fff}.body{font-size:19px}.key{font-size:19px;font-weight:700}.small{font-size:17px}</style>
+<text class="title" x="1754.0" y="82" text-anchor="middle">MULTIVENT Live ERD - Event Planning and Coordination</text>
+<text class="subtitle" x="1754.0" y="135" text-anchor="middle">14 tables | 17 internal foreign keys | 31 cross-domain foreign keys</text>
+<text class="small" x="1754.0" y="188" text-anchor="middle">Cardinality: 1 = exactly one; 0..1 = optional one; 0..* = zero or many</text>
+<polyline points="2342,1267 1746,1267 1746,431 1166,431" fill="none" stroke="#000" stroke-width="3"/>
+<polyline points="633,1499 633,1058 633,1058 633,618" fill="none" stroke="#000" stroke-width="3"/>
+<polyline points="2342,1685 2322,1685 2322,1685 2287,1685" fill="none" stroke="#000" stroke-width="3"/>
+<polyline points="2342,431 1770,431 1770,431 1166,431" fill="none" stroke="#000" stroke-width="3"/>
+<polyline points="2342,431 1738,431 1738,849 1166,849" fill="none" stroke="#000" stroke-width="3"/>
+<polyline points="2342,849 1746,849 1746,431 1166,431" fill="none" stroke="#000" stroke-width="3"/>
+<polyline points="633,1917 633,1267 633,1267 633,618" fill="none" stroke="#000" stroke-width="3"/>
+<polyline points="1166,2103 1201,2103 1201,1685 1221,1685" fill="none" stroke="#000" stroke-width="3"/>
+<polyline points="1221,2103 1209,2103 1209,849 1166,849" fill="none" stroke="#000" stroke-width="3"/>
+<polyline points="1221,2103 1177,2103 1177,2103 1166,2103" fill="none" stroke="#000" stroke-width="3"/>
+<polyline points="1221,849 1185,849 1185,431 1166,431" fill="none" stroke="#000" stroke-width="3"/>
+<polyline points="1221,849 1193,849 1193,849 1166,849" fill="none" stroke="#000" stroke-width="3"/>
+<polyline points="1221,431 1201,431 1201,431 1166,431" fill="none" stroke="#000" stroke-width="3"/>
+<polyline points="1221,1267 1209,1267 1209,1267 1166,1267" fill="none" stroke="#000" stroke-width="3"/>
+<polyline points="1221,1267 1177,1267 1177,849 1166,849" fill="none" stroke="#000" stroke-width="3"/>
+<polyline points="633,1081 633,843 633,843 633,618" fill="none" stroke="#000" stroke-width="3"/>
+<polyline points="633,663 633,640 633,640 633,618" fill="none" stroke="#000" stroke-width="3"/>
+<rect x="100" y="245" width="1066" height="373" fill="#fff" stroke="#000" stroke-width="4"/>
+<rect x="100" y="245" width="1066" height="52" fill="#000"/>
+<text class="header" x="116" y="280">events [RLS]</text>
+<text class="key" x="116" y="327">PK id : uuid</text>
+<text class="key" x="116" y="353">FK client_id : uuid</text>
+<text class="key" x="116" y="379">FK coordinator_id : uuid ?</text>
+<text class="key" x="116" y="405">FK pending_coordinator_id : uuid ?</text>
+<text class="body" x="116" y="431">name : text</text>
+<text class="body" x="116" y="457">event_type : text ?</text>
+<text class="body" x="116" y="483">event_date : date ?</text>
+<text class="body" x="116" y="509">venue : text ?</text>
+<text class="body" x="116" y="535">location : text ?</text>
+<text class="body" x="116" y="561">guest_count : integer ?</text>
+<text class="body" x="116" y="587">... +20 additional columns</text>
+<rect x="1221" y="245" width="1066" height="373" fill="#fff" stroke="#000" stroke-width="4"/>
+<rect x="1221" y="245" width="1066" height="52" fill="#000"/>
+<text class="header" x="1237" y="280">event_requirements [RLS]</text>
+<text class="key" x="1237" y="327">PK id : uuid</text>
+<text class="key" x="1237" y="353">FK event_id : uuid</text>
+<text class="key" x="1237" y="379">FK category_id : uuid ?</text>
+<text class="body" x="1237" y="405">title : text</text>
+<text class="body" x="1237" y="431">description : text ?</text>
+<text class="body" x="1237" y="457">target_budget : numeric(12,2) ?</text>
+<text class="body" x="1237" y="483">priority : text ?</text>
+<text class="body" x="1237" y="509">status : text</text>
+<text class="body" x="1237" y="535">created_at : timestamptz</text>
+<text class="body" x="1237" y="561">updated_at : timestamptz</text>
+<rect x="2342" y="245" width="1066" height="373" fill="#fff" stroke="#000" stroke-width="4"/>
+<rect x="2342" y="245" width="1066" height="52" fill="#000"/>
+<text class="header" x="2358" y="280">event_budget_items [RLS]</text>
+<text class="key" x="2358" y="327">PK id : uuid</text>
+<text class="key" x="2358" y="353">FK/UQ event_id : uuid</text>
+<text class="key" x="2358" y="379">FK category_id : uuid ?</text>
+<text class="key" x="2358" y="405">FK locked_selection_id : uuid ?</text>
+<text class="body" x="2358" y="431">label : text</text>
+<text class="body" x="2358" y="457">estimated_amount : numeric(12,2) ?</text>
+<text class="body" x="2358" y="483">actual_amount : numeric(12,2) ?</text>
+<text class="body" x="2358" y="509">status : text</text>
+<text class="body" x="2358" y="535">priority_rank : integer ?</text>
+<text class="body" x="2358" y="561">is_priority : boolean</text>
+<text class="body" x="2358" y="587">... +6 additional columns</text>
+<rect x="100" y="663" width="1066" height="373" fill="#fff" stroke="#000" stroke-width="4"/>
+<rect x="100" y="663" width="1066" height="52" fill="#000"/>
+<text class="header" x="116" y="698">event_service_selections [RLS]</text>
+<text class="key" x="116" y="745">PK id : uuid</text>
+<text class="key" x="116" y="771">FK event_id : uuid</text>
+<text class="key" x="116" y="797">FK client_id : uuid</text>
+<text class="key" x="116" y="823">FK provider_id : uuid ?</text>
+<text class="key" x="116" y="849">FK service_id : uuid ?</text>
+<text class="key" x="116" y="875">FK package_id : uuid ?</text>
+<text class="key" x="116" y="901">FK category_id : uuid ?</text>
+<text class="body" x="116" y="927">service_name : text</text>
+<text class="body" x="116" y="953">category_name : text ?</text>
+<text class="body" x="116" y="979">estimated_amount : numeric(12,2)</text>
+<text class="body" x="116" y="1005">... +25 additional columns</text>
+<rect x="1221" y="663" width="1066" height="373" fill="#fff" stroke="#000" stroke-width="4"/>
+<rect x="1221" y="663" width="1066" height="52" fill="#000"/>
+<text class="header" x="1237" y="698">event_provider_instructions [RLS]</text>
+<text class="key" x="1237" y="745">PK id : uuid</text>
+<text class="key" x="1237" y="771">FK event_id : uuid</text>
+<text class="key" x="1237" y="797">FK selection_id : uuid ?</text>
+<text class="key" x="1237" y="823">FK provider_id : uuid ?</text>
+<text class="key" x="1237" y="849">FK service_id : uuid ?</text>
+<text class="body" x="1237" y="875">category_name : text</text>
+<text class="body" x="1237" y="901">instruction_type : text</text>
+<text class="body" x="1237" y="927">title : text</text>
+<text class="body" x="1237" y="953">body : text ?</text>
+<text class="body" x="1237" y="979">tags : jsonb</text>
+<text class="body" x="1237" y="1005">... +4 additional columns</text>
+<rect x="2342" y="663" width="1066" height="373" fill="#fff" stroke="#000" stroke-width="4"/>
+<rect x="2342" y="663" width="1066" height="52" fill="#000"/>
+<text class="header" x="2358" y="698">event_coordinator_instructions [RLS]</text>
+<text class="key" x="2358" y="745">PK id : uuid</text>
+<text class="key" x="2358" y="771">FK event_id : uuid</text>
+<text class="key" x="2358" y="797">FK coordinator_id : uuid</text>
+<text class="body" x="2358" y="823">title : text</text>
+<text class="body" x="2358" y="849">body : text ?</text>
+<text class="body" x="2358" y="875">tags : jsonb</text>
+<text class="body" x="2358" y="901">status : text</text>
+<text class="body" x="2358" y="927">created_at : timestamptz</text>
+<text class="body" x="2358" y="953">updated_at : timestamptz</text>
+<rect x="100" y="1081" width="1066" height="373" fill="#fff" stroke="#000" stroke-width="4"/>
+<rect x="100" y="1081" width="1066" height="52" fill="#000"/>
+<text class="header" x="116" y="1116">event_schedule_checks [RLS]</text>
+<text class="key" x="116" y="1163">PK id : uuid</text>
+<text class="key" x="116" y="1189">FK event_id : uuid</text>
+<text class="key" x="116" y="1215">FK client_id : uuid</text>
+<text class="body" x="116" y="1241">requested_start_at : timestamptz ?</text>
+<text class="body" x="116" y="1267">requested_end_at : timestamptz ?</text>
+<text class="body" x="116" y="1293">status : text</text>
+<text class="body" x="116" y="1319">conflict_count : integer</text>
+<text class="body" x="116" y="1345">checked_at : timestamptz ?</text>
+<text class="body" x="116" y="1371">created_at : timestamptz</text>
+<text class="body" x="116" y="1397">updated_at : timestamptz</text>
+<rect x="1221" y="1081" width="1066" height="373" fill="#fff" stroke="#000" stroke-width="4"/>
+<rect x="1221" y="1081" width="1066" height="52" fill="#000"/>
+<text class="header" x="1237" y="1116">event_schedule_check_results [RLS]</text>
+<text class="key" x="1237" y="1163">PK id : uuid</text>
+<text class="key" x="1237" y="1189">FK schedule_check_id : uuid</text>
+<text class="key" x="1237" y="1215">FK selection_id : uuid ?</text>
+<text class="key" x="1237" y="1241">FK provider_id : uuid ?</text>
+<text class="key" x="1237" y="1267">FK service_id : uuid ?</text>
+<text class="body" x="1237" y="1293">provider_name : text</text>
+<text class="body" x="1237" y="1319">requested_start_at : timestamptz ?</text>
+<text class="body" x="1237" y="1345">requested_end_at : timestamptz ?</text>
+<text class="body" x="1237" y="1371">is_available : boolean</text>
+<text class="body" x="1237" y="1397">conflict_reason : text ?</text>
+<text class="body" x="1237" y="1423">... +4 additional columns</text>
+<rect x="2342" y="1081" width="1066" height="373" fill="#fff" stroke="#000" stroke-width="4"/>
+<rect x="2342" y="1081" width="1066" height="52" fill="#000"/>
+<text class="header" x="2358" y="1116">coordination_tasks [RLS]</text>
+<text class="key" x="2358" y="1163">PK id : uuid</text>
+<text class="key" x="2358" y="1189">FK event_id : uuid</text>
+<text class="key" x="2358" y="1215">FK assigned_to : uuid ?</text>
+<text class="body" x="2358" y="1241">title : text</text>
+<text class="body" x="2358" y="1267">description : text ?</text>
+<text class="body" x="2358" y="1293">due_at : timestamptz ?</text>
+<text class="body" x="2358" y="1319">status : text</text>
+<text class="body" x="2358" y="1345">created_at : timestamptz</text>
+<text class="body" x="2358" y="1371">updated_at : timestamptz</text>
+<rect x="100" y="1499" width="1066" height="373" fill="#fff" stroke="#000" stroke-width="4"/>
+<rect x="100" y="1499" width="1066" height="52" fill="#000"/>
+<text class="header" x="116" y="1534">coordinator_assignment_attempts [RLS]</text>
+<text class="key" x="116" y="1581">PK id : uuid</text>
+<text class="key" x="116" y="1607">FK/UQ event_id : uuid</text>
+<text class="key" x="116" y="1633">FK coordinator_id : uuid</text>
+<text class="key" x="116" y="1659">FK assigned_by : uuid ?</text>
+<text class="body" x="116" y="1685">assignment_source : text</text>
+<text class="body" x="116" y="1711">status : text</text>
+<text class="body" x="116" y="1737">requested_at : timestamptz</text>
+<text class="body" x="116" y="1763">responded_at : timestamptz ?</text>
+<text class="body" x="116" y="1789">note : text ?</text>
+<text class="body" x="116" y="1815">created_at : timestamptz</text>
+<text class="body" x="116" y="1841">... +1 additional columns</text>
+<rect x="1221" y="1499" width="1066" height="373" fill="#fff" stroke="#000" stroke-width="4"/>
+<rect x="1221" y="1499" width="1066" height="52" fill="#000"/>
+<text class="header" x="1237" y="1534">coordinator_packages [RLS]</text>
+<text class="key" x="1237" y="1581">PK id : uuid</text>
+<text class="key" x="1237" y="1607">FK coordinator_id : uuid</text>
+<text class="body" x="1237" y="1633">name : text</text>
+<text class="body" x="1237" y="1659">description : text</text>
+<text class="body" x="1237" y="1685">event_type : text</text>
+<text class="body" x="1237" y="1711">status : text</text>
+<text class="body" x="1237" y="1737">created_at : timestamptz</text>
+<text class="body" x="1237" y="1763">updated_at : timestamptz</text>
+<rect x="2342" y="1499" width="1066" height="373" fill="#fff" stroke="#000" stroke-width="4"/>
+<rect x="2342" y="1499" width="1066" height="52" fill="#000"/>
+<text class="header" x="2358" y="1534">coordinator_package_items [RLS]</text>
+<text class="key" x="2358" y="1581">PK id : uuid</text>
+<text class="key" x="2358" y="1607">FK/UQ package_id : uuid</text>
+<text class="key" x="2358" y="1633">FK/UQ service_id : uuid</text>
+<text class="body" x="2358" y="1659">position : integer</text>
+<text class="body" x="2358" y="1685">created_at : timestamptz</text>
+<rect x="100" y="1917" width="1066" height="373" fill="#fff" stroke="#000" stroke-width="4"/>
+<rect x="100" y="1917" width="1066" height="52" fill="#000"/>
+<text class="header" x="116" y="1952">event_coordinator_package_selections [RLS]</text>
+<text class="key" x="116" y="1999">PK id : uuid</text>
+<text class="key" x="116" y="2025">FK/UQ event_id : uuid</text>
+<text class="key" x="116" y="2051">FK package_id : uuid ?</text>
+<text class="key" x="116" y="2077">FK coordinator_id : uuid</text>
+<text class="body" x="116" y="2103">package_name : text</text>
+<text class="body" x="116" y="2129">package_snapshot : jsonb</text>
+<text class="body" x="116" y="2155">service_subtotal : numeric(12,2)</text>
+<text class="body" x="116" y="2181">selected_at : timestamptz</text>
+<text class="body" x="116" y="2207">updated_at : timestamptz</text>
+<rect x="1221" y="1917" width="1066" height="373" fill="#fff" stroke="#000" stroke-width="4"/>
+<rect x="1221" y="1917" width="1066" height="52" fill="#000"/>
+<text class="header" x="1237" y="1952">event_coordinator_package_services [RLS]</text>
+<text class="key" x="1237" y="1999">PK/FK package_selection_id : uuid</text>
+<text class="key" x="1237" y="2025">PK/FK event_selection_id : uuid</text>
+<text class="body" x="1237" y="2051">created_by_package : boolean</text>
+<text class="body" x="1237" y="2077">created_at : timestamptz</text>
+<rect x="2265.0" y="1235" width="64" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="2297" y="1255" text-anchor="middle">0..*</text>
+<rect x="1185.0" y="399" width="52" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1211" y="419" text-anchor="middle">1</text>
+<rect x="646.0" y="1450" width="64" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="678" y="1470" text-anchor="middle">0..*</text>
+<rect x="652.0" y="639" width="52" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="678" y="659" text-anchor="middle">1</text>
+<rect x="2265.0" y="1653" width="64" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="2297" y="1673" text-anchor="middle">0..*</text>
+<rect x="2306.0" y="1653" width="52" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="2332" y="1673" text-anchor="middle">1</text>
+<rect x="2265.0" y="399" width="64" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="2297" y="419" text-anchor="middle">0..*</text>
+<rect x="1185.0" y="399" width="52" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1211" y="419" text-anchor="middle">1</text>
+<rect x="2265.0" y="399" width="64" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="2297" y="419" text-anchor="middle">0..*</text>
+<rect x="1185.0" y="817" width="52" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1211" y="837" text-anchor="middle">0..1</text>
+<rect x="2265.0" y="817" width="64" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="2297" y="837" text-anchor="middle">0..*</text>
+<rect x="1185.0" y="399" width="52" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1211" y="419" text-anchor="middle">1</text>
+<rect x="652.0" y="1868" width="52" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="678" y="1888" text-anchor="middle">0..1</text>
+<rect x="652.0" y="639" width="52" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="678" y="659" text-anchor="middle">1</text>
+<rect x="1179.0" y="2071" width="64" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1211" y="2091" text-anchor="middle">0..*</text>
+<rect x="1150.0" y="1653" width="52" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1176" y="1673" text-anchor="middle">0..1</text>
+<rect x="1144.0" y="2071" width="64" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1176" y="2091" text-anchor="middle">0..*</text>
+<rect x="1185.0" y="817" width="52" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1211" y="837" text-anchor="middle">1</text>
+<rect x="1144.0" y="2071" width="64" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1176" y="2091" text-anchor="middle">0..*</text>
+<rect x="1185.0" y="2071" width="52" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1211" y="2091" text-anchor="middle">1</text>
+<rect x="1144.0" y="817" width="64" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1176" y="837" text-anchor="middle">0..*</text>
+<rect x="1185.0" y="399" width="52" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1211" y="419" text-anchor="middle">1</text>
+<rect x="1144.0" y="817" width="64" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1176" y="837" text-anchor="middle">0..*</text>
+<rect x="1185.0" y="817" width="52" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1211" y="837" text-anchor="middle">0..1</text>
+<rect x="1144.0" y="399" width="64" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1176" y="419" text-anchor="middle">0..*</text>
+<rect x="1185.0" y="399" width="52" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1211" y="419" text-anchor="middle">1</text>
+<rect x="1144.0" y="1235" width="64" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1176" y="1255" text-anchor="middle">0..*</text>
+<rect x="1185.0" y="1235" width="52" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1211" y="1255" text-anchor="middle">1</text>
+<rect x="1144.0" y="1235" width="64" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1176" y="1255" text-anchor="middle">0..*</text>
+<rect x="1185.0" y="817" width="52" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1211" y="837" text-anchor="middle">0..1</text>
+<rect x="646.0" y="1032" width="64" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="678" y="1052" text-anchor="middle">0..*</text>
+<rect x="652.0" y="639" width="52" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="678" y="659" text-anchor="middle">1</text>
+<rect x="646.0" y="614" width="64" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="678" y="634" text-anchor="middle">0..*</text>
+<rect x="652.0" y="639" width="52" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="678" y="659" text-anchor="middle">1</text>
+<text class="small" x="1754.0" y="2360" text-anchor="middle">PK = primary key | FK = foreign key | UQ = unique | ? = nullable | All lines use 90-degree routing</text>
+<text class="small" x="1754.0" y="2402" text-anchor="middle">Source: live Supabase public schema (vkjmyyrxxzznbrgxzfyn), captured 2026-10-08. See the editable Draw.io file for all attributes and cross-domain links.</text>
+</svg>

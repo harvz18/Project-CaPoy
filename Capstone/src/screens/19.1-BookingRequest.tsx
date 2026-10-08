@@ -100,11 +100,16 @@ const servicesFor = (request: MerchantBookingRequest): MerchantBookedService[] =
         cateringOptionName: request.cateringOptionName,
         clientNotes: request.clientNotes,
         dietaryNotes: request.dietaryNotes,
+        downpaymentAmount: request.downpaymentAmount,
         id: request.id,
         instructions: request.instructions ?? [],
         packageDescription: request.packageDescription,
         packageInclusions: request.packageInclusions ?? [],
         packageName: request.packageName,
+        paymentStatus: request.paymentStatus,
+        platformFeePaid: request.platformFeePaid,
+        initialProviderShare: request.initialProviderShare,
+        remainingServiceBalance: request.remainingServiceBalance,
         mealType: request.mealType,
         outsideFood: request.outsideFood,
         requestedTime: request.requestedTime,
@@ -129,11 +134,16 @@ const requestForService = (
   cateringOptionName: service.cateringOptionName,
   clientNotes: service.clientNotes,
   dietaryNotes: service.dietaryNotes,
+  downpaymentAmount: service.downpaymentAmount,
   id: service.id,
   instructions: service.instructions,
   packageDescription: service.packageDescription,
   packageInclusions: service.packageInclusions,
   packageName: service.packageName,
+  paymentStatus: service.paymentStatus,
+  platformFeePaid: service.platformFeePaid,
+  initialProviderShare: service.initialProviderShare,
+  remainingServiceBalance: service.remainingServiceBalance,
   mealType: service.mealType,
   outsideFood: service.outsideFood,
   requestedTime: service.requestedTime,
@@ -315,6 +325,42 @@ export const BookingRequestDetailsScreen: React.FC<BookingRequestDetailsScreenPr
 
                 {service.packageDescription ? (
                   <Text style={styles.packageDescription}>{service.packageDescription}</Text>
+                ) : null}
+
+                {service.paymentStatus ? (
+                  <View style={styles.paymentCard}>
+                    <View style={styles.paymentCardHeader}>
+                      <View style={styles.paymentCardHeaderCopy}>
+                        <Text style={styles.miniLabel}>PAYMENT &amp; YOUR SERVICE BALANCE</Text>
+                        <Text style={styles.paymentStatus}>{service.paymentStatus}</Text>
+                      </View>
+                      <MaterialIcons color={palette.success} name="verified" size={20} />
+                    </View>
+                    <View style={styles.paymentGrid}>
+                      <PaymentAmount label="YOUR SERVICE PRICE" value={service.amount} />
+                      <PaymentAmount
+                        label="CLIENT PAYMENT RECEIVED"
+                        value={service.downpaymentAmount ?? 0}
+                      />
+                      <PaymentAmount
+                        label="INITIAL PROVIDER SHARE"
+                        value={service.initialProviderShare ?? 0}
+                      />
+                      <PaymentAmount
+                        emphasized
+                        label="REMAINING SERVICE BALANCE"
+                        value={service.remainingServiceBalance ?? 0}
+                      />
+                    </View>
+                    <Text style={styles.paymentExplanation}>
+                      The client's payment already includes MULTIVENT's {formatPrice(service.platformFeePaid ?? 0)} commission. It is not deducted from your remaining service balance.
+                    </Text>
+                    <Text style={styles.paymentTiming}>
+                      {isConfirmed || service.status === 'completed'
+                        ? 'Your initial share is recorded. The remaining service balance becomes due after event completion.'
+                        : 'Accept this service to credit your initial share. The remaining service balance becomes due after event completion.'}
+                    </Text>
+                  </View>
                 ) : null}
 
                 {service.packageInclusions.length ? (
@@ -539,6 +585,23 @@ const EventFact = ({
   </View>
 )
 
+const PaymentAmount = ({
+  emphasized = false,
+  label,
+  value,
+}: {
+  emphasized?: boolean
+  label: string
+  value: number
+}) => (
+  <View style={[styles.paymentAmount, emphasized && styles.paymentAmountEmphasized]}>
+    <Text style={styles.paymentAmountLabel}>{label}</Text>
+    <Text style={[styles.paymentAmountValue, emphasized && styles.paymentAmountValueEmphasized]}>
+      {formatPrice(value)}
+    </Text>
+  </View>
+)
+
 const palette = {
   background: '#FAF9F9',
   border: '#E3DEDD',
@@ -613,6 +676,18 @@ const styles = StyleSheet.create({
   statusTextCompleted: { color: palette.success },
   statusTextCancelled: { color: palette.cancelled },
   packageDescription: { color: palette.secondary, fontSize: 11, lineHeight: 17, marginTop: 12 },
+  paymentCard: { gap: 9, borderWidth: 1, borderColor: '#D7E5DC', borderRadius: 9, backgroundColor: '#F4FAF6', padding: 12, marginTop: 13 },
+  paymentCardHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
+  paymentCardHeaderCopy: { minWidth: 0, flex: 1 },
+  paymentStatus: { color: palette.text, fontSize: 12, lineHeight: 17, fontWeight: '700', marginTop: 2 },
+  paymentGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  paymentAmount: { minWidth: '47%', flexGrow: 1, borderRadius: 8, backgroundColor: palette.surface, padding: 9 },
+  paymentAmountEmphasized: { borderWidth: 1, borderColor: '#B9D4C3' },
+  paymentAmountLabel: { color: palette.secondary, fontSize: 7, lineHeight: 10, fontWeight: '700', letterSpacing: 0.4 },
+  paymentAmountValue: { color: palette.primaryContainer, fontSize: 12, lineHeight: 17, fontWeight: '700', marginTop: 2 },
+  paymentAmountValueEmphasized: { color: palette.success },
+  paymentExplanation: { color: palette.secondary, fontSize: 9, lineHeight: 14 },
+  paymentTiming: { color: palette.success, fontSize: 9, lineHeight: 14, fontWeight: '600' },
   inclusionsCard: { borderRadius: 9, backgroundColor: palette.surfaceLow, padding: 12, marginTop: 13, gap: 7 },
   miniLabel: { color: palette.secondary, fontSize: 8, lineHeight: 11, fontWeight: '700', letterSpacing: 0.7, marginBottom: 2 },
   inclusionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 7 },

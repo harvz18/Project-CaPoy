@@ -1,0 +1,6073 @@
+{
+  "schema": "public",
+  "tables": [
+    {
+      "name": "audit_logs",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "actor_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "actor_role",
+          "type": "user_role",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "action",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "resource_type",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "resource_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "previous_state",
+          "type": "jsonb",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "new_state",
+          "type": "jsonb",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "result",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "metadata",
+          "type": "jsonb",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "bookings",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "event_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "client_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "provider_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "service_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "package_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "requested_date",
+          "type": "date",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "requested_time",
+          "type": "time without time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "amount",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "status",
+          "type": "booking_status",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "client_notes",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "provider_notes",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "provider_amount",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "commission_rate",
+          "type": "numeric(7,6)",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "commission_amount",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "commission_model",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "catering_option_id",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "catering_option_name",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "catering_option_snapshot",
+          "type": "jsonb",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "financial_terms_version",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "initial_payment_rate",
+          "type": "numeric(7,6)",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "provider_initial_rate",
+          "type": "numeric(7,6)",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "venue_option_id",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "venue_option_name",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "venue_option_snapshot",
+          "type": "jsonb",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "venue_booked_hours",
+          "type": "numeric(8,2)",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "venue_setup_start_at",
+          "type": "timestamp without time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "venue_start_at",
+          "type": "timestamp without time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "venue_end_at",
+          "type": "timestamp without time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "cash_remittances",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "event_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "booking_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "coordinator_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "amount_expected",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "amount_received",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "received_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "received_by",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "reference_number",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "notes",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "verified_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "verified_by",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "dispute_reason",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        }
+      ],
+      "comment": "Office cash handoff records involving assigned coordinators.",
+      "rls_enabled": true
+    },
+    {
+      "name": "conversation_participants",
+      "columns": [
+        {
+          "name": "conversation_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "conversations",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "event_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "booking_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "coordination_tasks",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "event_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "assigned_to",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "due_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "coordinator_assignment_attempts",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "event_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "coordinator_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "assignment_source",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "requested_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "responded_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "assigned_by",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "note",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": "Coordinator invitation and response history used for fair assignment and decline exclusion.",
+      "rls_enabled": true
+    },
+    {
+      "name": "coordinator_availability",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "coordinator_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "starts_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "ends_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "reason",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "created_by",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "coordinator_package_items",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "package_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "service_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "position",
+          "type": "integer",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": "Ordered references to provider-owned services; no service data is duplicated.",
+      "rls_enabled": true
+    },
+    {
+      "name": "coordinator_packages",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "coordinator_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "event_type",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": "Coordinator-owned curated package definitions that reference real marketplace services.",
+      "rls_enabled": true
+    },
+    {
+      "name": "coordinator_reviews",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "event_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "coordinator_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "reviewer_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "rating",
+          "type": "integer",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "comment",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "coordinator_service_profiles",
+      "columns": [
+        {
+          "name": "coordinator_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "coordination_fee",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "currency",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "specializations",
+          "type": "text[]",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "is_accepting_bookings",
+          "type": "boolean",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "event_budget_items",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "event_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "category_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "label",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "estimated_amount",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "actual_amount",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "priority_rank",
+          "type": "integer",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "is_priority",
+          "type": "boolean",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "category_key",
+          "type": "text",
+          "unique": true,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "allocated_amount",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "allocation_version",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "is_selection_locked",
+          "type": "boolean",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "locked_selection_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "event_coordinator_instructions",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "event_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "coordinator_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "body",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "tags",
+          "type": "jsonb",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "event_coordinator_package_selections",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "event_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "package_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "coordinator_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "package_name",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "package_snapshot",
+          "type": "jsonb",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "service_subtotal",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "selected_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": "Client package choices with an audit snapshot and current centrally calculated subtotal.",
+      "rls_enabled": true
+    },
+    {
+      "name": "event_coordinator_package_services",
+      "columns": [
+        {
+          "name": "package_selection_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "event_selection_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "created_by_package",
+          "type": "boolean",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "event_feedback",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "event_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "client_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "overall_comment",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "analysis_status",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "sentiment_label",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "sentiment_score",
+          "type": "numeric",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "topic_assignments",
+          "type": "jsonb",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "analysis_metadata",
+          "type": "jsonb",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "analyzed_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "event_provider_instructions",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "event_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "selection_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "provider_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "service_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "category_name",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "instruction_type",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "body",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "tags",
+          "type": "jsonb",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "is_required",
+          "type": "boolean",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "event_requirements",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "event_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "category_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "target_budget",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "priority",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "event_schedule_check_results",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "schedule_check_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "selection_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "provider_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "service_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "provider_name",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "requested_start_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "requested_end_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "is_available",
+          "type": "boolean",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "conflict_reason",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "resolution",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "resolved_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "event_schedule_checks",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "event_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "client_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "requested_start_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "requested_end_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "conflict_count",
+          "type": "integer",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "checked_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "event_service_selections",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "event_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "client_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "provider_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "service_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "package_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "category_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "service_name",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "category_name",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "estimated_amount",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "notes",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "attendee_count",
+          "type": "integer",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "budget_per_head",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "meal_type",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "outside_food",
+          "type": "boolean",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "dietary_notes",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "favorite",
+          "type": "boolean",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "requested_start_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "requested_end_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "availability_status",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "selected_provider_snapshot",
+          "type": "jsonb",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "catering_option_id",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "catering_option_name",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "catering_option_snapshot",
+          "type": "jsonb",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "category_key",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "venue_option_id",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "venue_option_name",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "venue_option_snapshot",
+          "type": "jsonb",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "venue_booked_hours",
+          "type": "numeric(8,2)",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "venue_setup_start_at",
+          "type": "timestamp without time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "venue_start_at",
+          "type": "timestamp without time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "venue_end_at",
+          "type": "timestamp without time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "events",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "client_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "coordinator_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "event_type",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "event_date",
+          "type": "date",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "venue",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "location",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "guest_count",
+          "type": "integer",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "total_budget",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "status",
+          "type": "event_status",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "notes",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "event_time",
+          "type": "time without time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "timezone",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "preferred_start_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "preferred_end_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "venue_status",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "pending_coordinator_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "coordinator_assignment_status",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "coordinator_assignment_requested_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "coordinator_assignment_responded_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "coordinator_assignment_attempted_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "coordinator_assignment_source",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "coordinator_assignment_note",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "coordinator_preference",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "coordinator_fee_amount",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "coordinator_fee_currency",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "coordinator_pricing_snapshot",
+          "type": "jsonb",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "financial_transactions",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "payment_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "booking_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "event_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "provider_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "transaction_type",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "payment_method",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "gross_amount",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "commission_rate",
+          "type": "numeric(7,6)",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "commission_amount",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "provider_net_amount",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "amount_received",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "amount_released",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "transaction_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "metadata",
+          "type": "jsonb",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "coordinator_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "held_provider_amount",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "held_unallocated_amount",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "provider_funds_status",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "provider_credited_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        }
+      ],
+      "comment": "Commission-aware financial ledger generated from paid or verified payments.",
+      "rls_enabled": true
+    },
+    {
+      "name": "messages",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "conversation_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "sender_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "body",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "read_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "notifications",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "body",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "resource_type",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "resource_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "status",
+          "type": "notification_status",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "payments",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "booking_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "payer_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "amount",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "currency",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "provider",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "provider_reference",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "status",
+          "type": "payment_status",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "paid_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "verified_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "event_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "checkout_url",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "metadata",
+          "type": "jsonb",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "coordinator_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "payment_scope",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "service_subtotal",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "client_total",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "platform_fee_rate",
+          "type": "numeric(7,6)",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "platform_fee_amount",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "initial_payment_rate",
+          "type": "numeric(7,6)",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "provider_initial_rate",
+          "type": "numeric(7,6)",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "provider_initial_allocation",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "held_unallocated_amount",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "permissions",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "code",
+          "type": "text",
+          "unique": true,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "profiles",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "full_name",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "email",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "phone",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "avatar_url",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "default_role",
+          "type": "user_role",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "account_status",
+          "type": "account_status",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "provider_availability",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "provider_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "service_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "available_date",
+          "type": "date",
+          "unique": true,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "start_time",
+          "type": "time without time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "end_time",
+          "type": "time without time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "is_available",
+          "type": "boolean",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "notes",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "provider_notification_preferences",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "provider_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "preferences",
+          "type": "jsonb",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "provider_operating_hours",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "provider_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "day_of_week",
+          "type": "text",
+          "unique": true,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "is_open",
+          "type": "boolean",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "open_time",
+          "type": "time without time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "close_time",
+          "type": "time without time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "timezone",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "provider_payment_receipts",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "booking_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "event_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "provider_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "amount",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "source",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "reference_number",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "notes",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "received_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "recorded_by",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": "Append-only acknowledgements of money a provider received outside MULTIVENT cash custody.",
+      "rls_enabled": true
+    },
+    {
+      "name": "provider_payout_accounts",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "provider_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "account_type",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "institution_name",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "account_name",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "account_number",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "ownership_confirmed",
+          "type": "boolean",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "confirmed_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": "Provider-confirmed payout destinations. Account numbers are returned to clients only as masked last-four values.",
+      "rls_enabled": true
+    },
+    {
+      "name": "provider_payout_requests",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "provider_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "amount",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "currency",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "requested_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "processed_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "notes",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "provider_profile_merge_archive",
+      "columns": [
+        {
+          "name": "original_provider_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "kept_provider_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "profile_data",
+          "type": "jsonb",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "provider_profiles",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "business_name",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "contact_email",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "contact_phone",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "location",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "verification_status",
+          "type": "account_status",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "terms_accepted",
+          "type": "boolean",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "terms_version",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "terms_accepted_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "rejection_reason",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "reviewed_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "reviewed_by",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "provider_service_listing_drafts",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "provider_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "payload",
+          "type": "jsonb",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "reviews",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "booking_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "reviewer_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "provider_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "service_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "rating",
+          "type": "integer",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "comment",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "tags",
+          "type": "jsonb",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "analysis_status",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "sentiment_label",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "sentiment_score",
+          "type": "numeric",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "topic_assignments",
+          "type": "jsonb",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "analysis_metadata",
+          "type": "jsonb",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "analyzed_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "role_permissions",
+      "columns": [
+        {
+          "name": "role_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "permission_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "roles",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "name",
+          "type": "user_role",
+          "unique": true,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "service_categories",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "unique": true,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "icon_name",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "is_active",
+          "type": "boolean",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": false
+    },
+    {
+      "name": "service_package_items",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "package_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "service_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "quantity",
+          "type": "numeric(8,2)",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "unit_price",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "position",
+          "type": "integer",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": "Provider-owned services selected as the components of a composed package.",
+      "rls_enabled": true
+    },
+    {
+      "name": "service_packages",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "service_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "price",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "inclusions",
+          "type": "jsonb",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "is_active",
+          "type": "boolean",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "pricing_unit",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "pricing_mode",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "subtotal",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "discount_type",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "discount_value",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "discount_amount",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "is_deleted",
+          "type": "boolean",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "deleted_by",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "service_review_summaries",
+      "columns": [
+        {
+          "name": "service_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "sentiment_label",
+          "type": "text",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "summary",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "source_review_count",
+          "type": "integer",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "source_latest_analyzed_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "provider",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "generated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "services",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "provider_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "category_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "base_price",
+          "type": "numeric(12,2)",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "location",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "cover_image_url",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "gallery_urls",
+          "type": "jsonb",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "pricing_model",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "pricing_unit",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "pricing_details",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "moderation_note",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "moderated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "moderated_by",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "submission_kind",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "last_approved_snapshot",
+          "type": "jsonb",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "is_available",
+          "type": "boolean",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "catering_service_types",
+          "type": "text[]",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "category_details",
+          "type": "jsonb",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "support_messages",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "ticket_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "sender_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "body",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "is_internal",
+          "type": "boolean",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "support_tickets",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "ticket_number",
+          "type": "bigint",
+          "unique": true,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "event_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "booking_id",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "category",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "subject",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "priority",
+          "type": "text",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "assigned_to",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "resolved_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "first_responded_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "last_message_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "closed_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        }
+      ],
+      "comment": "Platform and process concerns handled by MULTIVENT Customer Service.",
+      "rls_enabled": true
+    },
+    {
+      "name": "system_settings",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "key",
+          "type": "text",
+          "unique": true,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "value",
+          "type": "jsonb",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "updated_by",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    },
+    {
+      "name": "user_permissions",
+      "columns": [
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "permission_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "granted",
+          "type": "boolean",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "assigned_by",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": "Per-user permission overrides; granted=false explicitly denies a role default.",
+      "rls_enabled": true
+    },
+    {
+      "name": "user_roles",
+      "columns": [
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "role_id",
+          "type": "uuid",
+          "unique": true,
+          "nullable": false,
+          "primary_key": true
+        },
+        {
+          "name": "assigned_by",
+          "type": "uuid",
+          "unique": false,
+          "nullable": true,
+          "primary_key": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "unique": false,
+          "nullable": false,
+          "primary_key": false
+        }
+      ],
+      "comment": null,
+      "rls_enabled": true
+    }
+  ],
+  "foreign_keys": [
+    {
+      "name": "audit_logs_actor_id_fkey",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION",
+      "source_table": "audit_logs",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "actor_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "bookings_client_id_fkey",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION",
+      "source_table": "bookings",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "client_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "bookings_event_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "bookings",
+      "target_table": "events",
+      "source_unique": false,
+      "source_columns": [
+        "event_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "bookings_package_id_fkey",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION",
+      "source_table": "bookings",
+      "target_table": "service_packages",
+      "source_unique": false,
+      "source_columns": [
+        "package_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "bookings_provider_id_fkey",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION",
+      "source_table": "bookings",
+      "target_table": "provider_profiles",
+      "source_unique": false,
+      "source_columns": [
+        "provider_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "bookings_service_id_fkey",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION",
+      "source_table": "bookings",
+      "target_table": "services",
+      "source_unique": false,
+      "source_columns": [
+        "service_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "cash_remittances_booking_id_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "source_table": "cash_remittances",
+      "target_table": "bookings",
+      "source_unique": false,
+      "source_columns": [
+        "booking_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "cash_remittances_coordinator_id_fkey",
+      "on_delete": "RESTRICT",
+      "on_update": "NO ACTION",
+      "source_table": "cash_remittances",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "coordinator_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "cash_remittances_event_id_fkey",
+      "on_delete": "RESTRICT",
+      "on_update": "NO ACTION",
+      "source_table": "cash_remittances",
+      "target_table": "events",
+      "source_unique": false,
+      "source_columns": [
+        "event_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "cash_remittances_received_by_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "source_table": "cash_remittances",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "received_by"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "cash_remittances_verified_by_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "source_table": "cash_remittances",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "verified_by"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "conversation_participants_conversation_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "conversation_participants",
+      "target_table": "conversations",
+      "source_unique": false,
+      "source_columns": [
+        "conversation_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "conversation_participants_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "conversation_participants",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "conversations_booking_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "conversations",
+      "target_table": "bookings",
+      "source_unique": false,
+      "source_columns": [
+        "booking_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "conversations_event_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "conversations",
+      "target_table": "events",
+      "source_unique": false,
+      "source_columns": [
+        "event_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "coordination_tasks_assigned_to_fkey",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION",
+      "source_table": "coordination_tasks",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "assigned_to"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "coordination_tasks_event_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "coordination_tasks",
+      "target_table": "events",
+      "source_unique": false,
+      "source_columns": [
+        "event_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "coordinator_assignment_attempts_assigned_by_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "source_table": "coordinator_assignment_attempts",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "assigned_by"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "coordinator_assignment_attempts_coordinator_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "coordinator_assignment_attempts",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "coordinator_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "coordinator_assignment_attempts_event_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "coordinator_assignment_attempts",
+      "target_table": "events",
+      "source_unique": false,
+      "source_columns": [
+        "event_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "coordinator_availability_coordinator_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "coordinator_availability",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "coordinator_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "coordinator_availability_created_by_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "source_table": "coordinator_availability",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "created_by"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "coordinator_package_items_package_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "coordinator_package_items",
+      "target_table": "coordinator_packages",
+      "source_unique": false,
+      "source_columns": [
+        "package_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "coordinator_package_items_service_id_fkey",
+      "on_delete": "RESTRICT",
+      "on_update": "NO ACTION",
+      "source_table": "coordinator_package_items",
+      "target_table": "services",
+      "source_unique": false,
+      "source_columns": [
+        "service_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "coordinator_packages_coordinator_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "coordinator_packages",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "coordinator_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "coordinator_reviews_coordinator_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "coordinator_reviews",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "coordinator_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "coordinator_reviews_event_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "coordinator_reviews",
+      "target_table": "events",
+      "source_unique": false,
+      "source_columns": [
+        "event_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "coordinator_reviews_reviewer_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "coordinator_reviews",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "reviewer_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "coordinator_service_profiles_coordinator_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "coordinator_service_profiles",
+      "target_table": "profiles",
+      "source_unique": true,
+      "source_columns": [
+        "coordinator_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "event_budget_items_category_id_fkey",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION",
+      "source_table": "event_budget_items",
+      "target_table": "service_categories",
+      "source_unique": false,
+      "source_columns": [
+        "category_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "event_budget_items_event_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "event_budget_items",
+      "target_table": "events",
+      "source_unique": false,
+      "source_columns": [
+        "event_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "event_budget_items_locked_selection_id_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "source_table": "event_budget_items",
+      "target_table": "event_service_selections",
+      "source_unique": false,
+      "source_columns": [
+        "locked_selection_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "event_coordinator_instructions_coordinator_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "event_coordinator_instructions",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "coordinator_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "event_coordinator_instructions_event_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "event_coordinator_instructions",
+      "target_table": "events",
+      "source_unique": false,
+      "source_columns": [
+        "event_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "event_coordinator_package_selections_coordinator_id_fkey",
+      "on_delete": "RESTRICT",
+      "on_update": "NO ACTION",
+      "source_table": "event_coordinator_package_selections",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "coordinator_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "event_coordinator_package_selections_event_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "event_coordinator_package_selections",
+      "target_table": "events",
+      "source_unique": true,
+      "source_columns": [
+        "event_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "event_coordinator_package_selections_package_id_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "source_table": "event_coordinator_package_selections",
+      "target_table": "coordinator_packages",
+      "source_unique": false,
+      "source_columns": [
+        "package_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "event_coordinator_package_services_event_selection_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "event_coordinator_package_services",
+      "target_table": "event_service_selections",
+      "source_unique": false,
+      "source_columns": [
+        "event_selection_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "event_coordinator_package_services_package_selection_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "event_coordinator_package_services",
+      "target_table": "event_coordinator_package_selections",
+      "source_unique": false,
+      "source_columns": [
+        "package_selection_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "event_feedback_client_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "event_feedback",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "client_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "event_feedback_event_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "event_feedback",
+      "target_table": "events",
+      "source_unique": true,
+      "source_columns": [
+        "event_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "event_provider_instructions_event_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "event_provider_instructions",
+      "target_table": "events",
+      "source_unique": false,
+      "source_columns": [
+        "event_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "event_provider_instructions_provider_id_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "source_table": "event_provider_instructions",
+      "target_table": "provider_profiles",
+      "source_unique": false,
+      "source_columns": [
+        "provider_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "event_provider_instructions_selection_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "event_provider_instructions",
+      "target_table": "event_service_selections",
+      "source_unique": false,
+      "source_columns": [
+        "selection_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "event_provider_instructions_service_id_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "source_table": "event_provider_instructions",
+      "target_table": "services",
+      "source_unique": false,
+      "source_columns": [
+        "service_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "event_requirements_category_id_fkey",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION",
+      "source_table": "event_requirements",
+      "target_table": "service_categories",
+      "source_unique": false,
+      "source_columns": [
+        "category_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "event_requirements_event_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "event_requirements",
+      "target_table": "events",
+      "source_unique": false,
+      "source_columns": [
+        "event_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "event_schedule_check_results_provider_id_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "source_table": "event_schedule_check_results",
+      "target_table": "provider_profiles",
+      "source_unique": false,
+      "source_columns": [
+        "provider_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "event_schedule_check_results_schedule_check_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "event_schedule_check_results",
+      "target_table": "event_schedule_checks",
+      "source_unique": false,
+      "source_columns": [
+        "schedule_check_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "event_schedule_check_results_selection_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "event_schedule_check_results",
+      "target_table": "event_service_selections",
+      "source_unique": false,
+      "source_columns": [
+        "selection_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "event_schedule_check_results_service_id_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "source_table": "event_schedule_check_results",
+      "target_table": "services",
+      "source_unique": false,
+      "source_columns": [
+        "service_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "event_schedule_checks_client_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "event_schedule_checks",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "client_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "event_schedule_checks_event_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "event_schedule_checks",
+      "target_table": "events",
+      "source_unique": false,
+      "source_columns": [
+        "event_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "event_service_selections_category_id_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "source_table": "event_service_selections",
+      "target_table": "service_categories",
+      "source_unique": false,
+      "source_columns": [
+        "category_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "event_service_selections_client_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "event_service_selections",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "client_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "event_service_selections_event_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "event_service_selections",
+      "target_table": "events",
+      "source_unique": false,
+      "source_columns": [
+        "event_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "event_service_selections_package_id_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "source_table": "event_service_selections",
+      "target_table": "service_packages",
+      "source_unique": false,
+      "source_columns": [
+        "package_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "event_service_selections_provider_id_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "source_table": "event_service_selections",
+      "target_table": "provider_profiles",
+      "source_unique": false,
+      "source_columns": [
+        "provider_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "event_service_selections_service_id_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "source_table": "event_service_selections",
+      "target_table": "services",
+      "source_unique": false,
+      "source_columns": [
+        "service_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "events_client_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "events",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "client_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "events_coordinator_id_fkey",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION",
+      "source_table": "events",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "coordinator_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "events_pending_coordinator_id_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "source_table": "events",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "pending_coordinator_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "financial_transactions_booking_id_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "source_table": "financial_transactions",
+      "target_table": "bookings",
+      "source_unique": false,
+      "source_columns": [
+        "booking_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "financial_transactions_coordinator_id_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "source_table": "financial_transactions",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "coordinator_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "financial_transactions_event_id_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "source_table": "financial_transactions",
+      "target_table": "events",
+      "source_unique": false,
+      "source_columns": [
+        "event_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "financial_transactions_payment_id_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "source_table": "financial_transactions",
+      "target_table": "payments",
+      "source_unique": false,
+      "source_columns": [
+        "payment_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "financial_transactions_provider_id_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "source_table": "financial_transactions",
+      "target_table": "provider_profiles",
+      "source_unique": false,
+      "source_columns": [
+        "provider_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "messages_conversation_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "messages",
+      "target_table": "conversations",
+      "source_unique": false,
+      "source_columns": [
+        "conversation_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "messages_sender_id_fkey",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION",
+      "source_table": "messages",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "sender_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "notifications_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "notifications",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "payments_booking_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "payments",
+      "target_table": "bookings",
+      "source_unique": false,
+      "source_columns": [
+        "booking_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "payments_coordinator_id_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "source_table": "payments",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "coordinator_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "payments_event_id_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "source_table": "payments",
+      "target_table": "events",
+      "source_unique": false,
+      "source_columns": [
+        "event_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "payments_payer_id_fkey",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION",
+      "source_table": "payments",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "payer_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "provider_availability_provider_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "provider_availability",
+      "target_table": "provider_profiles",
+      "source_unique": false,
+      "source_columns": [
+        "provider_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "provider_availability_service_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "provider_availability",
+      "target_table": "services",
+      "source_unique": false,
+      "source_columns": [
+        "service_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "provider_notification_preferences_provider_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "provider_notification_preferences",
+      "target_table": "provider_profiles",
+      "source_unique": true,
+      "source_columns": [
+        "provider_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "provider_notification_preferences_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "provider_notification_preferences",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "provider_operating_hours_provider_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "provider_operating_hours",
+      "target_table": "provider_profiles",
+      "source_unique": false,
+      "source_columns": [
+        "provider_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "provider_payment_receipts_booking_id_fkey",
+      "on_delete": "RESTRICT",
+      "on_update": "NO ACTION",
+      "source_table": "provider_payment_receipts",
+      "target_table": "bookings",
+      "source_unique": false,
+      "source_columns": [
+        "booking_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "provider_payment_receipts_event_id_fkey",
+      "on_delete": "RESTRICT",
+      "on_update": "NO ACTION",
+      "source_table": "provider_payment_receipts",
+      "target_table": "events",
+      "source_unique": false,
+      "source_columns": [
+        "event_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "provider_payment_receipts_provider_id_fkey",
+      "on_delete": "RESTRICT",
+      "on_update": "NO ACTION",
+      "source_table": "provider_payment_receipts",
+      "target_table": "provider_profiles",
+      "source_unique": false,
+      "source_columns": [
+        "provider_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "provider_payment_receipts_recorded_by_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "source_table": "provider_payment_receipts",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "recorded_by"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "provider_payout_accounts_provider_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "provider_payout_accounts",
+      "target_table": "provider_profiles",
+      "source_unique": true,
+      "source_columns": [
+        "provider_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "provider_payout_requests_provider_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "provider_payout_requests",
+      "target_table": "provider_profiles",
+      "source_unique": false,
+      "source_columns": [
+        "provider_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "provider_profiles_reviewed_by_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "source_table": "provider_profiles",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "reviewed_by"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "provider_profiles_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "provider_profiles",
+      "target_table": "profiles",
+      "source_unique": true,
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "provider_service_listing_drafts_provider_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "provider_service_listing_drafts",
+      "target_table": "provider_profiles",
+      "source_unique": true,
+      "source_columns": [
+        "provider_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "reviews_booking_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "reviews",
+      "target_table": "bookings",
+      "source_unique": true,
+      "source_columns": [
+        "booking_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "reviews_provider_id_fkey",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION",
+      "source_table": "reviews",
+      "target_table": "provider_profiles",
+      "source_unique": false,
+      "source_columns": [
+        "provider_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "reviews_reviewer_id_fkey",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION",
+      "source_table": "reviews",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "reviewer_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "reviews_service_id_fkey",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION",
+      "source_table": "reviews",
+      "target_table": "services",
+      "source_unique": false,
+      "source_columns": [
+        "service_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "role_permissions_permission_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "role_permissions",
+      "target_table": "permissions",
+      "source_unique": false,
+      "source_columns": [
+        "permission_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "role_permissions_role_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "role_permissions",
+      "target_table": "roles",
+      "source_unique": false,
+      "source_columns": [
+        "role_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "service_package_items_package_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "service_package_items",
+      "target_table": "service_packages",
+      "source_unique": false,
+      "source_columns": [
+        "package_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "service_package_items_service_id_fkey",
+      "on_delete": "RESTRICT",
+      "on_update": "NO ACTION",
+      "source_table": "service_package_items",
+      "target_table": "services",
+      "source_unique": false,
+      "source_columns": [
+        "service_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "service_packages_deleted_by_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "source_table": "service_packages",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "deleted_by"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "service_packages_service_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "service_packages",
+      "target_table": "services",
+      "source_unique": false,
+      "source_columns": [
+        "service_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "service_review_summaries_service_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "service_review_summaries",
+      "target_table": "services",
+      "source_unique": false,
+      "source_columns": [
+        "service_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "services_category_id_fkey",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION",
+      "source_table": "services",
+      "target_table": "service_categories",
+      "source_unique": false,
+      "source_columns": [
+        "category_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "services_moderated_by_fkey",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION",
+      "source_table": "services",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "moderated_by"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "services_provider_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "services",
+      "target_table": "provider_profiles",
+      "source_unique": false,
+      "source_columns": [
+        "provider_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "support_messages_sender_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "support_messages",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "sender_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "support_messages_ticket_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "support_messages",
+      "target_table": "support_tickets",
+      "source_unique": false,
+      "source_columns": [
+        "ticket_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "support_tickets_assigned_to_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "source_table": "support_tickets",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "assigned_to"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "support_tickets_booking_id_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "source_table": "support_tickets",
+      "target_table": "bookings",
+      "source_unique": false,
+      "source_columns": [
+        "booking_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "support_tickets_event_id_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "source_table": "support_tickets",
+      "target_table": "events",
+      "source_unique": false,
+      "source_columns": [
+        "event_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "support_tickets_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "support_tickets",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "system_settings_updated_by_fkey",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION",
+      "source_table": "system_settings",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "updated_by"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "user_permissions_assigned_by_fkey",
+      "on_delete": "SET NULL",
+      "on_update": "NO ACTION",
+      "source_table": "user_permissions",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "assigned_by"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "user_permissions_permission_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "user_permissions",
+      "target_table": "permissions",
+      "source_unique": false,
+      "source_columns": [
+        "permission_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "user_permissions_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "user_permissions",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "user_roles_assigned_by_fkey",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION",
+      "source_table": "user_roles",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "assigned_by"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": true
+    },
+    {
+      "name": "user_roles_role_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "user_roles",
+      "target_table": "roles",
+      "source_unique": false,
+      "source_columns": [
+        "role_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    },
+    {
+      "name": "user_roles_user_id_fkey",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "source_table": "user_roles",
+      "target_table": "profiles",
+      "source_unique": false,
+      "source_columns": [
+        "user_id"
+      ],
+      "target_columns": [
+        "id"
+      ],
+      "source_nullable": false
+    }
+  ]
+}
+

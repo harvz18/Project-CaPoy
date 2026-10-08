@@ -1,0 +1,130 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3508" height="2480" viewBox="0 0 3508 2480">
+<rect width="100%" height="100%" fill="white"/>
+<style>text{font-family:Arial,sans-serif;fill:#000}.title{font-size:48px;font-weight:700}.subtitle{font-size:27px}.header{font-size:24px;font-weight:700;fill:#fff}.body{font-size:19px}.key{font-size:19px;font-weight:700}.small{font-size:17px}</style>
+<text class="title" x="1754.0" y="82" text-anchor="middle">MULTIVENT Live ERD - Booking and Finance</text>
+<text class="subtitle" x="1754.0" y="135" text-anchor="middle">7 tables | 5 internal foreign keys | 23 cross-domain foreign keys</text>
+<text class="small" x="1754.0" y="188" text-anchor="middle">Cardinality: 1 = exactly one; 0..1 = optional one; 0..* = zero or many</text>
+<polyline points="633,941 633,912 633,912 633,896" fill="none" stroke="#000" stroke-width="3"/>
+<polyline points="2342,570 1754,570 1754,570 1166,570" fill="none" stroke="#000" stroke-width="3"/>
+<polyline points="2342,570 2322,570 2322,570 2287,570" fill="none" stroke="#000" stroke-width="3"/>
+<polyline points="1221,570 1209,570 1209,570 1166,570" fill="none" stroke="#000" stroke-width="3"/>
+<polyline points="1221,1266 1177,1266 1177,570 1166,570" fill="none" stroke="#000" stroke-width="3"/>
+<rect x="100" y="245" width="1066" height="651" fill="#fff" stroke="#000" stroke-width="4"/>
+<rect x="100" y="245" width="1066" height="52" fill="#000"/>
+<text class="header" x="116" y="280">bookings [RLS]</text>
+<text class="key" x="116" y="327">PK id : uuid</text>
+<text class="key" x="116" y="353">FK/UQ event_id : uuid</text>
+<text class="key" x="116" y="379">FK/UQ client_id : uuid</text>
+<text class="key" x="116" y="405">FK/UQ provider_id : uuid</text>
+<text class="key" x="116" y="431">FK/UQ service_id : uuid</text>
+<text class="key" x="116" y="457">FK package_id : uuid ?</text>
+<text class="body" x="116" y="483">requested_date : date ?</text>
+<text class="body" x="116" y="509">requested_time : time without time zone ?</text>
+<text class="body" x="116" y="535">amount : numeric(12,2) ?</text>
+<text class="body" x="116" y="561">status : booking_status</text>
+<text class="body" x="116" y="587">... +21 additional columns</text>
+<rect x="1221" y="245" width="1066" height="651" fill="#fff" stroke="#000" stroke-width="4"/>
+<rect x="1221" y="245" width="1066" height="52" fill="#000"/>
+<text class="header" x="1237" y="280">payments [RLS]</text>
+<text class="key" x="1237" y="327">PK id : uuid</text>
+<text class="key" x="1237" y="353">FK booking_id : uuid ?</text>
+<text class="key" x="1237" y="379">FK payer_id : uuid</text>
+<text class="key" x="1237" y="405">FK event_id : uuid ?</text>
+<text class="key" x="1237" y="431">FK coordinator_id : uuid ?</text>
+<text class="body" x="1237" y="457">amount : numeric(12,2)</text>
+<text class="body" x="1237" y="483">currency : text</text>
+<text class="body" x="1237" y="509">provider : text</text>
+<text class="body" x="1237" y="535">provider_reference : text ?</text>
+<text class="body" x="1237" y="561">status : payment_status</text>
+<text class="body" x="1237" y="587">... +15 additional columns</text>
+<rect x="2342" y="245" width="1066" height="651" fill="#fff" stroke="#000" stroke-width="4"/>
+<rect x="2342" y="245" width="1066" height="52" fill="#000"/>
+<text class="header" x="2358" y="280">financial_transactions [RLS]</text>
+<text class="key" x="2358" y="327">PK id : uuid</text>
+<text class="key" x="2358" y="353">FK/UQ payment_id : uuid ?</text>
+<text class="key" x="2358" y="379">FK booking_id : uuid ?</text>
+<text class="key" x="2358" y="405">FK event_id : uuid ?</text>
+<text class="key" x="2358" y="431">FK provider_id : uuid ?</text>
+<text class="key" x="2358" y="457">FK coordinator_id : uuid ?</text>
+<text class="body" x="2358" y="483">transaction_type : text</text>
+<text class="body" x="2358" y="509">payment_method : text ?</text>
+<text class="body" x="2358" y="535">gross_amount : numeric(12,2)</text>
+<text class="body" x="2358" y="561">commission_rate : numeric(7,6)</text>
+<text class="body" x="2358" y="587">... +13 additional columns</text>
+<rect x="100" y="941" width="1066" height="651" fill="#fff" stroke="#000" stroke-width="4"/>
+<rect x="100" y="941" width="1066" height="52" fill="#000"/>
+<text class="header" x="116" y="976">cash_remittances [RLS]</text>
+<text class="key" x="116" y="1023">PK id : uuid</text>
+<text class="key" x="116" y="1049">FK event_id : uuid</text>
+<text class="key" x="116" y="1075">FK booking_id : uuid ?</text>
+<text class="key" x="116" y="1101">FK coordinator_id : uuid</text>
+<text class="key" x="116" y="1127">FK received_by : uuid ?</text>
+<text class="key" x="116" y="1153">FK verified_by : uuid ?</text>
+<text class="body" x="116" y="1179">amount_expected : numeric(12,2)</text>
+<text class="body" x="116" y="1205">amount_received : numeric(12,2)</text>
+<text class="body" x="116" y="1231">received_at : timestamptz ?</text>
+<text class="body" x="116" y="1257">status : text</text>
+<text class="body" x="116" y="1283">... +6 additional columns</text>
+<rect x="1221" y="941" width="1066" height="651" fill="#fff" stroke="#000" stroke-width="4"/>
+<rect x="1221" y="941" width="1066" height="52" fill="#000"/>
+<text class="header" x="1237" y="976">provider_payment_receipts [RLS]</text>
+<text class="key" x="1237" y="1023">PK id : uuid</text>
+<text class="key" x="1237" y="1049">FK booking_id : uuid</text>
+<text class="key" x="1237" y="1075">FK event_id : uuid</text>
+<text class="key" x="1237" y="1101">FK provider_id : uuid</text>
+<text class="key" x="1237" y="1127">FK recorded_by : uuid ?</text>
+<text class="body" x="1237" y="1153">amount : numeric(12,2)</text>
+<text class="body" x="1237" y="1179">source : text</text>
+<text class="body" x="1237" y="1205">reference_number : text ?</text>
+<text class="body" x="1237" y="1231">notes : text ?</text>
+<text class="body" x="1237" y="1257">received_at : timestamptz</text>
+<text class="body" x="1237" y="1283">... +1 additional columns</text>
+<rect x="2342" y="941" width="1066" height="651" fill="#fff" stroke="#000" stroke-width="4"/>
+<rect x="2342" y="941" width="1066" height="52" fill="#000"/>
+<text class="header" x="2358" y="976">provider_payout_accounts [RLS]</text>
+<text class="key" x="2358" y="1023">PK id : uuid</text>
+<text class="key" x="2358" y="1049">FK/UQ provider_id : uuid</text>
+<text class="body" x="2358" y="1075">account_type : text</text>
+<text class="body" x="2358" y="1101">institution_name : text</text>
+<text class="body" x="2358" y="1127">account_name : text</text>
+<text class="body" x="2358" y="1153">account_number : text</text>
+<text class="body" x="2358" y="1179">ownership_confirmed : boolean</text>
+<text class="body" x="2358" y="1205">confirmed_at : timestamptz ?</text>
+<text class="body" x="2358" y="1231">created_at : timestamptz</text>
+<text class="body" x="2358" y="1257">updated_at : timestamptz</text>
+<rect x="100" y="1637" width="1066" height="651" fill="#fff" stroke="#000" stroke-width="4"/>
+<rect x="100" y="1637" width="1066" height="52" fill="#000"/>
+<text class="header" x="116" y="1672">provider_payout_requests [RLS]</text>
+<text class="key" x="116" y="1719">PK id : uuid</text>
+<text class="key" x="116" y="1745">FK provider_id : uuid</text>
+<text class="body" x="116" y="1771">amount : numeric(12,2)</text>
+<text class="body" x="116" y="1797">currency : text</text>
+<text class="body" x="116" y="1823">status : text</text>
+<text class="body" x="116" y="1849">requested_at : timestamptz</text>
+<text class="body" x="116" y="1875">processed_at : timestamptz ?</text>
+<text class="body" x="116" y="1901">notes : text ?</text>
+<text class="body" x="116" y="1927">created_at : timestamptz</text>
+<text class="body" x="116" y="1953">updated_at : timestamptz</text>
+<rect x="646.0" y="892" width="64" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="678" y="912" text-anchor="middle">0..*</text>
+<rect x="652.0" y="917" width="52" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="678" y="937" text-anchor="middle">0..1</text>
+<rect x="2265.0" y="538" width="64" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="2297" y="558" text-anchor="middle">0..*</text>
+<rect x="1185.0" y="538" width="52" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1211" y="558" text-anchor="middle">0..1</text>
+<rect x="2265.0" y="538" width="64" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="2297" y="558" text-anchor="middle">0..*</text>
+<rect x="2306.0" y="538" width="52" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="2332" y="558" text-anchor="middle">0..1</text>
+<rect x="1144.0" y="538" width="64" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1176" y="558" text-anchor="middle">0..*</text>
+<rect x="1185.0" y="538" width="52" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1211" y="558" text-anchor="middle">0..1</text>
+<rect x="1144.0" y="1234" width="64" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1176" y="1254" text-anchor="middle">0..*</text>
+<rect x="1185.0" y="538" width="52" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1211" y="558" text-anchor="middle">1</text>
+<text class="small" x="1754.0" y="2360" text-anchor="middle">PK = primary key | FK = foreign key | UQ = unique | ? = nullable | All lines use 90-degree routing</text>
+<text class="small" x="1754.0" y="2402" text-anchor="middle">Source: live Supabase public schema (vkjmyyrxxzznbrgxzfyn), captured 2026-10-08. See the editable Draw.io file for all attributes and cross-domain links.</text>
+</svg>

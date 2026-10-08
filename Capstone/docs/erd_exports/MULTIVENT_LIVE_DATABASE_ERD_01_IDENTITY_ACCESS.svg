@@ -1,0 +1,129 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3508" height="2480" viewBox="0 0 3508 2480">
+<rect width="100%" height="100%" fill="white"/>
+<style>text{font-family:Arial,sans-serif;fill:#000}.title{font-size:48px;font-weight:700}.subtitle{font-size:27px}.header{font-size:24px;font-weight:700;fill:#fff}.body{font-size:19px}.key{font-size:19px;font-weight:700}.small{font-size:17px}</style>
+<text class="title" x="1754.0" y="82" text-anchor="middle">MULTIVENT Live ERD - Identity and Access</text>
+<text class="subtitle" x="1754.0" y="135" text-anchor="middle">8 tables | 10 internal foreign keys | 51 cross-domain foreign keys</text>
+<text class="small" x="1754.0" y="188" text-anchor="middle">Cardinality: 1 = exactly one; 0..1 = optional one; 0..* = zero or many</text>
+<polyline points="633,1637 633,1260 633,1260 633,896" fill="none" stroke="#000" stroke-width="3"/>
+<polyline points="633,1637 633,1266 633,1266 633,896" fill="none" stroke="#000" stroke-width="3"/>
+<polyline points="1166,1266 1762,1266 1762,570 2342,570" fill="none" stroke="#000" stroke-width="3"/>
+<polyline points="1166,1266 1209,1266 1209,570 1221,570" fill="none" stroke="#000" stroke-width="3"/>
+<polyline points="2342,1266 1738,1266 1738,570 1166,570" fill="none" stroke="#000" stroke-width="3"/>
+<polyline points="2875,941 2875,912 2875,912 2875,896" fill="none" stroke="#000" stroke-width="3"/>
+<polyline points="2342,1266 1754,1266 1754,570 1166,570" fill="none" stroke="#000" stroke-width="3"/>
+<polyline points="1221,1266 1201,1266 1201,570 1166,570" fill="none" stroke="#000" stroke-width="3"/>
+<polyline points="1754,941 1754,930 1754,930 1754,896" fill="none" stroke="#000" stroke-width="3"/>
+<polyline points="1221,1266 1177,1266 1177,570 1166,570" fill="none" stroke="#000" stroke-width="3"/>
+<rect x="100" y="245" width="1066" height="651" fill="#fff" stroke="#000" stroke-width="4"/>
+<rect x="100" y="245" width="1066" height="52" fill="#000"/>
+<text class="header" x="116" y="280">profiles [RLS]</text>
+<text class="key" x="116" y="327">PK id : uuid</text>
+<text class="body" x="116" y="353">full_name : text ?</text>
+<text class="body" x="116" y="379">email : text ?</text>
+<text class="body" x="116" y="405">phone : text ?</text>
+<text class="body" x="116" y="431">avatar_url : text ?</text>
+<text class="body" x="116" y="457">default_role : user_role</text>
+<text class="body" x="116" y="483">account_status : account_status</text>
+<text class="body" x="116" y="509">created_at : timestamptz</text>
+<text class="body" x="116" y="535">updated_at : timestamptz</text>
+<rect x="1221" y="245" width="1066" height="651" fill="#fff" stroke="#000" stroke-width="4"/>
+<rect x="1221" y="245" width="1066" height="52" fill="#000"/>
+<text class="header" x="1237" y="280">roles [RLS]</text>
+<text class="key" x="1237" y="327">PK id : uuid</text>
+<text class="body" x="1237" y="353">UQ name : user_role</text>
+<text class="body" x="1237" y="379">description : text ?</text>
+<text class="body" x="1237" y="405">created_at : timestamptz</text>
+<rect x="2342" y="245" width="1066" height="651" fill="#fff" stroke="#000" stroke-width="4"/>
+<rect x="2342" y="245" width="1066" height="52" fill="#000"/>
+<text class="header" x="2358" y="280">permissions [RLS]</text>
+<text class="key" x="2358" y="327">PK id : uuid</text>
+<text class="body" x="2358" y="353">UQ code : text</text>
+<text class="body" x="2358" y="379">description : text ?</text>
+<text class="body" x="2358" y="405">created_at : timestamptz</text>
+<rect x="100" y="941" width="1066" height="651" fill="#fff" stroke="#000" stroke-width="4"/>
+<rect x="100" y="941" width="1066" height="52" fill="#000"/>
+<text class="header" x="116" y="976">role_permissions [RLS]</text>
+<text class="key" x="116" y="1023">PK/FK role_id : uuid</text>
+<text class="key" x="116" y="1049">PK/FK permission_id : uuid</text>
+<text class="body" x="116" y="1075">created_at : timestamptz</text>
+<rect x="1221" y="941" width="1066" height="651" fill="#fff" stroke="#000" stroke-width="4"/>
+<rect x="1221" y="941" width="1066" height="52" fill="#000"/>
+<text class="header" x="1237" y="976">user_roles [RLS]</text>
+<text class="key" x="1237" y="1023">PK/FK user_id : uuid</text>
+<text class="key" x="1237" y="1049">PK/FK role_id : uuid</text>
+<text class="key" x="1237" y="1075">FK assigned_by : uuid ?</text>
+<text class="body" x="1237" y="1101">created_at : timestamptz</text>
+<rect x="2342" y="941" width="1066" height="651" fill="#fff" stroke="#000" stroke-width="4"/>
+<rect x="2342" y="941" width="1066" height="52" fill="#000"/>
+<text class="header" x="2358" y="976">user_permissions [RLS]</text>
+<text class="key" x="2358" y="1023">PK/FK user_id : uuid</text>
+<text class="key" x="2358" y="1049">PK/FK permission_id : uuid</text>
+<text class="key" x="2358" y="1075">FK assigned_by : uuid ?</text>
+<text class="body" x="2358" y="1101">granted : boolean</text>
+<text class="body" x="2358" y="1127">created_at : timestamptz</text>
+<text class="body" x="2358" y="1153">updated_at : timestamptz</text>
+<rect x="100" y="1637" width="1066" height="651" fill="#fff" stroke="#000" stroke-width="4"/>
+<rect x="100" y="1637" width="1066" height="52" fill="#000"/>
+<text class="header" x="116" y="1672">provider_profiles [RLS]</text>
+<text class="key" x="116" y="1719">PK id : uuid</text>
+<text class="key" x="116" y="1745">FK/UQ user_id : uuid</text>
+<text class="key" x="116" y="1771">FK reviewed_by : uuid ?</text>
+<text class="body" x="116" y="1797">business_name : text</text>
+<text class="body" x="116" y="1823">description : text ?</text>
+<text class="body" x="116" y="1849">contact_email : text ?</text>
+<text class="body" x="116" y="1875">contact_phone : text ?</text>
+<text class="body" x="116" y="1901">location : text ?</text>
+<text class="body" x="116" y="1927">verification_status : account_status</text>
+<text class="body" x="116" y="1953">terms_accepted : boolean</text>
+<text class="body" x="116" y="1979">... +6 additional columns</text>
+<rect x="1221" y="1637" width="1066" height="651" fill="#fff" stroke="#000" stroke-width="4"/>
+<rect x="1221" y="1637" width="1066" height="52" fill="#000"/>
+<text class="header" x="1237" y="1672">provider_profile_merge_archive [RLS]</text>
+<text class="key" x="1237" y="1719">PK original_provider_id : uuid</text>
+<text class="body" x="1237" y="1745">user_id : uuid</text>
+<text class="body" x="1237" y="1771">kept_provider_id : uuid</text>
+<text class="body" x="1237" y="1797">profile_data : jsonb</text>
+<text class="body" x="1237" y="1823">archived_at : timestamptz</text>
+<rect x="646.0" y="1588" width="64" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="678" y="1608" text-anchor="middle">0..*</text>
+<rect x="652.0" y="917" width="52" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="678" y="937" text-anchor="middle">0..1</text>
+<rect x="652.0" y="1588" width="52" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="678" y="1608" text-anchor="middle">0..1</text>
+<rect x="652.0" y="917" width="52" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="678" y="937" text-anchor="middle">1</text>
+<rect x="1179.0" y="1234" width="64" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1211" y="1254" text-anchor="middle">0..*</text>
+<rect x="2271.0" y="538" width="52" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="2297" y="558" text-anchor="middle">1</text>
+<rect x="1179.0" y="1234" width="64" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1211" y="1254" text-anchor="middle">0..*</text>
+<rect x="1150.0" y="538" width="52" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1176" y="558" text-anchor="middle">1</text>
+<rect x="2265.0" y="1234" width="64" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="2297" y="1254" text-anchor="middle">0..*</text>
+<rect x="1185.0" y="538" width="52" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1211" y="558" text-anchor="middle">0..1</text>
+<rect x="2888.0" y="892" width="64" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="2920" y="912" text-anchor="middle">0..*</text>
+<rect x="2894.0" y="917" width="52" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="2920" y="937" text-anchor="middle">1</text>
+<rect x="2265.0" y="1234" width="64" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="2297" y="1254" text-anchor="middle">0..*</text>
+<rect x="1185.0" y="538" width="52" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1211" y="558" text-anchor="middle">1</text>
+<rect x="1144.0" y="1234" width="64" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1176" y="1254" text-anchor="middle">0..*</text>
+<rect x="1185.0" y="538" width="52" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1211" y="558" text-anchor="middle">0..1</text>
+<rect x="1767.0" y="892" width="64" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1799" y="912" text-anchor="middle">0..*</text>
+<rect x="1773.0" y="917" width="52" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1799" y="937" text-anchor="middle">1</text>
+<rect x="1144.0" y="1234" width="64" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1176" y="1254" text-anchor="middle">0..*</text>
+<rect x="1185.0" y="538" width="52" height="28" fill="#fff" stroke="#000"/>
+<text class="small" x="1211" y="558" text-anchor="middle">1</text>
+<text class="small" x="1754.0" y="2360" text-anchor="middle">PK = primary key | FK = foreign key | UQ = unique | ? = nullable | All lines use 90-degree routing</text>
+<text class="small" x="1754.0" y="2402" text-anchor="middle">Source: live Supabase public schema (vkjmyyrxxzznbrgxzfyn), captured 2026-10-08. See the editable Draw.io file for all attributes and cross-domain links.</text>
+</svg>

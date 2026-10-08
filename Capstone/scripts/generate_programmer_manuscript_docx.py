@@ -29,20 +29,22 @@ from docx.shared import Inches, Pt, RGBColor
 
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / "docs" / "MULTIVENT_PROGRAMMER_MANUSCRIPT.docx"
+OUTPUT = ROOT / "docs" / "MULTIVENT_PROGRAMMER_MANUSCRIPT_BLACK_AND_WHITE_ERD_REVISED.docx"
 
-WINE = "76243A"
-WINE_DARK = "4B1625"
-GOLD = "B88A44"
-CREAM = "FBF7F1"
-LIGHT_WINE = "F6EAED"
-LIGHT_GOLD = "F5EBDD"
-LIGHT_GRAY = "F1F3F5"
-MID_GRAY = "D9DEE3"
-DARK = "25282D"
+# Print-safe manuscript theme: pure black ink on white paper. The legacy color
+# edition remains untouched; this generator now creates a separate B&W file.
+WINE = "000000"
+WINE_DARK = "000000"
+GOLD = "000000"
+CREAM = "FFFFFF"
+LIGHT_WINE = "FFFFFF"
+LIGHT_GOLD = "FFFFFF"
+LIGHT_GRAY = "FFFFFF"
+MID_GRAY = "000000"
+DARK = "000000"
 WHITE = "FFFFFF"
-GREEN = "DDEFE5"
-BLUE = "DDEAF5"
+GREEN = "FFFFFF"
+BLUE = "FFFFFF"
 
 
 def hex_rgb(value: str) -> RGBColor:
@@ -92,7 +94,7 @@ def set_cell_text(cell, text: str, *, bold=False, color=None, size=8.4) -> None:
     paragraph.paragraph_format.space_after = Pt(0)
     run = paragraph.add_run(str(text))
     run.bold = bold
-    run.font.name = "Aptos"
+    run.font.name = "Times New Roman"
     run.font.size = Pt(size)
     if color:
         run.font.color.rgb = hex_rgb(color)
@@ -115,8 +117,7 @@ def add_table(document: Document, headers: list[str], rows: list[list[str]], wid
         prevent_row_split(row)
         for column_index, value in enumerate(values):
             set_cell_text(row.cells[column_index], value, size=font_size)
-            if row_index % 2:
-                shade(row.cells[column_index], LIGHT_GRAY)
+            shade(row.cells[column_index], WHITE)
     if widths:
         for row in table.rows:
             for index, width in enumerate(widths):
@@ -127,7 +128,7 @@ def add_table(document: Document, headers: list[str], rows: list[list[str]], wid
 def add_page_field(paragraph) -> None:
     paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     run = paragraph.add_run("Page ")
-    run.font.name = "Aptos"
+    run.font.name = "Times New Roman"
     run.font.size = Pt(8.5)
     fld = OxmlElement("w:fldSimple")
     fld.set(qn("w:instr"), "PAGE")
@@ -212,20 +213,20 @@ def configure_document(document: Document) -> None:
 
     styles = document.styles
     normal = styles["Normal"]
-    normal.font.name = "Aptos"
-    normal.font.size = Pt(10)
+    normal.font.name = "Times New Roman"
+    normal.font.size = Pt(11)
     normal.font.color.rgb = hex_rgb(DARK)
     normal.paragraph_format.line_spacing = 1.13
     normal.paragraph_format.space_after = Pt(5)
 
     title = styles["Title"]
-    title.font.name = "Aptos Display"
+    title.font.name = "Times New Roman"
     title.font.size = Pt(29)
     title.font.bold = True
     title.font.color.rgb = hex_rgb(WINE)
 
     subtitle = styles["Subtitle"]
-    subtitle.font.name = "Aptos"
+    subtitle.font.name = "Times New Roman"
     subtitle.font.size = Pt(14)
     subtitle.font.color.rgb = hex_rgb(GOLD)
 
@@ -235,7 +236,7 @@ def configure_document(document: Document) -> None:
         ("Heading 3", 11, 9, 4),
     ):
         style = styles[name]
-        style.font.name = "Aptos Display"
+        style.font.name = "Times New Roman"
         style.font.size = Pt(size)
         style.font.bold = True
         style.font.color.rgb = hex_rgb(WINE)
@@ -247,7 +248,7 @@ def configure_document(document: Document) -> None:
         header = section.header.paragraphs[0]
         header.text = "MULTIVENT  |  Programmer’s Chapter Manuscript"
         header.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        header.runs[0].font.name = "Aptos"
+        header.runs[0].font.name = "Times New Roman"
         header.runs[0].font.size = Pt(8)
         header.runs[0].font.color.rgb = hex_rgb(WINE)
         add_page_field(section.footer.paragraphs[0])
@@ -268,32 +269,64 @@ def setup_plot(width=12, height=7):
     return fig, ax
 
 
-def box(ax, xy, wh, title, lines=(), fill="#F6EAED", edge="#76243A", title_color="#4B1625",
+def box(ax, xy, wh, title, lines=(), fill="#FFFFFF", edge="#000000", title_color="#000000",
         fontsize=8.5, radius=0.12):
     x, y = xy
     w, h = wh
     patch = FancyBboxPatch(
         (x, y), w, h,
         boxstyle=f"round,pad=0.04,rounding_size={radius}",
-        linewidth=1.4, edgecolor=edge, facecolor=fill,
+        linewidth=1.4, edgecolor="#000000", facecolor="#FFFFFF",
     )
     ax.add_patch(patch)
     ax.text(x + w / 2, y + h - 0.26, title, ha="center", va="top",
-            fontsize=fontsize + 0.5, fontweight="bold", color=title_color)
+            fontsize=fontsize + 0.5, fontweight="bold", color="#000000")
     if lines:
         ax.text(x + 0.16, y + h - 0.65, "\n".join(lines), ha="left", va="top",
-                fontsize=fontsize, color="#25282D", linespacing=1.25)
+                fontsize=fontsize, color="#000000", linespacing=1.25)
     return patch
 
 
-def arrow(ax, start, end, label=None, color="#59636E", style="-|>", connection="arc3"):
-    patch = FancyArrowPatch(start, end, arrowstyle=style, mutation_scale=13,
-                            linewidth=1.4, color=color, connectionstyle=connection)
+def routed_arrow(ax, points, label=None):
+    """Draw one black, right-angle route and place its label in open space."""
+    for first, second in zip(points[:-2], points[1:-1]):
+        ax.plot([first[0], second[0]], [first[1], second[1]], color="#000000", linewidth=1.25)
+    patch = FancyArrowPatch(points[-2], points[-1], arrowstyle="-|>", mutation_scale=12,
+                            linewidth=1.25, color="#000000")
     ax.add_patch(patch)
     if label:
-        mx, my = (start[0] + end[0]) / 2, (start[1] + end[1]) / 2
-        ax.text(mx, my + 0.12, label, ha="center", va="bottom", fontsize=7.5,
-                color="#4B525A", bbox=dict(facecolor="white", edgecolor="none", pad=1.2))
+        segments = list(zip(points[:-1], points[1:]))
+        first, second = max(
+            segments,
+            key=lambda segment: abs(segment[1][0] - segment[0][0])
+            + abs(segment[1][1] - segment[0][1]),
+        )
+        mx = (first[0] + second[0]) / 2
+        my = (first[1] + second[1]) / 2
+        is_horizontal = abs(first[1] - second[1]) < 0.001
+        ax.text(
+            mx + (0 if is_horizontal else 0.10),
+            my + (0.10 if is_horizontal else 0),
+            label,
+            ha="center" if is_horizontal else "left",
+            va="bottom" if is_horizontal else "center",
+            fontsize=7.0,
+            color="#000000",
+            bbox=dict(facecolor="white", edgecolor="none", pad=1.0),
+        )
+
+
+def arrow(ax, start, end, label=None, color="#000000", style="-|>", connection="orthogonal"):
+    """Draw a clean black connector with only horizontal/vertical segments."""
+    del color, style, connection
+    sx, sy = start
+    ex, ey = end
+    if abs(sx - ex) < 0.001 or abs(sy - ey) < 0.001:
+        points = [start, end]
+    else:
+        mid_x = (sx + ex) / 2
+        points = [start, (mid_x, sy), (mid_x, ey), end]
+    routed_arrow(ax, points, label)
 
 
 def save_fig(fig, path: Path) -> None:
@@ -304,7 +337,7 @@ def save_fig(fig, path: Path) -> None:
 def architecture_diagram(path: Path) -> None:
     fig, ax = setup_plot(12, 7)
     ax.text(6, 6.75, "MULTIVENT High-Level System Architecture", ha="center", va="top",
-            fontsize=15, fontweight="bold", color="#4B1625")
+            fontsize=15, fontweight="bold", color="#000000")
     box(ax, (0.35, 3.95), (2.2, 2.0), "Users", ["Client", "Service Provider", "Event Coordinator", "Authorized Staff"], "#F5EBDD")
     box(ax, (3.05, 3.95), (2.4, 2.0), "Expo Application", ["React Native + Web", "Role-aware navigation", "Responsive screens", "Supabase client"], "#DDEAF5")
     box(ax, (6.05, 3.95), (2.35, 2.0), "Supabase Backend", ["Authentication", "PostgREST / RPC", "Edge Functions", "Storage / Realtime"], "#DDEFE5")
@@ -312,20 +345,23 @@ def architecture_diagram(path: Path) -> None:
     box(ax, (3.0, 0.65), (2.6, 1.85), "Sentiment Edge Layer", ["analyze-review", "analyze-feedback", "summarize-reviews", "Server-side secrets"], "#F5EBDD")
     box(ax, (6.05, 0.65), (2.35, 1.85), "Python NLP API", ["FastAPI", "LDA topics", "FAISS retrieval", "Schema validation"], "#DDEAF5")
     box(ax, (9.0, 0.65), (2.55, 1.85), "Model Provider", ["Pre-trained OpenAI model", "Binary sentiment verdict", "Grounded summaries"], "#F6EAED")
-    arrow(ax, (2.55, 4.95), (3.05, 4.95), "interacts")
-    arrow(ax, (5.45, 4.95), (6.05, 4.95), "HTTPS")
-    arrow(ax, (8.4, 4.95), (9.0, 4.95), "SQL/API")
-    arrow(ax, (7.1, 3.95), (4.5, 2.5), "invoke")
-    arrow(ax, (5.6, 1.57), (6.05, 1.57), "protected HTTP")
-    arrow(ax, (8.4, 1.57), (9.0, 1.57), "API")
-    arrow(ax, (4.2, 2.5), (7.3, 3.95), "persist result", connection="arc3,rad=-0.15")
+    arrow(ax, (2.55, 4.95), (3.05, 4.95))
+    arrow(ax, (5.45, 4.95), (6.05, 4.95))
+    arrow(ax, (8.4, 4.95), (9.0, 4.95))
+    routed_arrow(
+        ax,
+        [(6.45, 3.95), (6.45, 3.25), (4.30, 3.25), (4.30, 2.50)],
+        "invoke / result",
+    )
+    arrow(ax, (5.6, 1.57), (6.05, 1.57))
+    arrow(ax, (8.4, 1.57), (9.0, 1.57))
     save_fig(fig, path)
 
 
 def network_diagram(path: Path) -> None:
     fig, ax = setup_plot(12, 7)
     ax.text(6, 6.75, "Network and Communication Architecture", ha="center", va="top",
-            fontsize=15, fontweight="bold", color="#4B1625")
+            fontsize=15, fontweight="bold", color="#000000")
     box(ax, (0.35, 4.1), (2.25, 1.65), "Client Device", ["Android / iOS / browser", "Supabase session token", "No service-role secret"], "#DDEAF5")
     box(ax, (3.15, 4.1), (2.3, 1.65), "Supabase Gateway", ["TLS endpoint", "JWT validation", "Auth / REST / RPC"], "#DDEFE5")
     box(ax, (6.05, 4.1), (2.3, 1.65), "PostgreSQL", ["RLS-filtered queries", "Transactional functions", "Relational constraints"], "#F6EAED")
@@ -333,108 +369,315 @@ def network_diagram(path: Path) -> None:
     box(ax, (3.15, 1.15), (2.3, 1.65), "Edge Functions", ["User/session verification", "Privileged DB writes", "Secret isolation"], "#F5EBDD")
     box(ax, (6.05, 1.15), (2.3, 1.65), "Sentiment API", ["X-Analysis-Key", "Container port 8080", "JSON request/response"], "#DDEAF5")
     box(ax, (9.0, 1.15), (2.55, 1.65), "OpenAI API", ["Structured response", "Configured model", "No direct client access"], "#F6EAED")
-    arrow(ax, (2.6, 4.9), (3.15, 4.9), "HTTPS + JWT")
-    arrow(ax, (5.45, 4.9), (6.05, 4.9), "authorized SQL")
-    arrow(ax, (8.35, 4.9), (9.0, 4.9), "signed/policy URL")
+    arrow(ax, (2.6, 4.9), (3.15, 4.9))
+    arrow(ax, (5.45, 4.9), (6.05, 4.9))
+    arrow(ax, (8.35, 4.9), (9.0, 4.9))
     arrow(ax, (4.3, 4.1), (4.3, 2.8), "function invoke")
-    arrow(ax, (5.45, 1.95), (6.05, 1.95), "HTTPS + secret")
-    arrow(ax, (8.35, 1.95), (9.0, 1.95), "HTTPS API")
-    ax.text(0.45, 0.42, "Performance controls: filtered RPCs, database indexes, cached review summaries, paged/targeted reads, and asynchronous analysis status.", fontsize=8.2, color="#4B525A")
+    arrow(ax, (5.45, 1.95), (6.05, 1.95))
+    arrow(ax, (8.35, 1.95), (9.0, 1.95))
+    ax.text(0.45, 0.42, "Performance controls: filtered RPCs, database indexes, cached review summaries, paged/targeted reads, and asynchronous analysis status.", fontsize=8.2, color="#000000")
     save_fig(fig, path)
 
 
 def erd_diagram(path: Path) -> None:
     fig, ax = setup_plot(14, 9)
-    ax.text(7, 8.75, "Condensed MULTIVENT Entity–Relationship Diagram", ha="center", va="top",
-            fontsize=15, fontweight="bold", color="#4B1625")
+    ax.text(7, 8.75, "Condensed MULTIVENT Entity-Relationship Diagram", ha="center", va="top",
+            fontsize=15, fontweight="bold", color="#000000")
     nodes = {
-        "profiles": ((0.4, 6.4), (2.3, 1.35), ["PK id", "default_role", "account_status"]),
-        "provider_profiles": ((3.2, 6.4), (2.35, 1.35), ["PK id", "FK user_id", "business_name"]),
-        "services": ((6.15, 6.4), (2.35, 1.35), ["PK id", "FK provider/category", "price + details"]),
-        "service_packages": ((9.05, 6.4), (2.35, 1.35), ["PK id", "FK service_id", "price + inclusions"]),
-        "service_categories": ((11.9, 6.4), (1.7, 1.35), ["PK id", "name"]),
-        "events": ((0.4, 3.9), (2.3, 1.55), ["PK id", "FK client/coordinator", "date, guests, budget"]),
-        "budget_items": ((3.2, 3.9), (2.35, 1.55), ["PK id", "FK event_id", "category allocation"]),
-        "selections": ((6.15, 3.9), (2.35, 1.55), ["PK id", "FK event/service", "option snapshots"]),
-        "bookings": ((9.05, 3.9), (2.35, 1.55), ["PK id", "FK event/service", "status + amounts"]),
-        "payments": ((11.9, 3.9), (1.7, 1.55), ["PK id", "FK booking/event", "snapshots"]),
-        "coordinator_profiles": ((0.4, 1.15), (2.3, 1.55), ["PK/FK coordinator_id", "fee", "availability"]),
-        "coordinator_packages": ((3.2, 1.15), (2.35, 1.55), ["PK id", "FK coordinator_id", "status"]),
-        "package_items": ((6.15, 1.15), (2.35, 1.55), ["PK id", "FK package/service", "position"]),
-        "financial_transactions": ((9.05, 1.15), (2.35, 1.55), ["PK id", "FK payment/booking", "held/earned/released"]),
-        "reviews": ((11.9, 1.15), (1.7, 1.55), ["PK id", "FK booking", "rating + NLP"]),
+        "profiles": ((0.25, 6.45), (2.15, 1.35), ["PK id", "role", "account status"]),
+        "provider_profiles": ((2.95, 6.45), (2.15, 1.35), ["PK id", "FK user_id", "business name"]),
+        "services": ((5.65, 6.45), (2.15, 1.35), ["PK id", "FK provider/category", "price + details"]),
+        "service_packages": ((8.35, 6.45), (2.15, 1.35), ["PK id", "FK service_id", "price + inclusions"]),
+        "service_categories": ((11.05, 6.45), (2.15, 1.35), ["PK id", "name", "active flag"]),
+        "events": ((0.25, 3.85), (2.15, 1.5), ["PK id", "FK client/coordinator", "date, guests, budget"]),
+        "budget_items": ((2.95, 3.85), (2.15, 1.5), ["PK id", "FK event_id", "category allocation"]),
+        "selections": ((5.65, 3.85), (2.15, 1.5), ["PK id", "FK event/service", "option snapshots"]),
+        "bookings": ((8.35, 3.85), (2.15, 1.5), ["PK id", "FK event/service", "status + amounts"]),
+        "payments": ((11.05, 3.85), (2.15, 1.5), ["PK id", "FK booking/event", "financial snapshots"]),
+        "coordinator_profiles": ((0.25, 1.0), (2.15, 1.55), ["PK/FK coordinator", "fee", "availability"]),
+        "coordinator_packages": ((2.95, 1.0), (2.15, 1.55), ["PK id", "FK coordinator", "status"]),
+        "package_items": ((5.65, 1.0), (2.15, 1.55), ["PK id", "FK package/service", "position"]),
+        "financial_transactions": ((8.35, 1.0), (2.15, 1.55), ["PK id", "FK payment/booking", "held/earned/released"]),
+        "reviews": ((11.05, 1.0), (2.15, 1.55), ["PK id", "FK booking", "rating + NLP"]),
     }
     for name, (xy, wh, lines) in nodes.items():
-        box(ax, xy, wh, name.replace("_", "\n"), lines, "#FBF7F1", fontsize=7.5)
+        box(ax, xy, wh, name.replace("_", "\n"), lines, fontsize=7.1)
+
+    # Only relationships that can be shown without crossing another entity are
+    # drawn here. The complete cardinality list follows the figure as a table.
     relations = [
-        ((2.7, 7.05), (3.2, 7.05), "1 : 0..1"),
-        ((5.55, 7.05), (6.15, 7.05), "1 : M"),
-        ((8.5, 7.05), (9.05, 7.05), "1 : M"),
-        ((11.4, 7.05), (11.9, 7.05), "M : 1"),
-        ((2.7, 4.65), (3.2, 4.65), "1 : M"),
-        ((5.55, 4.65), (6.15, 4.65), "1 : M"),
-        ((8.5, 4.65), (9.05, 4.65), "1 : 0..M"),
-        ((11.4, 4.65), (11.9, 4.65), "1 : 0..M"),
-        ((2.7, 1.9), (3.2, 1.9), "1 : M"),
-        ((5.55, 1.9), (6.15, 1.9), "1 : M"),
-        ((8.5, 1.9), (9.05, 1.9), "booking : ledger"),
-        ((11.4, 1.9), (11.9, 1.9), "booking : review"),
-        ((1.55, 6.4), (1.55, 5.45), "client owns"),
-        ((7.3, 6.4), (7.3, 5.45), "selected"),
-        ((10.2, 3.9), (10.2, 2.7), "settled by"),
+        ((2.40, 7.10), (2.95, 7.10), None),
+        ((5.10, 7.10), (5.65, 7.10), None),
+        ((7.80, 7.10), (8.35, 7.10), None),
+        ((2.40, 4.60), (2.95, 4.60), None),
+        ((7.80, 4.60), (8.35, 4.60), None),
+        ((10.50, 4.60), (11.05, 4.60), None),
+        ((2.40, 1.78), (2.95, 1.78), None),
+        ((5.10, 1.78), (5.65, 1.78), None),
+        ((1.33, 6.45), (1.33, 5.35), "owns"),
+        ((6.73, 6.45), (6.73, 5.35), "selected"),
+        ((9.43, 3.85), (9.43, 2.55), "ledger"),
     ]
     for start, end, label in relations:
         arrow(ax, start, end, label)
-    ax.text(0.45, 0.45, "Additional implemented entities include roles/permissions, availability and operating hours, conversations/messages, notifications, support tickets, audit logs, coordinator assignment attempts, remittances, payout accounts/requests, event instructions, and sentiment summary caches.", fontsize=8, color="#4B525A", wrap=True)
+    routed_arrow(
+        ax,
+        [(12.13, 7.80), (12.13, 8.15), (6.73, 8.15), (6.73, 7.80)],
+        "category",
+    )
+    ax.text(
+        0.35,
+        0.35,
+        "The relationship table below the figure documents cross-lane and many-to-many links omitted here for legibility.",
+        fontsize=7.6,
+        color="#000000",
+    )
+    save_fig(fig, path)
+
+
+def erd_entity(ax, xy, title, fields, width=2.5, height=1.7):
+    """Draw a conventional ERD entity with a header and keyed attributes."""
+    x, y = xy
+    header_height = 0.42
+    ax.add_patch(Rectangle(
+        (x, y), width, height, facecolor="#FFFFFF", edgecolor="#000000", linewidth=1.35
+    ))
+    ax.add_patch(Rectangle(
+        (x, y + height - header_height), width, header_height,
+        facecolor="#000000", edgecolor="#000000", linewidth=1.35,
+    ))
+    ax.text(
+        x + width / 2, y + height - header_height / 2, title,
+        ha="center", va="center", fontsize=10.0, fontweight="bold", color="#FFFFFF",
+    )
+    field_y = y + height - header_height - 0.13
+    for field in fields:
+        ax.text(x + 0.14, field_y, field, ha="left", va="top", fontsize=8.8, color="#000000")
+        field_y -= 0.22
+
+
+def _erd_cardinality_marker(ax, endpoint, neighbor, cardinality):
+    """Draw a crow's-foot marker plus an explicit min..max label."""
+    ex, ey = endpoint
+    nx, ny = neighbor
+    dx = nx - ex
+    dy = ny - ey
+    length = max((dx * dx + dy * dy) ** 0.5, 0.001)
+    ux, uy = dx / length, dy / length
+    px, py = -uy, ux
+
+    first = (ex + ux * 0.12, ey + uy * 0.12)
+    second = (ex + ux * 0.28, ey + uy * 0.28)
+
+    def bar(center):
+        ax.plot(
+            [center[0] - px * 0.085, center[0] + px * 0.085],
+            [center[1] - py * 0.085, center[1] + py * 0.085],
+            color="#000000", linewidth=1.2,
+        )
+
+    minimum, maximum = cardinality.split("..") if ".." in cardinality else ("1", "1")
+    if minimum == "0":
+        ax.add_patch(plt.Circle(first, 0.055, facecolor="#FFFFFF", edgecolor="#000000", linewidth=1.1))
+    else:
+        bar(first)
+
+    if maximum == "1":
+        bar(second)
+    else:
+        vertex = second
+        tips = [
+            (vertex[0] + ux * 0.19 + px * 0.11, vertex[1] + uy * 0.19 + py * 0.11),
+            (vertex[0] + ux * 0.19, vertex[1] + uy * 0.19),
+            (vertex[0] + ux * 0.19 - px * 0.11, vertex[1] + uy * 0.19 - py * 0.11),
+        ]
+        for tip in tips:
+            ax.plot([vertex[0], tip[0]], [vertex[1], tip[1]], color="#000000", linewidth=1.1)
+
+    label_x = ex + ux * 0.43 + px * 0.16
+    label_y = ey + uy * 0.43 + py * 0.16
+    ax.text(
+        label_x, label_y, cardinality, ha="center", va="center", fontsize=8.5,
+        fontweight="bold", color="#000000",
+        bbox=dict(facecolor="#FFFFFF", edgecolor="none", pad=0.35),
+    )
+
+
+def erd_relation(ax, points, start_cardinality, end_cardinality):
+    """Draw an orthogonal, non-directional ERD relation with both cardinalities."""
+    for first, second in zip(points[:-1], points[1:]):
+        if abs(first[0] - second[0]) > 0.001 and abs(first[1] - second[1]) > 0.001:
+            raise ValueError("ERD relation segments must be horizontal or vertical.")
+        ax.plot([first[0], second[0]], [first[1], second[1]], color="#000000", linewidth=1.3)
+    _erd_cardinality_marker(ax, points[0], points[1], start_cardinality)
+    _erd_cardinality_marker(ax, points[-1], points[-2], end_cardinality)
+
+
+def erd_legend(ax, y):
+    ax.text(
+        5, y,
+        "Cardinality:  1 = exactly one     0..1 = optional one     0..* = zero or many     1..* = one or many",
+        ha="center", va="center", fontsize=8.6, color="#000000",
+        bbox=dict(facecolor="#FFFFFF", edgecolor="#000000", linewidth=0.8, pad=3.0),
+    )
+
+
+def erd_marketplace_diagram(path: Path) -> None:
+    fig, ax = setup_plot(10, 7)
+    ax.text(5, 6.78, "Marketplace and Package ERD", ha="center", va="top",
+            fontsize=16, fontweight="bold", color="#000000")
+    erd_legend(ax, 6.28)
+    erd_entity(ax, (0.35, 3.95), "profiles", [
+        "PK  id", "full_name", "default_role", "account_status",
+    ])
+    erd_entity(ax, (3.75, 3.95), "provider_profiles", [
+        "PK  id", "FK/UQ  user_id", "business_name", "verification_status",
+    ])
+    erd_entity(ax, (7.15, 3.95), "services", [
+        "PK  id", "FK  provider_id", "FK  category_id (NULL)", "name / base_price", "status",
+    ])
+    erd_entity(ax, (0.35, 0.75), "service_categories", [
+        "PK  id", "UQ  name", "description", "is_active",
+    ])
+    erd_entity(ax, (3.75, 0.75), "service_package_items", [
+        "PK  id", "FK/UQ  package_id", "FK/UQ  service_id", "quantity / unit_price", "position",
+    ])
+    erd_entity(ax, (7.15, 0.75), "service_packages", [
+        "PK  id", "FK  service_id", "name / price", "pricing_mode", "is_active",
+    ])
+
+    erd_relation(ax, [(2.85, 4.80), (3.75, 4.80)], "1", "0..1")
+    erd_relation(ax, [(6.25, 4.80), (7.15, 4.80)], "1", "0..*")
+    erd_relation(ax, [(1.60, 2.45), (1.60, 3.15), (7.65, 3.15), (7.65, 3.95)], "0..1", "0..*")
+    erd_relation(ax, [(8.40, 3.95), (8.40, 2.45)], "1", "0..*")
+    erd_relation(ax, [(7.15, 1.60), (6.25, 1.60)], "1", "0..*")
+    erd_relation(ax, [(9.65, 4.80), (9.85, 4.80), (9.85, 0.40), (5.00, 0.40), (5.00, 0.75)], "1", "0..*")
+    save_fig(fig, path)
+
+
+def erd_planning_diagram(path: Path) -> None:
+    fig, ax = setup_plot(10, 6.5)
+    ax.text(5, 6.28, "Event Planning and Selection ERD", ha="center", va="top",
+            fontsize=16, fontweight="bold", color="#000000")
+    erd_legend(ax, 5.78)
+    erd_entity(ax, (0.35, 3.65), "profiles", [
+        "PK  id", "full_name", "default_role", "account_status",
+    ])
+    erd_entity(ax, (3.75, 3.65), "events", [
+        "PK  id", "FK  client_id", "FK  coordinator_id (NULL)", "date / guests / budget", "status",
+    ])
+    erd_entity(ax, (7.15, 3.65), "event_budget_items", [
+        "PK  id", "FK  event_id", "FK  category_id (NULL)", "category_key", "allocated_amount",
+    ])
+    erd_entity(ax, (0.35, 0.55), "service_categories", [
+        "PK  id", "UQ  name", "description", "is_active",
+    ])
+    erd_entity(ax, (3.75, 0.55), "services", [
+        "PK  id", "FK  provider_id", "FK  category_id (NULL)", "name / base_price", "status",
+    ])
+    erd_entity(ax, (7.15, 0.55), "event_service_selections", [
+        "PK  id", "FK  event_id", "FK  service_id (NULL)", "FK  package_id (NULL)", "category / snapshots",
+    ])
+
+    erd_relation(ax, [(2.85, 4.50), (3.75, 4.50)], "1", "0..*")
+    erd_relation(ax, [(6.25, 4.50), (7.15, 4.50)], "1", "0..*")
+    erd_relation(ax, [(5.00, 3.65), (5.00, 3.05), (8.40, 3.05), (8.40, 2.25)], "1", "0..*")
+    erd_relation(ax, [(2.85, 1.40), (3.75, 1.40)], "0..1", "0..*")
+    erd_relation(ax, [(6.25, 1.40), (7.15, 1.40)], "0..1", "0..*")
+    save_fig(fig, path)
+
+
+def erd_booking_diagram(path: Path) -> None:
+    fig, ax = setup_plot(10, 6.5)
+    ax.text(5, 6.28, "Booking, Payment, Ledger, and Review ERD", ha="center", va="top",
+            fontsize=16, fontweight="bold", color="#000000")
+    erd_legend(ax, 5.78)
+    erd_entity(ax, (0.35, 3.65), "events", [
+        "PK  id", "FK  client_id", "event_date / time", "status",
+    ])
+    erd_entity(ax, (3.75, 3.65), "bookings", [
+        "PK  id", "FK  event_id", "FK  service_id", "FK  provider_id", "status / amounts",
+    ])
+    erd_entity(ax, (7.15, 3.65), "payments", [
+        "PK  id", "FK  booking_id (NULL)", "FK  event_id (NULL)", "amount / status", "financial snapshots",
+    ])
+    erd_entity(ax, (0.35, 0.55), "services", [
+        "PK  id", "FK  provider_id", "FK  category_id (NULL)", "name / base_price", "status",
+    ])
+    erd_entity(ax, (3.75, 0.55), "reviews", [
+        "PK  id", "FK/UQ  booking_id", "FK  reviewer_id", "rating / comment", "sentiment fields",
+    ])
+    erd_entity(ax, (7.15, 0.55), "financial_transactions", [
+        "PK  id", "FK  payment_id (NULL)", "FK  booking_id (NULL)", "gross / commission", "held / earned / released",
+    ])
+
+    erd_relation(ax, [(2.85, 4.50), (3.75, 4.50)], "1", "0..*")
+    erd_relation(ax, [(6.25, 4.50), (7.15, 4.50)], "0..1", "0..*")
+    erd_relation(ax, [(1.60, 2.25), (1.60, 3.05), (3.40, 3.05), (3.40, 4.15), (3.75, 4.15)], "1", "0..*")
+    erd_relation(ax, [(5.00, 3.65), (5.00, 2.25)], "1", "0..1")
+    erd_relation(ax, [(8.40, 3.65), (8.40, 2.25)], "0..1", "0..*")
     save_fig(fig, path)
 
 
 def modules_diagram(path: Path) -> None:
     fig, ax = setup_plot(12, 8)
     ax.text(6, 7.75, "Application and Module Architecture", ha="center", va="top", fontsize=15,
-            fontweight="bold", color="#4B1625")
-    box(ax, (4.25, 5.75), (3.5, 1.25), "Shared Application Shell", ["Session + role routing • theme • reusable UI • Supabase client"], "#F5EBDD")
-    modules = [
-        (0.35, 3.65, "Client Planning", ["event creation", "budget allocation", "recommendations", "service selection"]),
-        (3.25, 3.65, "Marketplace & Booking", ["catalog/details", "schedule checks", "requests", "payments"]),
-        (6.15, 3.65, "Provider Operations", ["listing wizard", "availability", "accept/reject", "earnings/payouts"]),
-        (9.05, 3.65, "Coordinator Operations", ["service profile", "curated packages", "event tasks", "remittances"]),
-        (0.35, 1.25, "Communication", ["messages", "notifications", "instructions", "support"]),
-        (3.25, 1.25, "Reviews & NLP", ["ratings/comments", "analysis jobs", "topics/RAG", "summaries"]),
-        (6.15, 1.25, "Staff Console", ["accounts/RBAC", "listing review", "support", "finance/audit"]),
-        (9.05, 1.25, "Data Services", ["RPCs", "RLS", "triggers", "snapshots"]),
+            fontweight="bold", color="#000000")
+    box(ax, (4.1, 6.15), (3.8, 1.0), "Shared Application Shell",
+        ["Session • role routing • reusable interface • Supabase client"], fontsize=7.7)
+    role_modules = [
+        (0.45, "Client", ["events and budgets", "recommendations", "selection and payment"]),
+        (3.35, "Provider", ["listings and availability", "booking decisions", "earnings and payouts"]),
+        (6.25, "Coordinator", ["service profile", "curated packages", "assignments and tasks"]),
+        (9.15, "Authorized Staff", ["accounts and RBAC", "moderation/support", "finance and audit"]),
     ]
-    for x, y, title, lines in modules:
-        box(ax, (x, y), (2.55, 1.55), title, lines, "#F6EAED" if y > 2 else "#DDEAF5", fontsize=7.8)
-        arrow(ax, (6, 5.75), (x + 1.275, y + 1.55), None, connection="arc3,rad=0.0")
-    ax.text(6, 0.48, "Cross-cutting controls: authentication • authorization • validation • auditability • immutable financial/option snapshots • responsive UI", ha="center", fontsize=8.3, color="#4B525A")
+    for x, title, lines in role_modules:
+        box(ax, (x, 3.85), (2.4, 1.45), title, lines, fontsize=7.6)
+
+    # A shared bus keeps every connector orthogonal and outside the boxes.
+    ax.plot([1.65, 10.35], [5.75, 5.75], color="#000000", linewidth=1.25)
+    arrow(ax, (6, 6.15), (6, 5.75))
+    for x, _, _ in role_modules:
+        center = x + 1.2
+        arrow(ax, (center, 5.75), (center, 5.30))
+
+    box(ax, (1.0, 1.05), (10.0, 1.65), "Shared Business and Data Services", [
+        "Marketplace and booking • communication and notifications • reviews and NLP • support",
+        "PostgreSQL RPCs • RLS • constraints • triggers • immutable snapshots • audit records",
+    ], fontsize=8.0)
+    ax.plot([1.65, 10.35], [3.25, 3.25], color="#000000", linewidth=1.25)
+    for x, _, _ in role_modules:
+        center = x + 1.2
+        arrow(ax, (center, 3.85), (center, 3.25))
+    arrow(ax, (6, 3.25), (6, 2.70))
+    ax.text(6, 0.48, "Cross-cutting controls: authentication • authorization • validation • auditability • responsive presentation", ha="center", fontsize=8.3, color="#000000")
     save_fig(fig, path)
 
 
 def security_diagram(path: Path) -> None:
     fig, ax = setup_plot(12, 7)
     ax.text(6, 6.75, "Security Architecture: Defense in Depth", ha="center", va="top", fontsize=15,
-            fontweight="bold", color="#4B1625")
+            fontweight="bold", color="#000000")
     layers = [
         (0.55, 5.1, 10.9, 0.9, "Identity Layer", "Supabase Auth • verified session • password recovery • account status"),
         (1.05, 4.0, 9.9, 0.9, "Access-Control Layer", "roles + permissions • role routing • PostgreSQL RLS • auth.uid() ownership checks"),
         (1.55, 2.9, 8.9, 0.9, "Business-Rule Layer", "security-definer RPCs • explicit grants/revokes • constraints • transactional row locks"),
         (2.05, 1.8, 7.9, 0.9, "Data-Protection Layer", "server-side secrets • redacted audits • snapshots • protected storage policies"),
-        (2.55, 0.7, 6.9, 0.9, "Monitoring & Recovery", "audit logs • notifications • error states • versioned migrations • retained history"),
+        (2.55, 0.7, 6.9, 0.9, "Monitoring & Recovery", "audit logs • notifications • error states\nversioned migrations • retained history"),
     ]
-    fills = ["#F5EBDD", "#F6EAED", "#DDEAF5", "#DDEFE5", "#F1F3F5"]
+    fills = ["#FFFFFF"] * 5
     for (x, y, w, h, title, desc), fill in zip(layers, fills):
-        patch = FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0.04,rounding_size=0.12", linewidth=1.4, edgecolor="#76243A", facecolor=fill)
+        patch = FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0.04,rounding_size=0.12", linewidth=1.4, edgecolor="#000000", facecolor=fill)
         ax.add_patch(patch)
-        ax.text(x + 0.25, y + h / 2, title, ha="left", va="center", fontsize=9, fontweight="bold", color="#4B1625")
-        ax.text(x + 2.7, y + h / 2, desc, ha="left", va="center", fontsize=8.1, color="#25282D")
+        ax.text(x + 0.25, y + h / 2, title, ha="left", va="center", fontsize=9, fontweight="bold", color="#000000")
+        ax.text(x + 2.7, y + h / 2, desc, ha="left", va="center", fontsize=7.3, color="#000000")
     save_fig(fig, path)
 
 
 def deployment_diagram(path: Path) -> None:
     fig, ax = setup_plot(12, 7)
     ax.text(6, 6.75, "Deployment Architecture", ha="center", va="top", fontsize=15,
-            fontweight="bold", color="#4B1625")
+            fontweight="bold", color="#000000")
     box(ax, (0.35, 4.0), (2.45, 1.85), "User Runtime", ["Android / iOS app", "or React Native Web", "Expo build/runtime"], "#DDEAF5")
     box(ax, (3.25, 4.0), (2.45, 1.85), "Supabase Project", ["Auth", "PostgreSQL", "Edge Functions", "Storage / Realtime"], "#DDEFE5")
     box(ax, (6.15, 4.0), (2.45, 1.85), "Sentiment Container", ["Python 3.13", "FastAPI + Uvicorn", "models + FAISS index", "PORT 8080"], "#F5EBDD")
@@ -443,56 +686,59 @@ def deployment_diagram(path: Path) -> None:
     box(ax, (3.25, 1.0), (2.45, 1.85), "Database Release", ["ordered SQL migrations", "seed data (optional)", "rollback via transaction"], "#F1F3F5")
     box(ax, (6.15, 1.0), (2.45, 1.85), "ML Artifact Build", ["registered datasets", "LDA/vectorizer", "encoder + FAISS", "evaluation report"], "#F1F3F5")
     box(ax, (9.05, 1.0), (2.55, 1.85), "Configured Target", ["Azure Container Apps", "Dockerfile.azure", "secrets/env settings", "health endpoint"], "#F1F3F5")
-    arrow(ax, (2.8, 4.92), (3.25, 4.92), "HTTPS")
-    arrow(ax, (5.7, 4.92), (6.15, 4.92), "HTTPS")
-    arrow(ax, (8.6, 4.92), (9.05, 4.92), "HTTPS")
+    arrow(ax, (2.8, 4.92), (3.25, 4.92))
+    arrow(ax, (5.7, 4.92), (6.15, 4.92))
+    arrow(ax, (8.6, 4.92), (9.05, 4.92))
     arrow(ax, (1.58, 2.85), (1.58, 4.0), "build")
     arrow(ax, (4.48, 2.85), (4.48, 4.0), "migrate")
     arrow(ax, (7.38, 2.85), (7.38, 4.0), "embed")
-    arrow(ax, (10.33, 2.85), (8.3, 4.0), "deploy target")
+    routed_arrow(ax, [(10.33, 2.85), (10.33, 3.35), (8.30, 3.35), (8.30, 4.0)], "deploy")
     save_fig(fig, path)
 
 
 def use_case_diagram(path: Path) -> None:
     fig, ax = setup_plot(14, 9)
     ax.text(7, 8.75, "MULTIVENT Use Case Diagram", ha="center", va="top", fontsize=15,
-            fontweight="bold", color="#4B1625")
-    ax.add_patch(Rectangle((2.1, 0.55), 9.8, 7.55, fill=False, linewidth=1.5, edgecolor="#76243A"))
-    ax.text(7, 7.9, "MULTIVENT System Boundary", ha="center", va="top", fontsize=10, fontweight="bold", color="#76243A")
-    actors = [(0.25, 6.6, "Client"), (0.25, 4.5, "Service\nProvider"), (0.25, 2.4, "Event\nCoordinator"), (12.25, 5.7, "Authorized\nStaff"), (12.25, 2.4, "NLP / Model\nService")]
-    for x, y, label in actors:
-        ax.scatter([x + 0.55], [y + 0.62], s=140, facecolors="white", edgecolors="#4B1625", linewidths=1.2)
-        ax.plot([x + 0.55, x + 0.55], [y + 0.5, y + 0.05], color="#4B1625", linewidth=1.2)
-        ax.plot([x + 0.25, x + 0.85], [y + 0.35, y + 0.35], color="#4B1625", linewidth=1.2)
-        ax.plot([x + 0.55, x + 0.25], [y + 0.05, y - 0.25], color="#4B1625", linewidth=1.2)
-        ax.plot([x + 0.55, x + 0.85], [y + 0.05, y - 0.25], color="#4B1625", linewidth=1.2)
+            fontweight="bold", color="#000000")
+    ax.add_patch(Rectangle((2.1, 0.45), 9.8, 7.65, fill=False, linewidth=1.5, edgecolor="#000000"))
+    ax.text(7, 7.9, "MULTIVENT System Boundary", ha="center", va="top", fontsize=10, fontweight="bold", color="#000000")
+
+    def actor(x, y, label):
+        ax.scatter([x + 0.55], [y + 0.62], s=140, facecolors="white", edgecolors="#000000", linewidths=1.2)
+        ax.plot([x + 0.55, x + 0.55], [y + 0.5, y + 0.05], color="#000000", linewidth=1.2)
+        ax.plot([x + 0.25, x + 0.85], [y + 0.35, y + 0.35], color="#000000", linewidth=1.2)
+        ax.plot([x + 0.55, x + 0.25], [y + 0.05, y - 0.25], color="#000000", linewidth=1.2)
+        ax.plot([x + 0.55, x + 0.85], [y + 0.05, y - 0.25], color="#000000", linewidth=1.2)
         ax.text(x + 0.55, y - 0.43, label, ha="center", va="top", fontsize=8.2, fontweight="bold")
-    use_cases = [
-        (3.1, 6.7, "Register / sign in"), (5.85, 6.7, "Create event & budget"), (8.6, 6.7, "Browse/select services"),
-        (3.1, 5.1, "Select coordinator/package"), (5.85, 5.1, "Pay & track bookings"), (8.6, 5.1, "Message / notify"),
-        (3.1, 3.5, "Manage listings/availability"), (5.85, 3.5, "Accept/reject request"), (8.6, 3.5, "Track earnings/payouts"),
-        (3.1, 1.9, "Coordinate event/tasks"), (5.85, 1.9, "Review / sentiment analysis"), (8.6, 1.9, "Administer & audit"),
+
+    actor(0.25, 6.45, "Client")
+    actor(0.25, 4.65, "Service\nProvider")
+    actor(0.25, 2.85, "Event\nCoordinator")
+    actor(0.25, 1.05, "Authorized\nStaff")
+    actor(12.25, 2.05, "NLP / Model\nService")
+
+    groups = [
+        (2.85, 6.15, 7.8, 1.05, "Client Planning and Booking", "register/sign in • create event/budget • select coordinator/services • pay • message • review"),
+        (2.85, 4.35, 7.8, 1.05, "Provider Operations", "manage listings/availability • accept or reject • communicate • track earnings and payouts"),
+        (2.85, 2.55, 5.3, 1.05, "Coordinator Operations", "manage profile/packages • accept or reject\ncoordinate event tasks • view remittances"),
+        (2.85, 0.75, 5.3, 1.05, "Staff Governance", "manage authorized accounts • moderate listings • support • finance • audit"),
+        (8.75, 2.15, 2.7, 1.45, "Review Analysis", "topic inference\nretrieval\nsentiment and summaries"),
     ]
-    for x, y, label in use_cases:
-        ellipse = FancyBboxPatch((x, y), 2.3, 0.72, boxstyle="round,pad=0.04,rounding_size=0.36", facecolor="#FBF7F1", edgecolor="#76243A", linewidth=1.1)
-        ax.add_patch(ellipse)
-        ax.text(x + 1.15, y + 0.36, label, ha="center", va="center", fontsize=7.5)
-    lines = [
-        ((1.1, 7.0), (3.1, 7.05)), ((1.1, 6.85), (5.85, 7.05)), ((1.1, 6.7), (8.6, 7.05)), ((1.1, 6.55), (3.1, 5.45)), ((1.1, 6.4), (5.85, 5.45)), ((1.1, 6.25), (8.6, 5.45)), ((1.1, 6.1), (5.85, 2.25)),
-        ((1.1, 4.8), (3.1, 3.85)), ((1.1, 4.65), (5.85, 3.85)), ((1.1, 4.5), (8.6, 3.85)), ((1.1, 4.35), (8.6, 5.45)),
-        ((1.1, 2.75), (3.1, 2.25)), ((1.1, 2.6), (5.85, 3.85)), ((1.1, 2.45), (8.6, 3.85)), ((1.1, 2.3), (3.1, 5.45)),
-        ((12.25, 6.0), (10.9, 2.25)), ((12.25, 5.8), (8.6, 3.85)), ((12.25, 5.6), (8.6, 5.45)),
-        ((12.25, 2.8), (8.15, 2.25)),
-    ]
-    for start, end in lines:
-        ax.plot([start[0], end[0]], [start[1], end[1]], color="#9AA2AA", linewidth=0.8)
+    for x, y, w, h, title, detail in groups:
+        box(ax, (x, y), (w, h), title, [detail], fontsize=7.0)
+
+    arrow(ax, (1.1, 6.82), (2.85, 6.82))
+    arrow(ax, (1.1, 5.02), (2.85, 5.02))
+    arrow(ax, (1.1, 3.22), (2.85, 3.22))
+    arrow(ax, (1.1, 1.42), (2.85, 1.42))
+    arrow(ax, (12.25, 2.42), (11.45, 2.42))
     save_fig(fig, path)
 
 
 def dfd_context_diagram(path: Path) -> None:
     fig, ax = setup_plot(12, 7)
     ax.text(6, 6.75, "Level 0 Data Flow Diagram (Context)", ha="center", va="top", fontsize=15,
-            fontweight="bold", color="#4B1625")
+            fontweight="bold", color="#000000")
     box(ax, (4.15, 2.6), (3.7, 1.9), "0. MULTIVENT", ["Event-services marketplace", "planning, booking, payment,", "operations, reviews"], "#F6EAED", fontsize=8.2)
     externals = [
         ((0.35, 4.55), "Client", ["event/service choices", "payment/review data"]),
@@ -516,40 +762,47 @@ def dfd_context_diagram(path: Path) -> None:
 def dfd_level1_diagram(path: Path) -> None:
     fig, ax = setup_plot(14, 9)
     ax.text(7, 8.75, "Level 1 Data Flow Diagram", ha="center", va="top", fontsize=15,
-            fontweight="bold", color="#4B1625")
+            fontweight="bold", color="#000000")
     processes = [
-        ((1.0, 6.25), "1.0 Identity & Access"), ((4.15, 6.25), "2.0 Event Planning"), ((7.3, 6.25), "3.0 Marketplace & Selection"), ((10.45, 6.25), "4.0 Booking & Payment"),
-        ((1.0, 3.55), "5.0 Provider / Coordinator Ops"), ((4.15, 3.55), "6.0 Messaging & Support"), ((7.3, 3.55), "7.0 Reviews & NLP"), ((10.45, 3.55), "8.0 Staff Governance"),
+        ((0.35, 6.45), "1.0 Identity & Access"), ((3.75, 6.45), "2.0 Event Planning"), ((7.15, 6.45), "3.0 Marketplace & Selection"), ((10.55, 6.45), "4.0 Booking & Payment"),
+        ((0.35, 4.05), "5.0 Provider / Coordinator Ops"), ((3.75, 4.05), "6.0 Messaging & Support"), ((7.15, 4.05), "7.0 Reviews & NLP"), ((10.55, 4.05), "8.0 Staff Governance"),
     ]
     for xy, title in processes:
-        box(ax, xy, (2.55, 1.25), title, (), "#F6EAED", fontsize=7.8)
+        box(ax, xy, (3.0, 1.15), title, (), fontsize=7.7)
     stores = [
-        ((0.65, 0.85), "D1 Users & RBAC"), ((3.25, 0.85), "D2 Events & Budgets"), ((5.85, 0.85), "D3 Services & Packages"), ((8.45, 0.85), "D4 Bookings & Finance"), ((11.05, 0.85), "D5 Reviews / Audit / Support"),
+        ((0.30, 0.75), "D1 Users & RBAC"), ((3.00, 0.75), "D2 Events & Budgets"), ((5.70, 0.75), "D3 Services & Packages"), ((8.40, 0.75), "D4 Bookings & Finance"), ((11.10, 0.75), "D5 Reviews / Audit / Support"),
     ]
     for xy, title in stores:
         x, y = xy
-        ax.add_patch(Rectangle((x, y), 2.25, 0.8, facecolor="#DDEAF5", edgecolor="#4B1625", linewidth=1.2))
-        ax.plot([x, x + 2.25], [y + 0.18, y + 0.18], color="#4B1625", linewidth=0.8)
-        ax.text(x + 1.125, y + 0.48, title, ha="center", va="center", fontsize=7.2, fontweight="bold")
-    for i in range(3):
-        arrow(ax, (3.55 + i * 3.15, 6.88), (4.15 + i * 3.15, 6.88), None)
-    for i in range(3):
-        arrow(ax, (3.55 + i * 3.15, 4.18), (4.15 + i * 3.15, 4.18), None)
-    verticals = [
-        ((2.25, 6.25), (1.78, 1.65)), ((5.4, 6.25), (4.38, 1.65)), ((8.55, 6.25), (6.98, 1.65)), ((11.7, 6.25), (9.58, 1.65)),
-        ((2.25, 3.55), (6.98, 1.65)), ((5.4, 3.55), (12.18, 1.65)), ((8.55, 3.55), (12.18, 1.65)), ((11.7, 3.55), (12.18, 1.65)),
-    ]
-    for start, end in verticals:
-        arrow(ax, start, end, None, connection="arc3,rad=0.08")
-    ax.text(7, 7.9, "Authenticated role-specific input", ha="center", fontsize=8.2, color="#4B525A")
-    ax.text(7, 2.35, "Validated writes and authorized reads through RPC/RLS", ha="center", fontsize=8.2, color="#4B525A")
+        ax.add_patch(Rectangle((x, y), 2.3, 0.75, facecolor="#FFFFFF", edgecolor="#000000", linewidth=1.2))
+        ax.plot([x, x + 2.3], [y + 0.16, y + 0.16], color="#000000", linewidth=0.8)
+        ax.text(x + 1.15, y + 0.46, title, ha="center", va="center", fontsize=7.0, fontweight="bold")
+
+    # Process flow uses two clean horizontal rows.
+    for x in (3.35, 6.75, 10.15):
+        arrow(ax, (x, 7.02), (x + 0.40, 7.02))
+        arrow(ax, (x, 4.62), (x + 0.40, 4.62))
+
+    # Upper processes hand work to the role/governance process below them.
+    # The lower row shares a single database-access bus so all lines remain
+    # orthogonal, visible, and free from crossovers.
+    for x in (1.85, 5.25, 8.65, 12.05):
+        arrow(ax, (x, 6.45), (x, 5.20))
+    ax.plot([1.45, 12.25], [2.65, 2.65], color="#000000", linewidth=1.25)
+    for x in (1.85, 5.25, 8.65, 12.05):
+        arrow(ax, (x, 4.05), (x, 2.65))
+    for x in (1.45, 4.15, 6.85, 9.55, 12.25):
+        arrow(ax, (x, 2.65), (x, 1.50))
+    ax.text(7, 7.9, "Authenticated role-specific input", ha="center", fontsize=8.2, color="#000000")
+    ax.text(7, 2.83, "Validated writes and authorized reads through RPC/RLS", ha="center", fontsize=8.0, color="#000000",
+            bbox=dict(facecolor="white", edgecolor="none", pad=1.5))
     save_fig(fig, path)
 
 
 def ui_wireframe(path: Path) -> None:
     fig, ax = setup_plot(14, 8)
     ax.text(7, 7.75, "Representative Input Screen Layouts", ha="center", va="top", fontsize=15,
-            fontweight="bold", color="#4B1625")
+            fontweight="bold", color="#000000")
     panels = [
         (0.35, "Client Event Setup", ["Event name", "Event type", "Date and time", "Guest count", "Venue status/location", "Continue"]),
         (3.8, "Budget Allocation", ["Total budget", "Category amounts", "Remaining budget", "Locked selected cost", "Save allocations"]),
@@ -557,17 +810,17 @@ def ui_wireframe(path: Path) -> None:
         (10.7, "Provider Listing", ["Category and name", "Description/images", "Pricing/options", "Capacity/rules", "Availability", "Review and submit"]),
     ]
     for x, title, fields in panels:
-        ax.add_patch(FancyBboxPatch((x, 0.65), 2.95, 6.25, boxstyle="round,pad=0.05,rounding_size=0.18", facecolor="#FBF7F1", edgecolor="#76243A", linewidth=1.5))
-        ax.add_patch(Rectangle((x, 6.25), 2.95, 0.65, facecolor="#76243A", edgecolor="#76243A"))
+        ax.add_patch(FancyBboxPatch((x, 0.65), 2.95, 6.25, boxstyle="round,pad=0.05,rounding_size=0.18", facecolor="#FFFFFF", edgecolor="#000000", linewidth=1.5))
+        ax.add_patch(Rectangle((x, 6.25), 2.95, 0.65, facecolor="#000000", edgecolor="#000000"))
         ax.text(x + 1.475, 6.57, title, ha="center", va="center", fontsize=8.3, fontweight="bold", color="white")
         y = 5.72
         for idx, field in enumerate(fields):
             if idx == len(fields) - 1:
-                ax.add_patch(FancyBboxPatch((x + 0.35, y - 0.05), 2.25, 0.55, boxstyle="round,pad=0.03,rounding_size=0.12", facecolor="#B88A44", edgecolor="#8F672E"))
+                ax.add_patch(FancyBboxPatch((x + 0.35, y - 0.05), 2.25, 0.55, boxstyle="round,pad=0.03,rounding_size=0.12", facecolor="#000000", edgecolor="#000000"))
                 ax.text(x + 1.475, y + 0.22, field, ha="center", va="center", fontsize=7.3, fontweight="bold", color="white")
             else:
-                ax.text(x + 0.25, y + 0.36, field.upper(), ha="left", va="bottom", fontsize=6.2, color="#59636E")
-                ax.add_patch(FancyBboxPatch((x + 0.22, y - 0.05), 2.5, 0.48, boxstyle="round,pad=0.02,rounding_size=0.06", facecolor="white", edgecolor="#B8BEC5", linewidth=0.8))
+                ax.text(x + 0.25, y + 0.43, field.upper(), ha="left", va="bottom", fontsize=6.2, color="#000000")
+                ax.add_patch(FancyBboxPatch((x + 0.22, y - 0.05), 2.5, 0.40, boxstyle="round,pad=0.02,rounding_size=0.06", facecolor="white", edgecolor="#000000", linewidth=0.8))
             y -= 0.82
     save_fig(fig, path)
 
@@ -577,7 +830,9 @@ def make_diagrams(directory: Path) -> dict[str, Path]:
     makers = {
         "architecture": architecture_diagram,
         "network": network_diagram,
-        "erd": erd_diagram,
+        "erd_marketplace": erd_marketplace_diagram,
+        "erd_planning": erd_planning_diagram,
+        "erd_booking": erd_booking_diagram,
         "modules": modules_diagram,
         "security": security_diagram,
         "deployment": deployment_diagram,
@@ -606,7 +861,7 @@ def add_front_matter(document: Document) -> None:
     title.add_run("MULTIVENT")
     subtitle = document.add_paragraph(style="Subtitle")
     subtitle.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    subtitle.add_run("Programmer’s Chapter Manuscript")
+    subtitle.add_run("Programmer’s Chapter Manuscript — Black-and-White Print Edition")
     descriptor = document.add_paragraph()
     descriptor.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = descriptor.add_run("System Architecture, System Design, User Interface,\nTesting, and Evaluation")
@@ -738,18 +993,30 @@ def add_architecture_sections(document: Document, diagrams: dict[str, Path]) -> 
     )
 
     document.add_heading("3.6.2.1 Entity–Relationship Diagram", level=3)
-    add_figure(document, diagrams["erd"], "Figure 3.6.2.1-1. Condensed ERD of the implemented operational model.", width=6.75)
+    document.add_paragraph(
+        "The implemented schema is divided into three ERD views so every foreign-key path and cardinality remains "
+        "readable in print. Repeated entities represent the same physical table. Connector ends use both crow's-foot "
+        "symbols and explicit minimum..maximum labels. All connector routes use horizontal and vertical segments."
+    )
+    add_figure(document, diagrams["erd_marketplace"],
+               "Figure 3.6.2.1-1. Marketplace and provider-package ERD with implemented cardinalities.", width=6.75)
+    add_figure(document, diagrams["erd_planning"],
+               "Figure 3.6.2.1-2. Event planning and service-selection ERD.", width=6.75)
+    add_figure(document, diagrams["erd_booking"],
+               "Figure 3.6.2.1-3. Booking, payment, ledger, and review ERD.", width=6.75)
     add_table(document, ["Relationship", "Cardinality", "Implementation meaning"], [
         ["Profile — Provider profile", "1 : 0..1", "A user account may own one provider business profile."],
-        ["Provider profile — Service", "1 : many", "A provider can publish multiple service listings."],
-        ["Service category — Service", "1 : many", "Each service belongs to one category; a category groups many services."],
-        ["Client profile — Event", "1 : many", "Each event is owned by one client; a client can plan multiple events."],
-        ["Event — Budget item", "1 : many", "An event has category allocations; Phase 7/9 keeps one versioned allocation per category."],
-        ["Event — Service selection", "1 : many", "An event may select services across categories; active Phase 9 choices are unique per category."],
-        ["Service — Event selection", "1 : many", "The same listing can be considered by many events."],
-        ["Event selection — Booking", "1 : 0..many over history", "A selected service enters a provider-controlled booking workflow."],
-        ["Booking — Payment / ledger row", "1 : 0..many", "Payment attempts and financial entries retain a booking reference."],
-        ["Coordinator — Curated package", "1 : many", "A coordinator owns packages that reference actual provider services."],
+        ["Provider profile — Service", "1 : 0..*", "Every service has one provider; a provider may publish many service listings."],
+        ["Service category — Service", "0..1 : 0..*", "The category FK is nullable; a category may group many services."],
+        ["Client profile — Event", "1 : 0..*", "Each event is owned by one client; a client may plan multiple events."],
+        ["Event — Budget item", "1 : 0..*", "An event may have category allocations; Phase 7/9 keeps one versioned allocation per category."],
+        ["Event — Service selection", "1 : 0..*", "An event may select services across categories; active Phase 9 choices are unique per category."],
+        ["Service — Event selection", "0..1 : 0..*", "The selection FK may be cleared when a listing is removed; a service may appear in many selections."],
+        ["Event — Booking", "1 : 0..*", "A booking belongs to exactly one event; an event may create multiple booking records."],
+        ["Service — Booking", "1 : 0..*", "Every booking references one service; a service may be booked many times."],
+        ["Booking — Payment", "0..1 : 0..*", "A payment may reference one booking or use event scope; a booking may have multiple payment attempts."],
+        ["Payment — Financial transaction", "0..1 : 0..*", "A ledger row may retain one payment reference; a payment may produce multiple classified ledger entries."],
+        ["Coordinator — Curated package", "1 : 0..*", "A coordinator may own multiple packages that reference actual provider services."],
         ["Curated package — Service", "many : many through items", "Package items reference listings without copying provider ownership."],
         ["Booking — Review", "1 : 0..1 per allowed review context", "A completed relationship can yield a rating/comment with optional analysis."],
     ])

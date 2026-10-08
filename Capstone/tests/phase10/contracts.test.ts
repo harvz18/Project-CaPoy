@@ -20,6 +20,7 @@ const migrations = [
   'database/58_budget_allocation_revision.sql',
   'database/59_budget_aware_recommendations.sql',
   'database/60_service_selection_revision.sql',
+  'database/61_coordinator_request_financial_visibility.sql',
 ]
 
 test('Revision 2 migrations remain ordered, transactional, additive, and non-destructive', () => {
@@ -214,6 +215,40 @@ test('payment, held funds, individual decisions, balances, and payouts remain se
     "context.client.rpc('get_my_provider_payment_confirmations')",
     "context.client.rpc('request_my_provider_payout'",
   ], 'provider financial integration')
+})
+
+test('coordinators can inspect requests and both provider roles see commission-free remaining balances', () => {
+  const visibility = read(migrations[8])
+  const coordinator = read('src/lib/coordinator.ts')
+  const coordinatorScreen = read('src/screens/23-Coordinator.tsx')
+  const merchant = read('src/lib/merchant.ts')
+  const merchantDetails = read('src/screens/19.1-BookingRequest.tsx')
+
+  mustContain(visibility, [
+    'create or replace function public.get_my_coordinator_booking_details()',
+    "and not is_phase6_payment",
+    'The client downpayment is still pending.',
+    '- coalesce(payment.provider_initial_allocation, 0)',
+    "paid_payment.payment_scope = 'coordinator_service'",
+  ], 'coordinator request and financial visibility migration')
+  mustContain(coordinator, [
+    "supabase.rpc('get_my_coordinator_booking_details')",
+    'remainingCoordinatorBalance',
+    'selectedServices',
+  ], 'coordinator request integration')
+  mustContain(coordinatorScreen, [
+    'View client request and payment',
+    'REMAINING COORDINATOR BALANCE',
+    "commission. The remaining balance above is based only on your coordination fee.",
+  ], 'coordinator request UI')
+  mustContain(merchant, [
+    'provider_initial_allocation',
+    'remainingServiceBalance: Math.max(0, serviceAmount - initialProviderShare)',
+  ], 'provider booking financial mapping')
+  mustContain(merchantDetails, [
+    'REMAINING SERVICE BALANCE',
+    "commission. It is not deducted from your remaining service balance.",
+  ], 'provider booking financial UI')
 })
 
 test('historical booking and financial snapshots remain protected from current listing changes', () => {

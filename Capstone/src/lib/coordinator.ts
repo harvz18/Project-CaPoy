@@ -30,8 +30,35 @@ export interface CoordinatorBookedService {
   status: string
 }
 
+export interface CoordinatorRequestService {
+  cateringOptionName?: string
+  categoryName: string
+  id: string
+  notes?: string
+  providerName: string
+  serviceName: string
+  status: string
+  venueBookedHours?: number
+  venueOptionName?: string
+}
+
+export interface CoordinatorBookingFinancials {
+  balanceStatus: string
+  canAccept: boolean
+  coordinationFee: number
+  downpaymentAmount: number
+  initialCoordinatorShare: number
+  paidAt?: string
+  paymentConfirmed: boolean
+  paymentStatus: string
+  platformFeePaid: number
+  remainingCoordinatorBalance: number
+}
+
 export interface CoordinatorInvitation {
+  financial: CoordinatorBookingFinancials
   clientName: string
+  clientNotes?: string
   date?: string
   eventId: string
   eventName: string
@@ -43,6 +70,8 @@ export interface CoordinatorInvitation {
   venue?: string
   coordinationFee: number
   currency: string
+  packageName?: string
+  selectedServices: CoordinatorRequestService[]
 }
 
 export interface CoordinatorEvent {
@@ -65,6 +94,9 @@ export interface CoordinatorEvent {
   venue?: string
   coordinationFee: number
   currency: string
+  financial: CoordinatorBookingFinancials
+  clientNotes?: string
+  packageName?: string
 }
 
 export interface CoordinatorServiceProfile {
@@ -194,6 +226,34 @@ const optionalText = (value: unknown) => {
   return text || undefined
 }
 
+const emptyFinancials = (coordinationFee = 0): CoordinatorBookingFinancials => ({
+  balanceStatus: 'Payment details are not available for this booking yet.',
+  canAccept: true,
+  coordinationFee,
+  downpaymentAmount: 0,
+  initialCoordinatorShare: 0,
+  paymentConfirmed: false,
+  paymentStatus: 'Awaiting payment information',
+  platformFeePaid: 0,
+  remainingCoordinatorBalance: coordinationFee,
+})
+
+const parseFinancials = (row: Record<string, unknown>): CoordinatorBookingFinancials => ({
+  balanceStatus: textFrom(
+    row.balance_status,
+    'The remaining coordination balance becomes due after event completion.'
+  ),
+  canAccept: row.can_accept !== false,
+  coordinationFee: numberFrom(row.coordination_fee),
+  downpaymentAmount: numberFrom(row.downpayment_amount),
+  initialCoordinatorShare: numberFrom(row.initial_coordinator_share),
+  paidAt: optionalText(row.paid_at),
+  paymentConfirmed: row.payment_confirmed === true,
+  paymentStatus: textFrom(row.payment_status, 'Awaiting payment information'),
+  platformFeePaid: numberFrom(row.platform_fee_paid),
+  remainingCoordinatorBalance: numberFrom(row.remaining_coordinator_balance),
+})
+
 const taskStatusFrom = (value: unknown): CoordinatorTaskStatus => {
   if (value === 'blocked' || value === 'completed' || value === 'in_progress') return value
   return 'pending'
@@ -276,6 +336,7 @@ const parseDashboard = (value: unknown): CoordinatorDashboard => {
         totalBudget: row.total_budget == null ? undefined : numberFrom(row.total_budget),
         type: optionalText(row.event_type),
         venue: optionalText(row.venue),
+        financial: emptyFinancials(numberFrom(row.coordination_fee)),
       }]
     }),
     invitations: invitationRows.flatMap((entry) => {
@@ -297,6 +358,8 @@ const parseDashboard = (value: unknown): CoordinatorDashboard => {
         requestedAt: optionalText(row.requested_at),
         time: optionalText(row.event_time),
         venue: optionalText(row.venue),
+        financial: emptyFinancials(numberFrom(row.coordination_fee)),
+        selectedServices: [],
       }]
     }),
     tasks: taskRows.flatMap((entry) => {
@@ -332,11 +395,13 @@ export const fetchCoordinatorDashboard = async (): Promise<CoordinatorResult<Coo
     { data, error },
     { data: instructionData, error: instructionError },
     { data: feeData },
+    { data: bookingDetailData, error: bookingDetailError },
   ] =
     await Promise.all([
       supabase.rpc('get_coordinator_dashboard'),
       supabase.rpc('get_my_coordinator_instructions'),
       supabase.rpc('get_my_coordinator_booking_fees'),
+      supabase.rpc('get_my_coordinator_booking_details'),
     ])
   if (error) {
     return { data: emptyCoordinatorDashboard(), message: error.message, ok: false }
@@ -353,6 +418,9 @@ export const fetchCoordinatorDashboard = async (): Promise<CoordinatorResult<Coo
   }
 
   const dashboard = parseDashboard(data)
+  if (bookingDetailError) {
+    console.warn('Unable to load coordinator booking details:', bookingDetailError.message)
+  }
   const feesByEvent = new Map(
     (Array.isArray(feeData) ? feeData : []).map((entry) => {
       const row = recordFrom(entry)
@@ -385,16 +453,49 @@ export const fetchCoordinatorDashboard = async (): Promise<CoordinatorResult<Coo
     instructionsByEvent.set(eventId, instructions)
   }
 
+  const bookingDetailsByEvent = new Map(
+    (Array.isArray(bookingDetailData) ? bookingDetailData : []).map((entry) => {
+      const row = recordFrom(entry)
+      const services = Array.isArray(row.selected_services) ? row.selected_services : []
+      return [textFrom(row.event_id), {
+        clientNotes: optionalText(row.client_notes),
+        financial: parseFinancials(row),
+        packageName: optionalText(row.package_name),
+        selectedServices: services.flatMap((entry) => {
+          const service = recordFrom(entry)
+          const id = textFrom(service.id)
+          const serviceName = textFrom(service.serviceName)
+          if (!id || !serviceName) return []
+          return [{
+            cateringOptionName: optionalText(service.cateringOptionName),
+            categoryName: textFrom(service.categoryName, 'Service'),
+            id,
+            notes: optionalText(service.notes),
+            providerName: textFrom(service.providerName, 'Provider'),
+            serviceName,
+            status: textFrom(service.status, 'selected'),
+            venueBookedHours: service.venueBookedHours == null
+              ? undefined
+              : numberFrom(service.venueBookedHours),
+            venueOptionName: optionalText(service.venueOptionName),
+          }]
+        }),
+      }] as const
+    })
+  )
+
   return {
     data: {
       ...dashboard,
       invitations: dashboard.invitations.map((invitation) => ({
         ...invitation,
         ...(feesByEvent.get(invitation.eventId) ?? {}),
+        ...(bookingDetailsByEvent.get(invitation.eventId) ?? {}),
       })),
       events: dashboard.events.map((event) => ({
         ...event,
         ...(feesByEvent.get(event.id) ?? {}),
+        ...(bookingDetailsByEvent.get(event.id) ?? {}),
         instructions: instructionsByEvent.get(event.id) ?? [],
       })),
     },

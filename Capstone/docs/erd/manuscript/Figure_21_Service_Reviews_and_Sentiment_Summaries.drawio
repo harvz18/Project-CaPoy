@@ -1,0 +1,527 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mxfile host="app.diagrams.net" modified="2026-10-08T00:00:00.000Z" agent="OpenAI Codex" version="24.7.17" type="device" compressed="false">
+  <diagram id="diagram_manuscript_20_reviews_sentiment" name="Figure 21 - Service Reviews and Sentiment Summaries">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="990" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title_manuscript_20_reviews_sentiment" value="MULTIVENT ERD - Service Reviews and Sentiment Summaries" style="text;html=1;align=center;verticalAlign=middle;fontSize=22;fontStyle=1;fontColor=#111111;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="24" y="18" width="1352" height="34" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle_manuscript_20_reviews_sentiment" value="Figure 21 | 4 entities | 4 foreign-key relationships | selective manuscript attributes" style="text;html=1;align=center;verticalAlign=middle;fontSize=11;fontColor=#555555;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="24" y="54" width="1352" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_manuscript_20_reviews_sentiment_1_reviews_provider_id_fkey" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#374151;strokeWidth=2.25;jumpStyle=arc;jumpSize=12;startArrow=ERzeroToMany;startFill=0;endArrow=ERone;endFill=0;fontSize=13;fontColor=#1F2937;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="anchor_manuscript_20_reviews_sentiment_reviews_provider_id_l" target="anchor_manuscript_20_reviews_sentiment_provider_profiles_id_r" data-fk="reviews_provider_id_fkey" data-source-table="reviews" data-source-column="provider_id" data-target-table="provider_profiles" data-target-column="id" data-route="758.0,366.0;700.0,366.0;700.0,291.0;642.0,291.0" data-manuscript="1">
+          <mxGeometry x="-0.62" y="0" width="0" height="0" as="geometry" relative="1">
+            <Array as="points">
+              <mxPoint x="700.0" y="366.0" />
+              <mxPoint x="700.0" y="291.0" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fk_label_manuscript_20_reviews_sentiment_1_reviews_provider_id_fkey" value="provider_id" style="text;html=1;align=center;verticalAlign=middle;fontSize=13;fontColor=#1F2937;fillColor=#FFFFFF;strokeColor=none;spacing=2;" vertex="1" parent="1" data-fk-label="reviews_provider_id_fkey" connectable="0">
+          <mxGeometry x="647.0" y="317.5" width="106" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_manuscript_20_reviews_sentiment_2_reviews_service_id_fkey" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#374151;strokeWidth=2.25;jumpStyle=arc;jumpSize=12;startArrow=ERzeroToMany;startFill=0;endArrow=ERzeroToOne;endFill=0;fontSize=13;fontColor=#1F2937;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="anchor_manuscript_20_reviews_sentiment_reviews_service_id_l" target="anchor_manuscript_20_reviews_sentiment_services_id_r" data-fk="reviews_service_id_fkey" data-source-table="reviews" data-source-column="service_id" data-target-table="services" data-target-column="id" data-route="758.0,396.0;685.0,396.0;685.0,615.0;642.0,615.0" data-manuscript="1">
+          <mxGeometry x="-0.62" y="0" width="0" height="0" as="geometry" relative="1">
+            <Array as="points">
+              <mxPoint x="685.0" y="396.0" />
+              <mxPoint x="685.0" y="615.0" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fk_label_manuscript_20_reviews_sentiment_2_reviews_service_id_fkey" value="service_id" style="text;html=1;align=center;verticalAlign=middle;fontSize=13;fontColor=#1F2937;fillColor=#FFFFFF;strokeColor=none;spacing=2;" vertex="1" parent="1" data-fk-label="reviews_service_id_fkey" connectable="0">
+          <mxGeometry x="636.0" y="494.5" width="98" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_manuscript_20_reviews_sentiment_3_service_review_summaries_service_id_fkey" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#374151;strokeWidth=2.25;jumpStyle=arc;jumpSize=12;startArrow=ERzeroToMany;startFill=0;endArrow=ERone;endFill=0;fontSize=13;fontColor=#1F2937;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="anchor_manuscript_20_reviews_sentiment_service_review_summaries_service_id_l" target="anchor_manuscript_20_reviews_sentiment_services_id_l" data-fk="service_review_summaries_service_id_fkey" data-source-table="service_review_summaries" data-source-column="service_id" data-target-table="services" data-target-column="id" data-route="758.0,720.0;700.0,720.0;700.0,199.0;20.0,199.0;20.0,615.0;63.0,615.0" data-manuscript="1">
+          <mxGeometry x="-0.62" y="0" width="0" height="0" as="geometry" relative="1">
+            <Array as="points">
+              <mxPoint x="700.0" y="720.0" />
+              <mxPoint x="700.0" y="199.0" />
+              <mxPoint x="20.0" y="199.0" />
+              <mxPoint x="20.0" y="615.0" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fk_label_manuscript_20_reviews_sentiment_3_service_review_summaries_service_id_fkey" value="service_id" style="text;html=1;align=center;verticalAlign=middle;fontSize=13;fontColor=#1F2937;fillColor=#FFFFFF;strokeColor=none;spacing=2;" vertex="1" parent="1" data-fk-label="service_review_summaries_service_id_fkey" connectable="0">
+          <mxGeometry x="311.0" y="188.0" width="98" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_manuscript_20_reviews_sentiment_4_services_provider_id_fkey" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#374151;strokeWidth=2.25;jumpStyle=arc;jumpSize=12;startArrow=ERzeroToMany;startFill=0;endArrow=ERone;endFill=0;fontSize=13;fontColor=#1F2937;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="anchor_manuscript_20_reviews_sentiment_services_provider_id_r" target="anchor_manuscript_20_reviews_sentiment_provider_profiles_id_l" data-fk="services_provider_id_fkey" data-source-table="services" data-source-column="provider_id" data-target-table="provider_profiles" data-target-column="id" data-route="642.0,645.0;715.0,645.0;715.0,873.0;20.0,873.0;20.0,291.0;63.0,291.0" data-manuscript="1">
+          <mxGeometry x="-0.62" y="0" width="0" height="0" as="geometry" relative="1">
+            <Array as="points">
+              <mxPoint x="715.0" y="645.0" />
+              <mxPoint x="715.0" y="873.0" />
+              <mxPoint x="20.0" y="873.0" />
+              <mxPoint x="20.0" y="291.0" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fk_label_manuscript_20_reviews_sentiment_4_services_provider_id_fkey" value="provider_id" style="text;html=1;align=center;verticalAlign=middle;fontSize=13;fontColor=#1F2937;fillColor=#FFFFFF;strokeColor=none;spacing=2;" vertex="1" parent="1" data-fk-label="services_provider_id_fkey" connectable="0">
+          <mxGeometry x="314.5" y="862.0" width="106" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="table_manuscript_20_reviews_sentiment_provider_profiles" value="" style="group;html=1;" vertex="1" parent="1" data-table="provider_profiles" data-manuscript="1" connectable="0">
+          <mxGeometry x="70" y="232.0" width="565" height="224" as="geometry" />
+        </mxCell>
+        <mxCell id="table_manuscript_20_reviews_sentiment_provider_profiles_header" value="provider_profiles" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=9;fontSize=18;fontStyle=1;fontColor=#FFFFFF;fillColor=#B45519;strokeColor=#404040;strokeWidth=1.4;" vertex="1" parent="table_manuscript_20_reviews_sentiment_provider_profiles">
+          <mxGeometry x="0" y="0" width="565" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_provider_profiles_id_marker" value="PK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_provider_profiles" connectable="0">
+          <mxGeometry x="0" y="44" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_provider_profiles_id" value="id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_provider_profiles" data-column-table="provider_profiles" data-column="id" connectable="0">
+          <mxGeometry x="70" y="44" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_provider_profiles_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_provider_profiles" connectable="0">
+          <mxGeometry x="425" y="44" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_provider_profiles_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_provider_profiles" data-anchor-table="provider_profiles" data-anchor-column="id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="58.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_provider_profiles_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_provider_profiles" data-anchor-table="provider_profiles" data-anchor-column="id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="58.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_provider_profiles_user_id_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_provider_profiles" connectable="0">
+          <mxGeometry x="0" y="74" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_provider_profiles_user_id" value="user_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_provider_profiles" data-column-table="provider_profiles" data-column="user_id" connectable="0">
+          <mxGeometry x="70" y="74" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_provider_profiles_user_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_provider_profiles" connectable="0">
+          <mxGeometry x="425" y="74" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_provider_profiles_user_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_provider_profiles" data-anchor-table="provider_profiles" data-anchor-column="user_id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="88.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_provider_profiles_user_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_provider_profiles" data-anchor-table="provider_profiles" data-anchor-column="user_id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="88.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_provider_profiles_business_name_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_provider_profiles" connectable="0">
+          <mxGeometry x="0" y="104" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_provider_profiles_business_name" value="business_name" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_provider_profiles" data-column-table="provider_profiles" data-column="business_name" connectable="0">
+          <mxGeometry x="70" y="104" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_provider_profiles_business_name_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_provider_profiles" connectable="0">
+          <mxGeometry x="425" y="104" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_provider_profiles_business_name_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_provider_profiles" data-anchor-table="provider_profiles" data-anchor-column="business_name" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="118.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_provider_profiles_business_name_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_provider_profiles" data-anchor-table="provider_profiles" data-anchor-column="business_name" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="118.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_provider_profiles_location_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_provider_profiles" connectable="0">
+          <mxGeometry x="0" y="134" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_provider_profiles_location" value="location ?" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_provider_profiles" data-column-table="provider_profiles" data-column="location" connectable="0">
+          <mxGeometry x="70" y="134" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_provider_profiles_location_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_provider_profiles" connectable="0">
+          <mxGeometry x="425" y="134" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_provider_profiles_location_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_provider_profiles" data-anchor-table="provider_profiles" data-anchor-column="location" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="148.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_provider_profiles_location_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_provider_profiles" data-anchor-table="provider_profiles" data-anchor-column="location" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="148.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_provider_profiles_verification_status_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_provider_profiles" connectable="0">
+          <mxGeometry x="0" y="164" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_provider_profiles_verification_status" value="verification_status" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_provider_profiles" data-column-table="provider_profiles" data-column="verification_status" connectable="0">
+          <mxGeometry x="70" y="164" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_provider_profiles_verification_status_type" value="account_status" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_provider_profiles" connectable="0">
+          <mxGeometry x="425" y="164" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_provider_profiles_verification_status_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_provider_profiles" data-anchor-table="provider_profiles" data-anchor-column="verification_status" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="178.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_provider_profiles_verification_status_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_provider_profiles" data-anchor-table="provider_profiles" data-anchor-column="verification_status" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="178.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_provider_profiles_reviewed_by_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_provider_profiles" connectable="0">
+          <mxGeometry x="0" y="194" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_provider_profiles_reviewed_by" value="reviewed_by ?" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_provider_profiles" data-column-table="provider_profiles" data-column="reviewed_by" connectable="0">
+          <mxGeometry x="70" y="194" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_provider_profiles_reviewed_by_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_provider_profiles" connectable="0">
+          <mxGeometry x="425" y="194" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_provider_profiles_reviewed_by_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_provider_profiles" data-anchor-table="provider_profiles" data-anchor-column="reviewed_by" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="208.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_provider_profiles_reviewed_by_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_provider_profiles" data-anchor-table="provider_profiles" data-anchor-column="reviewed_by" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="208.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="table_manuscript_20_reviews_sentiment_services" value="" style="group;html=1;" vertex="1" parent="1" data-table="services" data-manuscript="1" connectable="0">
+          <mxGeometry x="70" y="556.0" width="565" height="284" as="geometry" />
+        </mxCell>
+        <mxCell id="table_manuscript_20_reviews_sentiment_services_header" value="services" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=9;fontSize=18;fontStyle=1;fontColor=#FFFFFF;fillColor=#B45519;strokeColor=#404040;strokeWidth=1.4;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services">
+          <mxGeometry x="0" y="0" width="565" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_services_id_marker" value="PK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" connectable="0">
+          <mxGeometry x="0" y="44" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_services_id" value="id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" data-column-table="services" data-column="id" connectable="0">
+          <mxGeometry x="70" y="44" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_services_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" connectable="0">
+          <mxGeometry x="425" y="44" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_services_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" data-anchor-table="services" data-anchor-column="id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="58.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_services_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" data-anchor-table="services" data-anchor-column="id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="58.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_services_provider_id_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" connectable="0">
+          <mxGeometry x="0" y="74" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_services_provider_id" value="provider_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" data-column-table="services" data-column="provider_id" connectable="0">
+          <mxGeometry x="70" y="74" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_services_provider_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" connectable="0">
+          <mxGeometry x="425" y="74" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_services_provider_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" data-anchor-table="services" data-anchor-column="provider_id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="88.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_services_provider_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" data-anchor-table="services" data-anchor-column="provider_id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="88.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_services_category_id_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" connectable="0">
+          <mxGeometry x="0" y="104" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_services_category_id" value="category_id ?" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" data-column-table="services" data-column="category_id" connectable="0">
+          <mxGeometry x="70" y="104" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_services_category_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" connectable="0">
+          <mxGeometry x="425" y="104" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_services_category_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" data-anchor-table="services" data-anchor-column="category_id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="118.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_services_category_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" data-anchor-table="services" data-anchor-column="category_id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="118.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_services_name_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" connectable="0">
+          <mxGeometry x="0" y="134" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_services_name" value="name" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" data-column-table="services" data-column="name" connectable="0">
+          <mxGeometry x="70" y="134" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_services_name_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" connectable="0">
+          <mxGeometry x="425" y="134" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_services_name_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" data-anchor-table="services" data-anchor-column="name" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="148.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_services_name_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" data-anchor-table="services" data-anchor-column="name" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="148.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_services_base_price_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" connectable="0">
+          <mxGeometry x="0" y="164" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_services_base_price" value="base_price ?" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" data-column-table="services" data-column="base_price" connectable="0">
+          <mxGeometry x="70" y="164" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_services_base_price_type" value="numeric(12,2)" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" connectable="0">
+          <mxGeometry x="425" y="164" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_services_base_price_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" data-anchor-table="services" data-anchor-column="base_price" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="178.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_services_base_price_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" data-anchor-table="services" data-anchor-column="base_price" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="178.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_services_status_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" connectable="0">
+          <mxGeometry x="0" y="194" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_services_status" value="status" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" data-column-table="services" data-column="status" connectable="0">
+          <mxGeometry x="70" y="194" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_services_status_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" connectable="0">
+          <mxGeometry x="425" y="194" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_services_status_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" data-anchor-table="services" data-anchor-column="status" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="208.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_services_status_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" data-anchor-table="services" data-anchor-column="status" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="208.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_services_pricing_model_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" connectable="0">
+          <mxGeometry x="0" y="224" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_services_pricing_model" value="pricing_model ?" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" data-column-table="services" data-column="pricing_model" connectable="0">
+          <mxGeometry x="70" y="224" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_services_pricing_model_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" connectable="0">
+          <mxGeometry x="425" y="224" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_services_pricing_model_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" data-anchor-table="services" data-anchor-column="pricing_model" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="238.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_services_pricing_model_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" data-anchor-table="services" data-anchor-column="pricing_model" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="238.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_services_moderated_by_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" connectable="0">
+          <mxGeometry x="0" y="254" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_services_moderated_by" value="moderated_by ?" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" data-column-table="services" data-column="moderated_by" connectable="0">
+          <mxGeometry x="70" y="254" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_services_moderated_by_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" connectable="0">
+          <mxGeometry x="425" y="254" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_services_moderated_by_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" data-anchor-table="services" data-anchor-column="moderated_by" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="268.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_services_moderated_by_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_services" data-anchor-table="services" data-anchor-column="moderated_by" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="268.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="table_manuscript_20_reviews_sentiment_reviews" value="" style="group;html=1;" vertex="1" parent="1" data-table="reviews" data-manuscript="1" connectable="0">
+          <mxGeometry x="765" y="217.0" width="565" height="344" as="geometry" />
+        </mxCell>
+        <mxCell id="table_manuscript_20_reviews_sentiment_reviews_header" value="reviews" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=9;fontSize=18;fontStyle=1;fontColor=#FFFFFF;fillColor=#B45519;strokeColor=#404040;strokeWidth=1.4;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews">
+          <mxGeometry x="0" y="0" width="565" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_reviews_id_marker" value="PK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" connectable="0">
+          <mxGeometry x="0" y="44" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_reviews_id" value="id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" data-column-table="reviews" data-column="id" connectable="0">
+          <mxGeometry x="70" y="44" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_reviews_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" connectable="0">
+          <mxGeometry x="425" y="44" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_reviews_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" data-anchor-table="reviews" data-anchor-column="id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="58.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_reviews_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" data-anchor-table="reviews" data-anchor-column="id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="58.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_reviews_booking_id_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" connectable="0">
+          <mxGeometry x="0" y="74" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_reviews_booking_id" value="booking_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" data-column-table="reviews" data-column="booking_id" connectable="0">
+          <mxGeometry x="70" y="74" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_reviews_booking_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" connectable="0">
+          <mxGeometry x="425" y="74" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_reviews_booking_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" data-anchor-table="reviews" data-anchor-column="booking_id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="88.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_reviews_booking_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" data-anchor-table="reviews" data-anchor-column="booking_id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="88.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_reviews_reviewer_id_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" connectable="0">
+          <mxGeometry x="0" y="104" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_reviews_reviewer_id" value="reviewer_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" data-column-table="reviews" data-column="reviewer_id" connectable="0">
+          <mxGeometry x="70" y="104" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_reviews_reviewer_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" connectable="0">
+          <mxGeometry x="425" y="104" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_reviews_reviewer_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" data-anchor-table="reviews" data-anchor-column="reviewer_id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="118.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_reviews_reviewer_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" data-anchor-table="reviews" data-anchor-column="reviewer_id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="118.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_reviews_provider_id_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" connectable="0">
+          <mxGeometry x="0" y="134" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_reviews_provider_id" value="provider_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" data-column-table="reviews" data-column="provider_id" connectable="0">
+          <mxGeometry x="70" y="134" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_reviews_provider_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" connectable="0">
+          <mxGeometry x="425" y="134" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_reviews_provider_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" data-anchor-table="reviews" data-anchor-column="provider_id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="148.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_reviews_provider_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" data-anchor-table="reviews" data-anchor-column="provider_id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="148.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_reviews_service_id_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" connectable="0">
+          <mxGeometry x="0" y="164" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_reviews_service_id" value="service_id ?" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" data-column-table="reviews" data-column="service_id" connectable="0">
+          <mxGeometry x="70" y="164" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_reviews_service_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" connectable="0">
+          <mxGeometry x="425" y="164" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_reviews_service_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" data-anchor-table="reviews" data-anchor-column="service_id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="178.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_reviews_service_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" data-anchor-table="reviews" data-anchor-column="service_id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="178.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_reviews_rating_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" connectable="0">
+          <mxGeometry x="0" y="194" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_reviews_rating" value="rating" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" data-column-table="reviews" data-column="rating" connectable="0">
+          <mxGeometry x="70" y="194" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_reviews_rating_type" value="integer" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" connectable="0">
+          <mxGeometry x="425" y="194" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_reviews_rating_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" data-anchor-table="reviews" data-anchor-column="rating" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="208.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_reviews_rating_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" data-anchor-table="reviews" data-anchor-column="rating" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="208.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_reviews_comment_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" connectable="0">
+          <mxGeometry x="0" y="224" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_reviews_comment" value="comment ?" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" data-column-table="reviews" data-column="comment" connectable="0">
+          <mxGeometry x="70" y="224" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_reviews_comment_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" connectable="0">
+          <mxGeometry x="425" y="224" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_reviews_comment_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" data-anchor-table="reviews" data-anchor-column="comment" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="238.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_reviews_comment_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" data-anchor-table="reviews" data-anchor-column="comment" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="238.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_reviews_analysis_status_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" connectable="0">
+          <mxGeometry x="0" y="254" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_reviews_analysis_status" value="analysis_status" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" data-column-table="reviews" data-column="analysis_status" connectable="0">
+          <mxGeometry x="70" y="254" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_reviews_analysis_status_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" connectable="0">
+          <mxGeometry x="425" y="254" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_reviews_analysis_status_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" data-anchor-table="reviews" data-anchor-column="analysis_status" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="268.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_reviews_analysis_status_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" data-anchor-table="reviews" data-anchor-column="analysis_status" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="268.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_reviews_sentiment_label_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" connectable="0">
+          <mxGeometry x="0" y="284" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_reviews_sentiment_label" value="sentiment_label ?" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" data-column-table="reviews" data-column="sentiment_label" connectable="0">
+          <mxGeometry x="70" y="284" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_reviews_sentiment_label_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" connectable="0">
+          <mxGeometry x="425" y="284" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_reviews_sentiment_label_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" data-anchor-table="reviews" data-anchor-column="sentiment_label" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="298.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_reviews_sentiment_label_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" data-anchor-table="reviews" data-anchor-column="sentiment_label" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="298.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_reviews_sentiment_score_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" connectable="0">
+          <mxGeometry x="0" y="314" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_reviews_sentiment_score" value="sentiment_score ?" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" data-column-table="reviews" data-column="sentiment_score" connectable="0">
+          <mxGeometry x="70" y="314" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_reviews_sentiment_score_type" value="numeric" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" connectable="0">
+          <mxGeometry x="425" y="314" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_reviews_sentiment_score_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" data-anchor-table="reviews" data-anchor-column="sentiment_score" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="328.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_reviews_sentiment_score_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_reviews" data-anchor-table="reviews" data-anchor-column="sentiment_score" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="328.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="table_manuscript_20_reviews_sentiment_service_review_summaries" value="" style="group;html=1;" vertex="1" parent="1" data-table="service_review_summaries" data-manuscript="1" connectable="0">
+          <mxGeometry x="765" y="661.0" width="565" height="194" as="geometry" />
+        </mxCell>
+        <mxCell id="table_manuscript_20_reviews_sentiment_service_review_summaries_header" value="service_review_summaries" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=9;fontSize=18;fontStyle=1;fontColor=#FFFFFF;fillColor=#B45519;strokeColor=#404040;strokeWidth=1.4;" vertex="1" parent="table_manuscript_20_reviews_sentiment_service_review_summaries">
+          <mxGeometry x="0" y="0" width="565" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_service_review_summaries_service_id_marker" value="PK/FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_service_review_summaries" connectable="0">
+          <mxGeometry x="0" y="44" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_service_review_summaries_service_id" value="service_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_service_review_summaries" data-column-table="service_review_summaries" data-column="service_id" connectable="0">
+          <mxGeometry x="70" y="44" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_service_review_summaries_service_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_service_review_summaries" connectable="0">
+          <mxGeometry x="425" y="44" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_service_review_summaries_service_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_service_review_summaries" data-anchor-table="service_review_summaries" data-anchor-column="service_id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="58.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_service_review_summaries_service_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_service_review_summaries" data-anchor-table="service_review_summaries" data-anchor-column="service_id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="58.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_service_review_summaries_sentiment_label_marker" value="PK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_service_review_summaries" connectable="0">
+          <mxGeometry x="0" y="74" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_service_review_summaries_sentiment_label" value="sentiment_label" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_service_review_summaries" data-column-table="service_review_summaries" data-column="sentiment_label" connectable="0">
+          <mxGeometry x="70" y="74" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_service_review_summaries_sentiment_label_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_service_review_summaries" connectable="0">
+          <mxGeometry x="425" y="74" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_service_review_summaries_sentiment_label_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_service_review_summaries" data-anchor-table="service_review_summaries" data-anchor-column="sentiment_label" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="88.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_service_review_summaries_sentiment_label_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_service_review_summaries" data-anchor-table="service_review_summaries" data-anchor-column="sentiment_label" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="88.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_service_review_summaries_summary_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_service_review_summaries" connectable="0">
+          <mxGeometry x="0" y="104" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_service_review_summaries_summary" value="summary" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_service_review_summaries" data-column-table="service_review_summaries" data-column="summary" connectable="0">
+          <mxGeometry x="70" y="104" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_service_review_summaries_summary_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_service_review_summaries" connectable="0">
+          <mxGeometry x="425" y="104" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_service_review_summaries_summary_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_service_review_summaries" data-anchor-table="service_review_summaries" data-anchor-column="summary" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="118.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_service_review_summaries_summary_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_service_review_summaries" data-anchor-table="service_review_summaries" data-anchor-column="summary" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="118.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_service_review_summaries_source_review_count_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_service_review_summaries" connectable="0">
+          <mxGeometry x="0" y="134" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_service_review_summaries_source_review_count" value="source_review_count" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_service_review_summaries" data-column-table="service_review_summaries" data-column="source_review_count" connectable="0">
+          <mxGeometry x="70" y="134" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_service_review_summaries_source_review_count_type" value="integer" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_service_review_summaries" connectable="0">
+          <mxGeometry x="425" y="134" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_service_review_summaries_source_review_count_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_service_review_summaries" data-anchor-table="service_review_summaries" data-anchor-column="source_review_count" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="148.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_service_review_summaries_source_review_count_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_service_review_summaries" data-anchor-table="service_review_summaries" data-anchor-column="source_review_count" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="148.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_service_review_summaries_provider_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_service_review_summaries" connectable="0">
+          <mxGeometry x="0" y="164" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_service_review_summaries_provider" value="provider" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_service_review_summaries" data-column-table="service_review_summaries" data-column="provider" connectable="0">
+          <mxGeometry x="70" y="164" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_20_reviews_sentiment_service_review_summaries_provider_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_20_reviews_sentiment_service_review_summaries" connectable="0">
+          <mxGeometry x="425" y="164" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_service_review_summaries_provider_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_service_review_summaries" data-anchor-table="service_review_summaries" data-anchor-column="provider" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="178.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_20_reviews_sentiment_service_review_summaries_provider_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_20_reviews_sentiment_service_review_summaries" data-anchor-table="service_review_summaries" data-anchor-column="provider" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="178.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="note_manuscript_20_reviews_sentiment" value="Selective manuscript view: all PK/FK columns and essential business attributes are shown. See the Complete Technical ERD for every column and relationship." style="text;html=1;align=center;verticalAlign=middle;fontSize=10;fontColor=#555555;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="24" y="966" width="1352" height="16" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

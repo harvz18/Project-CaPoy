@@ -1,0 +1,353 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mxfile host="app.diagrams.net" modified="2026-10-08T00:00:00.000Z" agent="OpenAI Codex" version="24.7.17" type="device" compressed="false">
+  <diagram id="diagram_manuscript_27_administration" name="Figure 29 - Administration and Audit">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="990" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title_manuscript_27_administration" value="MULTIVENT ERD - Administration and Audit" style="text;html=1;align=center;verticalAlign=middle;fontSize=22;fontStyle=1;fontColor=#111111;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="24" y="18" width="1352" height="34" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle_manuscript_27_administration" value="Figure 29 | 4 entities | 2 foreign-key relationships | selective manuscript attributes" style="text;html=1;align=center;verticalAlign=middle;fontSize=11;fontColor=#555555;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="24" y="54" width="1352" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_manuscript_27_administration_1_audit_logs_actor_id_fkey" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#374151;strokeWidth=2.25;jumpStyle=arc;jumpSize=12;startArrow=ERzeroToMany;startFill=0;endArrow=ERzeroToOne;endFill=0;fontSize=13;fontColor=#1F2937;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="anchor_manuscript_27_administration_audit_logs_actor_id_l" target="anchor_manuscript_27_administration_profiles_id_r" data-fk="audit_logs_actor_id_fkey" data-source-table="audit_logs" data-source-column="actor_id" data-target-table="profiles" data-target-column="id" data-route="758.0,630.0;700.0,630.0;700.0,351.0;642.0,351.0" data-manuscript="1">
+          <mxGeometry x="-0.62" y="0" width="0" height="0" as="geometry" relative="1">
+            <Array as="points">
+              <mxPoint x="700.0" y="630.0" />
+              <mxPoint x="700.0" y="351.0" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fk_label_manuscript_27_administration_1_audit_logs_actor_id_fkey" value="actor_id" style="text;html=1;align=center;verticalAlign=middle;fontSize=13;fontColor=#1F2937;fillColor=#FFFFFF;strokeColor=none;spacing=2;" vertex="1" parent="1" data-fk-label="audit_logs_actor_id_fkey" connectable="0">
+          <mxGeometry x="659.0" y="479.5" width="82" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="fk_manuscript_27_administration_2_system_settings_updated_by_fkey" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#374151;strokeWidth=2.25;jumpStyle=arc;jumpSize=12;startArrow=ERzeroToMany;startFill=0;endArrow=ERzeroToOne;endFill=0;fontSize=13;fontColor=#1F2937;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="anchor_manuscript_27_administration_system_settings_updated_by_r" target="anchor_manuscript_27_administration_profiles_id_l" data-fk="system_settings_updated_by_fkey" data-source-table="system_settings" data-source-column="updated_by" data-target-table="profiles" data-target-column="id" data-route="642.0,765.0;700.0,765.0;700.0,274.0;20.0,274.0;20.0,351.0;63.0,351.0" data-manuscript="1">
+          <mxGeometry x="-0.62" y="0" width="0" height="0" as="geometry" relative="1">
+            <Array as="points">
+              <mxPoint x="700.0" y="765.0" />
+              <mxPoint x="700.0" y="274.0" />
+              <mxPoint x="20.0" y="274.0" />
+              <mxPoint x="20.0" y="351.0" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fk_label_manuscript_27_administration_2_system_settings_updated_by_fkey" value="updated_by" style="text;html=1;align=center;verticalAlign=middle;fontSize=13;fontColor=#1F2937;fillColor=#FFFFFF;strokeColor=none;spacing=2;" vertex="1" parent="1" data-fk-label="system_settings_updated_by_fkey" connectable="0">
+          <mxGeometry x="311.0" y="263.0" width="98" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="table_manuscript_27_administration_profiles" value="" style="group;html=1;" vertex="1" parent="1" data-table="profiles" data-manuscript="1" connectable="0">
+          <mxGeometry x="70" y="292.0" width="565" height="194" as="geometry" />
+        </mxCell>
+        <mxCell id="table_manuscript_27_administration_profiles_header" value="profiles" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=9;fontSize=18;fontStyle=1;fontColor=#FFFFFF;fillColor=#666666;strokeColor=#404040;strokeWidth=1.4;" vertex="1" parent="table_manuscript_27_administration_profiles">
+          <mxGeometry x="0" y="0" width="565" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_profiles_id_marker" value="PK/FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_profiles" connectable="0">
+          <mxGeometry x="0" y="44" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_profiles_id" value="id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_profiles" data-column-table="profiles" data-column="id" connectable="0">
+          <mxGeometry x="70" y="44" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_profiles_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_profiles" connectable="0">
+          <mxGeometry x="425" y="44" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_profiles_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_profiles" data-anchor-table="profiles" data-anchor-column="id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="58.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_profiles_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_profiles" data-anchor-table="profiles" data-anchor-column="id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="58.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_profiles_full_name_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_profiles" connectable="0">
+          <mxGeometry x="0" y="74" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_profiles_full_name" value="full_name ?" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_profiles" data-column-table="profiles" data-column="full_name" connectable="0">
+          <mxGeometry x="70" y="74" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_profiles_full_name_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_profiles" connectable="0">
+          <mxGeometry x="425" y="74" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_profiles_full_name_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_profiles" data-anchor-table="profiles" data-anchor-column="full_name" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="88.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_profiles_full_name_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_profiles" data-anchor-table="profiles" data-anchor-column="full_name" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="88.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_profiles_email_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_profiles" connectable="0">
+          <mxGeometry x="0" y="104" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_profiles_email" value="email ?" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_profiles" data-column-table="profiles" data-column="email" connectable="0">
+          <mxGeometry x="70" y="104" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_profiles_email_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_profiles" connectable="0">
+          <mxGeometry x="425" y="104" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_profiles_email_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_profiles" data-anchor-table="profiles" data-anchor-column="email" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="118.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_profiles_email_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_profiles" data-anchor-table="profiles" data-anchor-column="email" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="118.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_profiles_default_role_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_profiles" connectable="0">
+          <mxGeometry x="0" y="134" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_profiles_default_role" value="default_role" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_profiles" data-column-table="profiles" data-column="default_role" connectable="0">
+          <mxGeometry x="70" y="134" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_profiles_default_role_type" value="user_role" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_profiles" connectable="0">
+          <mxGeometry x="425" y="134" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_profiles_default_role_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_profiles" data-anchor-table="profiles" data-anchor-column="default_role" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="148.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_profiles_default_role_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_profiles" data-anchor-table="profiles" data-anchor-column="default_role" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="148.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_profiles_account_status_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_profiles" connectable="0">
+          <mxGeometry x="0" y="164" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_profiles_account_status" value="account_status" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_profiles" data-column-table="profiles" data-column="account_status" connectable="0">
+          <mxGeometry x="70" y="164" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_profiles_account_status_type" value="account_status" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_profiles" connectable="0">
+          <mxGeometry x="425" y="164" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_profiles_account_status_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_profiles" data-anchor-table="profiles" data-anchor-column="account_status" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="178.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_profiles_account_status_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_profiles" data-anchor-table="profiles" data-anchor-column="account_status" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="178.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="table_manuscript_27_administration_provider_profile_merge_archive" value="" style="group;html=1;" vertex="1" parent="1" data-table="provider_profile_merge_archive" data-manuscript="1" connectable="0">
+          <mxGeometry x="765" y="307.0" width="565" height="134" as="geometry" />
+        </mxCell>
+        <mxCell id="table_manuscript_27_administration_provider_profile_merge_archive_header" value="provider_profile_merge_archive" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=9;fontSize=18;fontStyle=1;fontColor=#FFFFFF;fillColor=#666666;strokeColor=#404040;strokeWidth=1.4;" vertex="1" parent="table_manuscript_27_administration_provider_profile_merge_archive">
+          <mxGeometry x="0" y="0" width="565" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_provider_profile_merge_archive_original_provider_id_marker" value="PK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_provider_profile_merge_archive" connectable="0">
+          <mxGeometry x="0" y="44" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_provider_profile_merge_archive_original_provider_id" value="original_provider_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_provider_profile_merge_archive" data-column-table="provider_profile_merge_archive" data-column="original_provider_id" connectable="0">
+          <mxGeometry x="70" y="44" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_provider_profile_merge_archive_original_provider_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_provider_profile_merge_archive" connectable="0">
+          <mxGeometry x="425" y="44" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_provider_profile_merge_archive_original_provider_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_provider_profile_merge_archive" data-anchor-table="provider_profile_merge_archive" data-anchor-column="original_provider_id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="58.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_provider_profile_merge_archive_original_provider_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_provider_profile_merge_archive" data-anchor-table="provider_profile_merge_archive" data-anchor-column="original_provider_id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="58.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_provider_profile_merge_archive_user_id_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_provider_profile_merge_archive" connectable="0">
+          <mxGeometry x="0" y="74" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_provider_profile_merge_archive_user_id" value="user_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_provider_profile_merge_archive" data-column-table="provider_profile_merge_archive" data-column="user_id" connectable="0">
+          <mxGeometry x="70" y="74" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_provider_profile_merge_archive_user_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_provider_profile_merge_archive" connectable="0">
+          <mxGeometry x="425" y="74" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_provider_profile_merge_archive_user_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_provider_profile_merge_archive" data-anchor-table="provider_profile_merge_archive" data-anchor-column="user_id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="88.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_provider_profile_merge_archive_user_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_provider_profile_merge_archive" data-anchor-table="provider_profile_merge_archive" data-anchor-column="user_id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="88.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_provider_profile_merge_archive_kept_provider_id_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_provider_profile_merge_archive" connectable="0">
+          <mxGeometry x="0" y="104" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_provider_profile_merge_archive_kept_provider_id" value="kept_provider_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_provider_profile_merge_archive" data-column-table="provider_profile_merge_archive" data-column="kept_provider_id" connectable="0">
+          <mxGeometry x="70" y="104" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_provider_profile_merge_archive_kept_provider_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_provider_profile_merge_archive" connectable="0">
+          <mxGeometry x="425" y="104" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_provider_profile_merge_archive_kept_provider_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_provider_profile_merge_archive" data-anchor-table="provider_profile_merge_archive" data-anchor-column="kept_provider_id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="118.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_provider_profile_merge_archive_kept_provider_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_provider_profile_merge_archive" data-anchor-table="provider_profile_merge_archive" data-anchor-column="kept_provider_id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="118.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="table_manuscript_27_administration_audit_logs" value="" style="group;html=1;" vertex="1" parent="1" data-table="audit_logs" data-manuscript="1" connectable="0">
+          <mxGeometry x="765" y="541.0" width="565" height="224" as="geometry" />
+        </mxCell>
+        <mxCell id="table_manuscript_27_administration_audit_logs_header" value="audit_logs" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=9;fontSize=18;fontStyle=1;fontColor=#FFFFFF;fillColor=#666666;strokeColor=#404040;strokeWidth=1.4;" vertex="1" parent="table_manuscript_27_administration_audit_logs">
+          <mxGeometry x="0" y="0" width="565" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_audit_logs_id_marker" value="PK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_audit_logs" connectable="0">
+          <mxGeometry x="0" y="44" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_audit_logs_id" value="id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_audit_logs" data-column-table="audit_logs" data-column="id" connectable="0">
+          <mxGeometry x="70" y="44" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_audit_logs_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_audit_logs" connectable="0">
+          <mxGeometry x="425" y="44" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_audit_logs_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_audit_logs" data-anchor-table="audit_logs" data-anchor-column="id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="58.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_audit_logs_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_audit_logs" data-anchor-table="audit_logs" data-anchor-column="id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="58.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_audit_logs_actor_id_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_audit_logs" connectable="0">
+          <mxGeometry x="0" y="74" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_audit_logs_actor_id" value="actor_id ?" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_audit_logs" data-column-table="audit_logs" data-column="actor_id" connectable="0">
+          <mxGeometry x="70" y="74" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_audit_logs_actor_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_audit_logs" connectable="0">
+          <mxGeometry x="425" y="74" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_audit_logs_actor_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_audit_logs" data-anchor-table="audit_logs" data-anchor-column="actor_id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="88.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_audit_logs_actor_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_audit_logs" data-anchor-table="audit_logs" data-anchor-column="actor_id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="88.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_audit_logs_actor_role_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_audit_logs" connectable="0">
+          <mxGeometry x="0" y="104" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_audit_logs_actor_role" value="actor_role ?" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_audit_logs" data-column-table="audit_logs" data-column="actor_role" connectable="0">
+          <mxGeometry x="70" y="104" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_audit_logs_actor_role_type" value="user_role" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_audit_logs" connectable="0">
+          <mxGeometry x="425" y="104" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_audit_logs_actor_role_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_audit_logs" data-anchor-table="audit_logs" data-anchor-column="actor_role" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="118.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_audit_logs_actor_role_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_audit_logs" data-anchor-table="audit_logs" data-anchor-column="actor_role" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="118.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_audit_logs_action_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_audit_logs" connectable="0">
+          <mxGeometry x="0" y="134" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_audit_logs_action" value="action" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_audit_logs" data-column-table="audit_logs" data-column="action" connectable="0">
+          <mxGeometry x="70" y="134" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_audit_logs_action_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_audit_logs" connectable="0">
+          <mxGeometry x="425" y="134" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_audit_logs_action_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_audit_logs" data-anchor-table="audit_logs" data-anchor-column="action" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="148.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_audit_logs_action_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_audit_logs" data-anchor-table="audit_logs" data-anchor-column="action" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="148.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_audit_logs_resource_type_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_audit_logs" connectable="0">
+          <mxGeometry x="0" y="164" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_audit_logs_resource_type" value="resource_type" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_audit_logs" data-column-table="audit_logs" data-column="resource_type" connectable="0">
+          <mxGeometry x="70" y="164" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_audit_logs_resource_type_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_audit_logs" connectable="0">
+          <mxGeometry x="425" y="164" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_audit_logs_resource_type_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_audit_logs" data-anchor-table="audit_logs" data-anchor-column="resource_type" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="178.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_audit_logs_resource_type_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_audit_logs" data-anchor-table="audit_logs" data-anchor-column="resource_type" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="178.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_audit_logs_resource_id_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_audit_logs" connectable="0">
+          <mxGeometry x="0" y="194" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_audit_logs_resource_id" value="resource_id ?" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_audit_logs" data-column-table="audit_logs" data-column="resource_id" connectable="0">
+          <mxGeometry x="70" y="194" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_audit_logs_resource_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_audit_logs" connectable="0">
+          <mxGeometry x="425" y="194" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_audit_logs_resource_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_audit_logs" data-anchor-table="audit_logs" data-anchor-column="resource_id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="208.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_audit_logs_resource_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_audit_logs" data-anchor-table="audit_logs" data-anchor-column="resource_id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="208.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="table_manuscript_27_administration_system_settings" value="" style="group;html=1;" vertex="1" parent="1" data-table="system_settings" data-manuscript="1" connectable="0">
+          <mxGeometry x="70" y="586.0" width="565" height="194" as="geometry" />
+        </mxCell>
+        <mxCell id="table_manuscript_27_administration_system_settings_header" value="system_settings" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=9;fontSize=18;fontStyle=1;fontColor=#FFFFFF;fillColor=#666666;strokeColor=#404040;strokeWidth=1.4;" vertex="1" parent="table_manuscript_27_administration_system_settings">
+          <mxGeometry x="0" y="0" width="565" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_system_settings_id_marker" value="PK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_system_settings" connectable="0">
+          <mxGeometry x="0" y="44" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_system_settings_id" value="id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_system_settings" data-column-table="system_settings" data-column="id" connectable="0">
+          <mxGeometry x="70" y="44" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_system_settings_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_system_settings" connectable="0">
+          <mxGeometry x="425" y="44" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_system_settings_id_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_system_settings" data-anchor-table="system_settings" data-anchor-column="id" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="58.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_system_settings_id_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_system_settings" data-anchor-table="system_settings" data-anchor-column="id" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="58.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_system_settings_key_marker" value="UQ" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_system_settings" connectable="0">
+          <mxGeometry x="0" y="74" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_system_settings_key" value="key" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_system_settings" data-column-table="system_settings" data-column="key" connectable="0">
+          <mxGeometry x="70" y="74" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_system_settings_key_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_system_settings" connectable="0">
+          <mxGeometry x="425" y="74" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_system_settings_key_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_system_settings" data-anchor-table="system_settings" data-anchor-column="key" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="88.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_system_settings_key_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_system_settings" data-anchor-table="system_settings" data-anchor-column="key" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="88.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_system_settings_value_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_system_settings" connectable="0">
+          <mxGeometry x="0" y="104" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_system_settings_value" value="value" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_system_settings" data-column-table="system_settings" data-column="value" connectable="0">
+          <mxGeometry x="70" y="104" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_system_settings_value_type" value="jsonb" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_system_settings" connectable="0">
+          <mxGeometry x="425" y="104" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_system_settings_value_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_system_settings" data-anchor-table="system_settings" data-anchor-column="value" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="118.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_system_settings_value_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_system_settings" data-anchor-table="system_settings" data-anchor-column="value" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="118.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_system_settings_description_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_system_settings" connectable="0">
+          <mxGeometry x="0" y="134" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_system_settings_description" value="description ?" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_system_settings" data-column-table="system_settings" data-column="description" connectable="0">
+          <mxGeometry x="70" y="134" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_system_settings_description_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#F3F4F6;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_system_settings" connectable="0">
+          <mxGeometry x="425" y="134" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_system_settings_description_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_system_settings" data-anchor-table="system_settings" data-anchor-column="description" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="148.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_system_settings_description_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_system_settings" data-anchor-table="system_settings" data-anchor-column="description" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="148.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_system_settings_updated_by_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#222222;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_system_settings" connectable="0">
+          <mxGeometry x="0" y="164" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_system_settings_updated_by" value="updated_by ?" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontSize=15;fontColor=#111111;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_system_settings" data-column-table="system_settings" data-column="updated_by" connectable="0">
+          <mxGeometry x="70" y="164" width="355" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="col_manuscript_27_administration_system_settings_updated_by_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=7;fontSize=15;fontColor=#444444;fillColor=#FFFFFF;strokeColor=#B8BDC4;strokeWidth=1;" vertex="1" parent="table_manuscript_27_administration_system_settings" connectable="0">
+          <mxGeometry x="425" y="164" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_system_settings_updated_by_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_system_settings" data-anchor-table="system_settings" data-anchor-column="updated_by" data-anchor-side="L" connectable="1">
+          <mxGeometry x="-8" y="178.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="anchor_manuscript_27_administration_system_settings_updated_by_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="table_manuscript_27_administration_system_settings" data-anchor-table="system_settings" data-anchor-column="updated_by" data-anchor-side="R" connectable="1">
+          <mxGeometry x="571" y="178.0" width="2" height="2" as="geometry" />
+        </mxCell>
+        <mxCell id="note_manuscript_27_administration" value="Selective manuscript view: all PK/FK columns and essential business attributes are shown. See the Complete Technical ERD for every column and relationship." style="text;html=1;align=center;verticalAlign=middle;fontSize=10;fontColor=#555555;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="24" y="966" width="1352" height="16" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

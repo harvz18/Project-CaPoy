@@ -29,11 +29,16 @@ export interface MerchantBookedService {
   cateringOptionName?: string
   clientNotes?: string
   dietaryNotes?: string
+  downpaymentAmount?: number
   id: string
   instructions: ClientInstructionNote[]
   packageDescription?: string
   packageInclusions: string[]
   packageName: string
+  paymentStatus?: string
+  platformFeePaid?: number
+  initialProviderShare?: number
+  remainingServiceBalance?: number
   mealType?: 'plated' | 'buffet' | 'packed'
   outsideFood?: boolean
   requestedTime?: string
@@ -55,6 +60,7 @@ export interface MerchantBookingRequest {
   clientEmail?: string
   clientNotes?: string
   dietaryNotes?: string
+  downpaymentAmount?: number
   clientName: string
   currency: 'PHP'
   eventDate: string
@@ -68,6 +74,10 @@ export interface MerchantBookingRequest {
   packageDescription?: string
   packageInclusions?: string[]
   packageName: string
+  paymentStatus?: string
+  platformFeePaid?: number
+  initialProviderShare?: number
+  remainingServiceBalance?: number
   mealType?: 'plated' | 'buffet' | 'packed'
   outsideFood?: boolean
   requestedTime?: string

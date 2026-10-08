@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3508" height="2480" viewBox="0 0 3508 2480">
+<rect width="100%" height="100%" fill="white"/>
+<style>text{font-family:Arial,sans-serif;fill:#000}.title{font-size:48px;font-weight:700}.subtitle{font-size:27px}.domain{font-size:31px;font-weight:700;fill:#fff}.body{font-size:19px}.small{font-size:17px}</style>
+<text class="title" x="1754.0" y="85" text-anchor="middle">MULTIVENT Live Database Entity-Relationship Overview</text>
+<text class="subtitle" x="1754.0" y="135" text-anchor="middle">Public schema | 51 tables | 569 columns | 115 foreign keys</text>
+<polyline points="2428,585 2026,585 2026,1810 1640,1810" fill="none" stroke="#000" stroke-width="3"/>
+<rect x="1992" y="1182" width="68" height="30" fill="#fff" stroke="#000"/>
+<text class="small" x="2026" y="1203" text-anchor="middle">5 FK</text>
+<polyline points="2428,585 1754,585 1754,620 1080,620" fill="none" stroke="#000" stroke-width="3"/>
+<rect x="1720" y="587" width="68" height="30" fill="#fff" stroke="#000"/>
+<text class="small" x="1754" y="608" text-anchor="middle">13 FK</text>
+<polyline points="2428,585 2349,585 2349,670 2254,670" fill="none" stroke="#000" stroke-width="3"/>
+<rect x="2315" y="612" width="68" height="30" fill="#fff" stroke="#000"/>
+<text class="small" x="2349" y="633" text-anchor="middle">2 FK</text>
+<polyline points="2478,1420 2478,1177 2928,1177 2928,910" fill="none" stroke="#000" stroke-width="3"/>
+<rect x="2669" y="1162" width="68" height="30" fill="#fff" stroke="#000"/>
+<text class="small" x="2703" y="1183" text-anchor="middle">3 FK</text>
+<polyline points="1868,1810 1738,1810 1738,1810 1640,1810" fill="none" stroke="#000" stroke-width="3"/>
+<rect x="1704" y="1795" width="68" height="30" fill="#fff" stroke="#000"/>
+<text class="small" x="1738" y="1816" text-anchor="middle">4 FK</text>
+<polyline points="1868,1810 1466,1810 1466,620 1080,620" fill="none" stroke="#000" stroke-width="3"/>
+<rect x="1432" y="1200" width="68" height="30" fill="#fff" stroke="#000"/>
+<text class="small" x="1466" y="1221" text-anchor="middle">13 FK</text>
+<polyline points="2478,1420 2478,1250 1754,1250 1754,1080" fill="none" stroke="#000" stroke-width="3"/>
+<rect x="2082" y="1235" width="68" height="30" fill="#fff" stroke="#000"/>
+<text class="small" x="2116" y="1256" text-anchor="middle">2 FK</text>
+<polyline points="1030,1420 1030,1206 580,1206 580,980" fill="none" stroke="#000" stroke-width="3"/>
+<rect x="771" y="1191" width="68" height="30" fill="#fff" stroke="#000"/>
+<text class="small" x="805" y="1212" text-anchor="middle">14 FK</text>
+<polyline points="1030,1420 1030,1262 1754,1262 1754,1080" fill="none" stroke="#000" stroke-width="3"/>
+<rect x="1358" y="1247" width="68" height="30" fill="#fff" stroke="#000"/>
+<text class="small" x="1392" y="1268" text-anchor="middle">8 FK</text>
+<polyline points="1254,670 1151,670 1151,620 1080,620" fill="none" stroke="#000" stroke-width="3"/>
+<rect x="1117" y="630" width="68" height="30" fill="#fff" stroke="#000"/>
+<text class="small" x="1151" y="651" text-anchor="middle">11 FK</text>
+<rect x="80" y="260" width="1000" height="720" fill="#fff" stroke="#000" stroke-width="5"/>
+<rect x="80" y="260" width="1000" height="70" fill="#000"/>
+<text class="domain" x="580.0" y="307" text-anchor="middle">Identity and Access</text>
+<text class="body" x="110" y="380">profiles</text>
+<text class="body" x="110" y="426">roles</text>
+<text class="body" x="110" y="472">permissions</text>
+<text class="body" x="110" y="518">role_permissions</text>
+<text class="body" x="580" y="380">user_roles</text>
+<text class="body" x="580" y="426">user_permissions</text>
+<text class="body" x="580" y="472">provider_profiles</text>
+<text class="body" x="580" y="518">provider_profile_merge_archive</text>
+<rect x="1254" y="260" width="1000" height="820" fill="#fff" stroke="#000" stroke-width="5"/>
+<rect x="1254" y="260" width="1000" height="70" fill="#000"/>
+<text class="domain" x="1754.0" y="307" text-anchor="middle">Marketplace and Availability</text>
+<text class="body" x="1284" y="380">service_categories</text>
+<text class="body" x="1284" y="426">services</text>
+<text class="body" x="1284" y="472">service_packages</text>
+<text class="body" x="1284" y="518">service_package_items</text>
+<text class="body" x="1284" y="564">provider_availability</text>
+<text class="body" x="1754" y="380">provider_operating_hours</text>
+<text class="body" x="1754" y="426">provider_notification_preferences</text>
+<text class="body" x="1754" y="472">provider_service_listing_drafts</text>
+<text class="body" x="1754" y="518">coordinator_service_profiles</text>
+<text class="body" x="1754" y="564">coordinator_availability</text>
+<rect x="420" y="1420" width="1220" height="780" fill="#fff" stroke="#000" stroke-width="5"/>
+<rect x="420" y="1420" width="1220" height="70" fill="#000"/>
+<text class="domain" x="1030.0" y="1467" text-anchor="middle">Event Planning and Coordination</text>
+<text class="body" x="450" y="1540">events</text>
+<text class="body" x="450" y="1586">event_requirements</text>
+<text class="body" x="450" y="1632">event_budget_items</text>
+<text class="body" x="450" y="1678">event_service_selections</text>
+<text class="body" x="450" y="1724">event_provider_instructions</text>
+<text class="body" x="450" y="1770">event_coordinator_instructions</text>
+<text class="body" x="450" y="1816">event_schedule_checks</text>
+<text class="body" x="1030" y="1540">event_schedule_check_results</text>
+<text class="body" x="1030" y="1586">coordination_tasks</text>
+<text class="body" x="1030" y="1632">coordinator_assignment_attempts</text>
+<text class="body" x="1030" y="1678">coordinator_packages</text>
+<text class="body" x="1030" y="1724">coordinator_package_items</text>
+<text class="body" x="1030" y="1770">event_coordinator_package_selections</text>
+<text class="body" x="1030" y="1816">event_coordinator_package_services</text>
+<rect x="2428" y="260" width="1000" height="650" fill="#fff" stroke="#000" stroke-width="5"/>
+<rect x="2428" y="260" width="1000" height="70" fill="#000"/>
+<text class="domain" x="2928.0" y="307" text-anchor="middle">Booking and Finance</text>
+<text class="body" x="2458" y="380">bookings</text>
+<text class="body" x="2458" y="426">payments</text>
+<text class="body" x="2458" y="472">financial_transactions</text>
+<text class="body" x="2458" y="518">cash_remittances</text>
+<text class="body" x="2928" y="380">provider_payment_receipts</text>
+<text class="body" x="2928" y="426">provider_payout_accounts</text>
+<text class="body" x="2928" y="472">provider_payout_requests</text>
+<rect x="1868" y="1420" width="1220" height="780" fill="#fff" stroke="#000" stroke-width="5"/>
+<rect x="1868" y="1420" width="1220" height="70" fill="#000"/>
+<text class="domain" x="2478.0" y="1467" text-anchor="middle">Communication, Feedback, and Operations</text>
+<text class="body" x="1898" y="1540">conversations</text>
+<text class="body" x="1898" y="1586">conversation_participants</text>
+<text class="body" x="1898" y="1632">messages</text>
+<text class="body" x="1898" y="1678">notifications</text>
+<text class="body" x="1898" y="1724">reviews</text>
+<text class="body" x="1898" y="1770">coordinator_reviews</text>
+<text class="body" x="2478" y="1540">event_feedback</text>
+<text class="body" x="2478" y="1586">service_review_summaries</text>
+<text class="body" x="2478" y="1632">support_tickets</text>
+<text class="body" x="2478" y="1678">support_messages</text>
+<text class="body" x="2478" y="1724">audit_logs</text>
+<text class="body" x="2478" y="1770">system_settings</text>
+<text class="small" x="1754.0" y="2385" text-anchor="middle">Domain connectors show cross-domain foreign-key counts; detailed pages show attribute-level cardinalities.</text>
+</svg>
