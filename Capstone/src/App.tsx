@@ -1,6 +1,6 @@
 import React from 'react'
 import type { RealtimeChannel } from '@supabase/supabase-js'
-import { ActivityIndicator, Alert, Animated, Easing, Image, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
+import { ActivityIndicator, Alert, Animated, BackHandler, Easing, Image, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
 import * as ImagePicker from 'expo-image-picker'
@@ -311,6 +311,36 @@ const screensWithOwnEntrance = new Set<AppScreen>([
   'categoryBrowse',
 ])
 
+const appRootScreens = new Set<AppScreen>([
+  'onboarding',
+  'roleSelection',
+  'clientHome',
+  'providerHome',
+  'coordinatorHome',
+  'assistantHome',
+  'customerServiceHome',
+  'adminHome',
+  'superadminHome',
+])
+
+const fallbackBackScreen = (currentScreen: AppScreen): AppScreen => {
+  if (currentScreen.startsWith('provider')) return 'providerHome'
+  if (currentScreen.startsWith('coordinator')) return 'coordinatorHome'
+  if (
+    currentScreen === 'login'
+    || currentScreen === 'forgotPassword'
+    || currentScreen === 'newPassword'
+    || currentScreen === 'clientSignup'
+    || currentScreen === 'merchantSignup'
+    || currentScreen === 'verification'
+    || currentScreen === 'pendingApproval'
+    || currentScreen === 'rejectedApplication'
+  ) {
+    return 'roleSelection'
+  }
+  return 'clientHome'
+}
+
 type UserMetadata = {
   business_name?: unknown
   default_role?: unknown
@@ -395,10 +425,11 @@ export const App: React.FC = () => {
   const [isScreenTransitioning, setIsScreenTransitioning] = React.useState(false)
   const screenTransitionProgress = React.useRef(new Animated.Value(1)).current
   const screenRef = React.useRef<AppScreen>('onboarding')
+  const screenHistoryRef = React.useRef<AppScreen[]>(['onboarding'])
   const navigationLockedRef = React.useRef(false)
   const screenTransitionAnimation = React.useRef<Animated.CompositeAnimation | null>(null)
 
-  const setScreen = React.useCallback((nextScreen: AppScreen) => {
+  const transitionToScreen = React.useCallback((nextScreen: AppScreen) => {
     const currentScreen = screenRef.current
     if (nextScreen === currentScreen || navigationLockedRef.current) return
 
@@ -425,7 +456,62 @@ export const App: React.FC = () => {
     })
   }, [screenTransitionProgress])
 
+  const setScreen = React.useCallback((nextScreen: AppScreen) => {
+    const currentScreen = screenRef.current
+    if (nextScreen === currentScreen || navigationLockedRef.current) return
+
+    const history = screenHistoryRef.current
+    if (history[history.length - 1] !== currentScreen) history.push(currentScreen)
+
+    // Explicit in-app Back buttons commonly target a screen already in the
+    // stack. Truncate to it instead of creating A -> B -> A loops.
+    const existingIndex = history.lastIndexOf(nextScreen)
+    if (existingIndex >= 0) history.splice(existingIndex + 1)
+    else history.push(nextScreen)
+
+    transitionToScreen(nextScreen)
+  }, [transitionToScreen])
+
+  const goBackInApp = React.useCallback(() => {
+    const currentScreen = screenRef.current
+
+    // MULTIVENT owns Back while a root screen is visible. Returning true on
+    // Android prevents the operating system from closing the application.
+    if (navigationLockedRef.current || appRootScreens.has(currentScreen)) return true
+
+    const history = screenHistoryRef.current
+    if (history[history.length - 1] === currentScreen) history.pop()
+    const previousScreen = history[history.length - 1] ?? fallbackBackScreen(currentScreen)
+    if (history.length === 0) history.push(previousScreen)
+    transitionToScreen(previousScreen)
+    return true
+  }, [transitionToScreen])
+
   React.useEffect(() => () => screenTransitionAnimation.current?.stop(), [])
+
+  React.useEffect(() => {
+    if (Platform.OS !== 'android') return undefined
+    const subscription = BackHandler.addEventListener('hardwareBackPress', goBackInApp)
+    return () => subscription.remove()
+  }, [goBackInApp])
+
+  React.useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined
+
+    const guardState = { ...(window.history.state ?? {}), multiventNavigationGuard: true }
+    window.history.replaceState(guardState, window.document.title)
+    window.history.pushState(guardState, window.document.title)
+
+    const handleBrowserBack = () => {
+      goBackInApp()
+      // Restore the same-page guard after every browser Back action so another
+      // press continues through app history instead of leaving MULTIVENT.
+      window.history.pushState(guardState, window.document.title)
+    }
+
+    window.addEventListener('popstate', handleBrowserBack)
+    return () => window.removeEventListener('popstate', handleBrowserBack)
+  }, [goBackInApp])
   const [isClientNavigationVisible, setIsClientNavigationVisible] = React.useState(true)
   const roleSelectionEntrance = React.useRef(new Animated.Value(0)).current
   const signupEntrance = React.useRef(new Animated.Value(0)).current

@@ -368,6 +368,21 @@ test('mobile sessions persist and push alerts keep business details inside Supab
   ], 'session restoration and live notification integration')
 })
 
+test('hardware and browser Back stay inside the application navigation history', () => {
+  const app = read('src/App.tsx')
+
+  mustContain(app, [
+    'BackHandler.addEventListener',
+    "'hardwareBackPress'",
+    "window.addEventListener('popstate', handleBrowserBack)",
+    'window.history.pushState(guardState, window.document.title)',
+    "const screenHistoryRef = React.useRef<AppScreen[]>(['onboarding'])",
+    'history.lastIndexOf(nextScreen)',
+    'appRootScreens.has(currentScreen)',
+    'transitionToScreen(previousScreen)',
+  ], 'cross-platform in-app Back navigation')
+})
+
 test('historical booking and financial snapshots remain protected from current listing changes', () => {
   const payment = read(migrations[3])
   const deletion = read('database/52_service_deletion_booking_history.sql')
