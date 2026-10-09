@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-10-09T00:00:00.000Z" agent="OpenAI Codex" version="24.7.17" type="device" compressed="false" pages="1">
+  <diagram id="security" name="3.6.4 Security Architecture">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0" background="#FFFFFF">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="security_title" value="MULTIVENT - Security Architecture" style="text;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=20;fontStyle=1;fontColor=#202020;strokeColor=none;fillColor=none;" vertex="1" parent="1" connectable="0">
+          <mxGeometry x="50.00" y="24.00" width="1500.00" height="34.00" as="geometry" />
+        </mxCell>
+        <mxCell id="security_subtitle" value="Implemented defense-in-depth controls and current verified limitation" style="text;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13;fontColor=#555555;strokeColor=none;fillColor=none;" vertex="1" parent="1" connectable="0">
+          <mxGeometry x="80.00" y="59.00" width="1440.00" height="28.00" as="geometry" />
+        </mxCell>
+        <mxCell id="identity" value="&lt;b&gt;1 · IDENTITY &amp; AUTHENTICATION&lt;/b&gt;&lt;br&gt;Supabase Auth&lt;br&gt;JWT-backed user identity&lt;br&gt;Account-status checks" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="250.00" y="125.00" width="800.00" height="105.00" as="geometry" />
+        </mxCell>
+        <mxCell id="roles" value="&lt;b&gt;2 · ROLE &amp; PERMISSION CONTROL&lt;/b&gt;&lt;br&gt;profiles.default_role&lt;br&gt;roles / permissions / assignments&lt;br&gt;staff permission checks" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="250.00" y="275.00" width="800.00" height="105.00" as="geometry" />
+        </mxCell>
+        <mxCell id="security_edge_1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="identity" target="roles">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="database_security" value="&lt;b&gt;3 · DATABASE AUTHORIZATION&lt;/b&gt;&lt;br&gt;Row Level Security policies&lt;br&gt;owner/participant checks&lt;br&gt;authenticated-only RPC grants" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="250.00" y="425.00" width="800.00" height="105.00" as="geometry" />
+        </mxCell>
+        <mxCell id="security_edge_2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="roles" target="database_security">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="business" value="&lt;b&gt;4 · TRANSACTIONAL RULE ENFORCEMENT&lt;/b&gt;&lt;br&gt;constraints and triggers&lt;br&gt;security-definer RPC validation&lt;br&gt;row locks and atomic commit/rollback" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="250.00" y="575.00" width="800.00" height="105.00" as="geometry" />
+        </mxCell>
+        <mxCell id="security_edge_3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="database_security" target="business">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="protection" value="&lt;b&gt;5 · DATA PROTECTION&lt;/b&gt;&lt;br&gt;server-held service credentials&lt;br&gt;immutable pricing/payment snapshots&lt;br&gt;validated JSON contracts" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="250.00" y="725.00" width="800.00" height="105.00" as="geometry" />
+        </mxCell>
+        <mxCell id="security_edge_4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="business" target="protection">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="audit" value="&lt;b&gt;AUDITING &amp; MONITORING&lt;/b&gt;&lt;br&gt;audit_logs · financial ledger&lt;br&gt;analysis status/error states&lt;br&gt;Supabase logs and advisors" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="1150.00" y="300.00" width="350.00" height="220.00" as="geometry" />
+        </mxCell>
+        <mxCell id="security_edge_5" value="Authorized actions" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="roles" target="audit">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="security_edge_6" value="State transitions" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="business" target="audit">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="warning" value="&lt;b&gt;Verified limitation&lt;/b&gt;&lt;br&gt;service_categories currently has RLS disabled in the live project. This diagram does not claim otherwise." style="shape=note;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontFamily=Arial;fontSize=13;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1.5;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="1150.00" y="625.00" width="350.00" height="145.00" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

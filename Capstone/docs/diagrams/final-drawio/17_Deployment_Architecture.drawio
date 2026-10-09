@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-10-09T00:00:00.000Z" agent="OpenAI Codex" version="24.7.17" type="device" compressed="false" pages="1">
+  <diagram id="deployment" name="3.6.6 Deployment Architecture">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0" background="#FFFFFF">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="deployment_title" value="MULTIVENT - Deployment Architecture" style="text;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=20;fontStyle=1;fontColor=#202020;strokeColor=none;fillColor=none;" vertex="1" parent="1" connectable="0">
+          <mxGeometry x="50.00" y="24.00" width="1500.00" height="34.00" as="geometry" />
+        </mxCell>
+        <mxCell id="deployment_subtitle" value="Implemented/deployable components are separated from documented target infrastructure" style="text;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13;fontColor=#555555;strokeColor=none;fillColor=none;" vertex="1" parent="1" connectable="0">
+          <mxGeometry x="80.00" y="59.00" width="1440.00" height="28.00" as="geometry" />
+        </mxCell>
+        <mxCell id="source" value="&lt;b&gt;Source Repository&lt;/b&gt;&lt;br&gt;TypeScript · SQL migrations&lt;br&gt;Edge Functions · tests" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="60.00" y="160.00" width="270.00" height="160.00" as="geometry" />
+        </mxCell>
+        <mxCell id="build" value="&lt;b&gt;Expo / EAS Build&lt;/b&gt;&lt;br&gt;development · preview · production profiles" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="430.00" y="160.00" width="300.00" height="160.00" as="geometry" />
+        </mxCell>
+        <mxCell id="runtime" value="&lt;b&gt;User Runtime&lt;/b&gt;&lt;br&gt;Android · iOS · Web" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="430.00" y="430.00" width="300.00" height="130.00" as="geometry" />
+        </mxCell>
+        <mxCell id="deployment_edge_1" value="Build inputs" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="source" target="build">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="deployment_edge_2" value="Install / deploy bundle" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="build" target="runtime">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="supabase_deploy" value="&lt;b&gt;Supabase Project&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontFamily=Arial;fontSize=16;fontStyle=1;fontColor=#202020;fillColor=none;strokeColor=#606060;strokeWidth=2;dashed=1;spacingTop=12;spacingLeft=14;" vertex="1" parent="1">
+          <mxGeometry x="835.00" y="105.00" width="420.00" height="585.00" as="geometry" />
+        </mxCell>
+        <mxCell id="deployed_db" value="PostgreSQL&lt;br&gt;ordered SQL migrations" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="900.00" y="200.00" width="290.00" height="105.00" as="geometry" />
+        </mxCell>
+        <mxCell id="deployed_auth" value="Auth + Storage + Realtime" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="900.00" y="345.00" width="290.00" height="95.00" as="geometry" />
+        </mxCell>
+        <mxCell id="deployed_edge" value="Edge Functions&lt;br&gt;Deno server runtime" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="900.00" y="480.00" width="290.00" height="105.00" as="geometry" />
+        </mxCell>
+        <mxCell id="deployment_edge_3" value="Apply migrations" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="source" target="deployed_db">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="deployment_edge_4" value="Deploy functions" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="source" target="deployed_edge">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="deployment_edge_5" value="Hosted HTTPS" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="runtime" target="deployed_auth">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="deployment_edge_6" value="PostgREST / RPC" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="runtime" target="deployed_db">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="deployment_edge_7" value="Function invoke" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="runtime" target="deployed_edge">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="container_image" value="&lt;b&gt;Sentiment Container Image&lt;/b&gt;&lt;br&gt;Python 3.13 · FastAPI/Uvicorn&lt;br&gt;CPU PyTorch · packaged artifacts" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="1325.00" y="170.00" width="250.00" height="180.00" as="geometry" />
+        </mxCell>
+        <mxCell id="azure_target" value="&lt;b&gt;Azure Container Apps&lt;/b&gt;&lt;br&gt;Documented intended target&lt;br&gt;&lt;i&gt;live deployment not independently verified&lt;/i&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#F4F4F4;strokeColor=#202020;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="1325.00" y="465.00" width="250.00" height="145.00" as="geometry" />
+        </mxCell>
+        <mxCell id="deployment_edge_8" value="Docker build" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="source" target="container_image">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="deployment_edge_9" value="Intended deployment" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="container_image" target="azure_target">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="deployment_edge_10" value="HTTPS analysis call" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="deployed_edge" target="azure_target">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="external_model_deploy" value="External model API" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#F4F4F4;strokeColor=#202020;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="1325.00" y="740.00" width="250.00" height="90.00" as="geometry" />
+        </mxCell>
+        <mxCell id="deployment_edge_11" value="HTTPS" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="azure_target" target="external_model_deploy">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="secret_note" value="Deployment configuration only:&lt;br&gt;Supabase keys · service role · analysis URL/key · model API key" style="shape=note;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontFamily=Arial;fontSize=13;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1.5;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="760.00" y="800.00" width="500.00" height="105.00" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

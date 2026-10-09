@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-10-09T00:00:00.000Z" agent="OpenAI Codex" version="24.7.17" type="device" compressed="false" pages="1">
+  <diagram id="integration" name="3.6.5 Integration Architecture">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0" background="#FFFFFF">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="integration_title" value="MULTIVENT - Integration Architecture" style="text;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=20;fontStyle=1;fontColor=#202020;strokeColor=none;fillColor=none;" vertex="1" parent="1" connectable="0">
+          <mxGeometry x="50.00" y="24.00" width="1500.00" height="34.00" as="geometry" />
+        </mxCell>
+        <mxCell id="integration_subtitle" value="Verified exchange mechanisms; no live payment gateway is represented" style="text;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13;fontColor=#555555;strokeColor=none;fillColor=none;" vertex="1" parent="1" connectable="0">
+          <mxGeometry x="80.00" y="59.00" width="1440.00" height="28.00" as="geometry" />
+        </mxCell>
+        <mxCell id="app" value="&lt;b&gt;Expo Application&lt;/b&gt;&lt;br&gt;Supabase JavaScript SDK" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="70.00" y="360.00" width="245.00" height="145.00" as="geometry" />
+        </mxCell>
+        <mxCell id="iauth" value="&lt;b&gt;Supabase Auth&lt;/b&gt;" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="470.00" y="145.00" width="285.00" height="100.00" as="geometry" />
+        </mxCell>
+        <mxCell id="integration_edge_1" value="SDK over HTTPS + JWT" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="app" target="iauth">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="idb" value="&lt;b&gt;PostgreSQL + SQL RPCs&lt;/b&gt;" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="470.00" y="310.00" width="285.00" height="100.00" as="geometry" />
+        </mxCell>
+        <mxCell id="integration_edge_2" value="SDK over HTTPS + JWT" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="app" target="idb">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="istorage" value="&lt;b&gt;Supabase Storage&lt;/b&gt;" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="470.00" y="475.00" width="285.00" height="100.00" as="geometry" />
+        </mxCell>
+        <mxCell id="integration_edge_3" value="SDK over HTTPS + JWT" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="app" target="istorage">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="iedge" value="&lt;b&gt;Supabase Edge Functions&lt;/b&gt;" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="470.00" y="640.00" width="285.00" height="100.00" as="geometry" />
+        </mxCell>
+        <mxCell id="integration_edge_4" value="SDK over HTTPS + JWT" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="app" target="iedge">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="review_edge" value="analyze-review&lt;br&gt;analyze-feedback&lt;br&gt;summarize-reviews" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="885.00" y="600.00" width="250.00" height="155.00" as="geometry" />
+        </mxCell>
+        <mxCell id="admin_edge" value="admin-create-user" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="885.00" y="170.00" width="250.00" height="90.00" as="geometry" />
+        </mxCell>
+        <mxCell id="integration_edge_5" value="Function invocation" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="iedge" target="review_edge">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="integration_edge_6" value="Authorized staff action" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="iedge" target="admin_edge">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="integration_edge_7" value="Server-side Auth Admin API" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="admin_edge" target="iauth">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="integration_edge_8" value="Read source / persist result" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="review_edge" target="idb">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="nlp" value="&lt;b&gt;Protected FastAPI&lt;/b&gt;&lt;br&gt;/analyze · /summarize&lt;br&gt;X-Analysis-Key" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#F4F4F4;strokeColor=#202020;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="1250.00" y="560.00" width="280.00" height="170.00" as="geometry" />
+        </mxCell>
+        <mxCell id="model_provider" value="&lt;b&gt;External model provider&lt;/b&gt;&lt;br&gt;Schema-constrained inference" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#F4F4F4;strokeColor=#202020;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="1250.00" y="250.00" width="280.00" height="120.00" as="geometry" />
+        </mxCell>
+        <mxCell id="integration_edge_9" value="HTTPS + JSON" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="review_edge" target="nlp">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="integration_edge_10" value="Responses API request" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="nlp" target="model_provider">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="integration_edge_11" value="Validated structured result" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="model_provider" target="nlp">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="payment_note" value="Payment boundary&lt;br&gt;Internal demo reference and ledger workflow only.&lt;br&gt;No verified live payment processor call." style="shape=note;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontFamily=Arial;fontSize=13;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1.5;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="825.00" y="825.00" width="420.00" height="105.00" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

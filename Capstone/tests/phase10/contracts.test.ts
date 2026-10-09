@@ -21,6 +21,7 @@ const migrations = [
   'database/59_budget_aware_recommendations.sql',
   'database/60_service_selection_revision.sql',
   'database/61_coordinator_request_financial_visibility.sql',
+  'database/62_dss_service_discovery.sql',
 ]
 
 test('Revision 2 migrations remain ordered, transactional, additive, and non-destructive', () => {
@@ -249,6 +250,42 @@ test('coordinators can inspect requests and both provider roles see commission-f
     'REMAINING SERVICE BALANCE',
     "commission. It is not deducted from your remaining service balance.",
   ], 'provider booking financial UI')
+})
+
+test('optional zero budgets and explainable DSS marketplace signals stay connected', () => {
+  const discovery = read(migrations[9])
+  const planning = read('src/lib/planning.ts')
+  const catalog = read('src/lib/catalog.ts')
+  const browse = read('src/screens/06-CategoryBrowse.tsx')
+  const budgetScreen = read('src/screens/05-BudgetAllocation.tsx')
+
+  mustContain(discovery, [
+    'alter column total_budget set default 0',
+    'create or replace function public.list_public_service_decision_signals()',
+    "booking.status::text in ('paid', 'confirmed', 'completed')",
+    'dense_rank() over',
+    'ranked.booking_count > 0 and ranked.category_rank = 1 as is_most_booked',
+  ], 'DSS discovery migration')
+  mustContain(planning, [
+    'total_budget: budget ?? 0',
+  ], 'new event zero-budget default')
+  mustContain(budgetScreen, [
+    'const initialBudgetValue = sanitizeMoney(initialBudget ?? 0)',
+    '<Text style={styles.optionalBudgetAmount}>₱0</Text>',
+    'ENTER BUDGET',
+  ], 'optional zero-budget UI')
+  mustContain(catalog, [
+    "supabase.rpc('list_public_service_decision_signals')",
+    'bookingCount: decisionSignal?.bookingCount ?? 0',
+    'isMostBooked: decisionSignal?.isMostBooked ?? false',
+  ], 'catalog decision signals')
+  mustContain(browse, [
+    "{ id: 'recommended', label: 'Recommended' }",
+    "{ id: 'bookings', label: 'Most Booked' }",
+    'RECOMMENDED FOR YOU',
+    'MOST BOOKED',
+    'const [selectedFilters, setSelectedFilters]',
+  ], 'client DSS controls and badges')
 })
 
 test('historical booking and financial snapshots remain protected from current listing changes', () => {

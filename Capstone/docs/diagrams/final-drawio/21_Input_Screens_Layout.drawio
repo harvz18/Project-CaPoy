@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-10-09T00:00:00.000Z" agent="OpenAI Codex" version="24.7.17" type="device" compressed="false" pages="1">
+  <diagram id="input_layout" name="3.9.1 Input Screens Layout">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1100" math="0" shadow="0" background="#FFFFFF">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="input_layout_title" value="MULTIVENT - Input Screens Layout" style="text;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=20;fontStyle=1;fontColor=#202020;strokeColor=none;fillColor=none;" vertex="1" parent="1" connectable="0">
+          <mxGeometry x="50.00" y="24.00" width="1700.00" height="34.00" as="geometry" />
+        </mxCell>
+        <mxCell id="input_layout_subtitle" value="Editable documentation wireframes derived from implemented React Native forms" style="text;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13;fontColor=#555555;strokeColor=none;fillColor=none;" vertex="1" parent="1" connectable="0">
+          <mxGeometry x="80.00" y="59.00" width="1640.00" height="28.00" as="geometry" />
+        </mxCell>
+        <mxCell id="input_client" value="&lt;b&gt;CLIENT · EVENT &amp; BUDGET&lt;/b&gt;&lt;br&gt;&lt;br&gt;Event name  [________________]&lt;br&gt;Event type  [ Select        v ]&lt;br&gt;Date        [ yyyy-mm-dd    ]&lt;br&gt;Time        [ --:--         ]&lt;br&gt;Guest count [______________]&lt;br&gt;Venue       [______________]&lt;br&gt;&lt;br&gt;&lt;b&gt;Category allocations&lt;/b&gt;&lt;br&gt;Venue       PHP [__________]&lt;br&gt;Catering    PHP [__________]&lt;br&gt;Coordinator PHP [__________]&lt;br&gt;&lt;br&gt;&lt;i&gt;Inline rule:&lt;/i&gt; Allocations cannot exceed&lt;br&gt;the total event budget.&lt;br&gt;&lt;br&gt;[ Back ]          [ Save and continue ]" style="rounded=1;arcSize=5;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="60.00" y="135.00" width="510.00" height="825.00" as="geometry" />
+        </mxCell>
+        <mxCell id="input_provider" value="&lt;b&gt;PROVIDER · SERVICE LISTING&lt;/b&gt;&lt;br&gt;&lt;br&gt;Category     [ Select        v ]&lt;br&gt;Service name [________________]&lt;br&gt;Description  [________________]&lt;br&gt;             [________________]&lt;br&gt;Base price   PHP [___________]&lt;br&gt;Pricing unit [ Event / Person ]&lt;br&gt;Cover image  [ Choose photo  ]&lt;br&gt;&lt;br&gt;&lt;b&gt;Category-specific options&lt;/b&gt;&lt;br&gt;Option name  [________________]&lt;br&gt;Guest range  [____] to [____]&lt;br&gt;Price/head   PHP [___________]&lt;br&gt;Menu items   [ + Add item    ]&lt;br&gt;&lt;br&gt;&lt;i&gt;Validation appears next to the field.&lt;/i&gt;&lt;br&gt;&lt;br&gt;[ Save draft ]    [ Review listing ]" style="rounded=1;arcSize=5;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="645.00" y="135.00" width="510.00" height="825.00" as="geometry" />
+        </mxCell>
+        <mxCell id="input_coordinator" value="&lt;b&gt;COORDINATOR · PROFILE / PACKAGE&lt;/b&gt;&lt;br&gt;&lt;br&gt;Description     [________________]&lt;br&gt;                [________________]&lt;br&gt;Coordination fee PHP [__________]&lt;br&gt;Specializations [ + Add       ]&lt;br&gt;Accept bookings [ on / off    ]&lt;br&gt;&lt;br&gt;&lt;b&gt;Curated package&lt;/b&gt;&lt;br&gt;Package name    [________________]&lt;br&gt;Event type      [ Select       v ]&lt;br&gt;Services        [ Search and select ]&lt;br&gt;                [x] Venue&lt;br&gt;                [x] Catering&lt;br&gt;Status          [ Draft / Active ]&lt;br&gt;&lt;br&gt;&lt;i&gt;Unavailable services prevent activation.&lt;/i&gt;&lt;br&gt;&lt;br&gt;[ Cancel ]         [ Save package ]" style="rounded=1;arcSize=5;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="1230.00" y="135.00" width="510.00" height="825.00" as="geometry" />
+        </mxCell>
+        <mxCell id="input_pattern" value="Shared pattern: descriptive header → grouped fields → inline validation → calculated summary → one clear primary action" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=14;fontStyle=1;fontColor=#202020;fillColor=#F4F4F4;strokeColor=#606060;strokeWidth=1.5;" vertex="1" parent="1" connectable="0">
+          <mxGeometry x="260.00" y="1000.00" width="1280.00" height="55.00" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -24,6 +24,7 @@ import type { AssignedCoordinatorSummary, SelectedSummaryService } from './07-Se
 export type CategoryBrowseFilter = string
 export type CategoryBrowseVendor = string
 export type CategoryBrowseTab = ClientMainTab | 'vendors' | 'budget'
+type CategoryBrowseSort = 'recommended' | 'rating' | 'bookings' | 'priceLow' | 'priceHigh'
 
 interface CategoryBrowseScreenProps {
   categoryName?: string
@@ -74,6 +75,16 @@ const filters = [
   { id: 'under500' as const, label: 'Under ₱500/head' },
 ] as const
 
+const sortOptions: ReadonlyArray<{ id: CategoryBrowseSort; label: string }> = [
+  { id: 'recommended', label: 'Recommended' },
+  { id: 'rating', label: 'Top Rated' },
+  { id: 'bookings', label: 'Most Booked' },
+  { id: 'priceLow', label: 'Price: Low to High' },
+  { id: 'priceHigh', label: 'Price: High to Low' },
+]
+
+const HIGH_RATING_THRESHOLD = 4
+
 export const categoryBrowseNavigationTabs = [
   { id: 'explore' as const, icon: '◎', label: 'Explore' },
   { id: 'vendors' as const, icon: 'S', label: 'Service Providers' },
@@ -106,7 +117,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   replacementContext,
   showBottomNavigation = true,
   searchValue,
-  sortLabel = 'Top rated',
+  sortLabel = 'Recommended',
   onBack,
   onChangeSearch,
   onCategoryBudgetChange,
@@ -131,7 +142,11 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     || coordinatorAssignmentStatus === 'awaiting_assignment'
   const useHorizontalCards = width >= 640
   const [internalSearch, setInternalSearch] = React.useState('')
-  const [selectedFilter, setSelectedFilter] = React.useState<CategoryBrowseFilter>()
+  const [selectedFilters, setSelectedFilters] = React.useState<Set<CategoryBrowseFilter>>(
+    () => new Set()
+  )
+  const [sortMode, setSortMode] = React.useState<CategoryBrowseSort>('recommended')
+  const [isSortOpen, setIsSortOpen] = React.useState(false)
   const [budgetTrackWidth, setBudgetTrackWidth] = React.useState(1)
   const [draftCategoryBudget, setDraftCategoryBudget] = React.useState(categoryBudget)
   const [selectedExploreCategory, setSelectedExploreCategory] = React.useState('All')
@@ -145,7 +160,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     [services]
   )
   React.useEffect(() => setDraftCategoryBudget(categoryBudget), [categoryBudget])
-  React.useEffect(() => setSelectedFilter(undefined), [categoryName])
+  React.useEffect(() => setSelectedFilters(new Set()), [categoryName])
 
   const categoryFilters = React.useMemo(() => {
     const options: Array<{ id: string; label: string }> = [
@@ -212,6 +227,15 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     return 2
   }, [])
 
+  const isPersonalizedRecommendation = React.useCallback((vendor: CatalogService) => {
+    const rating = Number.parseFloat(vendor.rating) || 0
+    return Boolean(
+      vendor.budgetRecommendation?.isRecommended
+      && vendor.reviewCount > 0
+      && rating >= HIGH_RATING_THRESHOLD
+    )
+  }, [])
+
   const visibleVendors = services.filter((vendor) => {
     const normalizedQuery = query.trim().toLowerCase()
 
@@ -223,34 +247,36 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
       return false
     }
 
-    if (!isExploreMode && selectedFilter) {
+    if (!isExploreMode && selectedFilters.size > 0) {
       const details: Record<string, unknown> = vendor.categoryDetails ?? {}
       const recommendation = vendor.budgetRecommendation
       const stringList = (key: string) => Array.isArray(details[key])
         ? (details[key] as unknown[]).filter((item): item is string => typeof item === 'string')
         : []
-      if (selectedFilter === 'withinBudget' && !recommendation?.isWithinBudget) return false
-      if (selectedFilter === 'available' && recommendation?.availabilityStatus === 'unavailable') return false
-      if (selectedFilter === 'rating4' && (Number.parseFloat(vendor.rating) || 0) < 4) return false
-      if (selectedFilter === 'priceLow' && vendor.minPrice > Math.max(categoryBudget, remainingBudget)) return false
-      if (selectedFilter === 'under500') {
-        const options = getCateringPricingOptions(vendor.categoryDetails, vendor.providerMinPrice)
-        if (!options.some((option) => customerPriceFromProviderPrice(option.pricePerHead, vendor.commissionRate) < 500)) return false
+      for (const selectedFilter of selectedFilters) {
+        if (selectedFilter === 'withinBudget' && !recommendation?.isWithinBudget) return false
+        if (selectedFilter === 'available' && recommendation?.availabilityStatus === 'unavailable') return false
+        if (selectedFilter === 'rating4' && (Number.parseFloat(vendor.rating) || 0) < 4) return false
+        if (selectedFilter === 'priceLow' && vendor.minPrice > Math.max(categoryBudget, remainingBudget)) return false
+        if (selectedFilter === 'under500') {
+          const options = getCateringPricingOptions(vendor.categoryDetails, vendor.providerMinPrice)
+          if (!options.some((option) => customerPriceFromProviderPrice(option.pricePerHead, vendor.commissionRate) < 500)) return false
+        }
+        if (['plated', 'buffet', 'packed'].includes(selectedFilter)
+          && !vendor.cateringServiceTypes?.includes(selectedFilter as 'plated' | 'buffet' | 'packed')) return false
+        if (selectedFilter === 'guestCapacity' && !cateringFit(vendor).fits) return false
+        if (selectedFilter.startsWith('cuisine:') && !stringList('cuisines').includes(selectedFilter.slice(8))) return false
+        if (selectedFilter.startsWith('cateringType:') && !stringList('cateringTypes').includes(selectedFilter.slice(14))) return false
+        if (selectedFilter === 'capacity' && !getVenueBookingOptions(details).some((option) => option.capacity >= eventGuestCount)) return false
+        if (selectedFilter === 'indoor' && !getVenueBookingOptions(details).some((option) => option.spaceType.toLowerCase().includes('indoor'))) return false
+        if (selectedFilter === 'outdoor' && !getVenueBookingOptions(details).some((option) => option.spaceType.toLowerCase().includes('outdoor'))) return false
+        if (selectedFilter === 'amenities' && !['airConditioning', 'chairs', 'tables', 'parking', 'restrooms', 'dressingRoom', 'kitchen', 'wifi', 'stage', 'pwdAccessibility'].some((key) => details[key] === true)) return false
+        if (selectedFilter === 'photoVideo' && !(details.photoCoverage === true && details.videoCoverage === true)) return false
+        if (selectedFilter === 'drone' && details.droneCoverage !== true) return false
+        if (selectedFilter === 'coverage8' && Number(details.coverageDurationHours ?? 0) < 8) return false
+        if (selectedFilter.startsWith('language:') && !stringList('languages').includes(selectedFilter.slice(9))) return false
+        if (selectedFilter.startsWith('style:') && !stringList('hostingStyles').includes(selectedFilter.slice(6))) return false
       }
-      if (['plated', 'buffet', 'packed'].includes(selectedFilter)
-        && !vendor.cateringServiceTypes?.includes(selectedFilter as 'plated' | 'buffet' | 'packed')) return false
-      if (selectedFilter === 'guestCapacity' && !cateringFit(vendor).fits) return false
-      if (selectedFilter.startsWith('cuisine:') && !stringList('cuisines').includes(selectedFilter.slice(8))) return false
-      if (selectedFilter.startsWith('cateringType:') && !stringList('cateringTypes').includes(selectedFilter.slice(14))) return false
-      if (selectedFilter === 'capacity' && !getVenueBookingOptions(details).some((option) => option.capacity >= eventGuestCount)) return false
-      if (selectedFilter === 'indoor' && !getVenueBookingOptions(details).some((option) => option.spaceType.toLowerCase().includes('indoor'))) return false
-      if (selectedFilter === 'outdoor' && !getVenueBookingOptions(details).some((option) => option.spaceType.toLowerCase().includes('outdoor'))) return false
-      if (selectedFilter === 'amenities' && !['airConditioning', 'chairs', 'tables', 'parking', 'restrooms', 'dressingRoom', 'kitchen', 'wifi', 'stage', 'pwdAccessibility'].some((key) => details[key] === true)) return false
-      if (selectedFilter === 'photoVideo' && !(details.photoCoverage === true && details.videoCoverage === true)) return false
-      if (selectedFilter === 'drone' && details.droneCoverage !== true) return false
-      if (selectedFilter === 'coverage8' && Number(details.coverageDurationHours ?? 0) < 8) return false
-      if (selectedFilter.startsWith('language:') && !stringList('languages').includes(selectedFilter.slice(9))) return false
-      if (selectedFilter.startsWith('style:') && !stringList('hostingStyles').includes(selectedFilter.slice(6))) return false
     }
 
     if (!normalizedQuery) return true
@@ -261,20 +287,47 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
       vendor.tags.some((tag) => tag.toLowerCase().includes(normalizedQuery))
     )
   }).sort((left, right) => {
-    if (!isExploreMode) {
+    const leftRating = Number.parseFloat(left.rating) || 0
+    const rightRating = Number.parseFloat(right.rating) || 0
+    const leftBookings = left.bookingCount ?? 0
+    const rightBookings = right.bookingCount ?? 0
+
+    if (!isExploreMode && sortMode === 'recommended') {
       const recommendationDifference = recommendationRank(right) - recommendationRank(left)
       if (recommendationDifference !== 0) return recommendationDifference
+
+      const personalizedDifference = Number(isPersonalizedRecommendation(right))
+        - Number(isPersonalizedRecommendation(left))
+      if (personalizedDifference !== 0) return personalizedDifference
 
       const leftAvailability = left.budgetRecommendation?.availabilityStatus === 'unavailable' ? 0 : 1
       const rightAvailability = right.budgetRecommendation?.availabilityStatus === 'unavailable' ? 0 : 1
       if (leftAvailability !== rightAvailability) return rightAvailability - leftAvailability
+
+      const guestFitDifference = Number(cateringFit(right).fits) - Number(cateringFit(left).fits)
+      if (guestFitDifference !== 0) return guestFitDifference
     }
 
-    const guestFitDifference = Number(cateringFit(right).fits) - Number(cateringFit(left).fits)
-    if (guestFitDifference !== 0) return guestFitDifference
-    const leftRating = Number.parseFloat(left.rating) || 0
-    const rightRating = Number.parseFloat(right.rating) || 0
-    return rightRating - leftRating || left.name.localeCompare(right.name)
+    if (isExploreMode) {
+      const guestFitDifference = Number(cateringFit(right).fits) - Number(cateringFit(left).fits)
+      if (guestFitDifference !== 0) return guestFitDifference
+    }
+    if (!isExploreMode && sortMode === 'bookings') {
+      return rightBookings - leftBookings
+        || rightRating - leftRating
+        || right.reviewCount - left.reviewCount
+        || left.name.localeCompare(right.name)
+    }
+    if (!isExploreMode && sortMode === 'priceLow') {
+      return left.minPrice - right.minPrice || rightRating - leftRating
+    }
+    if (!isExploreMode && sortMode === 'priceHigh') {
+      return right.minPrice - left.minPrice || rightRating - leftRating
+    }
+    return rightRating - leftRating
+      || right.reviewCount - left.reviewCount
+      || rightBookings - leftBookings
+      || left.name.localeCompare(right.name)
   })
   const hasCategoryRecommendationBudget = !isExploreMode && visibleVendors.some(
     (vendor) => (vendor.budgetRecommendation?.categoryBudget ?? 0) > 0
@@ -283,8 +336,16 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     ? [
         {
           id: 'recommended',
-          label: 'Recommended Within Budget',
-          vendors: visibleVendors.filter((vendor) => vendor.budgetRecommendation?.isRecommended),
+          label: 'Recommended for You',
+          vendors: visibleVendors.filter(isPersonalizedRecommendation),
+        },
+        {
+          id: 'budget-fits',
+          label: 'Other Budget Fits',
+          vendors: visibleVendors.filter((vendor) =>
+            vendor.budgetRecommendation?.isRecommended
+            && !isPersonalizedRecommendation(vendor)
+          ),
         },
         {
           id: 'review',
@@ -300,9 +361,16 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   }
 
   const handleFilterChange = (filter: CategoryBrowseFilter) => {
-    setSelectedFilter((current) => current === filter ? undefined : filter)
+    setSelectedFilters((current) => {
+      const next = new Set(current)
+      if (next.has(filter)) next.delete(filter)
+      else next.add(filter)
+      return next
+    })
     onSelectFilter?.(filter)
   }
+
+  const activeSortLabel = sortOptions.find((option) => option.id === sortMode)?.label ?? sortLabel
 
   const commitCategoryBudget = async (amount: number) => {
     if (categoryBudgetLocked) return
@@ -553,7 +621,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
               style={styles.filterScroller}
             >
               {categoryFilters.map((filter) => {
-                const isSelected = filter.id === selectedFilter
+                const isSelected = selectedFilters.has(filter.id)
 
                 return (
                   <Pressable
@@ -577,12 +645,15 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
             </ScrollView>
 
             <Pressable
-              accessibilityLabel={`Sort results. Current sort: ${sortLabel}`}
+              accessibilityLabel={`Sort results. Current sort: ${activeSortLabel}`}
               accessibilityRole="button"
-              onPress={onOpenSort}
+              onPress={() => {
+                setIsSortOpen(true)
+                onOpenSort?.()
+              }}
               style={({ pressed }) => [styles.sortControl, pressed && styles.pressed]}
             >
-              <Text style={styles.sortText}>Sort: {sortLabel}</Text>
+              <Text style={styles.sortText}>Sort: {activeSortLabel}</Text>
               <Text style={styles.sortChevron}>⌄</Text>
             </Pressable>
           </>
@@ -638,6 +709,26 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                   useHorizontalCards && styles.vendorCopyHorizontal,
                 ]}
               >
+                {isPersonalizedRecommendation(vendor) || vendor.isMostBooked ? (
+                  <View style={styles.decisionBadges}>
+                    {isPersonalizedRecommendation(vendor) ? (
+                      <View style={[styles.decisionBadge, styles.recommendedDecisionBadge]}>
+                        <MaterialCommunityIcons color="#245E43" name="star-circle" size={14} />
+                        <Text style={[styles.decisionBadgeText, styles.recommendedDecisionBadgeText]}>
+                          RECOMMENDED FOR YOU
+                        </Text>
+                      </View>
+                    ) : null}
+                    {vendor.isMostBooked ? (
+                      <View style={[styles.decisionBadge, styles.mostBookedDecisionBadge]}>
+                        <MaterialCommunityIcons color="#6B1E2E" name="fire" size={14} />
+                        <Text style={[styles.decisionBadgeText, styles.mostBookedDecisionBadgeText]}>
+                          MOST BOOKED
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                ) : null}
                 <View style={styles.vendorHeadingRow}>
                   <Text style={styles.vendorName}>{vendor.name}</Text>
                   <View style={styles.ratingGroup}>
@@ -761,6 +852,72 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
           ) : null}
         </View>
       </ScrollView>
+
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setIsSortOpen(false)}
+        transparent
+        visible={isSortOpen}
+      >
+        <View style={styles.sortOverlay}>
+          <Pressable
+            accessibilityLabel="Close sort options"
+            accessibilityRole="button"
+            onPress={() => setIsSortOpen(false)}
+            style={StyleSheet.absoluteFill}
+          />
+          <View accessibilityViewIsModal style={styles.sortSheet}>
+            <View style={styles.sortSheetHeader}>
+              <View>
+                <Text style={styles.sortSheetEyebrow}>SERVICE ORDER</Text>
+                <Text style={styles.sortSheetTitle}>Sort services</Text>
+              </View>
+              <Pressable
+                accessibilityLabel="Close sort options"
+                accessibilityRole="button"
+                hitSlop={8}
+                onPress={() => setIsSortOpen(false)}
+                style={({ pressed }) => [styles.sortCloseButton, pressed && styles.pressed]}
+              >
+                <MaterialIcons color={palette.primaryContainer} name="close" size={22} />
+              </Pressable>
+            </View>
+            <Text style={styles.sortSheetDescription}>
+              Recommended combines category budget fit, availability, guest requirements,
+              ratings, and booking popularity.
+            </Text>
+            {sortOptions.map((option) => {
+              const selected = sortMode === option.id
+              return (
+                <Pressable
+                  key={option.id}
+                  accessibilityLabel={`Sort by ${option.label}`}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: selected }}
+                  onPress={() => {
+                    setSortMode(option.id)
+                    setIsSortOpen(false)
+                  }}
+                  style={({ pressed }) => [
+                    styles.sortOption,
+                    selected && styles.sortOptionSelected,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Text style={[styles.sortOptionText, selected && styles.sortOptionTextSelected]}>
+                    {option.label}
+                  </Text>
+                  <MaterialIcons
+                    color={selected ? palette.primaryContainer : palette.secondary}
+                    name={selected ? 'radio-button-checked' : 'radio-button-unchecked'}
+                    size={21}
+                  />
+                </Pressable>
+              )
+            })}
+          </View>
+        </View>
+      </Modal>
 
       {!isExploreMode && !replacementContext && hasPlanSelections ? (
         <View style={styles.selectedServicesBar}>
@@ -1660,6 +1817,76 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontWeight: '700',
   },
+  sortOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(26, 10, 15, 0.42)',
+  },
+  sortSheet: {
+    width: '100%',
+    maxWidth: 540,
+    alignSelf: 'center',
+    gap: 8,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 22,
+    paddingTop: 20,
+    paddingBottom: 30,
+  },
+  sortSheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sortSheetEyebrow: {
+    color: palette.secondary,
+    fontSize: 10,
+    lineHeight: 14,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  sortSheetTitle: {
+    color: palette.primary,
+    fontSize: 22,
+    lineHeight: 29,
+    fontWeight: '800',
+  },
+  sortCloseButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 20,
+    backgroundColor: palette.surfaceContainerHigh,
+  },
+  sortSheetDescription: {
+    color: palette.secondary,
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 4,
+  },
+  sortOption: {
+    minHeight: 50,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: palette.surfaceContainerHigh,
+    borderRadius: 14,
+    paddingHorizontal: 15,
+  },
+  sortOptionSelected: {
+    borderColor: palette.primaryContainer,
+    backgroundColor: '#F7ECEE',
+  },
+  sortOptionText: {
+    color: palette.text,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '600',
+  },
+  sortOptionTextSelected: { color: palette.primaryContainer, fontWeight: '800' },
   resultsList: {
     gap: 16,
     marginBottom: 80,
@@ -1738,6 +1965,31 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
   },
+  decisionBadges: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 7,
+    marginBottom: 9,
+  },
+  decisionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  recommendedDecisionBadge: { borderColor: '#9CCEB1', backgroundColor: '#E5F4EB' },
+  mostBookedDecisionBadge: { borderColor: '#D9B6BD', backgroundColor: '#F7E9EC' },
+  decisionBadgeText: {
+    fontSize: 9,
+    lineHeight: 12,
+    fontWeight: '900',
+    letterSpacing: 0.45,
+  },
+  recommendedDecisionBadgeText: { color: '#245E43' },
+  mostBookedDecisionBadgeText: { color: '#6B1E2E' },
   vendorHeadingRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',

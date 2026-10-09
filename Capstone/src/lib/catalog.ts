@@ -82,6 +82,14 @@ export interface BudgetRecommendation {
   recommendedOptionName?: string
 }
 
+export interface ServiceDecisionSignal {
+  averageRating: number
+  bookingCount: number
+  isMostBooked: boolean
+  popularityRank: number
+  reviewCount: number
+}
+
 export const fallbackServiceCategories: ServiceCategoryOption[] = [
   { id: 'attire', name: 'Attire' },
   { id: 'catering', name: 'Catering' },
@@ -94,6 +102,7 @@ export const fallbackServiceCategories: ServiceCategoryOption[] = [
 ]
 
 export interface CatalogService {
+  bookingCount?: number
   bookingPackageId?: string
   bookingProviderId?: string
   bookingServiceId?: string
@@ -116,6 +125,7 @@ export interface CatalogService {
   galleryUrls?: string[]
   imageLabel: string
   imageUrl: string
+  isMostBooked?: boolean
   isMock?: boolean
   kind?: 'coordinator' | 'service'
   location?: string
@@ -141,6 +151,7 @@ export interface CatalogService {
   pricingDetails?: string
   pricingModel?: 'fixed' | 'startingAt' | 'customQuote'
   pricingUnit?: 'event' | 'person' | 'hour' | 'day'
+  popularityRank?: number
   providerId?: string
   providerName: string
   rating: string
@@ -660,15 +671,58 @@ export const fetchBudgetAwareRecommendations = async (): Promise<
   return recommendations
 }
 
+export const fetchServiceDecisionSignals = async (): Promise<
+  Map<string, ServiceDecisionSignal>
+> => {
+  const signals = new Map<string, ServiceDecisionSignal>()
+  if (!supabase || !supabaseConfig.isConfigured) return signals
+
+  const { data, error } = await supabase.rpc('list_public_service_decision_signals')
+  if (error || !Array.isArray(data)) return signals
+
+  data.forEach((entry) => {
+    if (!entry || typeof entry !== 'object') return
+    const row = entry as Record<string, unknown>
+    const serviceId = textFrom(row.service_id, '')
+    if (!serviceId) return
+    const averageRating = Number(row.average_rating)
+    const bookingCount = Number(row.booking_count)
+    const popularityRank = Number(row.category_rank)
+    const reviewCount = Number(row.review_count)
+
+    signals.set(serviceId, {
+      averageRating: Number.isFinite(averageRating) ? averageRating : 0,
+      bookingCount: Number.isFinite(bookingCount) ? bookingCount : 0,
+      isMostBooked: row.is_most_booked === true,
+      popularityRank: Number.isFinite(popularityRank) ? popularityRank : 0,
+      reviewCount: Number.isFinite(reviewCount) ? reviewCount : 0,
+    })
+  })
+
+  return signals
+}
+
 export const loadClientCatalogServices = async (): Promise<CatalogService[]> => {
-  const [services, coordinators, recommendations] = await Promise.all([
+  const [services, coordinators, recommendations, decisionSignals] = await Promise.all([
     fetchCatalogServices(),
     fetchAvailableCoordinators(),
     fetchBudgetAwareRecommendations(),
+    fetchServiceDecisionSignals(),
   ])
 
-  return [...services, ...coordinators].map((service) => ({
-    ...service,
-    budgetRecommendation: recommendations.get(service.bookingServiceId ?? service.id),
-  }))
+  return [...services, ...coordinators].map((service) => {
+    const decisionSignal = decisionSignals.get(service.bookingServiceId ?? service.id)
+
+    return {
+      ...service,
+      bookingCount: decisionSignal?.bookingCount ?? 0,
+      budgetRecommendation: recommendations.get(service.bookingServiceId ?? service.id),
+      isMostBooked: decisionSignal?.isMostBooked ?? false,
+      popularityRank: decisionSignal?.popularityRank,
+      rating: decisionSignal && decisionSignal.reviewCount > 0
+        ? decisionSignal.averageRating.toFixed(1)
+        : service.rating,
+      reviewCount: decisionSignal?.reviewCount ?? service.reviewCount,
+    }
+  })
 }

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-10-09T00:00:00.000Z" agent="OpenAI Codex" version="24.7.17" type="device" compressed="false" pages="1">
+  <diagram id="dfd0" name="3.8.2 Level 0 Data Flow Diagram">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0" background="#FFFFFF">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="dfd0_title" value="MULTIVENT - Level 0 Data Flow Diagram" style="text;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=20;fontStyle=1;fontColor=#202020;strokeColor=none;fillColor=none;" vertex="1" parent="1" connectable="0">
+          <mxGeometry x="50.00" y="24.00" width="1500.00" height="34.00" as="geometry" />
+        </mxCell>
+        <mxCell id="dfd0_subtitle" value="Context diagram: external entities and balanced information exchanges" style="text;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13;fontColor=#555555;strokeColor=none;fillColor=none;" vertex="1" parent="1" connectable="0">
+          <mxGeometry x="80.00" y="59.00" width="1440.00" height="28.00" as="geometry" />
+        </mxCell>
+        <mxCell id="dfd0_client" value="CLIENT" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#F4F4F4;strokeColor=#202020;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="60.00" y="200.00" width="240.00" height="110.00" as="geometry" />
+        </mxCell>
+        <mxCell id="dfd0_provider" value="SERVICE PROVIDER" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#F4F4F4;strokeColor=#202020;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="60.00" y="640.00" width="240.00" height="110.00" as="geometry" />
+        </mxCell>
+        <mxCell id="dfd0_system" value="0&lt;br&gt;&lt;b&gt;MULTIVENT&lt;/b&gt;&lt;br&gt;Event-services marketplace&lt;br&gt;and planning system" style="ellipse;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="585.00" y="315.00" width="430.00" height="300.00" as="geometry" />
+        </mxCell>
+        <mxCell id="dfd0_coord" value="EVENT COORDINATOR" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#F4F4F4;strokeColor=#202020;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="1300.00" y="200.00" width="240.00" height="110.00" as="geometry" />
+        </mxCell>
+        <mxCell id="dfd0_staff" value="AUTHORIZED STAFF" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#F4F4F4;strokeColor=#202020;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="1300.00" y="640.00" width="240.00" height="110.00" as="geometry" />
+        </mxCell>
+        <mxCell id="dfd0_nlp" value="NLP SERVICE" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#F4F4F4;strokeColor=#202020;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="680.00" y="790.00" width="240.00" height="95.00" as="geometry" />
+        </mxCell>
+        <mxCell id="dfd0_edge_1" value="Event plan · budget · selections · payment · review" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="dfd0_client" target="dfd0_system">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="dfd0_edge_2" value="Quotes · booking state · receipts · notifications" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="dfd0_system" target="dfd0_client">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="dfd0_edge_3" value="Listings · availability · decisions · payout requests" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="dfd0_provider" target="dfd0_system">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="dfd0_edge_4" value="Booking details · balances · messages" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="dfd0_system" target="dfd0_provider">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="dfd0_edge_5" value="Profile · packages · assignment decisions · tasks" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="dfd0_coord" target="dfd0_system">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="dfd0_edge_6" value="Client request · event plan · services · balances" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="dfd0_system" target="dfd0_coord">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="dfd0_edge_7" value="Authorized moderation · support · finance actions" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="dfd0_staff" target="dfd0_system">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="dfd0_edge_8" value="Queues · records · audit information" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="dfd0_system" target="dfd0_staff">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="dfd0_edge_9" value="Eligible written comments" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="dfd0_system" target="dfd0_nlp">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="dfd0_edge_10" value="Validated sentiment and summary" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="dfd0_nlp" target="dfd0_system">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

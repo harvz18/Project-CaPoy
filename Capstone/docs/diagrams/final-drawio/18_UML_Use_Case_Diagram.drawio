@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-10-09T00:00:00.000Z" agent="OpenAI Codex" version="24.7.17" type="device" compressed="false" pages="1">
+  <diagram id="use_cases" name="3.8.1 Use Case Diagram">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0" background="#FFFFFF">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="use_cases_title" value="MULTIVENT - UML Use Case Diagram" style="text;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=20;fontStyle=1;fontColor=#202020;strokeColor=none;fillColor=none;" vertex="1" parent="1" connectable="0">
+          <mxGeometry x="50.00" y="24.00" width="1500.00" height="34.00" as="geometry" />
+        </mxCell>
+        <mxCell id="use_cases_subtitle" value="Principal implemented role capabilities" style="text;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13;fontColor=#555555;strokeColor=none;fillColor=none;" vertex="1" parent="1" connectable="0">
+          <mxGeometry x="80.00" y="59.00" width="1440.00" height="28.00" as="geometry" />
+        </mxCell>
+        <mxCell id="client_actor" value="Client" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="35.00" y="300.00" width="90.00" height="120.00" as="geometry" />
+        </mxCell>
+        <mxCell id="provider_actor" value="Service Provider" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="35.00" y="650.00" width="90.00" height="120.00" as="geometry" />
+        </mxCell>
+        <mxCell id="coordinator_actor" value="Event Coordinator" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1470.00" y="300.00" width="90.00" height="120.00" as="geometry" />
+        </mxCell>
+        <mxCell id="staff_actor" value="Authorized Staff" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1470.00" y="650.00" width="90.00" height="120.00" as="geometry" />
+        </mxCell>
+        <mxCell id="nlp_actor" value="NLP Service" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1470.00" y="105.00" width="90.00" height="120.00" as="geometry" />
+        </mxCell>
+        <mxCell id="system_boundary" value="MULTIVENT SYSTEM" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontFamily=Arial;fontSize=16;fontStyle=1;fontColor=#202020;fillColor=none;strokeColor=#606060;strokeWidth=2;dashed=1;spacingTop=12;spacingLeft=14;" vertex="1" parent="1">
+          <mxGeometry x="190.00" y="105.00" width="1210.00" height="800.00" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_event" value="Create and manage event" style="ellipse;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="270.00" y="180.00" width="270.00" height="80.00" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_budget" value="Allocate category budget" style="ellipse;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="270.00" y="305.00" width="270.00" height="80.00" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_select" value="Select service / package" style="ellipse;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="270.00" y="430.00" width="270.00" height="80.00" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_pay" value="Record downpayment" style="ellipse;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="270.00" y="555.00" width="270.00" height="80.00" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_review" value="Submit verified review" style="ellipse;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="270.00" y="680.00" width="270.00" height="80.00" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_listing" value="Manage listings and packages" style="ellipse;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="620.00" y="180.00" width="270.00" height="80.00" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_availability" value="Manage availability" style="ellipse;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="620.00" y="305.00" width="270.00" height="80.00" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_booking" value="Respond to booking request" style="ellipse;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="620.00" y="430.00" width="270.00" height="80.00" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_balance" value="View earnings and request payout" style="ellipse;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="620.00" y="555.00" width="270.00" height="80.00" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_message" value="Exchange event messages" style="ellipse;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="620.00" y="680.00" width="270.00" height="80.00" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_coord_profile" value="Manage coordination service" style="ellipse;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="970.00" y="180.00" width="270.00" height="80.00" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_coord_request" value="Review and respond to assignment" style="ellipse;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="970.00" y="305.00" width="270.00" height="80.00" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_coord_work" value="Coordinate event and tasks" style="ellipse;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="970.00" y="430.00" width="270.00" height="80.00" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_moderate" value="Moderate accounts and listings" style="ellipse;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="970.00" y="555.00" width="270.00" height="80.00" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_operations" value="Manage support, finance, and audit" style="ellipse;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="970.00" y="680.00" width="270.00" height="80.00" as="geometry" />
+        </mxCell>
+        <mxCell id="uc_nlp" value="Analyze optional written feedback" style="ellipse;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="970.00" y="805.00" width="270.00" height="80.00" as="geometry" />
+        </mxCell>
+        <mxCell id="use_cases_edge_1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=none;endFill=1;" edge="1" parent="1" source="client_actor" target="uc_event">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="use_cases_edge_2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=none;endFill=1;" edge="1" parent="1" source="client_actor" target="uc_budget">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="use_cases_edge_3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=none;endFill=1;" edge="1" parent="1" source="client_actor" target="uc_select">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="use_cases_edge_4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=none;endFill=1;" edge="1" parent="1" source="client_actor" target="uc_pay">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="use_cases_edge_5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=none;endFill=1;" edge="1" parent="1" source="client_actor" target="uc_review">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="use_cases_edge_6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=none;endFill=1;" edge="1" parent="1" source="client_actor" target="uc_message">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="use_cases_edge_7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=none;endFill=1;" edge="1" parent="1" source="provider_actor" target="uc_listing">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="use_cases_edge_8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=none;endFill=1;" edge="1" parent="1" source="provider_actor" target="uc_availability">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="use_cases_edge_9" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=none;endFill=1;" edge="1" parent="1" source="provider_actor" target="uc_booking">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="use_cases_edge_10" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=none;endFill=1;" edge="1" parent="1" source="provider_actor" target="uc_balance">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="use_cases_edge_11" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=none;endFill=1;" edge="1" parent="1" source="provider_actor" target="uc_message">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="use_cases_edge_12" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=none;endFill=1;" edge="1" parent="1" source="coordinator_actor" target="uc_coord_profile">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="use_cases_edge_13" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=none;endFill=1;" edge="1" parent="1" source="coordinator_actor" target="uc_coord_request">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="use_cases_edge_14" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=none;endFill=1;" edge="1" parent="1" source="coordinator_actor" target="uc_coord_work">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="use_cases_edge_15" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=none;endFill=1;" edge="1" parent="1" source="coordinator_actor" target="uc_message">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="use_cases_edge_16" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=none;endFill=1;" edge="1" parent="1" source="staff_actor" target="uc_moderate">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="use_cases_edge_17" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=none;endFill=1;" edge="1" parent="1" source="staff_actor" target="uc_operations">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="use_cases_edge_18" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=none;endFill=1;" edge="1" parent="1" source="nlp_actor" target="uc_nlp">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="use_cases_edge_19" value="&lt;&lt;extend&gt;&gt; when a comment is supplied" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;dashed=1;dashPattern=6 4;endArrow=open;endFill=0;" edge="1" parent="1" source="uc_review" target="uc_nlp">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

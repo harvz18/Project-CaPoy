@@ -699,6 +699,9 @@ const ensureDraftEvent = async (budget?: number, details?: EventDraftInput) => {
     .insert({
       client_id: userId,
       name: defaultEventName,
+      // Budgets are optional; every new plan starts from an explicit zero
+      // rather than relying on a nullable database value.
+      total_budget: budget ?? 0,
       ...toEventPayload(budget, details),
     })
     .select('id')

@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-10-09T00:00:00.000Z" agent="OpenAI Codex" version="24.7.17" type="device" compressed="false" pages="1">
+  <diagram id="architecture" name="3.6 High-Level System Architecture">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0" background="#FFFFFF">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="architecture_title" value="MULTIVENT - High-Level System Architecture" style="text;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=20;fontStyle=1;fontColor=#202020;strokeColor=none;fillColor=none;" vertex="1" parent="1" connectable="0">
+          <mxGeometry x="50.00" y="24.00" width="1500.00" height="34.00" as="geometry" />
+        </mxCell>
+        <mxCell id="architecture_subtitle" value="Implemented client, managed backend, protected NLP service, and external model provider" style="text;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13;fontColor=#555555;strokeColor=none;fillColor=none;" vertex="1" parent="1" connectable="0">
+          <mxGeometry x="80.00" y="59.00" width="1440.00" height="28.00" as="geometry" />
+        </mxCell>
+        <mxCell id="actors" value="SYSTEM USERS&lt;br&gt;&lt;b&gt;Client&lt;/b&gt;&lt;br&gt;&lt;b&gt;Service Provider&lt;/b&gt;&lt;br&gt;&lt;b&gt;Event Coordinator&lt;/b&gt;&lt;br&gt;&lt;b&gt;Authorized Staff&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#F4F4F4;strokeColor=#202020;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="55.00" y="245.00" width="220.00" height="360.00" as="geometry" />
+        </mxCell>
+        <mxCell id="expo" value="&lt;b&gt;EXPO APPLICATION&lt;/b&gt;&lt;br&gt;React Native / TypeScript&lt;br&gt;Android · iOS · Web&lt;br&gt;&lt;br&gt;Role-aware screens&lt;br&gt;Shared data libraries" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="360.00" y="320.00" width="270.00" height="230.00" as="geometry" />
+        </mxCell>
+        <mxCell id="supabase_boundary" value="SUPABASE MANAGED BACKEND" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontFamily=Arial;fontSize=16;fontStyle=1;fontColor=#202020;fillColor=none;strokeColor=#606060;strokeWidth=2;dashed=1;spacingTop=12;spacingLeft=14;" vertex="1" parent="1">
+          <mxGeometry x="720.00" y="135.00" width="500.00" height="650.00" as="geometry" />
+        </mxCell>
+        <mxCell id="auth" value="&lt;b&gt;Supabase Auth&lt;/b&gt;&lt;br&gt;Session and JWT identity" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="785.00" y="220.00" width="365.00" height="100.00" as="geometry" />
+        </mxCell>
+        <mxCell id="api" value="&lt;b&gt;Data APIs&lt;/b&gt;&lt;br&gt;PostgREST · SQL RPCs · Realtime" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="785.00" y="350.00" width="365.00" height="110.00" as="geometry" />
+        </mxCell>
+        <mxCell id="db" value="&lt;b&gt;PostgreSQL&lt;/b&gt;&lt;br&gt;Tables · RLS · constraints&lt;br&gt;triggers · transactions" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="785.00" y="490.00" width="365.00" height="125.00" as="geometry" />
+        </mxCell>
+        <mxCell id="storage" value="&lt;b&gt;Object Storage&lt;/b&gt;&lt;br&gt;Profile and service images" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="785.00" y="650.00" width="170.00" height="90.00" as="geometry" />
+        </mxCell>
+        <mxCell id="edge" value="&lt;b&gt;Edge Functions&lt;/b&gt;&lt;br&gt;Review analysis&lt;br&gt;summary · staff user creation" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="980.00" y="650.00" width="170.00" height="90.00" as="geometry" />
+        </mxCell>
+        <mxCell id="sentiment" value="&lt;b&gt;PROTECTED SENTIMENT API&lt;/b&gt;&lt;br&gt;FastAPI · LDA · FAISS&lt;br&gt;schema validation" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#F4F4F4;strokeColor=#202020;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="1275.00" y="330.00" width="250.00" height="190.00" as="geometry" />
+        </mxCell>
+        <mxCell id="model" value="&lt;b&gt;EXTERNAL MODEL PROVIDER&lt;/b&gt;&lt;br&gt;Pre-trained structured inference" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#F4F4F4;strokeColor=#202020;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="1275.00" y="610.00" width="250.00" height="125.00" as="geometry" />
+        </mxCell>
+        <mxCell id="architecture_edge_1" value="User interaction" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="actors" target="expo">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="architecture_edge_2" value="HTTPS authentication" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="expo" target="auth">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="architecture_edge_3" value="HTTPS + JWT" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="expo" target="api">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="architecture_edge_4" value="Authenticated storage API" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="expo" target="storage">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="architecture_edge_5" value="SQL / transactions" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="api" target="db">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="architecture_edge_6" value="Validated server access" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="edge" target="db">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="architecture_edge_7" value="HTTPS + X-Analysis-Key" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="edge" target="sentiment">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="architecture_edge_8" value="Structured inference request" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="sentiment" target="model">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="architecture_edge_9" value="Validated JSON result" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="sentiment" target="edge">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

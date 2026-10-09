@@ -435,6 +435,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
               <MaterialIcons color={palette.primaryContainer} name="account-balance-wallet" size={26} />
             </View>
             <View style={styles.optionalBudgetCopy}>
+              <Text style={styles.optionalBudgetAmount}>₱0</Text>
               <Text style={styles.optionalBudgetTitle}>Budget is optional</Text>
               <Text style={styles.optionalBudgetDescription}>
                 Add one to set category limits and see how much remains while planning.
@@ -642,6 +643,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8EDEF',
   },
   optionalBudgetCopy: { alignItems: 'center', gap: 5 },
+  optionalBudgetAmount: {
+    color: palette.primaryContainer,
+    fontSize: 30,
+    lineHeight: 38,
+    fontWeight: '800',
+  },
   optionalBudgetTitle: { color: palette.primaryContainer, fontSize: 18, fontWeight: '700' },
   optionalBudgetDescription: {
     maxWidth: 420,

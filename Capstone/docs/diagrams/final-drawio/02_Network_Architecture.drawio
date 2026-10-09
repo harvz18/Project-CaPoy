@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-10-09T00:00:00.000Z" agent="OpenAI Codex" version="24.7.17" type="device" compressed="false" pages="1">
+  <diagram id="network" name="3.6.1 Network Architecture">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0" background="#FFFFFF">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="network_title" value="MULTIVENT - Network Architecture" style="text;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=20;fontStyle=1;fontColor=#202020;strokeColor=none;fillColor=none;" vertex="1" parent="1" connectable="0">
+          <mxGeometry x="50.00" y="24.00" width="1500.00" height="34.00" as="geometry" />
+        </mxCell>
+        <mxCell id="network_subtitle" value="HTTPS communication paths and trust boundaries; no secrets are exposed in the client" style="text;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13;fontColor=#555555;strokeColor=none;fillColor=none;" vertex="1" parent="1" connectable="0">
+          <mxGeometry x="80.00" y="59.00" width="1440.00" height="28.00" as="geometry" />
+        </mxCell>
+        <mxCell id="client_zone" value="CLIENT DEVICE / BROWSER" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontFamily=Arial;fontSize=16;fontStyle=1;fontColor=#202020;fillColor=none;strokeColor=#606060;strokeWidth=2;dashed=1;spacingTop=12;spacingLeft=14;" vertex="1" parent="1">
+          <mxGeometry x="45.00" y="155.00" width="420.00" height="690.00" as="geometry" />
+        </mxCell>
+        <mxCell id="expo_runtime" value="&lt;b&gt;Expo Runtime&lt;/b&gt;&lt;br&gt;Android · iOS · Web" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="110.00" y="260.00" width="290.00" height="120.00" as="geometry" />
+        </mxCell>
+        <mxCell id="public_config" value="&lt;b&gt;Public configuration&lt;/b&gt;&lt;br&gt;Supabase URL&lt;br&gt;publishable/anon key" style="shape=note;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontFamily=Arial;fontSize=13;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1.5;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="110.00" y="470.00" width="290.00" height="120.00" as="geometry" />
+        </mxCell>
+        <mxCell id="session" value="&lt;b&gt;Authenticated session&lt;/b&gt;&lt;br&gt;Access token / JWT" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="110.00" y="665.00" width="290.00" height="105.00" as="geometry" />
+        </mxCell>
+        <mxCell id="supabase_zone" value="SUPABASE CLOUD TRUST BOUNDARY" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontFamily=Arial;fontSize=16;fontStyle=1;fontColor=#202020;fillColor=none;strokeColor=#606060;strokeWidth=2;dashed=1;spacingTop=12;spacingLeft=14;" vertex="1" parent="1">
+          <mxGeometry x="560.00" y="115.00" width="590.00" height="770.00" as="geometry" />
+        </mxCell>
+        <mxCell id="auth_endpoint" value="Auth endpoint" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="635.00" y="205.00" width="205.00" height="85.00" as="geometry" />
+        </mxCell>
+        <mxCell id="rest_endpoint" value="PostgREST / RPC endpoint" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="865.00" y="205.00" width="210.00" height="85.00" as="geometry" />
+        </mxCell>
+        <mxCell id="storage_endpoint" value="Storage endpoint" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="635.00" y="355.00" width="205.00" height="85.00" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_endpoint" value="Edge Function endpoint" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="865.00" y="355.00" width="210.00" height="85.00" as="geometry" />
+        </mxCell>
+        <mxCell id="postgres" value="&lt;b&gt;PostgreSQL&lt;/b&gt;&lt;br&gt;RLS · authorization&lt;br&gt;functions · durable records" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="635.00" y="535.00" width="440.00" height="175.00" as="geometry" />
+        </mxCell>
+        <mxCell id="server_secrets" value="Server-only secrets:&lt;br&gt;service role · analysis URL · analysis key" style="shape=note;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontFamily=Arial;fontSize=13;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1.5;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="635.00" y="755.00" width="440.00" height="75.00" as="geometry" />
+        </mxCell>
+        <mxCell id="nlp_zone" value="PROTECTED NLP CONTAINER" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontFamily=Arial;fontSize=16;fontStyle=1;fontColor=#202020;fillColor=none;strokeColor=#606060;strokeWidth=2;dashed=1;spacingTop=12;spacingLeft=14;" vertex="1" parent="1">
+          <mxGeometry x="1230.00" y="220.00" width="320.00" height="390.00" as="geometry" />
+        </mxCell>
+        <mxCell id="fastapi" value="&lt;b&gt;FastAPI&lt;/b&gt;&lt;br&gt;/health · /analyze · /summarize" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="1280.00" y="325.00" width="220.00" height="115.00" as="geometry" />
+        </mxCell>
+        <mxCell id="artifacts" value="Local versioned artifacts&lt;br&gt;LDA · encoder · FAISS" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="1280.00" y="485.00" width="220.00" height="80.00" as="geometry" />
+        </mxCell>
+        <mxCell id="external_api" value="External model API" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#F4F4F4;strokeColor=#202020;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="1280.00" y="710.00" width="220.00" height="95.00" as="geometry" />
+        </mxCell>
+        <mxCell id="network_edge_1" value="HTTPS: sign-in/session" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="expo_runtime" target="auth_endpoint">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="network_edge_2" value="HTTPS: JWT + REST/RPC" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="session" target="rest_endpoint">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="network_edge_3" value="HTTPS: JWT + object path" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="session" target="storage_endpoint">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="network_edge_4" value="HTTPS: JWT + JSON" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="session" target="edge_endpoint">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="network_edge_5" value="Identity context" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="auth_endpoint" target="postgres">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="network_edge_6" value="SQL under RLS / RPC" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="rest_endpoint" target="postgres">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="network_edge_7" value="Object metadata / policies" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="storage_endpoint" target="postgres">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="network_edge_8" value="Validated server-side read/write" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="edge_endpoint" target="postgres">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="network_edge_9" value="HTTPS: X-Analysis-Key + JSON" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="edge_endpoint" target="fastapi">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="network_edge_10" value="Local inference context" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="fastapi" target="artifacts">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="network_edge_11" value="HTTPS structured request" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="fastapi" target="external_api">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="network_edge_12" value="Schema-constrained result" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="external_api" target="fastapi">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -3236,7 +3236,6 @@ export const App: React.FC = () => {
               setCurrentServiceId(serviceId)
               setScreen('serviceDetails')
             }}
-            onOpenSort={() => setScreen('categoryBrowse')}
             onSelectCategory={(category) => {
               setSelectedCategory(categoryNameToId(category.name))
             }}

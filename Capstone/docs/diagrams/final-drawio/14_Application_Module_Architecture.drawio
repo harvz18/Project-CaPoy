@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-10-09T00:00:00.000Z" agent="OpenAI Codex" version="24.7.17" type="device" compressed="false" pages="1">
+  <diagram id="modules" name="3.6.3 Application/Module Architecture">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0" background="#FFFFFF">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="modules_title" value="MULTIVENT - Application / Module Architecture" style="text;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=20;fontStyle=1;fontColor=#202020;strokeColor=none;fillColor=none;" vertex="1" parent="1" connectable="0">
+          <mxGeometry x="50.00" y="24.00" width="1500.00" height="34.00" as="geometry" />
+        </mxCell>
+        <mxCell id="modules_subtitle" value="Role-specific operations share one application shell and authoritative data services" style="text;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13;fontColor=#555555;strokeColor=none;fillColor=none;" vertex="1" parent="1" connectable="0">
+          <mxGeometry x="80.00" y="59.00" width="1440.00" height="28.00" as="geometry" />
+        </mxCell>
+        <mxCell id="shell" value="&lt;b&gt;SHARED APPLICATION SHELL&lt;/b&gt;&lt;br&gt;App.tsx · session · navigation · notifications · responsive UI" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="300.00" y="120.00" width="1000.00" height="95.00" as="geometry" />
+        </mxCell>
+        <mxCell id="client" value="&lt;b&gt;CLIENT OPERATIONS&lt;/b&gt;&lt;br&gt;Event setup and budget&lt;br&gt;Recommendations and selections&lt;br&gt;Coordinator choice/packages&lt;br&gt;Bookings, payments, messages, reviews" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="70.00" y="310.00" width="300.00" height="260.00" as="geometry" />
+        </mxCell>
+        <mxCell id="modules_edge_1" value="Routes by authenticated role" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="shell" target="client">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="provider" value="&lt;b&gt;PROVIDER OPERATIONS&lt;/b&gt;&lt;br&gt;Profile and listings&lt;br&gt;Packages and availability&lt;br&gt;Booking decisions&lt;br&gt;Earnings and payout requests" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="445.00" y="310.00" width="300.00" height="260.00" as="geometry" />
+        </mxCell>
+        <mxCell id="modules_edge_2" value="Routes by authenticated role" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="shell" target="provider">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="coordinator" value="&lt;b&gt;COORDINATOR OPERATIONS&lt;/b&gt;&lt;br&gt;Service profile and packages&lt;br&gt;Assignment decisions&lt;br&gt;Event workspace and tasks&lt;br&gt;Provider coordination" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="820.00" y="310.00" width="300.00" height="260.00" as="geometry" />
+        </mxCell>
+        <mxCell id="modules_edge_3" value="Routes by authenticated role" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="shell" target="coordinator">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="staff" value="&lt;b&gt;AUTHORIZED STAFF OPERATIONS&lt;/b&gt;&lt;br&gt;Accounts and permissions&lt;br&gt;Listing moderation&lt;br&gt;Support and finance&lt;br&gt;Audit and configuration" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="1195.00" y="310.00" width="300.00" height="260.00" as="geometry" />
+        </mxCell>
+        <mxCell id="modules_edge_4" value="Routes by authenticated role" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="shell" target="staff">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="shared_libs" value="&lt;b&gt;SHARED TYPESCRIPT DATA SERVICES&lt;/b&gt;&lt;br&gt;auth · planning · catalog · merchant · coordinator · messaging · reviews" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="250.00" y="675.00" width="1100.00" height="100.00" as="geometry" />
+        </mxCell>
+        <mxCell id="supabase_services" value="&lt;b&gt;SUPABASE SDK&lt;/b&gt;&lt;br&gt;Auth · tables · RPCs · Storage · Realtime · Edge Functions" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=15;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#606060;strokeWidth=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="250.00" y="835.00" width="1100.00" height="90.00" as="geometry" />
+        </mxCell>
+        <mxCell id="modules_edge_5" value="Typed calls" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="client" target="shared_libs">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="modules_edge_6" value="Typed calls" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="provider" target="shared_libs">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="modules_edge_7" value="Typed calls" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="coordinator" target="shared_libs">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="modules_edge_8" value="Typed calls" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="staff" target="shared_libs">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="modules_edge_9" value="HTTPS / JWT / JSON" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="shared_libs" target="supabase_services">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

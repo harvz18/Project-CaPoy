@@ -1,0 +1,995 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-10-09T00:00:00.000Z" agent="OpenAI Codex" version="24.7.17" type="device" compressed="false" pages="1">
+  <diagram id="11_erd_messaging_notifications" name="MULTIVENT ERD - Messaging and Notifications">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2085" pageHeight="954" math="0" shadow="0" background="#FFFFFF">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="11_erd_messaging_notifications_title" value="MULTIVENT ERD - Messaging and Notifications" style="text;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=20;fontStyle=1;fontColor=#202020;strokeColor=none;fillColor=none;" vertex="1" parent="1" connectable="0">
+          <mxGeometry x="50.00" y="24.00" width="1985.00" height="34.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_subtitle" value="Crow's Foot notation · ? denotes nullable · row-level PK/FK anchors" style="text;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13;fontColor=#555555;strokeColor=none;fillColor=none;" vertex="1" parent="1" connectable="0">
+          <mxGeometry x="80.00" y="59.00" width="1925.00" height="28.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles" value="" style="group;" vertex="1" parent="1">
+          <mxGeometry x="60.00" y="120.00" width="390.00" height="238.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_header" value="profiles" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=12;fontFamily=Arial;fontSize=16;fontStyle=1;fontColor=#202020;fillColor=#F4F4F4;strokeColor=#606060;strokeWidth=2;" vertex="1" parent="11_erd_messaging_notifications_table_profiles" connectable="0">
+          <mxGeometry x="0.00" y="0.00" width="390.00" height="38.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_id_marker" value="PK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_profiles" connectable="0">
+          <mxGeometry x="0.00" y="38.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_id_name" value="id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_profiles" connectable="0">
+          <mxGeometry x="60.00" y="38.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_profiles" connectable="0">
+          <mxGeometry x="265.00" y="38.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_id_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_profiles">
+          <mxGeometry x="-5.00" y="45.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_id_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_profiles">
+          <mxGeometry x="385.00" y="45.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_full_name_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_profiles" connectable="0">
+          <mxGeometry x="0.00" y="63.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_full_name_name" value="full_name" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_profiles" connectable="0">
+          <mxGeometry x="60.00" y="63.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_full_name_type" value="text ?" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_profiles" connectable="0">
+          <mxGeometry x="265.00" y="63.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_full_name_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_profiles">
+          <mxGeometry x="-5.00" y="70.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_full_name_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_profiles">
+          <mxGeometry x="385.00" y="70.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_email_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_profiles" connectable="0">
+          <mxGeometry x="0.00" y="88.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_email_name" value="email" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_profiles" connectable="0">
+          <mxGeometry x="60.00" y="88.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_email_type" value="text ?" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_profiles" connectable="0">
+          <mxGeometry x="265.00" y="88.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_email_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_profiles">
+          <mxGeometry x="-5.00" y="95.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_email_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_profiles">
+          <mxGeometry x="385.00" y="95.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_phone_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_profiles" connectable="0">
+          <mxGeometry x="0.00" y="113.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_phone_name" value="phone" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_profiles" connectable="0">
+          <mxGeometry x="60.00" y="113.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_phone_type" value="text ?" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_profiles" connectable="0">
+          <mxGeometry x="265.00" y="113.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_phone_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_profiles">
+          <mxGeometry x="-5.00" y="120.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_phone_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_profiles">
+          <mxGeometry x="385.00" y="120.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_avatar_url_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_profiles" connectable="0">
+          <mxGeometry x="0.00" y="138.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_avatar_url_name" value="avatar_url" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_profiles" connectable="0">
+          <mxGeometry x="60.00" y="138.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_avatar_url_type" value="text ?" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_profiles" connectable="0">
+          <mxGeometry x="265.00" y="138.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_avatar_url_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_profiles">
+          <mxGeometry x="-5.00" y="145.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_avatar_url_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_profiles">
+          <mxGeometry x="385.00" y="145.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_default_role_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_profiles" connectable="0">
+          <mxGeometry x="0.00" y="163.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_default_role_name" value="default_role" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_profiles" connectable="0">
+          <mxGeometry x="60.00" y="163.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_default_role_type" value="user_role" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_profiles" connectable="0">
+          <mxGeometry x="265.00" y="163.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_default_role_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_profiles">
+          <mxGeometry x="-5.00" y="170.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_default_role_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_profiles">
+          <mxGeometry x="385.00" y="170.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_account_status_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_profiles" connectable="0">
+          <mxGeometry x="0.00" y="188.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_account_status_name" value="account_status" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_profiles" connectable="0">
+          <mxGeometry x="60.00" y="188.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_account_status_type" value="account_status" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_profiles" connectable="0">
+          <mxGeometry x="265.00" y="188.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_account_status_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_profiles">
+          <mxGeometry x="-5.00" y="195.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_account_status_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_profiles">
+          <mxGeometry x="385.00" y="195.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_2_additional_columns_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_profiles" connectable="0">
+          <mxGeometry x="0.00" y="213.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_2_additional_columns_name" value="... +2 additional columns" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_profiles" connectable="0">
+          <mxGeometry x="60.00" y="213.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_2_additional_columns_type" value="see complete technical ERD ?" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_profiles" connectable="0">
+          <mxGeometry x="265.00" y="213.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_2_additional_columns_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_profiles">
+          <mxGeometry x="-5.00" y="220.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_profiles_row_2_additional_columns_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_profiles">
+          <mxGeometry x="385.00" y="220.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events" value="" style="group;" vertex="1" parent="1">
+          <mxGeometry x="585.00" y="120.00" width="390.00" height="363.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_header" value="events" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=12;fontFamily=Arial;fontSize=16;fontStyle=1;fontColor=#202020;fillColor=#F4F4F4;strokeColor=#606060;strokeWidth=2;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="0.00" y="0.00" width="390.00" height="38.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_id_marker" value="PK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="0.00" y="38.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_id_name" value="id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="60.00" y="38.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="265.00" y="38.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_id_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_events">
+          <mxGeometry x="-5.00" y="45.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_id_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_events">
+          <mxGeometry x="385.00" y="45.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_client_id_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="0.00" y="63.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_client_id_name" value="client_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="60.00" y="63.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_client_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="265.00" y="63.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_client_id_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_events">
+          <mxGeometry x="-5.00" y="70.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_client_id_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_events">
+          <mxGeometry x="385.00" y="70.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_coordinator_id_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="0.00" y="88.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_coordinator_id_name" value="coordinator_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="60.00" y="88.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_coordinator_id_type" value="uuid ?" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="265.00" y="88.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_coordinator_id_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_events">
+          <mxGeometry x="-5.00" y="95.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_coordinator_id_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_events">
+          <mxGeometry x="385.00" y="95.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_pending_coordinator_id_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="0.00" y="113.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_pending_coordinator_id_name" value="pending_coordinator_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="60.00" y="113.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_pending_coordinator_id_type" value="uuid ?" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="265.00" y="113.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_pending_coordinator_id_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_events">
+          <mxGeometry x="-5.00" y="120.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_pending_coordinator_id_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_events">
+          <mxGeometry x="385.00" y="120.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_name_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="0.00" y="138.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_name_name" value="name" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="60.00" y="138.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_name_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="265.00" y="138.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_name_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_events">
+          <mxGeometry x="-5.00" y="145.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_name_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_events">
+          <mxGeometry x="385.00" y="145.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_event_type_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="0.00" y="163.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_event_type_name" value="event_type" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="60.00" y="163.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_event_type_type" value="text ?" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="265.00" y="163.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_event_type_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_events">
+          <mxGeometry x="-5.00" y="170.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_event_type_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_events">
+          <mxGeometry x="385.00" y="170.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_event_date_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="0.00" y="188.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_event_date_name" value="event_date" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="60.00" y="188.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_event_date_type" value="date ?" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="265.00" y="188.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_event_date_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_events">
+          <mxGeometry x="-5.00" y="195.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_event_date_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_events">
+          <mxGeometry x="385.00" y="195.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_venue_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="0.00" y="213.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_venue_name" value="venue" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="60.00" y="213.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_venue_type" value="text ?" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="265.00" y="213.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_venue_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_events">
+          <mxGeometry x="-5.00" y="220.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_venue_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_events">
+          <mxGeometry x="385.00" y="220.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_location_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="0.00" y="238.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_location_name" value="location" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="60.00" y="238.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_location_type" value="text ?" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="265.00" y="238.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_location_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_events">
+          <mxGeometry x="-5.00" y="245.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_location_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_events">
+          <mxGeometry x="385.00" y="245.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_guest_count_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="0.00" y="263.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_guest_count_name" value="guest_count" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="60.00" y="263.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_guest_count_type" value="integer ?" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="265.00" y="263.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_guest_count_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_events">
+          <mxGeometry x="-5.00" y="270.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_guest_count_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_events">
+          <mxGeometry x="385.00" y="270.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_total_budget_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="0.00" y="288.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_total_budget_name" value="total_budget" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="60.00" y="288.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_total_budget_type" value="numeric(12,2) ?" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="265.00" y="288.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_total_budget_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_events">
+          <mxGeometry x="-5.00" y="295.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_total_budget_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_events">
+          <mxGeometry x="385.00" y="295.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_status_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="0.00" y="313.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_status_name" value="status" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="60.00" y="313.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_status_type" value="event_status" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="265.00" y="313.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_status_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_events">
+          <mxGeometry x="-5.00" y="320.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_status_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_events">
+          <mxGeometry x="385.00" y="320.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_18_additional_columns_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="0.00" y="338.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_18_additional_columns_name" value="... +18 additional columns" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="60.00" y="338.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_18_additional_columns_type" value="see complete technical ERD ?" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_events" connectable="0">
+          <mxGeometry x="265.00" y="338.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_18_additional_columns_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_events">
+          <mxGeometry x="-5.00" y="345.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_events_row_18_additional_columns_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_events">
+          <mxGeometry x="385.00" y="345.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings" value="" style="group;" vertex="1" parent="1">
+          <mxGeometry x="1110.00" y="120.00" width="390.00" height="363.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_header" value="bookings" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=12;fontFamily=Arial;fontSize=16;fontStyle=1;fontColor=#202020;fillColor=#F4F4F4;strokeColor=#606060;strokeWidth=2;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="0.00" y="0.00" width="390.00" height="38.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_id_marker" value="PK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="0.00" y="38.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_id_name" value="id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="60.00" y="38.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="265.00" y="38.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_id_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_bookings">
+          <mxGeometry x="-5.00" y="45.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_id_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_bookings">
+          <mxGeometry x="385.00" y="45.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_event_id_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="0.00" y="63.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_event_id_name" value="event_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="60.00" y="63.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_event_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="265.00" y="63.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_event_id_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_bookings">
+          <mxGeometry x="-5.00" y="70.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_event_id_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_bookings">
+          <mxGeometry x="385.00" y="70.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_client_id_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="0.00" y="88.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_client_id_name" value="client_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="60.00" y="88.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_client_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="265.00" y="88.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_client_id_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_bookings">
+          <mxGeometry x="-5.00" y="95.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_client_id_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_bookings">
+          <mxGeometry x="385.00" y="95.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_provider_id_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="0.00" y="113.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_provider_id_name" value="provider_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="60.00" y="113.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_provider_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="265.00" y="113.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_provider_id_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_bookings">
+          <mxGeometry x="-5.00" y="120.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_provider_id_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_bookings">
+          <mxGeometry x="385.00" y="120.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_service_id_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="0.00" y="138.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_service_id_name" value="service_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="60.00" y="138.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_service_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="265.00" y="138.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_service_id_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_bookings">
+          <mxGeometry x="-5.00" y="145.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_service_id_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_bookings">
+          <mxGeometry x="385.00" y="145.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_package_id_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="0.00" y="163.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_package_id_name" value="package_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="60.00" y="163.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_package_id_type" value="uuid ?" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="265.00" y="163.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_package_id_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_bookings">
+          <mxGeometry x="-5.00" y="170.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_package_id_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_bookings">
+          <mxGeometry x="385.00" y="170.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_requested_date_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="0.00" y="188.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_requested_date_name" value="requested_date" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="60.00" y="188.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_requested_date_type" value="date ?" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="265.00" y="188.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_requested_date_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_bookings">
+          <mxGeometry x="-5.00" y="195.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_requested_date_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_bookings">
+          <mxGeometry x="385.00" y="195.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_requested_time_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="0.00" y="213.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_requested_time_name" value="requested_time" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="60.00" y="213.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_requested_time_type" value="time without time zone ?" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="265.00" y="213.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_requested_time_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_bookings">
+          <mxGeometry x="-5.00" y="220.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_requested_time_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_bookings">
+          <mxGeometry x="385.00" y="220.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_amount_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="0.00" y="238.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_amount_name" value="amount" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="60.00" y="238.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_amount_type" value="numeric(12,2) ?" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="265.00" y="238.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_amount_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_bookings">
+          <mxGeometry x="-5.00" y="245.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_amount_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_bookings">
+          <mxGeometry x="385.00" y="245.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_status_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="0.00" y="263.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_status_name" value="status" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="60.00" y="263.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_status_type" value="booking_status" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="265.00" y="263.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_status_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_bookings">
+          <mxGeometry x="-5.00" y="270.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_status_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_bookings">
+          <mxGeometry x="385.00" y="270.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_client_notes_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="0.00" y="288.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_client_notes_name" value="client_notes" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="60.00" y="288.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_client_notes_type" value="text ?" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="265.00" y="288.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_client_notes_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_bookings">
+          <mxGeometry x="-5.00" y="295.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_client_notes_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_bookings">
+          <mxGeometry x="385.00" y="295.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_provider_notes_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="0.00" y="313.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_provider_notes_name" value="provider_notes" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="60.00" y="313.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_provider_notes_type" value="text ?" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="265.00" y="313.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_provider_notes_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_bookings">
+          <mxGeometry x="-5.00" y="320.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_provider_notes_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_bookings">
+          <mxGeometry x="385.00" y="320.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_19_additional_columns_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="0.00" y="338.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_19_additional_columns_name" value="... +19 additional columns" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="60.00" y="338.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_19_additional_columns_type" value="see complete technical ERD ?" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_bookings" connectable="0">
+          <mxGeometry x="265.00" y="338.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_19_additional_columns_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_bookings">
+          <mxGeometry x="-5.00" y="345.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_bookings_row_19_additional_columns_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_bookings">
+          <mxGeometry x="385.00" y="345.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversations" value="" style="group;" vertex="1" parent="1">
+          <mxGeometry x="1635.00" y="120.00" width="390.00" height="163.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversations_header" value="conversations" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=12;fontFamily=Arial;fontSize=16;fontStyle=1;fontColor=#202020;fillColor=#F4F4F4;strokeColor=#606060;strokeWidth=2;" vertex="1" parent="11_erd_messaging_notifications_table_conversations" connectable="0">
+          <mxGeometry x="0.00" y="0.00" width="390.00" height="38.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversations_row_id_marker" value="PK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_conversations" connectable="0">
+          <mxGeometry x="0.00" y="38.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversations_row_id_name" value="id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_conversations" connectable="0">
+          <mxGeometry x="60.00" y="38.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversations_row_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_conversations" connectable="0">
+          <mxGeometry x="265.00" y="38.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversations_row_id_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_conversations">
+          <mxGeometry x="-5.00" y="45.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversations_row_id_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_conversations">
+          <mxGeometry x="385.00" y="45.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversations_row_event_id_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_conversations" connectable="0">
+          <mxGeometry x="0.00" y="63.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversations_row_event_id_name" value="event_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_conversations" connectable="0">
+          <mxGeometry x="60.00" y="63.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversations_row_event_id_type" value="uuid ?" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_conversations" connectable="0">
+          <mxGeometry x="265.00" y="63.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversations_row_event_id_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_conversations">
+          <mxGeometry x="-5.00" y="70.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversations_row_event_id_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_conversations">
+          <mxGeometry x="385.00" y="70.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversations_row_booking_id_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_conversations" connectable="0">
+          <mxGeometry x="0.00" y="88.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversations_row_booking_id_name" value="booking_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_conversations" connectable="0">
+          <mxGeometry x="60.00" y="88.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversations_row_booking_id_type" value="uuid ?" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_conversations" connectable="0">
+          <mxGeometry x="265.00" y="88.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversations_row_booking_id_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_conversations">
+          <mxGeometry x="-5.00" y="95.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversations_row_booking_id_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_conversations">
+          <mxGeometry x="385.00" y="95.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversations_row_title_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_conversations" connectable="0">
+          <mxGeometry x="0.00" y="113.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversations_row_title_name" value="title" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_conversations" connectable="0">
+          <mxGeometry x="60.00" y="113.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversations_row_title_type" value="text ?" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_conversations" connectable="0">
+          <mxGeometry x="265.00" y="113.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversations_row_title_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_conversations">
+          <mxGeometry x="-5.00" y="120.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversations_row_title_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_conversations">
+          <mxGeometry x="385.00" y="120.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversations_row_2_additional_columns_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_conversations" connectable="0">
+          <mxGeometry x="0.00" y="138.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversations_row_2_additional_columns_name" value="... +2 additional columns" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_conversations" connectable="0">
+          <mxGeometry x="60.00" y="138.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversations_row_2_additional_columns_type" value="see complete technical ERD ?" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_conversations" connectable="0">
+          <mxGeometry x="265.00" y="138.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversations_row_2_additional_columns_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_conversations">
+          <mxGeometry x="-5.00" y="145.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversations_row_2_additional_columns_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_conversations">
+          <mxGeometry x="385.00" y="145.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversation_participants" value="" style="group;" vertex="1" parent="1">
+          <mxGeometry x="1635.00" y="363.00" width="390.00" height="113.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversation_participants_header" value="conversation_participants" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=12;fontFamily=Arial;fontSize=16;fontStyle=1;fontColor=#202020;fillColor=#F4F4F4;strokeColor=#606060;strokeWidth=2;" vertex="1" parent="11_erd_messaging_notifications_table_conversation_participants" connectable="0">
+          <mxGeometry x="0.00" y="0.00" width="390.00" height="38.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversation_participants_row_conversation_id_marker" value="PK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_conversation_participants" connectable="0">
+          <mxGeometry x="0.00" y="38.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversation_participants_row_conversation_id_name" value="conversation_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_conversation_participants" connectable="0">
+          <mxGeometry x="60.00" y="38.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversation_participants_row_conversation_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_conversation_participants" connectable="0">
+          <mxGeometry x="265.00" y="38.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversation_participants_row_conversation_id_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_conversation_participants">
+          <mxGeometry x="-5.00" y="45.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversation_participants_row_conversation_id_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_conversation_participants">
+          <mxGeometry x="385.00" y="45.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversation_participants_row_user_id_marker" value="PK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_conversation_participants" connectable="0">
+          <mxGeometry x="0.00" y="63.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversation_participants_row_user_id_name" value="user_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_conversation_participants" connectable="0">
+          <mxGeometry x="60.00" y="63.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversation_participants_row_user_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_conversation_participants" connectable="0">
+          <mxGeometry x="265.00" y="63.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversation_participants_row_user_id_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_conversation_participants">
+          <mxGeometry x="-5.00" y="70.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversation_participants_row_user_id_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_conversation_participants">
+          <mxGeometry x="385.00" y="70.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversation_participants_row_1_additional_columns_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_conversation_participants" connectable="0">
+          <mxGeometry x="0.00" y="88.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversation_participants_row_1_additional_columns_name" value="... +1 additional columns" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_conversation_participants" connectable="0">
+          <mxGeometry x="60.00" y="88.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversation_participants_row_1_additional_columns_type" value="see complete technical ERD ?" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_conversation_participants" connectable="0">
+          <mxGeometry x="265.00" y="88.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversation_participants_row_1_additional_columns_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_conversation_participants">
+          <mxGeometry x="-5.00" y="95.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_conversation_participants_row_1_additional_columns_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_conversation_participants">
+          <mxGeometry x="385.00" y="95.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_messages" value="" style="group;" vertex="1" parent="1">
+          <mxGeometry x="60.00" y="438.00" width="390.00" height="188.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_messages_header" value="messages" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=12;fontFamily=Arial;fontSize=16;fontStyle=1;fontColor=#202020;fillColor=#F4F4F4;strokeColor=#606060;strokeWidth=2;" vertex="1" parent="11_erd_messaging_notifications_table_messages" connectable="0">
+          <mxGeometry x="0.00" y="0.00" width="390.00" height="38.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_messages_row_id_marker" value="PK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_messages" connectable="0">
+          <mxGeometry x="0.00" y="38.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_messages_row_id_name" value="id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_messages" connectable="0">
+          <mxGeometry x="60.00" y="38.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_messages_row_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_messages" connectable="0">
+          <mxGeometry x="265.00" y="38.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_messages_row_id_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_messages">
+          <mxGeometry x="-5.00" y="45.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_messages_row_id_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_messages">
+          <mxGeometry x="385.00" y="45.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_messages_row_conversation_id_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_messages" connectable="0">
+          <mxGeometry x="0.00" y="63.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_messages_row_conversation_id_name" value="conversation_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_messages" connectable="0">
+          <mxGeometry x="60.00" y="63.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_messages_row_conversation_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_messages" connectable="0">
+          <mxGeometry x="265.00" y="63.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_messages_row_conversation_id_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_messages">
+          <mxGeometry x="-5.00" y="70.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_messages_row_conversation_id_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_messages">
+          <mxGeometry x="385.00" y="70.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_messages_row_sender_id_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_messages" connectable="0">
+          <mxGeometry x="0.00" y="88.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_messages_row_sender_id_name" value="sender_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_messages" connectable="0">
+          <mxGeometry x="60.00" y="88.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_messages_row_sender_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_messages" connectable="0">
+          <mxGeometry x="265.00" y="88.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_messages_row_sender_id_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_messages">
+          <mxGeometry x="-5.00" y="95.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_messages_row_sender_id_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_messages">
+          <mxGeometry x="385.00" y="95.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_messages_row_body_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_messages" connectable="0">
+          <mxGeometry x="0.00" y="113.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_messages_row_body_name" value="body" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_messages" connectable="0">
+          <mxGeometry x="60.00" y="113.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_messages_row_body_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_messages" connectable="0">
+          <mxGeometry x="265.00" y="113.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_messages_row_body_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_messages">
+          <mxGeometry x="-5.00" y="120.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_messages_row_body_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_messages">
+          <mxGeometry x="385.00" y="120.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_messages_row_read_at_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_messages" connectable="0">
+          <mxGeometry x="0.00" y="138.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_messages_row_read_at_name" value="read_at" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_messages" connectable="0">
+          <mxGeometry x="60.00" y="138.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_messages_row_read_at_type" value="timestamptz ?" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_messages" connectable="0">
+          <mxGeometry x="265.00" y="138.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_messages_row_read_at_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_messages">
+          <mxGeometry x="-5.00" y="145.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_messages_row_read_at_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_messages">
+          <mxGeometry x="385.00" y="145.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_messages_row_1_additional_columns_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_messages" connectable="0">
+          <mxGeometry x="0.00" y="163.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_messages_row_1_additional_columns_name" value="... +1 additional columns" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_messages" connectable="0">
+          <mxGeometry x="60.00" y="163.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_messages_row_1_additional_columns_type" value="see complete technical ERD ?" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_messages" connectable="0">
+          <mxGeometry x="265.00" y="163.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_messages_row_1_additional_columns_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_messages">
+          <mxGeometry x="-5.00" y="170.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_messages_row_1_additional_columns_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_messages">
+          <mxGeometry x="385.00" y="170.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications" value="" style="group;" vertex="1" parent="1">
+          <mxGeometry x="1635.00" y="556.00" width="390.00" height="238.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_header" value="notifications" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=12;fontFamily=Arial;fontSize=16;fontStyle=1;fontColor=#202020;fillColor=#F4F4F4;strokeColor=#606060;strokeWidth=2;" vertex="1" parent="11_erd_messaging_notifications_table_notifications" connectable="0">
+          <mxGeometry x="0.00" y="0.00" width="390.00" height="38.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_id_marker" value="PK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_notifications" connectable="0">
+          <mxGeometry x="0.00" y="38.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_id_name" value="id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_notifications" connectable="0">
+          <mxGeometry x="60.00" y="38.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_notifications" connectable="0">
+          <mxGeometry x="265.00" y="38.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_id_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_notifications">
+          <mxGeometry x="-5.00" y="45.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_id_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_notifications">
+          <mxGeometry x="385.00" y="45.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_user_id_marker" value="FK" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_notifications" connectable="0">
+          <mxGeometry x="0.00" y="63.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_user_id_name" value="user_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_notifications" connectable="0">
+          <mxGeometry x="60.00" y="63.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_user_id_type" value="uuid" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_notifications" connectable="0">
+          <mxGeometry x="265.00" y="63.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_user_id_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_notifications">
+          <mxGeometry x="-5.00" y="70.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_user_id_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_notifications">
+          <mxGeometry x="385.00" y="70.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_title_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_notifications" connectable="0">
+          <mxGeometry x="0.00" y="88.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_title_name" value="title" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_notifications" connectable="0">
+          <mxGeometry x="60.00" y="88.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_title_type" value="text" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_notifications" connectable="0">
+          <mxGeometry x="265.00" y="88.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_title_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_notifications">
+          <mxGeometry x="-5.00" y="95.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_title_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_notifications">
+          <mxGeometry x="385.00" y="95.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_body_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_notifications" connectable="0">
+          <mxGeometry x="0.00" y="113.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_body_name" value="body" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_notifications" connectable="0">
+          <mxGeometry x="60.00" y="113.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_body_type" value="text ?" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_notifications" connectable="0">
+          <mxGeometry x="265.00" y="113.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_body_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_notifications">
+          <mxGeometry x="-5.00" y="120.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_body_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_notifications">
+          <mxGeometry x="385.00" y="120.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_resource_type_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_notifications" connectable="0">
+          <mxGeometry x="0.00" y="138.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_resource_type_name" value="resource_type" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_notifications" connectable="0">
+          <mxGeometry x="60.00" y="138.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_resource_type_type" value="text ?" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_notifications" connectable="0">
+          <mxGeometry x="265.00" y="138.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_resource_type_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_notifications">
+          <mxGeometry x="-5.00" y="145.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_resource_type_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_notifications">
+          <mxGeometry x="385.00" y="145.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_resource_id_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_notifications" connectable="0">
+          <mxGeometry x="0.00" y="163.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_resource_id_name" value="resource_id" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_notifications" connectable="0">
+          <mxGeometry x="60.00" y="163.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_resource_id_type" value="uuid ?" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_notifications" connectable="0">
+          <mxGeometry x="265.00" y="163.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_resource_id_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_notifications">
+          <mxGeometry x="-5.00" y="170.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_resource_id_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_notifications">
+          <mxGeometry x="385.00" y="170.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_status_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_notifications" connectable="0">
+          <mxGeometry x="0.00" y="188.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_status_name" value="status" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_notifications" connectable="0">
+          <mxGeometry x="60.00" y="188.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_status_type" value="notification_status" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FFFFFF;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_notifications" connectable="0">
+          <mxGeometry x="265.00" y="188.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_status_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_notifications">
+          <mxGeometry x="-5.00" y="195.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_status_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_notifications">
+          <mxGeometry x="385.00" y="195.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_1_additional_columns_marker" value="" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12;fontStyle=1;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_notifications" connectable="0">
+          <mxGeometry x="0.00" y="213.00" width="60.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_1_additional_columns_name" value="... +1 additional columns" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=8;fontFamily=Arial;fontSize=14;fontColor=#202020;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_notifications" connectable="0">
+          <mxGeometry x="60.00" y="213.00" width="205.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_1_additional_columns_type" value="see complete technical ERD ?" style="rounded=0;whiteSpace=wrap;html=1;align=right;verticalAlign=middle;spacingRight=8;fontFamily=Arial;fontSize=12;fontColor=#555555;fillColor=#FAFAFA;strokeColor=#A8A8A8;strokeWidth=1;" vertex="1" parent="11_erd_messaging_notifications_table_notifications" connectable="0">
+          <mxGeometry x="265.00" y="213.00" width="125.00" height="25.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_1_additional_columns_anchor_l" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_notifications">
+          <mxGeometry x="-5.00" y="220.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_table_notifications_row_1_additional_columns_anchor_r" value="" style="ellipse;html=1;opacity=0;fillOpacity=0;strokeOpacity=0;perimeter=ellipsePerimeter;" vertex="1" parent="11_erd_messaging_notifications_table_notifications">
+          <mxGeometry x="385.00" y="220.50" width="10.00" height="10.00" as="geometry" />
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_edge_1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=none;endFill=1;startArrow=ERone;startFill=0;endArrow=ERzeroToMany;endFill=0;" edge="1" parent="1" source="11_erd_messaging_notifications_table_profiles_row_id_anchor_r" target="11_erd_messaging_notifications_table_bookings_row_client_id_anchor_l">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="780.00" y="170.50" />
+              <mxPoint x="780.00" y="220.50" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_edge_2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=none;endFill=1;startArrow=ERone;startFill=0;endArrow=ERzeroToMany;endFill=0;" edge="1" parent="1" source="11_erd_messaging_notifications_table_events_row_id_anchor_r" target="11_erd_messaging_notifications_table_bookings_row_event_id_anchor_l">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1042.50" y="170.50" />
+              <mxPoint x="1042.50" y="195.50" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_edge_3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=none;endFill=1;startArrow=ERone;startFill=0;endArrow=ERzeroToMany;endFill=0;" edge="1" parent="1" source="11_erd_messaging_notifications_table_conversations_row_id_anchor_r" target="11_erd_messaging_notifications_table_conversation_participants_row_conversation_id_anchor_r">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2070.00" y="170.50" />
+              <mxPoint x="2070.00" y="413.50" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_edge_4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=none;endFill=1;startArrow=ERone;startFill=0;endArrow=ERzeroToMany;endFill=0;" edge="1" parent="1" source="11_erd_messaging_notifications_table_profiles_row_id_anchor_r" target="11_erd_messaging_notifications_table_conversation_participants_row_user_id_anchor_l">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1042.50" y="170.50" />
+              <mxPoint x="1042.50" y="438.50" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_edge_5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=none;endFill=1;startArrow=ERzeroToOne;startFill=0;endArrow=ERzeroToMany;endFill=0;" edge="1" parent="1" source="11_erd_messaging_notifications_table_bookings_row_id_anchor_r" target="11_erd_messaging_notifications_table_conversations_row_booking_id_anchor_l">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1567.50" y="170.50" />
+              <mxPoint x="1567.50" y="220.50" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_edge_6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=none;endFill=1;startArrow=ERzeroToOne;startFill=0;endArrow=ERzeroToMany;endFill=0;" edge="1" parent="1" source="11_erd_messaging_notifications_table_events_row_id_anchor_r" target="11_erd_messaging_notifications_table_conversations_row_event_id_anchor_l">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1305.00" y="170.50" />
+              <mxPoint x="1305.00" y="195.50" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_edge_7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=none;endFill=1;startArrow=ERone;startFill=0;endArrow=ERzeroToMany;endFill=0;" edge="1" parent="1" source="11_erd_messaging_notifications_table_profiles_row_id_anchor_r" target="11_erd_messaging_notifications_table_events_row_client_id_anchor_l">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="517.50" y="170.50" />
+              <mxPoint x="517.50" y="195.50" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_edge_8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=none;endFill=1;startArrow=ERzeroToOne;startFill=0;endArrow=ERzeroToMany;endFill=0;" edge="1" parent="1" source="11_erd_messaging_notifications_table_profiles_row_id_anchor_r" target="11_erd_messaging_notifications_table_events_row_coordinator_id_anchor_l">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="517.50" y="170.50" />
+              <mxPoint x="517.50" y="220.50" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_edge_9" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=none;endFill=1;startArrow=ERzeroToOne;startFill=0;endArrow=ERzeroToMany;endFill=0;" edge="1" parent="1" source="11_erd_messaging_notifications_table_profiles_row_id_anchor_r" target="11_erd_messaging_notifications_table_events_row_pending_coordinator_id_anchor_l">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="517.50" y="170.50" />
+              <mxPoint x="517.50" y="245.50" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_edge_10" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=none;endFill=1;startArrow=ERone;startFill=0;endArrow=ERzeroToMany;endFill=0;" edge="1" parent="1" source="11_erd_messaging_notifications_table_conversations_row_id_anchor_l" target="11_erd_messaging_notifications_table_messages_row_conversation_id_anchor_r">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1042.50" y="170.50" />
+              <mxPoint x="1042.50" y="513.50" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_edge_11" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=none;endFill=1;startArrow=ERone;startFill=0;endArrow=ERzeroToMany;endFill=0;" edge="1" parent="1" source="11_erd_messaging_notifications_table_profiles_row_id_anchor_r" target="11_erd_messaging_notifications_table_messages_row_sender_id_anchor_r">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="495.00" y="170.50" />
+              <mxPoint x="495.00" y="538.50" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="11_erd_messaging_notifications_edge_12" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=Arial;fontSize=13;fontColor=#202020;labelBackgroundColor=#FFFFFF;strokeColor=#202020;strokeWidth=2;endArrow=none;endFill=1;startArrow=ERone;startFill=0;endArrow=ERzeroToMany;endFill=0;" edge="1" parent="1" source="11_erd_messaging_notifications_table_profiles_row_id_anchor_r" target="11_erd_messaging_notifications_table_notifications_row_user_id_anchor_l">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1042.50" y="170.50" />
+              <mxPoint x="1042.50" y="631.50" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
