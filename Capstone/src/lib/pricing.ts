@@ -1,5 +1,5 @@
 export const DEFAULT_COMMISSION_RATE = 0.05
-export const DEFAULT_INITIAL_PAYMENT_RATE = 0.4
+export const DEFAULT_INITIAL_PAYMENT_RATE = 0.35
 export const DEFAULT_PROVIDER_INITIAL_RATE = 0.3
 
 const toCents = (value: number) => Math.round(Math.max(0, value) * 100)
@@ -40,9 +40,11 @@ export interface PaymentBreakdown {
 }
 
 /**
- * Central Phase 5 payment calculation. Integer cents keep the 40/30/5 split
+ * Central payment calculation. Integer cents keep the 35/30/5 split
  * reconcilable even when an order contains several independently rounded
- * provider services.
+ * provider services. The amount due is never allowed to fall below the exact
+ * sum of the provider allocation and platform fee because their independent
+ * cent rounding can differ from a direct percentage calculation by one cent.
  */
 export const calculatePaymentBreakdown = (
   items: PaymentBreakdownItem[],
@@ -59,8 +61,14 @@ export const calculatePaymentBreakdown = (
     }
     return total + Math.max(0, toCents(item.price ?? 0) - toCents(item.providerPrice))
   }, 0)
-  const initialPaymentCents = Math.round(serviceSubtotalCents * initialPaymentRate)
   const providerInitialCents = Math.round(serviceSubtotalCents * providerInitialRate)
+  const configuredInitialPaymentCents = Math.round(
+    serviceSubtotalCents * initialPaymentRate
+  )
+  const initialPaymentCents = Math.max(
+    configuredInitialPaymentCents,
+    providerInitialCents + platformFeeCents
+  )
   const clientTotalCents = serviceSubtotalCents + platformFeeCents
 
   return {

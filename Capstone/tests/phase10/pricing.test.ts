@@ -11,9 +11,9 @@ import {
   normalizeCommissionRate,
 } from '../../src/lib/pricing.ts'
 
-test('Phase 5 default rates remain 5%, 40%, and 30%', () => {
+test('current default rates remain 5%, 35%, and 30%', () => {
   assert.equal(DEFAULT_COMMISSION_RATE, 0.05)
-  assert.equal(DEFAULT_INITIAL_PAYMENT_RATE, 0.4)
+  assert.equal(DEFAULT_INITIAL_PAYMENT_RATE, 0.35)
   assert.equal(DEFAULT_PROVIDER_INITIAL_RATE, 0.3)
 })
 
@@ -24,12 +24,12 @@ test('canonical PHP 100,000 example reconciles every financial bucket', () => {
 
   assert.deepEqual(breakdown, {
     clientTotal: 105_000,
-    heldUnallocatedAmount: 5_000,
-    initialPayment: 40_000,
+    heldUnallocatedAmount: 0,
+    initialPayment: 35_000,
     platformFee: 5_000,
     providerBalance: 70_000,
     providerInitialAllocation: 30_000,
-    remainingClientBalance: 65_000,
+    remainingClientBalance: 70_000,
     serviceSubtotal: 100_000,
   })
 })
@@ -46,13 +46,14 @@ test('multi-provider totals use independently rounded service fees without doubl
   assert.equal(breakdown.serviceSubtotal, 100_000)
   assert.equal(breakdown.platformFee, 5_000)
   assert.equal(breakdown.clientTotal, 105_000)
-  assert.equal(breakdown.initialPayment, 40_000)
+  assert.equal(breakdown.initialPayment, 35_000)
   assert.equal(breakdown.providerInitialAllocation, 30_000)
-  assert.equal(breakdown.heldUnallocatedAmount, 5_000)
+  assert.equal(breakdown.heldUnallocatedAmount, 0)
   assert.equal(breakdown.providerBalance, 70_000)
 })
 
 test('currency rounding stays cent-safe for fractional provider prices', () => {
+  assert.equal(customerPriceFromProviderPrice(20_000, 0.05), 21_000)
   assert.equal(commissionFromProviderPrice(333.33, 0.05), 16.67)
   assert.equal(customerPriceFromProviderPrice(333.33, 0.05), 350)
 
@@ -64,9 +65,22 @@ test('currency rounding stays cent-safe for fractional provider prices', () => {
   assert.equal(breakdown.serviceSubtotal, 1_000)
   assert.equal(breakdown.platformFee, 50)
   assert.equal(breakdown.clientTotal, 1_050)
-  assert.equal(breakdown.initialPayment, 400)
+  assert.equal(breakdown.initialPayment, 350)
   assert.equal(breakdown.providerInitialAllocation, 300)
-  assert.equal(breakdown.heldUnallocatedAmount, 50)
+  assert.equal(breakdown.heldUnallocatedAmount, 0)
+})
+
+test('downpayment covers independently rounded 30% provider and 5% platform shares', () => {
+  const breakdown = calculatePaymentBreakdown([
+    { commissionAmount: 5.01, providerPrice: 100.15 },
+  ])
+
+  assert.equal(breakdown.providerInitialAllocation, 30.05)
+  assert.equal(breakdown.platformFee, 5.01)
+  assert.equal(breakdown.initialPayment, 35.06)
+  assert.equal(breakdown.heldUnallocatedAmount, 0)
+  assert.equal(breakdown.providerBalance, 70.1)
+  assert.equal(breakdown.remainingClientBalance, 70.1)
 })
 
 test('invalid commission settings fall back to the current 5% rule', () => {

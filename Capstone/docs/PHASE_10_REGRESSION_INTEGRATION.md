@@ -18,7 +18,7 @@ npm run build:web
 `npm run test:phase10` uses Node's built-in test runner and introduces no test-framework
 dependency. The suite covers:
 
-- the canonical 5% platform fee, 40% initial payment, and 30% provider allocation;
+- the canonical 5% platform fee, 35% downpayment, and 30% provider allocation;
 - cent-safe rounding, multiple providers, invalid rate fallback, and non-negative amounts;
 - ordered, transactional, additive migrations 53–60 with no `DROP TABLE` or `TRUNCATE`;
 - coordinator skip, booking, accept/reject, package references, and independent provider review;
@@ -112,7 +112,7 @@ result, and pass/fail evidence for every case.
 
 | Scenario | Expected result | Staging status |
 | --- | --- | --- |
-| 5% / 40% / 30% calculation | Platform, initial, provider, held, and remaining values reconcile exactly | Pending staging execution |
+| 5% / 35% / 30% calculation | Platform, downpayment, provider, zero-unallocated, and remaining values reconcile exactly | Pending staging execution |
 | Pending provider | Eligible provider allocation remains held and not withdrawable | Pending staging execution |
 | Accepted provider | Only that provider's eligible 30% share moves to internal earned/withdrawable balance | Pending staging execution |
 | Rejected provider | No provider credit occurs; funds remain held for replacement/refund | Pending staging execution |

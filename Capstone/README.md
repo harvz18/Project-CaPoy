@@ -47,9 +47,9 @@ Apply `55_catering_pricing_revision.sql` after migration 54 for Revision 2 Phase
 providers can publish multiple menu options with per-head prices and guest ranges; client and
 coordinator-package totals use the event guest count and preserve the chosen option in booking
 snapshots. See [`docs/PHASE_3_CATERING_PRICING.md`](docs/PHASE_3_CATERING_PRICING.md).
-Apply `56_payment_revenue_revision.sql` after migration 55 for Revision 2 Phase 5. New quotes use
-the 5% platform fee, 40% initial client payment, and separately held 30% provider allocation;
-historical financial snapshots remain unchanged. See
+Apply `56_payment_revenue_revision.sql` after migration 55 for Revision 2 Phase 5. It introduces
+versioned fee, client-payment, and provider-allocation snapshots; migration 65 below corrects the
+active downpayment split without changing recognized historical records. See
 [`docs/PHASE_5_PAYMENT_REVENUE_REVISION.md`](docs/PHASE_5_PAYMENT_REVENUE_REVISION.md).
 Apply `57_payment_hold_provider_acceptance.sql` after migration 56 for Revision 2 Phase 6. Paid
 provider and coordinator allocations remain held until the individual recipient accepts; only the
@@ -70,6 +70,9 @@ budgets can be adjusted from the catalog, one active service is enforced per cat
 spaces/combinations use authoritative duration, capacity, operating-hour, overlap, and pricing
 validation with immutable selection and booking snapshots. See
 [`docs/PHASE_9_SERVICE_SELECTION.md`](docs/PHASE_9_SERVICE_SELECTION.md).
+After migrations 61-64, apply `65_downpayment_split_correction.sql`. New checkout records collect
+exactly the provider's rounded 30% allocation plus MULTIVENT's rounded 5% fee. The resulting 35%
+downpayment has no unallocated hold, and each provider collects the remaining 70% directly.
 Apply `07_service_listing_details.sql` so pricing models, pricing units, pricing notes, package
 units, and all uploaded service photos remain available on the client service-detail screen.
 For existing databases that used the `02_event_planning_flow_no_rls.sql` setup, also apply

@@ -9,7 +9,7 @@ export function StatusBadge({ value }: { value: string | null | undefined }) {
   const caution = ['pending', 'pending_review', 'deposit_paid', 'processing', 'requested', 'payment_required', 'planning'].includes(normalized)
   const negative = ['suspended', 'disabled', 'rejected', 'failed', 'cancelled', 'expired'].includes(normalized)
   const tone = positive ? 'positive' : caution ? 'caution' : negative ? 'negative' : 'neutral'
-  const label = normalized === 'deposit_paid' ? '40% initial payment' : normalized.replaceAll('_', ' ')
+  const label = normalized === 'deposit_paid' ? '35% downpayment' : normalized.replaceAll('_', ' ')
   return <span className={`status-badge status-badge--${tone}`}><i />{label}</span>
 }
 

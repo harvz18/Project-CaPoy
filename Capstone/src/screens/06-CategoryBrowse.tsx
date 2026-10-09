@@ -7,6 +7,7 @@ import {
   Image,
   LayoutChangeEvent,
   Modal,
+  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -84,6 +85,7 @@ const sortOptions: ReadonlyArray<{ id: CategoryBrowseSort; label: string }> = [
 ]
 
 const HIGH_RATING_THRESHOLD = 4
+const CATEGORY_BUDGET_STEP = 500
 
 export const categoryBrowseNavigationTabs = [
   { id: 'explore' as const, icon: '◎', label: 'Explore' },
@@ -159,7 +161,10 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     () => ['All', ...Array.from(new Set(services.map((service) => service.categoryName)))],
     [services]
   )
-  React.useEffect(() => setDraftCategoryBudget(categoryBudget), [categoryBudget])
+  const isBudgetDraggingRef = React.useRef(false)
+  React.useEffect(() => {
+    if (!isBudgetDraggingRef.current) setDraftCategoryBudget(categoryBudget)
+  }, [categoryBudget])
   React.useEffect(() => setSelectedFilters(new Set()), [categoryName])
 
   const categoryFilters = React.useMemo(() => {
@@ -372,21 +377,85 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
 
   const activeSortLabel = sortOptions.find((option) => option.id === sortMode)?.label ?? sortLabel
 
+  const normalizeCategoryBudget = React.useCallback((amount: number) => {
+    const maximum = Math.max(0, categoryBudgetMaximum)
+    const steppedMaximum = Math.floor(maximum / CATEGORY_BUDGET_STEP) * CATEGORY_BUDGET_STEP
+    return Math.max(
+      0,
+      Math.min(
+        Math.round(Math.max(0, amount) / CATEGORY_BUDGET_STEP) * CATEGORY_BUDGET_STEP,
+        steppedMaximum
+      )
+    )
+  }, [categoryBudgetMaximum])
+
   const commitCategoryBudget = async (amount: number) => {
     if (categoryBudgetLocked) return
-    const normalized = Math.max(0, Math.min(Math.round(amount / 100) * 100, categoryBudgetMaximum))
+    const normalized = normalizeCategoryBudget(amount)
     setDraftCategoryBudget(normalized)
     const saved = await onCategoryBudgetChange?.(normalized)
     if (saved === false) setDraftCategoryBudget(categoryBudget)
   }
 
-  const handleBudgetTrackPress = (event: { nativeEvent: { locationX: number } }) => {
-    if (categoryBudgetLocked || budgetTrackWidth <= 1 || categoryBudgetMaximum <= 0) return
-    void commitCategoryBudget(
-      (Math.max(0, Math.min(event.nativeEvent.locationX / budgetTrackWidth, 1)))
-        * categoryBudgetMaximum
-    )
-  }
+  const updateDraftBudgetFromPosition = React.useCallback((position: number) => {
+    if (categoryBudgetLocked || budgetTrackWidth <= 1 || categoryBudgetMaximum < CATEGORY_BUDGET_STEP) {
+      return draftCategoryBudget
+    }
+    const ratio = Math.max(0, Math.min(position / budgetTrackWidth, 1))
+    const normalized = normalizeCategoryBudget(ratio * categoryBudgetMaximum)
+    setDraftCategoryBudget(normalized)
+    return normalized
+  }, [budgetTrackWidth, categoryBudgetLocked, categoryBudgetMaximum, draftCategoryBudget, normalizeCategoryBudget])
+
+  // Keep the responder stable for the whole gesture. Recreating it while the
+  // thumb moves interrupts React Native's responder chain after the first
+  // update, which makes the control look tappable but not draggable.
+  const canAdjustBudgetRef = React.useRef(false)
+  const budgetDragStartRef = React.useRef(0)
+  const draftCategoryBudgetRef = React.useRef(draftCategoryBudget)
+  const updateDraftBudgetFromPositionRef = React.useRef(updateDraftBudgetFromPosition)
+  const commitCategoryBudgetRef = React.useRef(commitCategoryBudget)
+  canAdjustBudgetRef.current = !categoryBudgetLocked
+    && categoryBudgetMaximum >= CATEGORY_BUDGET_STEP
+  draftCategoryBudgetRef.current = draftCategoryBudget
+  updateDraftBudgetFromPositionRef.current = updateDraftBudgetFromPosition
+  commitCategoryBudgetRef.current = commitCategoryBudget
+
+  const categoryBudgetPanResponder = React.useMemo(
+    () => PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) =>
+        canAdjustBudgetRef.current
+        && Math.abs(gestureState.dx) >= 2
+        && Math.abs(gestureState.dx) >= Math.abs(gestureState.dy),
+      onPanResponderGrant: (event) => {
+        isBudgetDraggingRef.current = true
+        budgetDragStartRef.current = event.nativeEvent.locationX
+        draftCategoryBudgetRef.current = updateDraftBudgetFromPositionRef.current(
+          budgetDragStartRef.current
+        )
+      },
+      onPanResponderMove: (_, gestureState) => {
+        draftCategoryBudgetRef.current = updateDraftBudgetFromPositionRef.current(
+          budgetDragStartRef.current + gestureState.dx
+        )
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        draftCategoryBudgetRef.current = updateDraftBudgetFromPositionRef.current(
+          budgetDragStartRef.current + gestureState.dx
+        )
+        isBudgetDraggingRef.current = false
+        void commitCategoryBudgetRef.current(draftCategoryBudgetRef.current)
+      },
+      onPanResponderTerminate: () => {
+        isBudgetDraggingRef.current = false
+        void commitCategoryBudgetRef.current(draftCategoryBudgetRef.current)
+      },
+      onPanResponderTerminationRequest: () => false,
+      onShouldBlockNativeResponder: () => true,
+      onStartShouldSetPanResponder: () => canAdjustBudgetRef.current,
+    }),
+    []
+  )
 
   const handleBudgetTrackLayout = (event: LayoutChangeEvent) => {
     setBudgetTrackWidth(Math.max(event.nativeEvent.layout.width, 1))
@@ -510,25 +579,43 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                 {categoryBudgetLocked ? 'Locked to selection' : 'Adjustable'}
               </Text>
             </View>
-            <Pressable
+            <View
+              accessible
+              accessibilityActions={[
+                { name: 'increment', label: `Increase ${categoryName} budget` },
+                { name: 'decrement', label: `Decrease ${categoryName} budget` },
+              ]}
               accessibilityLabel={`${categoryName} budget ${formatCurrency(draftCategoryBudget)} pesos`}
               accessibilityRole="adjustable"
-              disabled={categoryBudgetLocked}
+              accessibilityState={{ disabled: categoryBudgetLocked }}
+              accessibilityValue={{
+                max: Math.max(0, categoryBudgetMaximum),
+                min: 0,
+                now: draftCategoryBudget,
+              }}
+              onAccessibilityAction={(event) => {
+                if (event.nativeEvent.actionName === 'increment') {
+                  void commitCategoryBudget(draftCategoryBudget + CATEGORY_BUDGET_STEP)
+                }
+                if (event.nativeEvent.actionName === 'decrement') {
+                  void commitCategoryBudget(draftCategoryBudget - CATEGORY_BUDGET_STEP)
+                }
+              }}
               onLayout={handleBudgetTrackLayout}
-              onPress={handleBudgetTrackPress}
               style={styles.categoryBudgetTrackTouch}
+              {...categoryBudgetPanResponder.panHandlers}
             >
               <View style={styles.categoryBudgetTrack}>
                 <View style={[styles.categoryBudgetFill, { width: `${categoryBudgetMaximum > 0 ? Math.min(draftCategoryBudget / categoryBudgetMaximum, 1) * 100 : 0}%` }]} />
                 <View style={[styles.categoryBudgetThumb, { left: `${categoryBudgetMaximum > 0 ? Math.min(draftCategoryBudget / categoryBudgetMaximum, 1) * 100 : 0}%` }]} />
               </View>
-            </Pressable>
+            </View>
             <View style={styles.categoryBudgetFooter}>
               <Text style={styles.categoryBudgetHint}>Remaining overall budget: PHP {formatCurrency(remainingBudget)}</Text>
               {!categoryBudgetLocked ? (
                 <View style={styles.categoryBudgetButtons}>
-                  <Pressable onPress={() => void commitCategoryBudget(draftCategoryBudget - 500)} style={styles.categoryBudgetStep}><Text style={styles.categoryBudgetStepText}>-500</Text></Pressable>
-                  <Pressable onPress={() => void commitCategoryBudget(draftCategoryBudget + 500)} style={styles.categoryBudgetStep}><Text style={styles.categoryBudgetStepText}>+500</Text></Pressable>
+                  <Pressable onPress={() => void commitCategoryBudget(draftCategoryBudget - CATEGORY_BUDGET_STEP)} style={styles.categoryBudgetStep}><Text style={styles.categoryBudgetStepText}>-500</Text></Pressable>
+                  <Pressable onPress={() => void commitCategoryBudget(draftCategoryBudget + CATEGORY_BUDGET_STEP)} style={styles.categoryBudgetStep}><Text style={styles.categoryBudgetStepText}>+500</Text></Pressable>
                 </View>
               ) : null}
             </View>

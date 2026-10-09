@@ -106,7 +106,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
   const { width } = useWindowDimensions()
   const isWide = width >= 640
   const [summaryExpanded, setSummaryExpanded] = React.useState(true)
-  const [paymentType, setPaymentType] = React.useState<PaymentType>('deposit')
+  const paymentType: PaymentType = 'deposit'
   const [paymentMethod, setPaymentMethod] = React.useState<PaymentMethod>('eWallet')
   const [termsAccepted, setTermsAccepted] = React.useState(false)
   const [showTermsError, setShowTermsError] = React.useState(false)
@@ -115,9 +115,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
   const feeLabel = commissionRates.length === 1
     ? `MULTIVENT Service Fee (${Math.round(commissionRates[0] * 100)}%)`
     : 'MULTIVENT Service Fee'
-  const amountDue = paymentType === 'deposit'
-    ? breakdown.initialPayment
-    : breakdown.clientTotal
+  const amountDue = breakdown.initialPayment
 
   const handlePay = () => {
     if (isProcessing) return
@@ -191,22 +189,15 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>How much would you like to pay?</Text>
+          <Text style={styles.sectionTitle}>Required downpayment</Text>
           <View style={[styles.paymentTypeGrid, isWide && styles.paymentTypeGridWide]}>
             <PaymentTypeCard
-              description="Includes the 30% provider allocation and the 5% platform fee."
-              detail="40% of service subtotal"
-              label="Pay Initial Payment"
-              onPress={() => setPaymentType('deposit')}
+              description="Includes each provider's 30% required downpayment and MULTIVENT's 5% service fee. The remaining 70% is paid directly to each provider."
+              detail="35% of provider service subtotal"
+              label="Pay Required Downpayment"
+              onPress={() => undefined}
               price={formatCurrency(breakdown.initialPayment)}
-              selected={paymentType === 'deposit'}
-            />
-            <PaymentTypeCard
-              description="Settle everything now for peace of mind."
-              label="Pay in Full"
-              onPress={() => setPaymentType('full')}
-              price={formatCurrency(breakdown.clientTotal)}
-              selected={paymentType === 'full'}
+              selected
             />
           </View>
         </View>
@@ -214,35 +205,27 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
         <View style={styles.breakdownCard}>
           <Text style={styles.breakdownTitle}>Payment Breakdown</Text>
           <BreakdownRow label="Service Subtotal" value={formatCurrency(breakdown.serviceSubtotal)} />
-          <BreakdownRow label={feeLabel} value={formatCurrency(breakdown.platformFee)} />
           <BreakdownRow label="Client Total" value={formatCurrency(breakdown.clientTotal)} />
-          {paymentType === 'deposit' && (
-            <>
-              <BreakdownRow
-                muted
-                label="Provider Initial Allocation (30%, held until acceptance)"
-                value={formatCurrency(breakdown.providerInitialAllocation)}
-              />
-              <BreakdownRow
-                muted
-                label="Held / Unallocated"
-                value={formatCurrency(breakdown.heldUnallocatedAmount)}
-              />
-            </>
-          )}
+          <BreakdownRow
+            muted
+            label="Provider Downpayments (30%, held until acceptance)"
+            value={formatCurrency(breakdown.providerInitialAllocation)}
+          />
+          <BreakdownRow
+            muted
+            label={`${feeLabel} · Collected now`}
+            value={formatCurrency(breakdown.platformFee)}
+          />
           <View style={styles.breakdownDivider} />
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>
-              {paymentType === 'deposit' ? 'Initial Payment Due Now' : 'Total Due Now'}
+              Downpayment Due Now (35%)
             </Text>
             <Text style={styles.totalValue}>{formatCurrency(amountDue)}</Text>
           </View>
-          {paymentType === 'deposit' && (
-            <Text style={styles.balanceText}>
-              Remaining client balance: {formatCurrency(breakdown.remainingClientBalance)}
-              {' \u2022 '}Provider service balance: {formatCurrency(breakdown.providerBalance)}
-            </Text>
-          )}
+          <Text style={styles.balanceText}>
+            Remaining 70% paid directly to providers: {formatCurrency(breakdown.providerBalance)}
+          </Text>
         </View>
 
         <View style={styles.section}>
@@ -338,7 +321,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
             <Text style={styles.payButtonText}>
               {isProcessing
                 ? 'Finalizing booking...'
-                : `${paymentType === 'deposit' ? 'Pay Initial Payment' : 'Pay in Full'} · ${formatCurrency(amountDue).replace(' ', '')}`}
+                : `Pay 35% Downpayment · ${formatCurrency(amountDue).replace(' ', '')}`}
             </Text>
           </Pressable>
         </View>

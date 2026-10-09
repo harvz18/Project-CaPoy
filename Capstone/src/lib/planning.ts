@@ -873,6 +873,13 @@ export const savePlanningPayment = async (
       return { ok: false, message: 'Accept the booking and cancellation terms first.' }
     }
 
+    if (value.paymentType !== 'deposit') {
+      return {
+        ok: false,
+        message: 'MULTIVENT collects only the required 35% downpayment. Pay the remaining 70% directly to each provider.',
+      }
+    }
+
     const [
       { data: eventRow, error: eventError },
       { data: selections, error: selectionError },

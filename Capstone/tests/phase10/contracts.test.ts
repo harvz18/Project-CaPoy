@@ -23,6 +23,8 @@ const migrations = [
   'database/61_coordinator_request_financial_visibility.sql',
   'database/62_dss_service_discovery.sql',
   'database/63_mobile_session_push_notifications.sql',
+  'database/64_mobile_push_security_hardening.sql',
+  'database/65_downpayment_split_correction.sql',
 ]
 
 test('Revision 2 migrations remain ordered, transactional, additive, and non-destructive', () => {
@@ -182,9 +184,12 @@ test('venue choices, hours, capacity, schedule, and immutable snapshots reach bo
 test('payment, held funds, individual decisions, balances, and payouts remain separated', () => {
   const payment = read(migrations[3])
   const acceptance = read(migrations[4])
+  const correction = read(migrations[12])
   const pricing = read('src/lib/pricing.ts')
   const planning = read('src/lib/planning.ts')
   const merchant = read('src/lib/merchant.ts')
+  const paymentScreen = read('src/screens/12-Payment.tsx')
+  const serviceDetailsScreen = read('src/screens/08-ServiceDetails.tsx')
 
   mustContain(payment, [
     "('commission_rate', '{\"value\": 0.05}'::jsonb",
@@ -202,16 +207,36 @@ test('payment, held funds, individual decisions, balances, and payouts remain se
     'amountWithdrawable',
     'remainingServiceBalance',
   ], 'Phase 6 financial migration')
+  mustContain(correction, [
+    "'initial_payment_rate',",
+    "'{\"value\": 0.35}'::jsonb",
+    'provider_initial_value + platform_fee_value',
+    'new.held_unallocated_amount := 0',
+    "'remainingCollectionMethod', 'direct_to_provider'",
+    "payment_type <> 'deposit'",
+    "booking.status::text = 'payment_required'",
+  ], '35/30/5 financial correction')
   mustContain(pricing, [
     'DEFAULT_COMMISSION_RATE = 0.05',
-    'DEFAULT_INITIAL_PAYMENT_RATE = 0.4',
+    'DEFAULT_INITIAL_PAYMENT_RATE = 0.35',
     'DEFAULT_PROVIDER_INITIAL_RATE = 0.3',
+    'providerInitialCents + platformFeeCents',
   ], 'frontend pricing contract')
   mustContain(planning, [
     "financial_terms_version: 'phase5-v1'",
     "accountingVersion: 'phase5-v1'",
     "status: 'paid'",
+    "value.paymentType !== 'deposit'",
+    'remaining 70% directly to each provider',
   ], 'client payment integration')
+  mustContain(paymentScreen, [
+    '35% of provider service subtotal',
+    'Provider Downpayments (30%, held until acceptance)',
+    'Remaining 70% paid directly to providers',
+    'Pay 35% Downpayment',
+  ], 'downpayment-only client UI')
+  assert.doesNotMatch(paymentScreen, /Pay in Full/)
+  assert.doesNotMatch(serviceDetailsScreen, /Includes .*MULTIVENT service fee/)
   mustContain(merchant, [
     "context.client.rpc('respond_to_provider_booking'",
     "context.client.rpc('get_my_provider_payment_confirmations')",
@@ -289,11 +314,16 @@ test('optional zero budgets and explainable DSS marketplace signals stay connect
     'RECOMMENDED FOR YOU',
     'MOST BOOKED',
     'const [selectedFilters, setSelectedFilters]',
+    'const CATEGORY_BUDGET_STEP = 500',
+    'budgetDragStartRef.current + gestureState.dx',
+    'onPanResponderTerminationRequest: () => false',
+    'void commitCategoryBudgetRef.current(draftCategoryBudgetRef.current)',
   ], 'client DSS controls and badges')
 })
 
 test('mobile sessions persist and push alerts keep business details inside Supabase', () => {
   const migration = read(migrations[10])
+  const hardening = read(migrations[11])
   const supabaseClient = read('src/lib/supabase.ts')
   const notifications = read('src/lib/notifications.ts')
   const app = read('src/App.tsx')
@@ -313,6 +343,13 @@ test('mobile sessions persist and push alerts keep business details inside Supab
     "'body', 'You have a new notification. Open MULTIVENT to view it.'",
     'alter publication supabase_realtime add table public.notifications',
   ], 'data-minimized push migration')
+  mustContain(hardening, [
+    'revoke all on table public.user_push_tokens from public, anon, authenticated',
+    'revoke all on function public.dispatch_mobile_push_notification()',
+    'from public, anon, authenticated',
+    'grant execute on function public.register_my_push_token(text, text, text, text)',
+    'grant execute on function public.revoke_my_push_token(text)',
+  ], 'mobile push API least-privilege hardening')
   assert.doesNotMatch(
     migration,
     /'title',\s*new\.title|'body',\s*new\.body|'resourceId'|'resourceType'/,

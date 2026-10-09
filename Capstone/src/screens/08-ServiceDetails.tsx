@@ -510,12 +510,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
               </View>
               <View style={styles.serviceFactRow}>
                 <Text style={styles.serviceFactLabel}>PRICE</Text>
-                <View style={styles.servicePriceGroup}>
-                  <Text style={styles.servicePriceValue}>{formatServicePrice(service)}</Text>
-                  <Text style={styles.servicePriceFeeNote}>
-                    Includes {Math.round(service.commissionRate * 100)}% MULTIVENT service fee
-                  </Text>
-                </View>
+                <Text style={styles.servicePriceValue}>{formatServicePrice(service)}</Text>
               </View>
               {service.location ? (
                 <View style={styles.serviceFactRow}>
@@ -1304,9 +1299,7 @@ const styles = StyleSheet.create({
   },
   serviceFactLabel: { color: palette.secondary, fontSize: 11, lineHeight: 15, fontWeight: '700', letterSpacing: 1 },
   serviceFactValue: { flex: 1, color: palette.text, fontSize: 15, lineHeight: 21, fontWeight: '600', textAlign: 'right' },
-  servicePriceGroup: { flex: 1, alignItems: 'flex-end' },
   servicePriceValue: { color: palette.primary, fontSize: 17, lineHeight: 23, fontWeight: '700', textAlign: 'right' },
-  servicePriceFeeNote: { marginTop: 2, color: palette.secondary, fontSize: 10, lineHeight: 14, textAlign: 'right' },
   pricingNotes: { gap: 6, padding: 18 },
   pricingNotesText: { color: palette.text, fontSize: 15, lineHeight: 23 },
   packagesSection: { borderBottomWidth: 1, borderBottomColor: palette.surfaceVariant, paddingVertical: 40 },
