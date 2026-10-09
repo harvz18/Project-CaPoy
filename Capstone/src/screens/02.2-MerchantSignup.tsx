@@ -14,6 +14,7 @@ import {
 } from 'react-native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { Button } from '../components/Button'
+import { BrandIdentity } from '../components/BrandIdentity'
 import { TextInput } from '../components/TextInput'
 import { signUpMerchant } from '../lib/auth'
 import { colors, radius, spacing } from '../theme/tokens'
@@ -192,6 +193,7 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
             },
           ]}
         >
+          <BrandIdentity markSize={38} style={styles.brandIdentity} />
           <Text style={styles.title}>Set up Your Business</Text>
           <View style={styles.loginPrompt}>
             <Text style={styles.loginPromptText}>Already Have An Account? </Text>
@@ -344,6 +346,10 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
 }
 
 const styles = StyleSheet.create({
+  brandIdentity: {
+    alignSelf: 'center',
+    marginBottom: spacing.sm,
+  },
   screen: { flex: 1, backgroundColor: '#F4F4F6' },
   content: { flex: 1, width: '100%', maxWidth: 430, alignSelf: 'center', backgroundColor: colors.background },
   hero: { height: 340, overflow: 'hidden', alignItems: 'center', justifyContent: 'flex-end', paddingTop: spacing['4xl'], backgroundColor: colors.primaryDark, position: 'relative' },

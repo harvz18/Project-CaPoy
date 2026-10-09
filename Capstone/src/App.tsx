@@ -1,6 +1,6 @@
 import React from 'react'
 import type { RealtimeChannel } from '@supabase/supabase-js'
-import { Alert, Animated, Easing, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
+import { ActivityIndicator, Alert, Animated, Easing, Image, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
 import * as ImagePicker from 'expo-image-picker'
@@ -193,10 +193,18 @@ import {
   fetchConversationMessages,
   fetchConversations,
   fetchNotifications,
+  mapNotificationRecord,
   markConversationRead,
   openCoordinatorProviderConversation,
   sendConversationMessage,
 } from './lib/messaging'
+import {
+  Notifications,
+  readNotificationRouteData,
+  registerCurrentDeviceForPush,
+  revokeCurrentDevicePushToken,
+  setApplicationBadgeFromUnreadCount,
+} from './lib/notifications'
 import {
   CoordinatorBookedService,
   CoordinatorDashboard,
@@ -382,6 +390,8 @@ export const App: React.FC = () => {
   })
   const { height, width } = useWindowDimensions()
   const [screen, commitScreen] = React.useState<AppScreen>('onboarding')
+  const [isAuthRestoring, setIsAuthRestoring] = React.useState(Boolean(supabase))
+  const [authenticatedUserId, setAuthenticatedUserId] = React.useState('')
   const [isScreenTransitioning, setIsScreenTransitioning] = React.useState(false)
   const screenTransitionProgress = React.useRef(new Animated.Value(1)).current
   const screenRef = React.useRef<AppScreen>('onboarding')
@@ -737,6 +747,7 @@ export const App: React.FC = () => {
     if (isSigningOut) return
 
     setIsSigningOut(true)
+    await revokeCurrentDevicePushToken()
     const result = supabase ? await supabase.auth.signOut() : undefined
     if (result?.error) {
       setToastMessage(result.error.message || 'Unable to log out. Please try again.')
@@ -1386,28 +1397,42 @@ export const App: React.FC = () => {
 
   React.useEffect(() => {
     if (!supabase) {
+      setIsAuthRestoring(false)
       return undefined
     }
 
     let isMounted = true
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (!isMounted || !data.session?.user) {
-        return
-      }
+    void supabase.auth
+      .getSession()
+      .then(async ({ data, error }) => {
+        if (!isMounted) return
+        if (error || !data.session?.user) {
+          setAuthenticatedUserId('')
+          return
+        }
 
-      loadProfileAndRoute(data.session.user.id, {
-        ...data.session.user.user_metadata,
-        email: data.session.user.email,
+        setAuthenticatedUserId(data.session.user.id)
+        await loadProfileAndRoute(data.session.user.id, {
+          ...data.session.user.user_metadata,
+          email: data.session.user.email,
+        })
+        if (isMounted) void refreshLiveData()
       })
-      void refreshLiveData()
-    })
+      .catch(() => {
+        if (isMounted) setAuthenticatedUserId('')
+      })
+      .finally(() => {
+        if (isMounted) setIsAuthRestoring(false)
+      })
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (!session?.user) {
         if (event === 'SIGNED_OUT') {
+          setAuthenticatedUserId('')
+          setIsAuthRestoring(false)
           setUserName('Planner')
           setAccountProfile(undefined)
           setUserAvatarUrl('')
@@ -1427,7 +1452,10 @@ export const App: React.FC = () => {
         return
       }
 
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+      setAuthenticatedUserId(session.user.id)
+      setIsAuthRestoring(false)
+
+      if (event === 'SIGNED_IN') {
         loadProfileAndRoute(session.user.id, {
           ...session.user.user_metadata,
           email: session.user.email,
@@ -1441,6 +1469,146 @@ export const App: React.FC = () => {
       subscription.unsubscribe()
     }
   }, [loadProfileAndRoute, refreshLiveData, setScreen])
+
+  const openNotificationDestination = React.useCallback(
+    (resourceType?: string, resourceId?: string) => {
+      const normalizedType = resourceType?.toLowerCase() ?? ''
+      if (normalizedType.includes('message') || normalizedType.includes('conversation')) {
+        setScreen('messages')
+        return
+      }
+      if (normalizedType === 'event_cash_remittance' && resourceId) {
+        setCoordinatorRemittanceEventId(resourceId)
+        setScreen('coordinatorRemittanceDetails')
+        return
+      }
+      if (normalizedType.includes('payment') || normalizedType.includes('payout')) {
+        setScreen(homeReturnScreen === 'providerHome' ? 'providerPayouts' : 'eventLedger')
+        return
+      }
+      if (normalizedType.includes('review')) {
+        setScreen(homeReturnScreen === 'providerHome' ? 'providerReviews' : 'bookings')
+        return
+      }
+      if (
+        normalizedType.includes('booking')
+        || normalizedType.includes('event')
+        || normalizedType.includes('coordinator')
+      ) {
+        if (screenRef.current.startsWith('coordinator')) setScreen('coordinatorHome')
+        else setScreen(homeReturnScreen === 'providerHome' ? 'providerBookingRequests' : 'bookings')
+        return
+      }
+      setScreen(
+        screenRef.current.startsWith('coordinator')
+          ? 'coordinatorNotifications'
+          : homeReturnScreen === 'providerHome'
+            ? 'providerNotifications'
+            : 'notifications'
+      )
+    },
+    [homeReturnScreen, setScreen]
+  )
+
+  React.useEffect(() => {
+    if (!authenticatedUserId || Platform.OS === 'web') return undefined
+
+    let active = true
+    void registerCurrentDeviceForPush().then((result) => {
+      if (!active || result.ok) return
+      if (__DEV__) console.warn(`Push registration: ${result.message ?? 'not available'}`)
+    })
+
+    const tokenSubscription = Notifications.addPushTokenListener(() => {
+      void registerCurrentDeviceForPush()
+    })
+
+    return () => {
+      active = false
+      tokenSubscription.remove()
+    }
+  }, [authenticatedUserId])
+
+  React.useEffect(() => {
+    if (Platform.OS === 'web') return undefined
+
+    const receivedSubscription = Notifications.addNotificationReceivedListener(() => {
+      void refreshLiveData()
+    })
+    const responseSubscription = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        const route = readNotificationRouteData(response.notification)
+        openNotificationDestination(route.resourceType, route.resourceId)
+        void refreshLiveData()
+      }
+    )
+
+    if (authenticatedUserId && !isAuthRestoring) {
+      void Notifications.getLastNotificationResponseAsync().then((response) => {
+        if (!response) return
+        const route = readNotificationRouteData(response.notification)
+        openNotificationDestination(route.resourceType, route.resourceId)
+        void Notifications.clearLastNotificationResponseAsync()
+      })
+    }
+
+    return () => {
+      receivedSubscription.remove()
+      responseSubscription.remove()
+    }
+  }, [authenticatedUserId, isAuthRestoring, openNotificationDestination, refreshLiveData])
+
+  React.useEffect(() => {
+    if (!supabase || !authenticatedUserId) return undefined
+
+    const client = supabase
+    const notificationChannel = client
+      .channel(`mobile-notifications-${authenticatedUserId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          filter: `user_id=eq.${authenticatedUserId}`,
+          schema: 'public',
+          table: 'notifications',
+        },
+        (payload) => {
+          const incoming = mapNotificationRecord(payload.new as Record<string, unknown>)
+          setNotifications((current) => [
+            incoming,
+            ...current.filter((notification) => notification.id !== incoming.id),
+          ])
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          filter: `user_id=eq.${authenticatedUserId}`,
+          schema: 'public',
+          table: 'notifications',
+        },
+        (payload) => {
+          const updated = mapNotificationRecord(payload.new as Record<string, unknown>)
+          setNotifications((current) =>
+            current.map((notification) =>
+              notification.id === updated.id ? updated : notification
+            )
+          )
+        }
+      )
+      .subscribe()
+
+    return () => {
+      void client.removeChannel(notificationChannel)
+    }
+  }, [authenticatedUserId])
+
+  React.useEffect(() => {
+    void setApplicationBadgeFromUnreadCount(
+      notifications.filter((notification) => !notification.isRead).length
+    )
+  }, [notifications])
 
   const handleAuthenticatedUser = React.useCallback(async () => {
     if (!supabase) {
@@ -3062,9 +3230,7 @@ export const App: React.FC = () => {
             cardTitle="Continue on the web"
             description="Business analytics, revenue, cash flow, and view-only user information are available in the secure MULTIVENT Operations web console."
             onBackToRoleSelection={() => {
-              void supabase?.auth.signOut()
-              setUserName('Planner')
-              setScreen('roleSelection')
+              void handleSignOut()
             }}
             roleLabel="Admin"
             title="Your management workspace is ready on the web."
@@ -3078,9 +3244,7 @@ export const App: React.FC = () => {
             cardTitle="Continue on the web"
             description="Permissions, internal accounts, audit logs, system settings, and governance tools are available in the secure MULTIVENT Operations web console."
             onBackToRoleSelection={() => {
-              void supabase?.auth.signOut()
-              setUserName('Planner')
-              setScreen('roleSelection')
+              void handleSignOut()
             }}
             roleLabel="Superadmin"
             title="Your governance workspace is ready on the web."
@@ -3094,9 +3258,7 @@ export const App: React.FC = () => {
             cardTitle="Continue on the web"
             description="Provider reviews, service approvals, coordinator operations, and remittance tools are available according to your permissions in the MULTIVENT Operations web console."
             onBackToRoleSelection={() => {
-              void supabase?.auth.signOut()
-              setUserName('Planner')
-              setScreen('roleSelection')
+              void handleSignOut()
             }}
             roleLabel="Assistant"
             title="Your operations workspace is ready on the web."
@@ -3110,9 +3272,7 @@ export const App: React.FC = () => {
             cardTitle="Continue on the web"
             description="Support tickets and the user, booking, event, and payment details needed to resolve platform concerns are available in the MULTIVENT Operations web console."
             onBackToRoleSelection={() => {
-              void supabase?.auth.signOut()
-              setUserName('Planner')
-              setScreen('roleSelection')
+              void handleSignOut()
             }}
             roleLabel="Customer Service"
             title="Your support workspace is ready on the web."
@@ -3654,6 +3814,26 @@ export const App: React.FC = () => {
     return null
   }
 
+  if (isAuthRestoring) {
+    return (
+      <SafeAreaProvider>
+        <StatusBar style="light" />
+        <View style={styles.sessionRestoreScreen}>
+          <Image
+            accessibilityLabel="MULTIVENT"
+            accessibilityIgnoresInvertColors
+            resizeMode="contain"
+            source={require('../assets/multivent-icon.png')}
+            style={styles.sessionRestoreLogo}
+          />
+          <Text style={styles.sessionRestoreName}>MULTIVENT</Text>
+          <ActivityIndicator color="#F7DED2" size="small" />
+          <Text style={styles.sessionRestoreText}>Restoring your secure session…</Text>
+        </View>
+      </SafeAreaProvider>
+    )
+  }
+
   const planningSwipeStep =
     screen === 'eventCreation'
       ? 1
@@ -3730,6 +3910,31 @@ export const App: React.FC = () => {
 }
 
 const styles = StyleSheet.create({
+  sessionRestoreScreen: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    backgroundColor: '#630019',
+    padding: 24,
+  },
+  sessionRestoreLogo: {
+    width: 132,
+    height: 132,
+    borderRadius: 28,
+  },
+  sessionRestoreName: {
+    color: '#FFF7F2',
+    fontFamily: 'Inter_700Bold',
+    fontSize: 24,
+    letterSpacing: 3.2,
+    marginBottom: 4,
+  },
+  sessionRestoreText: {
+    color: '#F7DED2',
+    fontFamily: 'Inter_500Medium',
+    fontSize: 13,
+  },
   container: {
     flex: 1,
     backgroundColor: colors.background,

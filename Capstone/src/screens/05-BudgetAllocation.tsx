@@ -2,7 +2,6 @@ import { MaterialIcons } from '@expo/vector-icons'
 import React from 'react'
 import {
   ActivityIndicator,
-  GestureResponderEvent,
   KeyboardAvoidingView,
   LayoutChangeEvent,
   PanResponder,
@@ -95,11 +94,7 @@ const formatMoney = (value: number) =>
 
 const formatDigits = (digits: string) => digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 
-const allocationStep = (budget: number) => {
-  if (budget <= 10_000) return 100
-  if (budget <= 100_000) return 500
-  return 1_000
-}
+const BUDGET_ALLOCATION_STEP = 500
 
 const buildAllocations = (
   initialAllocations: CategoryBudgetAllocation[],
@@ -165,7 +160,7 @@ const AllocationSlider: React.FC<AllocationSliderProps> = ({
   onChange,
 }) => {
   const [trackWidth, setTrackWidth] = React.useState(1)
-  const step = allocationStep(budget)
+  const step = BUDGET_ALLOCATION_STEP
   const minimum = sanitizeMoney(coordinatorMinimum)
   const percent = budget > 0 ? Math.min(amount / budget, 1) : 0
 
@@ -179,23 +174,40 @@ const AllocationSlider: React.FC<AllocationSliderProps> = ({
     [budget, locked, maxAmount, minimum, onChange, step, trackWidth]
   )
 
+  // Keep one responder instance for the entire drag. Recreating it after each
+  // allocation update can interrupt the gesture after its first movement.
+  const canAdjustRef = React.useRef(false)
+  const dragStartPositionRef = React.useRef(0)
+  const updateFromPositionRef = React.useRef(updateFromPosition)
+  canAdjustRef.current = budget > 0 && !locked
+  updateFromPositionRef.current = updateFromPosition
+
   const panResponder = React.useMemo(
     () =>
       PanResponder.create({
-        onMoveShouldSetPanResponder: () => budget > 0 && !locked,
-        onPanResponderGrant: (event) => updateFromPosition(event.nativeEvent.locationX),
-        onPanResponderMove: (event) => updateFromPosition(event.nativeEvent.locationX),
-        onStartShouldSetPanResponder: () => budget > 0 && !locked,
+        onMoveShouldSetPanResponder: (_, gestureState) =>
+          canAdjustRef.current
+          && Math.abs(gestureState.dx) >= 2
+          && Math.abs(gestureState.dx) >= Math.abs(gestureState.dy),
+        onPanResponderGrant: (event) => {
+          dragStartPositionRef.current = event.nativeEvent.locationX
+          updateFromPositionRef.current(dragStartPositionRef.current)
+        },
+        onPanResponderMove: (_, gestureState) => {
+          updateFromPositionRef.current(dragStartPositionRef.current + gestureState.dx)
+        },
+        onPanResponderRelease: (_, gestureState) => {
+          updateFromPositionRef.current(dragStartPositionRef.current + gestureState.dx)
+        },
+        onPanResponderTerminationRequest: () => false,
+        onShouldBlockNativeResponder: () => true,
+        onStartShouldSetPanResponder: () => canAdjustRef.current,
       }),
-    [budget, locked, updateFromPosition]
+    []
   )
 
   const handleTrackLayout = (event: LayoutChangeEvent) => {
     setTrackWidth(Math.max(event.nativeEvent.layout.width, 1))
-  }
-
-  const handleTrackPress = (event: GestureResponderEvent) => {
-    updateFromPosition(event.nativeEvent.locationX)
   }
 
   const handleAmountChange = (value: string) => {
@@ -243,21 +255,21 @@ const AllocationSlider: React.FC<AllocationSliderProps> = ({
         </View>
       </View>
 
-      <Pressable
+      <View
+        accessible
         accessibilityActions={[
           { name: 'increment', label: `Increase ${label} allocation` },
           { name: 'decrement', label: `Decrease ${label} allocation` },
         ]}
         accessibilityLabel={`${label}: ${formatMoney(amount)} of ${formatMoney(budget)}`}
         accessibilityRole="adjustable"
+        accessibilityState={{ disabled: budget <= 0 || locked }}
         accessibilityValue={{ max: budget, min: minimum, now: amount }}
-        disabled={budget <= 0 || locked}
         onAccessibilityAction={(event) => {
           if (event.nativeEvent.actionName === 'increment') adjust(1)
           if (event.nativeEvent.actionName === 'decrement') adjust(-1)
         }}
         onLayout={(event) => setTrackWidth(Math.max(event.nativeEvent.layout.width, 1))}
-        onPress={handleTrackPress}
         style={styles.sliderTouchArea}
         {...panResponder.panHandlers}
       >
@@ -265,7 +277,7 @@ const AllocationSlider: React.FC<AllocationSliderProps> = ({
           <View style={[styles.sliderFill, { width: `${percent * 100}%` }]} />
           <View style={[styles.sliderThumb, { left: `${percent * 100}%` }]} />
         </View>
-      </Pressable>
+      </View>
 
       <View style={styles.sliderRange}>
         <Text style={styles.rangeText}>₱0</Text>
@@ -480,8 +492,8 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
           <View style={styles.sectionHeading}>
             <Text style={styles.sectionTitle}>Category Budgets</Text>
             <Text style={styles.sectionSubtitle}>
-              Drag a slider or enter an exact amount. The combined total cannot exceed your event
-              budget.
+              Drag a slider in PHP 500 increments or enter an exact amount. The combined total
+              cannot exceed your event budget.
             </Text>
           </View>
 

@@ -19,8 +19,8 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.intelink.multivent",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/multivent-mark-transparent.png",
-        "backgroundColor": "#FFF8F1"
+        "foregroundImage": "./assets/multivent-icon.png",
+        "backgroundColor": "#630019"
       }
     },
     "web": {
@@ -37,11 +37,18 @@
       ],
       "expo-web-browser",
       [
+        "expo-notifications",
+        {
+          "color": "#6B1E2E",
+          "defaultChannel": "multivent-updates"
+        }
+      ],
+      [
         "expo-splash-screen",
         {
-          "backgroundColor": "#FFF8F1",
-          "image": "./assets/multivent-mark-transparent.png",
-          "imageWidth": 200,
+          "backgroundColor": "#630019",
+          "image": "./assets/multivent-icon.png",
+          "imageWidth": 220,
           "resizeMode": "contain"
         }
       ],

@@ -15,6 +15,7 @@ import {
   View,
 } from 'react-native'
 import { Text } from '../components/AppText'
+import { BrandIdentity } from '../components/BrandIdentity'
 import type {
   CoordinatorBookedService,
   CoordinatorDashboard,
@@ -764,11 +765,8 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
       <View style={styles.topBar}>
         <View style={[styles.topBarContent, isWide && styles.wideHorizontalPadding]}>
           <View style={styles.brandRow}>
-            <View style={styles.brandMark}>
-              <MaterialIcons color={palette.primary} name="event-available" size={20} />
-            </View>
             <View>
-              <Text style={styles.brand}>MULTIVENT</Text>
+              <BrandIdentity markSize={34} />
               <Text style={styles.roleLabel}>COORDINATOR WORKSPACE</Text>
             </View>
           </View>
@@ -1285,16 +1283,7 @@ const styles = StyleSheet.create({
   },
   wideHorizontalPadding: { paddingHorizontal: 32 },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  brandMark: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 16,
-    backgroundColor: '#E9E8E8',
-  },
-  brand: { color: palette.primary, fontSize: 22, lineHeight: 28, fontWeight: '700', letterSpacing: 0.2 },
-  roleLabel: { color: palette.secondary, fontSize: 8, lineHeight: 12, fontWeight: '700', letterSpacing: 1.1 },
+  roleLabel: { color: palette.secondary, fontSize: 8, lineHeight: 12, fontWeight: '700', letterSpacing: 1.1, marginLeft: 44 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   iconButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },
   notificationBadge: {

@@ -15,6 +15,7 @@ import {
 } from 'react-native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { Button } from '../components/Button'
+import { BrandIdentity } from '../components/BrandIdentity'
 import { TextInput } from '../components/TextInput'
 import { signInWithOAuth, signUpClient } from '../lib/auth'
 import { colors, radius, spacing } from '../theme/tokens'
@@ -158,6 +159,7 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({
             },
           ]}
         >
+          <BrandIdentity markSize={38} style={styles.brandIdentity} />
           <Text style={styles.title}>Create Your Account</Text>
           <View style={styles.loginPrompt}>
             <Text style={styles.loginPromptText}>Already Have An Account? </Text>
@@ -202,6 +204,10 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({
 }
 
 const styles = StyleSheet.create({
+  brandIdentity: {
+    alignSelf: 'center',
+    marginBottom: spacing.sm,
+  },
   screen: { flex: 1, backgroundColor: '#F4F4F6' },
   content: { flex: 1, width: '100%', maxWidth: 430, alignSelf: 'center', backgroundColor: colors.background },
   hero: { height: 340, overflow: 'hidden', alignItems: 'center', paddingTop: spacing['4xl'], backgroundColor: '#741C31', position: 'relative' },

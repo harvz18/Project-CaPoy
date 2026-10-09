@@ -1,4 +1,5 @@
 export { Button } from './Button'
+export { BrandIdentity } from './BrandIdentity'
 export { NonBlockingActivityBar, ScreenMotionFrame } from './MotionFeedback'
 export { MerchantBottomNavigation } from './MerchantBottomNavigation'
 export { TextInput } from './TextInput'

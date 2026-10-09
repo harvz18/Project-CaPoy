@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { colors, radius, spacing } from '../theme/tokens'
 import { typography } from '../theme/typography'
+import { BrandIdentity } from '../components/BrandIdentity'
 
 export type UserRole = 'client' | 'provider'
 
@@ -94,7 +95,7 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
       <View style={styles.screenContent}>
         <View style={[styles.container, isCompact && styles.containerCompact]}>
           <View style={[styles.header, isCompact && styles.headerCompact]}>
-            <Image source={require('../../images/Header.png')} style={styles.headerImage} resizeMode="contain" />
+            <BrandIdentity markSize={isCompact ? 40 : 50} style={styles.brandIdentity} />
             <Text style={styles.title}>HOW DO YOU WANT TO USE MULTIVENT?</Text>
             <Text style={styles.subtitle}>
               Choose the experience that fits you best.{'\n'}You can switch later from your profile.
@@ -250,9 +251,7 @@ const styles = StyleSheet.create({
   headerCompact: {
     marginBottom: spacing.lg,
   },
-  headerImage: {
-    width: '100%',
-    height: 140,
+  brandIdentity: {
     marginBottom: spacing.lg,
   },
   title: {

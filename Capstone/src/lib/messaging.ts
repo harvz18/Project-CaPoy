@@ -55,6 +55,20 @@ const toNotificationCategory = (value: unknown): MerchantNotificationCategory =>
   return 'system'
 }
 
+export const mapNotificationRecord = (
+  row: Record<string, unknown>
+): MerchantNotification => ({
+  actionLabel: 'View details',
+  category: toNotificationCategory(row.resource_type),
+  createdAt: textFrom(row.created_at, new Date().toISOString()),
+  id: textFrom(row.id),
+  isRead: textFrom(row.status) === 'read',
+  message: textFrom(row.body),
+  resourceId: textFrom(row.resource_id) || undefined,
+  resourceType: textFrom(row.resource_type) || undefined,
+  title: textFrom(row.title, 'MULTIVENT update'),
+})
+
 export const fetchConversations = async (): Promise<ClientConversation[]> => {
   const client = getClient()
   const userId = await getCurrentUserId()
@@ -289,15 +303,5 @@ export const fetchNotifications = async (): Promise<MerchantNotification[]> => {
 
   if (error || !data) return []
 
-  return data.map((row) => ({
-    actionLabel: 'View details',
-    category: toNotificationCategory(row.resource_type),
-    createdAt: row.created_at,
-    id: row.id,
-    isRead: row.status === 'read',
-    message: textFrom(row.body),
-    resourceId: textFrom(row.resource_id) || undefined,
-    resourceType: textFrom(row.resource_type) || undefined,
-    title: row.title,
-  }))
+  return data.map((row) => mapNotificationRecord(row))
 }

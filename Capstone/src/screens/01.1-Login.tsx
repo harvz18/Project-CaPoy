@@ -12,6 +12,7 @@ import {
 } from 'react-native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { Button } from '../components/Button'
+import { BrandIdentity } from '../components/BrandIdentity'
 import { TextInput } from '../components/TextInput'
 import { signInWithEmail, signInWithOAuth } from '../lib/auth'
 import { colors, radius, spacing } from '../theme/tokens'
@@ -120,6 +121,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         </View>
 
         <View style={styles.sheet}>
+          <BrandIdentity markSize={42} style={styles.brandIdentity} />
           <Text style={styles.title}>Welcome Back!</Text>
           <View style={styles.signupPrompt}>
             <Text style={styles.signupPromptText}>Don't Have An Account? </Text>
@@ -240,6 +242,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
 }
 
 const styles = StyleSheet.create({
+  brandIdentity: {
+    alignSelf: 'center',
+    marginBottom: spacing.md,
+  },
   screen: {
     flex: 1,
     backgroundColor: colors.background,

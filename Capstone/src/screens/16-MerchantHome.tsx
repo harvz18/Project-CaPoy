@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native'
 import { MerchantBottomNavigation } from '../components/MerchantBottomNavigation'
+import { BrandIdentity } from '../components/BrandIdentity'
 
 export type MerchantHomeQuickAction = 'newQuote' | 'calendar' | 'clients' | 'invoices'
 export type MerchantHomeTab = 'home' | 'services' | 'bookings' | 'messages' | 'profile'
@@ -252,12 +253,7 @@ export const MerchantHomeScreen: React.FC<MerchantHomeScreenProps> = ({
     <View style={styles.screen}>
       <View style={styles.topAppBar}>
         <View style={[styles.topAppBarContent, isWide && styles.topAppBarContentWide]}>
-          <View style={styles.brandRow}>
-            <View style={styles.brandIconCircle}>
-              <DashboardIcon color={palette.primary} name="briefcase" size={20} />
-            </View>
-            <Text style={styles.brand}>MULTIVENT</Text>
-          </View>
+          <BrandIdentity markSize={34} />
 
           <Pressable
             accessibilityLabel="Open notifications"
@@ -426,26 +422,6 @@ const styles = StyleSheet.create({
   },
   topAppBarContentWide: {
     paddingHorizontal: 32,
-  },
-  brandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  brandIconCircle: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 16,
-    backgroundColor: palette.surfaceContainerHigh,
-  },
-  brand: {
-    color: palette.primary,
-    fontSize: 22,
-    lineHeight: 28,
-    fontWeight: '700',
-    letterSpacing: 0.2,
   },
   notificationButton: {
     width: 40,

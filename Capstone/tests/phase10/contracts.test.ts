@@ -22,6 +22,7 @@ const migrations = [
   'database/60_service_selection_revision.sql',
   'database/61_coordinator_request_financial_visibility.sql',
   'database/62_dss_service_discovery.sql',
+  'database/63_mobile_session_push_notifications.sql',
 ]
 
 test('Revision 2 migrations remain ordered, transactional, additive, and non-destructive', () => {
@@ -271,6 +272,9 @@ test('optional zero budgets and explainable DSS marketplace signals stay connect
   ], 'new event zero-budget default')
   mustContain(budgetScreen, [
     'const initialBudgetValue = sanitizeMoney(initialBudget ?? 0)',
+    'const BUDGET_ALLOCATION_STEP = 500',
+    'dragStartPositionRef.current + gestureState.dx',
+    'onPanResponderTerminationRequest: () => false',
     '<Text style={styles.optionalBudgetAmount}>₱0</Text>',
     'ENTER BUDGET',
   ], 'optional zero-budget UI')
@@ -286,6 +290,45 @@ test('optional zero budgets and explainable DSS marketplace signals stay connect
     'MOST BOOKED',
     'const [selectedFilters, setSelectedFilters]',
   ], 'client DSS controls and badges')
+})
+
+test('mobile sessions persist and push alerts keep business details inside Supabase', () => {
+  const migration = read(migrations[10])
+  const supabaseClient = read('src/lib/supabase.ts')
+  const notifications = read('src/lib/notifications.ts')
+  const app = read('src/App.tsx')
+
+  mustContain(supabaseClient, [
+    'storage: AsyncStorage',
+    'autoRefreshToken: true',
+    'persistSession: true',
+    'supabase.auth.startAutoRefresh()',
+    'supabase.auth.stopAutoRefresh()',
+  ], 'persistent mobile authentication')
+  mustContain(migration, [
+    'create table if not exists public.user_push_tokens',
+    'create or replace function public.register_my_push_token(',
+    'create or replace function public.dispatch_mobile_push_notification()',
+    "'title', 'MULTIVENT'",
+    "'body', 'You have a new notification. Open MULTIVENT to view it.'",
+    'alter publication supabase_realtime add table public.notifications',
+  ], 'data-minimized push migration')
+  assert.doesNotMatch(
+    migration,
+    /'title',\s*new\.title|'body',\s*new\.body|'resourceId'|'resourceType'/,
+    'the external push transport must not receive notification business details'
+  )
+  mustContain(notifications, [
+    'Notifications.getExpoPushTokenAsync({ projectId })',
+    "supabase.rpc('register_my_push_token'",
+    "supabase.rpc('revoke_my_push_token'",
+  ], 'native push registration')
+  mustContain(app, [
+    'supabase.auth.getSession()',
+    'Notifications.addNotificationReceivedListener',
+    'Notifications.addNotificationResponseReceivedListener',
+    "table: 'notifications'",
+  ], 'session restoration and live notification integration')
 })
 
 test('historical booking and financial snapshots remain protected from current listing changes', () => {
