@@ -153,6 +153,7 @@ export interface CatalogService {
   pricingUnit?: 'event' | 'person' | 'hour' | 'day'
   popularityRank?: number
   providerId?: string
+  providerUserId?: string
   providerName: string
   rating: string
   reviewCount: number
@@ -295,9 +296,9 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
   }
 
   const baseSelection =
-    'id, provider_id, category_id, name, description, base_price, location, cover_image_url, provider_profiles(id, business_name), service_categories(id, name), service_packages(id, name, description, price, inclusions, is_deleted), reviews(rating)'
+    'id, provider_id, category_id, name, description, base_price, location, cover_image_url, provider_profiles(id, user_id, business_name), service_categories(id, name), service_packages(id, name, description, price, inclusions, is_deleted), reviews(rating)'
   const detailedSelection =
-    'id, provider_id, category_id, name, description, base_price, location, cover_image_url, gallery_urls, pricing_model, pricing_unit, pricing_details, catering_service_types, category_details, provider_profiles(id, business_name), service_categories(id, name), service_packages(id, name, description, price, inclusions, pricing_unit, subtotal, discount_type, discount_value, discount_amount, is_deleted, service_package_items(position, services(name))), reviews(rating)'
+    'id, provider_id, category_id, name, description, base_price, location, cover_image_url, gallery_urls, pricing_model, pricing_unit, pricing_details, catering_service_types, category_details, provider_profiles(id, user_id, business_name), service_categories(id, name), service_packages(id, name, description, price, inclusions, pricing_unit, subtotal, discount_type, discount_value, discount_amount, is_deleted, service_package_items(position, services(name))), reviews(rating)'
 
   const [detailedResult, commissionResult, includedPackageResult] = await Promise.all([
     supabase
@@ -425,6 +426,7 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
       pricingUnit,
       providerMinPrice,
       providerId: textFrom(record.provider_id, getNestedId(record.provider_profiles, '')),
+      providerUserId: getNestedText(record.provider_profiles, 'user_id', ''),
       providerName,
       rating: averageRating > 0 ? averageRating.toFixed(1) : 'New',
       reviewCount: reviewRatings.length,
@@ -710,7 +712,18 @@ export const loadClientCatalogServices = async (): Promise<CatalogService[]> => 
     fetchServiceDecisionSignals(),
   ])
 
-  return [...services, ...coordinators].map((service) => {
+  const coordinatorUserIds = new Set(
+    coordinators.flatMap((coordinator) =>
+      coordinator.coordinatorUserId ? [coordinator.coordinatorUserId] : []
+    )
+  )
+  const marketplaceServices = services.filter((service) => !(
+    service.categoryId === 'eventOrganizers'
+    && service.providerUserId
+    && coordinatorUserIds.has(service.providerUserId)
+  ))
+
+  return [...marketplaceServices, ...coordinators].map((service) => {
     const decisionSignal = decisionSignals.get(service.bookingServiceId ?? service.id)
 
     return {

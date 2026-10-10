@@ -275,6 +275,32 @@ const EventCard: React.FC<{
               </Text>
             </View>
 
+            <View style={styles.requestFacts}>
+              <Text style={styles.requestFact}>Event type: {statusLabel(event.type || 'Event')}</Text>
+              <Text style={styles.requestFact}>Guests: {event.guestCount ?? 'Not specified'}</Text>
+              <Text style={styles.requestFact}>
+                Event budget: {event.totalBudget == null ? 'Not specified' : pesoLabel(event.totalBudget)}
+              </Text>
+              <Text style={styles.requestFact}>
+                Venue plan: {statusLabel(event.venueStatus || 'Not specified')}
+              </Text>
+            </View>
+
+            {event.budgetAllocations.length ? (
+              <View style={styles.requestServicesBlock}>
+                <Text style={styles.financialEyebrow}>CATEGORY BUDGET ALLOCATIONS</Text>
+                {event.budgetAllocations.map((allocation) => (
+                  <View key={allocation.categoryKey || allocation.label} style={styles.requestServiceRow}>
+                    <MaterialIcons color={palette.primaryContainer} name="account-balance-wallet" size={15} />
+                    <View style={styles.requestServiceCopy}>
+                      <Text style={styles.requestServiceName}>{allocation.label}</Text>
+                      <Text style={styles.requestServiceMeta}>{pesoLabel(allocation.allocatedAmount)}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
             <CoordinatorFinancialSummary financial={event.financial} />
 
             {event.clientNotes ? (
@@ -367,6 +393,12 @@ const EventCard: React.FC<{
                               <Text style={styles.instructionBody}>{service.clientNotes}</Text>
                             </View>
                           </View>
+                        ) : null}
+                        {service.cateringOptionName || service.venueOptionName ? (
+                          <Text style={styles.requestServiceMeta}>
+                            Selected option: {service.cateringOptionName || service.venueOptionName}
+                            {service.venueBookedHours ? ` · ${service.venueBookedHours} hours` : ''}
+                          </Text>
                         ) : null}
                         {service.instructions.map((instruction) => (
                           <View key={instruction.id} style={styles.instructionRow}>
@@ -494,6 +526,14 @@ const InvitationCard: React.FC<{
         <View style={styles.requestFacts}>
           <Text style={styles.requestFact}>Event type: {statusLabel(invitation.eventType || 'Event')}</Text>
           <Text style={styles.requestFact}>Time: {timeLabel(invitation.time)}</Text>
+          <Text style={styles.requestFact}>
+            Event budget: {invitation.totalBudget == null
+              ? 'Not specified'
+              : pesoLabel(invitation.totalBudget)}
+          </Text>
+          <Text style={styles.requestFact}>
+            Venue plan: {statusLabel(invitation.venueStatus || 'Not specified')}
+          </Text>
           {invitation.packageName ? (
             <Text style={styles.requestFact}>Coordinator package: {invitation.packageName}</Text>
           ) : null}
@@ -502,6 +542,20 @@ const InvitationCard: React.FC<{
           <View style={styles.clientRequestNote}>
             <Text style={styles.instructionLabel}>CLIENT EVENT NOTE</Text>
             <Text style={styles.instructionBody}>{invitation.clientNotes}</Text>
+          </View>
+        ) : null}
+        {invitation.budgetAllocations.length ? (
+          <View style={styles.requestServicesBlock}>
+            <Text style={styles.financialEyebrow}>CATEGORY BUDGET ALLOCATIONS</Text>
+            {invitation.budgetAllocations.map((allocation) => (
+              <View key={allocation.categoryKey || allocation.label} style={styles.requestServiceRow}>
+                <MaterialIcons color={palette.primaryContainer} name="account-balance-wallet" size={15} />
+                <View style={styles.requestServiceCopy}>
+                  <Text style={styles.requestServiceName}>{allocation.label}</Text>
+                  <Text style={styles.requestServiceMeta}>{pesoLabel(allocation.allocatedAmount)}</Text>
+                </View>
+              </View>
+            ))}
           </View>
         ) : null}
         <View style={styles.requestServicesBlock}>

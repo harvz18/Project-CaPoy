@@ -16,6 +16,7 @@ export interface CoordinatorBookedService {
   amount: number
   bookingId?: string
   booked: boolean
+  cateringOptionName?: string
   categoryName: string
   clientNotes?: string
   id: string
@@ -28,6 +29,15 @@ export interface CoordinatorBookedService {
   serviceId?: string
   serviceName: string
   status: string
+  venueBookedHours?: number
+  venueOptionName?: string
+}
+
+export interface CoordinatorBudgetAllocation {
+  actualAmount: number
+  allocatedAmount: number
+  categoryKey?: string
+  label: string
 }
 
 export interface CoordinatorRequestService {
@@ -56,6 +66,7 @@ export interface CoordinatorBookingFinancials {
 }
 
 export interface CoordinatorInvitation {
+  budgetAllocations: CoordinatorBudgetAllocation[]
   financial: CoordinatorBookingFinancials
   clientName: string
   clientNotes?: string
@@ -66,8 +77,11 @@ export interface CoordinatorInvitation {
   guestCount?: number
   location?: string
   requestedAt?: string
+  status?: string
   time?: string
+  totalBudget?: number
   venue?: string
+  venueStatus?: string
   coordinationFee: number
   currency: string
   packageName?: string
@@ -76,6 +90,7 @@ export interface CoordinatorInvitation {
 
 export interface CoordinatorEvent {
   bookingCount: number
+  budgetAllocations: CoordinatorBudgetAllocation[]
   clientName: string
   completedTaskCount: number
   confirmedBookingCount: number
@@ -92,6 +107,7 @@ export interface CoordinatorEvent {
   totalBudget?: number
   type?: string
   venue?: string
+  venueStatus?: string
   coordinationFee: number
   currency: string
   financial: CoordinatorBookingFinancials
@@ -276,6 +292,7 @@ const parseDashboard = (value: unknown): CoordinatorDashboard => {
 
       return [{
         bookingCount: numberFrom(row.booking_count),
+        budgetAllocations: [],
         clientName: textFrom(row.client_name, 'Client'),
         coordinationFee: numberFrom(row.coordination_fee),
         currency: textFrom(row.currency, 'PHP'),
@@ -299,6 +316,7 @@ const parseDashboard = (value: unknown): CoordinatorDashboard => {
             amount: numberFrom(service.amount),
             bookingId: optionalText(service.booking_id),
             booked: service.booked === true,
+            cateringOptionName: optionalText(service.catering_option_name),
             categoryName: textFrom(service.category_name, 'Service'),
             clientNotes: optionalText(service.client_notes),
             id: serviceId,
@@ -328,6 +346,10 @@ const parseDashboard = (value: unknown): CoordinatorDashboard => {
             serviceId: optionalText(service.service_id),
             serviceName,
             status: textFrom(service.status, 'selected'),
+            venueBookedHours: service.venue_booked_hours == null
+              ? undefined
+              : numberFrom(service.venue_booked_hours),
+            venueOptionName: optionalText(service.venue_option_name),
           }]
         }),
         status: textFrom(row.status, 'planning'),
@@ -336,6 +358,7 @@ const parseDashboard = (value: unknown): CoordinatorDashboard => {
         totalBudget: row.total_budget == null ? undefined : numberFrom(row.total_budget),
         type: optionalText(row.event_type),
         venue: optionalText(row.venue),
+        venueStatus: optionalText(row.venue_status),
         financial: emptyFinancials(numberFrom(row.coordination_fee)),
       }]
     }),
@@ -346,6 +369,7 @@ const parseDashboard = (value: unknown): CoordinatorDashboard => {
       if (!eventId || !eventName) return []
 
       return [{
+        budgetAllocations: [],
         clientName: textFrom(row.client_name, 'Client'),
         coordinationFee: numberFrom(row.coordination_fee),
         currency: textFrom(row.currency, 'PHP'),
@@ -356,8 +380,11 @@ const parseDashboard = (value: unknown): CoordinatorDashboard => {
         guestCount: row.guest_count == null ? undefined : numberFrom(row.guest_count),
         location: optionalText(row.location),
         requestedAt: optionalText(row.requested_at),
+        status: optionalText(row.status),
         time: optionalText(row.event_time),
+        totalBudget: row.total_budget == null ? undefined : numberFrom(row.total_budget),
         venue: optionalText(row.venue),
+        venueStatus: optionalText(row.venue_status),
         financial: emptyFinancials(numberFrom(row.coordination_fee)),
         selectedServices: [],
       }]
@@ -386,6 +413,98 @@ const parseDashboard = (value: unknown): CoordinatorDashboard => {
 const unavailableMessage =
   'Supabase is not configured. Check the app environment settings.'
 
+interface CoordinatorAssignmentContext {
+  budgetAllocations: CoordinatorBudgetAllocation[]
+  clientName: string
+  clientNotes?: string
+  date?: string
+  eventId: string
+  eventName: string
+  eventType?: string
+  guestCount?: number
+  location?: string
+  services: CoordinatorBookedService[]
+  status?: string
+  time?: string
+  totalBudget?: number
+  venue?: string
+  venueStatus?: string
+}
+
+const parseAssignmentContexts = (value: unknown) => {
+  const contexts = new Map<string, CoordinatorAssignmentContext>()
+
+  for (const entry of Array.isArray(value) ? value : []) {
+    const row = recordFrom(entry)
+    const eventId = textFrom(row.eventId)
+    const eventName = textFrom(row.eventName)
+    if (!eventId || !eventName) continue
+
+    const budgetAllocations = (Array.isArray(row.budgetAllocations)
+      ? row.budgetAllocations
+      : []).flatMap((entry) => {
+      const allocation = recordFrom(entry)
+      const label = textFrom(allocation.label)
+      if (!label) return []
+      return [{
+        actualAmount: numberFrom(allocation.actualAmount),
+        allocatedAmount: numberFrom(allocation.allocatedAmount),
+        categoryKey: optionalText(allocation.categoryKey),
+        label,
+      }]
+    })
+
+    const services = (Array.isArray(row.services) ? row.services : []).flatMap((entry) => {
+      const service = recordFrom(entry)
+      const id = textFrom(service.id)
+      const serviceName = textFrom(service.serviceName)
+      if (!id || !serviceName) return []
+      return [{
+        amount: numberFrom(service.amount),
+        bookingId: optionalText(service.bookingId),
+        booked: service.booked === true,
+        cateringOptionName: optionalText(service.cateringOptionName),
+        categoryName: textFrom(service.categoryName, 'Service'),
+        clientNotes: optionalText(service.notes),
+        id,
+        instructions: [],
+        providerEmail: optionalText(service.providerEmail),
+        providerId: optionalText(service.providerId),
+        providerName: textFrom(service.providerName, 'Provider'),
+        providerPhone: optionalText(service.providerPhone),
+        providerUserId: optionalText(service.providerUserId),
+        serviceId: optionalText(service.serviceId),
+        serviceName,
+        status: textFrom(service.status, 'selected'),
+        venueBookedHours: service.venueBookedHours == null
+          ? undefined
+          : numberFrom(service.venueBookedHours),
+        venueOptionName: optionalText(service.venueOptionName),
+      }]
+    })
+
+    contexts.set(eventId, {
+      budgetAllocations,
+      clientName: textFrom(row.clientName, 'Client'),
+      clientNotes: optionalText(row.clientNotes),
+      date: optionalText(row.eventDate),
+      eventId,
+      eventName,
+      eventType: optionalText(row.eventType),
+      guestCount: row.guestCount == null ? undefined : numberFrom(row.guestCount),
+      location: optionalText(row.location),
+      services,
+      status: optionalText(row.status),
+      time: optionalText(row.eventTime),
+      totalBudget: row.totalBudget == null ? undefined : numberFrom(row.totalBudget),
+      venue: optionalText(row.venue),
+      venueStatus: optionalText(row.venueStatus),
+    })
+  }
+
+  return contexts
+}
+
 export const fetchCoordinatorDashboard = async (): Promise<CoordinatorResult<CoordinatorDashboard>> => {
   if (!supabase || !supabaseConfig.isConfigured) {
     return { data: emptyCoordinatorDashboard(), message: unavailableMessage, ok: false }
@@ -396,12 +515,14 @@ export const fetchCoordinatorDashboard = async (): Promise<CoordinatorResult<Coo
     { data: instructionData, error: instructionError },
     { data: feeData },
     { data: bookingDetailData, error: bookingDetailError },
+    { data: assignmentContextData, error: assignmentContextError },
   ] =
     await Promise.all([
       supabase.rpc('get_coordinator_dashboard'),
       supabase.rpc('get_my_coordinator_instructions'),
       supabase.rpc('get_my_coordinator_booking_fees'),
       supabase.rpc('get_my_coordinator_booking_details'),
+      supabase.rpc('get_my_coordinator_assignment_context'),
     ])
   if (error) {
     return { data: emptyCoordinatorDashboard(), message: error.message, ok: false }
@@ -420,6 +541,9 @@ export const fetchCoordinatorDashboard = async (): Promise<CoordinatorResult<Coo
   const dashboard = parseDashboard(data)
   if (bookingDetailError) {
     console.warn('Unable to load coordinator booking details:', bookingDetailError.message)
+  }
+  if (assignmentContextError) {
+    console.warn('Unable to load complete coordinator event context:', assignmentContextError.message)
   }
   const feesByEvent = new Map(
     (Array.isArray(feeData) ? feeData : []).map((entry) => {
@@ -483,21 +607,81 @@ export const fetchCoordinatorDashboard = async (): Promise<CoordinatorResult<Coo
       }] as const
     })
   )
+  const assignmentContexts = parseAssignmentContexts(assignmentContextData)
 
   return {
     data: {
       ...dashboard,
-      invitations: dashboard.invitations.map((invitation) => ({
-        ...invitation,
-        ...(feesByEvent.get(invitation.eventId) ?? {}),
-        ...(bookingDetailsByEvent.get(invitation.eventId) ?? {}),
-      })),
-      events: dashboard.events.map((event) => ({
-        ...event,
-        ...(feesByEvent.get(event.id) ?? {}),
-        ...(bookingDetailsByEvent.get(event.id) ?? {}),
-        instructions: instructionsByEvent.get(event.id) ?? [],
-      })),
+      invitations: dashboard.invitations.map((invitation) => {
+        const context = assignmentContexts.get(invitation.eventId)
+        const requestServices = context?.services.map((service) => ({
+          cateringOptionName: service.cateringOptionName,
+          categoryName: service.categoryName,
+          id: service.id,
+          notes: service.clientNotes,
+          providerName: service.providerName,
+          serviceName: service.serviceName,
+          status: service.status,
+          venueBookedHours: service.venueBookedHours,
+          venueOptionName: service.venueOptionName,
+        }))
+
+        return {
+          ...invitation,
+          ...(context ? {
+            budgetAllocations: context.budgetAllocations,
+            clientName: context.clientName,
+            clientNotes: context.clientNotes,
+            date: context.date,
+            eventName: context.eventName,
+            eventType: context.eventType,
+            guestCount: context.guestCount,
+            location: context.location,
+            selectedServices: requestServices ?? [],
+            status: context.status,
+            time: context.time,
+            totalBudget: context.totalBudget,
+            venue: context.venue,
+            venueStatus: context.venueStatus,
+          } : {}),
+          ...(feesByEvent.get(invitation.eventId) ?? {}),
+          ...(bookingDetailsByEvent.get(invitation.eventId) ?? {}),
+        }
+      }),
+      events: dashboard.events.map((event) => {
+        const context = assignmentContexts.get(event.id)
+        const currentServices = new Map(event.services.map((service) => [service.id, service]))
+        const services = context?.services.length
+          ? context.services.map((service) => ({
+              ...currentServices.get(service.id),
+              ...service,
+              instructions: currentServices.get(service.id)?.instructions ?? [],
+            }))
+          : event.services
+
+        return {
+          ...event,
+          ...(context ? {
+            budgetAllocations: context.budgetAllocations,
+            clientName: context.clientName,
+            clientNotes: context.clientNotes,
+            date: context.date,
+            guestCount: context.guestCount,
+            location: context.location,
+            name: context.eventName,
+            services,
+            status: context.status ?? event.status,
+            time: context.time,
+            totalBudget: context.totalBudget,
+            type: context.eventType,
+            venue: context.venue,
+            venueStatus: context.venueStatus,
+          } : {}),
+          ...(feesByEvent.get(event.id) ?? {}),
+          ...(bookingDetailsByEvent.get(event.id) ?? {}),
+          instructions: instructionsByEvent.get(event.id) ?? [],
+        }
+      }),
     },
     ok: true,
   }
