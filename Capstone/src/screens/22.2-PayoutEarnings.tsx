@@ -300,55 +300,6 @@ export const PayoutEarningsScreen: React.FC<PayoutEarningsScreenProps> = ({
           />
         </View>
 
-        <View style={[styles.card, styles.confirmationSection]}>
-          <View style={styles.transactionHeader}>
-            <View>
-              <Text style={styles.sectionTitle}>Payment confirmations</Text>
-              <Text style={styles.sectionSubtitle}>
-                Held funds, accepted shares, and remaining service balances
-              </Text>
-            </View>
-            <View style={styles.transactionCountBadge}>
-              <Text style={styles.transactionCount}>{paymentConfirmations.length}</Text>
-            </View>
-          </View>
-
-          <View style={styles.confirmationTotals}>
-            <View style={styles.confirmationTotalItem}>
-              <Text style={styles.confirmationTotalLabel}>HELD BY MULTIVENT</Text>
-              <Text style={styles.confirmationTotalValue}>
-                {formatCurrency(value.heldBalance, value.currency)}
-              </Text>
-            </View>
-            <View style={styles.confirmationTotalItem}>
-              <Text style={styles.confirmationTotalLabel}>REMAINING RECEIVABLE</Text>
-              <Text style={styles.confirmationTotalValue}>
-                {formatCurrency(value.remainingReceivable, value.currency)}
-              </Text>
-            </View>
-          </View>
-
-          {paymentConfirmations.length ? (
-            <View style={styles.confirmationList}>
-              {paymentConfirmations.map((confirmation, index) => (
-                <PaymentConfirmationCard
-                  confirmation={confirmation}
-                  currency={value.currency}
-                  key={confirmation.bookingId}
-                  last={index === paymentConfirmations.length - 1}
-                />
-              ))}
-            </View>
-          ) : (
-            <View style={styles.emptyTransactions}>
-              <Text style={styles.emptyTitle}>No confirmed client payments yet</Text>
-              <Text style={styles.emptyText}>
-                Paid booking requests and their held or credited amounts will appear here.
-              </Text>
-            </View>
-          )}
-        </View>
-
         <View style={[styles.dashboardGrid, isWide && styles.dashboardGridWide]}>
           <View style={[styles.mainColumn, isWide && styles.mainColumnWide]}>
             <View style={styles.card}>
@@ -413,6 +364,55 @@ export const PayoutEarningsScreen: React.FC<PayoutEarningsScreenProps> = ({
                 <View style={styles.emptyChart}>
                   <Text style={styles.emptyTitle}>No earnings in this period</Text>
                   <Text style={styles.emptyText}>Completed booking payments will appear here.</Text>
+                </View>
+              )}
+            </View>
+
+            <View style={[styles.card, styles.confirmationSection]}>
+              <View style={styles.transactionHeader}>
+                <View style={styles.confirmationHeaderCopy}>
+                  <Text style={styles.sectionTitle}>Payment confirmations</Text>
+                  <Text style={styles.sectionSubtitle}>
+                    Tap an event to view its payment breakdown
+                  </Text>
+                </View>
+                <View style={styles.transactionCountBadge}>
+                  <Text style={styles.transactionCount}>{paymentConfirmations.length}</Text>
+                </View>
+              </View>
+
+              <View style={styles.confirmationTotals}>
+                <View style={styles.confirmationTotalItem}>
+                  <Text style={styles.confirmationTotalLabel}>HELD BY MULTIVENT</Text>
+                  <Text style={styles.confirmationTotalValue}>
+                    {formatCurrency(value.heldBalance, value.currency)}
+                  </Text>
+                </View>
+                <View style={styles.confirmationTotalItem}>
+                  <Text style={styles.confirmationTotalLabel}>REMAINING RECEIVABLE</Text>
+                  <Text style={styles.confirmationTotalValue}>
+                    {formatCurrency(value.remainingReceivable, value.currency)}
+                  </Text>
+                </View>
+              </View>
+
+              {paymentConfirmations.length ? (
+                <View style={styles.confirmationList}>
+                  {paymentConfirmations.map((confirmation, index) => (
+                    <PaymentConfirmationCard
+                      confirmation={confirmation}
+                      currency={value.currency}
+                      key={confirmation.bookingId}
+                      last={index === paymentConfirmations.length - 1}
+                    />
+                  ))}
+                </View>
+              ) : (
+                <View style={styles.emptyTransactions}>
+                  <Text style={styles.emptyTitle}>No confirmed client payments yet</Text>
+                  <Text style={styles.emptyText}>
+                    Paid booking requests and their held or credited amounts will appear here.
+                  </Text>
                 </View>
               )}
             </View>
@@ -671,17 +671,34 @@ const PaymentConfirmationCard = ({
   confirmation: ProviderPaymentConfirmation
   currency: string
   last: boolean
-}) => (
+}) => {
+  const [expanded, setExpanded] = React.useState(false)
+
+  return (
   <View style={[styles.confirmationCard, !last && styles.confirmationCardBorder]}>
-    <View style={styles.confirmationHeading}>
+    <Pressable
+      accessibilityLabel={`${expanded ? 'Hide' : 'Show'} payment breakdown for ${confirmation.eventName}`}
+      accessibilityRole="button"
+      accessibilityState={{ expanded }}
+      onPress={() => setExpanded((current) => !current)}
+      style={({ pressed }) => [styles.confirmationHeading, pressed && styles.pressedSurface]}
+    >
       <View style={styles.confirmationHeadingCopy}>
         <Text numberOfLines={1} style={styles.confirmationEvent}>{confirmation.eventName}</Text>
         <Text numberOfLines={1} style={styles.confirmationService}>{confirmation.serviceName}</Text>
+        <Text style={styles.confirmationEventStatus}>
+          Event status: {confirmation.eventStatus.replace(/\b\w/g, (letter) => letter.toUpperCase())}
+        </Text>
       </View>
-      <View style={styles.fundsBadge}>
-        <Text style={styles.fundsBadgeText}>{confirmation.fundsStatus.toUpperCase()}</Text>
+      <View style={styles.confirmationHeadingAction}>
+        <View style={styles.fundsBadge}>
+          <Text style={styles.fundsBadgeText}>{confirmation.fundsStatus.toUpperCase()}</Text>
+        </View>
+        <Text style={styles.confirmationChevron}>{expanded ? '\u2303' : '\u2304'}</Text>
       </View>
-    </View>
+    </Pressable>
+    {expanded ? (
+    <View style={styles.confirmationBreakdown}>
     <View style={styles.confirmationAmounts}>
       <ConfirmationAmount
         currency={currency}
@@ -711,11 +728,11 @@ const PaymentConfirmationCard = ({
       <Text style={styles.confirmationStatusDot}>•</Text>
       <Text style={styles.confirmationStatusText}>{confirmation.payoutStatus}</Text>
     </View>
-    <Text style={styles.confirmationEventStatus}>
-      Event status: {confirmation.eventStatus.replace(/\b\w/g, (letter) => letter.toUpperCase())}
-    </Text>
+    </View>
+    ) : null}
   </View>
-)
+  )
+}
 
 const ConfirmationAmount = ({
   currency,
@@ -1142,6 +1159,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   confirmationSection: { marginBottom: 14 },
+  confirmationHeaderCopy: { minWidth: 0, flex: 1 },
   confirmationTotals: {
     flexDirection: 'row',
     gap: 10,
@@ -1176,6 +1194,9 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   confirmationHeadingCopy: { minWidth: 0, flex: 1 },
+  confirmationHeadingAction: { maxWidth: '50%', alignItems: 'flex-end', gap: 4 },
+  confirmationChevron: { color: palette.secondary, fontSize: 18, lineHeight: 20, fontWeight: '700' },
+  confirmationBreakdown: { paddingTop: 2 },
   confirmationEvent: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '700' },
   confirmationService: { color: palette.secondary, fontSize: 10, lineHeight: 15, marginTop: 1 },
   fundsBadge: {

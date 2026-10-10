@@ -211,6 +211,7 @@ test('payment, held funds, individual decisions, balances, and payouts remain se
   const pricing = read('src/lib/pricing.ts')
   const planning = read('src/lib/planning.ts')
   const merchant = read('src/lib/merchant.ts')
+  const merchantEarnings = read('src/screens/22.2-PayoutEarnings.tsx')
   const paymentScreen = read('src/screens/12-Payment.tsx')
   const serviceDetailsScreen = read('src/screens/08-ServiceDetails.tsx')
 
@@ -262,6 +263,16 @@ test('payment, held funds, individual decisions, balances, and payouts remain se
     'disabled={disabled}',
   ], 'current downpayment and future full-payment client UI')
   assert.doesNotMatch(serviceDetailsScreen, /Includes .*MULTIVENT service fee/)
+  mustContain(merchantEarnings, [
+    'Tap an event to view its payment breakdown',
+    'accessibilityState={{ expanded }}',
+    'setExpanded((current) => !current)',
+  ], 'collapsible provider payment confirmations')
+  assert.ok(
+    merchantEarnings.indexOf('Earnings overview')
+      < merchantEarnings.indexOf('Payment confirmations'),
+    'Earnings overview must appear before payment confirmations'
+  )
   mustContain(merchant, [
     "context.client.rpc('respond_to_provider_booking'",
     "context.client.rpc('get_my_provider_payment_confirmations')",
