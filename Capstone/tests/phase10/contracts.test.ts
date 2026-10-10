@@ -25,6 +25,8 @@ const migrations = [
   'database/63_mobile_session_push_notifications.sql',
   'database/64_mobile_push_security_hardening.sql',
   'database/65_downpayment_split_correction.sql',
+  'database/66_coordinator_assignment_event_visibility.sql',
+  'database/67_budget_allocation_upsert_correction.sql',
 ]
 
 test('Revision 2 migrations remain ordered, transactional, additive, and non-destructive', () => {
@@ -98,6 +100,7 @@ test('catering prices remain guest-based and validate provider option ranges', (
 test('category budget edits, locks, removal, replacement, and checkout validation share one contract', () => {
   const budgets = read(migrations[5])
   const selection = read(migrations[7])
+  const allocationCorrection = read(migrations[14])
   const planning = read('src/lib/planning.ts')
   const app = read('src/App.tsx')
   const browse = read('src/screens/06-CategoryBrowse.tsx')
@@ -119,6 +122,11 @@ test('category budget edits, locks, removal, replacement, and checkout validatio
     'is_selection_locked = true',
     'locked_selection_id = selection.id',
   ], 'Phase 9 selection migration')
+  mustContain(allocationCorrection, [
+    'create or replace function public.validate_phase7_budget_item_total()',
+    'item.id is distinct from new.id',
+    'item.category_key is distinct from new.category_key',
+  ], 'category allocation upsert correction')
   mustContain(planning, [
     "client.rpc('save_my_event_budget_allocations_phase9'",
     "client.rpc('set_my_category_budget_allocation'",
