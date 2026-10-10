@@ -257,8 +257,10 @@ test('payment, held funds, individual decisions, balances, and payouts remain se
     'Provider Downpayments (30%, held until acceptance)',
     'Remaining 70% paid directly to providers',
     'Pay 35% Downpayment',
-  ], 'downpayment-only client UI')
-  assert.doesNotMatch(paymentScreen, /Pay in Full/)
+    'Pay in Full',
+    'Coming later',
+    'disabled={disabled}',
+  ], 'current downpayment and future full-payment client UI')
   assert.doesNotMatch(serviceDetailsScreen, /Includes .*MULTIVENT service fee/)
   mustContain(merchant, [
     "context.client.rpc('respond_to_provider_booking'",

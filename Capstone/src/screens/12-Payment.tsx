@@ -189,7 +189,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Required downpayment</Text>
+          <Text style={styles.sectionTitle}>Choose payment option</Text>
           <View style={[styles.paymentTypeGrid, isWide && styles.paymentTypeGridWide]}>
             <PaymentTypeCard
               description="Includes each provider's 30% required downpayment and MULTIVENT's 5% service fee. The remaining 70% is paid directly to each provider."
@@ -198,6 +198,15 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
               onPress={() => undefined}
               price={formatCurrency(breakdown.initialPayment)}
               selected
+            />
+            <PaymentTypeCard
+              description="The complete service amount will be distributed to each provider after confirmation. MULTIVENT's included 5% service fee is credited to the platform."
+              detail="Coming later"
+              disabled
+              label="Pay in Full"
+              onPress={() => undefined}
+              price={formatCurrency(breakdown.clientTotal)}
+              selected={false}
             />
           </View>
         </View>
@@ -345,6 +354,7 @@ const EventDetail: React.FC<EventDetailProps> = ({ label, value }) => (
 interface PaymentTypeCardProps {
   description: string
   detail?: string
+  disabled?: boolean
   label: string
   onPress: () => void
   price: string
@@ -354,6 +364,7 @@ interface PaymentTypeCardProps {
 const PaymentTypeCard: React.FC<PaymentTypeCardProps> = ({
   description,
   detail,
+  disabled = false,
   label,
   onPress,
   price,
@@ -361,17 +372,19 @@ const PaymentTypeCard: React.FC<PaymentTypeCardProps> = ({
 }) => (
   <Pressable
     accessibilityRole="radio"
-    accessibilityState={{ checked: selected }}
+    accessibilityState={{ checked: selected, disabled }}
+    disabled={disabled}
     onPress={onPress}
     style={({ pressed }) => [
       styles.paymentTypeCard,
       selected && styles.selectableCardActive,
+      disabled && styles.paymentTypeCardDisabled,
       pressed && styles.cardPressed,
     ]}
   >
     <View style={styles.paymentTypeHeader}>
       <Text style={styles.paymentTypeLabel}>{label}</Text>
-      <Radio selected={selected} />
+      <Radio disabled={disabled} selected={selected} />
     </View>
     <Text style={[styles.paymentTypePrice, !selected && styles.paymentTypePriceInactive]}>
       {price}{' '}
@@ -382,11 +395,12 @@ const PaymentTypeCard: React.FC<PaymentTypeCardProps> = ({
 )
 
 interface RadioProps {
+  disabled?: boolean
   selected: boolean
 }
 
-const Radio: React.FC<RadioProps> = ({ selected }) => (
-  <View style={[styles.radioOuter, selected && styles.radioOuterSelected]}>
+const Radio: React.FC<RadioProps> = ({ disabled = false, selected }) => (
+  <View style={[styles.radioOuter, selected && styles.radioOuterSelected, disabled && styles.radioOuterDisabled]}>
     {selected && <View style={styles.radioInner} />}
   </View>
 )
@@ -509,11 +523,13 @@ const styles = StyleSheet.create({
     padding: 28,
     ...cardShadow,
   },
+  paymentTypeCardDisabled: { opacity: 0.64 },
   selectableCardActive: { borderColor: palette.burgundy, backgroundColor: '#FCF8F9' },
   paymentTypeHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 16 },
   paymentTypeLabel: { color: palette.text, fontSize: 18, lineHeight: 28, fontWeight: '600' },
   radioOuter: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: palette.muted, borderRadius: 12 },
   radioOuterSelected: { borderColor: palette.burgundy, backgroundColor: palette.burgundy },
+  radioOuterDisabled: { borderColor: palette.border },
   radioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: palette.surface },
   paymentTypePrice: { color: palette.burgundy, fontSize: 24, lineHeight: 32, fontWeight: '600', marginBottom: 8 },
   paymentTypePriceInactive: { color: palette.text },
