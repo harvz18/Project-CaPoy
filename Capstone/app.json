@@ -4,7 +4,7 @@
     "slug": "multivent-mobile",
     "scheme": "multivent",
     "version": "1.0.0",
-    "icon": "./assets/multivent-icon.png",
+    "icon": "./assets/multivent-icon-padded.png",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "backgroundColor": "#FFFFFF",
@@ -19,13 +19,13 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.intelink.multivent",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/multivent-icon.png",
+        "foregroundImage": "./assets/multivent-icon-padded.png",
         "backgroundColor": "#630019"
       }
     },
     "web": {
       "bundler": "metro",
-      "favicon": "./assets/multivent-icon.png"
+      "favicon": "./assets/multivent-icon-padded.png"
     },
     "plugins": [
       [
@@ -47,7 +47,7 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#630019",
-          "image": "./assets/multivent-icon.png",
+          "image": "./assets/multivent-icon-padded.png",
           "imageWidth": 220,
           "resizeMode": "contain"
         }
