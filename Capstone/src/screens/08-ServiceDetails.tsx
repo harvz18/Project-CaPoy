@@ -51,12 +51,12 @@ type ServiceQuotePreview = {
 }
 
 interface ServiceDetailsScreenProps {
+  availableCategoryBudget?: number
   eventGuestCount?: number
   eventDate?: string
   eventTime?: string
   hasBudget?: boolean
   mode?: 'explore' | 'planning'
-  remainingBudget?: number
   service?: CatalogService
   onAddSelection?: (value: ServiceSelectionValue) => Promise<void> | void
   onCalculateQuote?: (value: {
@@ -122,12 +122,12 @@ const pricingUnitLabel = (unit?: 'event' | 'person' | 'hour' | 'day') => {
 }
 
 export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
+  availableCategoryBudget = 0,
   eventGuestCount = 0,
   eventDate = '',
   eventTime = '',
   hasBudget,
   mode = 'planning',
-  remainingBudget = 45000,
   service,
   onAddSelection,
   onCalculateQuote,
@@ -139,7 +139,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   const { width, height } = useWindowDimensions()
   const isWide = width >= 768
   const isExploreMode = mode === 'explore'
-  const hasSetBudget = hasBudget ?? remainingBudget > 0
+  const hasSetBudget = hasBudget ?? availableCategoryBudget > 0
   const heroWidth = Math.min(width, 1200)
   const heroHeight = Math.max(280, Math.min(460, height * 0.42))
   const [heroIndex, setHeroIndex] = React.useState(0)
@@ -347,6 +347,8 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   )
   const authoritativeQuoteUnavailable = requiresAuthoritativeQuote
     && (quoteLoading || Boolean(quoteError) || !authoritativeQuote)
+  const exceedsAvailableCategoryBudget = hasSetBudget
+    && estimatedTotal > availableCategoryBudget
   const estimatedDisplay =
     quoteLoading
       ? 'Calculating...'
@@ -363,6 +365,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
       || cateringSelectionUnavailable
       || venueSelectionUnavailable
       || authoritativeQuoteUnavailable
+      || exceedsAvailableCategoryBudget
     ) return
 
     setIsAddingSelection(true)
@@ -493,7 +496,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
               <MaterialCommunityIcons color={palette.primary} name="wallet-outline" size={19} />
               <Text style={styles.heroBudgetText}>
                 {hasSetBudget
-                  ? `Remaining Budget: ${formatPeso(remainingBudget)}`
+                  ? `Available for ${service.categoryName}: ${formatPeso(availableCategoryBudget)}`
                   : 'Pay actual service costs'}
                 </Text>
             </View>
@@ -1032,6 +1035,11 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                 <Text style={styles.estimatedLabel}>ESTIMATED TOTAL</Text>
                 <Text style={styles.estimatedValue}>{estimatedDisplay}</Text>
                 {quoteError ? <Text style={styles.quoteError}>{quoteError}</Text> : null}
+                {exceedsAvailableCategoryBudget ? (
+                  <Text style={styles.quoteError}>
+                    Increase the event budget or reduce another category allocation first.
+                  </Text>
+                ) : null}
               </View>
             ) : null}
 
@@ -1042,13 +1050,13 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                   : `Add to selection for ${formatCurrency(estimatedTotal)} pesos`
               }
               accessibilityRole="button"
-              accessibilityState={{ disabled: isAddingSelection || cateringSelectionUnavailable || venueSelectionUnavailable || authoritativeQuoteUnavailable }}
-              disabled={isAddingSelection || cateringSelectionUnavailable || venueSelectionUnavailable || authoritativeQuoteUnavailable}
+              accessibilityState={{ disabled: isAddingSelection || cateringSelectionUnavailable || venueSelectionUnavailable || authoritativeQuoteUnavailable || exceedsAvailableCategoryBudget }}
+              disabled={isAddingSelection || cateringSelectionUnavailable || venueSelectionUnavailable || authoritativeQuoteUnavailable || exceedsAvailableCategoryBudget}
               onPress={handleAddSelection}
               style={({ pressed }) => [
                 styles.addButton,
                 isWide && styles.addButtonWide,
-                (isAddingSelection || cateringSelectionUnavailable || venueSelectionUnavailable || authoritativeQuoteUnavailable) && styles.addButtonDisabled,
+                (isAddingSelection || cateringSelectionUnavailable || venueSelectionUnavailable || authoritativeQuoteUnavailable || exceedsAvailableCategoryBudget) && styles.addButtonDisabled,
                 pressed && styles.addPressed,
               ]}
             >
@@ -1063,6 +1071,8 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                       ? 'Calculating Event Price...'
                       : quoteError
                         ? 'Event Price Unavailable'
+                      : exceedsAvailableCategoryBudget
+                        ? 'Over Available Category Budget'
                     : 'Add to Selection'}
               </Text>
               {!isWide ? <Text style={styles.addDivider}>|</Text> : null}

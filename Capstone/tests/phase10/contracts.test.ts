@@ -99,6 +99,9 @@ test('category budget edits, locks, removal, replacement, and checkout validatio
   const budgets = read(migrations[5])
   const selection = read(migrations[7])
   const planning = read('src/lib/planning.ts')
+  const app = read('src/App.tsx')
+  const browse = read('src/screens/06-CategoryBrowse.tsx')
+  const details = read('src/screens/08-ServiceDetails.tsx')
 
   mustContain(budgets, [
     'create or replace function public.save_my_event_budget_allocations(',
@@ -124,6 +127,18 @@ test('category budget edits, locks, removal, replacement, and checkout validatio
     ".from('event_service_selections')",
     ".delete()",
   ], 'client planning integration')
+  mustContain(app, [
+    'availableCategoryBudget={categoryBudgetMaximum}',
+    "result.message?.includes('Category allocations cannot exceed')",
+  ], 'category budget and service-selection coordination')
+  mustContain(browse, [
+    'isSavingCategoryBudgetRef.current',
+    'categoryBudgetMaximum >= CATEGORY_BUDGET_STEP',
+  ], 'serialized category budget slider')
+  mustContain(details, [
+    'exceedsAvailableCategoryBudget',
+    'Over Available Category Budget',
+  ], 'service budget guard')
 })
 
 test('package selection checks duplicate categories, manual conflicts, dynamic options, and total budget', () => {

@@ -1944,10 +1944,21 @@ export const App: React.FC = () => {
       if (!confirmed) return
     }
 
-    const result = await saveServiceSelection(value)
+    let result = await saveServiceSelection(value)
+
+    // A category-budget update may finish while the quote screen is open.
+    // Retry only that transient allocation conflict once after refreshing;
+    // genuine over-budget choices retain their authoritative database error.
+    if (!result.ok && result.message?.includes('Category allocations cannot exceed')) {
+      await refreshLiveData()
+      result = await saveServiceSelection(value)
+    }
 
     if (!result.ok) {
-      setToastMessage(result.message ?? 'Unable to save the service selection.')
+      const message = result.message?.includes('remaining event budget')
+        ? 'This service is above the budget available for its category. Increase the event budget or reduce another category allocation.'
+        : result.message
+      setToastMessage(message ?? 'Unable to save the service selection.')
       return
     }
 
@@ -3458,7 +3469,11 @@ export const App: React.FC = () => {
             onCategoryBudgetChange={async (amount) => {
               const result = await setCategoryBudgetAllocation(selectedBudgetKey, amount)
               if (!result.ok) {
-                setToastMessage(result.message ?? 'Unable to update this category budget.')
+                await refreshLiveData()
+                const message = result.message?.includes('Category allocations cannot exceed')
+                  ? 'That amount is above the budget still available for this category. Your saved budget has been refreshed.'
+                  : result.message
+                setToastMessage(message ?? 'Unable to update this category budget.')
                 return false
               }
               setBudgetAllocations((current) => {
@@ -3479,6 +3494,7 @@ export const App: React.FC = () => {
             onRemoveCoordinator={() => void handleRemoveCoordinator()}
             onRemoveService={handleRemoveSelection}
             onSelectService={(serviceId) => {
+              setToastMessage('')
               setCurrentServiceId(serviceId)
               setScreen('serviceDetails')
             }}
@@ -3486,6 +3502,7 @@ export const App: React.FC = () => {
               setSelectedCategory(categoryNameToId(category.name))
             }}
             onSelectVendor={(vendorId) => {
+              setToastMessage('')
               setCurrentServiceId(vendorId)
               const selectedVendor = catalogServices.find((service) => service.id === vendorId)
               setScreen(
@@ -3522,13 +3539,13 @@ export const App: React.FC = () => {
       case 'serviceDetails':
         return (
           <ServiceDetailsScreen
+            availableCategoryBudget={categoryBudgetMaximum}
             eventDate={eventDetails.date}
             eventGuestCount={eventDetails.guestCount}
             eventTime={eventDetails.time}
             mode={serviceBrowseMode}
             service={currentService}
             hasBudget={totalBudget > 0}
-            remainingBudget={remainingBudget}
             onAddSelection={handleAddSelection}
             onCalculateQuote={(value) => calculateServiceQuote({
               optionId: value.optionId,

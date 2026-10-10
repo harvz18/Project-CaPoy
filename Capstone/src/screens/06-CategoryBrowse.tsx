@@ -151,6 +151,8 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   const [isSortOpen, setIsSortOpen] = React.useState(false)
   const [budgetTrackWidth, setBudgetTrackWidth] = React.useState(1)
   const [draftCategoryBudget, setDraftCategoryBudget] = React.useState(categoryBudget)
+  const [isSavingCategoryBudget, setIsSavingCategoryBudget] = React.useState(false)
+  const isSavingCategoryBudgetRef = React.useRef(false)
   const [selectedExploreCategory, setSelectedExploreCategory] = React.useState('All')
   const [pendingReplacement, setPendingReplacement] = React.useState<CatalogService>()
   const [isReplacing, setIsReplacing] = React.useState(false)
@@ -390,11 +392,18 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   }, [categoryBudgetMaximum])
 
   const commitCategoryBudget = async (amount: number) => {
-    if (categoryBudgetLocked) return
+    if (categoryBudgetLocked || isSavingCategoryBudgetRef.current) return
     const normalized = normalizeCategoryBudget(amount)
     setDraftCategoryBudget(normalized)
-    const saved = await onCategoryBudgetChange?.(normalized)
-    if (saved === false) setDraftCategoryBudget(categoryBudget)
+    isSavingCategoryBudgetRef.current = true
+    setIsSavingCategoryBudget(true)
+    try {
+      const saved = await onCategoryBudgetChange?.(normalized)
+      if (saved === false) setDraftCategoryBudget(categoryBudget)
+    } finally {
+      isSavingCategoryBudgetRef.current = false
+      setIsSavingCategoryBudget(false)
+    }
   }
 
   const updateDraftBudgetFromPosition = React.useCallback((position: number) => {
@@ -416,6 +425,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   const updateDraftBudgetFromPositionRef = React.useRef(updateDraftBudgetFromPosition)
   const commitCategoryBudgetRef = React.useRef(commitCategoryBudget)
   canAdjustBudgetRef.current = !categoryBudgetLocked
+    && !isSavingCategoryBudget
     && categoryBudgetMaximum >= CATEGORY_BUDGET_STEP
   draftCategoryBudgetRef.current = draftCategoryBudget
   updateDraftBudgetFromPositionRef.current = updateDraftBudgetFromPosition
@@ -576,7 +586,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                 <Text style={styles.categoryBudgetAmount}>PHP {formatCurrency(draftCategoryBudget)}</Text>
               </View>
               <Text style={categoryBudgetLocked ? styles.categoryBudgetLocked : styles.categoryBudgetEditable}>
-                {categoryBudgetLocked ? 'Locked to selection' : 'Adjustable'}
+                {categoryBudgetLocked ? 'Locked to selection' : isSavingCategoryBudget ? 'Saving...' : 'Adjustable'}
               </Text>
             </View>
             <View
@@ -587,7 +597,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
               ]}
               accessibilityLabel={`${categoryName} budget ${formatCurrency(draftCategoryBudget)} pesos`}
               accessibilityRole="adjustable"
-              accessibilityState={{ disabled: categoryBudgetLocked }}
+              accessibilityState={{ disabled: categoryBudgetLocked || isSavingCategoryBudget }}
               accessibilityValue={{
                 max: Math.max(0, categoryBudgetMaximum),
                 min: 0,
@@ -614,8 +624,8 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
               <Text style={styles.categoryBudgetHint}>Remaining overall budget: PHP {formatCurrency(remainingBudget)}</Text>
               {!categoryBudgetLocked ? (
                 <View style={styles.categoryBudgetButtons}>
-                  <Pressable onPress={() => void commitCategoryBudget(draftCategoryBudget - CATEGORY_BUDGET_STEP)} style={styles.categoryBudgetStep}><Text style={styles.categoryBudgetStepText}>-500</Text></Pressable>
-                  <Pressable onPress={() => void commitCategoryBudget(draftCategoryBudget + CATEGORY_BUDGET_STEP)} style={styles.categoryBudgetStep}><Text style={styles.categoryBudgetStepText}>+500</Text></Pressable>
+                  <Pressable disabled={isSavingCategoryBudget} onPress={() => void commitCategoryBudget(draftCategoryBudget - CATEGORY_BUDGET_STEP)} style={styles.categoryBudgetStep}><Text style={styles.categoryBudgetStepText}>-500</Text></Pressable>
+                  <Pressable disabled={isSavingCategoryBudget} onPress={() => void commitCategoryBudget(draftCategoryBudget + CATEGORY_BUDGET_STEP)} style={styles.categoryBudgetStep}><Text style={styles.categoryBudgetStepText}>+500</Text></Pressable>
                 </View>
               ) : null}
             </View>
