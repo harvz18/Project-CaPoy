@@ -147,6 +147,20 @@ service cloud.firestore {
           || (profileData.locationAccuracyMeters is number && profileData.locationAccuracyMeters >= 0));
     }
 
+    function validOwnPrivateLocationUpdate(userId) {
+      return hasEnabledAccount()
+        && request.auth.uid == userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'currentLatitude',
+          'currentLongitude',
+          'locationUpdatedAt',
+          'locationAccuracyMeters',
+          'locationSource',
+          'updatedAt'
+        ])
+        && validPrivateLocation(request.resource.data);
+    }
+
     function validPreferredDiscoveryRadius(profileData) {
       return !('preferredRadiusKm' in profileData)
         || (profileData.preferredRadiusKm is number
@@ -702,7 +716,7 @@ service cloud.firestore {
             && !('verificationStatus' in request.resource.data))
         );
       allow read: if signedIn() && request.auth.uid == userId;
-      allow update: if (
+      allow update: if validOwnPrivateLocationUpdate(userId) || (
           hasEnabledAccount()
           && validOwnUserDocument(userId)
           && request.resource.data.accountStatus == resource.data.accountStatus

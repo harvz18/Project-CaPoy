@@ -1230,6 +1230,7 @@ test("the assigned worker can save check-in location and start with the workflow
     await Promise.all([
       deleteDoc(doc(adminDb, "workerProfiles", WORKER_ID)),
       updateDoc(doc(adminDb, "users", WORKER_ID), {
+        address: deleteField(),
         rating: 5,
         ratingCount: 1,
         ratingTotal: 5
