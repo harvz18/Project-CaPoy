@@ -40,7 +40,7 @@ export default function TaskStatusScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { acceptTask, actionLoading, confirmCashPayment, currentUser, getUserById, ratings, tasks, submitPaymentProof, updateTaskStatus, withdrawApplication } = useApp();
+  const { acceptTask, actionLoading, clearError, confirmCashPayment, currentUser, getUserById, ratings, tasks, submitPaymentProof, updateTaskStatus, withdrawApplication } = useApp();
   const task = tasks.find((item) => item.id === id);
   const taskClient = getUserById(task?.clientId) ?? (currentUser?.id === task?.clientId ? currentUser : undefined);
   const [actionWarning, setActionWarning] = useState("");
@@ -128,9 +128,13 @@ export default function TaskStatusScreen() {
       await updateTaskStatus(
         task.id,
         action.nextStatus,
-        undefined
+        undefined,
+        liveLocationHealthy ? liveTracking.location : undefined
       );
     } catch (error) {
+      // This screen renders action failures beside the controls. Do not also
+      // present a location/check-in failure as a global data-sync error.
+      clearError();
       setActionWarning(error instanceof Error ? error.message : "Unable to continue. Please try again.");
     }
   }

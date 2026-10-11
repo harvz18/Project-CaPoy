@@ -62,7 +62,7 @@ import {
   subscribeToUserProfile,
   updateUserProfile
 } from "../services/userService";
-import { captureForegroundLocation } from "../services/locationService";
+import { CapturedLocation, captureForegroundLocation } from "../services/locationService";
 import { getGeofenceCheck, hasValidCoordinates } from "../utils/location";
 
 type RegisterInput = {
@@ -129,7 +129,7 @@ type AppContextValue = {
   acceptTask: (taskId: string, proposedAmount?: string) => Promise<void>;
   withdrawApplication: (taskId: string) => Promise<void>;
   rejectApplication: (taskId: string, workerId: string) => Promise<void>;
-  updateTaskStatus: (taskId: string, status: TaskStatus, workerId?: string) => Promise<void>;
+  updateTaskStatus: (taskId: string, status: TaskStatus, workerId?: string, checkInLocation?: CapturedLocation) => Promise<void>;
   submitPaymentProof: (taskId: string, proofOfPaymentText: string, proofOfPaymentUrl?: string) => Promise<void>;
   confirmCashPayment: (taskId: string) => Promise<void>;
   sendMessage: (taskId: string, message: string, receiverId?: string) => Promise<void>;
@@ -500,7 +500,7 @@ export function AppProvider({ children }: PropsWithChildren) {
     });
   }
 
-  async function updateTaskStatus(taskId: string, status: TaskStatus, workerId?: string) {
+  async function updateTaskStatus(taskId: string, status: TaskStatus, workerId?: string, checkInLocation?: CapturedLocation) {
     await runAction(async () => {
       if (!currentUser) {
         throw new Error("Please log in before updating a task.");
@@ -517,7 +517,11 @@ export function AppProvider({ children }: PropsWithChildren) {
 
       let actor = currentUser;
       if (currentUser.role === "worker" && (status === "In Progress" || status === "Pending Approval")) {
-        const captured = await captureForegroundLocation();
+        // The active-task screen already maintains a fresh foreground reading.
+        // Reuse it when available so starting/finishing does not trigger a second
+        // permission request or GPS lookup. The geofence check below still
+        // validates source, freshness, accuracy, and distance before the write.
+        const captured = checkInLocation ?? await captureForegroundLocation();
         const locationUpdates: Partial<UserProfile> = {
           currentLatitude: captured.latitude,
           currentLongitude: captured.longitude,

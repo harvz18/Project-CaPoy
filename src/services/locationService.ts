@@ -1,4 +1,5 @@
 import * as Location from "expo-location";
+import { Platform } from "react-native";
 import {
   LIVE_LOCATION_MIN_DISTANCE_METERS,
   LIVE_LOCATION_MIN_INTERVAL_MS,
@@ -40,8 +41,10 @@ export async function captureForegroundLocation(): Promise<CapturedLocation> {
   if (permission.status !== Location.PermissionStatus.GRANTED) {
     throw new Error(
       permission.canAskAgain
-        ? "Location permission was not granted. You can enter a manual location for discovery."
-        : "Location permission is blocked. Enable it in device settings to use task check-in."
+        ? "Location permission was not granted. Allow it to start or finish a task."
+        : Platform.OS === "web"
+          ? "Location access is blocked for this site. Allow it in your browser's site settings, then retry."
+          : "Location permission is blocked. Enable it in device settings to use task check-in."
     );
   }
 
@@ -90,7 +93,9 @@ export async function startForegroundLocationWatch(
       permission.canAskAgain ? "permission-denied" : "permission-blocked",
       permission.canAskAgain
         ? "Foreground location permission was not granted. Allow it, then retry."
-        : "Location permission is blocked. Enable it in device settings, then retry."
+        : Platform.OS === "web"
+          ? "Location access is blocked for this site. Allow it in your browser's site settings, then retry."
+          : "Location permission is blocked. Enable it in device settings, then retry."
     );
   }
 
