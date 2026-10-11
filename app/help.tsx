@@ -14,7 +14,7 @@ const sections = [
   },
   {
     title: "Payments",
-    body: "TaskLink records participant-confirmed payment status. It does not transfer, hold, settle, or escrow money. The free web demo uses COD so both participants can complete the payment-confirmation flow without paid file storage."
+    body: "TaskLink records participant-confirmed payment status. It does not transfer, hold, settle, or escrow money. Cash is confirmed by both participants, while GCash uses receipt evidence and administrator review."
   },
   {
     title: "Connectivity",

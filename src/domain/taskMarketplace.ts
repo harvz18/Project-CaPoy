@@ -1,4 +1,13 @@
-import { DurationUnit, Task } from "../types";
+import { DurationUnit, PaymentMethod, Task } from "../types";
+
+export const PAYMENT_METHOD_OPTIONS: ReadonlyArray<{ label: string; value: PaymentMethod }> = [
+  { label: "GCash", value: "GCash link" },
+  { label: "Cash", value: "COD" }
+];
+
+export function formatPaymentMethod(paymentMethod: PaymentMethod) {
+  return paymentMethod === "GCash link" ? "GCash" : "Cash";
+}
 
 const ACTIVE_ASSIGNMENT_STATUSES = new Set<Task["status"]>([
   "Accepted",

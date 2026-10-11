@@ -73,7 +73,7 @@ As of October 5, 2026:
 - The reviewed Firestore rules and indexes are released to `tasklink-fb027`.
 - Posting, applying, hiring, rejecting, withdrawing, chatting, starting, payment confirmation, completion approval, cancellation, ratings, and account-mode switching run directly against authenticated Firestore transactions.
 - A tasker can apply to multiple open tasks but can hold only one confirmed assignment at a time. Finishing or cancelling it releases the tasker for another assignment.
-- The demo uses COD with confirmation by both participants. Uploads, document verification, remote push, nearby-worker fan-out, automated moderation, and analytics generation are visibly paused.
+- Employers can choose GCash or Cash. Cash uses confirmation by both participants; GCash uses receipt evidence and administrator review. Uploads, document verification, remote push, nearby-worker fan-out, automated moderation, and analytics generation remain subject to the documented beta deployment limits.
 - Cloud Functions and Cloud Storage are not deployed, and no billing plan was enabled or changed.
 
 ## Phase 7 beta hardening
@@ -145,7 +145,7 @@ Approved identity names are locked at both the private `users` document and mirr
 Payment behavior is verification only; TASKLINK does not process, hold, or escrow money:
 
 - GCash requires an uploaded image/PDF receipt and administrator review.
-- COD requires the client to record payment and the assigned worker to confirm receipt.
+- Cash requires the client to record payment and the assigned worker to confirm receipt. Existing records continue to use the legacy `COD` storage value for compatibility.
 - A client cannot finish a task until its payment status is `Verified`.
 
 The administrator route is not publicly registrable. Create a dedicated Firebase Authentication user whose email matches the app's mobile mapping (for example `639171234567@tasklink.local`), then run the provisioning script from a trusted machine with Firebase Admin application-default credentials:

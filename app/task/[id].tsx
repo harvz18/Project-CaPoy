@@ -5,7 +5,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { StatusBadge } from "../../src/components/StatusBadge";
 import { useApp } from "../../src/context/AppContext";
 import { rankTaskMatches, summarizeScoreBreakdown } from "../../src/domain/matching";
-import { formatTaskDuration, formatTaskPrice, formatTaskSchedule } from "../../src/domain/taskMarketplace";
+import { formatPaymentMethod, formatTaskDuration, formatTaskPrice, formatTaskSchedule } from "../../src/domain/taskMarketplace";
 import { TaskMatch } from "../../src/types";
 import { formatDistance } from "../../src/utils/location";
 
@@ -32,7 +32,7 @@ export default function TaskDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { currentUser, users, ratings, getUserById, tasks, taskMatches, acceptTask, rejectApplication, updateTaskStatus } = useApp();
+  const { actionLoading, currentUser, users, ratings, getUserById, tasks, taskMatches, acceptTask, rejectApplication, updateTaskStatus } = useApp();
   const [proposedAmount, setProposedAmount] = useState("");
   const [actionError, setActionError] = useState("");
   const task = tasks.find((item) => item.id === id);
@@ -92,13 +92,23 @@ export default function TaskDetailsScreen() {
     if (!taskId) {
       return;
     }
-    await updateTaskStatus(taskId, "Accepted", workerId);
-    router.push(`/task-status/${taskId}`);
+    try {
+      setActionError("");
+      await updateTaskStatus(taskId, "Accepted", workerId);
+      router.replace(`/task-status/${taskId}`);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Unable to accept this application.");
+    }
   }
 
   async function handleClientRejectWorker(workerId: string) {
     if (!task?.id) return;
-    await rejectApplication(task.id, workerId);
+    try {
+      setActionError("");
+      await rejectApplication(task.id, workerId);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Unable to reject this application.");
+    }
   }
 
   return (
@@ -123,7 +133,7 @@ export default function TaskDetailsScreen() {
         <View style={styles.detailsGrid}>
           <DetailBox label="Location" value={task.location} />
           <DetailBox label="Duration" value={formatTaskDuration(task)} />
-          <DetailBox label="Payment" value={task.paymentMethod} />
+          <DetailBox label="Payment" value={formatPaymentMethod(task.paymentMethod)} />
           <DetailBox label="Applicants" value={hasAcceptedWorker ? "1 accepted" : `${applicantCount} applied`} />
           <DetailBox label="Capability" value={task.requiredCapability ?? task.category} />
           <DetailBox label="Task Radius" value={`${task.geofenceRadius ?? 500} meters`} />
@@ -142,6 +152,7 @@ export default function TaskDetailsScreen() {
               <Text style={styles.sectionTitle}>{task.status === "Accepted" ? "Assigned Worker" : "Worker Applications"}</Text>
               <Text style={styles.sectionMeta}>{task.status === "Accepted" ? "Ready to start" : "Review before accepting"}</Text>
             </View>
+            {actionError ? <Text style={styles.errorText}>{actionError}</Text> : null}
             {hasAcceptedWorker ? (
               <View style={styles.workerCard}>
                 <Pressable
@@ -232,11 +243,11 @@ export default function TaskDetailsScreen() {
                     >
                       <Text style={styles.secondaryButtonText}>View Profile</Text>
                     </Pressable>
-                    <Pressable style={styles.primaryButton} onPress={() => handleClientAcceptWorker(applicant.id)}>
-                      <Text style={styles.primaryButtonText}>Accept</Text>
+                    <Pressable disabled={actionLoading} style={[styles.primaryButton, actionLoading && styles.disabledButton]} onPress={() => handleClientAcceptWorker(applicant.id)}>
+                      <Text style={styles.primaryButtonText}>{actionLoading ? "Working..." : "Accept"}</Text>
                     </Pressable>
                   </View>
-                  <Pressable style={styles.rejectButton} onPress={() => handleClientRejectWorker(applicant.id)}>
+                  <Pressable disabled={actionLoading} style={[styles.rejectButton, actionLoading && styles.disabledButton]} onPress={() => handleClientRejectWorker(applicant.id)}>
                     <Text style={styles.rejectButtonText}>Reject Application</Text>
                   </Pressable>
                 </View>

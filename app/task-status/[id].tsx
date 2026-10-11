@@ -5,7 +5,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import LocationMap from "../../src/components/LocationMap";
 import { StatusBadge } from "../../src/components/StatusBadge";
 import { useApp } from "../../src/context/AppContext";
-import { formatTaskDuration, formatTaskPrice, formatTaskSchedule } from "../../src/domain/taskMarketplace";
+import { formatPaymentMethod, formatTaskDuration, formatTaskPrice, formatTaskSchedule } from "../../src/domain/taskMarketplace";
 import { useForegroundLocationWatch } from "../../src/hooks/useForegroundLocationWatch";
 import { PaymentStatus, Task, TaskStatus } from "../../src/types";
 import {
@@ -272,7 +272,7 @@ export default function TaskStatusScreen() {
             </View>
 
             <View style={styles.detailsGrid}>
-              <DetailBox label="Payment Method" value={task.paymentMethod} icon="P" />
+              <DetailBox label="Payment Method" value={formatPaymentMethod(task.paymentMethod)} icon="P" />
               <DetailBox label="Required Capability" value={task.requiredCapability ?? task.category} icon="S" />
             </View>
 
@@ -327,13 +327,13 @@ export default function TaskStatusScreen() {
                 <Text style={styles.sectionTitle}>Payment Verification</Text>
                 <Text style={styles.paymentBadge}>{task.paymentStatus ?? "Pending"}</Text>
               </View>
-              <Text style={styles.geoText}>Method: {task.paymentMethod}</Text>
+              <Text style={styles.geoText}>Method: {formatPaymentMethod(task.paymentMethod)}</Text>
               {currentUser?.role === "client" ? (
                 <>
                   <TextInput
                     multiline
                     onChangeText={setProofOfPaymentText}
-                    placeholder="Reference number, GCash note, or COD confirmation"
+                    placeholder={task.paymentMethod === "GCash link" ? "GCash reference number or payment note" : "Cash payment confirmation"}
                     placeholderTextColor={palette.outline}
                     style={styles.paymentInput}
                     textAlignVertical="top"

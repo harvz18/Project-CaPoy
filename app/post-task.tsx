@@ -14,7 +14,7 @@ import { workerCapabilities } from "../src/constants/capabilities";
 import { useApp } from "../src/context/AppContext";
 import { captureForegroundLocation } from "../src/services/locationService";
 import { DurationUnit, PaymentMethod, PricingMode } from "../src/types";
-import { durationToMilliseconds } from "../src/domain/taskMarketplace";
+import { durationToMilliseconds, PAYMENT_METHOD_OPTIONS } from "../src/domain/taskMarketplace";
 import { parseCoordinate } from "../src/utils/location";
 
 const palette = {
@@ -353,19 +353,21 @@ export default function PostTaskScreen() {
 
           <Field label="Payment Method">
             <View style={styles.paymentRow}>
-              {(["COD"] as PaymentMethod[]).map((method) => (
+              {PAYMENT_METHOD_OPTIONS.map((option) => (
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityState={{ selected: paymentMethod === method }}
-                  key={method}
-                  onPress={() => setPaymentMethod(method)}
-                  style={[styles.paymentChip, paymentMethod === method && styles.paymentChipSelected]}
+                  accessibilityState={{ selected: paymentMethod === option.value }}
+                  key={option.value}
+                  onPress={() => setPaymentMethod(option.value)}
+                  style={[styles.paymentChip, paymentMethod === option.value && styles.paymentChipSelected]}
                 >
-                  <Text style={[styles.paymentText, paymentMethod === method && styles.paymentTextSelected]}>{method}</Text>
+                  <Text style={[styles.paymentText, paymentMethod === option.value && styles.paymentTextSelected]}>{option.label}</Text>
                 </Pressable>
               ))}
             </View>
-            <Text style={styles.helperText}>The free web demo uses cash confirmation so the full payment and completion flow works without paid cloud storage.</Text>
+            <Text style={styles.helperText}>
+              Cash is confirmed by both participants. GCash requires a receipt for administrator review.
+            </Text>
           </Field>
 
           <Field label="Additional Notes (Optional)">

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   findScheduleConflict,
+  formatPaymentMethod,
   formatTaskDuration,
   getScheduleBasedAvailability,
   schedulesOverlap
@@ -32,6 +33,11 @@ test("structured durations render singular and plural units", () => {
   assert.equal(formatTaskDuration({ durationValue: 1, durationUnit: "week", estimatedDuration: "legacy" }), "1 Week");
   assert.equal(formatTaskDuration({ durationValue: 3, durationUnit: "day", estimatedDuration: "legacy" }), "3 Days");
   assert.equal(formatTaskDuration({ estimatedDuration: "Whole Day" }), "Whole Day");
+});
+
+test("payment methods use the requested customer-facing labels", () => {
+  assert.equal(formatPaymentMethod("GCash link"), "GCash");
+  assert.equal(formatPaymentMethod("COD"), "Cash");
 });
 
 test("schedule overlap rejects intersecting assignments and permits adjacent or later tasks", () => {

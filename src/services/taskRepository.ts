@@ -346,22 +346,25 @@ async function acceptApplicantInTransaction(
   const workerUserRef = doc(firestore, "users", workerId);
   const workerProfileRef = doc(firestore, "workerProfiles", workerId);
   const publicProfileRef = doc(firestore, "publicProfiles", workerId);
-  const matchRefs = (task.applicantIds ?? []).map((id) => doc(firestore, "taskMatches", `${task.id}_${id}`));
-  const [selectedMatchSnapshot, workerUserSnapshot, workerProfileSnapshot, publicProfileSnapshot, ...matchSnapshots] =
+  const matchRefs = (task.applicantIds ?? [])
+    .filter((id) => id !== workerId)
+    .map((id) => doc(firestore, "taskMatches", `${task.id}_${id}`));
+  // Employers may read an applicant's public profile and task match, but private
+  // users/workerProfiles reads are intentionally denied by Firestore rules. The
+  // atomic updates below are still checked against those private records by the
+  // rules, so no private data needs to be exposed to accept an applicant.
+  const [selectedMatchSnapshot, publicProfileSnapshot, ...matchSnapshots] =
     await Promise.all([
       transaction.get(selectedMatchRef),
-      transaction.get(workerUserRef),
-      transaction.get(workerProfileRef),
       transaction.get(publicProfileRef),
       ...matchRefs.map((matchRef) => transaction.get(matchRef))
     ]);
   if (!selectedMatchSnapshot.exists() || selectedMatchSnapshot.data().acceptanceStatus !== "Applied" ||
-      !workerUserSnapshot.exists() || !workerProfileSnapshot.exists() || !publicProfileSnapshot.exists()) {
+      !publicProfileSnapshot.exists()) {
     throw new Error("The selected application or tasker profile is unavailable.");
   }
-  const workerData = workerUserSnapshot.data() as UserProfile;
-  if (workerData.activeTaskId ||
-      (workerData.availabilityStatus ?? workerData.availability ?? "Available").toLowerCase() !== "available") {
+  const publicWorkerData = publicProfileSnapshot.data() as UserProfile;
+  if ((publicWorkerData.availabilityStatus ?? publicWorkerData.availability ?? "Available").toLowerCase() !== "available") {
     throw new Error("This tasker already has a confirmed assignment. Finish or cancel it before accepting another task.");
   }
   const match = selectedMatchSnapshot.data() as TaskMatch;
@@ -495,7 +498,7 @@ export async function updateTaskPaymentVerification(
       throw new Error("Payment confirmation is available after a worker is accepted and before completion.");
     }
     if (paymentStatus !== "Submitted" || !proofOfPaymentText?.trim()) {
-      throw new Error("Enter a payment reference or COD confirmation.");
+      throw new Error("Enter a payment reference or cash confirmation.");
     }
     const updates = withoutUndefined({
       paymentStatus,
