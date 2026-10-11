@@ -2,7 +2,7 @@ import { Href, Stack, useRouter, useSegments } from "expo-router";
 import * as Network from "expo-network";
 import * as Notifications from "expo-notifications";
 import { useEffect } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppProvider, useApp } from "../src/context/AppContext";
@@ -38,7 +38,7 @@ function ProtectedNavigator() {
   const router = useRouter();
   const segments = useSegments();
   const networkState = Network.useNetworkState();
-  const { appLoading, authority, clearError, currentUser, error, retryDataSync } = useApp();
+  const { actionErrorDialog, appLoading, authority, clearActionErrorDialog, clearError, currentUser, error, retryDataSync } = useApp();
   const route = segments[0] as string | undefined;
   const authRoutes = ["index", "login", "register"];
   const publicRoutes = [...authRoutes, "help"];
@@ -189,6 +189,22 @@ function ProtectedNavigator() {
         <Stack.Screen name="admin" options={{ title: "Administrator" }} />
         <Stack.Screen name="superadmin" options={{ title: "Superadministrator" }} />
       </Stack>
+      <Modal
+        animationType="fade"
+        onRequestClose={clearActionErrorDialog}
+        transparent
+        visible={Boolean(actionErrorDialog)}
+      >
+        <View accessibilityViewIsModal style={styles.dialogBackdrop}>
+          <View accessibilityRole="alert" style={styles.dialogCard}>
+            <Text style={styles.dialogTitle}>Unable to complete action</Text>
+            <Text style={styles.dialogMessage}>{actionErrorDialog}</Text>
+            <Pressable accessibilityRole="button" onPress={clearActionErrorDialog} style={styles.dialogButton}>
+              <Text style={styles.dialogButtonText}>Got it</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -201,6 +217,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: colors.background
   },
+  dialogBackdrop: { flex: 1, padding: 24, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(17,24,39,0.55)" },
+  dialogCard: { width: "100%", maxWidth: 420, padding: 20, borderRadius: 16, backgroundColor: "#FFFFFF", gap: 12, elevation: 16 },
+  dialogTitle: { color: colors.text, fontSize: 20, lineHeight: 28, fontWeight: "900" },
+  dialogMessage: { color: "#3E4947", fontSize: 15, lineHeight: 22 },
+  dialogButton: { minHeight: 46, marginTop: 4, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.primary },
+  dialogButtonText: { color: "#FFFFFF", fontSize: 14, fontWeight: "900" },
   syncBanner: { minHeight: 54, paddingHorizontal: 12, paddingVertical: 8, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF7ED", borderBottomWidth: 1, borderBottomColor: "#FDBA74" },
   offlineBanner: { minHeight: 42, paddingHorizontal: 14, paddingVertical: 10, alignItems: "center", justifyContent: "center", backgroundColor: "#7C2D12" },
   offlineMessage: { color: "#FFFFFF", fontSize: 12, lineHeight: 17, fontWeight: "800", textAlign: "center" },

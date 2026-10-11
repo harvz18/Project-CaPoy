@@ -64,6 +64,7 @@ import {
 } from "../services/userService";
 import { CapturedLocation, captureForegroundLocation } from "../services/locationService";
 import { getGeofenceCheck, hasValidCoordinates } from "../utils/location";
+import { toUserFacingError } from "../utils/userFacingError";
 
 type RegisterInput = {
   fullName: string;
@@ -119,6 +120,7 @@ type AppContextValue = {
   appLoading: boolean;
   actionLoading: boolean;
   error: string | null;
+  actionErrorDialog: string | null;
   login: (input: LoginInput) => Promise<UserProfile>;
   register: (input: RegisterInput) => Promise<void>;
   setRole: (role: PublicRole) => Promise<void>;
@@ -142,6 +144,7 @@ type AppContextValue = {
   submitRating: (taskId: string, score: number, feedback: string) => Promise<void>;
   getTaskMessages: (taskId: string, otherParticipantId?: string) => ChatMessage[];
   clearError: () => void;
+  clearActionErrorDialog: () => void;
   retryDataSync: () => void;
 };
 
@@ -161,6 +164,7 @@ export function AppProvider({ children }: PropsWithChildren) {
   const [appLoading, setAppLoading] = useState(usingFirebase);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [actionErrorDialog, setActionErrorDialog] = useState<string | null>(null);
   const [subscriptionRefreshKey, setSubscriptionRefreshKey] = useState(0);
   const tasks = useMemo(
     () =>
@@ -279,19 +283,21 @@ export function AppProvider({ children }: PropsWithChildren) {
   }, [currentUser?.id, notificationPreferences.pushEnabled]);
 
   function handleListenerError(listenerError: Error) {
-    setError(listenerError.message);
+    setError(toUserFacingError(listenerError));
   }
 
   async function runAction(action: () => Promise<void>) {
     setActionLoading(true);
     setError(null);
+    setActionErrorDialog(null);
 
     try {
       await action();
     } catch (actionError) {
-      const message = actionError instanceof Error ? actionError.message : "Unable to continue. Please try again.";
+      const message = toUserFacingError(actionError);
       setError(message);
-      throw actionError;
+      setActionErrorDialog(message);
+      throw new Error(message);
     } finally {
       setActionLoading(false);
     }
@@ -718,6 +724,11 @@ export function AppProvider({ children }: PropsWithChildren) {
     setError(null);
   }
 
+  function clearActionErrorDialog() {
+    setActionErrorDialog(null);
+    setError(null);
+  }
+
   function retryDataSync() {
     setError(null);
     setSubscriptionRefreshKey((value) => value + 1);
@@ -738,6 +749,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       appLoading,
       actionLoading,
       error,
+      actionErrorDialog,
       login,
       register,
       setRole,
@@ -761,9 +773,10 @@ export function AppProvider({ children }: PropsWithChildren) {
       submitRating,
       getTaskMessages,
       clearError,
+      clearActionErrorDialog,
       retryDataSync
     }),
-    [currentUser, authority, users, tasks, taskMatches, messages, ratings, notifications, notificationPreferences, appLoading, actionLoading, error]
+    [currentUser, authority, users, tasks, taskMatches, messages, ratings, notifications, notificationPreferences, appLoading, actionLoading, error, actionErrorDialog]
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

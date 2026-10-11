@@ -29,9 +29,29 @@ export default function WorkerPublicProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { id, taskId } = useLocalSearchParams<{ id: string; taskId?: string }>();
-  const { actionLoading, getUserById, ratings, updateTaskStatus, users } = useApp();
+  const { actionLoading, currentUser, getUserById, ratings, taskMatches, tasks, updateTaskStatus, users } = useApp();
   const [actionError, setActionError] = useState("");
   const worker = getUserById(id);
+  const selectedTask = tasks.find((task) => task.id === taskId);
+  const activeMatch = taskMatches.find((match) =>
+    match.taskId === taskId && match.workerId === worker?.id && match.acceptanceStatus === "Applied"
+  );
+  const canAcceptApplication = Boolean(
+    worker
+    && selectedTask
+    && currentUser?.role === "client"
+    && selectedTask.clientId === currentUser.id
+    && selectedTask.status === "Applied"
+    && selectedTask.applicantIds?.includes(worker.id)
+    && activeMatch
+  );
+  const canMessageWorker = Boolean(
+    worker
+    && selectedTask
+    && currentUser?.role === "client"
+    && selectedTask.clientId === currentUser.id
+    && (selectedTask.workerId === worker.id || selectedTask.applicantIds?.includes(worker.id))
+  );
   const skills = worker?.capabilities?.length ? worker.capabilities : worker?.skills ?? [];
   const name = worker?.fullName ?? "Worker profile";
   const verificationStatus = worker?.verificationStatus ?? "Not Submitted";
@@ -53,7 +73,8 @@ export default function WorkerPublicProfileScreen() {
     : "Not recorded";
 
   async function handleAcceptWorker() {
-    if (!taskId || !worker) {
+    if (!taskId || !worker || !canAcceptApplication) {
+      setActionError("This tasker does not have an active application for this task. Return to Review Applicants and select a tasker marked Applied.");
       return;
     }
     try {
@@ -174,14 +195,17 @@ export default function WorkerPublicProfileScreen() {
           </View>
           <Text style={styles.bio}>TaskLink uses the tasker's private saved location for matching. Exact coordinates and home address are not displayed here.</Text>
         </View>
+        {taskId && !canAcceptApplication && selectedTask?.workerId !== worker.id ? (
+          <Text style={styles.applicationHint}>This tasker cannot be accepted because they do not have an active application for the selected task.</Text>
+        ) : null}
         {actionError ? <Text accessibilityRole="alert" style={styles.actionError}>{actionError}</Text> : null}
       </ScrollView>
 
       <View style={[styles.bottomAction, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <Pressable
           accessibilityRole="button"
-          disabled={!taskId}
-          style={[styles.messageButton, !taskId && styles.messageButtonDisabled]}
+          disabled={!canMessageWorker}
+          style={[styles.messageButton, !canMessageWorker && styles.messageButtonDisabled]}
           onPress={() =>
             router.push({
               pathname: "/chat/[id]",
@@ -191,8 +215,10 @@ export default function WorkerPublicProfileScreen() {
         >
           <Text style={styles.messageButtonText}>Message</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" disabled={!taskId || actionLoading} style={[styles.hireButton, (!taskId || actionLoading) && styles.hireButtonDisabled]} onPress={handleAcceptWorker}>
-          <Text style={styles.hireButtonText}>{actionLoading ? "Accepting..." : taskId ? "Accept Application" : "No Task Selected"}</Text>
+        <Pressable accessibilityRole="button" disabled={!canAcceptApplication || actionLoading} style={[styles.hireButton, (!canAcceptApplication || actionLoading) && styles.hireButtonDisabled]} onPress={handleAcceptWorker}>
+          <Text style={[styles.hireButtonText, !canAcceptApplication && styles.hireButtonTextDisabled]}>
+            {actionLoading ? "Accepting..." : canAcceptApplication ? "Accept Application" : selectedTask?.workerId === worker.id ? "Worker Accepted" : taskId ? "Not an Active Applicant" : "No Task Selected"}
+          </Text>
         </Pressable>
       </View>
     </SafeAreaView>
@@ -291,6 +317,7 @@ const styles = StyleSheet.create({
   reviewText: { color: palette.muted, fontSize: 16, lineHeight: 24 },
   coverageCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "rgba(189,201,198,0.35)", backgroundColor: palette.surfaceLow, gap: 12 },
   actionError: { color: "#BA1A1A", fontSize: 13, lineHeight: 18, fontWeight: "700", textAlign: "center" },
+  applicationHint: { color: "#684000", fontSize: 13, lineHeight: 18, fontWeight: "700", textAlign: "center" },
   coverageHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
   coverageIcon: { color: palette.primary, fontSize: 24, fontWeight: "900" },
   coverageTitle: { color: palette.textStrong, fontSize: 14, lineHeight: 20, fontWeight: "900", textTransform: "uppercase" },
@@ -305,5 +332,6 @@ const styles = StyleSheet.create({
   messageButtonText: { color: palette.text, fontSize: 14, fontWeight: "900" },
   hireButton: { flex: 2, minHeight: 48, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
   hireButtonDisabled: { backgroundColor: palette.surfaceHigh },
-  hireButtonText: { color: palette.white, fontSize: 14, fontWeight: "900" }
+  hireButtonText: { color: palette.white, fontSize: 14, fontWeight: "900", textAlign: "center" },
+  hireButtonTextDisabled: { color: palette.muted }
 });

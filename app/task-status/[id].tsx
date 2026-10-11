@@ -1,6 +1,6 @@
 import { Href, useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import LocationMap from "../../src/components/LocationMap";
 import { StatusBadge } from "../../src/components/StatusBadge";
@@ -48,6 +48,7 @@ export default function TaskStatusScreen() {
   const [proofOfPaymentUrl, setProofOfPaymentUrl] = useState(task?.proofOfPaymentUrl ?? "");
   const [proofFileName, setProofFileName] = useState(task?.proofOfPaymentUrl?.split("/").pop() ?? "");
   const [uploadingProof, setUploadingProof] = useState(false);
+  const [disputeDialogOpen, setDisputeDialogOpen] = useState(false);
   const liveTrackingEnabled = shouldTrackTaskLocation(
     currentUser?.role,
     currentUser?.id,
@@ -445,9 +446,12 @@ export default function TaskStatusScreen() {
 
             {(task.status === "Accepted" || task.status === "In Progress" || task.status === "Pending Approval" || task.status === "Finished") &&
             (currentUser?.id === task.clientId || currentUser?.id === task.workerId) ? (
-              <Pressable style={styles.dangerAction} onPress={() => handleSecondaryWorkflowAction("dispute")}>
-                <Text style={styles.dangerActionText}>Open Dispute</Text>
-              </Pressable>
+              <View style={styles.disputeBlock}>
+                <Pressable style={styles.dangerAction} onPress={() => setDisputeDialogOpen(true)}>
+                  <Text style={styles.dangerActionText}>Open Dispute</Text>
+                </Pressable>
+                <Text style={styles.disputeHelp}>Use this when the employer and tasker cannot resolve a problem with the work, payment, or completion. It flags the task for administrator review.</Text>
+              </View>
             ) : null}
 
             {reportTargetId ? (
@@ -484,6 +488,30 @@ export default function TaskStatusScreen() {
         </Pressable>
         <Text style={styles.guidelineText}>By clicking, you agree to the TaskLink Community Guidelines.</Text>
       </View>
+      <Modal animationType="fade" transparent visible={disputeDialogOpen} onRequestClose={() => setDisputeDialogOpen(false)}>
+        <View accessibilityViewIsModal style={styles.dialogBackdrop}>
+          <View style={styles.dialogCard}>
+            <Text style={styles.dialogTitle}>Open a dispute?</Text>
+            <Text style={styles.dialogMessage}>A dispute stops the normal task flow and flags the task for administrator review. Use it only when chat cannot resolve a disagreement about the work, payment, or completion.</Text>
+            <View style={styles.dialogActions}>
+              <Pressable accessibilityRole="button" disabled={actionLoading} onPress={() => setDisputeDialogOpen(false)} style={styles.dialogCancel}>
+                <Text style={styles.dialogCancelText}>Keep Task Active</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                disabled={actionLoading}
+                onPress={() => {
+                  setDisputeDialogOpen(false);
+                  void handleSecondaryWorkflowAction("dispute");
+                }}
+                style={styles.dialogConfirm}
+              >
+                <Text style={styles.dialogConfirmText}>{actionLoading ? "Opening..." : "Open Dispute"}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -808,6 +836,17 @@ const styles = StyleSheet.create({
   paymentOutlineButton: { minHeight: 42, borderRadius: 8, borderWidth: 1, borderColor: palette.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: 12 },
   paymentOutlineButtonText: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "900", textAlign: "center" },
   warningText: { color: "#684000", fontSize: 12, lineHeight: 16, fontWeight: "800" },
+  disputeBlock: { gap: 6 },
+  disputeHelp: { color: palette.muted, fontSize: 12, lineHeight: 17, textAlign: "center" },
+  dialogBackdrop: { flex: 1, padding: 24, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(17,24,39,0.55)" },
+  dialogCard: { width: "100%", maxWidth: 460, padding: 20, borderRadius: 16, backgroundColor: palette.surface, gap: 12, elevation: 16 },
+  dialogTitle: { color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "900" },
+  dialogMessage: { color: palette.muted, fontSize: 14, lineHeight: 21 },
+  dialogActions: { flexDirection: "row", gap: 10, marginTop: 4 },
+  dialogCancel: { flex: 1, minHeight: 46, borderRadius: 10, borderWidth: 1, borderColor: palette.outlineVariant, alignItems: "center", justifyContent: "center", paddingHorizontal: 10 },
+  dialogCancelText: { color: palette.text, fontSize: 13, fontWeight: "900", textAlign: "center" },
+  dialogConfirm: { flex: 1, minHeight: 46, borderRadius: 10, alignItems: "center", justifyContent: "center", paddingHorizontal: 10, backgroundColor: "#B91C1C" },
+  dialogConfirmText: { color: palette.white, fontSize: 13, fontWeight: "900", textAlign: "center" },
   clientRatingPanel: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, gap: 12, elevation: 2 },
   clientRatingCopy: { gap: 4 },
   clientRatingTitle: { color: palette.textStrong, fontSize: 16, lineHeight: 22, fontWeight: "900" },

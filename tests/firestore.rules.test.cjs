@@ -791,6 +791,49 @@ test("beta applications remain open when a tasker is not a recommended capabilit
   await assertSucceeds(apply());
 });
 
+test("a tasker can apply to different tasks posted by the same employer", async () => {
+  const secondTaskId = "task-2";
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
+    await Promise.all([
+      setDoc(doc(db, "tasks", TASK_ID), taskData()),
+      setDoc(doc(db, "tasks", secondTaskId), taskData({ title: "Repair another sink" }))
+    ]);
+  });
+
+  const workerDb = dbFor(WORKER_ID);
+  for (const [index, taskId] of [TASK_ID, secondTaskId].entries()) {
+    const now = `2026-01-01T00:0${index + 1}:00.000Z`;
+    const matchId = `${taskId}_${WORKER_ID}`;
+    const batch = writeBatch(workerDb);
+    batch.update(doc(workerDb, "tasks", taskId), {
+      applicantIds: [WORKER_ID],
+      status: "Applied",
+      lastApplicationWorkerId: WORKER_ID,
+      lastApplicationMatchId: matchId,
+      lastApplicationAction: "Applied",
+      updatedAt: now
+    });
+    batch.set(doc(workerDb, "taskMatches", matchId), {
+      id: matchId,
+      taskId,
+      clientId: CLIENT_ID,
+      workerId: WORKER_ID,
+      acceptanceStatus: "Applied",
+      createdAt: now,
+      updatedAt: now
+    });
+    await assertSucceeds(batch.commit());
+  }
+
+  const [firstTask, secondTask] = await Promise.all([
+    getDoc(doc(workerDb, "tasks", TASK_ID)),
+    getDoc(doc(workerDb, "tasks", secondTaskId))
+  ]);
+  assert.deepEqual(firstTask.data().applicantIds, [WORKER_ID]);
+  assert.deepEqual(secondTask.data().applicantIds, [WORKER_ID]);
+});
+
 test("a pending-verification worker can apply to a legacy open task with null workflow fields", async () => {
   await testEnvironment.withSecurityRulesDisabled(async (context) => {
     const legacyTask = taskData({ applicantIds: null, workerId: null });
@@ -1494,8 +1537,28 @@ test("task chat is writable only by a task participant", async () => {
   batch.set(doc(workerDb, "messages", "allowed-message"), message);
   await assertSucceeds(batch.commit());
 
+  const clientDb = dbFor(CLIENT_ID);
+  const replyAt = "2026-01-01T00:01:00.000Z";
+  const replyBatch = writeBatch(clientDb);
+  replyBatch.update(doc(clientDb, "chats", conversationId), {
+    lastMessage: "Thanks for the update.",
+    lastMessageAt: replyAt,
+    lastSenderId: CLIENT_ID,
+    updatedAt: replyAt
+  });
+  replyBatch.set(doc(clientDb, "messages", "employer-reply"), {
+    conversationId,
+    taskId: TASK_ID,
+    senderId: CLIENT_ID,
+    receiverId: WORKER_ID,
+    participantIds: [WORKER_ID, CLIENT_ID],
+    message: "Thanks for the update.",
+    timestamp: replyAt
+  });
+  await assertSucceeds(replyBatch.commit());
+
   await assertSucceeds(getDocs(query(
-    collection(dbFor(CLIENT_ID), "messages"),
+    collection(clientDb, "messages"),
     or(where("senderId", "==", CLIENT_ID), where("receiverId", "==", CLIENT_ID)),
     orderBy("timestamp", "desc"),
     limit(100)

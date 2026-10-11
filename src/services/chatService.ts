@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   limit,
   onSnapshot,
@@ -64,27 +65,48 @@ export function getConversationId(taskId: string, workerId: string) {
   return `${taskId}_${workerId}`;
 }
 
+export function getConversationParticipants(existing: unknown, senderId: string, receiverId: string) {
+  const expected = new Set([senderId, receiverId]);
+  if (Array.isArray(existing)) {
+    const participants = existing.filter((item): item is string => typeof item === "string");
+    if (participants.length !== 2 || participants.some((item) => !expected.has(item))) {
+      throw new Error("This conversation no longer matches the selected tasker. Reopen the task and try again.");
+    }
+    return participants;
+  }
+  return [...expected].sort();
+}
+
 export async function sendMessageToFirestore(message: Omit<ChatMessage, "id">, workerId: string) {
   const firestore = requireDb();
-  const participantIds = [...new Set([message.senderId, message.receiverId])];
   const conversationId = message.conversationId ?? getConversationId(message.taskId, workerId);
+  const chatRef = doc(firestore, "chats", conversationId);
+  const chatSnapshot = await getDoc(chatRef);
+  const participantIds = getConversationParticipants(
+    chatSnapshot.exists() ? chatSnapshot.data().participantIds : undefined,
+    message.senderId,
+    message.receiverId
+  );
   const messageRef = doc(collection(firestore, "messages"));
   const batch = writeBatch(firestore);
 
-  batch.set(
-    doc(firestore, "chats", conversationId),
-    {
+  const latestMessage = {
+    lastMessage: message.message,
+    lastMessageAt: message.timestamp,
+    lastSenderId: message.senderId,
+    updatedAt: message.timestamp
+  };
+  if (chatSnapshot.exists()) {
+    batch.update(chatRef, latestMessage);
+  } else {
+    batch.set(chatRef, {
       id: conversationId,
       workerId,
       taskId: message.taskId,
       participantIds,
-      lastMessage: message.message,
-      lastMessageAt: message.timestamp,
-      lastSenderId: message.senderId,
-      updatedAt: message.timestamp
-    },
-    { merge: true }
-  );
+      ...latestMessage
+    });
+  }
 
   batch.set(messageRef, {
     ...message,
