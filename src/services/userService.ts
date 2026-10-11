@@ -38,6 +38,10 @@ function toPublicProfile(user: Partial<UserProfile> & Pick<UserProfile, "id" | "
   });
 }
 
+export function getPublicProfileBackfill(user: UserProfile, publicProfileExists: boolean) {
+  return publicProfileExists ? undefined : toPublicProfile(user);
+}
+
 function hasPublicProfileChanges(updates: Partial<UserProfile>) {
   const publicFields: Array<keyof UserProfile> = [
     "role",
@@ -142,7 +146,17 @@ export async function getUserProfile(userId: string) {
 export async function ensurePublicProfile(user: UserProfile) {
   const firestore = requireDb();
   const publicProfileRef = doc(firestore, "publicProfiles", user.id);
-  await setDoc(publicProfileRef, toPublicProfile(user));
+  const publicProfileSnapshot = await getDoc(publicProfileRef);
+
+  // Login and session restoration only need to backfill a missing public
+  // profile. Rewriting an existing profile here can touch server-protected
+  // rating/history fields and cause an otherwise valid login to fail.
+  const backfill = getPublicProfileBackfill(user, publicProfileSnapshot.exists());
+  if (!backfill) {
+    return;
+  }
+
+  await setDoc(publicProfileRef, backfill);
 }
 
 export function subscribeToUserProfile(
