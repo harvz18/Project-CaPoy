@@ -103,3 +103,10 @@ export async function pickAndUploadPaymentProof(taskId: string) {
   await uploadSelectedFile(file, path);
   return { name: file.name, path };
 }
+
+export async function getPaymentProofDownloadUrl(taskId: string, path: string) {
+  if (!path.startsWith(`paymentProofs/${taskId}/`)) {
+    throw new Error("The payment proof path is invalid.");
+  }
+  return getDownloadURL(ref(requireStorage(), path));
+}

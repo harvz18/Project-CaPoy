@@ -12,6 +12,7 @@ const {
   doc,
   getDoc,
   getDocs,
+  increment,
   limit,
   or,
   orderBy,
@@ -971,16 +972,33 @@ test("client and worker accounts can complete the full canonical task lifecycle"
   }));
 
   now = "2026-01-01T01:20:00.000Z";
+  const textOnlyConfirmation = writeBatch(clientDb);
+  textOnlyConfirmation.update(taskRef, {
+    paymentStatus: "Submitted",
+    proofOfPaymentText: "COD confirmed by client",
+    clientConfirmedAt: now,
+    updatedAt: now
+  });
+  textOnlyConfirmation.update(paymentRef, {
+    paymentStatus: "Submitted",
+    proofOfPaymentText: "COD confirmed by client",
+    clientConfirmedAt: now,
+    updatedAt: now
+  });
+  await assertFails(textOnlyConfirmation.commit());
+
   batch = writeBatch(clientDb);
   batch.update(taskRef, {
     paymentStatus: "Submitted",
     proofOfPaymentText: "COD confirmed by client",
+    proofOfPaymentUrl: `paymentProofs/${TASK_ID}/cash-receipt.png`,
     clientConfirmedAt: now,
     updatedAt: now
   });
   batch.update(paymentRef, {
     paymentStatus: "Submitted",
     proofOfPaymentText: "COD confirmed by client",
+    proofOfPaymentUrl: `paymentProofs/${TASK_ID}/cash-receipt.png`,
     clientConfirmedAt: now,
     updatedAt: now
   });
@@ -1603,37 +1621,29 @@ test("completion requires submitted payment and atomically restores availability
   });
   const db = dbFor(CLIENT_ID);
   const now = "2026-01-01T02:00:00.000Z";
-  const batch = writeBatch(db);
-  batch.update(doc(db, "tasks", TASK_ID), { status: "Finished", finishedAt: now, updatedAt: now });
-  batch.update(doc(db, "users", WORKER_ID), {
-    availabilityStatus: "Available",
-    availability: "Available",
-    activeTaskId: deleteField(),
-    completedTasks: 1,
-    updatedAt: now
-  });
-  batch.update(doc(db, "workerProfiles", WORKER_ID), {
-    availabilityStatus: "Available",
-    availability: "Available",
-    completedTasks: 1,
-    updatedAt: now
-  });
-  batch.update(doc(db, "publicProfiles", WORKER_ID), {
-    availabilityStatus: "Available",
-    availability: "Available",
-    completedTasks: 1,
-    updatedAt: now
-  });
-  batch.set(doc(db, "notifications", `${TASK_ID}_finished_${WORKER_ID}`), {
-    userId: WORKER_ID,
-    taskId: TASK_ID,
-    createdBy: CLIENT_ID,
-    notificationType: "Task completed",
-    message: "Finished",
-    readStatus: false,
-    createdAt: now
-  });
-  await assertSucceeds(batch.commit());
+  await assertFails(getDoc(doc(db, "users", WORKER_ID)));
+  await assertFails(getDoc(doc(db, "workerProfiles", WORKER_ID)));
+  await assertSucceeds(runTransaction(db, async (transaction) => {
+    const taskRef = doc(db, "tasks", TASK_ID);
+    await transaction.get(taskRef);
+    transaction.update(taskRef, { status: "Finished", finishedAt: now, updatedAt: now });
+    transaction.update(doc(db, "users", WORKER_ID), {
+      availabilityStatus: "Available", availability: "Available", activeTaskId: deleteField(),
+      completedTasks: increment(1), updatedAt: now
+    });
+    transaction.update(doc(db, "workerProfiles", WORKER_ID), {
+      availabilityStatus: "Available", availability: "Available",
+      completedTasks: increment(1), updatedAt: now
+    });
+    transaction.update(doc(db, "publicProfiles", WORKER_ID), {
+      availabilityStatus: "Available", availability: "Available",
+      completedTasks: increment(1), updatedAt: now
+    });
+    transaction.set(doc(db, "notifications", `${TASK_ID}_finished_${WORKER_ID}`), {
+      userId: WORKER_ID, taskId: TASK_ID, createdBy: CLIENT_ID,
+      notificationType: "Task completed", message: "Finished", readStatus: false, createdAt: now
+    });
+  }));
   const workerSnapshot = await getDoc(doc(dbFor(WORKER_ID), "users", WORKER_ID));
   assert.equal(workerSnapshot.data().completedTasks, 1);
   assert.equal(workerSnapshot.data().activeTaskId, undefined);

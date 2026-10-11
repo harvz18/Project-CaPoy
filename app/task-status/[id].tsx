@@ -1,6 +1,6 @@
 import { Href, useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import LocationMap from "../../src/components/LocationMap";
 import { StatusBadge } from "../../src/components/StatusBadge";
@@ -15,7 +15,7 @@ import {
   getTaskCheckDistanceKm,
   shouldTrackTaskLocation
 } from "../../src/utils/location";
-import { pickAndUploadPaymentProof } from "../../src/services/fileUploadService";
+import { getPaymentProofDownloadUrl, pickAndUploadPaymentProof } from "../../src/services/fileUploadService";
 
 const palette = {
   background: "#F7FAF8",
@@ -195,6 +195,16 @@ export default function TaskStatusScreen() {
     }
   }
 
+  async function handleOpenPaymentProof() {
+    if (!task?.proofOfPaymentUrl) return;
+    try {
+      setActionWarning("");
+      await Linking.openURL(await getPaymentProofDownloadUrl(task.id, task.proofOfPaymentUrl));
+    } catch (error) {
+      setActionWarning(error instanceof Error ? error.message : "Unable to open the payment receipt.");
+    }
+  }
+
   async function handleSecondaryWorkflowAction(actionName: "withdraw" | "cancel" | "dispute") {
     if (!task) return;
     try {
@@ -336,28 +346,35 @@ export default function TaskStatusScreen() {
               {currentUser?.role === "client" ? (
                 <>
                   <TextInput
+                    editable={task.paymentStatus !== "Submitted" && task.paymentStatus !== "Verified"}
                     multiline
                     onChangeText={setProofOfPaymentText}
-                    placeholder={task.paymentMethod === "GCash link" ? "GCash reference number or payment note" : "Cash payment confirmation"}
+                    placeholder="Optional reference number or payment note"
                     placeholderTextColor={palette.outline}
                     style={styles.paymentInput}
                     textAlignVertical="top"
                     value={proofOfPaymentText}
                   />
-                  {task.paymentMethod === "GCash link" ? (
-                    <Pressable accessibilityRole="button" disabled={uploadingProof} onPress={handleUploadPaymentProof} style={styles.paymentOutlineButton}>
-                      <Text style={styles.paymentOutlineButtonText}>
-                        {uploadingProof ? "Uploading..." : proofFileName || "Upload receipt image or PDF"}
-                      </Text>
-                    </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={uploadingProof || actionLoading || task.paymentStatus === "Submitted" || task.paymentStatus === "Verified"}
+                    onPress={handleUploadPaymentProof}
+                    style={styles.paymentOutlineButton}
+                  >
+                    <Text style={styles.paymentOutlineButtonText}>
+                      {uploadingProof ? "Uploading..." : proofFileName || "Upload receipt image or PDF (required)"}
+                    </Text>
+                  </Pressable>
+                  {!proofOfPaymentUrl && task.paymentStatus !== "Submitted" && task.paymentStatus !== "Verified" ? (
+                    <Text style={styles.geoHint}>A receipt image or PDF is required before payment confirmation.</Text>
                   ) : null}
                   <Pressable
                     accessibilityRole="button"
-                    disabled={actionLoading || task.paymentStatus === "Submitted" || task.paymentStatus === "Verified"}
+                    disabled={actionLoading || !proofOfPaymentUrl || task.paymentStatus === "Submitted" || task.paymentStatus === "Verified"}
                     onPress={handleSubmitPaymentProof}
                     style={({ pressed }) => [
                       styles.paymentButton,
-                      (actionLoading || task.paymentStatus === "Submitted" || task.paymentStatus === "Verified") && styles.primaryActionDisabled,
+                      (actionLoading || !proofOfPaymentUrl || task.paymentStatus === "Submitted" || task.paymentStatus === "Verified") && styles.primaryActionDisabled,
                       pressed && styles.pressed
                     ]}
                   >
@@ -367,7 +384,9 @@ export default function TaskStatusScreen() {
                         : task.paymentStatus === "Verified"
                           ? "Payment Confirmed"
                           : task.paymentStatus === "Submitted"
-                            ? "Waiting for Tasker Confirmation"
+                            ? task.paymentMethod === "COD"
+                              ? "Waiting for Tasker Confirmation"
+                              : "Waiting for Payment Review"
                             : "Submit Payment Confirmation"}
                     </Text>
                   </Pressable>
@@ -375,6 +394,11 @@ export default function TaskStatusScreen() {
               ) : (
                 <>
                   <Text style={styles.geoHint}>{task.proofOfPaymentText || "Waiting for client payment confirmation."}</Text>
+                  {task.proofOfPaymentUrl ? (
+                    <Pressable accessibilityRole="button" onPress={handleOpenPaymentProof} style={styles.paymentOutlineButton}>
+                      <Text style={styles.paymentOutlineButtonText}>Open Uploaded Receipt</Text>
+                    </Pressable>
+                  ) : null}
                   {currentUser?.id === task.workerId && task.status === "Pending Approval" && task.paymentMethod === "COD" && task.paymentStatus === "Submitted" ? (
                     <Pressable accessibilityRole="button" disabled={actionLoading} onPress={handleConfirmCashPayment} style={styles.paymentButton}>
                       <Text style={styles.paymentButtonText}>{actionLoading ? "Confirming..." : "Confirm Cash Received"}</Text>

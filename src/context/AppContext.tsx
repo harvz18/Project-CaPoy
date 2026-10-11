@@ -569,11 +569,16 @@ export function AppProvider({ children }: PropsWithChildren) {
         throw new Error("Only the client who posted this task can submit payment proof.");
       }
 
-      if (task.paymentMethod === "GCash link" && !proofOfPaymentUrl) {
+      if (!proofOfPaymentUrl) {
         throw new Error("Upload an image or PDF payment receipt before submitting.");
       }
-      const nextStatus: PaymentStatus = proofOfPaymentText.trim() ? "Submitted" : "Pending";
-      await updateTaskPaymentVerification(taskId, currentUser.id, nextStatus, proofOfPaymentText.trim(), proofOfPaymentUrl);
+      await updateTaskPaymentVerification(
+        taskId,
+        currentUser.id,
+        "Submitted",
+        proofOfPaymentText.trim() || undefined,
+        proofOfPaymentUrl
+      );
     });
   }
 

@@ -2,6 +2,7 @@ import {
   collection,
   deleteField,
   doc,
+  increment,
   onSnapshot,
   query,
   runTransaction,
@@ -489,22 +490,19 @@ async function finishTaskInTransaction(transaction: Transaction, task: Task, cli
   const userRef = doc(firestore, "users", workerId);
   const workerProfileRef = doc(firestore, "workerProfiles", workerId);
   const publicProfileRef = doc(firestore, "publicProfiles", workerId);
-  const [userSnapshot, workerProfileSnapshot, publicProfileSnapshot] = await Promise.all([
-    transaction.get(userRef), transaction.get(workerProfileRef), transaction.get(publicProfileRef)
-  ]);
-  if (!userSnapshot.exists() || !workerProfileSnapshot.exists() || !publicProfileSnapshot.exists()) {
-    throw new Error("The assigned worker profile is incomplete.");
-  }
-  const completedTasks = (userSnapshot.data().completedTasks ?? 0) + 1;
+  // Employers cannot read a tasker's private users/workerProfiles documents.
+  // Atomic increments let Firestore rules validate the old and new values
+  // without exposing either private document to the employer.
   transaction.update(doc(firestore, "tasks", task.id), { status: "Finished", finishedAt: now, updatedAt: now });
   transaction.update(userRef, {
-    availabilityStatus: "Available", availability: "Available", activeTaskId: deleteField(), completedTasks, updatedAt: now
+    availabilityStatus: "Available", availability: "Available", activeTaskId: deleteField(),
+    completedTasks: increment(1), updatedAt: now
   });
   transaction.update(workerProfileRef, {
-    availabilityStatus: "Available", availability: "Available", completedTasks, updatedAt: now
+    availabilityStatus: "Available", availability: "Available", completedTasks: increment(1), updatedAt: now
   });
   transaction.update(publicProfileRef, {
-    availabilityStatus: "Available", availability: "Available", completedTasks, updatedAt: now
+    availabilityStatus: "Available", availability: "Available", completedTasks: increment(1), updatedAt: now
   });
   setWorkflowNotification(transaction, {
     id: `${task.id}_finished_${workerId}`, userId: workerId, taskId: task.id, createdBy: client.id,
@@ -532,12 +530,14 @@ export async function updateTaskPaymentVerification(
     if (!["Accepted", "In Progress", "Pending Approval"].includes(task.status)) {
       throw new Error("Payment confirmation is available after a worker is accepted and before completion.");
     }
-    if (paymentStatus !== "Submitted" || !proofOfPaymentText?.trim()) {
-      throw new Error("Enter a payment reference or cash confirmation.");
+    if (paymentStatus !== "Submitted" ||
+        !proofOfPaymentUrl?.startsWith(`paymentProofs/${taskId}/`)) {
+      throw new Error("Upload an image or PDF payment receipt before submitting.");
     }
+    const normalizedNote = proofOfPaymentText?.trim();
     const updates = withoutUndefined({
       paymentStatus,
-      proofOfPaymentText: proofOfPaymentText.trim(),
+      proofOfPaymentText: normalizedNote || undefined,
       proofOfPaymentUrl,
       clientConfirmedAt: task.paymentMethod === "COD" ? now : undefined,
       updatedAt: now

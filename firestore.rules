@@ -694,12 +694,15 @@ service cloud.firestore {
               'updatedAt'
             ])
             && request.resource.data.paymentStatus == 'Submitted'
-            && request.resource.data.proofOfPaymentText is string
-            && request.resource.data.proofOfPaymentText.size() > 0
+            && request.resource.data.proofOfPaymentUrl is string
+            && request.resource.data.proofOfPaymentUrl.matches('paymentProofs/' + taskId + '/.+')
+            && (!('proofOfPaymentText' in request.resource.data)
+              || (request.resource.data.proofOfPaymentText is string
+                && request.resource.data.proofOfPaymentText.size() > 0))
             && (
               getAfter(/databases/$(database)/documents/payments/$(taskId)).data.paymentMethod == 'COD'
                 ? request.resource.data.clientConfirmedAt is string
-                : request.resource.data.proofOfPaymentUrl.matches('paymentProofs/' + taskId + '/.*')
+                : true
             ))
         );
     }
