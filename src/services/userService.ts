@@ -22,6 +22,7 @@ function toPublicProfile(user: Partial<UserProfile> & Pick<UserProfile, "id" | "
     fullName: user.fullName,
     rating: user.rating,
     ratingCount: user.ratingCount,
+    ratingTotal: user.ratingTotal,
     skills: user.skills,
     capabilities: user.capabilities,
     availabilityStatus: user.availabilityStatus,
@@ -35,6 +36,23 @@ function toPublicProfile(user: Partial<UserProfile> & Pick<UserProfile, "id" | "
     createdAt: user.createdAt,
     updatedAt: user.updatedAt
   });
+}
+
+function hasPublicProfileChanges(updates: Partial<UserProfile>) {
+  const publicFields: Array<keyof UserProfile> = [
+    "role",
+    "fullName",
+    "skills",
+    "capabilities",
+    "availabilityStatus",
+    "availability",
+    "businessName",
+    "profilePhotoUrl",
+    "experienceDescription",
+    "yearsOfExperience",
+    "verificationStatus"
+  ];
+  return publicFields.some((field) => updates[field] !== undefined);
 }
 
 export type SaveUserInput = {
@@ -175,7 +193,13 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
   }
 
   batch.update(userRef, userUpdates);
-  batch.set(doc(firestore, "publicProfiles", userId), toPublicProfile(mergedUser));
+  // Device coordinates and their metadata are private. Avoid rewriting the
+  // public profile for location-only updates: a full public-profile write can
+  // touch protected rating/history fields and reject an otherwise valid
+  // check-in batch under Firestore rules.
+  if (hasPublicProfileChanges(sanitizedUpdates)) {
+    batch.set(doc(firestore, "publicProfiles", userId), toPublicProfile(mergedUser));
+  }
 
   if (
     sanitizedUpdates.role === "worker" ||

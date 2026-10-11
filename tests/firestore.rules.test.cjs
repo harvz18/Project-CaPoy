@@ -1174,6 +1174,82 @@ test("the assigned worker can advance Accepted to In Progress to Pending Approva
   assert.equal((await getDoc(doc(db, "tasks", TASK_ID))).data().status, "Pending Approval");
 });
 
+test("the assigned worker can save check-in location and start with the workflow notification", async () => {
+  await seedWorkflowTask({
+    status: "Accepted",
+    applicantIds: [WORKER_ID],
+    workerId: WORKER_ID,
+    selectedMatchId: `${TASK_ID}_${WORKER_ID}`
+  });
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    const adminDb = context.firestore();
+    await Promise.all([
+      updateDoc(doc(adminDb, "users", WORKER_ID), {
+        rating: 5,
+        ratingCount: 1,
+        ratingTotal: 5
+      }),
+      updateDoc(doc(adminDb, "publicProfiles", WORKER_ID), {
+        rating: 5,
+        ratingCount: 1,
+        ratingTotal: 5
+      })
+    ]);
+  });
+  const db = dbFor(WORKER_ID);
+  const checkedAt = "2026-01-01T00:59:00.000Z";
+  const locationBatch = writeBatch(db);
+  locationBatch.update(doc(db, "users", WORKER_ID), {
+    currentLatitude: 10.6765,
+    currentLongitude: 122.9509,
+    locationUpdatedAt: checkedAt,
+    locationAccuracyMeters: 15,
+    locationSource: "device",
+    updatedAt: checkedAt
+  });
+  // Check-in coordinates are private. Replacing the public profile here can
+  // delete protected rating/history fields and make the whole batch fail.
+  locationBatch.set(doc(db, "workerProfiles", WORKER_ID), {
+    userId: WORKER_ID,
+    currentLatitude: 10.6765,
+    currentLongitude: 122.9509,
+    locationUpdatedAt: checkedAt,
+    locationAccuracyMeters: 15,
+    locationSource: "device",
+    updatedAt: checkedAt
+  }, { merge: true });
+  await assertSucceeds(locationBatch.commit());
+
+  const startedAt = "2026-01-01T01:00:00.000Z";
+  await assertSucceeds(runTransaction(db, async (transaction) => {
+    const taskRef = doc(db, "tasks", TASK_ID);
+    await transaction.get(taskRef);
+    transaction.update(taskRef, {
+      status: "In Progress",
+      startedAt,
+      updatedAt: startedAt
+    });
+    transaction.set(doc(db, "notifications", `${TASK_ID}_in-progress_${CLIENT_ID}`), {
+      userId: CLIENT_ID,
+      taskId: TASK_ID,
+      createdBy: WORKER_ID,
+      notificationType: "Task status updated",
+      message: "Repair a sink is now In Progress.",
+      readStatus: false,
+      createdAt: startedAt
+    });
+  }));
+
+  const [taskSnapshot, publicProfileSnapshot] = await Promise.all([
+    getDoc(doc(db, "tasks", TASK_ID)),
+    getDoc(doc(db, "publicProfiles", WORKER_ID))
+  ]);
+  assert.equal(taskSnapshot.data().status, "In Progress");
+  assert.equal(publicProfileSnapshot.data().rating, 5);
+  assert.equal(publicProfileSnapshot.data().ratingCount, 1);
+  assert.equal(publicProfileSnapshot.data().ratingTotal, 5);
+});
+
 test("wrong actors and skipped workflow states are denied at the data boundary", async () => {
   await seedWorkflowTask({
     status: "Accepted",
