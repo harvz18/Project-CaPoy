@@ -27,6 +27,14 @@ export function getJobCategories(tasks: Task[]) {
     .sort((left, right) => left.localeCompare(right));
 }
 
+export function getAvailableJobs(tasks: Task[], workerId: string) {
+  return tasks.filter((task) =>
+    (task.status === "Finding Workers" || task.status === "Applied")
+    && !task.workerId
+    && !task.applicantIds?.includes(workerId)
+  );
+}
+
 export function filterAndSortRankedJobs(items: RankedJob[], filters: JobDiscoveryFilters) {
   const query = filters.query.trim().toLocaleLowerCase();
   const category = filters.category.trim().toLocaleLowerCase();
@@ -60,11 +68,12 @@ export function filterAndSortRankedJobs(items: RankedJob[], filters: JobDiscover
         || right.match.score - left.match.score
         || left.task.id.localeCompare(right.task.id);
     }
-    return Number(right.match.eligible) - Number(left.match.eligible)
+    return Number(right.match.skillMatched) - Number(left.match.skillMatched)
+      || timestamp(right.task.createdAt) - timestamp(left.task.createdAt)
+      || Number(right.match.eligible) - Number(left.match.eligible)
       || right.match.score - left.match.score
       || (left.match.distanceKm ?? Number.POSITIVE_INFINITY)
         - (right.match.distanceKm ?? Number.POSITIVE_INFINITY)
-      || timestamp(right.task.createdAt) - timestamp(left.task.createdAt)
       || left.task.id.localeCompare(right.task.id);
   });
 }

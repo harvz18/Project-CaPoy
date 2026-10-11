@@ -11,12 +11,17 @@ export type MatchResult = {
   distanceKm?: number;
   reasons: string[];
   breakdown?: MatchScoreBreakdown;
+  skillMatched?: boolean;
 };
 
 export { MATCH_POLICY_VERSION, MATCH_POLICY_WEIGHTS };
 
 export function scoreWorkerForTask(task: Task, worker: UserProfile, now = Date.now()): MatchResult {
-  return scoreUsingCanonicalPolicy(task, worker, now) as MatchResult;
+  const requiredCapability = (task.requiredCapability ?? task.category).trim().toLocaleLowerCase();
+  const workerCapabilities = [...(worker.capabilities ?? []), ...(worker.skills ?? [])]
+    .map((capability) => capability.trim().toLocaleLowerCase());
+  const skillMatched = !requiredCapability || workerCapabilities.includes(requiredCapability);
+  return { ...(scoreUsingCanonicalPolicy(task, worker, now) as MatchResult), skillMatched };
 }
 
 function safeTimestamp(value: string | undefined) {
@@ -28,10 +33,11 @@ export function rankTasksForWorker(tasks: Task[], worker: UserProfile, now = Dat
   return tasks
     .map((task) => ({ task, match: scoreWorkerForTask(task, worker, now) }))
     .sort((left, right) =>
+      Number(right.match.skillMatched) - Number(left.match.skillMatched) ||
+      safeTimestamp(right.task.createdAt) - safeTimestamp(left.task.createdAt) ||
       Number(right.match.eligible) - Number(left.match.eligible) ||
       right.match.score - left.match.score ||
       (left.match.distanceKm ?? Number.POSITIVE_INFINITY) - (right.match.distanceKm ?? Number.POSITIVE_INFINITY) ||
-      safeTimestamp(right.task.createdAt) - safeTimestamp(left.task.createdAt) ||
       left.task.id.localeCompare(right.task.id)
     );
 }

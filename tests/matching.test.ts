@@ -95,13 +95,13 @@ test("a task outside the preferred radius is not eligible", () => {
   assert.ok(result.reasons.some((reason) => reason.includes("outside the worker's")));
 });
 
-test("task recommendations sort by eligibility, score, and distance", () => {
+test("task recommendations prioritize skill matches, then newest posts", () => {
   const ranked = rankTasksForWorker([
     task({ id: "far", latitude: 10.71, createdAt: "2026-09-29T03:00:00.000Z" }),
     task({ id: "near", createdAt: "2026-09-29T02:00:00.000Z" }),
     task({ id: "wrong", requiredCapability: "Delivery assistance", createdAt: "2026-09-29T04:00:00.000Z" })
   ], worker(), Date.parse(now));
-  assert.deepEqual(ranked.map(({ task: rankedTask }) => rankedTask.id), ["near", "far", "wrong"]);
+  assert.deepEqual(ranked.map(({ task: rankedTask }) => rankedTask.id), ["far", "near", "wrong"]);
 });
 
 test("client applicant ranking uses the stored application snapshot", () => {

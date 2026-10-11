@@ -7,7 +7,7 @@ import LocationMap from "../src/components/LocationMap";
 import { StatusBadge } from "../src/components/StatusBadge";
 import { useApp } from "../src/context/AppContext";
 import { MatchResult, rankTasksForWorker } from "../src/domain/matching";
-import { filterAndSortRankedJobs, getJobCategories, JobSort } from "../src/domain/jobDiscovery";
+import { filterAndSortRankedJobs, getAvailableJobs, getJobCategories, JobSort } from "../src/domain/jobDiscovery";
 import { formatTaskDuration, formatTaskPrice, formatTaskSchedule } from "../src/domain/taskMarketplace";
 import { captureForegroundLocation } from "../src/services/locationService";
 import { Task } from "../src/types";
@@ -29,7 +29,7 @@ const palette = {
 };
 
 const sortOptions: Array<{ label: string; value: JobSort }> = [
-  { label: "Recommended", value: "recommended" },
+  { label: "Skill Match + Newest", value: "recommended" },
   { label: "Nearest", value: "nearest" },
   { label: "Newest", value: "newest" },
   { label: "Highest pay", value: "highest-pay" }
@@ -44,7 +44,9 @@ export default function JobsScreen() {
   const [sort, setSort] = useState<JobSort>("recommended");
   const [locationMessage, setLocationMessage] = useState("");
   const [actionMessage, setActionMessage] = useState("");
+  const [applicationsExpanded, setApplicationsExpanded] = useState(false);
   const postedTasks = tasks.filter((task) => task.status === "Finding Workers" || task.status === "Applied");
+  const availableTasks = getAvailableJobs(postedTasks, currentUser?.id ?? "");
   const appliedTasks = tasks.filter(
     (task) =>
       task.applicantIds?.includes(currentUser?.id ?? "") &&
@@ -52,9 +54,9 @@ export default function JobsScreen() {
       task.status !== "Finished" &&
       task.status !== "Archived"
   );
-  const categories = getJobCategories(postedTasks);
+  const categories = getJobCategories(availableTasks);
   const rankedJobs = currentUser
-    ? filterAndSortRankedJobs(rankTasksForWorker(postedTasks, currentUser), { category: activeFilter, query, sort })
+    ? filterAndSortRankedJobs(rankTasksForWorker(availableTasks, currentUser), { category: activeFilter, query, sort })
     : [];
   const discoveryLocationIssue = getDiscoveryLocationIssue(currentUser);
 
@@ -100,7 +102,7 @@ export default function JobsScreen() {
         <View style={styles.mapPanel}>
           <LocationMap
             center={currentUser?.currentLatitude !== undefined && currentUser.currentLongitude !== undefined ? { latitude: currentUser.currentLatitude, longitude: currentUser.currentLongitude } : undefined}
-            markers={postedTasks.flatMap((task) => task.latitude !== undefined && task.longitude !== undefined ? [{ id: task.id, latitude: task.latitude, longitude: task.longitude, title: task.title }] : [])}
+            markers={availableTasks.flatMap((task) => task.latitude !== undefined && task.longitude !== undefined ? [{ id: task.id, latitude: task.latitude, longitude: task.longitude, title: task.title }] : [])}
             showUserLocation
             height={250}
           />
@@ -143,19 +145,33 @@ export default function JobsScreen() {
           ))}
         </ScrollView>
 
-        {appliedTasks.length ? (
-          <View style={styles.applicationSection}>
-            <View style={styles.applicationHeader}>
+        <View style={styles.applicationSection}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: applicationsExpanded }}
+            onPress={() => setApplicationsExpanded((expanded) => !expanded)}
+            style={({ pressed }) => [styles.applicationHeader, pressed && styles.pressed]}
+          >
+            <View style={styles.applicationHeaderCopy}>
               <Text style={styles.applicationSectionTitle}>Your Applications</Text>
               <Text style={styles.applicationSectionMeta}>{appliedTasks.length} active</Text>
             </View>
-            <View style={styles.applicationGrid}>
-              {appliedTasks.map((task) => (
-                <ApplicationCard key={task.id} task={task} onOpen={() => router.push(`/task-status/${task.id}`)} />
-              ))}
-            </View>
-          </View>
-        ) : null}
+            <Text style={styles.applicationChevron}>{applicationsExpanded ? "Hide" : "Show"} {applicationsExpanded ? "▲" : "▼"}</Text>
+          </Pressable>
+          {applicationsExpanded ? (
+            appliedTasks.length ? (
+              <View style={styles.applicationGrid}>
+                {appliedTasks.map((task) => (
+                  <ApplicationCard key={task.id} task={task} onOpen={() => router.push(`/task-status/${task.id}`)} />
+                ))}
+              </View>
+            ) : (
+              <View style={styles.emptyApplicationCard}>
+                <Text style={styles.emptyApplicationText}>You do not have any active applications.</Text>
+              </View>
+            )
+          ) : null}
+        </View>
 
         <View style={styles.boardHeader}>
           <View>
@@ -169,7 +185,7 @@ export default function JobsScreen() {
 
         <View style={styles.jobGrid}>
           {rankedJobs.length ? (
-            rankedJobs.map(({ task, match }, index) => (
+            rankedJobs.map(({ task, match }) => (
               <JobCard
                 key={task.id}
                 task={task}
@@ -227,7 +243,7 @@ function JobCard({
       {task.perks?.length ? <Text style={styles.perksText}>Perks: {task.perks.slice(0, 2).join(" · ")}</Text> : null}
       <View style={styles.matchRow}>
         <Text style={[styles.matchChip, match.eligible ? styles.matchChipGood : styles.matchChipWarn]}>
-          {match.eligible ? `${match.score}% match` : "Open to apply"}
+          {match.eligible ? `${match.score}% match` : match.skillMatched ? "Skill match" : "Open to apply"}
         </Text>
         <Text style={styles.matchChip}>{match.reasons.slice(0, 2).join(" · ") || "Smart-match details unavailable."}</Text>
       </View>
@@ -314,17 +330,21 @@ const styles = StyleSheet.create({
   sortText: { color: palette.muted, fontSize: 12, fontWeight: "800" },
   sortTextActive: { color: palette.secondary },
   boardHeader: { paddingHorizontal: 16, paddingBottom: 12, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  applicationSection: { paddingHorizontal: 16, paddingBottom: 16, gap: 10 },
-  applicationHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  applicationSectionTitle: { color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "900" },
+  applicationSection: { marginHorizontal: 16, marginBottom: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, overflow: "hidden" },
+  applicationHeader: { minHeight: 58, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  applicationHeaderCopy: { flex: 1 },
+  applicationSectionTitle: { color: palette.textStrong, fontSize: 16, lineHeight: 22, fontWeight: "900" },
   applicationSectionMeta: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "800" },
-  applicationGrid: { gap: 10 },
-  applicationCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "rgba(189,201,198,0.45)", backgroundColor: palette.surface, gap: 12 },
+  applicationChevron: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
+  applicationGrid: { padding: 10, paddingTop: 0, gap: 10 },
+  applicationCard: { padding: 16, borderRadius: 10, borderWidth: 1, borderColor: "rgba(189,201,198,0.45)", backgroundColor: palette.background, gap: 12 },
   applicationCopy: { gap: 4 },
   applicationTitle: { color: palette.textStrong, fontSize: 16, lineHeight: 22, fontWeight: "900" },
   applicationMeta: { color: palette.muted, fontSize: 12, lineHeight: 16 },
   applicationFooter: { paddingTop: 10, borderTopWidth: 1, borderTopColor: "rgba(189,201,198,0.45)", flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   applicationAction: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
+  emptyApplicationCard: { margin: 10, marginTop: 0, padding: 16, borderRadius: 10, backgroundColor: palette.background, alignItems: "center" },
+  emptyApplicationText: { color: palette.muted, fontSize: 13, lineHeight: 18, textAlign: "center" },
   screenTitle: { color: palette.textStrong, fontSize: 24, lineHeight: 32, fontWeight: "900" },
   screenSubtitle: { color: palette.muted, fontSize: 14, lineHeight: 20 },
   liveBadge: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: "#EAF8F1" },
