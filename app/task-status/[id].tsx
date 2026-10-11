@@ -96,6 +96,18 @@ export default function TaskStatusScreen() {
     ? liveTracking.issue?.message
     : getLiveLocationIssue(liveTracking.location, liveTracking.checkedAt);
   const liveLocationHealthy = liveTracking.status === "watching" && !liveLocationIssue;
+  const actionRequiresGeofence = currentUser?.role === "worker" &&
+    (action.nextStatus === "In Progress" || action.nextStatus === "Pending Approval");
+  const geofenceActionReady = !actionRequiresGeofence || (liveLocationHealthy && insideGeofence);
+  const primaryActionEnabled = action.enabled && geofenceActionReady && !actionLoading;
+  const primaryActionLabel = getGeofenceActionLabel(
+    action.label,
+    action.nextStatus,
+    geofenceActionReady,
+    liveTracking.status,
+    liveLocationIssue,
+    task.geofenceRadius
+  );
   const clientHasRated = Boolean(
     currentUser?.role === "client" && task.workerId && ratings.some((rating) => rating.taskId === task.id && rating.reviewerId === currentUser.id)
   );
@@ -238,15 +250,30 @@ export default function TaskStatusScreen() {
                 description: Number.isFinite(liveTracking.location.accuracyMeters)
                   ? `Accuracy about ${Math.round(liveTracking.location.accuracyMeters as number)} meters`
                   : "Accuracy unavailable",
-                color: "#2563EB"
+                color: "#2563EB",
+                accuracyMeters: liveTracking.location.accuracyMeters
               }] : [])
             ]}
             radiusMeters={task.geofenceRadius}
             height={260}
+            fitToMarkers={Boolean(liveTracking.location)}
           />
           <View style={styles.urgentBadge}>
             <Text style={styles.urgentBadgeText}>{task.status === "Finding Workers" ? "Open" : task.status}</Text>
           </View>
+          {liveTrackingEnabled ? (
+            <View style={[styles.mapTrackingBadge, liveLocationHealthy && insideGeofence ? styles.mapTrackingBadgeGood : styles.mapTrackingBadgePending]}>
+              <Text style={[styles.mapTrackingBadgeText, liveLocationHealthy && insideGeofence ? styles.mapTrackingBadgeTextGood : undefined]}>
+                {liveLocationHealthy
+                  ? insideGeofence
+                    ? "LIVE · Inside task radius"
+                    : `LIVE · ${formatDistance(distanceKm)}`
+                  : liveTracking.status === "starting"
+                    ? "Locating device..."
+                    : "Location needs attention"}
+              </Text>
+            </View>
+          ) : null}
           <View style={styles.locationBadge}>
             <Text style={styles.locationText}>{task.location}</Text>
           </View>
@@ -300,7 +327,7 @@ export default function TaskStatusScreen() {
               </View>
               <Text style={styles.geoText}>Task area: {task.locationAddress ?? task.location}</Text>
               <Text style={styles.geoText}>Distance: {formatDistance(distanceKm)}</Text>
-              <Text style={styles.geoText}>Allowed radius: {task.geofenceRadius !== undefined ? `${task.geofenceRadius} meters` : "Not recorded"}</Text>
+              <Text style={styles.geoText}>Required start radius: {task.geofenceRadius !== undefined ? `${task.geofenceRadius} meters` : "Not recorded"}</Text>
               {liveTrackingEnabled ? (
                 <View style={styles.liveLocationPanel}>
                   <View style={styles.geoHeader}>
@@ -498,16 +525,23 @@ export default function TaskStatusScreen() {
       <View style={[styles.bottomAction, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <Pressable
           accessibilityRole="button"
-          disabled={!action.enabled}
+          accessibilityState={{ disabled: !primaryActionEnabled }}
+          disabled={!primaryActionEnabled}
           onPress={handlePrimaryAction}
           style={({ pressed }) => [
             styles.primaryAction,
-            !action.enabled && styles.primaryActionDisabled,
-            pressed && action.enabled && styles.pressed
+            !primaryActionEnabled && styles.primaryActionDisabled,
+            pressed && primaryActionEnabled && styles.pressed
           ]}
         >
-          <Text allowFontScaling={false} adjustsFontSizeToFit minimumFontScale={0.85} numberOfLines={1} style={styles.primaryActionText}>
-            {action.label}
+          <Text
+            allowFontScaling={false}
+            adjustsFontSizeToFit
+            minimumFontScale={0.75}
+            numberOfLines={1}
+            style={[styles.primaryActionText, !primaryActionEnabled && styles.primaryActionTextDisabled]}
+          >
+            {primaryActionLabel}
           </Text>
         </Pressable>
         <Text style={styles.guidelineText}>By clicking, you agree to the TaskLink Community Guidelines.</Text>
@@ -618,6 +652,22 @@ function liveLocationStatusLabel(status: "idle" | "starting" | "watching" | "pau
   return "Off";
 }
 
+function getGeofenceActionLabel(
+  fallback: string,
+  nextStatus: TaskStatus | undefined,
+  ready: boolean,
+  trackingStatus: "idle" | "starting" | "watching" | "paused" | "error",
+  locationIssue: string | undefined,
+  radiusMeters: number | undefined
+) {
+  if (ready || (nextStatus !== "In Progress" && nextStatus !== "Pending Approval")) return fallback;
+  if (trackingStatus === "starting" || trackingStatus === "idle") return "Checking Live Location...";
+  if (trackingStatus === "paused") return "Return to TaskLink for Location";
+  if (trackingStatus === "error" || locationIssue) return "Fix Location to Continue";
+  const action = nextStatus === "In Progress" ? "Start" : "Finish";
+  return `Move Within ${radiusMeters ?? 500}m to ${action}`;
+}
+
 function formatLocationUpdateTime(capturedAt: string) {
   const timestamp = new Date(capturedAt);
   if (!Number.isFinite(timestamp.getTime())) return "Unavailable";
@@ -694,7 +744,7 @@ const styles = StyleSheet.create({
   notFound: { flex: 1, padding: 24, alignItems: "center", justifyContent: "center", gap: 16 },
   emptyText: { color: palette.muted, fontSize: 14, lineHeight: 20, textAlign: "center" },
   mapHero: {
-    height: 192,
+    height: 260,
     backgroundColor: palette.surfaceContainer,
     overflow: "hidden"
   },
@@ -747,6 +797,20 @@ const styles = StyleSheet.create({
     backgroundColor: palette.urgent
   },
   urgentBadgeText: { color: palette.white, fontSize: 14, lineHeight: 20, fontWeight: "800" },
+  mapTrackingBadge: {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    maxWidth: "58%",
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 7
+  },
+  mapTrackingBadgeGood: { backgroundColor: "rgba(232,248,240,0.96)", borderColor: "#75B798" },
+  mapTrackingBadgePending: { backgroundColor: "rgba(255,248,235,0.96)", borderColor: "#E7BC72" },
+  mapTrackingBadgeText: { color: "#684000", fontSize: 11, lineHeight: 14, fontWeight: "900", textAlign: "center" },
+  mapTrackingBadgeTextGood: { color: "#075E42" },
   locationBadge: {
     position: "absolute",
     left: 16,
@@ -920,6 +984,7 @@ const styles = StyleSheet.create({
   },
   primaryActionDisabled: { backgroundColor: palette.surfaceHigh },
   primaryActionText: { color: palette.white, fontSize: 18, lineHeight: 22, fontWeight: "800", textAlign: "center" },
+  primaryActionTextDisabled: { color: palette.muted },
   guidelineText: {
     color: palette.muted,
     fontSize: 12,

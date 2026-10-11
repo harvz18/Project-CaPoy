@@ -108,10 +108,10 @@ export async function startForegroundLocationWatch(
   };
 
   try {
-    emit(await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }));
+    emit(await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }));
     return await Location.watchPositionAsync(
       {
-        accuracy: Location.Accuracy.Balanced,
+        accuracy: Location.Accuracy.High,
         timeInterval: LIVE_LOCATION_MIN_INTERVAL_MS,
         distanceInterval: LIVE_LOCATION_MIN_DISTANCE_METERS,
         mayShowUserSettingsDialog: true

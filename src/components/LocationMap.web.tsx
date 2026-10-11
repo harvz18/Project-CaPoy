@@ -25,6 +25,7 @@ export default function LocationMap({
   radiusMeters,
   height = 220,
   interactive = false,
+  fitToMarkers = false,
   onSelectCoordinate
 }: LocationMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -37,7 +38,7 @@ export default function LocationMap({
   const focus = center ?? firstMarker;
   const focusKey = focus ? `${focus.latitude}:${focus.longitude}` : "";
   const markerKey = useMemo(
-    () => markers.map((marker) => `${marker.id}:${marker.latitude}:${marker.longitude}:${marker.color ?? ""}:${marker.title ?? ""}`).join("|"),
+    () => markers.map((marker) => `${marker.id}:${marker.latitude}:${marker.longitude}:${marker.color ?? ""}:${marker.title ?? ""}:${marker.accuracyMeters ?? ""}`).join("|"),
     [markers]
   );
 
@@ -121,6 +122,16 @@ export default function LocationMap({
         });
       }
       pin.addTo(layer);
+      if (Number.isFinite(marker.accuracyMeters) && (marker.accuracyMeters as number) > 0) {
+        L.circle([marker.latitude, marker.longitude], {
+          color: marker.color ?? "#2563EB",
+          dashArray: "4 5",
+          fillColor: marker.color ?? "#2563EB",
+          fillOpacity: 0.08,
+          radius: marker.accuracyMeters as number,
+          weight: 1
+        }).addTo(layer);
+      }
     }
   }, [interactive, markerKey]);
 
@@ -137,6 +148,21 @@ export default function LocationMap({
       weight: 2
     }).addTo(mapRef.current);
   }, [center?.latitude, center?.longitude, radiusMeters]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const markerLayer = markerLayerRef.current;
+    if (!map || !markerLayer || !fitToMarkers) return;
+
+    const bounds = L.latLngBounds([]);
+    markerLayer.eachLayer((layer) => {
+      if (layer instanceof L.Circle) bounds.extend(layer.getBounds());
+      if (layer instanceof L.Marker) bounds.extend(layer.getLatLng());
+    });
+    if (radiusLayerRef.current) bounds.extend(radiusLayerRef.current.getBounds());
+    if (!bounds.isValid()) return;
+    map.fitBounds(bounds.pad(0.12), { animate: false, maxZoom: 17, padding: [24, 24] });
+  }, [center?.latitude, center?.longitude, fitToMarkers, markerKey, radiusMeters]);
 
   useEffect(() => {
     mapRef.current?.invalidateSize({ pan: false });

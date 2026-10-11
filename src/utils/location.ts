@@ -97,6 +97,10 @@ export function formatDistance(distanceKm: number | undefined) {
     return "Distance unavailable";
   }
 
+  if (distanceKm < 1) {
+    return `${Math.round(distanceKm * 1000)} m away`;
+  }
+
   return `${distanceKm.toFixed(1)} km away`;
 }
 

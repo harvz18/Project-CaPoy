@@ -5,6 +5,7 @@ import {
   LIVE_LOCATION_MIN_INTERVAL_MS,
   LIVE_LOCATION_STALE_AFTER_MS,
   LocationReading,
+  formatDistance,
   getLiveLocationIssue,
   shouldAcceptLiveLocationUpdate,
   shouldTrackTaskLocation
@@ -55,4 +56,10 @@ test("live location reports missing, stale, and inaccurate states", () => {
   assert.equal(getLiveLocationIssue(reading(), now), undefined);
   assert.match(getLiveLocationIssue(reading({ accuracyMeters: CHECK_IN_MAX_ACCURACY_METERS + 1 }), now) ?? "", /Low location accuracy/);
   assert.match(getLiveLocationIssue(reading(), Date.parse(capturedAt) + LIVE_LOCATION_STALE_AFTER_MS + 1) ?? "", /stale/);
+});
+
+test("nearby geofence distances are shown in meters", () => {
+  assert.equal(formatDistance(0.05), "50 m away");
+  assert.equal(formatDistance(0.5), "500 m away");
+  assert.equal(formatDistance(1.25), "1.3 km away");
 });

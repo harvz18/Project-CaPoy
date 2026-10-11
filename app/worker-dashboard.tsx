@@ -31,6 +31,7 @@ const palette = {
 export default function WorkerDashboardScreen() {
   const router = useRouter();
   const [selectedTab, setSelectedTab] = useState<"active" | "finished">("active");
+  const [applicationsExpanded, setApplicationsExpanded] = useState(false);
   const [actionMessage, setActionMessage] = useState("");
   const { actionLoading, currentUser, tasks, ratings, acceptTask } = useApp();
   const postedTasks = tasks.filter((task) => task.status === "Finding Workers" || task.status === "Applied");
@@ -98,27 +99,34 @@ export default function WorkerDashboardScreen() {
         </View>
 
         {selectedTab === "active" ? (
-          <>
-            <View style={styles.sectionHeader}>
+          <View style={styles.applicationSection}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ expanded: applicationsExpanded }}
+              onPress={() => setApplicationsExpanded((expanded) => !expanded)}
+              style={({ pressed }) => [styles.applicationHeader, pressed && styles.pressed]}
+            >
               <View style={styles.sectionCopy}>
                 <Text style={styles.sectionTitle}>Applications</Text>
-                <Text style={styles.sectionSubtitle}>Track applied jobs and start once the client accepts.</Text>
+                <Text style={styles.sectionSubtitle}>{acceptedTasks.length} active · Tap to {applicationsExpanded ? "hide" : "show"}</Text>
               </View>
-            </View>
-
-            <View style={styles.applicationGrid}>
-              {acceptedTasks.length ? (
-                acceptedTasks.map((task) => (
-                  <ApplicationCard key={task.id} task={task} onOpen={() => router.push(`/task-status/${task.id}`)} />
-                ))
-              ) : (
-                <View style={styles.emptyApplicationCard}>
-                  <Text style={styles.emptyApplicationTitle}>No applications yet</Text>
-                  <Text style={styles.emptyApplicationText}>Apply to a job and it will stay here while the client reviews it.</Text>
-                </View>
-              )}
-            </View>
-          </>
+              <Text style={styles.applicationToggle}>{applicationsExpanded ? "Hide −" : "Show +"}</Text>
+            </Pressable>
+            {applicationsExpanded ? (
+              <View style={styles.applicationGrid}>
+                {acceptedTasks.length ? (
+                  acceptedTasks.map((task) => (
+                    <ApplicationCard key={task.id} task={task} onOpen={() => router.push(`/task-status/${task.id}`)} />
+                  ))
+                ) : (
+                  <View style={styles.emptyApplicationCard}>
+                    <Text style={styles.emptyApplicationTitle}>No applications yet</Text>
+                    <Text style={styles.emptyApplicationText}>Apply to a job and it will stay here while the client reviews it.</Text>
+                  </View>
+                )}
+              </View>
+            ) : null}
+          </View>
         ) : (
           <View style={styles.historyPanel}>
             <View style={styles.historyHeader}>
@@ -424,7 +432,10 @@ const styles = StyleSheet.create({
   viewAllButton: { minHeight: 38, borderRadius: 19, paddingHorizontal: 14, alignItems: "center", justifyContent: "center", backgroundColor: palette.surfaceContainer },
   viewAllText: { color: palette.primary, fontSize: 12, fontWeight: "900" },
   jobGrid: { gap: 12 },
-  applicationGrid: { gap: 10 },
+  applicationSection: { borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, overflow: "hidden" },
+  applicationHeader: { minHeight: 68, paddingHorizontal: 16, paddingVertical: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  applicationToggle: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
+  applicationGrid: { gap: 10, paddingHorizontal: 12, paddingBottom: 12 },
   applicationCard: {
     padding: 16,
     borderRadius: 12,
