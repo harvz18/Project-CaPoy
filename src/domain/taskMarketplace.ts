@@ -78,7 +78,7 @@ export function formatTaskSchedule(task: Pick<Task, "scheduleStart" | "scheduleE
 
 export function formatTaskPrice(task: Pick<Task, "pricingMode" | "wage" | "agreedAmount">) {
   if (task.agreedAmount) return `₱${task.agreedAmount} agreed`;
-  if (task.pricingMode === "bidding") return "Open for Bidding";
+  if (task.pricingMode === "bidding") return "Open to Offers";
   return `₱${task.wage}`;
 }
 

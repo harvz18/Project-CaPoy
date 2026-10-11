@@ -88,7 +88,7 @@ export function assertCanApply(task: Task, actor: TaskActor, proposedAmount?: st
     throw new Error("You have already applied to this task.");
   }
   if (task.pricingMode === "bidding" && (!proposedAmount || Number(proposedAmount) <= 0)) {
-    throw new Error("Enter a valid proposed amount for this bidding task.");
+    throw new Error("Enter a valid offer amount for this task.");
   }
 }
 

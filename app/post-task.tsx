@@ -290,7 +290,7 @@ export default function PostTaskScreen() {
                   style={[styles.paymentChip, pricingMode === mode && styles.paymentChipSelected]}
                 >
                   <Text style={[styles.paymentText, pricingMode === mode && styles.paymentTextSelected]}>
-                    {mode === "fixed" ? "Fixed Price" : "Open for Bidding"}
+                    {mode === "fixed" ? "Fixed Price" : "Open to Offers"}
                   </Text>
                 </Pressable>
               ))}
@@ -307,7 +307,7 @@ export default function PostTaskScreen() {
                 style={styles.input}
                 value={wage}
               />
-            </Field> : <Text style={styles.helperText}>Taskers will propose an amount when they apply.</Text>}
+            </Field> : <Text style={styles.helperText}>Taskers will submit an offer amount when they apply.</Text>}
 
           <View style={styles.twoColumn}>
             <Field label="Duration value" style={styles.flex}>

@@ -200,7 +200,7 @@ export async function applyToTask(taskId: string, worker: UserProfile, proposedA
       createdBy: worker.id,
       notificationType: "Worker application",
       message: task.pricingMode === "bidding"
-        ? `${worker.fullName} bid ₱${normalizedBid} for ${task.title}.`
+        ? `${worker.fullName} offered ₱${normalizedBid} for ${task.title}.`
         : `${worker.fullName} applied to ${task.title}.`,
       createdAt: now
     };
@@ -216,7 +216,7 @@ export async function applyToTask(taskId: string, worker: UserProfile, proposedA
     taskId,
     createdBy: worker.id,
     notificationType: "Application submitted",
-    message: proposedAmount ? `Your bid of ₱${proposedAmount.trim()} was submitted.` : "Your application was submitted successfully.",
+    message: proposedAmount ? `Your offer of ₱${proposedAmount.trim()} was submitted.` : "Your application was submitted successfully.",
     readStatus: false,
     createdAt: now
   }).catch(() => undefined);

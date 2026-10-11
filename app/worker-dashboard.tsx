@@ -256,7 +256,7 @@ function WorkerJobCard({
           <Text style={styles.detailsButtonText}>Details</Text>
         </Pressable>
         <Pressable accessibilityRole="button" disabled={applying || hasApplied} onPress={onQuickAccept} style={({ pressed }) => [styles.quickButton, (applying || hasApplied) && styles.disabled, pressed && styles.pressed]}>
-          <Text style={styles.quickButtonText}>{hasApplied ? "Applied" : applying ? "Applying..." : task.pricingMode === "bidding" ? "Enter Bid" : "Quick Apply"}</Text>
+          <Text style={styles.quickButtonText}>{hasApplied ? "Applied" : applying ? "Applying..." : task.pricingMode === "bidding" ? "Make Offer" : "Quick Apply"}</Text>
         </Pressable>
       </View>
     </View>

@@ -124,7 +124,7 @@ export default function TaskDetailsScreen() {
             </View>
             <View style={styles.priceBlock}>
               <Text style={styles.price}>{formatTaskPrice(task)}</Text>
-              <Text style={styles.rateText}>{task.pricingMode === "bidding" ? "Employer selects the preferred bid" : "Fixed Price"}</Text>
+              <Text style={styles.rateText}>{task.pricingMode === "bidding" ? "Employer selects the preferred offer" : "Fixed Price"}</Text>
             </View>
           </View>
           <StatusBadge status={task.status} />
@@ -272,16 +272,16 @@ export default function TaskDetailsScreen() {
               ) : (
                 <View style={styles.applyBox}>
                   {task.pricingMode === "bidding" ? <TextInput
-                    accessibilityLabel="Proposed amount"
+                    accessibilityLabel="Offer amount"
                     keyboardType="numeric"
                     onChangeText={setProposedAmount}
-                    placeholder="Your proposed amount (₱)"
+                    placeholder="Your offer amount (₱)"
                     placeholderTextColor={palette.outline}
                     style={styles.bidInput}
                     value={proposedAmount}
                   /> : null}
                   <Pressable style={styles.primaryButtonLarge} onPress={handleWorkerAccept}>
-                    <Text style={styles.primaryButtonText}>{task.pricingMode === "bidding" ? "Submit Bid" : "Apply"}</Text>
+                    <Text style={styles.primaryButtonText}>{task.pricingMode === "bidding" ? "Submit Offer" : "Apply"}</Text>
                   </Pressable>
                   {actionError ? <Text style={styles.errorText}>{actionError}</Text> : null}
                 </View>
@@ -314,7 +314,7 @@ function ApplicantMatchSummary({ match, showBid }: { match: TaskMatch; showBid?:
   if (!evaluated) {
     return (
       <View style={styles.matchSummary}>
-        {showBid && match.proposedAmount ? <Text style={styles.bidChip}>Bid: ₱{match.proposedAmount}</Text> : null}
+        {showBid && match.proposedAmount ? <Text style={styles.bidChip}>Offer: ₱{match.proposedAmount}</Text> : null}
         <Text style={styles.skillChip}>Match evaluation pending</Text>
         <Text style={styles.workerNote}>Trusted score will appear after the matching service evaluates this application.</Text>
       </View>
@@ -324,7 +324,7 @@ function ApplicantMatchSummary({ match, showBid }: { match: TaskMatch; showBid?:
   return (
     <View style={styles.matchSummary}>
       <View style={styles.skillRow}>
-        {showBid && match.proposedAmount ? <Text style={styles.bidChip}>Bid: ₱{match.proposedAmount}</Text> : null}
+        {showBid && match.proposedAmount ? <Text style={styles.bidChip}>Offer: ₱{match.proposedAmount}</Text> : null}
         <Text style={styles.skillChip}>{match.eligible === false ? "Open to apply" : `${match.matchScore}% match`}</Text>
         <Text style={styles.skillChip}>Policy v{match.matchPolicyVersion}</Text>
         {match.distanceKm === undefined ? null : <Text style={styles.skillChip}>{formatDistance(match.distanceKm)}</Text>}
