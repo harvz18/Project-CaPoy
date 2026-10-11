@@ -7,6 +7,7 @@ const {
 } = require("@firebase/rules-unit-testing");
 const {
   deleteField,
+  deleteDoc,
   collection,
   doc,
   getDoc,
@@ -1184,6 +1185,7 @@ test("the assigned worker can save check-in location and start with the workflow
   await testEnvironment.withSecurityRulesDisabled(async (context) => {
     const adminDb = context.firestore();
     await Promise.all([
+      deleteDoc(doc(adminDb, "workerProfiles", WORKER_ID)),
       updateDoc(doc(adminDb, "users", WORKER_ID), {
         rating: 5,
         ratingCount: 1,
@@ -1207,17 +1209,9 @@ test("the assigned worker can save check-in location and start with the workflow
     locationSource: "device",
     updatedAt: checkedAt
   });
-  // Check-in coordinates are private. Replacing the public profile here can
-  // delete protected rating/history fields and make the whole batch fail.
-  locationBatch.set(doc(db, "workerProfiles", WORKER_ID), {
-    userId: WORKER_ID,
-    currentLatitude: 10.6765,
-    currentLongitude: 122.9509,
-    locationUpdatedAt: checkedAt,
-    locationAccuracyMeters: 15,
-    locationSource: "device",
-    updatedAt: checkedAt
-  }, { merge: true });
+  // Check-in coordinates belong only in the private users document. The start
+  // flow must also work for a legacy tasker whose workerProfiles document is
+  // missing instead of attempting a rules-rejected profile creation.
   await assertSucceeds(locationBatch.commit());
 
   const startedAt = "2026-01-01T01:00:00.000Z";

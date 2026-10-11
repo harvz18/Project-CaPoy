@@ -59,6 +59,19 @@ function hasPublicProfileChanges(updates: Partial<UserProfile>) {
   return publicFields.some((field) => updates[field] !== undefined);
 }
 
+const privateLocationFields = new Set<keyof UserProfile>([
+  "currentLatitude",
+  "currentLongitude",
+  "locationUpdatedAt",
+  "locationAccuracyMeters",
+  "locationSource"
+]);
+
+export function isPrivateLocationOnlyUpdate(updates: Partial<UserProfile>) {
+  const fields = (Object.keys(withoutUndefined(updates)) as Array<keyof UserProfile>);
+  return fields.length > 0 && fields.every((field) => privateLocationFields.has(field));
+}
+
 export type SaveUserInput = {
   id: string;
   role: PublicRole;
@@ -215,7 +228,11 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
     batch.set(doc(firestore, "publicProfiles", userId), toPublicProfile(mergedUser));
   }
 
-  if (
+  // The private users document is the source of truth for discovery and
+  // check-in coordinates. A location-only refresh must not create or update a
+  // secondary workerProfiles document: older tasker accounts may not have one,
+  // and its stricter create rules would reject the entire check-in batch.
+  if (!isPrivateLocationOnlyUpdate(sanitizedUpdates) && (
     sanitizedUpdates.role === "worker" ||
     sanitizedUpdates.skills ||
     sanitizedUpdates.capabilities ||
@@ -234,7 +251,7 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
     sanitizedUpdates.locationAccuracyMeters !== undefined ||
     sanitizedUpdates.locationSource !== undefined ||
     sanitizedUpdates.preferredRadiusKm !== undefined
-  ) {
+  )) {
     batch.set(
       doc(firestore, "workerProfiles", userId),
       {

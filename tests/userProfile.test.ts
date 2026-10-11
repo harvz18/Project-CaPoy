@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getPublicProfileBackfill } from "../src/services/userService";
+import { getPublicProfileBackfill, isPrivateLocationOnlyUpdate } from "../src/services/userService";
 import { UserProfile } from "../src/types";
 
 const ratedWorker: UserProfile = {
@@ -31,4 +31,21 @@ test("login can backfill a missing public profile without exposing private field
   assert.equal(backfill?.ratingTotal, 5);
   assert.equal("mobileNumber" in (backfill ?? {}), false);
   assert.equal("address" in (backfill ?? {}), false);
+});
+
+test("task check-in is treated as a private location-only profile update", () => {
+  assert.equal(isPrivateLocationOnlyUpdate({
+    currentLatitude: 10.6765,
+    currentLongitude: 122.9509,
+    locationUpdatedAt: "2026-01-01T00:59:00.000Z",
+    locationAccuracyMeters: 15,
+    locationSource: "device"
+  }), true);
+  assert.equal(isPrivateLocationOnlyUpdate({
+    currentLatitude: 10.6765,
+    currentLongitude: 122.9509,
+    locationUpdatedAt: "2026-01-01T00:59:00.000Z",
+    locationSource: "device",
+    preferredRadiusKm: 5
+  }), false);
 });
