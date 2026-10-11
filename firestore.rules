@@ -239,7 +239,7 @@ service cloud.firestore {
     }
 
     function validWorkflowPrivateWorkerUpdate(userId) {
-      return hasRole('client')
+      return (hasRole('client') || (hasRole('worker') && request.auth.uid == userId))
         && resource.data.role == 'worker'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'availabilityStatus',
@@ -251,6 +251,7 @@ service cloud.firestore {
         && (
           (
             resource.data.get('activeTaskId', null) == null
+            && hasRole('client')
             && request.resource.data.activeTaskId is string
             && request.resource.data.availabilityStatus == 'Busy'
             && request.resource.data.availability == 'Busy'
@@ -263,6 +264,7 @@ service cloud.firestore {
           ||
           (
             resource.data.activeTaskId is string
+            && hasRole('client')
             && !('activeTaskId' in request.resource.data)
             && request.resource.data.availabilityStatus == 'Available'
             && request.resource.data.availability == 'Available'
@@ -275,6 +277,7 @@ service cloud.firestore {
           ||
           (
             resource.data.activeTaskId is string
+            && hasRole('client')
             && !('activeTaskId' in request.resource.data)
             && request.resource.data.availabilityStatus == 'Available'
             && request.resource.data.availability == 'Available'
@@ -284,11 +287,37 @@ service cloud.firestore {
             && taskAfter(resource.data.activeTaskId).clientId == request.auth.uid
             && taskAfter(resource.data.activeTaskId).workerId == userId
           )
+          ||
+          (
+            resource.data.activeTaskId is string
+            && !('activeTaskId' in request.resource.data)
+            && request.resource.data.availabilityStatus == 'Available'
+            && request.resource.data.availability == 'Available'
+            && request.resource.data.get('completedTasks', 0) == resource.data.get('completedTasks', 0)
+            && task(resource.data.activeTaskId).status in ['Accepted', 'In Progress', 'Pending Approval']
+            && taskAfter(resource.data.activeTaskId).status == 'Disputed'
+            && taskAfter(resource.data.activeTaskId).workerId == userId
+            && (
+              taskAfter(resource.data.activeTaskId).clientId == request.auth.uid
+              || (request.auth.uid == userId && task(resource.data.activeTaskId).workerId == request.auth.uid)
+            )
+          )
+          ||
+          (
+            request.auth.uid == userId
+            && resource.data.activeTaskId is string
+            && !('activeTaskId' in request.resource.data)
+            && request.resource.data.availabilityStatus == 'Available'
+            && request.resource.data.availability == 'Available'
+            && request.resource.data.get('completedTasks', 0) == resource.data.get('completedTasks', 0)
+            && task(resource.data.activeTaskId).status == 'Disputed'
+            && task(resource.data.activeTaskId).workerId == userId
+          )
         );
     }
 
     function validWorkflowVisibleWorkerUpdate(userId) {
-      return hasRole('client')
+      return (hasRole('client') || (hasRole('worker') && request.auth.uid == userId))
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'availabilityStatus',
           'availability',
@@ -298,6 +327,7 @@ service cloud.firestore {
         && (
           (
             'activeTaskId' in getAfter(/databases/$(database)/documents/users/$(userId)).data
+            && hasRole('client')
             && request.resource.data.availabilityStatus == 'Busy'
             && request.resource.data.availability == 'Busy'
             && request.resource.data.get('completedTasks', 0) == resource.data.get('completedTasks', 0)
@@ -308,6 +338,7 @@ service cloud.firestore {
           ||
           (
             'activeTaskId' in get(/databases/$(database)/documents/users/$(userId)).data
+            && hasRole('client')
             && !('activeTaskId' in getAfter(/databases/$(database)/documents/users/$(userId)).data)
             && request.resource.data.availabilityStatus == 'Available'
             && request.resource.data.availability == 'Available'
@@ -320,6 +351,7 @@ service cloud.firestore {
           ||
           (
             'activeTaskId' in get(/databases/$(database)/documents/users/$(userId)).data
+            && hasRole('client')
             && !('activeTaskId' in getAfter(/databases/$(database)/documents/users/$(userId)).data)
             && request.resource.data.availabilityStatus == 'Available'
             && request.resource.data.availability == 'Available'
@@ -329,6 +361,36 @@ service cloud.firestore {
             && taskAfter(get(/databases/$(database)/documents/users/$(userId)).data.activeTaskId).status == 'Cancelled'
             && taskAfter(get(/databases/$(database)/documents/users/$(userId)).data.activeTaskId).clientId == request.auth.uid
             && taskAfter(get(/databases/$(database)/documents/users/$(userId)).data.activeTaskId).workerId == userId
+          )
+          ||
+          (
+            'activeTaskId' in get(/databases/$(database)/documents/users/$(userId)).data
+            && !('activeTaskId' in getAfter(/databases/$(database)/documents/users/$(userId)).data)
+            && request.resource.data.availabilityStatus == 'Available'
+            && request.resource.data.availability == 'Available'
+            && request.resource.data.get('completedTasks', 0) == resource.data.get('completedTasks', 0)
+            && task(get(/databases/$(database)/documents/users/$(userId)).data.activeTaskId).status
+              in ['Accepted', 'In Progress', 'Pending Approval']
+            && taskAfter(get(/databases/$(database)/documents/users/$(userId)).data.activeTaskId).status == 'Disputed'
+            && taskAfter(get(/databases/$(database)/documents/users/$(userId)).data.activeTaskId).workerId == userId
+            && (
+              taskAfter(get(/databases/$(database)/documents/users/$(userId)).data.activeTaskId).clientId
+                == request.auth.uid
+              || (request.auth.uid == userId
+                && task(get(/databases/$(database)/documents/users/$(userId)).data.activeTaskId).workerId
+                  == request.auth.uid)
+            )
+          )
+          ||
+          (
+            request.auth.uid == userId
+            && 'activeTaskId' in get(/databases/$(database)/documents/users/$(userId)).data
+            && !('activeTaskId' in getAfter(/databases/$(database)/documents/users/$(userId)).data)
+            && request.resource.data.availabilityStatus == 'Available'
+            && request.resource.data.availability == 'Available'
+            && request.resource.data.get('completedTasks', 0) == resource.data.get('completedTasks', 0)
+            && task(get(/databases/$(database)/documents/users/$(userId)).data.activeTaskId).status == 'Disputed'
+            && task(get(/databases/$(database)/documents/users/$(userId)).data.activeTaskId).workerId == userId
           )
         );
     }
@@ -489,7 +551,18 @@ service cloud.firestore {
             && request.resource.data.status == 'Pending Approval'
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'workerFinishedAt', 'updatedAt']))
           ||
-          (resource.data.status in ['Accepted', 'In Progress', 'Pending Approval', 'Finished']
+          (resource.data.status in ['Accepted', 'In Progress', 'Pending Approval']
+            && request.resource.data.status == 'Disputed'
+            && !('activeTaskId' in getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data)
+            && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.availabilityStatus
+              == 'Available'
+            && getAfter(/databases/$(database)/documents/workerProfiles/$(request.auth.uid)).data.availabilityStatus
+              == 'Available'
+            && getAfter(/databases/$(database)/documents/publicProfiles/$(request.auth.uid)).data.availabilityStatus
+              == 'Available'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'disputedAt', 'updatedAt']))
+          ||
+          (resource.data.status == 'Finished'
             && request.resource.data.status == 'Disputed'
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'disputedAt', 'updatedAt']))
         );
@@ -581,7 +654,18 @@ service cloud.firestore {
               == 'Available'
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt', 'updatedAt']))
           ||
-          (resource.data.status in ['Accepted', 'In Progress', 'Pending Approval', 'Finished']
+          (resource.data.status in ['Accepted', 'In Progress', 'Pending Approval']
+            && request.resource.data.status == 'Disputed'
+            && !('activeTaskId' in getAfter(/databases/$(database)/documents/users/$(resource.data.workerId)).data)
+            && getAfter(/databases/$(database)/documents/users/$(resource.data.workerId)).data.availabilityStatus
+              == 'Available'
+            && getAfter(/databases/$(database)/documents/workerProfiles/$(resource.data.workerId)).data.availabilityStatus
+              == 'Available'
+            && getAfter(/databases/$(database)/documents/publicProfiles/$(resource.data.workerId)).data.availabilityStatus
+              == 'Available'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'disputedAt', 'updatedAt']))
+          ||
+          (resource.data.status == 'Finished'
             && request.resource.data.status == 'Disputed'
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'disputedAt', 'updatedAt']))
           ||

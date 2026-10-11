@@ -47,6 +47,7 @@ import {
   applyToTask,
   confirmCashPaymentReceipt,
   createTaskInFirestore,
+  reconcileDisputedTaskerAvailability,
   rejectTaskApplication,
   subscribeToTaskMatchesForUser,
   subscribeToTasksForUser,
@@ -275,6 +276,13 @@ export function AppProvider({ children }: PropsWithChildren) {
 
     return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
   }, [authority, currentUser?.id, currentUser?.role, subscriptionRefreshKey]);
+
+  useEffect(() => {
+    if (currentUser?.role !== "worker" || !currentUser.activeTaskId) return;
+    const activeTask = taskSnapshots.find((task) => task.id === currentUser.activeTaskId);
+    if (activeTask?.status !== "Disputed") return;
+    void reconcileDisputedTaskerAvailability(currentUser, activeTask.id).catch(handleListenerError);
+  }, [currentUser?.activeTaskId, currentUser?.id, currentUser?.role, taskSnapshots]);
 
   useEffect(() => {
     if (currentUser && notificationPreferences.pushEnabled) {

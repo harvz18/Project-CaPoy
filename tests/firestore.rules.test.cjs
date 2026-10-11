@@ -1398,12 +1398,26 @@ test("cancelling an assigned task releases the tasker atomically", async () => {
   assert.equal((await getDoc(doc(dbFor(WORKER_ID), "users", WORKER_ID))).data().activeTaskId, undefined);
 });
 
-test("either assigned participant can dispute an active task but an outsider cannot", async () => {
+test("a worker dispute atomically releases the tasker so another assignment can be accepted", async () => {
   await seedWorkflowTask({
     status: "In Progress",
     applicantIds: [WORKER_ID],
     workerId: WORKER_ID,
     selectedMatchId: `${TASK_ID}_${WORKER_ID}`
+  });
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
+    await Promise.all([
+      updateDoc(doc(db, "users", WORKER_ID), {
+        availabilityStatus: "Busy", availability: "Busy", activeTaskId: TASK_ID
+      }),
+      updateDoc(doc(db, "workerProfiles", WORKER_ID), {
+        availabilityStatus: "Busy", availability: "Busy"
+      }),
+      updateDoc(doc(db, "publicProfiles", WORKER_ID), {
+        availabilityStatus: "Busy", availability: "Busy"
+      })
+    ]);
   });
   const now = "2026-01-01T01:00:00.000Z";
   await assertFails(updateDoc(doc(dbFor(OUTSIDER_ID), "tasks", TASK_ID), {
@@ -1411,11 +1425,154 @@ test("either assigned participant can dispute an active task but an outsider can
     disputedAt: now,
     updatedAt: now
   }));
-  await assertSucceeds(updateDoc(doc(dbFor(WORKER_ID), "tasks", TASK_ID), {
+  await assertFails(updateDoc(doc(dbFor(WORKER_ID), "tasks", TASK_ID), {
     status: "Disputed",
     disputedAt: now,
     updatedAt: now
   }));
+
+  const workerDb = dbFor(WORKER_ID);
+  let batch = writeBatch(workerDb);
+  batch.update(doc(workerDb, "tasks", TASK_ID), { status: "Disputed", disputedAt: now, updatedAt: now });
+  batch.update(doc(workerDb, "users", WORKER_ID), {
+    availabilityStatus: "Available", availability: "Available", activeTaskId: deleteField(), updatedAt: now
+  });
+  batch.update(doc(workerDb, "workerProfiles", WORKER_ID), {
+    availabilityStatus: "Available", availability: "Available", updatedAt: now
+  });
+  batch.update(doc(workerDb, "publicProfiles", WORKER_ID), {
+    availabilityStatus: "Available", availability: "Available", updatedAt: now
+  });
+  batch.set(doc(workerDb, "notifications", `${TASK_ID}_disputed_${CLIENT_ID}`), {
+    userId: CLIENT_ID, taskId: TASK_ID, createdBy: WORKER_ID,
+    notificationType: "Task disputed", message: "Repair a sink is now Disputed.",
+    createdAt: now, readStatus: false
+  });
+  await assertSucceeds(batch.commit());
+
+  const releasedUser = (await getDoc(doc(workerDb, "users", WORKER_ID))).data();
+  assert.equal(releasedUser.activeTaskId, undefined);
+  assert.equal(releasedUser.availabilityStatus, "Available");
+
+  const nextTaskId = "task-2";
+  const nextMatchId = `${nextTaskId}_${WORKER_ID}`;
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
+    await Promise.all([
+      setDoc(doc(db, "tasks", nextTaskId), taskData({
+        status: "Applied", applicantIds: [WORKER_ID], paymentStatus: "Pending", updatedAt: now
+      })),
+      setDoc(doc(db, "payments", nextTaskId), {
+        id: nextTaskId, taskId: nextTaskId, clientId: CLIENT_ID,
+        paymentMethod: "COD", paymentStatus: "Pending", createdAt: now, updatedAt: now
+      }),
+      setDoc(doc(db, "taskMatches", nextMatchId), {
+        id: nextMatchId, taskId: nextTaskId, clientId: CLIENT_ID, workerId: WORKER_ID,
+        acceptanceStatus: "Applied", createdAt: now, updatedAt: now
+      })
+    ]);
+  });
+
+  const clientDb = dbFor(CLIENT_ID);
+  const acceptedAt = "2026-01-01T01:05:00.000Z";
+  batch = writeBatch(clientDb);
+  batch.update(doc(clientDb, "tasks", nextTaskId), {
+    status: "Accepted", workerId: WORKER_ID, applicantIds: [WORKER_ID], selectedMatchId: nextMatchId,
+    agreedAmount: "1200", acceptedAt, updatedAt: acceptedAt
+  });
+  batch.update(doc(clientDb, "payments", nextTaskId), {
+    workerId: WORKER_ID, agreedAmount: "1200", updatedAt: acceptedAt
+  });
+  batch.update(doc(clientDb, "taskMatches", nextMatchId), {
+    acceptanceStatus: "Accepted", hiredAt: acceptedAt, updatedAt: acceptedAt
+  });
+  batch.update(doc(clientDb, "users", WORKER_ID), {
+    availabilityStatus: "Busy", availability: "Busy", activeTaskId: nextTaskId, updatedAt: acceptedAt
+  });
+  batch.update(doc(clientDb, "workerProfiles", WORKER_ID), {
+    availabilityStatus: "Busy", availability: "Busy", updatedAt: acceptedAt
+  });
+  batch.update(doc(clientDb, "publicProfiles", WORKER_ID), {
+    availabilityStatus: "Busy", availability: "Busy", updatedAt: acceptedAt
+  });
+  await assertSucceeds(batch.commit());
+  assert.equal((await getDoc(doc(workerDb, "users", WORKER_ID))).data().activeTaskId, nextTaskId);
+});
+
+test("an employer dispute also releases the assigned tasker atomically", async () => {
+  await seedWorkflowTask({
+    status: "Accepted", applicantIds: [WORKER_ID], workerId: WORKER_ID,
+    selectedMatchId: `${TASK_ID}_${WORKER_ID}`
+  });
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
+    await Promise.all([
+      updateDoc(doc(db, "users", WORKER_ID), {
+        availabilityStatus: "Busy", availability: "Busy", activeTaskId: TASK_ID
+      }),
+      updateDoc(doc(db, "workerProfiles", WORKER_ID), {
+        availabilityStatus: "Busy", availability: "Busy"
+      }),
+      updateDoc(doc(db, "publicProfiles", WORKER_ID), {
+        availabilityStatus: "Busy", availability: "Busy"
+      })
+    ]);
+  });
+  const db = dbFor(CLIENT_ID);
+  const now = "2026-01-01T01:00:00.000Z";
+  const batch = writeBatch(db);
+  batch.update(doc(db, "tasks", TASK_ID), { status: "Disputed", disputedAt: now, updatedAt: now });
+  batch.update(doc(db, "users", WORKER_ID), {
+    availabilityStatus: "Available", availability: "Available", activeTaskId: deleteField(), updatedAt: now
+  });
+  batch.update(doc(db, "workerProfiles", WORKER_ID), {
+    availabilityStatus: "Available", availability: "Available", updatedAt: now
+  });
+  batch.update(doc(db, "publicProfiles", WORKER_ID), {
+    availabilityStatus: "Available", availability: "Available", updatedAt: now
+  });
+  batch.set(doc(db, "notifications", `${TASK_ID}_disputed_${WORKER_ID}`), {
+    userId: WORKER_ID, taskId: TASK_ID, createdBy: CLIENT_ID,
+    notificationType: "Task disputed", message: "Repair a sink is now Disputed.",
+    createdAt: now, readStatus: false
+  });
+  await assertSucceeds(batch.commit());
+});
+
+test("a tasker can repair stale busy data left by an already-disputed assignment", async () => {
+  await seedWorkflowTask({
+    status: "Disputed", applicantIds: [WORKER_ID], workerId: WORKER_ID,
+    selectedMatchId: `${TASK_ID}_${WORKER_ID}`
+  });
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
+    await Promise.all([
+      updateDoc(doc(db, "users", WORKER_ID), {
+        availabilityStatus: "Busy", availability: "Busy", activeTaskId: TASK_ID
+      }),
+      updateDoc(doc(db, "workerProfiles", WORKER_ID), {
+        availabilityStatus: "Busy", availability: "Busy"
+      }),
+      updateDoc(doc(db, "publicProfiles", WORKER_ID), {
+        availabilityStatus: "Busy", availability: "Busy"
+      })
+    ]);
+  });
+
+  const db = dbFor(WORKER_ID);
+  const now = "2026-01-01T01:00:00.000Z";
+  const batch = writeBatch(db);
+  batch.update(doc(db, "users", WORKER_ID), {
+    availabilityStatus: "Available", availability: "Available", activeTaskId: deleteField(), updatedAt: now
+  });
+  batch.update(doc(db, "workerProfiles", WORKER_ID), {
+    availabilityStatus: "Available", availability: "Available", updatedAt: now
+  });
+  batch.update(doc(db, "publicProfiles", WORKER_ID), {
+    availabilityStatus: "Available", availability: "Available", updatedAt: now
+  });
+  await assertSucceeds(batch.commit());
+  assert.equal((await getDoc(doc(db, "users", WORKER_ID))).data().activeTaskId, undefined);
 });
 
 test("completion requires submitted payment and atomically restores availability and increments the counter once", async () => {

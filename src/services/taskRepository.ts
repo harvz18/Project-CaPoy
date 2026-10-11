@@ -310,6 +310,9 @@ export async function updateTaskStatusInFirestore(
       await finishTaskInTransaction(transaction, task, actor, now);
       return;
     }
+    if (status === "Disputed" && ["Accepted", "In Progress", "Pending Approval"].includes(task.status)) {
+      releaseTaskerForDispute(transaction, task, now);
+    }
     const updates: Record<string, unknown> = { status, updatedAt: now };
     if (status === "In Progress") updates.startedAt = now;
     if (status === "Pending Approval") updates.workerFinishedAt = now;
@@ -329,6 +332,38 @@ export async function updateTaskStatusInFirestore(
         userId: recipientId, taskId, createdBy: actor.id, notificationType, message, createdAt: now
       });
     }
+  });
+}
+
+export async function reconcileDisputedTaskerAvailability(worker: UserProfile, taskId: string) {
+  if (worker.role !== "worker" || worker.activeTaskId !== taskId) return;
+  const firestore = requireDb();
+  requireAuthActor({ id: worker.id, role: worker.role });
+  const now = new Date().toISOString();
+  const batch = writeBatch(firestore);
+  batch.update(doc(firestore, "users", worker.id), {
+    availabilityStatus: "Available", availability: "Available", activeTaskId: deleteField(), updatedAt: now
+  });
+  batch.set(doc(firestore, "workerProfiles", worker.id), {
+    userId: worker.id, availabilityStatus: "Available", availability: "Available", updatedAt: now
+  }, { merge: true });
+  batch.update(doc(firestore, "publicProfiles", worker.id), {
+    availabilityStatus: "Available", availability: "Available", updatedAt: now
+  });
+  await batch.commit();
+}
+
+function releaseTaskerForDispute(transaction: Transaction, task: Task, now: string) {
+  const firestore = requireDb();
+  const workerId = task.workerId as string;
+  transaction.update(doc(firestore, "users", workerId), {
+    availabilityStatus: "Available", availability: "Available", activeTaskId: deleteField(), updatedAt: now
+  });
+  transaction.update(doc(firestore, "workerProfiles", workerId), {
+    availabilityStatus: "Available", availability: "Available", updatedAt: now
+  });
+  transaction.update(doc(firestore, "publicProfiles", workerId), {
+    availabilityStatus: "Available", availability: "Available", updatedAt: now
   });
 }
 
