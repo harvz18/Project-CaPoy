@@ -1,4 +1,4 @@
-import React, { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, PropsWithChildren, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   AppNotification,
   Authority,
@@ -41,7 +41,7 @@ import {
   subscribeToNotificationPreferences,
   subscribeToNotifications
 } from "../services/notificationService";
-import { disableCurrentPushToken, registerPushToken } from "../services/pushNotificationService";
+import { disableCurrentPushToken, registerPushToken, showDeviceAlert } from "../services/pushNotificationService";
 import { addRatingToFirestore, subscribeToRatings } from "../services/ratingService";
 import {
   applyToTask,
@@ -164,6 +164,7 @@ export function AppProvider({ children }: PropsWithChildren) {
   const [ratings, setRatings] = useState<Rating[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [notificationPreferences, setNotificationPreferences] = useState(defaultNotificationPreferences);
+  const notificationPreferencesRef = useRef(defaultNotificationPreferences);
   const [appLoading, setAppLoading] = useState(usingFirebase);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -239,6 +240,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       setRatings([]);
       setNotifications([]);
       setNotificationPreferences(defaultNotificationPreferences);
+      notificationPreferencesRef.current = defaultNotificationPreferences;
       return () => undefined;
     }
 
@@ -272,8 +274,20 @@ export function AppProvider({ children }: PropsWithChildren) {
         setMessages((existing) => mergeMessages(existing, incoming));
       }, handleListenerError),
       subscribeToRatings(setRatings, handleListenerError),
-      subscribeToNotifications(currentUser.id, setNotifications, handleListenerError),
-      subscribeToNotificationPreferences(currentUser.id, setNotificationPreferences, handleListenerError)
+      subscribeToNotifications(
+        currentUser.id,
+        setNotifications,
+        handleListenerError,
+        (incoming) => {
+          incoming.forEach((notification) => {
+            void showDeviceAlert(notification, notificationPreferencesRef.current).catch(() => undefined);
+          });
+        }
+      ),
+      subscribeToNotificationPreferences(currentUser.id, (preferences) => {
+        notificationPreferencesRef.current = preferences;
+        setNotificationPreferences(preferences);
+      }, handleListenerError)
     );
 
     return () => unsubscribers.forEach((unsubscribe) => unsubscribe());

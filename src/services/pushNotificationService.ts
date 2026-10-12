@@ -4,6 +4,7 @@ import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { doc, setDoc, updateDoc } from "firebase/firestore";
 import { db } from "./firebase";
+import { AppNotification, NotificationPreferences } from "../types";
 
 const storedTokenDocumentKey = (userId: string) => `tasklink.pushTokenDocumentId.${userId}`;
 
@@ -28,6 +29,43 @@ export async function configureNotificationChannel() {
     importance: Notifications.AndroidImportance.HIGH,
     vibrationPattern: [0, 250, 150, 250],
     lightColor: "#005C55"
+  });
+}
+
+export function shouldShowDeviceAlert(notification: AppNotification, preferences: NotificationPreferences) {
+  if (!preferences.pushEnabled) return false;
+  if (notification.route === "chat" || notification.notificationType === "New message") {
+    return preferences.messagesEnabled;
+  }
+  if (notification.notificationType === "Matching task") {
+    return preferences.matchingEnabled;
+  }
+  return preferences.taskUpdatesEnabled;
+}
+
+// This uses the device's notification channel only after Firestore has delivered
+// a new, recipient-scoped in-app notification. It is a no-cost companion alert,
+// not a replacement for a trusted remote sender when the app is fully closed.
+export async function showDeviceAlert(notification: AppNotification, preferences: NotificationPreferences) {
+  if (Platform.OS === "web" || !shouldShowDeviceAlert(notification, preferences)) return;
+
+  const permission = await Notifications.getPermissionsAsync();
+  if (permission.status !== "granted") return;
+
+  await configureNotificationChannel();
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: notification.notificationType || "TASKLINK update",
+      body: notification.message,
+      data: {
+        notificationId: notification.id,
+        taskId: notification.taskId ?? "",
+        route: notification.route ?? "task",
+        senderId: notification.senderId ?? ""
+      },
+      sound: "default"
+    },
+    trigger: null
   });
 }
 

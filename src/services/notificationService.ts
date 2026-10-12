@@ -24,21 +24,32 @@ function requireDb() {
 export function subscribeToNotifications(
   userId: string | undefined,
   onChange: (notifications: AppNotification[]) => void,
-  onError: (error: Error) => void
+  onError: (error: Error) => void,
+  onNewNotifications?: (notifications: AppNotification[]) => void
 ) {
   if (!db || !userId) {
     onChange([]);
     return () => undefined;
   }
 
+  let receivedInitialSnapshot = false;
+
   return onSnapshot(
     query(collection(db, "notifications"), where("userId", "==", userId)),
     (snapshot) => {
-      onChange(
-        snapshot.docs
-          .map((notificationDoc) => ({ id: notificationDoc.id, ...notificationDoc.data() }) as AppNotification)
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      );
+      const notifications = snapshot.docs
+        .map((notificationDoc) => ({ id: notificationDoc.id, ...notificationDoc.data() }) as AppNotification)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      // Existing inbox items should not trigger a new device alert after sign-in.
+      if (receivedInitialSnapshot && onNewNotifications) {
+        const additions = snapshot.docChanges()
+          .filter((change) => change.type === "added")
+          .map((change) => ({ id: change.doc.id, ...change.doc.data() }) as AppNotification);
+        if (additions.length) onNewNotifications(additions);
+      }
+      receivedInitialSnapshot = true;
+      onChange(notifications);
     },
     onError
   );

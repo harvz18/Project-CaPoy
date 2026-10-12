@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AnimatedBottomNav } from "../src/components/AnimatedBottomNav";
+import { NotificationShortcut } from "../src/components/NotificationShortcut";
 import LocationMap from "../src/components/LocationMap";
 import { StatusBadge } from "../src/components/StatusBadge";
 import { useApp } from "../src/context/AppContext";
@@ -33,7 +34,7 @@ export default function WorkerDashboardScreen() {
   const [selectedTab, setSelectedTab] = useState<"active" | "finished">("active");
   const [applicationsExpanded, setApplicationsExpanded] = useState(false);
   const [actionMessage, setActionMessage] = useState("");
-  const { actionLoading, currentUser, tasks, ratings, acceptTask } = useApp();
+  const { actionLoading, currentUser, notifications, tasks, ratings, acceptTask } = useApp();
   const postedTasks = tasks.filter((task) => task.status === "Finding Workers" || task.status === "Applied");
   const rankedPostedTasks = currentUser ? rankTasksForWorker(postedTasks, currentUser) : [];
   const acceptedTasks = tasks.filter(
@@ -61,7 +62,11 @@ export default function WorkerDashboardScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-      <DashboardHeader initials={currentUser?.fullName?.[0] ?? "J"} />
+      <DashboardHeader
+        initials={currentUser?.fullName?.[0] ?? "J"}
+        onNotifications={() => router.push("/notifications")}
+        unreadCount={notifications.filter((notification) => notification.userId === currentUser?.id && !notification.readStatus).length}
+      />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.heroPanel}>
           <View style={styles.heroCopy}>
@@ -211,14 +216,21 @@ export default function WorkerDashboardScreen() {
   );
 }
 
-function DashboardHeader({ initials }: { initials: string }) {
+function DashboardHeader({ initials, onNotifications, unreadCount }: {
+  initials: string;
+  onNotifications: () => void;
+  unreadCount: number;
+}) {
   return (
     <View style={styles.header}>
       <View style={styles.headerLeft}>
         <Text style={styles.brand}>TASKLINK</Text>
       </View>
-      <View style={styles.avatar}>
-        <Text style={styles.avatarText}>{initials}</Text>
+      <View style={styles.headerRight}>
+        <NotificationShortcut onPress={onNotifications} unreadCount={unreadCount} />
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>{initials}</Text>
+        </View>
       </View>
     </View>
   );
@@ -394,6 +406,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#EDF1EF"
   },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 12 },
   menuText: { color: palette.primary, fontSize: 24, fontWeight: "800" },
   brand: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "800" },
   avatar: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: palette.secondaryContainer, borderWidth: 1, borderColor: palette.outlineVariant },

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AnimatedBottomNav } from "../src/components/AnimatedBottomNav";
+import { NotificationShortcut } from "../src/components/NotificationShortcut";
 import { StatusBadge } from "../src/components/StatusBadge";
 import { useApp } from "../src/context/AppContext";
 import { formatTaskPrice, getScheduleBasedAvailability } from "../src/domain/taskMarketplace";
@@ -31,7 +32,7 @@ const palette = {
 
 export default function ClientDashboardScreen() {
   const router = useRouter();
-  const { currentUser, tasks, users } = useApp();
+  const { currentUser, notifications, tasks, users } = useApp();
   const [showAllOngoing, setShowAllOngoing] = useState(false);
   const clientTasks = tasks.filter((task) => task.clientId === currentUser?.id);
   const activeClientTasks = clientTasks.filter((task) => ["Finding Workers", "Applied", "Accepted", "In Progress", "Pending Approval", "Disputed"].includes(task.status));
@@ -43,7 +44,12 @@ export default function ClientDashboardScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-      <DashboardHeader onPostTask={() => router.push("/post-task")} initials={currentUser?.fullName?.[0] ?? "U"} />
+      <DashboardHeader
+        initials={currentUser?.fullName?.[0] ?? "U"}
+        onNotifications={() => router.push("/notifications")}
+        onPostTask={() => router.push("/post-task")}
+        unreadCount={notifications.filter((notification) => notification.userId === currentUser?.id && !notification.readStatus).length}
+      />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.heroGrid}>
           <View style={styles.heroPanel}>
@@ -164,7 +170,12 @@ function getVerifiedWorkTotal(tasks: Task[]) {
     .toLocaleString("en-PH");
 }
 
-function DashboardHeader({ onPostTask, initials }: { onPostTask: () => void; initials: string }) {
+function DashboardHeader({ onPostTask, onNotifications, initials, unreadCount }: {
+  onPostTask: () => void;
+  onNotifications: () => void;
+  initials: string;
+  unreadCount: number;
+}) {
   return (
     <View style={styles.header}>
       <View style={styles.headerLeft}>
@@ -174,6 +185,7 @@ function DashboardHeader({ onPostTask, initials }: { onPostTask: () => void; ini
         <Pressable accessibilityRole="button" onPress={onPostTask} style={styles.headerPostButton}>
           <Text style={styles.headerPostText}>Post Task</Text>
         </Pressable>
+        <NotificationShortcut onPress={onNotifications} unreadCount={unreadCount} />
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{initials}</Text>
         </View>
