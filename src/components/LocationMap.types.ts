@@ -13,6 +13,7 @@ export type LocationMapProps = {
   height?: number;
   interactive?: boolean;
   fitToMarkers?: boolean;
+  connectMarkers?: boolean;
   showUserLocation?: boolean;
   onSelectCoordinate?: (coordinate: MapCoordinate) => void;
 };

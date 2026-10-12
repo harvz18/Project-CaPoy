@@ -59,9 +59,7 @@ service firebase.storage {
 
     match /paymentProofs/{taskId}/{fileName} {
       allow read: if isAssignedTaskParticipant(taskId) || isAdmin();
-      allow write: if hasEnabledAccount()
-        && task(taskId).clientId == request.auth.uid
-        && validUpload();
+      allow write: if isAssignedTaskParticipant(taskId) && validUpload();
     }
 
     match /{allPaths=**} {

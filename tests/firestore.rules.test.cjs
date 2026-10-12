@@ -971,6 +971,36 @@ test("client and worker accounts can complete the full canonical task lifecycle"
     updatedAt: now
   }));
 
+  now = "2026-01-01T01:18:00.000Z";
+  batch = writeBatch(workerDb);
+  batch.update(doc(workerDb, "tasks", TASK_ID), {
+    workerProofOfPaymentUrl: `paymentProofs/${TASK_ID}/worker-receipt.png`,
+    workerProofOfPaymentText: "Receipt acknowledged by tasker",
+    workerProofSubmittedAt: now,
+    updatedAt: now
+  });
+  batch.update(doc(workerDb, "payments", TASK_ID), {
+    workerProofOfPaymentUrl: `paymentProofs/${TASK_ID}/worker-receipt.png`,
+    workerProofOfPaymentText: "Receipt acknowledged by tasker",
+    workerProofSubmittedAt: now,
+    updatedAt: now
+  });
+  await assertSucceeds(batch.commit());
+
+  const workerProofOutsiderDb = dbFor(OUTSIDER_ID);
+  const forgedWorkerProof = writeBatch(workerProofOutsiderDb);
+  forgedWorkerProof.update(doc(workerProofOutsiderDb, "tasks", TASK_ID), {
+    workerProofOfPaymentUrl: `paymentProofs/${TASK_ID}/outsider.png`,
+    workerProofSubmittedAt: now,
+    updatedAt: now
+  });
+  forgedWorkerProof.update(doc(workerProofOutsiderDb, "payments", TASK_ID), {
+    workerProofOfPaymentUrl: `paymentProofs/${TASK_ID}/outsider.png`,
+    workerProofSubmittedAt: now,
+    updatedAt: now
+  });
+  await assertFails(forgedWorkerProof.commit());
+
   now = "2026-01-01T01:20:00.000Z";
   const textOnlyConfirmation = writeBatch(clientDb);
   textOnlyConfirmation.update(taskRef, {

@@ -52,6 +52,7 @@ import {
   subscribeToTaskMatchesForUser,
   subscribeToTasksForUser,
   updateTaskPaymentVerification,
+  updateWorkerPaymentEvidence,
   updateTaskStatusInFirestore,
   withdrawTaskApplication
 } from "../services/taskRepository";
@@ -134,6 +135,7 @@ type AppContextValue = {
   rejectApplication: (taskId: string, workerId: string) => Promise<void>;
   updateTaskStatus: (taskId: string, status: TaskStatus, workerId?: string, checkInLocation?: CapturedLocation) => Promise<void>;
   submitPaymentProof: (taskId: string, proofOfPaymentText: string, proofOfPaymentUrl?: string) => Promise<void>;
+  submitWorkerPaymentProof: (taskId: string, proofOfPaymentText: string, proofOfPaymentUrl?: string) => Promise<void>;
   confirmCashPayment: (taskId: string) => Promise<void>;
   sendMessage: (taskId: string, message: string, receiverId?: string) => Promise<void>;
   markMessagesRead: (taskId: string, otherParticipantId: string) => Promise<void>;
@@ -589,6 +591,18 @@ export function AppProvider({ children }: PropsWithChildren) {
     });
   }
 
+  async function submitWorkerPaymentProof(taskId: string, proofOfPaymentText: string, proofOfPaymentUrl?: string) {
+    await runAction(async () => {
+      if (!currentUser || currentUser.role !== "worker") {
+        throw new Error("Only the assigned tasker can upload a tasker receipt.");
+      }
+      if (!proofOfPaymentUrl) {
+        throw new Error("Upload an image or PDF receipt before submitting.");
+      }
+      await updateWorkerPaymentEvidence(taskId, currentUser, proofOfPaymentUrl, proofOfPaymentText);
+    });
+  }
+
   async function sendMessage(taskId: string, message: string, receiverId?: string) {
     await runAction(async () => {
       if (!currentUser) {
@@ -775,6 +789,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       rejectApplication,
       updateTaskStatus,
       submitPaymentProof,
+      submitWorkerPaymentProof,
       confirmCashPayment,
       sendMessage,
       markMessagesRead,

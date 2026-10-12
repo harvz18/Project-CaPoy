@@ -26,6 +26,7 @@ export default function LocationMap({
   height = 220,
   interactive = false,
   fitToMarkers = false,
+  connectMarkers = false,
   onSelectCoordinate
 }: LocationMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -133,7 +134,15 @@ export default function LocationMap({
         }).addTo(layer);
       }
     }
-  }, [interactive, markerKey]);
+    if (connectMarkers && markers.length > 1) {
+      L.polyline(markers.map((marker) => [marker.latitude, marker.longitude]), {
+        color: "#2563EB",
+        dashArray: "7 7",
+        opacity: 0.78,
+        weight: 3
+      }).addTo(layer);
+    }
+  }, [connectMarkers, interactive, markerKey]);
 
   useEffect(() => {
     radiusLayerRef.current?.remove();

@@ -127,8 +127,13 @@ test("payment proof is limited to the client and assigned worker", async () => {
   await assertSucceeds(getBytes(ref(storageFor(WORKER_ID), path)));
   await assertSucceeds(getBytes(ref(storageFor(ADMIN_ID, { admin: true }), path)));
   await assertFails(getBytes(ref(storageFor(APPLICANT_ID), path)));
-  await assertFails(
+  await assertSucceeds(
     uploadBytes(ref(storageFor(WORKER_ID), `paymentProofs/${TASK_ID}/worker.png`), new Uint8Array([1]), {
+      contentType: "image/png"
+    })
+  );
+  await assertFails(
+    uploadBytes(ref(storageFor(APPLICANT_ID), `paymentProofs/${TASK_ID}/applicant.png`), new Uint8Array([1]), {
       contentType: "image/png"
     })
   );

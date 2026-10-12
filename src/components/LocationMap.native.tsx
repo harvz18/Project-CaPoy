@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
-import MapView, { Circle, Marker, MapPressEvent } from "react-native-maps";
+import MapView, { Circle, Marker, MapPressEvent, Polyline } from "react-native-maps";
 import { LocationMapProps, MapCoordinate } from "./LocationMap.types";
 
 const bacolodCenter: MapCoordinate = { latitude: 10.6765, longitude: 122.9509 };
@@ -11,6 +11,7 @@ export default function LocationMap({
   height = 220,
   interactive = false,
   fitToMarkers = false,
+  connectMarkers = false,
   showUserLocation = false,
   onSelectCoordinate
 }: LocationMapProps) {
@@ -55,6 +56,9 @@ export default function LocationMap({
           title={marker.title}
         />
       ))}
+      {connectMarkers && markers.length > 1 ? (
+        <Polyline coordinates={markers} lineDashPattern={[7, 7]} strokeColor="#2563EB" strokeWidth={3} />
+      ) : null}
       {center && radiusMeters ? <Circle center={center} fillColor="rgba(0,92,85,0.14)" radius={radiusMeters} strokeColor="#005C55" /> : null}
     </MapView>
   );

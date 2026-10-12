@@ -105,6 +105,9 @@ export type Task = {
   paymentStatus?: PaymentStatus;
   proofOfPaymentUrl?: string;
   proofOfPaymentText?: string;
+  workerProofOfPaymentUrl?: string;
+  workerProofOfPaymentText?: string;
+  workerProofSubmittedAt?: string;
   clientConfirmedAt?: string;
   workerConfirmedAt?: string;
   paymentReviewedAt?: string;
@@ -213,6 +216,9 @@ export type Payment = {
   paymentStatus: PaymentStatus;
   proofOfPaymentUrl?: string;
   proofOfPaymentText?: string;
+  workerProofOfPaymentUrl?: string;
+  workerProofOfPaymentText?: string;
+  workerProofSubmittedAt?: string;
   clientConfirmedAt?: string;
   workerConfirmedAt?: string;
   reviewedAt?: string;

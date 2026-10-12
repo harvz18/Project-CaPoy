@@ -590,6 +590,8 @@ service cloud.firestore {
         && request.resource.data.status == 'Pending Approval'
         && resource.data.paymentMethod == 'COD'
         && resource.data.paymentStatus == 'Submitted'
+        && resource.data.workerProofOfPaymentUrl is string
+        && resource.data.workerProofOfPaymentUrl.matches('paymentProofs/' + taskId + '/.+')
         && request.resource.data.paymentStatus == 'Verified'
         && request.resource.data.workerConfirmedAt is string
         && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.paymentMethod == 'COD'
@@ -600,6 +602,34 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'paymentStatus',
           'workerConfirmedAt',
+          'updatedAt'
+        ]);
+    }
+
+    function validAssignedWorkerPaymentProof(taskId) {
+      return hasRole('worker')
+        && resource.data.workerId == request.auth.uid
+        && request.resource.data.workerId == request.auth.uid
+        && resource.data.status in ['Accepted', 'In Progress', 'Pending Approval']
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.paymentStatus == resource.data.paymentStatus
+        && request.resource.data.paymentStatus != 'Verified'
+        && request.resource.data.workerProofOfPaymentUrl is string
+        && request.resource.data.workerProofOfPaymentUrl.matches('paymentProofs/' + taskId + '/.+')
+        && request.resource.data.workerProofSubmittedAt is string
+        && (!('workerProofOfPaymentText' in request.resource.data)
+          || (request.resource.data.workerProofOfPaymentText is string
+            && request.resource.data.workerProofOfPaymentText.size() > 0))
+        && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.workerProofOfPaymentUrl
+          == request.resource.data.workerProofOfPaymentUrl
+        && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.get('workerProofOfPaymentText', null)
+          == request.resource.data.get('workerProofOfPaymentText', null)
+        && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.workerProofSubmittedAt
+          == request.resource.data.workerProofSubmittedAt
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'workerProofOfPaymentUrl',
+          'workerProofOfPaymentText',
+          'workerProofSubmittedAt',
           'updatedAt'
         ]);
     }
@@ -853,7 +883,8 @@ service cloud.firestore {
         || validApplicationUpdate(taskId)
         || validApplicationRemoval(taskId)
         || validAssignedWorkerUpdate()
-        || validAssignedWorkerPaymentConfirmation(taskId);
+        || validAssignedWorkerPaymentConfirmation(taskId)
+        || validAssignedWorkerPaymentProof(taskId);
       allow delete: if false;
     }
 
@@ -956,11 +987,36 @@ service cloud.firestore {
         ) || (
           hasRole('worker')
           && task(taskId).workerId == request.auth.uid
+          && resource.data.workerId == request.auth.uid
+          && resource.data.paymentStatus != 'Verified'
+          && taskAfter(taskId).status in ['Accepted', 'In Progress', 'Pending Approval']
+          && request.resource.data.paymentStatus == resource.data.paymentStatus
+          && request.resource.data.workerProofOfPaymentUrl is string
+          && request.resource.data.workerProofOfPaymentUrl.matches('paymentProofs/' + taskId + '/.+')
+          && request.resource.data.workerProofSubmittedAt is string
+          && (!('workerProofOfPaymentText' in request.resource.data)
+            || (request.resource.data.workerProofOfPaymentText is string
+              && request.resource.data.workerProofOfPaymentText.size() > 0))
+          && taskAfter(taskId).workerProofOfPaymentUrl == request.resource.data.workerProofOfPaymentUrl
+          && taskAfter(taskId).get('workerProofOfPaymentText', null)
+            == request.resource.data.get('workerProofOfPaymentText', null)
+          && taskAfter(taskId).workerProofSubmittedAt == request.resource.data.workerProofSubmittedAt
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'workerProofOfPaymentUrl',
+            'workerProofOfPaymentText',
+            'workerProofSubmittedAt',
+            'updatedAt'
+          ])
+        ) || (
+          hasRole('worker')
+          && task(taskId).workerId == request.auth.uid
           && task(taskId).status == 'Pending Approval'
           && task(taskId).paymentMethod == 'COD'
           && resource.data.workerId == request.auth.uid
           && resource.data.paymentMethod == 'COD'
           && resource.data.paymentStatus == 'Submitted'
+          && resource.data.workerProofOfPaymentUrl is string
+          && resource.data.workerProofOfPaymentUrl.matches('paymentProofs/' + taskId + '/.+')
           && request.resource.data.paymentStatus == 'Verified'
           && request.resource.data.workerConfirmedAt is string
           && taskAfter(taskId).paymentStatus == 'Verified'

@@ -40,7 +40,7 @@ export default function TaskStatusScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { acceptTask, actionLoading, clearError, confirmCashPayment, currentUser, getUserById, ratings, tasks, submitPaymentProof, updateTaskStatus, withdrawApplication } = useApp();
+  const { acceptTask, actionLoading, clearError, confirmCashPayment, currentUser, getUserById, ratings, tasks, submitPaymentProof, submitWorkerPaymentProof, updateTaskStatus, withdrawApplication } = useApp();
   const task = tasks.find((item) => item.id === id);
   const taskClient = getUserById(task?.clientId) ?? (currentUser?.id === task?.clientId ? currentUser : undefined);
   const [actionWarning, setActionWarning] = useState("");
@@ -48,6 +48,10 @@ export default function TaskStatusScreen() {
   const [proofOfPaymentUrl, setProofOfPaymentUrl] = useState(task?.proofOfPaymentUrl ?? "");
   const [proofFileName, setProofFileName] = useState(task?.proofOfPaymentUrl?.split("/").pop() ?? "");
   const [uploadingProof, setUploadingProof] = useState(false);
+  const [workerProofOfPaymentText, setWorkerProofOfPaymentText] = useState(task?.workerProofOfPaymentText ?? "");
+  const [workerProofOfPaymentUrl, setWorkerProofOfPaymentUrl] = useState(task?.workerProofOfPaymentUrl ?? "");
+  const [workerProofFileName, setWorkerProofFileName] = useState(task?.workerProofOfPaymentUrl?.split("/").pop() ?? "");
+  const [uploadingWorkerProof, setUploadingWorkerProof] = useState(false);
   const [disputeDialogOpen, setDisputeDialogOpen] = useState(false);
   const liveTrackingEnabled = shouldTrackTaskLocation(
     currentUser?.role,
@@ -116,6 +120,10 @@ export default function TaskStatusScreen() {
     : currentUser?.id === task.workerId
       ? task.clientId
       : undefined;
+  const workerCanUploadPaymentEvidence = currentUser?.role === "worker" &&
+    currentUser.id === task.workerId &&
+    ["Accepted", "In Progress", "Pending Approval"].includes(task.status) &&
+    task.paymentStatus !== "Verified";
 
   async function handlePrimaryAction() {
     if (!task) {
@@ -207,11 +215,28 @@ export default function TaskStatusScreen() {
     }
   }
 
-  async function handleOpenPaymentProof() {
-    if (!task?.proofOfPaymentUrl) return;
+  async function handleUploadWorkerPaymentProof() {
+    if (!task) return;
+    setUploadingWorkerProof(true);
+    setActionWarning("");
+    try {
+      const uploaded = await pickAndUploadPaymentProof(task.id);
+      if (!uploaded) return;
+      await submitWorkerPaymentProof(task.id, workerProofOfPaymentText, uploaded.path);
+      setWorkerProofOfPaymentUrl(uploaded.path);
+      setWorkerProofFileName(uploaded.name);
+    } catch (error) {
+      setActionWarning(error instanceof Error ? error.message : "Unable to upload the tasker receipt.");
+    } finally {
+      setUploadingWorkerProof(false);
+    }
+  }
+
+  async function handleOpenPaymentProof(path?: string) {
+    if (!task || !path) return;
     try {
       setActionWarning("");
-      await Linking.openURL(await getPaymentProofDownloadUrl(task.id, task.proofOfPaymentUrl));
+      await Linking.openURL(await getPaymentProofDownloadUrl(task.id, path));
     } catch (error) {
       setActionWarning(error instanceof Error ? error.message : "Unable to open the payment receipt.");
     }
@@ -257,6 +282,7 @@ export default function TaskStatusScreen() {
             radiusMeters={task.geofenceRadius}
             height={260}
             fitToMarkers={Boolean(liveTracking.location)}
+            connectMarkers
           />
           <View style={styles.urgentBadge}>
             <Text style={styles.urgentBadgeText}>{task.status === "Finding Workers" ? "Open" : task.status}</Text>
@@ -325,6 +351,40 @@ export default function TaskStatusScreen() {
                   {currentUser?.role !== "worker" ? "Worker check-in" : insideGeofence ? "Inside task radius" : "Check-in needed"}
                 </Text>
               </View>
+              <View style={styles.geoMapFrame}>
+                <LocationMap
+                  center={task.latitude !== undefined && task.longitude !== undefined ? { latitude: task.latitude, longitude: task.longitude } : undefined}
+                  markers={[
+                    ...(task.latitude !== undefined && task.longitude !== undefined
+                      ? [{ id: `${task.id}-check`, latitude: task.latitude, longitude: task.longitude, title: "Task location", color: "#005C55" }]
+                      : []),
+                    ...(liveTracking.location ? [{
+                      id: "live-check-device",
+                      latitude: liveTracking.location.latitude,
+                      longitude: liveTracking.location.longitude,
+                      title: "Your live location",
+                      color: "#2563EB",
+                      accuracyMeters: liveTracking.location.accuracyMeters
+                    }] : [])
+                  ]}
+                  radiusMeters={task.geofenceRadius}
+                  height={240}
+                  fitToMarkers={Boolean(liveTracking.location)}
+                  connectMarkers
+                />
+                <View style={styles.geoMapLegend}>
+                  <View style={styles.geoLegendItem}>
+                    <View style={[styles.geoLegendDot, styles.geoLegendTask]} />
+                    <Text style={styles.geoLegendText}>Task pin and allowed radius</Text>
+                  </View>
+                  {liveTrackingEnabled ? (
+                    <View style={styles.geoLegendItem}>
+                      <View style={[styles.geoLegendDot, styles.geoLegendWorker]} />
+                      <Text style={styles.geoLegendText}>Your live GPS position</Text>
+                    </View>
+                  ) : null}
+                </View>
+              </View>
               <Text style={styles.geoText}>Task area: {task.locationAddress ?? task.location}</Text>
               <Text style={styles.geoText}>Distance: {formatDistance(distanceKm)}</Text>
               <Text style={styles.geoText}>Required start radius: {task.geofenceRadius !== undefined ? `${task.geofenceRadius} meters` : "Not recorded"}</Text>
@@ -348,7 +408,7 @@ export default function TaskStatusScreen() {
                   ) : null}
                   <Text style={[styles.geoHint, liveLocationIssue ? styles.liveLocationWarning : undefined]}>
                     {liveTracking.status === "starting"
-                      ? "Requesting a balanced-accuracy device location..."
+                      ? "Requesting a high-accuracy device location..."
                       : liveTracking.status === "paused"
                         ? "Live updates pause while TaskLink is in the background."
                         : liveLocationIssue ?? "Your marker is updating while this screen stays open."}
@@ -417,17 +477,71 @@ export default function TaskStatusScreen() {
                             : "Submit Payment Confirmation"}
                     </Text>
                   </Pressable>
+                  {task.workerProofOfPaymentUrl ? (
+                    <Pressable accessibilityRole="button" onPress={() => handleOpenPaymentProof(task.workerProofOfPaymentUrl)} style={styles.paymentOutlineButton}>
+                      <Text style={styles.paymentOutlineButtonText}>Open Tasker Uploaded Receipt</Text>
+                    </Pressable>
+                  ) : null}
                 </>
               ) : (
                 <>
                   <Text style={styles.geoHint}>{task.proofOfPaymentText || "Waiting for client payment confirmation."}</Text>
                   {task.proofOfPaymentUrl ? (
-                    <Pressable accessibilityRole="button" onPress={handleOpenPaymentProof} style={styles.paymentOutlineButton}>
-                      <Text style={styles.paymentOutlineButtonText}>Open Uploaded Receipt</Text>
+                    <Pressable accessibilityRole="button" onPress={() => handleOpenPaymentProof(task.proofOfPaymentUrl)} style={styles.paymentOutlineButton}>
+                      <Text style={styles.paymentOutlineButtonText}>Open Employer Uploaded Receipt</Text>
+                    </Pressable>
+                  ) : null}
+                  {workerCanUploadPaymentEvidence ? (
+                    <>
+                      <TextInput
+                        multiline
+                        onChangeText={setWorkerProofOfPaymentText}
+                        placeholder="Optional tasker receipt note"
+                        placeholderTextColor={palette.outline}
+                        style={styles.paymentInput}
+                        textAlignVertical="top"
+                        value={workerProofOfPaymentText}
+                      />
+                      <Pressable
+                        accessibilityRole="button"
+                        disabled={uploadingWorkerProof || actionLoading}
+                        onPress={handleUploadWorkerPaymentProof}
+                        style={styles.paymentOutlineButton}
+                      >
+                        <Text style={styles.paymentOutlineButtonText}>
+                          {uploadingWorkerProof
+                            ? "Uploading Tasker Receipt..."
+                            : workerProofFileName || "Upload Tasker Receipt Image or PDF"}
+                        </Text>
+                      </Pressable>
+                      <Text style={styles.geoHint}>
+                        {workerProofOfPaymentUrl || task.workerProofOfPaymentUrl
+                          ? "Your receipt is stored privately and attached to this payment."
+                          : "Upload your receipt before confirming a cash payment."}
+                      </Text>
+                      {workerProofOfPaymentUrl || task.workerProofOfPaymentUrl ? (
+                        <Pressable
+                          accessibilityRole="button"
+                          onPress={() => handleOpenPaymentProof(workerProofOfPaymentUrl || task.workerProofOfPaymentUrl)}
+                          style={styles.paymentOutlineButton}
+                        >
+                          <Text style={styles.paymentOutlineButtonText}>Open Your Uploaded Receipt</Text>
+                        </Pressable>
+                      ) : null}
+                    </>
+                  ) : null}
+                  {task.workerProofOfPaymentUrl && !workerCanUploadPaymentEvidence ? (
+                    <Pressable accessibilityRole="button" onPress={() => handleOpenPaymentProof(task.workerProofOfPaymentUrl)} style={styles.paymentOutlineButton}>
+                      <Text style={styles.paymentOutlineButtonText}>Open Your Uploaded Receipt</Text>
                     </Pressable>
                   ) : null}
                   {currentUser?.id === task.workerId && task.status === "Pending Approval" && task.paymentMethod === "COD" && task.paymentStatus === "Submitted" ? (
-                    <Pressable accessibilityRole="button" disabled={actionLoading} onPress={handleConfirmCashPayment} style={styles.paymentButton}>
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={actionLoading || !(workerProofOfPaymentUrl || task.workerProofOfPaymentUrl)}
+                      onPress={handleConfirmCashPayment}
+                      style={[styles.paymentButton, !(workerProofOfPaymentUrl || task.workerProofOfPaymentUrl) && styles.primaryActionDisabled]}
+                    >
                       <Text style={styles.paymentButtonText}>{actionLoading ? "Confirming..." : "Confirm Cash Received"}</Text>
                     </Pressable>
                   ) : null}
@@ -904,6 +1018,13 @@ const styles = StyleSheet.create({
   trustText: { color: palette.muted, fontSize: 11, lineHeight: 14, fontWeight: "600" },
   statusPanel: { gap: 8 },
   geoPanel: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow, gap: 6 },
+  geoMapFrame: { marginTop: 4, gap: 8 },
+  geoMapLegend: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  geoLegendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
+  geoLegendDot: { width: 10, height: 10, borderRadius: 5 },
+  geoLegendTask: { backgroundColor: palette.primary },
+  geoLegendWorker: { backgroundColor: "#2563EB" },
+  geoLegendText: { color: palette.muted, fontSize: 11, lineHeight: 15, fontWeight: "700" },
   geoHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
   geoBadge: { overflow: "hidden", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, fontSize: 11, lineHeight: 14, fontWeight: "900" },
   geoBadgeGood: { backgroundColor: "#EAF8F1", color: "#0B7A52" },

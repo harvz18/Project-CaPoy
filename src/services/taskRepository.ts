@@ -580,6 +580,10 @@ export async function confirmCashPaymentReceipt(taskId: string, worker: UserProf
     if (task.paymentStatus !== "Submitted" || payment.paymentStatus !== "Submitted") {
       throw new Error("Wait for the employer to submit the cash payment confirmation.");
     }
+    if (!task.workerProofOfPaymentUrl?.startsWith(`paymentProofs/${taskId}/`) ||
+        payment.workerProofOfPaymentUrl !== task.workerProofOfPaymentUrl) {
+      throw new Error("Upload your receipt image or PDF before confirming cash payment.");
+    }
 
     const updates = { paymentStatus: "Verified" as const, workerConfirmedAt: now, updatedAt: now };
     transaction.update(taskRef, updates);
@@ -591,6 +595,63 @@ export async function confirmCashPaymentReceipt(taskId: string, worker: UserProf
       createdBy: worker.id,
       notificationType: "Cash payment confirmed",
       message: `Cash receipt was confirmed for ${task.title}.`,
+      createdAt: now
+    });
+  });
+}
+
+export async function updateWorkerPaymentEvidence(
+  taskId: string,
+  worker: UserProfile,
+  proofOfPaymentUrl: string,
+  proofOfPaymentText?: string
+) {
+  const firestore = requireDb();
+  const actor: TaskActor = { id: worker.id, role: worker.role };
+  requireAuthActor(actor);
+  if (actor.role !== "worker") throw new Error("Only the assigned tasker can upload a tasker receipt.");
+  if (!proofOfPaymentUrl.startsWith(`paymentProofs/${taskId}/`)) {
+    throw new Error("Upload an image or PDF receipt before submitting.");
+  }
+
+  const taskRef = doc(firestore, "tasks", taskId);
+  const paymentRef = doc(firestore, "payments", taskId);
+  const now = new Date().toISOString();
+  await runTransaction(firestore, async (transaction) => {
+    const [taskSnapshot, paymentSnapshot] = await Promise.all([
+      transaction.get(taskRef),
+      transaction.get(paymentRef)
+    ]);
+    if (!taskSnapshot.exists() || !paymentSnapshot.exists()) throw new Error("Task payment record not found.");
+
+    const task = { id: taskSnapshot.id, ...taskSnapshot.data() } as Task;
+    const payment = paymentSnapshot.data();
+    if (task.workerId !== worker.id || payment.workerId !== worker.id) {
+      throw new Error("Only the assigned tasker can upload a receipt for this task.");
+    }
+    if (!["Accepted", "In Progress", "Pending Approval"].includes(task.status)) {
+      throw new Error("Receipt uploads are available only while the assigned task is active.");
+    }
+    if (task.paymentStatus === "Verified" || payment.paymentStatus === "Verified") {
+      throw new Error("This payment has already been verified.");
+    }
+
+    const normalizedNote = proofOfPaymentText?.trim();
+    const updates = withoutUndefined({
+      workerProofOfPaymentUrl: proofOfPaymentUrl,
+      workerProofOfPaymentText: normalizedNote || undefined,
+      workerProofSubmittedAt: now,
+      updatedAt: now
+    });
+    transaction.update(taskRef, updates);
+    transaction.update(paymentRef, updates);
+    setWorkflowNotification(transaction, {
+      id: `${taskId}_worker-payment-proof_${worker.id}`,
+      userId: task.clientId,
+      taskId,
+      createdBy: worker.id,
+      notificationType: "Tasker receipt uploaded",
+      message: `The tasker uploaded payment evidence for ${task.title}.`,
       createdAt: now
     });
   });
