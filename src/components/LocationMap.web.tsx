@@ -165,7 +165,6 @@ export default function LocationMap({
 
     const bounds = L.latLngBounds([]);
     markerLayer.eachLayer((layer) => {
-      if (layer instanceof L.Circle) bounds.extend(layer.getBounds());
       if (layer instanceof L.Marker) bounds.extend(layer.getLatLng());
     });
     if (radiusLayerRef.current) bounds.extend(radiusLayerRef.current.getBounds());

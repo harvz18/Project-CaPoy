@@ -58,6 +58,16 @@ test("live location reports missing, stale, and inaccurate states", () => {
   assert.match(getLiveLocationIssue(reading(), Date.parse(capturedAt) + LIVE_LOCATION_STALE_AFTER_MS + 1) ?? "", /stale/);
 });
 
+test("a stale coarse computer reading explains the real accuracy problem first", () => {
+  const issue = getLiveLocationIssue(
+    reading({ accuracyMeters: 20_000 }),
+    Date.parse(capturedAt) + LIVE_LOCATION_STALE_AFTER_MS + 1
+  );
+  assert.match(issue ?? "", /only approximate/);
+  assert.match(issue ?? "", /phone with GPS/);
+  assert.doesNotMatch(issue ?? "", /stale/);
+});
+
 test("nearby geofence distances are shown in meters", () => {
   assert.equal(formatDistance(0.05), "50 m away");
   assert.equal(formatDistance(0.5), "500 m away");

@@ -23,7 +23,7 @@ export const DISCOVERY_LOCATION_MAX_AGE_MS = CORE_DISCOVERY_LOCATION_MAX_AGE_MS;
 export const DISCOVERY_MAX_DEVICE_ACCURACY_METERS = CORE_DISCOVERY_MAX_DEVICE_ACCURACY_METERS;
 export const LIVE_LOCATION_MIN_INTERVAL_MS = 5 * 1000;
 export const LIVE_LOCATION_MIN_DISTANCE_METERS = 10;
-export const LIVE_LOCATION_STALE_AFTER_MS = 20 * 1000;
+export const LIVE_LOCATION_STALE_AFTER_MS = 30 * 1000;
 
 export function parseCoordinate(value: string) {
   if (!value.trim()) return undefined;
@@ -134,16 +134,19 @@ export function getLiveLocationIssue(reading: LocationReading | undefined, now =
   if (!reading || !hasValidCoordinates(reading)) {
     return "Waiting for a valid device location.";
   }
-  const capturedAt = new Date(reading.capturedAt).getTime();
-  const age = now - capturedAt;
-  if (!Number.isFinite(capturedAt) || age < 0 || age > LIVE_LOCATION_STALE_AFTER_MS) {
-    return "Live location is stale. Check GPS and retry.";
-  }
   if (!Number.isFinite(reading.accuracyMeters)) {
     return "Location accuracy is unavailable. Start and finish checks still require an accurate reading.";
   }
   if ((reading.accuracyMeters as number) > CHECK_IN_MAX_ACCURACY_METERS) {
+    if ((reading.accuracyMeters as number) >= 1_000) {
+      return `Location is only approximate (about ${Math.round(reading.accuracyMeters as number)} meters). This computer may not have GPS. Enable precise location for this site or continue on a phone with GPS.`;
+    }
     return `Low location accuracy (about ${Math.round(reading.accuracyMeters as number)} meters). Move outdoors or retry.`;
+  }
+  const capturedAt = new Date(reading.capturedAt).getTime();
+  const age = now - capturedAt;
+  if (!Number.isFinite(capturedAt) || age < 0 || age > LIVE_LOCATION_STALE_AFTER_MS) {
+    return "Live location is stale. Check GPS and retry.";
   }
   return undefined;
 }
