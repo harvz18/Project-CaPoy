@@ -1,9 +1,14 @@
 import { ConfigContext, ExpoConfig } from "expo/config";
 
 export default ({ config }: ConfigContext): ExpoConfig => {
-  const googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY;
+  const googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY?.trim();
+  const googleMapsConfigured = Boolean(googleMapsApiKey);
   return {
     ...config,
+    extra: {
+      ...config.extra,
+      googleMapsConfigured
+    },
     android: {
       ...config.android,
       ...(googleMapsApiKey
