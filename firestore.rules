@@ -99,6 +99,36 @@ service cloud.firestore {
       return taskData.get('workerId', null) == null || taskData.get('workerId', '') == '';
     }
 
+    function isAssignedPaymentParticipant(taskData) {
+      return hasEnabledAccount()
+        && (taskData.clientId == request.auth.uid
+          || taskData.get('workerId', '') == request.auth.uid);
+    }
+
+    function paymentProofFile(taskId, party) {
+      return get(/databases/$(database)/documents/paymentProofFiles/$(taskId)/uploads/$(party)).data;
+    }
+
+    function paymentProofFileAfter(taskId, party) {
+      return getAfter(/databases/$(database)/documents/paymentProofFiles/$(taskId)/uploads/$(party)).data;
+    }
+
+    function validClientPaymentProofPath(taskId, proofPath) {
+      return proofPath is string
+        && (proofPath.matches('paymentProofs/' + taskId + '/.+')
+          || (proofPath == 'firestorePaymentProofs/' + taskId + '/client'
+            && paymentProofFile(taskId, 'client').status == 'ready'
+            && paymentProofFile(taskId, 'client').uploaderId == request.auth.uid));
+    }
+
+    function validWorkerPaymentProofPath(taskId, proofPath) {
+      return proofPath is string
+        && (proofPath.matches('paymentProofs/' + taskId + '/.+')
+          || (proofPath == 'firestorePaymentProofs/' + taskId + '/worker'
+            && paymentProofFile(taskId, 'worker').status == 'ready'
+            && paymentProofFile(taskId, 'worker').uploaderId == request.auth.uid));
+    }
+
     function validOwnUserDocument(userId) {
       return signedIn()
         && request.auth.uid == userId
@@ -590,8 +620,7 @@ service cloud.firestore {
         && request.resource.data.status == 'Pending Approval'
         && resource.data.paymentMethod == 'COD'
         && resource.data.paymentStatus == 'Submitted'
-        && resource.data.workerProofOfPaymentUrl is string
-        && resource.data.workerProofOfPaymentUrl.matches('paymentProofs/' + taskId + '/.+')
+        && validWorkerPaymentProofPath(taskId, resource.data.workerProofOfPaymentUrl)
         && request.resource.data.paymentStatus == 'Verified'
         && request.resource.data.workerConfirmedAt is string
         && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.paymentMethod == 'COD'
@@ -614,8 +643,7 @@ service cloud.firestore {
         && request.resource.data.status == resource.data.status
         && request.resource.data.paymentStatus == resource.data.paymentStatus
         && request.resource.data.paymentStatus != 'Verified'
-        && request.resource.data.workerProofOfPaymentUrl is string
-        && request.resource.data.workerProofOfPaymentUrl.matches('paymentProofs/' + taskId + '/.+')
+        && validWorkerPaymentProofPath(taskId, request.resource.data.workerProofOfPaymentUrl)
         && request.resource.data.workerProofSubmittedAt is string
         && (!('workerProofOfPaymentText' in request.resource.data)
           || (request.resource.data.workerProofOfPaymentText is string
@@ -724,8 +752,7 @@ service cloud.firestore {
               'updatedAt'
             ])
             && request.resource.data.paymentStatus == 'Submitted'
-            && request.resource.data.proofOfPaymentUrl is string
-            && request.resource.data.proofOfPaymentUrl.matches('paymentProofs/' + taskId + '/.+')
+            && validClientPaymentProofPath(taskId, request.resource.data.proofOfPaymentUrl)
             && (!('proofOfPaymentText' in request.resource.data)
               || (request.resource.data.proofOfPaymentText is string
                 && request.resource.data.proofOfPaymentText.size() > 0))
@@ -946,6 +973,86 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /paymentProofFiles/{taskId}/uploads/{party} {
+      allow read: if isAdmin() || isAssignedPaymentParticipant(task(taskId));
+      allow create, update: if hasEnabledAccount()
+        && request.resource.data.keys().hasOnly([
+          'taskId',
+          'party',
+          'uploaderId',
+          'fileName',
+          'mimeType',
+          'byteSize',
+          'encodedSize',
+          'chunkCount',
+          'version',
+          'status',
+          'createdAt'
+        ])
+        && request.resource.data.taskId == taskId
+        && request.resource.data.party == party
+        && party in ['client', 'worker']
+        && request.resource.data.uploaderId == request.auth.uid
+        && isAssignedPaymentParticipant(task(taskId))
+        && task(taskId).status in ['Accepted', 'In Progress', 'Pending Approval']
+        && ((party == 'client' && task(taskId).paymentStatus == 'Pending')
+          || (party == 'worker'
+            && task(taskId).paymentStatus != 'Verified'))
+        && ((party == 'client' && task(taskId).clientId == request.auth.uid)
+          || (party == 'worker' && task(taskId).workerId == request.auth.uid))
+        && request.resource.data.fileName is string
+        && request.resource.data.fileName.size() > 0
+        && request.resource.data.fileName.size() <= 100
+        && request.resource.data.mimeType is string
+        && (request.resource.data.mimeType.matches('image/.+')
+          || request.resource.data.mimeType == 'application/pdf')
+        && request.resource.data.byteSize is int
+        && request.resource.data.byteSize > 0
+        && request.resource.data.byteSize <= 5242880
+        && request.resource.data.encodedSize is int
+        && request.resource.data.encodedSize > 0
+        && request.resource.data.encodedSize <= 6991000
+        && request.resource.data.chunkCount is int
+        && request.resource.data.chunkCount > 0
+        && request.resource.data.chunkCount <= 16
+        && request.resource.data.version is string
+        && request.resource.data.version.size() > 0
+        && request.resource.data.status == 'ready'
+        && request.resource.data.createdAt is string;
+      allow delete: if false;
+
+      match /chunks/{chunkId} {
+        allow read: if isAdmin()
+          || isAssignedPaymentParticipant(task(taskId));
+        allow create, update: if hasEnabledAccount()
+          && request.resource.data.keys().hasOnly([
+            'id', 'taskId', 'party', 'uploaderId', 'index', 'version', 'data', 'createdAt'
+          ])
+          && request.resource.data.id == chunkId
+          && request.resource.data.taskId == taskId
+          && request.resource.data.party == party
+          && request.resource.data.uploaderId == request.auth.uid
+          && paymentProofFileAfter(taskId, party).taskId == taskId
+          && paymentProofFileAfter(taskId, party).party == party
+          && paymentProofFileAfter(taskId, party).uploaderId == request.auth.uid
+          && paymentProofFileAfter(taskId, party).status == 'ready'
+          && request.resource.data.version == paymentProofFileAfter(taskId, party).version
+          && request.resource.data.createdAt == paymentProofFileAfter(taskId, party).createdAt
+          && request.resource.data.index is int
+          && request.resource.data.index >= 0
+          && request.resource.data.index < paymentProofFileAfter(taskId, party).chunkCount
+          && request.resource.data.data is string
+          && request.resource.data.data.size() > 0
+          && request.resource.data.data.size() <= 450000
+          && isAssignedPaymentParticipant(task(taskId))
+          && task(taskId).status in ['Accepted', 'In Progress', 'Pending Approval']
+          && ((party == 'client' && task(taskId).paymentStatus == 'Pending')
+            || (party == 'worker'
+              && task(taskId).paymentStatus != 'Verified'));
+        allow delete: if false;
+      }
+    }
+
     match /payments/{taskId} {
       allow read: if isAdmin() || (hasEnabledAccount() && isTaskParticipant(task(taskId)));
       allow create: if hasRole('client')
@@ -991,8 +1098,7 @@ service cloud.firestore {
           && resource.data.paymentStatus != 'Verified'
           && taskAfter(taskId).status in ['Accepted', 'In Progress', 'Pending Approval']
           && request.resource.data.paymentStatus == resource.data.paymentStatus
-          && request.resource.data.workerProofOfPaymentUrl is string
-          && request.resource.data.workerProofOfPaymentUrl.matches('paymentProofs/' + taskId + '/.+')
+          && validWorkerPaymentProofPath(taskId, request.resource.data.workerProofOfPaymentUrl)
           && request.resource.data.workerProofSubmittedAt is string
           && (!('workerProofOfPaymentText' in request.resource.data)
             || (request.resource.data.workerProofOfPaymentText is string
@@ -1015,8 +1121,7 @@ service cloud.firestore {
           && resource.data.workerId == request.auth.uid
           && resource.data.paymentMethod == 'COD'
           && resource.data.paymentStatus == 'Submitted'
-          && resource.data.workerProofOfPaymentUrl is string
-          && resource.data.workerProofOfPaymentUrl.matches('paymentProofs/' + taskId + '/.+')
+          && validWorkerPaymentProofPath(taskId, resource.data.workerProofOfPaymentUrl)
           && request.resource.data.paymentStatus == 'Verified'
           && request.resource.data.workerConfirmedAt is string
           && taskAfter(taskId).paymentStatus == 'Verified'

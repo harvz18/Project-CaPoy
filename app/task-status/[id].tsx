@@ -193,7 +193,7 @@ export default function TaskStatusScreen() {
     setUploadingProof(true);
     setActionWarning("");
     try {
-      const uploaded = await pickAndUploadPaymentProof(task.id);
+      const uploaded = await pickAndUploadPaymentProof(task.id, "client");
       if (uploaded) {
         setProofOfPaymentUrl(uploaded.path);
         setProofFileName(uploaded.name);
@@ -220,7 +220,7 @@ export default function TaskStatusScreen() {
     setUploadingWorkerProof(true);
     setActionWarning("");
     try {
-      const uploaded = await pickAndUploadPaymentProof(task.id);
+      const uploaded = await pickAndUploadPaymentProof(task.id, "worker");
       if (!uploaded) return;
       await submitWorkerPaymentProof(task.id, workerProofOfPaymentText, uploaded.path);
       setWorkerProofOfPaymentUrl(uploaded.path);
@@ -449,7 +449,7 @@ export default function TaskStatusScreen() {
                     style={styles.paymentOutlineButton}
                   >
                     <Text style={styles.paymentOutlineButtonText}>
-                      {uploadingProof ? "Uploading..." : proofFileName || "Upload receipt image or PDF (required)"}
+                      {uploadingProof ? "Uploading..." : proofFileName || "Upload receipt image or PDF (required, max 5 MB)"}
                     </Text>
                   </Pressable>
                   {!proofOfPaymentUrl && task.paymentStatus !== "Submitted" && task.paymentStatus !== "Verified" ? (
@@ -511,7 +511,7 @@ export default function TaskStatusScreen() {
                         <Text style={styles.paymentOutlineButtonText}>
                           {uploadingWorkerProof
                             ? "Uploading Tasker Receipt..."
-                            : workerProofFileName || "Upload Tasker Receipt Image or PDF"}
+                            : workerProofFileName || "Upload Tasker Receipt Image or PDF (max 5 MB)"}
                         </Text>
                       </Pressable>
                       <Text style={styles.geoHint}>

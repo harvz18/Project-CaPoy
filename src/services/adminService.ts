@@ -13,6 +13,8 @@ import {
   ViolationReport
 } from "../types";
 import { db, functions, storage } from "./firebase";
+import { getPaymentProofDownloadUrl } from "./fileUploadService";
+import { parseFirestorePaymentProofPath } from "../utils/paymentProof";
 
 function requireAdminServices() {
   if (!db || !functions) throw new Error("Firebase administrator services are not configured.");
@@ -133,6 +135,8 @@ export function confirmCashPayment(taskId: string) {
 }
 
 export function getPrivateFileUrl(path: string) {
+  const firestoreProof = parseFirestorePaymentProofPath(path);
+  if (firestoreProof) return getPaymentProofDownloadUrl(firestoreProof.taskId, path);
   if (!storage) throw new Error("Firebase Storage is not configured.");
   return getDownloadURL(ref(storage, path));
 }

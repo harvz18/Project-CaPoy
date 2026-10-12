@@ -19,6 +19,7 @@ import {
   TaskActor
 } from "../domain/taskWorkflow";
 import { DurationUnit, PaymentMethod, PaymentStatus, PricingMode, Task, TaskMatch, TaskStatus, UserProfile } from "../types";
+import { isPaymentProofPathForTask } from "../utils/paymentProof";
 import { auth, db } from "./firebase";
 
 function requireDb() {
@@ -531,7 +532,8 @@ export async function updateTaskPaymentVerification(
       throw new Error("Payment confirmation is available after a worker is accepted and before completion.");
     }
     if (paymentStatus !== "Submitted" ||
-        !proofOfPaymentUrl?.startsWith(`paymentProofs/${taskId}/`)) {
+        !proofOfPaymentUrl ||
+        !isPaymentProofPathForTask(taskId, proofOfPaymentUrl, "client")) {
       throw new Error("Upload an image or PDF payment receipt before submitting.");
     }
     const normalizedNote = proofOfPaymentText?.trim();
@@ -580,7 +582,8 @@ export async function confirmCashPaymentReceipt(taskId: string, worker: UserProf
     if (task.paymentStatus !== "Submitted" || payment.paymentStatus !== "Submitted") {
       throw new Error("Wait for the employer to submit the cash payment confirmation.");
     }
-    if (!task.workerProofOfPaymentUrl?.startsWith(`paymentProofs/${taskId}/`) ||
+    if (!task.workerProofOfPaymentUrl ||
+        !isPaymentProofPathForTask(taskId, task.workerProofOfPaymentUrl, "worker") ||
         payment.workerProofOfPaymentUrl !== task.workerProofOfPaymentUrl) {
       throw new Error("Upload your receipt image or PDF before confirming cash payment.");
     }
@@ -610,7 +613,7 @@ export async function updateWorkerPaymentEvidence(
   const actor: TaskActor = { id: worker.id, role: worker.role };
   requireAuthActor(actor);
   if (actor.role !== "worker") throw new Error("Only the assigned tasker can upload a tasker receipt.");
-  if (!proofOfPaymentUrl.startsWith(`paymentProofs/${taskId}/`)) {
+  if (!isPaymentProofPathForTask(taskId, proofOfPaymentUrl, "worker")) {
     throw new Error("Upload an image or PDF receipt before submitting.");
   }
 

@@ -881,6 +881,118 @@ test("a pending-verification worker can apply to a legacy open task with null wo
   }));
 });
 
+test("assigned participants can store private receipt chunks in Firestore without exposing them", async () => {
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
+    await Promise.all([
+      setDoc(doc(db, "tasks", TASK_ID), taskData({
+        status: "Accepted",
+        workerId: WORKER_ID,
+        applicantIds: [WORKER_ID],
+        paymentStatus: "Pending"
+      })),
+      setDoc(doc(db, "payments", TASK_ID), {
+        id: TASK_ID,
+        taskId: TASK_ID,
+        clientId: CLIENT_ID,
+        workerId: WORKER_ID,
+        paymentMethod: "COD",
+        paymentStatus: "Pending",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z"
+      })
+    ]);
+  });
+
+  const createdAt = "2026-01-01T01:00:00.000Z";
+  const uploadReceipt = async (actorId, party) => {
+    const actorDb = dbFor(actorId);
+    const proofRef = doc(actorDb, "paymentProofFiles", TASK_ID, "uploads", party);
+    const batch = writeBatch(actorDb);
+    batch.set(proofRef, {
+      taskId: TASK_ID,
+      party,
+      uploaderId: actorId,
+      fileName: `${party}-receipt.jpg`,
+      mimeType: "image/jpeg",
+      byteSize: 6,
+      encodedSize: 8,
+      chunkCount: 2,
+      version: `${party}-v1`,
+      status: "ready",
+      createdAt
+    });
+    for (let index = 0; index < 2; index += 1) {
+      const chunkId = index.toString().padStart(3, "0");
+      batch.set(doc(proofRef, "chunks", chunkId), {
+        id: chunkId,
+        taskId: TASK_ID,
+        party,
+        uploaderId: actorId,
+        index,
+        version: `${party}-v1`,
+        data: index === 0 ? "YWJj" : "ZGVm",
+        createdAt
+      });
+    }
+    await assertSucceeds(batch.commit());
+    return proofRef;
+  };
+
+  const clientProofRef = await uploadReceipt(CLIENT_ID, "client");
+  const workerProofRef = await uploadReceipt(WORKER_ID, "worker");
+  await assertSucceeds(getDoc(clientProofRef));
+  await assertSucceeds(getDocs(collection(workerProofRef, "chunks")));
+  await assertSucceeds(getDoc(doc(dbFor(CLIENT_ID), "paymentProofFiles", TASK_ID, "uploads", "worker")));
+  await assertSucceeds(getDoc(doc(dbFor(ADMIN_ID, { admin: true }), "paymentProofFiles", TASK_ID, "uploads", "client")));
+  await assertFails(getDoc(doc(dbFor(OUTSIDER_ID), "paymentProofFiles", TASK_ID, "uploads", "client")));
+
+  const workerDb = dbFor(WORKER_ID);
+  let attachProof = writeBatch(workerDb);
+  attachProof.update(doc(workerDb, "tasks", TASK_ID), {
+    workerProofOfPaymentUrl: `firestorePaymentProofs/${TASK_ID}/worker`,
+    workerProofSubmittedAt: createdAt,
+    updatedAt: createdAt
+  });
+  attachProof.update(doc(workerDb, "payments", TASK_ID), {
+    workerProofOfPaymentUrl: `firestorePaymentProofs/${TASK_ID}/worker`,
+    workerProofSubmittedAt: createdAt,
+    updatedAt: createdAt
+  });
+  await assertSucceeds(attachProof.commit());
+
+  const clientDb = dbFor(CLIENT_ID);
+  attachProof = writeBatch(clientDb);
+  attachProof.update(doc(clientDb, "tasks", TASK_ID), {
+    paymentStatus: "Submitted",
+    proofOfPaymentUrl: `firestorePaymentProofs/${TASK_ID}/client`,
+    clientConfirmedAt: createdAt,
+    updatedAt: createdAt
+  });
+  attachProof.update(doc(clientDb, "payments", TASK_ID), {
+    paymentStatus: "Submitted",
+    proofOfPaymentUrl: `firestorePaymentProofs/${TASK_ID}/client`,
+    clientConfirmedAt: createdAt,
+    updatedAt: createdAt
+  });
+  await assertSucceeds(attachProof.commit());
+
+  const outsiderDb = dbFor(OUTSIDER_ID);
+  await assertFails(setDoc(doc(outsiderDb, "paymentProofFiles", TASK_ID, "uploads", "worker"), {
+    taskId: TASK_ID,
+    party: "worker",
+    uploaderId: OUTSIDER_ID,
+    fileName: "forged.jpg",
+    mimeType: "image/jpeg",
+    byteSize: 3,
+    encodedSize: 4,
+    chunkCount: 1,
+    version: "forged-v1",
+    status: "ready",
+    createdAt
+  }));
+});
+
 test("client and worker accounts can complete the full canonical task lifecycle", async () => {
   const clientDb = dbFor(CLIENT_ID);
   const workerDb = dbFor(WORKER_ID);
