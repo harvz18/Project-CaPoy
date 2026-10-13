@@ -19,6 +19,19 @@ export type NotificationRouteData = {
   resourceType?: string
 }
 
+// Expo Go on Android supports local notifications, but SDK 53+ intentionally
+// throws when remote push-token APIs are used. Check all Expo Go signals
+// because expoGoConfig can be undefined rather than null in some clients.
+export const isRunningInExpoGo =
+  Constants.appOwnership === 'expo'
+  || Constants.expoGoConfig != null
+  || typeof Constants.expoVersion === 'string'
+
+// Development and production builds still use the complete push-registration
+// flow below.
+export const supportsRemotePushNotifications =
+  !(Platform.OS === 'android' && isRunningInExpoGo)
+
 if (Platform.OS !== 'web') {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -50,6 +63,12 @@ const ensureAndroidChannel = async () => {
 export const registerCurrentDeviceForPush = async (): Promise<PushRegistrationResult> => {
   if (Platform.OS === 'web') {
     return { ok: true, message: 'Native push registration is not required on web.' }
+  }
+  if (!supportsRemotePushNotifications) {
+    return {
+      ok: false,
+      message: 'Remote push notifications require a development build on Android.',
+    }
   }
   if (!supabase || !supabaseConfig.isConfigured) {
     return { ok: false, message: 'Supabase is not configured.' }
@@ -101,7 +120,12 @@ export const registerCurrentDeviceForPush = async (): Promise<PushRegistrationRe
 }
 
 export const revokeCurrentDevicePushToken = async () => {
-  if (Platform.OS === 'web' || !supabase || !supabaseConfig.isConfigured) return true
+  if (
+    Platform.OS === 'web'
+    || !supportsRemotePushNotifications
+    || !supabase
+    || !supabaseConfig.isConfigured
+  ) return true
 
   try {
     const projectId = getProjectId()

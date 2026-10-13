@@ -204,6 +204,7 @@ import {
   registerCurrentDeviceForPush,
   revokeCurrentDevicePushToken,
   setApplicationBadgeFromUnreadCount,
+  supportsRemotePushNotifications,
 } from './lib/notifications'
 import {
   CoordinatorBookedService,
@@ -1597,7 +1598,11 @@ export const App: React.FC = () => {
   )
 
   React.useEffect(() => {
-    if (!authenticatedUserId || Platform.OS === 'web') return undefined
+    if (
+      !authenticatedUserId
+      || Platform.OS === 'web'
+      || !supportsRemotePushNotifications
+    ) return undefined
 
     let active = true
     void registerCurrentDeviceForPush().then((result) => {
@@ -1605,13 +1610,22 @@ export const App: React.FC = () => {
       if (__DEV__) console.warn(`Push registration: ${result.message ?? 'not available'}`)
     })
 
-    const tokenSubscription = Notifications.addPushTokenListener(() => {
-      void registerCurrentDeviceForPush()
-    })
+    let tokenSubscription: ReturnType<typeof Notifications.addPushTokenListener> | undefined
+    try {
+      tokenSubscription = Notifications.addPushTokenListener(() => {
+        void registerCurrentDeviceForPush()
+      })
+    } catch (error) {
+      if (__DEV__) {
+        console.warn(
+          `Push token listener is unavailable: ${error instanceof Error ? error.message : 'unknown error'}`
+        )
+      }
+    }
 
     return () => {
       active = false
-      tokenSubscription.remove()
+      tokenSubscription?.remove()
     }
   }, [authenticatedUserId])
 
