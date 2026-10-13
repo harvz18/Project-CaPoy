@@ -14,9 +14,15 @@ Open `http://127.0.0.1:5500`.
 
 ## Android download
 
-`GET /download/android` serves `Capstone/builds/MULTIVENT-1.0.0-preview-fcm.apk`. The website does not duplicate the 88 MB APK; it streams the one already maintained with the mobile application.
+The website's Android button downloads the verified public build from:
 
-For a hosted deployment, set `MULTIVENT_ANDROID_APK_PATH` to the absolute path of the APK available on that host. Add the final Google Play or Apple App Store URLs only after those listings exist.
+```text
+https://downloads.multivent.org/MULTIVENT-1.0.0-preview-fcm.apk
+```
+
+The local `GET /download/android` helper continues to serve `Capstone/builds/MULTIVENT-1.0.0-preview-fcm.apk` while developing on this computer.
+
+Upload future Android release APKs to the R2 downloads bucket, update the URL in `index.html`, then deploy the website. Add final Google Play or Apple App Store URLs only after those listings exist.
 
 ## Verification
 
