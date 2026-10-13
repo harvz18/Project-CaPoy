@@ -18,6 +18,7 @@ builds/
 # Firebase private service-account keys must never be committed.
 firebase-service-account*.json
 fcm-service-account*.json
+*-firebase-adminsdk-*.json
 
 # Python-generated artifacts
 __pycache__/

@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "771034571836",
+    "project_id": "multivent-8011e",
+    "storage_bucket": "multivent-8011e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:771034571836:android:2ecbd9f93b6ad0399d8f39",
+        "android_client_info": {
+          "package_name": "com.intelink.multivent"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "771034571836-dnccfc2hubkhr1frv63kp6bgvm8rd7ci.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC1RYuI-yJZwMIPb1Fk-OYq-acXPvlBOls"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "771034571836-dnccfc2hubkhr1frv63kp6bgvm8rd7ci.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

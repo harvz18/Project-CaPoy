@@ -18,6 +18,7 @@
     "android": {
       "predictiveBackGestureEnabled": false,
       "package": "com.intelink.multivent",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/multivent-icon-padded.png",
         "backgroundColor": "#630019"
