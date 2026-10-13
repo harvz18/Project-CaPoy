@@ -28,6 +28,8 @@ export interface MerchantBookedService {
   budgetPerHead?: number
   cateringOptionName?: string
   clientNotes?: string
+  completionPaymentStatus?: 'awaiting_external_payment' | 'partially_confirmed' | 'fully_confirmed'
+  confirmedExternalPaymentAmount?: number
   dietaryNotes?: string
   downpaymentAmount?: number
   id: string
@@ -59,6 +61,8 @@ export interface MerchantBookingRequest {
   cateringOptionName?: string
   clientEmail?: string
   clientNotes?: string
+  completionPaymentStatus?: 'awaiting_external_payment' | 'partially_confirmed' | 'fully_confirmed'
+  confirmedExternalPaymentAmount?: number
   dietaryNotes?: string
   downpaymentAmount?: number
   clientName: string

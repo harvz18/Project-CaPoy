@@ -55,6 +55,21 @@ const defaultDetails: BookingDetailValue = {
   paymentStatus: 'Paid',
 }
 
+const formatPeso = (value: number) =>
+  `PHP ${Math.round(Math.max(0, value)).toLocaleString('en-PH')}`
+
+const completionPaymentLabel = (service: NonNullable<BookingItem['services']>[number]) => {
+  const remaining = Math.max(0, service.remainingServiceBalance ?? 0)
+  const confirmed = Math.max(0, service.confirmedExternalPaymentAmount ?? 0)
+
+  if (service.status === 'completed' && remaining <= 0) return 'Fully paid / completed'
+  if (remaining <= 0) return 'Fully paid — awaiting provider completion'
+  if (confirmed > 0 || service.completionPaymentStatus === 'partially_confirmed') {
+    return 'Partially confirmed external payment'
+  }
+  return 'Awaiting remaining payment'
+}
+
 export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
   booking,
   details,
@@ -270,6 +285,42 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                   <Text style={styles.serviceMeta}>
                     {service.category} · PHP {Math.round(service.amount).toLocaleString('en-PH')}
                   </Text>
+                  {service.serviceAmount !== undefined
+                    || service.initialProviderShare !== undefined
+                    || service.remainingServiceBalance !== undefined ? (
+                      <View style={styles.servicePaymentSummary}>
+                        <View style={styles.servicePaymentRow}>
+                          <Text style={styles.servicePaymentLabel}>TOTAL SERVICE AMOUNT</Text>
+                          <Text style={styles.servicePaymentValue}>
+                            {formatPeso(service.serviceAmount ?? service.amount)}
+                          </Text>
+                        </View>
+                        <View style={styles.servicePaymentRow}>
+                          <Text style={styles.servicePaymentLabel}>INITIAL PROVIDER ALLOCATION</Text>
+                          <Text style={styles.servicePaymentValue}>
+                            {formatPeso(service.initialProviderShare ?? 0)}
+                          </Text>
+                        </View>
+                        <View style={styles.servicePaymentRow}>
+                          <Text style={styles.servicePaymentLabel}>EXTERNAL PAYMENT CONFIRMED</Text>
+                          <Text style={styles.servicePaymentValue}>
+                            {formatPeso(service.confirmedExternalPaymentAmount ?? 0)}
+                          </Text>
+                        </View>
+                        <View style={styles.servicePaymentRow}>
+                          <Text style={styles.servicePaymentLabel}>REMAINING BALANCE</Text>
+                          <Text style={styles.servicePaymentRemaining}>
+                            {formatPeso(service.remainingServiceBalance ?? 0)}
+                          </Text>
+                        </View>
+                        <Text style={styles.servicePaymentStatus}>
+                          Status: {completionPaymentLabel(service)}
+                        </Text>
+                        <Text style={styles.servicePaymentNotice}>
+                          External payments are provider-confirmed and are not verified PayMongo transactions.
+                        </Text>
+                      </View>
+                    ) : null}
                 </View>
               </View>
             ))}
@@ -727,6 +778,13 @@ const styles = StyleSheet.create({
   serviceName: { flex: 1, color: palette.text, fontSize: 15, lineHeight: 21, fontWeight: '700' },
   serviceProvider: { color: palette.muted, fontSize: 13, lineHeight: 19, marginTop: 2 },
   serviceMeta: { color: palette.burgundy, fontSize: 13, lineHeight: 19, fontWeight: '600', marginTop: 3 },
+  servicePaymentSummary: { gap: 5, borderTopWidth: 1, borderTopColor: palette.border, marginTop: 10, paddingTop: 9 },
+  servicePaymentRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
+  servicePaymentLabel: { flex: 1, color: palette.muted, fontSize: 9, lineHeight: 13, fontWeight: '700', letterSpacing: 0.25 },
+  servicePaymentValue: { color: palette.text, fontSize: 11, lineHeight: 15, fontWeight: '600', textAlign: 'right' },
+  servicePaymentRemaining: { color: palette.burgundy, fontSize: 11, lineHeight: 15, fontWeight: '700', textAlign: 'right' },
+  servicePaymentStatus: { color: palette.text, fontSize: 10, lineHeight: 15, fontWeight: '700', marginTop: 2 },
+  servicePaymentNotice: { color: palette.muted, fontSize: 9, lineHeight: 13 },
   serviceStatus: {
     borderRadius: 10,
     backgroundColor: '#FFF1D9',

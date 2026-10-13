@@ -2,6 +2,7 @@ import { MaterialIcons } from '@expo/vector-icons'
 import React from 'react'
 import {
   ActivityIndicator,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -23,6 +24,19 @@ export interface MerchantBookingRequestDetails {
   venue: string
 }
 
+export type ProviderCompletionPaymentValue = {
+  amount?: number
+  note?: string
+  request: MerchantBookingRequest
+  requestKey?: string
+  type: 'confirmPayment' | 'notYet'
+}
+
+export type ProviderCompletionPaymentResult = {
+  message?: string
+  ok: boolean
+}
+
 export type BookingRequestDecision = 'accepted' | 'declined'
 
 export interface BookingRequestDecisionValue {
@@ -36,8 +50,8 @@ interface BookingRequestDetailsScreenProps {
   details?: Partial<MerchantBookingRequestDetails>
   onAccept?: (value: BookingRequestDecisionValue) => void
   onBack?: () => void
+  onCompletionPayment?: (value: ProviderCompletionPaymentValue) => Promise<ProviderCompletionPaymentResult>
   onDecline?: (value: BookingRequestDecisionValue) => void
-  onMarkCompleted?: (request: MerchantBookingRequest) => void
   onMessageClient?: (request: MerchantBookingRequest) => void
   processingBookingId?: string
   request?: MerchantBookingRequest
@@ -167,6 +181,14 @@ const hasEventDateArrived = (value: string) => {
   return date <= today
 }
 
+const newConfirmationRequestKey = () =>
+  `provider-confirmation-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`
+
+const paymentAmountFrom = (value: string) => {
+  const amount = Number.parseFloat(value.replace(/,/g, '').trim())
+  return Number.isFinite(amount) ? Math.round(amount * 100) / 100 : 0
+}
+
 const BackIcon = () => (
   <View style={styles.backIcon}>
     <View style={styles.backIconHead} />
@@ -179,8 +201,8 @@ export const BookingRequestDetailsScreen: React.FC<BookingRequestDetailsScreenPr
   details,
   onAccept,
   onBack,
+  onCompletionPayment,
   onDecline,
-  onMarkCompleted,
   onMessageClient,
   processingBookingId,
   request = emptyRequest,
@@ -189,6 +211,12 @@ export const BookingRequestDetailsScreen: React.FC<BookingRequestDetailsScreenPr
   const isWide = width >= 820
   const services = servicesFor(request)
   const [providerNotes, setProviderNotes] = React.useState<Record<string, string>>({})
+  const [completionService, setCompletionService] = React.useState<MerchantBookedService>()
+  const [completionAmount, setCompletionAmount] = React.useState('')
+  const [completionNote, setCompletionNote] = React.useState('')
+  const [completionError, setCompletionError] = React.useState('')
+  const [completionRequestKey, setCompletionRequestKey] = React.useState('')
+  const [isSavingCompletion, setIsSavingCompletion] = React.useState(false)
   const venue =
     details?.venue ||
     [request.venue, request.location].filter(Boolean).join(', ') ||
@@ -207,6 +235,50 @@ export const BookingRequestDetailsScreen: React.FC<BookingRequestDetailsScreenPr
     }
     if (decision === 'accepted') onAccept?.(value)
     else onDecline?.(value)
+  }
+
+  const openCompletionPayment = (service: MerchantBookedService) => {
+    setCompletionService(service)
+    setCompletionAmount(String(Math.max(0, service.remainingServiceBalance ?? 0)))
+    setCompletionNote('')
+    setCompletionError('')
+    setCompletionRequestKey(newConfirmationRequestKey())
+  }
+
+  const closeCompletionPayment = () => {
+    if (isSavingCompletion) return
+    setCompletionService(undefined)
+    setCompletionError('')
+  }
+
+  const submitCompletionPayment = async (type: ProviderCompletionPaymentValue['type']) => {
+    if (!completionService || !onCompletionPayment || isSavingCompletion) return
+    const completionRequest = requestForService(request, completionService)
+    const remaining = Math.max(0, completionService.remainingServiceBalance ?? 0)
+    const amount = paymentAmountFrom(completionAmount)
+
+    if (type === 'confirmPayment' && (amount <= 0 || amount > remaining)) {
+      setCompletionError(`Enter an amount from ${formatPrice(1)} to ${formatPrice(remaining)}.`)
+      return
+    }
+
+    setIsSavingCompletion(true)
+    setCompletionError('')
+    const result = await onCompletionPayment({
+      amount: type === 'confirmPayment' ? amount : undefined,
+      note: completionNote,
+      request: completionRequest,
+      requestKey: type === 'confirmPayment' ? completionRequestKey : undefined,
+      type,
+    })
+    setIsSavingCompletion(false)
+
+    if (!result.ok) {
+      setCompletionError(result.message ?? 'Unable to update the payment confirmation.')
+      return
+    }
+
+    setCompletionService(undefined)
   }
 
   return (
@@ -347,6 +419,10 @@ export const BookingRequestDetailsScreen: React.FC<BookingRequestDetailsScreenPr
                         value={service.initialProviderShare ?? 0}
                       />
                       <PaymentAmount
+                        label="EXTERNAL PAYMENTS CONFIRMED"
+                        value={service.confirmedExternalPaymentAmount ?? 0}
+                      />
+                      <PaymentAmount
                         emphasized
                         label="REMAINING SERVICE BALANCE"
                         value={service.remainingServiceBalance ?? 0}
@@ -356,8 +432,14 @@ export const BookingRequestDetailsScreen: React.FC<BookingRequestDetailsScreenPr
                       The client's payment already includes MULTIVENT's {formatPrice(service.platformFeePaid ?? 0)} commission. It is not deducted from your remaining service balance.
                     </Text>
                     <Text style={styles.paymentTiming}>
-                      {isConfirmed || service.status === 'completed'
-                        ? 'Your initial share is recorded. The remaining service balance becomes due after event completion.'
+                      {service.status === 'completed'
+                        ? 'The remaining balance was recorded before this service was completed.'
+                        : service.completionPaymentStatus === 'fully_confirmed'
+                          ? 'The external balance has been fully confirmed and the service is ready to complete.'
+                          : service.completionPaymentStatus === 'partially_confirmed'
+                            ? 'A partial external payment is recorded. Confirm the balance still outstanding before completion.'
+                            : isConfirmed
+                              ? 'Your initial share is recorded. Confirm any remaining direct payment after service delivery.'
                         : 'Accept this service to credit your initial share. The remaining service balance becomes due after event completion.'}
                     </Text>
                   </View>
@@ -526,12 +608,12 @@ export const BookingRequestDetailsScreen: React.FC<BookingRequestDetailsScreenPr
                     </View>
                     <Pressable
                       accessibilityLabel={`Mark ${service.serviceName} finished`}
-                      disabled={!eventDateHasArrived || isProcessing}
-                      onPress={() => onMarkCompleted?.(requestForService(request, service))}
+                      disabled={!eventDateHasArrived || isProcessing || !onCompletionPayment}
+                      onPress={() => openCompletionPayment(service)}
                       style={({ pressed }) => [
                         styles.finishButton,
                         pressed && styles.pressed,
-                        (!eventDateHasArrived || isProcessing) && styles.disabled,
+                        (!eventDateHasArrived || isProcessing || !onCompletionPayment) && styles.disabled,
                       ]}
                     >
                       {completingBookingId === service.id ? (
@@ -561,6 +643,103 @@ export const BookingRequestDetailsScreen: React.FC<BookingRequestDetailsScreenPr
           })}
         </View>
       </ScrollView>
+      <Modal
+        animationType="fade"
+        onRequestClose={closeCompletionPayment}
+        transparent
+        visible={Boolean(completionService)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.completionModal}>
+            <Text style={styles.completionModalTitle}>Complete This Service?</Text>
+            <Text style={styles.completionModalServiceName}>
+              {completionService?.serviceName ?? completionService?.packageName}
+            </Text>
+            <View style={styles.completionPaymentGrid}>
+              <PaymentAmount label="SERVICE AMOUNT" value={completionService?.amount ?? 0} />
+              <PaymentAmount
+                label="INITIAL AMOUNT CREDITED"
+                value={completionService?.initialProviderShare ?? 0}
+              />
+              <PaymentAmount
+                label="EXTERNAL PAYMENTS CONFIRMED"
+                value={completionService?.confirmedExternalPaymentAmount ?? 0}
+              />
+              <PaymentAmount
+                emphasized
+                label="REMAINING BALANCE"
+                value={completionService?.remainingServiceBalance ?? 0}
+              />
+            </View>
+            <Text style={styles.completionModalNotice}>
+              Confirming a payment records the amount your client paid directly to you. It is provider-confirmed and is not a verified PayMongo transaction.
+            </Text>
+            <Text style={styles.completionInputLabel}>AMOUNT RECEIVED NOW</Text>
+            <TextInput
+              accessibilityLabel="External payment amount received"
+              editable={!isSavingCompletion}
+              keyboardType="decimal-pad"
+              onChangeText={setCompletionAmount}
+              placeholder="0.00"
+              placeholderTextColor={palette.placeholder}
+              style={styles.completionAmountInput}
+              value={completionAmount}
+            />
+            <TextInput
+              accessibilityLabel="Optional payment note"
+              editable={!isSavingCompletion}
+              maxLength={300}
+              multiline
+              onChangeText={setCompletionNote}
+              placeholder="Optional note for your records"
+              placeholderTextColor={palette.placeholder}
+              style={styles.completionNoteInput}
+              textAlignVertical="top"
+              value={completionNote}
+            />
+            {completionError ? <Text style={styles.completionError}>{completionError}</Text> : null}
+            <View style={styles.completionModalActions}>
+              <Pressable
+                accessibilityLabel="Cancel payment confirmation"
+                disabled={isSavingCompletion}
+                onPress={closeCompletionPayment}
+                style={({ pressed }) => [
+                  styles.completionCancelButton,
+                  pressed && styles.pressed,
+                  isSavingCompletion && styles.disabled,
+                ]}
+              >
+                <Text style={styles.completionCancelButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                accessibilityLabel="Keep the service open while payment is outstanding"
+                disabled={isSavingCompletion}
+                onPress={() => void submitCompletionPayment('notYet')}
+                style={({ pressed }) => [
+                  styles.completionNotYetButton,
+                  pressed && styles.pressed,
+                  isSavingCompletion && styles.disabled,
+                ]}
+              >
+                <Text style={styles.completionNotYetButtonText}>Not Yet</Text>
+              </Pressable>
+              <Pressable
+                accessibilityLabel="Confirm external payment received"
+                disabled={isSavingCompletion}
+                onPress={() => void submitCompletionPayment('confirmPayment')}
+                style={({ pressed }) => [
+                  styles.completionConfirmButton,
+                  pressed && styles.pressed,
+                  isSavingCompletion && styles.disabled,
+                ]}
+              >
+                {isSavingCompletion ? <ActivityIndicator color="#FFFFFF" size="small" /> : null}
+                <Text style={styles.completionConfirmButtonText}>Confirm payment received</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   )
 }
@@ -723,6 +902,23 @@ const styles = StyleSheet.create({
   completionText: { color: palette.secondary, fontSize: 9, lineHeight: 14, marginTop: 2 },
   finishButton: { minHeight: 38, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderRadius: 8, backgroundColor: palette.success, paddingHorizontal: 12 },
   finishButtonText: { color: '#FFFFFF', fontSize: 10, lineHeight: 14, fontWeight: '700' },
+  modalOverlay: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(32, 27, 27, 0.48)', padding: 20 },
+  completionModal: { width: '100%', maxWidth: 520, maxHeight: '94%', borderRadius: 16, backgroundColor: palette.surface, padding: 20 },
+  completionModalTitle: { color: palette.text, fontSize: 21, lineHeight: 27, fontWeight: '700' },
+  completionModalServiceName: { color: palette.secondary, fontSize: 13, lineHeight: 19, marginTop: 3 },
+  completionPaymentGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 },
+  completionModalNotice: { color: palette.secondary, fontSize: 11, lineHeight: 16, marginTop: 13 },
+  completionInputLabel: { color: palette.secondary, fontSize: 9, lineHeight: 13, fontWeight: '700', letterSpacing: 0.6, marginTop: 16 },
+  completionAmountInput: { minHeight: 44, borderWidth: 1, borderColor: palette.border, borderRadius: 8, backgroundColor: '#FCFBFB', color: palette.text, fontFamily: 'Inter_400Regular', fontSize: 15, lineHeight: 20, paddingHorizontal: 12, marginTop: 6 },
+  completionNoteInput: { minHeight: 64, borderWidth: 1, borderColor: palette.border, borderRadius: 8, backgroundColor: '#FCFBFB', color: palette.text, fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 17, padding: 10, marginTop: 9 },
+  completionError: { color: palette.cancelled, fontSize: 11, lineHeight: 16, marginTop: 8 },
+  completionModalActions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8, marginTop: 16 },
+  completionCancelButton: { minHeight: 38, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 8, paddingHorizontal: 12 },
+  completionCancelButtonText: { color: palette.secondary, fontSize: 10, lineHeight: 14, fontWeight: '700' },
+  completionNotYetButton: { minHeight: 38, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#D3BFC2', borderRadius: 8, paddingHorizontal: 12 },
+  completionNotYetButtonText: { color: palette.primaryContainer, fontSize: 10, lineHeight: 14, fontWeight: '700' },
+  completionConfirmButton: { minHeight: 38, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 8, backgroundColor: palette.success, paddingHorizontal: 12 },
+  completionConfirmButtonText: { color: '#FFFFFF', fontSize: 10, lineHeight: 14, fontWeight: '700' },
   closedNotice: { flexDirection: 'row', alignItems: 'center', gap: 7, borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 13, marginTop: 13 },
   closedNoticeText: { minWidth: 0, flex: 1, color: palette.secondary, fontSize: 10, lineHeight: 15 },
   pressed: { opacity: 0.76, transform: [{ scale: 0.99 }] },

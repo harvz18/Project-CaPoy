@@ -61,7 +61,6 @@ import {
   cancelClientEventBookings,
   changeMerchantPassword,
   clearMerchantServiceDraft,
-  completeMerchantBooking,
   deleteMerchantPackageListing,
   deleteMerchantServiceListing,
   emptyMerchantPayoutDashboard,
@@ -82,6 +81,7 @@ import {
   saveMerchantServiceDraft,
   saveMerchantServiceListing,
   saveMerchantComposedPackage,
+  saveMerchantCompletionPayment,
   saveMerchantPayoutAccount,
   saveNotificationPreferences,
   saveOperatingHours,
@@ -120,6 +120,7 @@ import {
 import {
   BookingRequestDecisionValue,
   BookingRequestDetailsScreen,
+  type ProviderCompletionPaymentValue,
 } from './screens/19.1-BookingRequest'
 import {
   BookingRequestDeclineScreen,
@@ -424,6 +425,18 @@ const confirmDestructiveAction = (title: string, message: string, actionLabel: s
 
 const confirmReplacement = (title: string, message: string) =>
   confirmDestructiveAction(title, message, 'Replace')
+
+const outcomeMessageForCompletionPayment = (
+  type: ProviderCompletionPaymentValue['type'],
+  bookingCompleted: boolean
+) => {
+  if (type === 'notYet') {
+    return 'The service remains open while the remaining balance is outstanding.'
+  }
+  return bookingCompleted
+    ? 'External payment recorded. The service was marked finished and the client was notified.'
+    : 'Provider-confirmed external payment recorded. The remaining balance is still outstanding.'
+}
 
 export const App: React.FC = () => {
   const [fontsLoaded] = useFonts({
@@ -1234,6 +1247,12 @@ export const App: React.FC = () => {
 
     setCatalogServices(services)
     setClientBookings(bookings)
+    setSelectedBooking((current) => {
+      if (!current) return current
+      return bookings.find((item) =>
+        item.id === current.id || Boolean(item.eventId && current.eventId && item.eventId === current.eventId)
+      ) ?? current
+    })
     setMerchantRequests(requests)
     setMerchantServices((current) =>
       merchantServiceRows.length > 0 ? merchantServiceRows : current
@@ -2551,16 +2570,29 @@ export const App: React.FC = () => {
     setScreen('providerBookingRequestDetails')
   }
 
-  const handleBookingCompletion = async (request: MerchantBookingRequest) => {
-    if (completingBookingId) return
+  const handleBookingCompletionPayment = async ({
+    amount,
+    note,
+    request,
+    requestKey,
+    type,
+  }: ProviderCompletionPaymentValue) => {
+    if (completingBookingId) {
+      return { ok: false, message: 'A payment confirmation is already being saved.' }
+    }
 
     setCompletingBookingId(request.id)
-    const result = await completeMerchantBooking(request.id)
+    const result = await saveMerchantCompletionPayment({
+      amount,
+      bookingId: request.id,
+      note,
+      requestKey,
+      type,
+    })
 
     if (!result.ok) {
       setCompletingBookingId('')
-      setToastMessage(result.message ?? 'Unable to mark this service as finished.')
-      return
+      return { ok: false, message: result.message ?? 'Unable to save the payment confirmation.' }
     }
 
     await refreshLiveData()
@@ -2568,10 +2600,29 @@ export const App: React.FC = () => {
     setSelectedMerchantRequest((current) => {
       const eventRequest =
         current?.eventId && current.eventId === request.eventId ? current : request
-      const services = eventRequest.services?.map((service) =>
-        service.id === request.id ? { ...service, status: 'completed' as const } : service
-      )
-      const statuses = services?.map((service) => service.status) ?? ['completed']
+      const outcome = result.completionPayment
+      const services = eventRequest.services?.map((service) => {
+        if (service.id !== request.id) return service
+
+        const remainingServiceBalance = outcome?.remainingServiceBalance ?? service.remainingServiceBalance
+        const confirmedExternalPaymentAmount = outcome?.confirmedExternalPaymentAmount
+          ?? service.confirmedExternalPaymentAmount
+        const bookingCompleted = outcome?.bookingCompleted === true
+        return {
+          ...service,
+          completionPaymentStatus: bookingCompleted
+            ? 'fully_confirmed' as const
+            : type === 'notYet'
+              ? 'awaiting_external_payment' as const
+              : (confirmedExternalPaymentAmount ?? 0) > 0
+                ? 'partially_confirmed' as const
+                : service.completionPaymentStatus,
+          confirmedExternalPaymentAmount,
+          remainingServiceBalance,
+          status: bookingCompleted ? 'completed' as const : service.status,
+        }
+      })
+      const statuses = services?.map((service) => service.status) ?? [request.status]
       const eventStatus: BookingRequestStatus = statuses.some((status) => status === 'new')
         ? 'new'
         : statuses.some((status) => status === 'confirmed')
@@ -2582,8 +2633,10 @@ export const App: React.FC = () => {
 
       return { ...eventRequest, services, status: eventStatus }
     })
-    setToastMessage('Service marked finished. The client has been notified.')
+    const message = outcomeMessageForCompletionPayment(type, result.completionPayment?.bookingCompleted === true)
+    setToastMessage(message)
     setScreen('providerBookingRequestDetails')
+    return { ok: true, message }
   }
 
   const handleClientBookingCancellation = async (reason: string) => {
@@ -3271,7 +3324,7 @@ export const App: React.FC = () => {
               setScreen('providerBookingDecline')
             }}
             onMessageClient={() => setScreen('messages')}
-            onMarkCompleted={(request) => void handleBookingCompletion(request)}
+            onCompletionPayment={handleBookingCompletionPayment}
           />
         )
       case 'providerBookingDecline':

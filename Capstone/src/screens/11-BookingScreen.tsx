@@ -18,11 +18,16 @@ export interface BookingServiceItem {
   amount: number
   bookingId: string
   category: string
+  completionPaymentStatus?: 'awaiting_external_payment' | 'partially_confirmed' | 'fully_confirmed'
+  confirmedExternalPaymentAmount?: number
   image: string
+  initialProviderShare?: number
   paymentStatus: string
   providerId: string
   providerName: string
   rawStatus: string
+  remainingServiceBalance?: number
+  serviceAmount?: number
   serviceId: string
   serviceName: string
   status: 'confirmed' | 'declined' | 'requested' | 'completed' | 'cancelled'

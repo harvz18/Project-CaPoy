@@ -28,6 +28,7 @@ const migrations = [
   'database/66_coordinator_assignment_event_visibility.sql',
   'database/67_budget_allocation_upsert_correction.sql',
   'database/68_conditional_event_coordinator_step.sql',
+  'database/69_provider_external_payment_confirmation.sql',
 ]
 
 test('Revision 2 migrations remain ordered, transactional, additive, and non-destructive', () => {
@@ -267,6 +268,56 @@ test('client home uses live eligible services and preserves resumable event draf
   ], 'reliable home-service ranking')
 })
 
+test('provider completion records direct external payments atomically before service completion', () => {
+  const phase5 = read('database/69_provider_external_payment_confirmation.sql')
+  const merchant = read('src/lib/merchant.ts')
+  const providerDetails = read('src/screens/19.1-BookingRequest.tsx')
+  const clientDetails = read('src/screens/11.1-BookingDetails.tsx')
+  const app = read('src/App.tsx')
+
+  mustContain(phase5, [
+    'provider_external_payment_confirmations',
+    "confirmation_status = 'provider_confirmed_unverified'",
+    'unique (booking_id, provider_id, request_key)',
+    'for update of booking',
+    'provider.user_id = auth.uid()',
+    'create or replace function public.confirm_provider_external_payment(',
+    'create or replace function public.mark_provider_booking_awaiting_external_payment(',
+    'Record the remaining external payment before completing this service.',
+    "'gateway_verified', false",
+    "'provider_external_confirmation'",
+    'external_confirmation_id',
+    'remaining_after = 0',
+    'external_confirmation_totals',
+    'A coordinator remittance already covers this booking.',
+  ], 'provider external-payment migration')
+  mustContain(merchant, [
+    "client.rpc('confirm_provider_external_payment'",
+    "client.rpc('mark_provider_booking_awaiting_external_payment'",
+    'fetchExternalPaymentSummaries',
+    'completionPaymentStatus',
+  ], 'merchant completion-payment integration')
+  mustContain(providerDetails, [
+    'Complete This Service?',
+    'Confirm payment received',
+    'Not Yet',
+    'not a verified PayMongo transaction',
+    'onCompletionPayment',
+  ], 'provider completion-payment UI')
+  mustContain(clientDetails, [
+    'TOTAL SERVICE AMOUNT',
+    'INITIAL PROVIDER ALLOCATION',
+    'REMAINING BALANCE',
+    'Awaiting remaining payment',
+    'Partially confirmed external payment',
+  ], 'client payment status UI')
+  mustContain(app, [
+    'saveMerchantCompletionPayment',
+    'handleBookingCompletionPayment',
+    'onCompletionPayment={handleBookingCompletionPayment}',
+  ], 'provider completion-payment app flow')
+})
+
 test('package selection checks duplicate categories, manual conflicts, dynamic options, and total budget', () => {
   const packages = read(migrations[1])
   const catering = read(migrations[2])
@@ -424,7 +475,7 @@ test('coordinators can inspect requests and both provider roles see commission-f
   ], 'coordinator request UI')
   mustContain(merchant, [
     'provider_initial_allocation',
-    'remainingServiceBalance: Math.max(0, serviceAmount - initialProviderShare)',
+    'serviceAmount - initialProviderShare - confirmedExternalPaymentAmount',
   ], 'provider booking financial mapping')
   mustContain(merchantDetails, [
     'REMAINING SERVICE BALANCE',

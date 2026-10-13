@@ -30,9 +30,22 @@ import type {
 } from '../screens'
 
 type MerchantResult = {
+  completionPayment?: {
+    bookingCompleted: boolean
+    confirmedExternalPaymentAmount?: number
+    remainingServiceBalance?: number
+  }
   ok: boolean
   message?: string
   service?: MerchantServiceListing
+}
+
+export type ProviderCompletionPaymentInput = {
+  amount?: number
+  bookingId: string
+  note?: string
+  requestKey?: string
+  type: 'confirmPayment' | 'notYet'
 }
 
 export interface MerchantServiceListing {
@@ -702,6 +715,56 @@ const nested = (value: unknown) => (Array.isArray(value) ? value[0] : value)
 
 const toIsoDate = (value: unknown) => textFrom(value, 'Date to be confirmed')
 
+type ExternalPaymentSummary = {
+  completionPaymentStatus?: 'awaiting_external_payment' | 'partially_confirmed' | 'fully_confirmed'
+  confirmedExternalPaymentAmount: number
+}
+
+const completionPaymentStatusFrom = (value: unknown): ExternalPaymentSummary['completionPaymentStatus'] =>
+  value === 'awaiting_external_payment' || value === 'partially_confirmed' || value === 'fully_confirmed'
+    ? value
+    : undefined
+
+const completionPaymentResultFrom = (value: unknown): NonNullable<MerchantResult['completionPayment']> => {
+  const data = value && typeof value === 'object' ? value as Record<string, unknown> : {}
+  const toOptionalAmount = (amount: unknown) => {
+    const parsed = typeof amount === 'number' ? amount : Number(amount)
+    return Number.isFinite(parsed) ? parsed : undefined
+  }
+
+  return {
+    bookingCompleted: data.booking_completed === true,
+    confirmedExternalPaymentAmount: toOptionalAmount(data.recorded_external_amount),
+    remainingServiceBalance: toOptionalAmount(data.remaining_balance),
+  }
+}
+
+const fetchExternalPaymentSummaries = async (
+  client: NonNullable<typeof supabase>,
+  bookingIds: string[]
+) => {
+  const summaries = new Map<string, ExternalPaymentSummary>()
+  if (!bookingIds.length) return summaries
+
+  const { data, error } = await client.rpc('get_my_booking_external_payment_summaries', {
+    target_booking_ids: bookingIds,
+  })
+  // The core booking screens continue to work if the additive Phase 5
+  // migration has not yet been applied to a local Supabase project.
+  if (error || !Array.isArray(data)) return summaries
+
+  data.forEach((row) => {
+    const value = row as Record<string, unknown>
+    const bookingId = textFrom(value.booking_id)
+    if (!bookingId) return
+    summaries.set(bookingId, {
+      completionPaymentStatus: completionPaymentStatusFrom(value.completion_payment_status),
+      confirmedExternalPaymentAmount: numberFrom(value.confirmed_external_amount),
+    })
+  })
+  return summaries
+}
+
 const mapServiceBookingStatus = (status: string): BookingServiceItem['status'] => {
   if (status === 'completed') return 'completed'
   if (status === 'confirmed' || status === 'approved') return 'confirmed'
@@ -1011,7 +1074,7 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
   const { data, error } = await client
     .from('bookings')
     .select(
-      'id, event_id, provider_id, service_id, amount, status, requested_date, requested_time, created_at, updated_at, events(id, coordinator_id, name, event_type, event_date, event_time, guest_count, venue, location, status), services(name, cover_image_url, service_categories(name)), provider_profiles(business_name), payments!inner(status, amount, paid_at, metadata)'
+      'id, event_id, provider_id, service_id, amount, provider_amount, status, requested_date, requested_time, created_at, updated_at, events(id, coordinator_id, name, event_type, event_date, event_time, guest_count, venue, location, status), services(name, cover_image_url, service_categories(name)), provider_profiles(business_name), payments!inner(status, amount, service_subtotal, provider_initial_allocation, paid_at, metadata)'
     )
     .eq('client_id', userId)
     .neq('status', 'payment_required')
@@ -1029,7 +1092,7 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
     const coordinatorId = textFrom(event?.coordinator_id)
     return coordinatorId ? [coordinatorId] : []
   })))
-  const [{ data: reviewRows }, { data: coordinatorProfiles }, { data: coordinatorReviewRows }] =
+  const [reviewResult, coordinatorResult, coordinatorReviewResult, externalPaymentSummaries] =
     await Promise.all([
       bookingIds.length
         ? client
@@ -1048,7 +1111,11 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
             .eq('reviewer_id', userId)
             .in('event_id', eventIds)
         : Promise.resolve({ data: [] }),
+      fetchExternalPaymentSummaries(client, bookingIds),
     ])
+  const reviewRows = reviewResult.data
+  const coordinatorProfiles = coordinatorResult.data
+  const coordinatorReviewRows = coordinatorReviewResult.data
   const reviewedBookingIds = new Set((reviewRows ?? []).map((row) => textFrom(row.booking_id)))
   const reviewedCoordinatorEventIds = new Set(
     (coordinatorReviewRows ?? []).map((row) => textFrom(row.event_id))
@@ -1076,16 +1143,39 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
     const serviceName = textFrom(service?.name, textFrom(provider?.business_name, 'Service'))
     const eventId = textFrom(record.event_id, textFrom(event?.id, textFrom(record.id)))
     const rawStatus = textFrom(record.status)
+    const bookingId = textFrom(record.id)
+    const serviceAmount = numberFrom(
+      latestPayment?.service_subtotal,
+      numberFrom(record.provider_amount, numberFrom(record.amount))
+    )
+    const initialProviderShare = numberFrom(latestPayment?.provider_initial_allocation)
+    const externalPayment = externalPaymentSummaries.get(bookingId)
+    const confirmedExternalPaymentAmount = externalPayment?.confirmedExternalPaymentAmount ?? 0
+    const remainingServiceBalance = Math.max(
+      0,
+      serviceAmount - initialProviderShare - confirmedExternalPaymentAmount
+    )
+    const completionPaymentStatus = externalPayment?.completionPaymentStatus
+      ?? (remainingServiceBalance <= 0
+        ? 'fully_confirmed'
+        : confirmedExternalPaymentAmount > 0
+          ? 'partially_confirmed'
+          : 'awaiting_external_payment')
     const serviceItem: BookingServiceItem = {
       amount: numberFrom(record.amount),
-      bookingId: textFrom(record.id),
+      bookingId,
       category: textFrom(category?.name, 'Service'),
+      completionPaymentStatus,
+      confirmedExternalPaymentAmount,
       image: textFrom(service?.cover_image_url),
+      initialProviderShare,
       paymentStatus: textFrom(latestPayment?.status, 'pending'),
       providerId: textFrom(record.provider_id),
       providerName: textFrom(provider?.business_name, 'Service provider'),
       rawStatus,
+      remainingServiceBalance,
       serviceId: textFrom(record.service_id),
+      serviceAmount,
       serviceName,
       status: mapServiceBookingStatus(rawStatus),
       updatedAt: textFrom(record.updated_at),
@@ -1184,7 +1274,8 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
   const eventIds = Array.from(
     new Set(data.map((row) => row.event_id as string | null).filter(Boolean))
   ) as string[]
-  const [{ data: instructionRows }, { data: selectionRows }] = eventIds.length
+  const bookingIds = data.map((row) => textFrom(row.id)).filter(Boolean)
+  const [instructionResult, selectionResult, externalPaymentSummaries] = eventIds.length
     ? await Promise.all([
         context.client
           .from('event_provider_instructions')
@@ -1198,8 +1289,11 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
           .in('event_id', eventIds)
           .eq('provider_id', context.providerId)
           .not('status', 'in', '(declined,cancelled)'),
+        fetchExternalPaymentSummaries(context.client, bookingIds),
       ])
-    : [{ data: [] }, { data: [] }]
+    : [{ data: [] }, { data: [] }, new Map<string, ExternalPaymentSummary>()]
+  const instructionRows = instructionResult.data
+  const selectionRows = selectionResult.data
 
   const individualRequests = data.map((row) => {
     const record = row as Record<string, unknown>
@@ -1222,6 +1316,18 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
       numberFrom(record.provider_amount, numberFrom(record.amount))
     )
     const initialProviderShare = numberFrom(payment?.provider_initial_allocation)
+    const externalPayment = externalPaymentSummaries.get(textFrom(record.id))
+    const confirmedExternalPaymentAmount = externalPayment?.confirmedExternalPaymentAmount ?? 0
+    const remainingServiceBalance = Math.max(
+      0,
+      serviceAmount - initialProviderShare - confirmedExternalPaymentAmount
+    )
+    const completionPaymentStatus = externalPayment?.completionPaymentStatus
+      ?? (remainingServiceBalance <= 0
+        ? 'fully_confirmed'
+        : confirmedExternalPaymentAmount > 0
+          ? 'partially_confirmed'
+          : 'awaiting_external_payment')
     const bookingDetails = (selectionRows ?? []).find(
       (selection) => selection.event_id === eventId && selection.service_id === serviceId
     )
@@ -1268,12 +1374,18 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
       packageDescription: textFrom(servicePackage?.description, textFrom(service?.description)),
       packageInclusions,
       packageName: textFrom(servicePackage?.name, textFrom(service?.name, 'Service request')),
-      paymentStatus: metadataText(paymentMetadata, 'paymentType', 'full') === 'deposit'
-        ? 'Downpayment confirmed'
-        : 'Full payment confirmed',
+      completionPaymentStatus,
+      confirmedExternalPaymentAmount,
+      paymentStatus: remainingServiceBalance <= 0
+        ? 'Fully paid / ready to complete'
+        : confirmedExternalPaymentAmount > 0
+          ? 'Remaining payment partially confirmed'
+          : metadataText(paymentMetadata, 'paymentType', 'full') === 'deposit'
+            ? 'Awaiting remaining payment'
+            : 'Full payment confirmed',
       platformFeePaid: numberFrom(payment?.platform_fee_amount),
       initialProviderShare,
-      remainingServiceBalance: Math.max(0, serviceAmount - initialProviderShare),
+      remainingServiceBalance,
       mealType: (['plated', 'buffet', 'packed'].includes(textFrom(bookingDetails?.meal_type))
         ? textFrom(bookingDetails?.meal_type)
         : undefined) as 'plated' | 'buffet' | 'packed' | undefined,
@@ -1303,6 +1415,8 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
       budgetPerHead: request.budgetPerHead,
       cateringOptionName: request.cateringOptionName,
       clientNotes: request.clientNotes,
+      completionPaymentStatus: request.completionPaymentStatus,
+      confirmedExternalPaymentAmount: request.confirmedExternalPaymentAmount,
       dietaryNotes: request.dietaryNotes,
       downpaymentAmount: request.downpaymentAmount,
       id: request.id,
@@ -1521,6 +1635,48 @@ export const completeMerchantBooking = async (bookingId: string): Promise<Mercha
     })
 
     return { ok: !error, message: error?.message }
+  } catch (error) {
+    return { ok: false, message: toMessage(error) }
+  }
+}
+
+export const saveMerchantCompletionPayment = async ({
+  amount,
+  bookingId,
+  note,
+  requestKey,
+  type,
+}: ProviderCompletionPaymentInput): Promise<MerchantResult> => {
+  try {
+    const context = await getMerchantContext()
+    if (!context || !isUuid(bookingId)) return { ok: false, message: notReady }
+
+    if (type === 'notYet') {
+      const { data, error } = await context.client.rpc('mark_provider_booking_awaiting_external_payment', {
+        target_booking_id: bookingId,
+      })
+      return {
+        completionPayment: completionPaymentResultFrom(data),
+        ok: !error,
+        message: error?.message ?? 'The booking remains open while the remaining payment is outstanding.',
+      }
+    }
+
+    if (!amount || amount <= 0 || !requestKey?.trim()) {
+      return { ok: false, message: 'Enter the external payment amount received before confirming.' }
+    }
+
+    const { data, error } = await context.client.rpc('confirm_provider_external_payment', {
+      provider_note: note?.trim() || null,
+      received_amount: amount,
+      request_key: requestKey.trim(),
+      target_booking_id: bookingId,
+    })
+    return {
+      completionPayment: completionPaymentResultFrom(data),
+      ok: !error,
+      message: error?.message ?? 'External payment confirmation saved.',
+    }
   } catch (error) {
     return { ok: false, message: toMessage(error) }
   }

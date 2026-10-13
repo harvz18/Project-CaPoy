@@ -65,6 +65,8 @@ export type {
   BookingRequestDecision,
   BookingRequestDecisionValue,
   MerchantBookingRequestDetails,
+  ProviderCompletionPaymentResult,
+  ProviderCompletionPaymentValue,
 } from './19.1-BookingRequest'
 export { BookingRequestDeclineScreen } from './19.2-BookingRequest(Deciline)'
 export type {
