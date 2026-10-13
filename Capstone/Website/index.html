@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+
+<html class="scroll-smooth" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>MULTIVENT — Your wedding. All in one app.</title>
+<meta content="Plan your celebration, discover local service providers, manage your budget, and download the MULTIVENT Android app." name="description"/>
+<!-- Inter: shared with the Capstone app -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "surface-container-low": "#f5f3f3",
+            "on-tertiary-fixed": "#002110",
+            "outline-variant": "#dac0c2",
+            "on-surface-variant": "#544244",
+            "on-tertiary-fixed-variant": "#145133",
+            "on-primary": "#ffffff",
+            "tertiary-fixed-dim": "#97d4ac",
+            "surface-container": "#efeded",
+            "tertiary-container": "#004427",
+            "on-secondary-fixed": "#1c1b1b",
+            "on-secondary": "#ffffff",
+            "on-tertiary-container": "#76b18c",
+            "background": "#fbf9f8",
+            "surface-dim": "#dbdad9",
+            "tertiary-fixed": "#b3f1c7",
+            "surface-container-lowest": "#ffffff",
+            "primary-container": "#6b1e2e",
+            "on-error": "#ffffff",
+            "outline": "#877274",
+            "inverse-on-surface": "#f2f0f0",
+            "surface-bright": "#fbf9f8",
+            "inverse-primary": "#ffb2bb",
+            "secondary-fixed": "#e5e2e1",
+            "inverse-surface": "#303030",
+            "error": "#ba1a1a",
+            "on-primary-fixed": "#400011",
+            "on-primary-fixed-variant": "#7b2b3a",
+            "secondary-container": "#e5e2e1",
+            "tertiary": "#002c17",
+            "on-background": "#1b1c1c",
+            "primary-fixed": "#ffd9dc",
+            "on-secondary-container": "#656464",
+            "surface": "#fbf9f8",
+            "primary-fixed-dim": "#ffb2bb",
+            "secondary-fixed-dim": "#c8c6c5",
+            "on-secondary-fixed-variant": "#474646",
+            "on-error-container": "#93000a",
+            "on-surface": "#1b1c1c",
+            "on-tertiary": "#ffffff",
+            "surface-container-high": "#eae8e7",
+            "surface-tint": "#994251",
+            "secondary": "#5f5e5e",
+            "surface-container-highest": "#e4e2e2",
+            "surface-variant": "#e4e2e2",
+            "primary": "#4e061a",
+            "on-primary-container": "#ee8594",
+            "error-container": "#ffdad6"
+          },
+          borderRadius: {
+            "DEFAULT": "1rem",
+            "lg": "2rem",
+            "xl": "3rem",
+            "full": "9999px"
+          },
+          spacing: {
+            "space-xl": "2.5rem",
+            "gutter-mobile": "1rem",
+            "margin": "2rem",
+            "space-xs": "0.25rem",
+            "space-lg": "1.5rem",
+            "space-md": "1rem",
+            "margin-mobile": "1.25rem",
+            "space-sm": "0.5rem",
+            "gutter": "1.5rem"
+          },
+          fontFamily: {
+            sans: ["Inter", "sans-serif"],
+            display: ["Inter", "sans-serif"],
+            "label-sm": ["Inter", "sans-serif"],
+            "label-lg": ["Inter", "sans-serif"],
+            "body-lg": ["Inter", "sans-serif"],
+            "body-md": ["Inter", "sans-serif"],
+            "headline-lg-mobile": ["Inter", "sans-serif"],
+            "title-lg": ["Inter", "sans-serif"],
+            "headline-md": ["Inter", "sans-serif"],
+            "headline-sm": ["Inter", "sans-serif"],
+            "headline-lg": ["Inter", "sans-serif"],
+            "title-md": ["Inter", "sans-serif"],
+            "display-mobile": ["Inter", "sans-serif"],
+            "label-md": ["Inter", "sans-serif"]
+          },
+          fontSize: {
+            display: ["72px", { lineHeight: "76px", letterSpacing: "-0.04em", fontWeight: "800" }],
+            "label-sm": ["11px", { lineHeight: "14px", letterSpacing: "0.02em", fontWeight: "700" }],
+            "label-lg": ["14px", { lineHeight: "18px", letterSpacing: "0em", fontWeight: "600" }],
+            "body-lg": ["16px", { lineHeight: "24px", letterSpacing: "-0.01em", fontWeight: "400" }],
+            "body-md": ["14px", { lineHeight: "20px", letterSpacing: "0em", fontWeight: "400" }],
+            "headline-lg-mobile": ["32px", { lineHeight: "36px", letterSpacing: "-0.025em", fontWeight: "700" }],
+            "title-lg": ["20px", { lineHeight: "26px", letterSpacing: "-0.015em", fontWeight: "600" }],
+            "headline-md": ["32px", { lineHeight: "38px", letterSpacing: "-0.03em", fontWeight: "700" }],
+            "headline-sm": ["24px", { lineHeight: "30px", letterSpacing: "-0.02em", fontWeight: "700" }],
+            "headline-lg": ["56px", { lineHeight: "60px", letterSpacing: "-0.035em", fontWeight: "700" }],
+            "title-md": ["18px", { lineHeight: "24px", letterSpacing: "-0.01em", fontWeight: "600" }],
+            "display-mobile": ["40px", { lineHeight: "44px", letterSpacing: "-0.03em", fontWeight: "800" }],
+            "label-md": ["12px", { lineHeight: "16px", letterSpacing: "0.01em", fontWeight: "600" }]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    body {
+      font-family: 'Inter', sans-serif;
+      color: #2B2B2B;
+      background-color: #FFFFFF;
+      overflow-x: hidden;
+    }
+    #site-header {
+      background-color: transparent;
+      border-bottom-color: transparent;
+      box-shadow: none;
+    }
+    #site-header.is-scrolled {
+      background-color: rgba(107, 30, 46, 0.97);
+      border-bottom-color: rgba(255, 255, 255, 0.12);
+      box-shadow: 0 8px 24px rgba(62, 7, 22, 0.2);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+    .audience-toggle-indicator {
+      position: absolute;
+      inset-block: 0.375rem;
+      left: 0.375rem;
+      width: calc(50% - 0.375rem);
+      border-radius: 9999px;
+      background: #6B1E2E;
+      box-shadow: 0 6px 16px -8px rgba(107, 30, 46, 0.65);
+      transition: transform 350ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    #audience-toggle[data-active="vendors"] .audience-toggle-indicator {
+      transform: translateX(100%);
+    }
+    .audience-panel {
+      --audience-slide-distance: clamp(120px, 16vw, 240px);
+      opacity: 1;
+      transform: translateX(0);
+      transition: opacity 220ms ease, transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+      will-change: opacity, transform;
+    }
+    .audience-panel.audience-exit-left {
+      opacity: 0;
+      transform: translateX(calc(var(--audience-slide-distance) * -1));
+    }
+    .audience-panel.audience-exit-right {
+      opacity: 0;
+      transform: translateX(var(--audience-slide-distance));
+    }
+    .audience-panel.audience-enter-left {
+      opacity: 0;
+      transform: translateX(calc(var(--audience-slide-distance) * -1));
+    }
+    .audience-panel.audience-enter-right {
+      opacity: 0;
+      transform: translateX(var(--audience-slide-distance));
+    }
+    .reveal {
+      opacity: 0;
+      transform: translateY(80px);
+      transition: opacity 1.4s cubic-bezier(0.16, 1, 0.3, 1), transform 1.4s cubic-bezier(0.16, 1, 0.3, 1);
+      will-change: opacity, transform;
+    }
+    .reveal.reveal-left {
+      transform: translateX(-110px);
+    }
+    .reveal.reveal-right {
+      transform: translateX(110px);
+    }
+    .reveal.reveal-scale {
+      transform: translateY(64px) scale(0.92);
+    }
+    .reveal.reveal-delay-1 {
+      transition-delay: 200ms;
+    }
+    .reveal.active {
+      opacity: 1;
+      transform: translate(0, 0) scale(1);
+    }
+    .section-reveal {
+      opacity: 0;
+      transform: translateY(56px) scale(0.985);
+      transform-origin: center top;
+      transition: opacity 1.6s cubic-bezier(0.16, 1, 0.3, 1), transform 1.6s cubic-bezier(0.16, 1, 0.3, 1);
+      will-change: opacity, transform;
+    }
+    .section-reveal.active {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+    #services-grid > .group {
+      width: 100%;
+      min-width: 0;
+    }
+    #services-grid > .group,
+    #view-vendors .group {
+      transform-origin: center;
+      will-change: transform;
+    }
+    .card-pop {
+      opacity: 0;
+      transform: translateY(72px) scale(0.76);
+      transition: opacity 650ms cubic-bezier(0.16, 1, 0.3, 1), transform 650ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 350ms ease;
+      transition-delay: var(--card-pop-delay, 0ms);
+    }
+    .card-pop.active {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+    .card-pop.pop-settled {
+      transition: opacity 350ms ease, transform 350ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 350ms ease;
+      transition-delay: 0ms;
+    }
+    #services-grid > .group:hover,
+    #view-vendors .group:hover {
+      z-index: 10;
+      transform: scale(1.06);
+      box-shadow: 0 24px 48px -16px rgba(0, 0, 0, 0.38);
+    }
+    .flip-card {
+      perspective: 1200px;
+      overflow: visible !important;
+      outline: none;
+    }
+    .flip-card:focus-visible {
+      box-shadow: 0 0 0 4px rgba(153, 66, 81, 0.35), 0 24px 48px -16px rgba(0, 0, 0, 0.38);
+    }
+    .flip-card-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      border-radius: 1.5rem;
+      transform-style: preserve-3d;
+      transition: transform 700ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    .flip-card.is-flipped .flip-card-inner {
+      transform: rotateY(180deg);
+    }
+    .flip-card-face {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      border-radius: 1.5rem;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
+    .flip-card-front {
+      transform: rotateY(0deg);
+    }
+    .flip-card-back {
+      display: flex;
+      flex-direction: column;
+      padding: clamp(1.5rem, 2.5vw, 2rem);
+      color: #ffffff;
+      background:
+        radial-gradient(circle at 90% 10%, rgba(255, 217, 220, 0.22), transparent 38%),
+        linear-gradient(145deg, #8a2d40 0%, #6b1e2e 48%, #400011 100%);
+      transform: rotateY(180deg);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+    }
+    .flip-card-back-icon {
+      display: inline-flex;
+      width: 3rem;
+      height: 3rem;
+      align-items: center;
+      justify-content: center;
+      border-radius: 9999px;
+      color: #6b1e2e;
+      background: #ffffff;
+    }
+    .flip-card-back h3 {
+      margin-top: 1.25rem;
+      font-size: clamp(1.5rem, 2.2vw, 2rem);
+      font-weight: 700;
+      line-height: 1.15;
+      letter-spacing: -0.025em;
+    }
+    .flip-card-back p {
+      margin-top: 1rem;
+      color: rgba(255, 255, 255, 0.88);
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .reveal,
+      .reveal.reveal-left,
+      .reveal.reveal-right,
+      .reveal.reveal-scale,
+      .section-reveal {
+        opacity: 1;
+        transform: none;
+        transition: none;
+      }
+      .audience-toggle-indicator {
+        transition: none;
+      }
+      .audience-panel,
+      .audience-panel.audience-exit-left,
+      .audience-panel.audience-exit-right,
+      .audience-panel.audience-enter-left,
+      .audience-panel.audience-enter-right {
+        opacity: 1;
+        transform: none;
+        transition: none;
+      }
+      #services-grid > .group,
+      #view-vendors .group {
+        opacity: 1;
+        transform: none;
+        transition: none;
+      }
+      #services-grid > .group:hover,
+      #view-vendors .group:hover {
+        transform: none;
+      }
+      .flip-card-inner {
+        transition: none;
+      }
+    }
+  </style>
+</head>
+<body class="bg-surface-container-lowest text-[#2B2B2B] antialiased">
+<!-- 1. NAVIGATION -->
+<header class="fixed top-0 z-50 w-full h-20 border-b transition-[background-color,border-color,box-shadow,backdrop-filter] duration-500" id="site-header">
+<div class="max-w-[1600px] mx-auto h-full px-4 sm:px-6 md:px-8 flex items-center justify-between">
+<a aria-label="MULTIVENT home" class="inline-flex items-center gap-2.5 text-xl sm:text-2xl font-extrabold tracking-tight text-white" href="#">
+<img alt="MULTIVENT logo" class="w-10 h-10 sm:w-11 sm:h-11 object-contain" src="images/MVLogo-transparent.png"/>
+<span>MULTIVENT</span>
+</a>
+<nav class="hidden lg:flex items-center space-x-8 xl:space-x-10">
+<a class="text-[17px] font-medium text-white/90 hover:text-white transition-colors" href="#audience-section" id="nav-vendors">Become a Partner</a>
+<a class="text-[17px] font-medium text-white/90 hover:text-white transition-colors" href="#about">About</a>
+<a class="text-[17px] font-medium text-white/90 hover:text-white transition-colors" href="#help">Help</a>
+</nav>
+<a class="hidden lg:inline-flex items-center justify-center bg-white text-[#6B1E2E] px-6 py-2.5 rounded-full border-2 border-white text-[17px] font-semibold hover:bg-white/90 active:scale-95 transition-all duration-150" href="#download">
+          Download App
+        </a>
+<button aria-controls="mobile-menu" aria-expanded="false" aria-label="Open navigation menu" class="lg:hidden w-11 h-11 rounded-full bg-white/15 text-white border border-white/25 flex items-center justify-center hover:bg-white/25 transition-colors" id="mobile-menu-button" type="button">
+<span class="material-symbols-outlined" id="mobile-menu-icon">menu</span>
+</button>
+</div>
+<div class="hidden lg:hidden absolute top-full inset-x-0 bg-gradient-to-r from-[#3A0614]/98 via-[#6B1E2E]/98 to-[#8A2D40]/98 backdrop-blur-xl border-b border-white/10 shadow-lg" id="mobile-menu">
+<nav class="max-w-[1600px] mx-auto px-4 sm:px-6 py-5 flex flex-col gap-1">
+<a class="px-4 py-3 rounded-xl font-semibold text-white/90 hover:bg-white/10 hover:text-white transition-colors" href="#audience-section" onclick="switchTab('vendors'); closeMobileMenu()">Become a Partner</a>
+<a class="px-4 py-3 rounded-xl font-semibold text-white/90 hover:bg-white/10 hover:text-white transition-colors" href="#about" onclick="closeMobileMenu()">About</a>
+<a class="px-4 py-3 rounded-xl font-semibold text-white/90 hover:bg-white/10 hover:text-white transition-colors" href="#help" onclick="closeMobileMenu()">Help</a>
+<a class="mt-2 inline-flex items-center justify-center bg-white text-[#6B1E2E] px-5 py-3 rounded-full border-2 border-white font-semibold hover:bg-white/90 transition-colors" href="#download" onclick="closeMobileMenu()">Download App</a>
+</nav>
+</div>
+</header>
+<!-- 2. HERO SECTION -->
+<section class="section-reveal relative min-h-[100svh] sm:h-[82svh] sm:min-h-[620px] sm:max-h-[820px] w-full flex items-end overflow-hidden">
+<div class="absolute inset-0 z-0">
+<video aria-hidden="true" autoplay class="w-full h-full object-cover object-[58%_center] sm:object-center scale-105 pointer-events-none" id="hero-video" loop muted playsinline preload="auto">
+<source src="videos/HeroVid.mp4" type="video/mp4"/>
+</video>
+<div class="absolute inset-0" style="background: linear-gradient(90deg, rgba(107, 30, 46, 0.70) 0%, rgba(107, 30, 46, 0) 50%);"></div>
+</div>
+<div class="reveal relative z-10 max-w-[1600px] mx-auto w-full px-4 sm:px-6 md:px-8 pb-12 sm:pb-16 md:pb-24">
+<h1 class="text-left text-white text-[44px] sm:text-[64px] md:text-[88px] lg:text-[104px] xl:text-[120px] font-extrabold leading-[1.02] tracking-[-0.03em] max-w-4xl">
+        Your wedding. All in one app.
+      </h1>
+<p class="text-white/90 text-base sm:text-lg md:text-[20px] leading-relaxed max-w-2xl mt-4 font-normal">
+        Discover verified event service providers in Bacolod, manage your budget, and book everything you need—all in one place.
+      </p>
+<div class="mt-6 sm:mt-8 flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-center">
+<a class="w-full sm:w-auto text-center bg-white text-[#6B1E2E] border-2 border-white px-6 sm:px-8 py-3 sm:py-3.5 rounded-full font-semibold text-base sm:text-lg hover:bg-white/90 active:scale-95 transition duration-150" href="#audience-section" onclick="switchTab('couples')">
+          Explore Services
+        </a>
+</div>
+<p class="mt-4 text-center sm:text-left text-sm sm:text-[15px] font-medium tracking-wide text-white/85">
+        Verified providers <span aria-hidden="true" class="mx-1.5 text-white/60">•</span> Secure bookings <span aria-hidden="true" class="mx-1.5 text-white/60">•</span> Smart recommendations
+      </p>
+</div>
+</section>
+<!-- 3. AUDIENCE SWITCHER SECTION -->
+<section class="section-reveal py-20 sm:py-24 md:py-32 lg:py-36 bg-white border-b border-gray-100 scroll-mt-20" id="audience-section">
+<div class="reveal max-w-[1600px] mx-auto px-4 sm:px-6 md:px-8">
+<!-- Pill Toggle Control -->
+<div class="flex justify-center mb-10 sm:mb-16">
+<div aria-label="Choose an audience" class="relative w-full max-w-[410px] rounded-full p-1.5 bg-gray-100 inline-grid grid-cols-2 items-center" data-active="couples" id="audience-toggle" role="tablist">
+<span aria-hidden="true" class="audience-toggle-indicator"></span>
+<button aria-selected="true" class="relative z-10 min-w-0 whitespace-nowrap bg-transparent text-white px-2 sm:px-8 py-3 rounded-full font-semibold text-[13px] sm:text-lg cursor-pointer transition-colors duration-300" id="toggle-couples" onclick="switchTab('couples')" role="tab">
+            Clients
+          </button>
+<button aria-selected="false" class="relative z-10 min-w-0 whitespace-nowrap bg-transparent text-gray-700 hover:text-black px-2 sm:px-8 py-3 rounded-full font-semibold text-[13px] sm:text-lg cursor-pointer transition-colors duration-300" id="toggle-vendors" onclick="switchTab('vendors')" role="tab">
+            Service Providers
+          </button>
+</div>
+</div>
+<!-- VIEW A: FOR COUPLES -->
+<div class="audience-panel" id="view-couples">
+<h2 class="text-[34px] sm:text-[44px] md:text-[60px] font-bold text-gray-950 mb-8 sm:mb-12 text-center leading-[1.1] tracking-tight">
+          We Cover Everything For Your Big Day
+        </h2>
+<!-- Wedding Services Grid (4 columns by 2 rows on desktop) -->
+<div aria-label="Wedding services" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6" id="services-grid">
+<!-- Venue -->
+<div class="group relative w-72 sm:w-80 aspect-[3/4] shrink-0 rounded-3xl overflow-hidden cursor-pointer shadow-sm">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="An expansive heritage Spanish hacienda courtyard ceremony setup in Negros Occidental with manicured lawns, arched stone pathways, and warm afternoon light filtering through acacia branches. Elegantly arranged minimalist wooden crossback chairs face an arch adorned with pristine white roses and deep burgundy accents." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCDXxvegmxC1J4uZU2a_DC8-KvHyKi_Ueu7g5SUmw7ntR4lquRfg8xB01Hd84RWEfiKxi3XCmSbldixyllx1BVf4PnBD_dqb6qAWSkju1bDrgRRLbu1XFCjY5wBzQWhV1rc0uwHAcukw5p6qK27iMeY_-hPXh2MQW6Y0PLIB99xvUrpXFlNezSxQkbCZ9YJJNUq0FhnKkYRyGGlvxQYSRl7iOg9BHZ8aeDZl6Vv0zw"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+<div class="absolute bottom-6 left-6 right-6">
+<h3 class="text-white text-[24px] font-bold tracking-tight">Venue</h3>
+</div>
+</div>
+<!-- Catering -->
+<div class="group relative w-72 sm:w-80 aspect-[3/4] shrink-0 rounded-3xl overflow-hidden cursor-pointer shadow-sm">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="An artfully curated culinary table showcasing upscale Negrense fusion wedding dining. A plated gourmet dish with pristine presentation, accompanied by crystalline wine goblets, vintage silver cutlery, and artisanal sourdough on linen fabric under warm ambient restaurant illumination." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBfLv15i6uqj5jIoGtkhDkiCBDINfG3UkCzSEMIWHQfWDKgAeOJIuHqXi30dyEZ0G7R-sQNjcS-m809WtUsyDOS0U9EU9L_PJQr0y0m4uZRXUCRepkCmxS6ffNIhYynFkwKctEBHmiKvvw3o8nIT2_Yuj3H8jyUPDjXWXjUeOEIbtaQAHLKqKc-UfI3ADnasYrCqcPRI2-iUaiDoa2_FC-x1ov3N_uOhRS6hnWHmrQ"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+<div class="absolute bottom-6 left-6 right-6">
+<h3 class="text-white text-[24px] font-bold tracking-tight">Catering</h3>
+</div>
+</div>
+<!-- Event Organizer -->
+<div class="group relative w-72 sm:w-80 aspect-[3/4] shrink-0 rounded-3xl overflow-hidden cursor-pointer shadow-sm">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="A focused professional wedding planner meticulously adjusting an opulent floral centerpiece inside a grand Bacolod reception venue. Wearing sleek modern dark formal attire, she holds a custom architectural clipboard, ensuring flawless execution under warm atmospheric lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAD9V-LQoZUgUa9S1Ff95S_bCSIfb18dNvIUmV7nt-Aa77UUYVxfEivvHIkV2ndnbi8G4GlnVplO7JQSBy6s1EZU9dUxFBOAIxECWyRoMetqaEP_--lPRjnfcaBtSr8qklnBrgEv7Roh5D9qdNK4FniJdTfiIybOqs3ES7V0ZXc7J4TlPTeipIBZkhI8u58BKJEdXwRHAoUdfvMVo4wG6NhfdwQKvnD6CmkcpnnJq8"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+<div class="absolute bottom-6 left-6 right-6">
+<h3 class="text-white text-[24px] font-bold tracking-tight">Event Coordinator</h3>
+</div>
+</div>
+<!-- Photo/Video -->
+<div class="group relative w-72 sm:w-80 aspect-[3/4] shrink-0 rounded-3xl overflow-hidden cursor-pointer shadow-sm">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="A cinematic medium portrait of a bride and groom during golden hour in a serene Bacolod sugarcane estate. The photographer's professional prime lens captures the luminous lace of the bridal gown and warm glowing sunlight wrapping around the couple in soft focus." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCMTC3vVu08NTS_0ny0SQdQ_R9UylvIIuLuoSsyPMvGx7B3SJddVg0GctLKz_Nm9X-hfSEcXSymSuun-pi-mOq6ECi09tfMGSIpBAz7g3DnJD9u2-0BC71AIgzYYrDLIn_rxi13o-P7ISCN5G-ttIZbV5rqVNCm8YZiuhsbmgP3WcFLKD6PTCBB53gCb5LQaEtPCF3I382ueheHoIybwqkqU_aeJHDPF4K6i8m6kWc"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+<div class="absolute bottom-6 left-6 right-6">
+<h3 class="text-white text-[24px] font-bold tracking-tight">Photo/Video</h3>
+</div>
+</div>
+<!-- Gown Rental -->
+<div class="group relative w-72 sm:w-80 aspect-[3/4] shrink-0 rounded-3xl overflow-hidden cursor-pointer shadow-sm">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="A high-end bridal designer atelier featuring a custom couture bridal gown on a tailor dummy. Hand-embroidered callado patterns on sheer piña fabric catch natural studio lighting, surrounded by minimalist fitting mirrors and pristine oak floorboards." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA-JoppX4Pwtm6tM8h_uyCarJAh9cNvibtOjNLlT9dv_z5ML00AXNhiSfFxlb5tCbY6xIHJacZBSh_DXUpDeUTbmd3M5huH1MGa8ofOZ-dKKdckNwXrSGfn5ojhpIM4RtkGci3moRtex-6vGGsnnAx594bifCI7MeUBsti0AsasfqLlsNIFUEgdEzbtqGMX--cUsIPOZniJhWaEHSBxVn5Fb-Y4OuCNAnwCxoc24ck"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+<div class="absolute bottom-6 left-6 right-6">
+<h3 class="text-white text-[24px] font-bold tracking-tight">Gown Rental</h3>
+</div>
+</div>
+<!-- Host/Emcee -->
+<div class="group relative w-72 sm:w-80 aspect-[3/4] shrink-0 rounded-3xl overflow-hidden cursor-pointer shadow-sm">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="An energetic, charismatic Filipino master of ceremonies holding a sleek microphone on a modern wedding stage. Subtle atmospheric stage lighting and warm pin-spots highlight his polished tailored suit as guests smile in soft background blur." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDMAwNxS3GG2qnPNqC5kWtK4JJS2D2NpPmwaUWgs0NO9OmSDzERw3KrmWYB9G7rFPOIo7q4d17cqsou9RZlmyrpfWh8LhZlqP6WFS5g__5fdZUw5KRORgfIaNnFVeb0HT-gSPPIEkGA5MG_ZvaajOb2nYZ05uW7OS2-mQ7vbXt1F7jlJERK9u2B507hLRuWpzKLQkxhh4Wq-OImZ3pIsREBLbvkwBfL2RiNvwGhaOk"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+<div class="absolute bottom-6 left-6 right-6">
+<h3 class="text-white text-[24px] font-bold tracking-tight">Host/Emcee</h3>
+</div>
+</div>
+<!-- Sound & Lights -->
+<div class="group relative w-72 sm:w-80 aspect-[3/4] shrink-0 rounded-3xl overflow-hidden cursor-pointer shadow-sm">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="Professional sound and lighting equipment prepared for a wedding event." src="images/SoundsAndLights.jpg"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+<div class="absolute bottom-6 left-6 right-6">
+<h3 class="text-white text-[24px] font-bold tracking-tight">Sound &amp; Lights</h3>
+</div>
+</div>
+<!-- Floral -->
+<div class="group relative w-72 sm:w-80 aspect-[3/4] shrink-0 rounded-3xl overflow-hidden cursor-pointer shadow-sm">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="A lush architectural floral installation composed of deep burgundy dahlias, cascading white phalaenopsis orchids, and native eucalyptus leaves. Soft diffused morning daylight emphasizes the velvety petals and rich organic texture." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDPWlJGdMicPFYrLOueUBLyP_USgFFldnEKXaMdn-6a0_x5_Y_fGm7O6KOa4_JK3AUSc1ooeP6xqUA7uYGEK3RHi34U6ZfVH7swEuPB1m7mZBUogK1-OwZ976Sk-WHCpxePOOvWlq2cteF-7uS5y6_qpQsbrtUw5yPP1lVTlERFObGTj-p_0m_fybOjA93i_NpS-WUix5bsZKpMMZqqH1rNVcZRfCeOq71nPypD3No"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+<div class="absolute bottom-6 left-6 right-6">
+<h3 class="text-white text-[24px] font-bold tracking-tight">Floral</h3>
+</div>
+</div>
+<template>
+<!-- Legacy duplicate cards retained outside the rendered layout -->
+<!-- Venue -->
+<div class="group relative w-72 sm:w-80 aspect-[3/4] shrink-0 rounded-3xl overflow-hidden cursor-pointer shadow-sm">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="An expansive heritage Spanish hacienda courtyard ceremony setup in Negros Occidental with manicured lawns, arched stone pathways, and warm afternoon light filtering through acacia branches. Elegantly arranged minimalist wooden crossback chairs face an arch adorned with pristine white roses and deep burgundy accents." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCDXxvegmxC1J4uZU2a_DC8-KvHyKi_Ueu7g5SUmw7ntR4lquRfg8xB01Hd84RWEfiKxi3XCmSbldixyllx1BVf4PnBD_dqb6qAWSkju1bDrgRRLbu1XFCjY5wBzQWhV1rc0uwHAcukw5p6qK27iMeY_-hPXh2MQW6Y0PLIB99xvUrpXFlNezSxQkbCZ9YJJNUq0FhnKkYRyGGlvxQYSRl7iOg9BHZ8aeDZl6Vv0zw"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+<div class="absolute bottom-6 left-6 right-6">
+<h3 class="text-white text-[24px] font-bold tracking-tight">Venue</h3>
+</div>
+</div>
+<!-- Catering -->
+<div class="group relative w-72 sm:w-80 aspect-[3/4] shrink-0 rounded-3xl overflow-hidden cursor-pointer shadow-sm">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="An artfully curated culinary table showcasing upscale Negrense fusion wedding dining. A plated gourmet dish with pristine presentation, accompanied by crystalline wine goblets, vintage silver cutlery, and artisanal sourdough on linen fabric under warm ambient restaurant illumination." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBfLv15i6uqj5jIoGtkhDkiCBDINfG3UkCzSEMIWHQfWDKgAeOJIuHqXi30dyEZ0G7R-sQNjcS-m809WtUsyDOS0U9EU9L_PJQr0y0m4uZRXUCRepkCmxS6ffNIhYynFkwKctEBHmiKvvw3o8nIT2_Yuj3H8jyUPDjXWXjUeOEIbtaQAHLKqKc-UfI3ADnasYrCqcPRI2-iUaiDoa2_FC-x1ov3N_uOhRS6hnWHmrQ"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+<div class="absolute bottom-6 left-6 right-6">
+<h3 class="text-white text-[24px] font-bold tracking-tight">Catering</h3>
+</div>
+</div>
+<!-- Event Organizer -->
+<div class="group relative w-72 sm:w-80 aspect-[3/4] shrink-0 rounded-3xl overflow-hidden cursor-pointer shadow-sm">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="A focused professional wedding planner meticulously adjusting an opulent floral centerpiece inside a grand Bacolod reception venue. Wearing sleek modern dark formal attire, she holds a custom architectural clipboard, ensuring flawless execution under warm atmospheric lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAD9V-LQoZUgUa9S1Ff95S_bCSIfb18dNvIUmV7nt-Aa77UUYVxfEivvHIkV2ndnbi8G4GlnVplO7JQSBy6s1EZU9dUxFBOAIxECWyRoMetqaEP_--lPRjnfcaBtSr8qklnBrgEv7Roh5D9qdNK4FniJdTfiIybOqs3ES7V0ZXc7J4TlPTeipIBZkhI8u58BKJEdXwRHAoUdfvMVo4wG6NhfdwQKvnD6CmkcpnnJq8"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+<div class="absolute bottom-6 left-6 right-6">
+<h3 class="text-white text-[24px] font-bold tracking-tight">Event Organizer</h3>
+</div>
+</div>
+<!-- Photo/Video -->
+<div class="group relative w-72 sm:w-80 aspect-[3/4] shrink-0 rounded-3xl overflow-hidden cursor-pointer shadow-sm">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="A cinematic medium portrait of a bride and groom during golden hour in a serene Bacolod sugarcane estate. The photographer's professional prime lens captures the luminous lace of the bridal gown and warm glowing sunlight wrapping around the couple in soft focus." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCMTC3vVu08NTS_0ny0SQdQ_R9UylvIIuLuoSsyPMvGx7B3SJddVg0GctLKz_Nm9X-hfSEcXSymSuun-pi-mOq6ECi09tfMGSIpBAz7g3DnJD9u2-0BC71AIgzYYrDLIn_rxi13o-P7ISCN5G-ttIZbV5rqVNCm8YZiuhsbmgP3WcFLKD6PTCBB53gCb5LQaEtPCF3I382ueheHoIybwqkqU_aeJHDPF4K6i8m6kWc"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+<div class="absolute bottom-6 left-6 right-6">
+<h3 class="text-white text-[24px] font-bold tracking-tight">Photo/Video</h3>
+</div>
+</div>
+<!-- Gown Rental -->
+<div class="group relative w-72 sm:w-80 aspect-[3/4] shrink-0 rounded-3xl overflow-hidden cursor-pointer shadow-sm">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="A high-end bridal designer atelier featuring a custom couture bridal gown on a tailor dummy. Hand-embroidered callado patterns on sheer piña fabric catch natural studio lighting, surrounded by minimalist fitting mirrors and pristine oak floorboards." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA-JoppX4Pwtm6tM8h_uyCarJAh9cNvibtOjNLlT9dv_z5ML00AXNhiSfFxlb5tCbY6xIHJacZBSh_DXUpDeUTbmd3M5huH1MGa8ofOZ-dKKdckNwXrSGfn5ojhpIM4RtkGci3moRtex-6vGGsnnAx594bifCI7MeUBsti0AsasfqLlsNIFUEgdEzbtqGMX--cUsIPOZniJhWaEHSBxVn5Fb-Y4OuCNAnwCxoc24ck"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+<div class="absolute bottom-6 left-6 right-6">
+<h3 class="text-white text-[24px] font-bold tracking-tight">Gown Rental</h3>
+</div>
+</div>
+<!-- Host/Emcee -->
+<div class="group relative w-72 sm:w-80 aspect-[3/4] shrink-0 rounded-3xl overflow-hidden cursor-pointer shadow-sm">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="An energetic, charismatic Filipino master of ceremonies holding a sleek microphone on a modern wedding stage. Subtle atmospheric stage lighting and warm pin-spots highlight his polished tailored suit as guests smile in soft background blur." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDMAwNxS3GG2qnPNqC5kWtK4JJS2D2NpPmwaUWgs0NO9OmSDzERw3KrmWYB9G7rFPOIo7q4d17cqsou9RZlmyrpfWh8LhZlqP6WFS5g__5fdZUw5KRORgfIaNnFVeb0HT-gSPPIEkGA5MG_ZvaajOb2nYZ05uW7OS2-mQ7vbXt1F7jlJERK9u2B507hLRuWpzKLQkxhh4Wq-OImZ3pIsREBLbvkwBfL2RiNvwGhaOk"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+<div class="absolute bottom-6 left-6 right-6">
+<h3 class="text-white text-[24px] font-bold tracking-tight">Host/Emcee</h3>
+</div>
+</div>
+<!-- Sound & Lights -->
+<div class="group relative w-72 sm:w-80 aspect-[3/4] shrink-0 rounded-3xl overflow-hidden cursor-pointer shadow-sm">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="Professional sound and lighting equipment prepared for a wedding event." src="images/SoundsAndLights.jpg"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+<div class="absolute bottom-6 left-6 right-6">
+<h3 class="text-white text-[24px] font-bold tracking-tight">Sound &amp; Lights</h3>
+</div>
+</div>
+<!-- Floral -->
+<div class="group relative w-72 sm:w-80 aspect-[3/4] shrink-0 rounded-3xl overflow-hidden cursor-pointer shadow-sm">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="A lush architectural floral installation composed of deep burgundy dahlias, cascading white phalaenopsis orchids, and native eucalyptus leaves. Soft diffused morning daylight emphasizes the velvety petals and rich organic texture." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDPWlJGdMicPFYrLOueUBLyP_USgFFldnEKXaMdn-6a0_x5_Y_fGm7O6KOa4_JK3AUSc1ooeP6xqUA7uYGEK3RHi34U6ZfVH7swEuPB1m7mZBUogK1-OwZ976Sk-WHCpxePOOvWlq2cteF-7uS5y6_qpQsbrtUw5yPP1lVTlERFObGTj-p_0m_fybOjA93i_NpS-WUix5bsZKpMMZqqH1rNVcZRfCeOq71nPypD3No"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+<div class="absolute bottom-6 left-6 right-6">
+<h3 class="text-white text-[24px] font-bold tracking-tight">Floral</h3>
+</div>
+</div>
+</template>
+</div>
+</div>
+<!-- VIEW B: FOR VENDORS -->
+<div class="audience-panel hidden" id="view-vendors">
+<h2 class="text-[34px] sm:text-[44px] md:text-[60px] font-bold text-gray-950 mb-8 sm:mb-12 text-center leading-[1.1] tracking-tight">
+          Grow Your Business With Us
+        </h2>
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6" id="provider-services-grid">
+<!-- Publish services -->
+<div class="group relative w-full aspect-[3/4] rounded-3xl overflow-hidden cursor-pointer shadow-sm">
+<img class="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-105" data-alt="A service provider publishing a service listing." src="images/ServiceListing.png"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent"></div>
+<div class="absolute bottom-8 left-8 right-8">
+<h3 class="text-white text-[24px] font-bold tracking-tight">Publish Your Services</h3>
+</div>
+</div>
+<!-- Get discovered (image to be added) -->
+<div class="group relative w-full aspect-[3/4] rounded-3xl overflow-hidden cursor-pointer shadow-sm bg-[#E8E4E3]">
+<div class="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent"></div>
+<div class="absolute bottom-8 left-8 right-8">
+<h3 class="text-white text-[24px] font-bold tracking-tight">Increase Your Visibility</h3>
+</div>
+</div>
+<!-- Get verified (image to be added) -->
+<div class="group relative w-full aspect-[3/4] rounded-3xl overflow-hidden cursor-pointer shadow-sm bg-[#E8E4E3]">
+<div class="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent"></div>
+<div class="absolute bottom-8 left-8 right-8">
+<h3 class="text-white text-[24px] font-bold tracking-tight">Get Verified</h3>
+</div>
+</div>
+<!-- Receive booking requests -->
+<div class="group relative w-full aspect-[3/4] rounded-3xl overflow-hidden cursor-pointer shadow-sm">
+<img class="w-full h-full object-cover object-[70%_center] transition-transform duration-500 group-hover:scale-105" data-alt="A service provider reviewing a booking request on a smartphone at a wedding venue." src="images/BookingRequest.png"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent"></div>
+<div class="absolute bottom-8 left-8 right-8">
+<h3 class="text-white text-[24px] font-bold tracking-tight">Manage Booking Requests</h3>
+</div>
+</div>
+<!-- Manage calendar -->
+<div class="group relative w-full aspect-[3/4] rounded-3xl overflow-hidden cursor-pointer shadow-sm">
+<img class="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-105" data-alt="A service provider selecting an event date on a digital calendar." src="images/ManageCalendar.png"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent"></div>
+<div class="absolute bottom-8 left-8 right-8">
+<h3 class="text-white text-[24px] font-bold tracking-tight">Manage Your Calendar</h3>
+</div>
+</div>
+<!-- Chat with clients -->
+<div class="group relative w-full aspect-[3/4] rounded-3xl overflow-hidden cursor-pointer shadow-sm">
+<img class="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-105" data-alt="A messaging interface for chatting with clients." src="images/Messaging.png"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent"></div>
+<div class="absolute bottom-8 left-8 right-8">
+<h3 class="text-white text-[24px] font-bold tracking-tight">Message Your Clients</h3>
+</div>
+</div>
+<!-- Track earnings -->
+<div class="group relative w-full aspect-[3/4] rounded-3xl overflow-hidden cursor-pointer shadow-sm">
+<img class="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-105" data-alt="A smartphone displaying service-provider earnings and payout information beside Philippine currency." src="images/Earnings.png"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent"></div>
+<div class="absolute bottom-8 left-8 right-8">
+<h3 class="text-white text-[24px] font-bold tracking-tight">Track Earnings & Payouts</h3>
+</div>
+</div>
+<!-- View AI review insights -->
+<div class="group relative w-full aspect-[3/4] rounded-3xl overflow-hidden cursor-pointer shadow-sm">
+<img class="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-105" data-alt="Ratings and review insights displayed for a service provider." src="images/Ratings.png"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent"></div>
+<div class="absolute bottom-8 left-8 right-8">
+<h3 class="text-white text-[24px] font-bold tracking-tight">View AI Review Insights</h3>
+</div>
+</div>
+</div>
+<div class="mt-10 sm:mt-14 flex justify-center">
+<a class="w-full sm:w-auto inline-flex items-center justify-center text-center bg-[#6B1E2E] border-2 border-[#6B1E2E] text-white px-8 sm:px-10 py-4 rounded-full font-bold text-base sm:text-lg shadow-[0_14px_30px_rgba(107,30,46,0.28)] hover:bg-[#521723] hover:border-[#521723] hover:-translate-y-1 hover:shadow-[0_18px_38px_rgba(107,30,46,0.34)] active:translate-y-0 active:scale-95 transition-all duration-300" href="#audience-section" onclick="switchTab('vendors')">
+          <span>Join as a Service Provider</span>
+        </a>
+</div>
+</div>
+</div>
+</section>
+<!-- 4. APP SHOWCASE SECTION -->
+<section class="section-reveal py-20 sm:py-24 md:py-32 lg:py-36 bg-[#6B1E2E] text-white overflow-hidden scroll-mt-20" id="about">
+<div class="max-w-[1600px] mx-auto px-4 sm:px-6 md:px-8">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-12 sm:gap-16 items-center">
+<!-- Left: Phone Mockup -->
+<div class="reveal reveal-left lg:col-span-6 flex justify-center">
+<div class="relative w-full max-w-[300px] sm:max-w-[360px] h-[560px] sm:h-[640px] bg-black rounded-[40px] sm:rounded-[48px] p-2.5 sm:p-3 shadow-2xl border-4 sm:border-[5px] border-white/20">
+<!-- Screen Frame -->
+<div class="relative w-full h-full bg-[#FFFFFF] rounded-[31px] sm:rounded-[38px] overflow-hidden flex flex-col text-[#2B2B2B]">
+<!-- Mock Status Bar -->
+<div class="h-10 bg-white flex items-center justify-between px-6 pt-2 shrink-0">
+<span class="text-xs font-bold text-gray-800">9:41</span>
+<div class="flex items-center space-x-1">
+<span class="w-3.5 h-2.5 bg-gray-800 rounded-sm inline-block"></span>
+</div>
+</div>
+<!-- Top Mock App Bar -->
+<div class="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+<div>
+<div class="text-[17px] font-bold text-gray-900 tracking-tight">MULTIVENT</div>
+<div class="text-[12px] font-medium text-gray-500">Bacolod City Pilot</div>
+</div>
+<div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-[#6B1E2E] font-bold text-xs">
+                  MR
+                </div>
+</div>
+<!-- App Scroll Body -->
+<div class="p-5 flex-1 overflow-hidden space-y-4 bg-gray-50/50">
+<!-- Mock Budget Card -->
+<div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+<div class="flex justify-between items-baseline mb-2">
+<span class="text-[12px] font-bold text-gray-400 uppercase tracking-wider">Total Wedding Budget</span>
+<span class="text-[13px] font-bold text-[#6B1E2E]">68% Allocated</span>
+</div>
+<div class="text-2xl font-extrabold text-gray-900">₱850,000</div>
+<div class="w-full bg-gray-100 h-2 rounded-full mt-3 overflow-hidden">
+<div class="bg-[#6B1E2E] h-full w-[68%] rounded-full"></div>
+</div>
+<div class="flex justify-between text-[11px] text-gray-500 mt-2 font-medium">
+<span>Committed: ₱578,000</span>
+<span>Remaining: ₱272,000</span>
+</div>
+</div>
+<!-- Mock Vendor Item 1 -->
+<div class="bg-white p-3.5 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
+<div class="flex items-center space-x-3">
+<div class="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-[#6B1E2E] font-bold">
+                      V
+                    </div>
+<div>
+<div class="text-sm font-bold text-gray-900">Hacienda Santa Fe</div>
+<div class="text-xs text-gray-500">Venue • Contract Signed</div>
+</div>
+</div>
+<div class="w-6 h-6 rounded-full bg-[#E8F5E9] flex items-center justify-center text-[#1B5E20]">
+<span class="material-symbols-outlined text-[16px]">check</span>
+</div>
+</div>
+<!-- Mock Vendor Item 2 -->
+<div class="bg-white p-3.5 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
+<div class="flex items-center space-x-3">
+<div class="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-[#6B1E2E] font-bold">
+                      F
+                    </div>
+<div>
+<div class="text-sm font-bold text-gray-900">May’s Organic Floral</div>
+<div class="text-xs text-gray-500">Floral • Downpayment Escrow</div>
+</div>
+</div>
+<div class="w-6 h-6 rounded-full bg-[#E8F5E9] flex items-center justify-center text-[#1B5E20]">
+<span class="material-symbols-outlined text-[16px]">check</span>
+</div>
+</div>
+<!-- Mock Vendor Item 3 -->
+<div class="bg-white p-3.5 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
+<div class="flex items-center space-x-3">
+<div class="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-[#6B1E2E] font-bold">
+                      P
+                    </div>
+<div>
+<div class="text-sm font-bold text-gray-900">Lente Stories Bacolod</div>
+<div class="text-xs text-gray-500">Photo/Video • Verified Calendar</div>
+</div>
+</div>
+<div class="w-6 h-6 rounded-full bg-[#E8F5E9] flex items-center justify-center text-[#1B5E20]">
+<span class="material-symbols-outlined text-[16px]">check</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Right: 3 Features -->
+<div class="reveal reveal-right reveal-delay-1 lg:col-span-6 space-y-8 sm:space-y-12">
+<!-- Feature 1 -->
+<div class="flex items-start space-x-4 sm:space-x-6">
+<div class="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-white text-[#6B1E2E] text-xl sm:text-2xl font-bold flex items-center justify-center shrink-0 shadow-sm">
+              1
+            </div>
+<div>
+<h3 class="text-lg sm:text-[20px] font-bold text-white tracking-tight">
+                Live budget tracking
+              </h3>
+<p class="text-base sm:text-[18px] text-white/90 mt-2 font-normal leading-relaxed">
+                Real-time ledger updates with every supplier down payment.
+              </p>
+</div>
+</div>
+<!-- Feature 2 -->
+<div class="flex items-start space-x-4 sm:space-x-6">
+<div class="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-white text-[#6B1E2E] text-xl sm:text-2xl font-bold flex items-center justify-center shrink-0 shadow-sm">
+              2
+            </div>
+<div>
+<h3 class="text-lg sm:text-[20px] font-bold text-white tracking-tight">
+                Availability shown before you book
+              </h3>
+<p class="text-base sm:text-[18px] text-white/90 mt-2 font-normal leading-relaxed">
+                Supplier calendars are synchronized in real-time.
+              </p>
+</div>
+</div>
+<!-- Feature 3 -->
+<div class="flex items-start space-x-4 sm:space-x-6">
+<div class="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-white text-[#6B1E2E] text-xl sm:text-2xl font-bold flex items-center justify-center shrink-0 shadow-sm">
+              3
+            </div>
+<div>
+<h3 class="text-lg sm:text-[20px] font-bold text-white tracking-tight">
+                AI summaries of real reviews
+              </h3>
+<p class="text-base sm:text-[18px] text-white/90 mt-2 font-normal leading-relaxed">
+                Concise sentiment synthesis across sound, dining, and pacing.
+              </p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- 5. BACOLOD SECTION -->
+<section class="section-reveal relative min-h-[360px] sm:min-h-[440px] md:min-h-[480px] py-20 sm:py-24 md:py-32 flex items-center justify-center overflow-hidden">
+<div class="absolute inset-0 z-0">
+<img class="w-full h-full object-cover object-center" data-alt="The New Bacolod City Government Center beneath a bright blue sky, viewed across its circular reflecting pool and fountain." data-location="Bacolod City" src="https://upload.wikimedia.org/wikipedia/en/thumb/0/0c/Bacolod_New_Government_Center_2023-08-06.jpg/1280px-Bacolod_New_Government_Center_2023-08-06.jpg"/>
+<!-- 70% burgundy overlay -->
+<div class="absolute inset-0 bg-[#6B1E2E]/70 mix-blend-multiply"></div>
+<div class="absolute inset-0 bg-[#6B1E2E]/30"></div>
+</div>
+<div class="reveal reveal-scale relative z-10 max-w-4xl mx-auto px-4 sm:px-6 text-center">
+<h2 class="text-[34px] sm:text-[44px] md:text-[64px] font-bold text-white leading-[1.1] tracking-tight">
+        Starting in Bacolod City. Built with local Service Providers.
+      </h2>
+</div>
+<a class="absolute bottom-3 right-4 z-10 text-[10px] text-white/55 hover:text-white transition-colors" href="https://en.wikipedia.org/wiki/File:Bacolod_New_Government_Center_2023-08-06.jpg" rel="noreferrer" target="_blank">Photo: LMP 2001 / CC BY-SA 4.0</a>
+</section>
+<!-- 6. FINAL CTA + FOOTER -->
+<section class="section-reveal py-20 sm:py-24 md:py-32 bg-white scroll-mt-20" id="download">
+<div class="max-w-[1600px] mx-auto px-4 sm:px-6 md:px-8">
+<!-- Final CTA -->
+<div class="reveal text-center max-w-3xl mx-auto">
+<h2 class="text-[36px] sm:text-[44px] md:text-[60px] font-bold text-gray-950 mb-8 leading-[1.1] tracking-tight">
+          Start planning today.
+        </h2>
+<div class="flex flex-wrap items-center justify-center gap-4">
+<!-- iOS availability: no App Store listing has been supplied yet. -->
+<span aria-label="MULTIVENT for iOS is coming soon" class="w-full max-w-[240px] sm:w-auto inline-flex items-center justify-center space-x-3 bg-black text-white px-6 sm:px-7 py-3.5 rounded-full opacity-60 cursor-not-allowed shadow-sm" title="iOS availability coming soon">
+<svg class="w-6 h-6 fill-current" viewbox="0 0 24 24">
+<path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.89c.65-.8 1.09-1.92.97-3.04-.95.04-2.1.63-2.77 1.43-.59.68-1.11 1.77-.97 2.86 1.06.08 2.12-.45 2.77-1.25z"></path>
+</svg>
+<div class="text-left">
+<div class="text-[11px] leading-tight text-neutral-400 font-semibold uppercase tracking-wider">iOS app</div>
+<div class="text-[17px] font-bold leading-none tracking-tight">Coming soon</div>
+</div>
+</span>
+<!-- Android preview build -->
+<a aria-label="Download the MULTIVENT Android preview build" class="w-full max-w-[240px] sm:w-auto inline-flex items-center justify-center space-x-3 bg-black text-white px-6 sm:px-7 py-3.5 rounded-full hover:bg-neutral-800 transition active:scale-95 shadow-sm" download href="/download/android">
+<svg class="w-6 h-6 fill-current" viewbox="0 0 24 24">
+<path d="M3.609 1.814L13.793 12 3.61 22.186a2.373 2.373 0 0 1-.61-.933V2.747c.17-.35.38-.67.61-.933zm11.24 11.24l2.452-2.452-12.7-7.332 10.248 9.784zm0 1.892l-10.248 9.784 12.7-7.332-2.452-2.452zm3.327-2.023l2.87-1.657a1.503 1.503 0 0 0 0-2.532l-2.87-1.657-2.148 2.148 2.148 2.148z"></path>
+</svg>
+<div class="text-left">
+<div class="text-[11px] leading-tight text-neutral-400 font-semibold uppercase tracking-wider">Android preview</div>
+<div class="text-[17px] font-bold leading-none tracking-tight">Download APK</div>
+</div>
+</a>
+</div>
+<p class="mt-5 text-sm text-gray-500">Android preview available now. iOS availability is coming soon.</p>
+</div>
+<!-- Footer Columns -->
+<footer class="reveal pt-16 sm:pt-20 md:pt-24 border-t border-gray-200 mt-16 sm:mt-20 scroll-mt-20" id="help">
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10 sm:gap-12 mb-12 sm:mb-16 text-center sm:text-left">
+<!-- Column 1: Couples -->
+<div>
+<div class="text-base font-bold text-gray-900 mb-6">Clients</div>
+<ul class="space-y-4">
+<li><a class="text-base text-[#2B2B2B] hover:text-[#6B1E2E] transition-colors" href="#">Find Venues</a></li>
+<li><a class="text-base text-[#2B2B2B] hover:text-[#6B1E2E] transition-colors" href="#">Wedding Caterers</a></li>
+<li><a class="text-base text-[#2B2B2B] hover:text-[#6B1E2E] transition-colors" href="#">Photographers</a></li>
+<li><a class="text-base text-[#2B2B2B] hover:text-[#6B1E2E] transition-colors" href="#">Budget Tool</a></li>
+</ul>
+</div>
+<!-- Column 2: Vendors -->
+<div>
+<div class="text-base font-bold text-gray-900 mb-6">Service Providers</div>
+<ul class="space-y-4">
+<li><a class="text-base text-[#2B2B2B] hover:text-[#6B1E2E] transition-colors" href="#">Service Provider Agreement</a></li>
+<li><a class="text-base text-[#2B2B2B] hover:text-[#6B1E2E] transition-colors" href="#">Escrow Protection</a></li>
+<li><a class="text-base text-[#2B2B2B] hover:text-[#6B1E2E] transition-colors" href="#">Community Guidelines</a></li>
+<li><a class="text-base text-[#2B2B2B] hover:text-[#6B1E2E] transition-colors" href="#">Partner Support</a></li>
+</ul>
+</div>
+<!-- Column 3: Company -->
+<div>
+<div class="text-base font-bold text-gray-900 mb-6">Company</div>
+<ul class="space-y-4">
+<li><a class="text-base text-[#2B2B2B] hover:text-[#6B1E2E] transition-colors" href="#">About MULTIVENT</a></li>
+<li><a class="text-base text-[#2B2B2B] hover:text-[#6B1E2E] transition-colors" href="#">Bacolod Pilot</a></li>
+<li><a class="text-base text-[#2B2B2B] hover:text-[#6B1E2E] transition-colors" href="#">Careers</a></li>
+<li><a class="text-base text-[#2B2B2B] hover:text-[#6B1E2E] transition-colors" href="#">Press</a></li>
+</ul>
+</div>
+<!-- Column 4: Legal -->
+<div>
+<div class="text-base font-bold text-gray-900 mb-6">Legal</div>
+<ul class="space-y-4">
+<li><a class="text-base text-[#2B2B2B] hover:text-[#6B1E2E] transition-colors" href="#">Terms</a></li>
+<li><a class="text-base text-[#2B2B2B] hover:text-[#6B1E2E] transition-colors" href="#">Privacy</a></li>
+<li><a class="text-base text-[#2B2B2B] hover:text-[#6B1E2E] transition-colors" href="#">Cancellation Policy</a></li>
+</ul>
+</div>
+</div>
+<!-- Bottom Line -->
+<div class="pt-8 border-t border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-2 text-center sm:text-left text-sm text-gray-500">
+<p>© MULTIVENT 2026. All rights reserved.</p>
+<p>Pilot operating in Bacolod City, Philippines.</p>
+</div>
+</footer>
+</div>
+</section>
+<!-- Interactive JavaScript -->
+<script>
+    const revealElements = document.querySelectorAll('.reveal, .section-reveal');
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const heroVideo = document.getElementById('hero-video');
+
+    if (reduceMotion) heroVideo?.pause();
+
+    if (reduceMotion || !('IntersectionObserver' in window)) {
+      revealElements.forEach((element) => element.classList.add('active'));
+    } else {
+      const revealObserver = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          entry.target.classList.toggle('active', entry.isIntersecting);
+        });
+      }, {
+        threshold: 0.04,
+        rootMargin: '0px 0px -8% 0px'
+      });
+
+      revealElements.forEach((element) => revealObserver.observe(element));
+    }
+
+    const audienceSection = document.getElementById('audience-section');
+    const cardViews = [
+      document.getElementById('view-couples'),
+      document.getElementById('view-vendors')
+    ];
+    const animatedCards = cardViews.flatMap(
+      (view) => Array.from(view.querySelectorAll('.group'))
+    );
+    const cardDescriptions = {
+      'Venue': 'Explore verified venues that match your guest count, location, style, and wedding-day budget.',
+      'Catering': 'Find trusted caterers and compare menus, packages, serving options, and availability.',
+      'Event Coordinator': 'Connect with coordinators who can organize suppliers, schedules, and every detail of your event.',
+      'Photo/Video': 'Browse creative teams ready to preserve your celebration through timeless photos and films.',
+      'Gown Rental': 'Discover beautiful gowns for rent and find a style that feels perfectly yours.',
+      'Host/Emcee': 'Choose an engaging host who can keep your program lively, polished, and on schedule.',
+      'Sound & Lights': 'Create the right atmosphere with professional audio, lighting, and technical event support.',
+      'Floral': 'Bring your vision to life with bouquets, centerpieces, and installations by local floral designers.',
+      'Publish Your Services': 'Build a polished listing with your packages, portfolio, pricing, and business information.',
+      'Increase Your Visibility': 'Reach more couples who are actively searching for trusted wedding service providers.',
+      'Get Verified': 'Strengthen client confidence with a verified profile and transparent business credentials.',
+      'Manage Booking Requests': 'Review inquiries, respond to clients, and organize booking requests in one place.',
+      'Manage Your Calendar': 'Keep your availability current and avoid scheduling conflicts across upcoming events.',
+      'Message Your Clients': 'Keep important conversations, event details, and updates organized and easy to access.',
+      'Track Earnings & Payouts': 'Monitor payments, earnings, and payout activity from a clear business dashboard.',
+      'View AI Review Insights': 'Turn client feedback into clear insights that help you understand and improve your service.'
+    };
+
+    function setCardFlipped(card, flipped) {
+      const title = card.dataset.cardTitle;
+      card.classList.toggle('is-flipped', flipped);
+      card.setAttribute('aria-pressed', String(flipped));
+      card.setAttribute('aria-label', `${title} — ${flipped ? 'hide' : 'show'} details`);
+      card.querySelector('.flip-card-front')?.setAttribute('aria-hidden', String(flipped));
+      card.querySelector('.flip-card-back')?.setAttribute('aria-hidden', String(!flipped));
+    }
+
+    animatedCards.forEach((card) => {
+      const title = card.querySelector('h3')?.textContent.trim() || 'Service';
+      const originalContent = Array.from(card.childNodes);
+      const inner = document.createElement('div');
+      const front = document.createElement('div');
+      const back = document.createElement('div');
+
+      card.classList.add('flip-card');
+      card.dataset.cardTitle = title;
+      card.setAttribute('role', 'button');
+      card.setAttribute('tabindex', '0');
+      card.setAttribute('aria-pressed', 'false');
+      card.setAttribute('aria-label', `${title} — show details`);
+
+      inner.className = 'flip-card-inner';
+      front.className = 'flip-card-face flip-card-front';
+      back.className = 'flip-card-face flip-card-back';
+      front.setAttribute('aria-hidden', 'false');
+      back.setAttribute('aria-hidden', 'true');
+
+      originalContent.forEach((node) => front.appendChild(node));
+      back.innerHTML = `
+        <div>
+          <span class="flip-card-back-icon material-symbols-outlined" aria-hidden="true">info</span>
+          <h3>${title}</h3>
+          <p>${cardDescriptions[title] || `Learn more about ${title} and how MULTIVENT can help.`}</p>
+        </div>
+      `;
+
+      inner.append(front, back);
+      card.appendChild(inner);
+
+      card.addEventListener('click', () => {
+        setCardFlipped(card, !card.classList.contains('is-flipped'));
+      });
+
+      card.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        setCardFlipped(card, !card.classList.contains('is-flipped'));
+      });
+    });
+    let audienceSectionVisible = false;
+    let cardPopRun = 0;
+
+    animatedCards.forEach((card) => card.classList.add('card-pop'));
+
+    function resetCardPops() {
+      cardPopRun += 1;
+      animatedCards.forEach((card) => {
+        card.classList.remove('active', 'pop-settled');
+        card.style.setProperty('--card-pop-delay', '0ms');
+      });
+    }
+
+    function playCardPops(view) {
+      resetCardPops();
+
+      const cards = Array.from(view.querySelectorAll('.group'));
+
+      const runId = ++cardPopRun;
+      cards.forEach((card, index) => {
+        const delay = index * 110;
+        card.style.setProperty('--card-pop-delay', `${delay}ms`);
+
+        setTimeout(() => {
+          if (runId !== cardPopRun || !card.classList.contains('active')) return;
+          card.classList.add('pop-settled');
+          card.style.setProperty('--card-pop-delay', '0ms');
+        }, delay + 700);
+      });
+
+      void view.offsetWidth;
+      cards.forEach((card) => card.classList.add('active'));
+    }
+
+    if (reduceMotion || !('IntersectionObserver' in window)) {
+      animatedCards.forEach((card) => card.classList.add('active', 'pop-settled'));
+    } else {
+      const cardObserver = new IntersectionObserver(([entry]) => {
+        audienceSectionVisible = entry.isIntersecting;
+
+        if (!entry.isIntersecting) {
+          resetCardPops();
+          return;
+        }
+
+        const activeView = document.getElementById('view-vendors').classList.contains('hidden')
+          ? document.getElementById('view-couples')
+          : document.getElementById('view-vendors');
+        playCardPops(activeView);
+      }, {
+        threshold: 0.02,
+        rootMargin: '0px 0px -5% 0px'
+      });
+
+      cardObserver.observe(audienceSection);
+    }
+
+    let audienceTransitioning = false;
+
+    function switchTab(audience) {
+      if (audienceTransitioning) return;
+
+      const btnCouples = document.getElementById('toggle-couples');
+      const btnVendors = document.getElementById('toggle-vendors');
+      const viewCouples = document.getElementById('view-couples');
+      const viewVendors = document.getElementById('view-vendors');
+      const audienceToggle = document.getElementById('audience-toggle');
+      const buttonBase = 'relative z-10 min-w-0 whitespace-nowrap bg-transparent px-2 sm:px-8 py-3 rounded-full font-semibold text-[13px] sm:text-lg cursor-pointer transition-colors duration-300';
+      const currentAudience = viewVendors.classList.contains('hidden') ? 'couples' : 'vendors';
+      const currentView = currentAudience === 'couples' ? viewCouples : viewVendors;
+      const nextView = audience === 'couples' ? viewCouples : viewVendors;
+
+      audienceToggle.dataset.active = audience;
+      btnCouples.setAttribute('aria-selected', audience === 'couples');
+      btnVendors.setAttribute('aria-selected', audience === 'vendors');
+
+      if (audience === 'couples') {
+        btnCouples.className = `${buttonBase} text-white`;
+        btnVendors.className = `${buttonBase} text-gray-700 hover:text-black`;
+      } else {
+        btnVendors.className = `${buttonBase} text-white`;
+        btnCouples.className = `${buttonBase} text-gray-700 hover:text-black`;
+      }
+
+      if (audience === currentAudience) {
+        if (!reduceMotion && audienceSectionVisible) playCardPops(nextView);
+        return;
+      }
+
+      if (reduceMotion) {
+        currentView.classList.add('hidden');
+        nextView.classList.remove('hidden');
+        return;
+      }
+
+      audienceTransitioning = true;
+      resetCardPops();
+
+      const movingToVendors = audience === 'vendors';
+      const exitClass = movingToVendors ? 'audience-exit-left' : 'audience-exit-right';
+      const enterClass = movingToVendors ? 'audience-enter-right' : 'audience-enter-left';
+
+      currentView.classList.add(exitClass);
+
+      window.setTimeout(() => {
+        currentView.classList.add('hidden');
+        currentView.classList.remove('audience-exit-left', 'audience-exit-right');
+
+        nextView.classList.add(enterClass);
+        nextView.classList.remove('hidden');
+        void nextView.offsetWidth;
+
+        requestAnimationFrame(() => {
+          nextView.classList.remove('audience-enter-left', 'audience-enter-right');
+          if (audienceSectionVisible) playCardPops(nextView);
+
+          window.setTimeout(() => {
+            audienceTransitioning = false;
+          }, 220);
+        });
+      }, 150);
+    }
+
+    document.getElementById('nav-vendors')?.addEventListener('click', () => switchTab('vendors'));
+
+    const siteHeader = document.getElementById('site-header');
+
+    function updateHeaderOnScroll() {
+      siteHeader?.classList.toggle('is-scrolled', window.scrollY > 24);
+    }
+
+    updateHeaderOnScroll();
+    window.addEventListener('scroll', updateHeaderOnScroll, { passive: true });
+
+    const mobileMenu = document.getElementById('mobile-menu');
+    const mobileMenuButton = document.getElementById('mobile-menu-button');
+    const mobileMenuIcon = document.getElementById('mobile-menu-icon');
+
+    function setMobileMenu(open) {
+      mobileMenu.classList.toggle('hidden', !open);
+      mobileMenuButton.setAttribute('aria-expanded', String(open));
+      mobileMenuButton.setAttribute('aria-label', open ? 'Close navigation menu' : 'Open navigation menu');
+      mobileMenuIcon.textContent = open ? 'close' : 'menu';
+    }
+
+    function closeMobileMenu() {
+      setMobileMenu(false);
+    }
+
+    mobileMenuButton?.addEventListener('click', () => {
+      setMobileMenu(mobileMenuButton.getAttribute('aria-expanded') !== 'true');
+    });
+
+    window.addEventListener('resize', () => {
+      if (window.innerWidth >= 1024) closeMobileMenu();
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') closeMobileMenu();
+    });
+
+  </script>
+</body></html>
