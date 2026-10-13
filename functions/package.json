@@ -8,7 +8,8 @@
   "scripts": {
     "test": "node --test",
     "set-admin": "node scripts/set-admin.js",
-    "set-superadmin": "node scripts/set-superadmin.js"
+    "set-superadmin": "node scripts/set-superadmin.js",
+    "create-staff": "node scripts/create-staff-user.js"
   },
   "dependencies": {
     "firebase-admin": "^13.5.0",

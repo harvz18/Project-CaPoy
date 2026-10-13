@@ -50,8 +50,20 @@ export default function NotificationsScreen() {
     router.push({ pathname: "/task/[id]", params: { id: item.taskId } });
   }
 
+  function goBack() {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+    router.replace(currentUser?.role === "worker" ? "/worker-dashboard" : "/client-dashboard");
+  }
+
   return (
     <ScreenContainer style={localStyles.screen}>
+      <Pressable accessibilityLabel="Back" accessibilityRole="button" onPress={goBack} style={({ pressed }) => [localStyles.backButton, pressed && localStyles.pressed]}>
+        <Text style={localStyles.backArrow}>‹</Text>
+        <Text style={localStyles.backText}>Back</Text>
+      </Pressable>
       <View style={localStyles.headingRow}>
         <View>
           <Text style={localStyles.heading}>Notifications</Text>
@@ -125,6 +137,9 @@ function formatTimestamp(timestamp: string) {
 
 const localStyles = StyleSheet.create({
   screen: { padding: 16 },
+  backButton: { alignSelf: "flex-start", minHeight: 42, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, marginLeft: -8, marginBottom: 4, borderRadius: 8 },
+  backArrow: { color: "#005C55", fontSize: 28, lineHeight: 28, fontWeight: "400" },
+  backText: { color: "#005C55", fontSize: 14, fontWeight: "900" },
   headingRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   heading: { fontSize: 28, lineHeight: 34, fontWeight: "900", color: "#181C1C" },
   meta: { color: "#596562", marginTop: 2 },
@@ -138,5 +153,6 @@ const localStyles = StyleSheet.create({
   type: { flex: 1, color: "#005C55", fontSize: 15, fontWeight: "900" },
   message: { color: "#181C1C", fontSize: 15, lineHeight: 21, marginTop: 8 },
   time: { color: "#6E7977", fontSize: 11, marginTop: 8 },
-  error: { color: "#BA1A1A", marginTop: 8, fontWeight: "700" }
+  error: { color: "#BA1A1A", marginTop: 8, fontWeight: "700" },
+  pressed: { opacity: 0.72 }
 });

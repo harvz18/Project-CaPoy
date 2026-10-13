@@ -1,6 +1,7 @@
 const { initializeApp, applicationDefault } = require("firebase-admin/app");
 const { getAuth } = require("firebase-admin/auth");
 const { getFirestore } = require("firebase-admin/firestore");
+const { resolveProjectId } = require("./resolve-project-id");
 
 const identifier = process.argv[2]?.trim();
 if (!identifier) {
@@ -17,8 +18,9 @@ function toTasklinkEmail(value) {
 }
 
 const email = toTasklinkEmail(identifier);
+const projectId = resolveProjectId();
 
-initializeApp({ credential: applicationDefault() });
+initializeApp({ credential: applicationDefault(), projectId });
 
 async function main() {
   const user = await getAuth().getUserByEmail(email);
