@@ -12,53 +12,31 @@ import {
   View,
 } from 'react-native'
 import { ClientMainTab } from '../components/ClientBottomNavigation'
+import { formatServicePrice } from '../lib/catalog'
+import type { HomeServiceRecommendation } from '../lib/home-recommendations'
 import type { ClientEventDraftSummary } from '../lib/planning'
 
 export type ClientHomeAction = 'newEvent' | 'vendors' | 'tasks'
 export type ClientHomeTab = ClientMainTab
-export type ClientHomeRecommendation = 'glasshouse' | 'aesthete'
+export type ClientHomeRecommendation = HomeServiceRecommendation
 
 interface ClientHomeScreenProps {
-  draftEvent?: ClientEventDraftSummary
+  draftEvents?: ClientEventDraftSummary[]
+  recommendations?: HomeServiceRecommendation[]
   selectedServiceCount?: number
   userAvatarUrl?: string
   userName?: string
   searchValue?: string
   onChangeSearch?: (value: string) => void
-  onOpenActiveEvent?: () => void
+  onOpenDraft?: (draftId: string) => void
   onStartNewEvent?: () => Promise<boolean | void> | boolean | void
   onOpenNotifications?: () => void
   onOpenProfile?: () => void
   onScrollDirectionChange?: (direction: 'down' | 'up') => void
   onSeeAllVenues?: () => void
-  onSelectRecommendation?: (recommendation: ClientHomeRecommendation) => void
+  onSelectRecommendation?: (serviceId: string) => void
   onSelectTab?: (tab: ClientHomeTab) => void
 }
-
-const recommendations = [
-  {
-    id: 'glasshouse' as const,
-    image:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuACgPKY6101R5Tt8wM3MANys6BhdJIdq1lEXymw2shJq516w4JybVe1vBAbZ7aeMfuHHry13Yy3fmt7tA6qoTOtxueyxdpuKDui18IO8ECZIIJDVrFCmgAc0gpyyGkCBLHu2IolGWZWlWnprUVbJSXFDDyy2ef5ck9w5VW_KXkT9bKfW_UN8lPym799buuDLFhshrnkD-PLqLFWvxmrVNLyb15lTaySHkXVDvJJMrTu9lb-ianLsojffw',
-    imageLabel: 'The Glasshouse Botanical venue',
-    category: 'VENUE / MINIMALIST',
-    title: 'The Glasshouse Botanical',
-    description:
-      'An ethereal space blending modern architecture with lush, curated gardens.',
-    price: 'From PHP 480k',
-  },
-  {
-    id: 'aesthete' as const,
-    image:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuAM9W82WCl23k2o4k6YTzPQls2wvdD5QmVEV_CNbUrqcJN4hkSXgAaCe4WCwIpAQWsAEAcnYo_3XZqHY4KmnU4HEbf2ELXoKRPaDFooeL4Cu4IuaHk4_0DAwCh-yii_8j1GIsF9mQV3maGJ6oIdsX3RrOaUPLRUlP-TINybREUbIvO0p_ZeORHdxqvqVYFgC7_Ix2SIVeNwvzxTtpldCsOocgG6cLLjPsJv6o81qzwIUOG1i5OqrDs0aQ',
-    imageLabel: 'Studio Aesthete editorial photography',
-    category: 'PHOTOGRAPHY / EDITORIAL',
-    title: 'Studio Aesthete',
-    description:
-      'Capturing raw emotion through a refined, cinematic lens for wedding storytelling.',
-    price: 'From PHP 235k',
-  },
-] as const
 
 const formatDraftDate = (value: string) => {
   if (!value) return 'Date not set'
@@ -85,8 +63,9 @@ const getDaysLeft = (value: string) => {
 }
 
 export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
-  draftEvent,
-  onOpenActiveEvent,
+  draftEvents = [],
+  recommendations = [],
+  onOpenDraft,
   onOpenNotifications,
   onOpenProfile,
   onScrollDirectionChange,
@@ -101,10 +80,17 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   const lastScrollY = React.useRef(0)
   const [isDraftPromptVisible, setIsDraftPromptVisible] = React.useState(false)
   const [isStartingNewEvent, setIsStartingNewEvent] = React.useState(false)
+  const [showAllDrafts, setShowAllDrafts] = React.useState(false)
+  const visibleDrafts = showAllDrafts ? draftEvents : draftEvents.slice(0, 3)
+  const hasAdditionalDrafts = draftEvents.length > 3
+  const draftEvent = visibleDrafts[0]
+  const onOpenActiveEvent = () => {
+    if (draftEvent) onOpenDraft?.(draftEvent.id)
+  }
   const daysLeft = draftEvent ? getDaysLeft(draftEvent.eventDate) : null
 
   const handleCreateEventPress = () => {
-    if (draftEvent) {
+    if (draftEvents.length > 0) {
       setIsDraftPromptVisible(true)
       return
     }
@@ -196,6 +182,21 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
         </View>
 
         <View style={styles.referenceSection}>
+          <View style={styles.referenceSectionHeader}>
+            <View>
+              <Text style={styles.referenceSectionTitle}>CONTINUE PLANNING</Text>
+              <Text style={styles.referenceSectionSubtitle}>Your most recently updated event drafts</Text>
+            </View>
+            {hasAdditionalDrafts ? (
+              <Pressable
+                accessibilityLabel={showAllDrafts ? 'Show fewer event drafts' : 'See all event drafts'}
+                accessibilityRole="button"
+                onPress={() => setShowAllDrafts((current) => !current)}
+              >
+                <Text style={styles.exploreAll}>{showAllDrafts ? 'Show Less' : 'See All Drafts'}</Text>
+              </Pressable>
+            ) : null}
+          </View>
           {draftEvent ? (
             <Pressable
               accessibilityLabel={`Continue planning ${draftEvent.name}`}
@@ -241,11 +242,37 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
               </View>
             </Pressable>
           ) : null}
+          {visibleDrafts.slice(1).map((draft) => (
+            <Pressable
+              key={draft.id}
+              accessibilityLabel={`Resume planning ${draft.name}`}
+              accessibilityRole="button"
+              onPress={() => onOpenDraft?.(draft.id)}
+              style={({ pressed }) => [styles.compactDraftCard, pressed && styles.referencePressed]}
+            >
+              <View style={styles.compactDraftCopy}>
+                <Text numberOfLines={1} style={styles.compactDraftName}>{draft.name}</Text>
+                <Text numberOfLines={1} style={styles.compactDraftMeta}>
+                  {formatDraftDate(draft.eventDate)} · Next: {draft.nextStep}
+                </Text>
+              </View>
+              <Text style={styles.compactDraftAction}>Resume →</Text>
+            </Pressable>
+          ))}
+          {!draftEvent ? (
+            <View style={styles.emptyDraftState}>
+              <MaterialIcons name="event-note" size={24} color="#8A2944" />
+              <View style={styles.emptyDraftCopy}>
+                <Text style={styles.emptyDraftTitle}>No saved drafts yet</Text>
+                <Text style={styles.emptyDraftText}>Create an event to begin planning your celebration.</Text>
+              </View>
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.referenceSection}>
           <View style={styles.referenceSectionHeader}>
-            <View><Text style={styles.referenceSectionTitle}>RECOMMENDED FOR YOU<Text style={styles.sectionDot}></Text></Text><Text style={styles.referenceSectionSubtitle}>Selected based on Bacolod wedding spaces</Text></View>
+            <View><Text style={styles.referenceSectionTitle}>RECOMMENDED FOR YOU<Text style={styles.sectionDot}></Text></Text><Text style={styles.referenceSectionSubtitle}>Based on confirmed bookings and reliable client reviews</Text></View>
             <Pressable accessibilityLabel="See all venues" accessibilityRole="button" onPress={onSeeAllVenues}>
               <Text style={styles.exploreAll}>Explore All →</Text>
             </Pressable>
@@ -259,21 +286,32 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
           >
             {recommendations.map((recommendation) => (
               <Pressable
-                key={recommendation.id}
-                accessibilityLabel={`Open ${recommendation.title}`}
+                key={recommendation.service.id}
+                accessibilityLabel={`Open ${recommendation.service.name}`}
                 accessibilityRole="button"
-                onPress={() => onSelectRecommendation?.(recommendation.id)}
+                onPress={() => onSelectRecommendation?.(recommendation.service.id)}
                 style={({ pressed }) => [styles.referenceVenueCard, { width: isWide ? 324 : Math.max(252, width - 56) }, pressed && styles.referencePressed]}
               >
                 <View style={styles.referenceVenueImageWrap}>
-                  <Image accessibilityLabel={recommendation.imageLabel} resizeMode="cover" source={{ uri: recommendation.image }} style={styles.referenceVenueImage} />
-                  <View style={styles.venueBadge}><Text style={styles.venueBadgeText}>{recommendation.category.split(' / ')[0]}</Text></View>
+                  {recommendation.service.imageUrl ? (
+                    <Image accessibilityLabel={recommendation.service.imageLabel} resizeMode="cover" source={{ uri: recommendation.service.imageUrl }} style={styles.referenceVenueImage} />
+                  ) : (
+                    <View style={styles.recommendationImageFallback}><MaterialIcons name="image" size={30} color="#8A2944" /></View>
+                  )}
+                  <View style={styles.venueBadge}><Text style={styles.venueBadgeText}>{recommendation.indicator}</Text></View>
                 </View>
-                <Text style={styles.referenceVenueTitle}>{recommendation.title}</Text>
-                <Text style={styles.referenceVenueMeta}>The Glasshouse Estate · 250 Guests Max</Text>
-                <View style={styles.referenceVenueFooter}><Text style={styles.referenceVenuePrice}>{recommendation.price}</Text><Text style={styles.referenceVenueAction}>View Specs</Text></View>
+                <Text numberOfLines={1} style={styles.referenceVenueTitle}>{recommendation.service.name}</Text>
+                <Text numberOfLines={1} style={styles.referenceVenueMeta}>{recommendation.service.categoryName} · {recommendation.service.providerName}</Text>
+                <Text numberOfLines={2} style={styles.homeRecommendationDescription}>{recommendation.service.description}</Text>
+                <View style={styles.referenceVenueFooter}><Text style={styles.referenceVenuePrice}>{formatServicePrice(recommendation.service)}</Text><Text style={styles.referenceVenueAction}>{recommendation.service.reviewCount > 0 ? `${recommendation.service.rating} ★ (${recommendation.service.reviewCount})` : 'New'}</Text></View>
               </Pressable>
             ))}
+            {recommendations.length === 0 ? (
+              <View style={styles.emptyRecommendationState}>
+                <Text style={styles.emptyDraftTitle}>Recommendations will appear here</Text>
+                <Text style={styles.emptyDraftText}>Published services become available as providers join MULTIVENT.</Text>
+              </View>
+            ) : null}
           </ScrollView>
         </View>
 
@@ -290,20 +328,19 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
             <View style={styles.draftPromptIcon}>
               <MaterialIcons name="event-note" size={25} color={palette.primary} />
             </View>
-            <Text style={styles.draftPromptTitle}>You have an event draft</Text>
+            <Text style={styles.draftPromptTitle}>You have saved event drafts</Text>
             <Text style={styles.draftPromptCopy}>
-              Continue {draftEvent?.name || 'your saved event'}, or start fresh. Starting a new
-              event will close the current draft.
+              Your saved drafts will stay available. You can resume the latest one or create another event.
             </Text>
             <Pressable
               accessibilityRole="button"
               onPress={() => {
                 setIsDraftPromptVisible(false)
-                onOpenActiveEvent?.()
+                onOpenActiveEvent()
               }}
               style={({ pressed }) => [styles.draftPromptPrimary, pressed && styles.referencePressed]}
             >
-              <Text style={styles.draftPromptPrimaryText}>Continue Draft</Text>
+              <Text style={styles.draftPromptPrimaryText}>Resume Latest Draft</Text>
             </Pressable>
             <Pressable
               accessibilityRole="button"
@@ -540,6 +577,37 @@ const styles = StyleSheet.create({
   draftEventCard: {
     marginBottom: 10,
   },
+  compactDraftCard: {
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderColor: '#E4D9D5',
+    borderRadius: 9,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  compactDraftCopy: { flex: 1, minWidth: 0 },
+  compactDraftName: { color: '#241E1E', fontSize: 13, fontWeight: '700', lineHeight: 17 },
+  compactDraftMeta: { color: '#7C7271', fontSize: 11, lineHeight: 15, marginTop: 2 },
+  compactDraftAction: { color: '#8A2944', fontSize: 12, fontWeight: '700' },
+  emptyDraftState: {
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderColor: '#E4D9D5',
+    borderRadius: 9,
+    borderStyle: 'dashed',
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    padding: 14,
+  },
+  emptyDraftCopy: { flex: 1 },
+  emptyDraftTitle: { color: '#2B2323', fontSize: 13, fontWeight: '700', lineHeight: 18 },
+  emptyDraftText: { color: '#7C7271', fontSize: 11, lineHeight: 16, marginTop: 2 },
   activeEventHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -884,6 +952,11 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  recommendationImageFallback: {
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
+  },
   venueBadge: {
     position: 'absolute',
     top: 8,
@@ -913,6 +986,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 9,
     marginTop: 2,
   },
+  homeRecommendationDescription: {
+    color: '#6F6463',
+    fontSize: 11,
+    lineHeight: 15,
+    marginTop: 5,
+    paddingHorizontal: 9,
+  },
   referenceVenueFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -927,6 +1007,18 @@ const styles = StyleSheet.create({
     color: '#8A2944',
     fontSize: 12,
     fontWeight: '700',
+  },
+  emptyRecommendationState: {
+    alignItems: 'flex-start',
+    backgroundColor: '#FFFFFF',
+    borderColor: '#E4D9D5',
+    borderRadius: 8,
+    borderStyle: 'dashed',
+    borderWidth: 1,
+    justifyContent: 'center',
+    minHeight: 128,
+    padding: 16,
+    width: 260,
   },
   milestonesSection: {
     marginBottom: 0,

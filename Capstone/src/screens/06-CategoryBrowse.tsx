@@ -46,6 +46,8 @@ interface CategoryBrowseScreenProps {
   totalEstimatedCost?: number
   removingServiceId?: string
   remainingBudget?: number
+  unallocatedCategoryCount?: number
+  planningSelectionsComplete?: boolean
   replacementContext?: {
     currentProviderName: string
     serviceName: string
@@ -57,6 +59,7 @@ interface CategoryBrowseScreenProps {
   onChangeSearch?: (value: string) => void
   onCategoryBudgetChange?: (amount: number) => Promise<boolean> | boolean
   onContinueSelectedServices?: () => void
+  onAddCategory?: () => void
   onAddService?: () => void
   onRemoveCoordinator?: () => void
   onRemoveService?: (service: SelectedSummaryService) => void
@@ -116,6 +119,8 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   totalEstimatedCost = 0,
   removingServiceId = '',
   remainingBudget = 45000,
+  unallocatedCategoryCount = 0,
+  planningSelectionsComplete = false,
   replacementContext,
   showBottomNavigation = true,
   searchValue,
@@ -124,6 +129,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   onChangeSearch,
   onCategoryBudgetChange,
   onContinueSelectedServices,
+  onAddCategory,
   onAddService,
   onRemoveCoordinator,
   onRemoveService,
@@ -567,6 +573,40 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
               {hasSetBudget
                 ? `Remaining Budget: ₱${formatCurrency(remainingBudget)}`
                 : 'Pay actual service costs'}
+            </Text>
+          </View>
+        ) : null}
+
+        {!isExploreMode && !replacementContext && hasSetBudget && unallocatedCategoryCount > 0 ? (
+          <View style={styles.unallocatedBudgetCard}>
+            <View style={styles.unallocatedBudgetCopy}>
+              <Text style={styles.unallocatedBudgetTitle}>
+                {remainingBudget > 0
+                  ? 'You still have unallocated budget'
+                  : 'All of your budget is currently allocated'}
+              </Text>
+              <Text style={styles.unallocatedBudgetText}>
+                {remainingBudget > 0
+                  ? 'Assign it to an additional service category whenever you are ready.'
+                  : 'Reallocate funds from an unlocked category before adding another one.'}
+              </Text>
+            </View>
+            <Pressable
+              accessibilityLabel="Add another budget category"
+              accessibilityRole="button"
+              onPress={onAddCategory}
+              style={({ pressed }) => [styles.addCategoryButton, pressed && styles.pressed]}
+            >
+              <Text style={styles.addCategoryButtonText}>+ Add More Category</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {!isExploreMode && !replacementContext && planningSelectionsComplete ? (
+          <View style={styles.planningCompleteCard}>
+            <Text style={styles.planningCompleteTitle}>Allocated categories complete</Text>
+            <Text style={styles.planningCompleteText}>
+              You can revisit any category, adjust an unlocked budget, or review your selected services.
             </Text>
           </View>
         ) : null}
@@ -1761,6 +1801,65 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
     fontWeight: '600',
+  },
+  unallocatedBudgetCard: {
+    alignItems: 'center',
+    backgroundColor: '#F8FBF7',
+    borderColor: '#C8DDC4',
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 14,
+    padding: 14,
+  },
+  unallocatedBudgetCopy: { flex: 1, gap: 3 },
+  unallocatedBudgetTitle: {
+    color: palette.primaryContainer,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '800',
+  },
+  unallocatedBudgetText: {
+    color: palette.secondary,
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  addCategoryButton: {
+    alignItems: 'center',
+    backgroundColor: palette.primaryContainer,
+    borderRadius: 12,
+    justifyContent: 'center',
+    minHeight: 38,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  addCategoryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  planningCompleteCard: {
+    backgroundColor: '#F7FAFF',
+    borderColor: '#C6D6EC',
+    borderRadius: 16,
+    borderWidth: 1,
+    gap: 3,
+    marginTop: 14,
+    padding: 14,
+  },
+  planningCompleteTitle: {
+    color: palette.primaryContainer,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '800',
+  },
+  planningCompleteText: {
+    color: palette.secondary,
+    fontSize: 11,
+    lineHeight: 16,
   },
   replacementBanner: {
     borderWidth: 1,

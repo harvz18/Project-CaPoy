@@ -146,6 +146,8 @@ export type ClientEventDraftSummary = {
   updatedAt: string
 }
 
+let activePlanningEventId = ''
+
 export const calculateServiceQuote = async ({
   optionId,
   packageId,
@@ -280,6 +282,71 @@ const getCurrentUserId = async () => {
   return data.user?.id ?? null
 }
 
+const getDraftStepSummary = (event: {
+  event_date?: string | null
+  event_service_selections?: Array<{ status?: string | null }> | null
+  id: string
+  location?: string | null
+  name?: string | null
+  status?: string | null
+  total_budget?: number | null
+  updated_at?: string | null
+  venue?: string | null
+}): ClientEventDraftSummary => {
+  const activeSelections = (event.event_service_selections ?? []).filter(
+    (selection) => !['declined', 'cancelled'].includes(String(selection.status))
+  ).length
+  const completedSteps = activeSelections > 0
+    ? 3
+    : Number(event.total_budget ?? 0) > 0
+      ? 2
+      : event.event_date
+        ? 1
+        : 0
+  const nextStepLabels = [
+    'Add event details',
+    'Set your budget',
+    'Choose services',
+    'Review schedule',
+    'Complete payment',
+  ]
+
+  return {
+    completedSteps,
+    eventDate: event.event_date ?? '',
+    id: event.id,
+    location: event.venue || event.location || '',
+    name: event.name || defaultEventName,
+    nextStep: nextStepLabels[completedSteps] ?? 'Continue planning',
+    progressPercent: Math.round((completedSteps / 5) * 100),
+    status: event.status === 'draft' ? 'draft' : 'planning',
+    totalSteps: 5,
+    updatedAt: event.updated_at ?? '',
+  }
+}
+
+export const fetchClientEventDrafts = async (): Promise<ClientEventDraftSummary[]> => {
+  const client = getClient()
+  const userId = await getCurrentUserId()
+  if (!client || !userId) return []
+
+  const { data, error } = await client
+    .from('events')
+    .select('id, name, event_date, venue, location, status, total_budget, updated_at, event_service_selections(status)')
+    .eq('client_id', userId)
+    .in('status', ['draft', 'planning'])
+    .order('updated_at', { ascending: false })
+
+  if (error || !Array.isArray(data)) return []
+  return data.flatMap((event) => {
+    if (!event?.id) return []
+    const selections = Array.isArray(event.event_service_selections)
+      ? event.event_service_selections
+      : []
+    return [getDraftStepSummary({ ...event, event_service_selections: selections })]
+  })
+}
+
 const paymentMethodFrom = (value: unknown): 'bankTransfer' | 'eWallet' => {
   if (value === 'bankTransfer') return value
   return 'eWallet'
@@ -291,18 +358,31 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
 
   if (!client || !userId) return { selectedServices: [] }
 
-  const { data: event } = await client
-    .from('events')
-    .select(
-      'id, coordinator_id, pending_coordinator_id, coordinator_assignment_status, coordinator_preference, coordinator_fee_amount, name, event_type, event_date, event_time, guest_count, total_budget, venue_status, venue, location, status, updated_at'
-    )
-    .eq('client_id', userId)
-    .neq('status', 'cancelled')
-    .order('updated_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+  const eventSelection =
+    'id, coordinator_id, pending_coordinator_id, coordinator_assignment_status, coordinator_preference, coordinator_fee_amount, name, event_type, event_date, event_time, guest_count, total_budget, venue_status, venue, location, status, updated_at'
+  const { data: selectedEvent } = activePlanningEventId
+    ? await client
+        .from('events')
+        .select(eventSelection)
+        .eq('id', activePlanningEventId)
+        .eq('client_id', userId)
+        .neq('status', 'cancelled')
+        .maybeSingle()
+    : { data: null }
+  const { data: latestEvent } = selectedEvent?.id
+    ? { data: null }
+    : await client
+        .from('events')
+        .select(eventSelection)
+        .eq('client_id', userId)
+        .neq('status', 'cancelled')
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+  const event = selectedEvent ?? latestEvent
 
   if (!event?.id) return { selectedServices: [] }
+  activePlanningEventId = event.id
 
   const visibleCoordinatorId =
     event.coordinator_assignment_status === 'pending'
@@ -616,7 +696,11 @@ const toEventPayload = (budget?: number, details?: EventDraftInput) => {
   return payload
 }
 
-const ensureDraftEvent = async (budget?: number, details?: EventDraftInput) => {
+const ensureDraftEvent = async (
+  budget?: number,
+  details?: EventDraftInput,
+  createNew = false
+) => {
   const client = getClient()
 
   if (!client) {
@@ -668,14 +752,33 @@ const ensureDraftEvent = async (budget?: number, details?: EventDraftInput) => {
     }
   }
 
-  const { data: existing, error: existingError } = await client
-    .from('events')
-    .select('id')
-    .eq('client_id', userId)
-    .in('status', ['draft', 'planning'])
-    .order('updated_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+  const { data: selectedDraft, error: selectedDraftError } =
+    activePlanningEventId && !createNew
+      ? await client
+          .from('events')
+          .select('id')
+          .eq('id', activePlanningEventId)
+          .eq('client_id', userId)
+          .in('status', ['draft', 'planning'])
+          .maybeSingle()
+      : { data: null, error: null }
+
+  if (selectedDraftError) {
+    throw new Error(`Unable to load your event plan: ${selectedDraftError.message}`)
+  }
+
+  const { data: newestDraft, error: newestDraftError } = selectedDraft?.id || createNew
+    ? { data: null, error: null }
+    : await client
+        .from('events')
+        .select('id')
+        .eq('client_id', userId)
+        .in('status', ['draft', 'planning'])
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+  const existing = selectedDraft ?? newestDraft
+  const existingError = newestDraftError
 
   if (existingError) {
     throw new Error(`Unable to load your event plan: ${existingError.message}`)
@@ -691,6 +794,7 @@ const ensureDraftEvent = async (budget?: number, details?: EventDraftInput) => {
       throw new Error(`Unable to update your event plan: ${updateError.message}`)
     }
 
+    activePlanningEventId = existing.id as string
     return { eventId: existing.id as string, userId }
   }
 
@@ -711,7 +815,42 @@ const ensureDraftEvent = async (budget?: number, details?: EventDraftInput) => {
     throw new Error(`Unable to create your event plan: ${error?.message ?? 'No event was returned.'}`)
   }
 
+  activePlanningEventId = created.id as string
   return { eventId: created.id as string, userId }
+}
+
+export const createClientEventDraft = async (): Promise<PlanningResult & { eventId?: string }> => {
+  try {
+    const event = await ensureDraftEvent(undefined, undefined, true)
+    return event ? { eventId: event.eventId, ok: true } : { ok: false }
+  } catch (error) {
+    return { ok: false, message: toMessage(error) }
+  }
+}
+
+export const resumeClientEventDraft = async (eventId: string): Promise<PlanningResult> => {
+  try {
+    const client = getClient()
+    const userId = await getCurrentUserId()
+    if (!client || !userId || !isUuid(eventId)) {
+      return { ok: false, message: 'This event draft is no longer available.' }
+    }
+
+    const { data, error } = await client
+      .from('events')
+      .select('id')
+      .eq('id', eventId)
+      .eq('client_id', userId)
+      .in('status', ['draft', 'planning'])
+      .maybeSingle()
+    if (error) return { ok: false, message: error.message }
+    if (!data?.id) return { ok: false, message: 'This event draft can no longer be resumed.' }
+
+    activePlanningEventId = data.id as string
+    return { ok: true }
+  } catch (error) {
+    return { ok: false, message: toMessage(error) }
+  }
 }
 
 export const closeCurrentEventDraft = async (): Promise<PlanningResult> => {
@@ -1528,17 +1667,31 @@ export const removeServiceSelection = async ({
       return { ok: false, message: 'Supabase is not configured or no user is signed in.' }
     }
 
-    const { data: event, error: eventError } = await client
-      .from('events')
-      .select('id')
-      .eq('client_id', userId)
-      .neq('status', 'cancelled')
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
+    const { data: selectedEvent, error: selectedEventError } = activePlanningEventId
+      ? await client
+          .from('events')
+          .select('id')
+          .eq('id', activePlanningEventId)
+          .eq('client_id', userId)
+          .neq('status', 'cancelled')
+          .maybeSingle()
+      : { data: null, error: null }
+    const { data: latestEvent, error: latestEventError } = selectedEvent?.id
+      ? { data: null, error: null }
+      : await client
+          .from('events')
+          .select('id')
+          .eq('client_id', userId)
+          .neq('status', 'cancelled')
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+    const event = selectedEvent ?? latestEvent
+    const eventError = selectedEventError ?? latestEventError
 
     if (eventError) return { ok: false, message: eventError.message }
     if (!event?.id) return { ok: false, message: 'No active event plan was found.' }
+    activePlanningEventId = event.id as string
 
     const { data: selections, error: selectionError } = await client
       .from('event_service_selections')

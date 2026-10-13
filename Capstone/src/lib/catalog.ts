@@ -133,6 +133,7 @@ export interface CatalogService {
   minPrice: number
   providerMinPrice: number
   name: string
+  negativeSentimentCount?: number
   packageId?: string
   packages?: Array<{
     description: string
@@ -152,6 +153,7 @@ export interface CatalogService {
   pricingModel?: 'fixed' | 'startingAt' | 'customQuote'
   pricingUnit?: 'event' | 'person' | 'hour' | 'day'
   popularityRank?: number
+  positiveSentimentCount?: number
   providerId?: string
   providerUserId?: string
   providerName: string
@@ -298,7 +300,7 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
   const baseSelection =
     'id, provider_id, category_id, name, description, base_price, location, cover_image_url, provider_profiles(id, user_id, business_name), service_categories(id, name), service_packages(id, name, description, price, inclusions, is_deleted), reviews(rating)'
   const detailedSelection =
-    'id, provider_id, category_id, name, description, base_price, location, cover_image_url, gallery_urls, pricing_model, pricing_unit, pricing_details, catering_service_types, category_details, provider_profiles(id, user_id, business_name), service_categories(id, name), service_packages(id, name, description, price, inclusions, pricing_unit, subtotal, discount_type, discount_value, discount_amount, is_deleted, service_package_items(position, services(name))), reviews(rating)'
+    'id, provider_id, category_id, name, description, base_price, location, cover_image_url, gallery_urls, pricing_model, pricing_unit, pricing_details, catering_service_types, category_details, provider_profiles(id, user_id, business_name), service_categories(id, name), service_packages(id, name, description, price, inclusions, pricing_unit, subtotal, discount_type, discount_value, discount_amount, is_deleted, service_package_items(position, services(name))), reviews(rating, analysis_status, sentiment_label)'
 
   const [detailedResult, commissionResult, includedPackageResult] = await Promise.all([
     supabase
@@ -391,6 +393,12 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
     const averageRating = reviewRatings.length
       ? reviewRatings.reduce((total, rating) => total + rating, 0) / reviewRatings.length
       : 0
+    const positiveSentimentCount = reviewRows.filter(
+      (review) => review.analysis_status === 'processed' && review.sentiment_label === 'positive'
+    ).length
+    const negativeSentimentCount = reviewRows.filter(
+      (review) => review.analysis_status === 'processed' && review.sentiment_label === 'negative'
+    ).length
     const pricingModel = ['fixed', 'startingAt', 'customQuote'].includes(
       String(record.pricing_model)
     )
@@ -420,10 +428,12 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
       location: textFrom(record.location, ''),
       minPrice,
       name,
+      negativeSentimentCount,
       packages,
       pricingDetails: textFrom(record.pricing_details, ''),
       pricingModel,
       pricingUnit,
+      positiveSentimentCount,
       providerMinPrice,
       providerId: textFrom(record.provider_id, getNestedId(record.provider_profiles, '')),
       providerUserId: getNestedText(record.provider_profiles, 'user_id', ''),

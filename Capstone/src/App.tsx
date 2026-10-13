@@ -34,7 +34,8 @@ import {
   calculateServiceQuote,
   chooseCoordinatorPackage,
   ClientEventDraftSummary,
-  closeCurrentEventDraft,
+  createClientEventDraft,
+  fetchClientEventDrafts,
   fetchClientPlanningState,
   removeCoordinatorFromEvent,
   removeServiceSelection,
@@ -46,7 +47,16 @@ import {
   saveServiceSelection,
   setCategoryBudgetAllocation,
   setCoordinatorPreference,
+  resumeClientEventDraft,
 } from './lib/planning'
+import {
+  getActivePlanningCategories,
+  getFirstPlanningCategory,
+  getFirstServicePlanningCategory,
+  getNextUnselectedServicePlanningCategory,
+  getUnallocatedPlanningCategoryCount,
+} from './lib/planning-categories'
+import { rankHomeRecommendations } from './lib/home-recommendations'
 import {
   cancelClientEventBookings,
   changeMerchantPassword,
@@ -397,7 +407,7 @@ const getMetadataName = (metadata: UserMetadata) => {
   return ''
 }
 
-const confirmReplacement = (title: string, message: string) => {
+const confirmDestructiveAction = (title: string, message: string, actionLabel: string) => {
   if (Platform.OS === 'web') return Promise.resolve(globalThis.confirm(`${title}\n\n${message}`))
   return new Promise<boolean>((resolve) => {
     Alert.alert(
@@ -405,12 +415,15 @@ const confirmReplacement = (title: string, message: string) => {
       message,
       [
         { onPress: () => resolve(false), style: 'cancel', text: 'Cancel' },
-        { onPress: () => resolve(true), style: 'destructive', text: 'Replace' },
+        { onPress: () => resolve(true), style: 'destructive', text: actionLabel },
       ],
       { cancelable: true, onDismiss: () => resolve(false) }
     )
   })
 }
+
+const confirmReplacement = (title: string, message: string) =>
+  confirmDestructiveAction(title, message, 'Replace')
 
 export const App: React.FC = () => {
   const [fontsLoaded] = useFonts({
@@ -572,8 +585,8 @@ export const App: React.FC = () => {
   const [assigningCoordinatorId, setAssigningCoordinatorId] = React.useState('')
   const [selectingCoordinatorPackageId, setSelectingCoordinatorPackageId] = React.useState('')
   const [maxPlanningStep, setMaxPlanningStep] = React.useState(1)
-  const [clientEventDraft, setClientEventDraft] =
-    React.useState<ClientEventDraftSummary>()
+  const [clientEventDrafts, setClientEventDrafts] =
+    React.useState<ClientEventDraftSummary[]>([])
   const [clientBookings, setClientBookings] = React.useState<BookingItem[]>([])
   const [merchantRequests, setMerchantRequests] = React.useState<MerchantBookingRequest[]>([])
   const [merchantServices, setMerchantServices] = React.useState<MerchantServiceListing[]>([])
@@ -583,6 +596,42 @@ export const App: React.FC = () => {
     CategoryBudgetAllocation[]
   >([])
   const [coordinatorBudgetCost, setCoordinatorBudgetCost] = React.useState(0)
+  const hasEventOrganizerBudget = budgetAllocations.some(
+    (allocation) => allocation.categoryKey === 'eventOrganizer' && allocation.amount > 0
+  )
+  const activePlanningCategories = React.useMemo(
+    () => getActivePlanningCategories(budgetAllocations),
+    [budgetAllocations]
+  )
+  const activePlanningCategoryIds = React.useMemo(
+    () => new Set(activePlanningCategories.map((category) => category.categoryId)),
+    [activePlanningCategories]
+  )
+  const firstPlanningCategory = React.useMemo(
+    () => getFirstPlanningCategory(budgetAllocations),
+    [budgetAllocations]
+  )
+  const firstServicePlanningCategory = React.useMemo(
+    () => getFirstServicePlanningCategory(budgetAllocations),
+    [budgetAllocations]
+  )
+  const defaultPlanningCategory = firstServicePlanningCategory
+    ?? firstPlanningCategory
+    ?? 'catering'
+  const planningServiceCategories = React.useMemo(() => {
+    const categoriesById = new Map(
+      serviceCategories.map((category) => [categoryNameToId(category.name), category])
+    )
+
+    return activePlanningCategories.map((priorityCategory) =>
+      categoriesById.get(priorityCategory.categoryId)
+        ?? fallbackServiceCategories.find((category) => category.id === priorityCategory.categoryId)
+    ).filter((category): category is ServiceCategoryOption => Boolean(category))
+  }, [activePlanningCategories, serviceCategories])
+  const unallocatedPlanningCategoryCount = React.useMemo(
+    () => getUnallocatedPlanningCategoryCount(budgetAllocations),
+    [budgetAllocations]
+  )
   const [eventDetails, setEventDetails] =
     React.useState<EventCreationValue>(DEFAULT_EVENT)
   const [lastPayment, setLastPayment] = React.useState<PaymentValue>()
@@ -693,8 +742,16 @@ export const App: React.FC = () => {
     }).start()
   }
 
-  const openPlanningHub = (direction?: 'forward' | 'back') => {
+  const openPlanningHub = React.useCallback((
+    direction?: 'forward' | 'back',
+    preferredCategory?: CatalogCategoryId
+  ) => {
     setServiceBrowseMode('planning')
+    setSelectedCategory((current) => {
+      if (preferredCategory) return preferredCategory
+      if (activePlanningCategoryIds.has(current)) return current
+      return defaultPlanningCategory
+    })
     const hasDirection = direction === 'forward' || direction === 'back'
     if (hasDirection) categoryBrowseEntrance.setValue(direction === 'forward' ? width : -width)
     setScreen('categoryBrowse')
@@ -706,7 +763,7 @@ export const App: React.FC = () => {
         useNativeDriver: true,
       }).start()
     }
-  }
+  }, [activePlanningCategoryIds, categoryBrowseEntrance, defaultPlanningCategory, setScreen, width])
   const openSelectedPlan = openPlanningHub
   const openEventCreation = () => {
     eventCreationEntrance.setValue(width)
@@ -942,15 +999,50 @@ export const App: React.FC = () => {
   const allocatedBudgetTotal = budgetAllocations.reduce(
     (sum, allocation) => sum + allocation.amount, 0
   )
+  const unallocatedPlanBudget = Math.max(0, totalBudget - allocatedBudgetTotal)
   const categoryBudgetMaximum = Math.max(
     selectedCategoryBudget,
     totalBudget - allocatedBudgetTotal + selectedCategoryBudget
   )
+  const selectedPlanningCategoryIds = React.useMemo(
+    () => new Set(selectedServices.map((service) => categoryNameToId(service.category))),
+    [selectedServices]
+  )
+  const activeServicePlanningCategories = React.useMemo(
+    () => activePlanningCategories.filter((category) => category.categoryId !== 'eventOrganizers'),
+    [activePlanningCategories]
+  )
+  const planningSelectionsComplete = activeServicePlanningCategories.length > 0
+    && activeServicePlanningCategories.every((category) =>
+      selectedPlanningCategoryIds.has(category.categoryId)
+    )
   const categoryBudgetLocked = selectedServices.some(
     (service) => service.category.toLowerCase() === catalogCategoryName(selectedCategory).toLowerCase()
   ) || (selectedCategory === 'eventOrganizers' && Boolean(assignedCoordinator))
   const currentService = catalogServices.find((service) => service.id === currentServiceId)
   const currentReviewServiceId = currentService?.bookingServiceId ?? currentService?.id
+
+  React.useEffect(() => {
+    const coordinatorPlanningScreen = screen === 'coordinatorChoice'
+      || (screen === 'coordinatorDetails' && serviceBrowseMode === 'planning')
+    if (hasEventOrganizerBudget || !coordinatorPlanningScreen) return
+
+    setBusyCoordinatorChoice('')
+    openPlanningHub('forward', defaultPlanningCategory)
+  }, [defaultPlanningCategory, hasEventOrganizerBudget, openPlanningHub, screen, serviceBrowseMode])
+
+  React.useEffect(() => {
+    if (screen !== 'categoryBrowse' || serviceBrowseMode !== 'planning') return
+    if (activePlanningCategoryIds.has(selectedCategory)) return
+
+    setSelectedCategory(defaultPlanningCategory)
+  }, [
+    activePlanningCategoryIds,
+    defaultPlanningCategory,
+    screen,
+    selectedCategory,
+    serviceBrowseMode,
+  ])
 
   React.useEffect(() => {
     let active = true
@@ -1126,6 +1218,7 @@ export const App: React.FC = () => {
       notificationRows,
       planningState,
       categories,
+      eventDrafts,
     ] = await Promise.all([
       loadClientCatalogServices(),
       fetchClientBookings(),
@@ -1136,6 +1229,7 @@ export const App: React.FC = () => {
       fetchNotifications(),
       fetchClientPlanningState(),
       fetchServiceCategories(),
+      fetchClientEventDrafts(),
     ])
 
     setCatalogServices(services)
@@ -1156,7 +1250,7 @@ export const App: React.FC = () => {
     setCoordinatorAssignmentStatus(planningState.coordinatorAssignmentStatus)
     setCoordinatorPreferenceState(planningState.coordinatorPreference ?? 'undecided')
     setSelectedCoordinatorPackage(planningState.coordinatorPackage)
-    setClientEventDraft(planningState.draftSummary)
+    setClientEventDrafts(eventDrafts)
     setSelectedServices(planningState.selectedServices)
     setLastPayment(planningState.lastPayment)
     setMaxPlanningStep(planningState.maxPlanningStep ?? 1)
@@ -1168,6 +1262,7 @@ export const App: React.FC = () => {
     if (draft?.information) setMerchantServiceInfo(draft.information)
     if (draft?.pricing) setMerchantServicePricing(draft.pricing)
     setMerchantPackages([])
+    return planningState
   }, [])
 
   React.useEffect(() => {
@@ -1528,7 +1623,7 @@ export const App: React.FC = () => {
           setBudgetPriorities([])
           setBudgetAllocations([])
           setCoordinatorBudgetCost(0)
-          setClientEventDraft(undefined)
+          setClientEventDrafts([])
           setAssignedCoordinator(undefined)
           setCoordinatorAssignmentStatus(undefined)
           setCoordinatorPreferenceState('undecided')
@@ -1776,7 +1871,19 @@ export const App: React.FC = () => {
       setMaxPlanningStep((current) => Math.max(current, 3))
       const refreshedCatalog = await loadClientCatalogServices()
       setCatalogServices(refreshedCatalog)
-      setScreen('coordinatorChoice')
+      const hasCoordinatorAllocation = value.allocations.some(
+        (allocation) => allocation.categoryKey === 'eventOrganizer' && allocation.amount > 0
+      )
+
+      if (hasCoordinatorAllocation && coordinatorPreference === 'undecided' && !assignedCoordinator) {
+        setScreen('coordinatorChoice')
+        return
+      }
+
+      const nextCategory = getFirstServicePlanningCategory(value.allocations)
+        ?? getFirstPlanningCategory(value.allocations)
+        ?? 'catering'
+      openPlanningHub('forward', nextCategory)
     })
   }
 
@@ -1785,10 +1892,13 @@ export const App: React.FC = () => {
     setBusyCoordinatorChoice(choice)
 
     if (choice === 'browse') {
-      setSelectedCategory('eventOrganizers')
-      setServiceBrowseMode('planning')
+      if (!hasEventOrganizerBudget) {
+        setBusyCoordinatorChoice('')
+        openPlanningHub('forward', defaultPlanningCategory)
+        return
+      }
       setBusyCoordinatorChoice('')
-      openPlanningHub('forward')
+      openPlanningHub('forward', 'eventOrganizers')
       return
     }
 
@@ -1799,8 +1909,7 @@ export const App: React.FC = () => {
       return
     }
     setCoordinatorPreferenceState('skipped')
-    setSelectedCategory('catering')
-    openPlanningHub('forward')
+    openPlanningHub('forward', defaultPlanningCategory)
   }
 
   const handleEventContinue = async (value: EventCreationValue, nextScreen: AppScreen) => {
@@ -1839,6 +1948,8 @@ export const App: React.FC = () => {
     if (step === 2) setScreen('budgetAllocation')
     if (step === 3) {
       if (
+        hasEventOrganizerBudget
+        &&
         coordinatorPreference === 'undecided'
         && !assignedCoordinator
         && selectedServices.length === 0
@@ -2001,21 +2112,29 @@ export const App: React.FC = () => {
       status: 'Selected',
     }
 
-    setSelectedServices((current) => {
-      const existingIndex = current.findIndex((service) =>
+    const nextSelectedServices = (() => {
+      const existingIndex = selectedServices.findIndex((service) =>
         service.id === nextSelection.id || service.category === nextSelection.category
       )
       return existingIndex >= 0
-        ? current.map((service, index) =>
+        ? selectedServices.map((service, index) =>
             index === existingIndex ? nextSelection : service
           )
-        : [...current, nextSelection]
-    })
+        : [...selectedServices, nextSelection]
+    })()
+    const nextPlanningCategory = getNextUnselectedServicePlanningCategory(
+      budgetAllocations,
+      new Set(nextSelectedServices.map((service) => categoryNameToId(service.category)))
+    )
+
+    setSelectedServices(nextSelectedServices)
     setMaxPlanningStep((current) => Math.min(current, 4))
 
-    setToastMessage('Service added. Providers are notified only after final booking.')
+    setToastMessage(nextPlanningCategory
+      ? 'Service added. Moving to your next allocated category.'
+      : 'Service added. Your allocated service categories are ready to review.')
     await refreshLiveData()
-    openPlanningHub()
+    openPlanningHub(undefined, nextPlanningCategory ?? categoryNameToId(nextSelection.category))
   }
 
   const handleAssignCoordinator = async () => {
@@ -2024,6 +2143,11 @@ export const App: React.FC = () => {
       assigningCoordinatorId ||
       assignedCoordinator?.id === currentService.id
     ) {
+      return
+    }
+
+    if (!hasEventOrganizerBudget) {
+      setToastMessage('Allocate a positive Event Organizer budget before choosing a coordinator.')
       return
     }
 
@@ -2049,14 +2173,20 @@ export const App: React.FC = () => {
     setCoordinatorBudgetCost(currentService.minPrice)
     setCoordinatorPreferenceState('selected')
     setCoordinatorAssignmentStatus('pending')
-    setSelectedCategory('catering')
     setToastMessage(result.message ?? `Booking request sent to ${currentService.name}.`)
     await refreshLiveData()
-    openPlanningHub()
+    openPlanningHub(undefined, defaultPlanningCategory)
   }
 
   const handleRemoveCoordinator = async () => {
     if (!assignedCoordinator || assigningCoordinatorId) return
+    const confirmed = await confirmDestructiveAction(
+      'Remove coordinator booking?',
+      'This removes the coordinator from your event. Any active booking or package that cannot be safely removed will stay unchanged.',
+      'Remove coordinator'
+    )
+    if (!confirmed) return
+
     setAssigningCoordinatorId(assignedCoordinator.id)
     const result = await removeCoordinatorFromEvent()
     setAssigningCoordinatorId('')
@@ -2077,6 +2207,10 @@ export const App: React.FC = () => {
     cateringOptionChoices: Record<string, string>
   ) => {
     if (!currentService?.coordinatorUserId || assigningCoordinatorId || selectingCoordinatorPackageId) return
+    if (!hasEventOrganizerBudget) {
+      setToastMessage('Allocate a positive Event Organizer budget before choosing a coordinator package.')
+      return
+    }
     setSelectingCoordinatorPackageId(packageId)
     let result = await chooseCoordinatorPackage(packageId, cateringOptionChoices)
     if (result.ok && result.requiresConfirmation) {
@@ -2111,10 +2245,9 @@ export const App: React.FC = () => {
     setCoordinatorBudgetCost(currentService.minPrice)
     setCoordinatorPreferenceState('selected')
     setCoordinatorAssignmentStatus('pending')
-    setSelectedCategory('catering')
     setToastMessage(result.message ?? 'Coordinator package selected.')
     await refreshLiveData()
-    openPlanningHub()
+    openPlanningHub(undefined, defaultPlanningCategory)
   }
 
   const handleRemoveSelection = async (service: SelectedSummaryService) => {
@@ -2501,12 +2634,10 @@ export const App: React.FC = () => {
   }
 
   const startNewClientEvent = async () => {
-    if (clientEventDraft) {
-      const result = await closeCurrentEventDraft()
-      if (!result.ok) {
-        setToastMessage(result.message ?? 'Unable to start a new event right now.')
-        return false
-      }
+    const result = await createClientEventDraft()
+    if (!result.ok) {
+      setToastMessage(result.message ?? 'Unable to start a new event right now.')
+      return false
     }
 
     setEventDetails({ ...DEFAULT_EVENT })
@@ -2521,21 +2652,66 @@ export const App: React.FC = () => {
     setSelectedCoordinatorPackage(undefined)
     setLastPayment(undefined)
     setMaxPlanningStep(1)
-    setClientEventDraft(undefined)
     setServiceBrowseMode('planning')
+    await refreshLiveData()
     openEventCreation()
     return true
   }
 
-  const continueClientDraft = () => handlePlanningStepPress(Math.max(1, maxPlanningStep))
+  const resumeClientDraft = async (draftId: string) => {
+    const result = await resumeClientEventDraft(draftId)
+    if (!result.ok) {
+      setToastMessage(result.message ?? 'Unable to resume this event draft.')
+      return
+    }
+
+    const planningState = await refreshLiveData()
+    const nextStep = Math.max(1, planningState.maxPlanningStep ?? 1)
+    setServiceBrowseMode('planning')
+
+    if (nextStep === 1) {
+      openEventCreation()
+      return
+    }
+    if (nextStep === 2) {
+      setScreen('budgetAllocation')
+      return
+    }
+    if (nextStep === 3) {
+      const hasCoordinatorAllocation = (planningState.budgetAllocations ?? []).some(
+        (allocation) => allocation.categoryKey === 'eventOrganizer' && allocation.amount > 0
+      )
+      if (
+        hasCoordinatorAllocation
+        && planningState.coordinatorPreference === 'undecided'
+        && !planningState.assignedCoordinator
+        && planningState.selectedServices.length === 0
+      ) {
+        setScreen('coordinatorChoice')
+        return
+      }
+      const initialCategory = getFirstServicePlanningCategory(planningState.budgetAllocations ?? [])
+        ?? getFirstPlanningCategory(planningState.budgetAllocations ?? [])
+        ?? 'catering'
+      openPlanningHub('forward', initialCategory)
+      return
+    }
+    setScreen(nextStep >= 5 ? 'payment' : 'instructionModule')
+  }
+
+  const homeRecommendations = React.useMemo(
+    () => rankHomeRecommendations(catalogServices),
+    [catalogServices]
+  )
 
   const renderClientHome = () => (
     <ClientHomeScreen
-      draftEvent={clientEventDraft}
+      draftEvents={clientEventDrafts}
+      recommendations={homeRecommendations}
       userAvatarUrl={userAvatarUrl}
       userName={userName}
       selectedServiceCount={selectedServices.length}
-      onOpenActiveEvent={continueClientDraft}
+      onOpenDraft={(draftId) => void resumeClientDraft(draftId)}
       onStartNewEvent={startNewClientEvent}
       onOpenProfile={() => openAccountProfile('clientHome')}
       onOpenNotifications={() => {
@@ -2545,14 +2721,14 @@ export const App: React.FC = () => {
       onScrollDirectionChange={(direction) => {
         setIsClientNavigationVisible(direction === 'up')
       }}
-      onSeeAllVenues={openPlanningHub}
-      onSelectRecommendation={() => {
-        const recommendedService = catalogServices[0]
+      onSeeAllVenues={() => openClientTab('explore')}
+      onSelectRecommendation={(serviceId) => {
+        const recommendedService = catalogServices.find((service) => service.id === serviceId)
         if (recommendedService?.id) {
           setCurrentServiceId(recommendedService.id)
-          setScreen('serviceDetails')
+          setScreen(recommendedService.kind === 'coordinator' ? 'coordinatorDetails' : 'serviceDetails')
         } else {
-          openPlanningHub()
+          openClientTab('explore')
         }
       }}
       onSelectTab={openClientTab}
@@ -3403,6 +3579,9 @@ export const App: React.FC = () => {
               isProcessing={activeGuardedActionCount > 0}
               onBack={openEventCreationFromBudget}
               onContinue={handleBudgetContinue}
+              onRemoveCommittedCoordinator={
+                assignedCoordinator ? () => void handleRemoveCoordinator() : undefined
+              }
               onSkip={() =>
                 handleBudgetContinue({ allocations: [], budget: 0, priorities: [] })
               }
@@ -3423,6 +3602,11 @@ export const App: React.FC = () => {
               onOpenMenu={openSelectedPlan}
               onOpenProfile={() => openAccountProfile('budgetTracker')}
               onSelectCategory={(category) => {
+                if (!activePlanningCategoryIds.has(category)) {
+                  setToastMessage('Allocate a positive budget to this category before browsing services.')
+                  openBudgetAllocationFromServices()
+                  return
+                }
                 setServiceBrowseMode('planning')
                 setSelectedCategory(category)
                 setScreen('categoryBrowse')
@@ -3440,6 +3624,7 @@ export const App: React.FC = () => {
         return (
           <CoordinatorChoiceScreen
             busyChoice={busyCoordinatorChoice}
+            enabled={hasEventOrganizerBudget}
             onBack={() => setScreen('budgetAllocation')}
             onBrowse={() => void handleCoordinatorChoice('browse')}
             onSkip={() => void handleCoordinatorChoice('skip')}
@@ -3451,7 +3636,7 @@ export const App: React.FC = () => {
             style={[styles.screenTransition, { transform: [{ translateX: categoryBrowseEntrance }] }]}
           >
             <CategoryBrowseScreen
-            categories={serviceCategories}
+            categories={serviceBrowseMode === 'planning' ? planningServiceCategories : serviceCategories}
             categoryName={catalogCategoryName(selectedCategory)}
               eventGuestCount={eventDetails.guestCount}
             mode={serviceBrowseMode}
@@ -3468,12 +3653,15 @@ export const App: React.FC = () => {
             categoryBudgetMaximum={categoryBudgetMaximum}
             totalEstimatedCost={selectedEstimatedTotal}
             removingServiceId={removingServiceId}
-            remainingBudget={Math.max(0, totalBudget - allocatedBudgetTotal)}
+            remainingBudget={unallocatedPlanBudget}
+            unallocatedCategoryCount={unallocatedPlanningCategoryCount}
+            planningSelectionsComplete={planningSelectionsComplete}
             showBottomNavigation={false}
             onBack={() => {
               if (
                 serviceBrowseMode === 'planning'
                 && selectedCategory === 'eventOrganizers'
+                && hasEventOrganizerBudget
                 && coordinatorPreference === 'undecided'
               ) {
                 setScreen('coordinatorChoice')
@@ -3504,7 +3692,20 @@ export const App: React.FC = () => {
               setMaxPlanningStep((current) => Math.max(current, 4))
               setScreen('instructionModule')
             }}
-            onAddService={openPlanningHub}
+            onAddCategory={() => {
+              if (unallocatedPlanBudget <= 0) {
+                setToastMessage('All funds are allocated. Reallocate an unlocked category budget before adding another one.')
+                return
+              }
+              openBudgetAllocationFromServices()
+            }}
+            onAddService={() => {
+              const nextCategory = getNextUnselectedServicePlanningCategory(
+                budgetAllocations,
+                selectedPlanningCategoryIds
+              )
+              openPlanningHub(undefined, nextCategory ?? selectedCategory)
+            }}
             onRemoveCoordinator={() => void handleRemoveCoordinator()}
             onRemoveService={handleRemoveSelection}
             onSelectService={(serviceId) => {
@@ -3517,8 +3718,17 @@ export const App: React.FC = () => {
             }}
             onSelectVendor={(vendorId) => {
               setToastMessage('')
-              setCurrentServiceId(vendorId)
               const selectedVendor = catalogServices.find((service) => service.id === vendorId)
+              if (
+                serviceBrowseMode === 'planning'
+                && selectedVendor?.kind === 'coordinator'
+                && !hasEventOrganizerBudget
+              ) {
+                setSelectedCategory('catering')
+                setToastMessage('Allocate a positive Event Organizer budget to browse coordinators.')
+                return
+              }
+              setCurrentServiceId(vendorId)
               setScreen(
                 selectedVendor?.kind === 'coordinator'
                   ? 'coordinatorDetails'
@@ -3537,6 +3747,7 @@ export const App: React.FC = () => {
         return (
           <CoordinatorDetailsScreen
             assigning={assigningCoordinatorId === currentService?.id}
+            coordinatorBookingEnabled={hasEventOrganizerBudget}
             categoryBudgets={Object.fromEntries(
               budgetAllocations.map((allocation) => [allocation.categoryKey, allocation.amount])
             )}

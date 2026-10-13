@@ -18,6 +18,7 @@ import { calculateCateringPrice } from '../lib/service-category-details'
 interface CoordinatorDetailsScreenProps {
   assigning?: boolean
   categoryBudgets?: Record<string, number>
+  coordinatorBookingEnabled?: boolean
   eventGuestCount?: number
   isAssigned?: boolean
   mode?: 'explore' | 'planning'
@@ -46,6 +47,7 @@ const categoryBudgetKey = (categoryName: string) => {
 export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> = ({
   assigning = false,
   categoryBudgets = {},
+  coordinatorBookingEnabled = false,
   eventGuestCount = 0,
   isAssigned = false,
   mode = 'planning',
@@ -58,7 +60,9 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
   const { width } = useWindowDimensions()
   const isWide = width >= 768
   const name = service?.name ?? 'Event Coordinator'
-  const canAssign = mode === 'planning' && Boolean(service?.coordinatorUserId)
+  const canAssign = mode === 'planning'
+    && coordinatorBookingEnabled
+    && Boolean(service?.coordinatorUserId)
   const isAvailable = service?.coordinatorAvailable !== false
   const reviews = service?.coordinatorReviews ?? []
   const packages = service?.coordinatorPackages ?? []
@@ -150,6 +154,7 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
           </View>
         </View>
 
+        {mode === 'explore' || coordinatorBookingEnabled ? (
         <View style={styles.packagesSection}>
           <View>
             <Text style={styles.reviewsEyebrow}>CURATED RECOMMENDATIONS</Text>
@@ -304,7 +309,7 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
               <View style={styles.packageTotal}><Text style={styles.packageTotalLabel}>Coordinator + services</Text><Text style={styles.packageTotalValue}>{formatPeso((service?.minPrice ?? 0) + displayedSubtotal)}</Text></View>
               {!item.isAvailable ? <Text style={styles.unavailable}>{item.unavailableReason}</Text> : null}
               {item.isAvailable && (cateringItems.length > 0 || venueItems.length > 0) && !choicesComplete ? <Text style={styles.unavailable}>Choose every compatible catering and venue option before continuing.</Text> : null}
-              {mode === 'planning' ? <Pressable
+              {canAssign ? <Pressable
                 accessibilityRole="button"
                 disabled={!isAvailable || !packageCanBeSelected || Boolean(selectingPackageId)}
                 onPress={() => onSelectPackage?.(item.id, packageChoices)}
@@ -316,6 +321,7 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
             </View>
           })}</View> : <View style={styles.emptyReviews}><MaterialCommunityIcons color={palette.muted} name="package-variant" size={27} /><Text style={styles.emptyReviewsTitle}>No active packages</Text><Text style={styles.emptyReviewsCopy}>You can still book this coordinator without a package.</Text></View>}
         </View>
+        ) : null}
 
         <View style={styles.privacyCard}>
           <MaterialCommunityIcons color={palette.success} name="shield-check-outline" size={22} />

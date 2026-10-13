@@ -27,6 +27,7 @@ const migrations = [
   'database/65_downpayment_split_correction.sql',
   'database/66_coordinator_assignment_event_visibility.sql',
   'database/67_budget_allocation_upsert_correction.sql',
+  'database/68_conditional_event_coordinator_step.sql',
 ]
 
 test('Revision 2 migrations remain ordered, transactional, additive, and non-destructive', () => {
@@ -147,6 +148,123 @@ test('category budget edits, locks, removal, replacement, and checkout validatio
     'exceedsAvailableCategoryBudget',
     'Over Available Category Budget',
   ], 'service budget guard')
+})
+
+test('budget allocation cards keep controls inside selected, expanded categories', () => {
+  const budgetScreen = read('src/screens/05-BudgetAllocation.tsx')
+
+  mustContain(budgetScreen, [
+    'const [expandedCategories, setExpandedCategories]',
+    'const handleCategoryPress',
+    'handleAllocationChange(categoryKey, startingAmount)',
+    'setExpandedCategories((current) => new Set(current).add(categoryKey))',
+    'if (next.has(categoryKey)) next.delete(categoryKey)',
+    'selected && expanded ? (',
+    'REMOVE CATEGORY',
+    'lockedCategories.has(categoryKey)',
+    'reserveCoordinatorAllocation',
+    'Allocated category budgets are above the event budget.',
+  ], 'expandable budget allocation UI')
+})
+
+test('coordinator choice is available only with a positive Event Organizer allocation', () => {
+  const app = read('src/App.tsx')
+  const budgetScreen = read('src/screens/05-BudgetAllocation.tsx')
+  const choice = read('src/screens/05.1-CoordinatorChoice.tsx')
+  const details = read('src/screens/06.1-CoordinatorDetails.tsx')
+  const migration = read('database/68_conditional_event_coordinator_step.sql')
+
+  mustContain(app, [
+    "allocation.categoryKey === 'eventOrganizer' && allocation.amount > 0",
+    'const planningServiceCategories',
+    'if (hasCoordinatorAllocation && coordinatorPreference',
+    "setScreen('coordinatorChoice')",
+    'coordinatorBookingEnabled={hasEventOrganizerBudget}',
+    'confirmDestructiveAction',
+    'Remove coordinator booking?',
+  ], 'conditional coordinator flow')
+  mustContain(budgetScreen, [
+    'onRemoveCommittedCoordinator',
+    'REMOVE COORDINATOR FIRST',
+  ], 'coordinator budget removal safeguard')
+  mustContain(choice, [
+    'enabled = true',
+    'if (!enabled) return null',
+  ], 'conditional coordinator choice screen')
+  mustContain(details, [
+    'coordinatorBookingEnabled = false',
+    '&& coordinatorBookingEnabled',
+  ], 'conditional coordinator details actions')
+  mustContain(migration, [
+    'require_event_organizer_budget_for_coordinator_assignment',
+    "item.category_key = 'eventOrganizer'",
+    "coalesce(item.allocated_amount, 0) > 0",
+    'before update of coordinator_id, pending_coordinator_id on public.events',
+  ], 'conditional coordinator database guard')
+})
+
+test('planning categories, progression, and budget re-entry share one allocation-driven contract', () => {
+  const app = read('src/App.tsx')
+  const browse = read('src/screens/06-CategoryBrowse.tsx')
+  const categories = read('src/lib/planning-categories.ts')
+
+  mustContain(categories, [
+    'PLANNING_CATEGORY_PRIORITY',
+    "{ categoryId: 'venues', categoryKey: 'venue' }",
+    "{ categoryId: 'eventOrganizers', categoryKey: 'eventOrganizer' }",
+    'getNextUnselectedServicePlanningCategory',
+  ], 'shared planning category priority')
+  mustContain(app, [
+    'getActivePlanningCategories(budgetAllocations)',
+    'getNextUnselectedServicePlanningCategory(',
+    'unallocatedPlanBudget',
+    'unallocatedCategoryCount={unallocatedPlanningCategoryCount}',
+    "openPlanningHub(undefined, nextPlanningCategory ?? categoryNameToId(nextSelection.category))",
+  ], 'allocation-driven planning flow')
+  mustContain(browse, [
+    'You still have unallocated budget',
+    '+ Add More Category',
+    'All of your budget is currently allocated',
+    'Allocated categories complete',
+  ], 'planning budget guidance')
+})
+
+test('client home uses live eligible services and preserves resumable event drafts', () => {
+  const app = read('src/App.tsx')
+  const planning = read('src/lib/planning.ts')
+  const home = read('src/screens/03-ClientHome.tsx')
+  const recommendations = read('src/lib/home-recommendations.ts')
+
+  mustContain(app, [
+    'fetchClientEventDrafts()',
+    'createClientEventDraft()',
+    'resumeClientEventDraft(draftId)',
+    'rankHomeRecommendations(catalogServices)',
+  ], 'client home data integration')
+  mustContain(planning, [
+    "event_service_selections(status)",
+    ".in('status', ['draft', 'planning'])",
+    "order('updated_at', { ascending: false })",
+    'activePlanningEventId',
+  ], 'draft persistence integration')
+  mustContain(home, [
+    'draftEvents = []',
+    'recommendations = []',
+    'draftEvents.slice(0, 3)',
+    'See All Drafts',
+    'formatServicePrice(recommendation.service)',
+    'recommendation.service.reviewCount',
+    'No saved drafts yet',
+  ], 'client home live UI')
+  mustContain(recommendations, [
+    "service.kind !== 'coordinator'",
+    'service.isMock !== true',
+    'bookingCount',
+    'reviewReliability',
+    'sentimentReliability',
+    'Math.log1p(bookingCount)',
+    "'New service'",
+  ], 'reliable home-service ranking')
 })
 
 test('package selection checks duplicate categories, manual conflicts, dynamic options, and total budget', () => {

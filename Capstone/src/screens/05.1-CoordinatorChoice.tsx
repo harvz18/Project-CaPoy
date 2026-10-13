@@ -5,6 +5,7 @@ import { Text } from '../components/AppText'
 
 interface CoordinatorChoiceScreenProps {
   busyChoice?: 'browse' | 'skip' | ''
+  enabled?: boolean
   onBack?: () => void
   onBrowse?: () => void
   onSkip?: () => void
@@ -12,12 +13,15 @@ interface CoordinatorChoiceScreenProps {
 
 export const CoordinatorChoiceScreen: React.FC<CoordinatorChoiceScreenProps> = ({
   busyChoice = '',
+  enabled = true,
   onBack,
   onBrowse,
   onSkip,
 }) => {
   const { width } = useWindowDimensions()
   const isWide = width >= 760
+
+  if (!enabled) return null
 
   return (
     <View style={styles.screen}>

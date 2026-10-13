@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   LayoutChangeEvent,
+  LayoutAnimation,
   PanResponder,
   Platform,
   Pressable,
@@ -52,6 +53,7 @@ interface BudgetAllocationScreenProps {
   onBudgetChange?: (budget: number) => void
   onContinue?: (value: BudgetAllocationValue) => void
   onPrioritiesChange?: (priorities: BudgetPriority[]) => void
+  onRemoveCommittedCoordinator?: () => void
   onSkip?: () => void
 }
 
@@ -112,39 +114,23 @@ const buildAllocations = (
   return result
 }
 
-const clampAllocations = (
-  current: AllocationMap,
-  budget: number,
-  coordinatorCost: number
-) => {
-  const next = emptyAllocations()
-  const safeBudget = sanitizeMoney(budget)
-  const reservedCoordinator = sanitizeMoney(coordinatorCost)
+const reserveCoordinatorAllocation = (current: AllocationMap, coordinatorCost: number) => {
+  const minimum = sanitizeMoney(coordinatorCost)
+  if (current.eventOrganizer >= minimum) return current
 
-  // Never silently reduce a committed coordinator cost. If it exceeds the
-  // total, the UI asks the client to raise the event budget.
-  next.eventOrganizer = Math.max(current.eventOrganizer, reservedCoordinator)
-  let available = Math.max(safeBudget - next.eventOrganizer, 0)
-
-  categoryOptions.forEach((category) => {
-    if (category.id === 'eventOrganizer') return
-    const amount = Math.min(sanitizeMoney(current[category.id]), available)
-    next[category.id] = amount
-    available = Math.max(available - amount, 0)
-  })
-
-  return next
+  // A new coordinator commitment must remain visible until the client raises
+  // the event budget or resolves it through the existing booking flow.
+  return { ...current, eventOrganizer: minimum }
 }
 
 interface AllocationSliderProps {
   amount: number
   budget: number
   coordinatorMinimum: number
-  icon: MaterialIconName
   label: string
-  legacyPriority: boolean
   locked: boolean
   maxAmount: number
+  minimumAmount: number
   onChange: (amount: number) => void
 }
 
@@ -152,16 +138,15 @@ const AllocationSlider: React.FC<AllocationSliderProps> = ({
   amount,
   budget,
   coordinatorMinimum,
-  icon,
   label,
-  legacyPriority,
   locked,
   maxAmount,
+  minimumAmount,
   onChange,
 }) => {
   const [trackWidth, setTrackWidth] = React.useState(1)
   const step = BUDGET_ALLOCATION_STEP
-  const minimum = sanitizeMoney(coordinatorMinimum)
+  const minimum = sanitizeMoney(minimumAmount)
   const percent = budget > 0 ? Math.min(amount / budget, 1) : 0
 
   const updateFromPosition = React.useCallback(
@@ -220,24 +205,17 @@ const AllocationSlider: React.FC<AllocationSliderProps> = ({
   }
 
   return (
-    <View style={styles.allocationCard}>
+    <View style={styles.allocationEditor}>
       <View style={styles.allocationHeading}>
-        <View style={styles.categoryIdentity}>
-          <View style={styles.categoryIcon}>
-            <MaterialIcons color={palette.primaryContainer} name={icon} size={20} />
-          </View>
-          <View style={styles.categoryCopy}>
-            <Text style={styles.categoryLabel}>{label}</Text>
-            {locked ? (
-              <Text style={styles.reservedLabel}>Locked to selected service amount</Text>
-            ) : minimum > 0 ? (
-              <Text style={styles.reservedLabel}>
-                {formatMoney(minimum)} committed coordinator cost
-              </Text>
-            ) : legacyPriority && amount === 0 ? (
-              <Text style={styles.legacyLabel}>Previously marked as a priority</Text>
-            ) : null}
-          </View>
+        <View style={styles.allocationCopy}>
+          <Text style={styles.allocationLabel}>Budget Allocation</Text>
+          {locked ? (
+            <Text style={styles.reservedLabel}>Locked to selected service amount</Text>
+          ) : coordinatorMinimum > 0 ? (
+            <Text style={styles.reservedLabel}>
+              {formatMoney(coordinatorMinimum)} committed coordinator cost
+            </Text>
+          ) : null}
         </View>
 
         <View style={styles.amountInputShell}>
@@ -297,6 +275,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
   onBudgetChange,
   onContinue,
   onPrioritiesChange,
+  onRemoveCommittedCoordinator,
   onSkip,
 }) => {
   const { width } = useWindowDimensions()
@@ -309,6 +288,24 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
   const [allocations, setAllocations] = React.useState<AllocationMap>(() =>
     buildAllocations(initialAllocations, coordinatorCost)
   )
+  const [expandedCategories, setExpandedCategories] = React.useState<Set<BudgetPriority>>(
+    () =>
+      new Set(
+        categoryOptions
+          .filter((category) => {
+            const initialAllocation = initialAllocations.find(
+              (allocation) => allocation.categoryKey === category.id
+            )
+            return (
+              Boolean(initialAllocation?.locked)
+              || sanitizeMoney(initialAllocation?.amount ?? 0) > 0
+              || (category.id === 'eventOrganizer' && sanitizeMoney(coordinatorCost) > 0)
+            )
+          })
+          .map((category) => category.id)
+      )
+  )
+  const [categoryNotice, setCategoryNotice] = React.useState('')
   const budget = hasBudgetInput && budgetDigits ? sanitizeMoney(Number(budgetDigits)) : 0
   const totalAllocated = Object.values(allocations).reduce((sum, amount) => sum + amount, 0)
   const remainingBudget = Math.max(budget - totalAllocated, 0)
@@ -322,8 +319,8 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
   )
 
   React.useEffect(() => {
-    setAllocations((current) => clampAllocations(current, budget, coordinatorMinimum))
-  }, [budget, coordinatorMinimum])
+    setAllocations((current) => reserveCoordinatorAllocation(current, coordinatorMinimum))
+  }, [coordinatorMinimum])
 
   React.useEffect(() => {
     const priorities = categoryOptions
@@ -343,11 +340,19 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
   const handleAllocationChange = React.useCallback(
     (categoryKey: BudgetPriority, requestedAmount: number) => {
       setAllocations((current) => {
+        if (lockedCategories.has(categoryKey)) return current
+
         const otherTotal = Object.entries(current).reduce(
           (sum, [key, amount]) => sum + (key === categoryKey ? 0 : amount),
           0
         )
-        const minimum = categoryKey === 'eventOrganizer' ? coordinatorMinimum : 0
+        const selectionMinimum = current[categoryKey] > 0
+          ? Math.min(BUDGET_ALLOCATION_STEP, current[categoryKey])
+          : 0
+        const minimum = Math.max(
+          categoryKey === 'eventOrganizer' ? coordinatorMinimum : 0,
+          selectionMinimum
+        )
         const allowed = Math.max(budget - otherTotal, 0)
 
         return {
@@ -356,7 +361,85 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
         }
       })
     },
-    [budget, coordinatorMinimum]
+    [budget, coordinatorMinimum, lockedCategories]
+  )
+
+  const animateCategoryLayout = React.useCallback(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)
+  }, [])
+
+  const handleCategoryPress = React.useCallback(
+    (categoryKey: BudgetPriority) => {
+      const currentAmount = allocations[categoryKey]
+      const isSelected = currentAmount > 0 || lockedCategories.has(categoryKey)
+
+      if (isSelected) {
+        setCategoryNotice('')
+        animateCategoryLayout()
+        setExpandedCategories((current) => {
+          const next = new Set(current)
+          if (next.has(categoryKey)) next.delete(categoryKey)
+          else next.add(categoryKey)
+          return next
+        })
+        return
+      }
+
+      const available = Math.max(budget - totalAllocated, 0)
+      const minimum = categoryKey === 'eventOrganizer' ? coordinatorMinimum : 0
+      const startingAmount = Math.max(minimum, Math.min(BUDGET_ALLOCATION_STEP, available))
+
+      if (budget <= 0) {
+        setCategoryNotice('Enter an event budget before selecting a service category.')
+        return
+      }
+
+      if (startingAmount <= 0 || startingAmount > available) {
+        setCategoryNotice('No budget remains for another category. Reduce an unlocked allocation first.')
+        return
+      }
+
+      handleAllocationChange(categoryKey, startingAmount)
+      setCategoryNotice('')
+      animateCategoryLayout()
+      setExpandedCategories((current) => new Set(current).add(categoryKey))
+    },
+    [
+      allocations,
+      animateCategoryLayout,
+      budget,
+      coordinatorMinimum,
+      handleAllocationChange,
+      lockedCategories,
+      totalAllocated,
+    ]
+  )
+
+  const handleCategoryRemove = React.useCallback(
+    (categoryKey: BudgetPriority, label: string) => {
+      if (lockedCategories.has(categoryKey)) {
+        setCategoryNotice(`${label} cannot be removed while it has a selected service.`)
+        return
+      }
+      if (categoryKey === 'eventOrganizer' && coordinatorMinimum > 0) {
+        if (onRemoveCommittedCoordinator) {
+          onRemoveCommittedCoordinator()
+          return
+        }
+        setCategoryNotice('Event Coordinator cannot be removed while a coordinator cost is committed.')
+        return
+      }
+
+      animateCategoryLayout()
+      setCategoryNotice('')
+      setAllocations((current) => ({ ...current, [categoryKey]: 0 }))
+      setExpandedCategories((current) => {
+        const next = new Set(current)
+        next.delete(categoryKey)
+        return next
+      })
+    },
+    [animateCategoryLayout, coordinatorMinimum, lockedCategories, onRemoveCommittedCoordinator]
   )
 
   const handleContinue = () => {
@@ -377,10 +460,19 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
   }
 
   const removeBudget = () => {
-    if (coordinatorMinimum > 0) return
+    if (coordinatorMinimum > 0) {
+      setCategoryNotice('The event budget cannot be removed while a coordinator cost is committed.')
+      return
+    }
+    if (lockedCategories.size > 0) {
+      setCategoryNotice('The event budget cannot be removed while a selected service locks a category.')
+      return
+    }
+
     setBudgetDigits('')
     setHasBudgetInput(false)
     setAllocations(emptyAllocations())
+    setExpandedCategories(new Set())
     onBudgetChange?.(0)
   }
 
@@ -488,14 +580,31 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
           </View>
         ) : null}
 
+        {allocationExceeded ? (
+          <View style={styles.errorBanner}>
+            <MaterialIcons color={palette.error} name="error-outline" size={20} />
+            <Text style={styles.errorText}>
+              Allocated category budgets are above the event budget. Raise the total budget or
+              reduce an unlocked category before continuing.
+            </Text>
+          </View>
+        ) : null}
+
         <View style={styles.allocationsSection}>
           <View style={styles.sectionHeading}>
             <Text style={styles.sectionTitle}>Category Budgets</Text>
             <Text style={styles.sectionSubtitle}>
-              Drag a slider in PHP 500 increments or enter an exact amount. The combined total
-              cannot exceed your event budget.
+              Select only the categories you need. Each selected card opens its allocation controls,
+              and the combined total cannot exceed your event budget.
             </Text>
           </View>
+
+          {categoryNotice ? (
+            <View accessibilityLiveRegion="polite" style={styles.categoryNotice}>
+              <MaterialIcons color={palette.primaryContainer} name="info-outline" size={18} />
+              <Text style={styles.categoryNoticeText}>{categoryNotice}</Text>
+            </View>
+          ) : null}
 
           <View style={styles.allocationList}>
             {categoryOptions.map((category) => {
@@ -503,20 +612,112 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
               const otherTotal = totalAllocated - amount
               const maximum = Math.max(budget - otherTotal, 0)
               const minimum = category.id === 'eventOrganizer' ? coordinatorMinimum : 0
+              const locked = lockedCategories.has(category.id)
+              const selected = amount > 0 || locked
+              const expanded = expandedCategories.has(category.id)
+              const canRemove = !locked && !(category.id === 'eventOrganizer' && minimum > 0)
+              const canRequestCoordinatorRemoval =
+                category.id === 'eventOrganizer'
+                && minimum > 0
+                && Boolean(onRemoveCommittedCoordinator)
+              const canRemoveCategory = canRemove || canRequestCoordinatorRemoval
+              const selectionMinimum = selected ? Math.min(BUDGET_ALLOCATION_STEP, amount) : 0
+              const sliderMinimum = Math.max(minimum, selectionMinimum)
 
               return (
-                <AllocationSlider
-                  amount={amount}
-                  budget={budget}
-                  coordinatorMinimum={minimum}
-                  icon={category.icon}
+                <View
                   key={category.id}
-                  label={category.label}
-                  legacyPriority={legacyPriorities.has(category.id)}
-                  locked={lockedCategories.has(category.id)}
-                  maxAmount={Math.max(maximum, minimum)}
-                  onChange={(nextAmount) => handleAllocationChange(category.id, nextAmount)}
-                />
+                  style={[styles.categoryCard, selected && styles.categoryCardSelected]}
+                >
+                  <Pressable
+                    accessibilityLabel={
+                      selected
+                        ? `${expanded ? 'Collapse' : 'Expand'} ${category.label} budget allocation`
+                        : `Select ${category.label} category`
+                    }
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded, selected }}
+                    onPress={() => handleCategoryPress(category.id)}
+                    style={({ pressed }) => [styles.categoryHeader, pressed && styles.categoryHeaderPressed]}
+                  >
+                    <View style={styles.categoryIdentity}>
+                      <View style={[styles.categoryIcon, selected && styles.categoryIconSelected]}>
+                        <MaterialIcons
+                          color={palette.primaryContainer}
+                          name={category.icon}
+                          size={20}
+                        />
+                      </View>
+                      <View style={styles.categoryCopy}>
+                        <Text style={styles.categoryLabel}>{category.label}</Text>
+                        <Text style={styles.categoryStatus}>
+                          {selected
+                            ? locked
+                              ? 'Selected · locked to service'
+                              : `Selected · ${formatMoney(amount)}`
+                            : legacyPriorities.has(category.id)
+                              ? 'Previously marked as a priority'
+                              : 'Not selected'}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={[styles.categoryAction, selected && styles.categoryActionSelected]}>
+                      <Text style={[styles.categoryActionText, selected && styles.categoryActionTextSelected]}>
+                        {selected ? (expanded ? 'HIDE' : 'SHOW') : 'SELECT'}
+                      </Text>
+                      <MaterialIcons
+                        color={selected ? palette.white : palette.primaryContainer}
+                        name={selected && expanded ? 'expand-less' : selected ? 'expand-more' : 'add'}
+                        size={18}
+                      />
+                    </View>
+                  </Pressable>
+
+                  {selected && expanded ? (
+                    <View style={styles.categoryAllocationPanel}>
+                      <AllocationSlider
+                        amount={amount}
+                        budget={budget}
+                        coordinatorMinimum={minimum}
+                        label={category.label}
+                        locked={locked}
+                        maxAmount={Math.max(maximum, sliderMinimum, amount)}
+                        minimumAmount={sliderMinimum}
+                        onChange={(nextAmount) => handleAllocationChange(category.id, nextAmount)}
+                      />
+                      <Pressable
+                        accessibilityLabel={
+                          canRequestCoordinatorRemoval
+                            ? 'Remove committed coordinator before removing Event Coordinator category'
+                            : `Remove ${category.label} category`
+                        }
+                        accessibilityRole="button"
+                        disabled={!canRemoveCategory}
+                        onPress={() => handleCategoryRemove(category.id, category.label)}
+                        style={({ pressed }) => [
+                          styles.removeCategoryButton,
+                          !canRemoveCategory && styles.removeCategoryDisabled,
+                          pressed && canRemoveCategory && styles.pressed,
+                        ]}
+                      >
+                        <MaterialIcons
+                          color={canRemoveCategory ? palette.error : palette.secondaryFixedDim}
+                          name={canRemoveCategory ? 'remove-circle-outline' : 'lock-outline'}
+                          size={17}
+                        />
+                        <Text style={[styles.removeCategoryText, !canRemoveCategory && styles.removeCategoryTextDisabled]}>
+                          {canRemove
+                            ? 'REMOVE CATEGORY'
+                            : canRequestCoordinatorRemoval
+                              ? 'REMOVE COORDINATOR FIRST'
+                            : locked
+                              ? 'LOCKED TO SELECTED SERVICE'
+                              : 'COMMITTED TO COORDINATOR'}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  ) : null}
+                </View>
               )
             })}
           </View>
@@ -709,14 +910,35 @@ const styles = StyleSheet.create({
   sectionHeading: { marginBottom: 16 },
   sectionTitle: { color: palette.text, fontSize: 23, lineHeight: 30, fontWeight: '700' },
   sectionSubtitle: { marginTop: 6, color: palette.secondary, fontSize: 13, lineHeight: 20 },
+  categoryNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+    borderRadius: 12,
+    backgroundColor: '#F8EDEF',
+    padding: 12,
+  },
+  categoryNoticeText: { flex: 1, color: palette.primaryContainer, fontSize: 12, lineHeight: 18 },
   allocationList: { gap: 12 },
-  allocationCard: {
+  categoryCard: {
     borderWidth: 1,
     borderColor: '#E9DFE1',
     borderRadius: 14,
     backgroundColor: palette.white,
-    padding: 16,
+    overflow: 'hidden',
   },
+  categoryCardSelected: { borderColor: '#B48A94', backgroundColor: '#FFF9FA' },
+  categoryHeader: {
+    minHeight: 72,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  categoryHeaderPressed: { backgroundColor: '#FCF4F5' },
   allocationHeading: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -732,8 +954,34 @@ const styles = StyleSheet.create({
     borderRadius: 19,
     backgroundColor: '#F8EDEF',
   },
+  categoryIconSelected: { backgroundColor: '#F0DDE1' },
   categoryCopy: { minWidth: 0, flex: 1 },
   categoryLabel: { color: palette.text, fontSize: 14, lineHeight: 19, fontWeight: '700' },
+  categoryStatus: { marginTop: 2, color: palette.secondary, fontSize: 11, lineHeight: 15 },
+  categoryAction: {
+    minWidth: 82,
+    minHeight: 36,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+    borderWidth: 1,
+    borderColor: '#C9AFB5',
+    borderRadius: 18,
+    paddingHorizontal: 10,
+  },
+  categoryActionSelected: { borderColor: palette.primaryContainer, backgroundColor: palette.primaryContainer },
+  categoryActionText: { color: palette.primaryContainer, fontSize: 10, fontWeight: '700', letterSpacing: 0.6 },
+  categoryActionTextSelected: { color: palette.white },
+  categoryAllocationPanel: {
+    borderTopWidth: 1,
+    borderTopColor: '#EFE4E6',
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+  },
+  allocationEditor: { paddingTop: 16 },
+  allocationCopy: { minWidth: 0, flex: 1 },
+  allocationLabel: { color: palette.text, fontSize: 12, lineHeight: 17, fontWeight: '700' },
   reservedLabel: { marginTop: 2, color: palette.primaryContainer, fontSize: 10, lineHeight: 14 },
   legacyLabel: { marginTop: 2, color: palette.secondary, fontSize: 10, lineHeight: 14 },
   amountInputShell: {
@@ -781,6 +1029,19 @@ const styles = StyleSheet.create({
   },
   sliderRange: { flexDirection: 'row', justifyContent: 'space-between' },
   rangeText: { color: palette.secondary, fontSize: 10, lineHeight: 14 },
+  removeCategoryButton: {
+    minHeight: 34,
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    marginTop: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 6,
+  },
+  removeCategoryDisabled: { opacity: 0.68 },
+  removeCategoryText: { color: palette.error, fontSize: 10, fontWeight: '700', letterSpacing: 0.7 },
+  removeCategoryTextDisabled: { color: palette.secondaryFixedDim },
   footer: {
     position: 'absolute',
     right: 0,
