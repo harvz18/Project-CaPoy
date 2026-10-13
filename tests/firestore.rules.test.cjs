@@ -406,6 +406,7 @@ test("workers can submit private verification metadata atomically but cannot app
     validIdType: "PhilSys ID",
     validIdPath: `verification/${WORKER_ID}/valid-id.pdf`,
     medicalCertificatePath: `verification/${WORKER_ID}/medical.pdf`,
+    policeClearancePath: `verification/${WORKER_ID}/police.pdf`,
     status: "Pending Verification",
     submittedAt: now,
     updatedAt: now
@@ -414,6 +415,7 @@ test("workers can submit private verification metadata atomically but cannot app
     validIdType: verification.validIdType,
     validIdUrl: verification.validIdPath,
     medicalCertificateUrl: verification.medicalCertificatePath,
+    policeClearanceUrl: verification.policeClearancePath,
     verificationStatus: verification.status,
     updatedAt: now
   };
@@ -436,6 +438,73 @@ test("workers can submit private verification metadata atomically but cannot app
   }));
 });
 
+test("employers can submit all private verification documents atomically", async () => {
+  const clientDb = dbFor(CLIENT_ID);
+  const now = "2026-01-01T00:12:00.000Z";
+  const verification = {
+    userId: CLIENT_ID,
+    validIdType: "Driver's License",
+    validIdPath: `verification/${CLIENT_ID}/valid-id.pdf`,
+    medicalCertificatePath: `verification/${CLIENT_ID}/medical.pdf`,
+    policeClearancePath: `verification/${CLIENT_ID}/police.pdf`,
+    status: "Pending Verification",
+    submittedAt: now,
+    updatedAt: now
+  };
+  const batch = writeBatch(clientDb);
+  batch.set(doc(clientDb, "verificationRequests", CLIENT_ID), verification);
+  batch.update(doc(clientDb, "users", CLIENT_ID), {
+    validIdType: verification.validIdType,
+    validIdUrl: verification.validIdPath,
+    medicalCertificateUrl: verification.medicalCertificatePath,
+    policeClearanceUrl: verification.policeClearancePath,
+    verificationStatus: verification.status,
+    identityStatus: "Pending Approval",
+    updatedAt: now
+  });
+  batch.update(doc(clientDb, "publicProfiles", CLIENT_ID), {
+    verificationStatus: verification.status,
+    updatedAt: now
+  });
+  await assertSucceeds(batch.commit());
+});
+
+test("legacy two-document submissions remain reviewable for resubmission", async () => {
+  const workerDb = dbFor(OUTSIDER_ID);
+  const now = "2026-01-01T00:13:00.000Z";
+  const verification = {
+    userId: OUTSIDER_ID,
+    validIdType: "PhilSys ID",
+    validIdPath: `verification/${OUTSIDER_ID}/valid-id.pdf`,
+    medicalCertificatePath: `verification/${OUTSIDER_ID}/medical.pdf`,
+    status: "Pending Verification",
+    submittedAt: now,
+    updatedAt: now
+  };
+  const batch = writeBatch(workerDb);
+  batch.set(doc(workerDb, "verificationRequests", OUTSIDER_ID), verification);
+  batch.update(doc(workerDb, "users", OUTSIDER_ID), {
+    validIdType: verification.validIdType,
+    validIdUrl: verification.validIdPath,
+    medicalCertificateUrl: verification.medicalCertificatePath,
+    verificationStatus: verification.status,
+    identityStatus: "Pending Approval",
+    updatedAt: now
+  });
+  batch.update(doc(workerDb, "workerProfiles", OUTSIDER_ID), {
+    validIdType: verification.validIdType,
+    validIdUrl: verification.validIdPath,
+    medicalCertificateUrl: verification.medicalCertificatePath,
+    verificationStatus: verification.status,
+    updatedAt: now
+  });
+  batch.update(doc(workerDb, "publicProfiles", OUTSIDER_ID), {
+    verificationStatus: verification.status,
+    updatedAt: now
+  });
+  await assertSucceeds(batch.commit());
+});
+
 test("only a custom-claim administrator can read private review queues and audit logs", async () => {
   await testEnvironment.withSecurityRulesDisabled(async (context) => {
     const db = context.firestore();
@@ -445,6 +514,7 @@ test("only a custom-claim administrator can read private review queues and audit
         validIdType: "PhilSys ID",
         validIdPath: `verification/${WORKER_ID}/valid-id.pdf`,
         medicalCertificatePath: `verification/${WORKER_ID}/medical.pdf`,
+        policeClearancePath: `verification/${WORKER_ID}/police.pdf`,
         status: "Pending Verification",
         submittedAt: "2026-01-01T00:00:00.000Z",
         updatedAt: "2026-01-01T00:00:00.000Z"

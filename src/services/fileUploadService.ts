@@ -79,7 +79,7 @@ export async function pickAndUploadProfilePhoto(userId: string) {
 
 export async function pickAndUploadPrivateDocument(
   ownerId: string,
-  kind: "valid-id" | "medical-certificate"
+  kind: "valid-id" | "medical-certificate" | "police-clearance"
 ) {
   const result = await DocumentPicker.getDocumentAsync({
     type: ["image/*", "application/pdf"],

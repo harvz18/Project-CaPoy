@@ -20,7 +20,7 @@ export type TaskMatch = {
   proposedAmount?: string; createdAt?: string; updatedAt?: string;
 };
 
-export type VerificationRequest = { id: string; userId: string; validIdType?: string; validIdPath?: string; medicalCertificatePath?: string; status?: VerificationStatus; submittedAt?: string; reviewReason?: string };
+export type VerificationRequest = { id: string; userId: string; validIdType?: string; validIdPath?: string; medicalCertificatePath?: string; policeClearancePath?: string; status?: VerificationStatus; submittedAt?: string; reviewReason?: string };
 export type Payment = { id: string; taskId?: string; paymentMethod?: string; paymentStatus?: string; agreedAmount?: string; updatedAt?: string; createdAt?: string };
 export type Rating = { id: string; reviewerId?: string; targetUserId?: string; taskId?: string; score?: number; feedback?: string; createdAt?: string };
 export type AuditLog = { id: string; actorId?: string; action?: string; targetType?: string; targetId?: string; reason?: string; createdAt?: string };

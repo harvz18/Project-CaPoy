@@ -447,6 +447,7 @@ export function AppProvider({ children }: PropsWithChildren) {
         validIdType: updates.validIdType,
         validIdUrl: updates.validIdUrl,
         medicalCertificateUrl: updates.medicalCertificateUrl,
+        policeClearanceUrl: updates.policeClearanceUrl,
         currentLatitude: updates.currentLatitude,
         currentLongitude: updates.currentLongitude,
         locationUpdatedAt: updates.locationUpdatedAt,

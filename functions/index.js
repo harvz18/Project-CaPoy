@@ -243,13 +243,22 @@ exports.reviewWorkerVerification = onCall({ region: REGION }, async (request) =>
       transaction.get(userRef)
     ]);
     if (!verificationSnapshot.exists || !userSnapshot.exists) {
-      throw new HttpsError("not-found", "Verification request or worker account was not found.");
+      throw new HttpsError("not-found", "Verification request or user account was not found.");
     }
     if (verificationSnapshot.data().status !== "Pending Verification") {
       throw new HttpsError("failed-precondition", "This verification request has already been reviewed.");
     }
     if (!["worker", "client"].includes(userSnapshot.data().role)) {
       throw new HttpsError("failed-precondition", "Only employer and tasker accounts can be verified.");
+    }
+    const verification = verificationSnapshot.data();
+    const hasAllRequiredDocuments = [
+      verification.validIdPath,
+      verification.medicalCertificatePath,
+      verification.policeClearancePath
+    ].every((path) => typeof path === "string" && path.startsWith(`verification/${userId}/`));
+    if (decision === "Verified" && !hasAllRequiredDocuments) {
+      throw new HttpsError("failed-precondition", "A valid ID, medical certificate, and police clearance are required before approval.");
     }
 
     const review = {
@@ -262,10 +271,10 @@ exports.reviewWorkerVerification = onCall({ region: REGION }, async (request) =>
     const identityReview = buildIdentityReview(decision, reviewedAt, adminId);
     transaction.update(requestRef, review);
     const role = userSnapshot.data().role;
-    transaction.update(userRef, role === "worker"
-      ? { verificationStatus: decision, ...identityReview, updatedAt: reviewedAt }
-      : { verificationStatus: decision, updatedAt: reviewedAt });
-    transaction.set(role === "worker" ? workerRef : db.collection("clientProfiles").doc(userId), { verificationStatus: decision, updatedAt: reviewedAt }, { merge: true });
+    const roleProfileRef = role === "worker" ? workerRef : db.collection("clientProfiles").doc(userId);
+    const verificationReview = { verificationStatus: decision, ...identityReview, updatedAt: reviewedAt };
+    transaction.update(userRef, verificationReview);
+    transaction.set(roleProfileRef, verificationReview, { merge: true });
     transaction.set(publicRef, { verificationStatus: decision, updatedAt: reviewedAt }, { merge: true });
     transaction.set(db.collection("notifications").doc(), {
       userId,
@@ -273,7 +282,7 @@ exports.reviewWorkerVerification = onCall({ region: REGION }, async (request) =>
       notificationType: "Verification review",
       message: decision === "Verified"
         ? "Your TaskLink verification was approved."
-        : `Your worker verification needs attention: ${reason}`,
+        : `Your TaskLink verification needs attention: ${reason}`,
       readStatus: false,
       createdAt: reviewedAt
     });

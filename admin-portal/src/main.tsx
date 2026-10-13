@@ -1,61 +1,361 @@
 import { FormEvent, ReactNode, useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Navigate, NavLink, Outlet, Route, Routes, useNavigate, useParams } from "react-router-dom";
-import { BarChart3, Bell, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, FileText, Flag, LayoutDashboard, ListChecks, LoaderCircle, LogOut, Menu, Search, ShieldAlert, ShieldCheck, Star, Users, X } from "lucide-react";
+import {
+  BrowserRouter,
+  Navigate,
+  NavLink,
+  Outlet,
+  Route,
+  Routes,
+  useNavigate,
+  useParams,
+} from "react-router-dom";
+import {
+  BarChart3,
+  Bell,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardCheck,
+  FileText,
+  Flag,
+  LayoutDashboard,
+  ListChecks,
+  LoaderCircle,
+  LogOut,
+  Menu,
+  Search,
+  ShieldAlert,
+  ShieldCheck,
+  Star,
+  Users,
+  X,
+} from "lucide-react";
 import { AuthProvider, useAuth } from "./auth";
 import { firebaseConfigured } from "./firebase";
-import { changeAccountStatus, correctName, getBasicDashboardCounts, getSuperadminOverview, getVerificationDocumentUrl, loadPage, loadProfilesById, loadSubmittedPayments, loadTasksById, reviewPayment, reviewVerification, subscribePendingVerifications } from "./services";
-import { AuditLog, BasicDashboardCounts, Payment, Profile, Rating, Task, TaskMatch, VerificationRequest, ViolationReport } from "./types";
+import {
+  changeAccountStatus,
+  correctName,
+  getBasicDashboardCounts,
+  getSuperadminOverview,
+  getVerificationDocumentUrl,
+  loadPage,
+  loadProfilesById,
+  loadSubmittedPayments,
+  loadTasksById,
+  reviewPayment,
+  reviewVerification,
+  subscribePendingVerifications,
+} from "./services";
+import {
+  AuditLog,
+  BasicDashboardCounts,
+  Payment,
+  Profile,
+  Rating,
+  Task,
+  TaskMatch,
+  VerificationRequest,
+  ViolationReport,
+} from "./types";
 import "./styles.css";
 
 const PAGE_SIZE = 20;
-const DATE_FORMATTER = new Intl.DateTimeFormat("en-PH", { dateStyle: "medium", timeStyle: "short" });
-function date(value?: string) { if (!value) return "—"; const parsed = new Date(value); return Number.isNaN(parsed.getTime()) ? "—" : DATE_FORMATTER.format(parsed); }
-function errorText(error: unknown) { return error instanceof Error ? error.message.replace(/^Firebase: /, "") : "The request could not be completed."; }
-function roleLabel(role?: string) { return role === "worker" ? "Tasker" : role === "client" ? "Employer" : "—"; }
-function taskTitle(task?: Task) { return task?.title || "Untitled task"; }
+const DATE_FORMATTER = new Intl.DateTimeFormat("en-PH", {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+function date(value?: string) {
+  if (!value) return "—";
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? "—" : DATE_FORMATTER.format(parsed);
+}
+function errorText(error: unknown) {
+  return error instanceof Error
+    ? error.message.replace(/^Firebase: /, "")
+    : "The request could not be completed.";
+}
+function roleLabel(role?: string) {
+  return role === "worker" ? "Tasker" : role === "client" ? "Employer" : "—";
+}
+function taskTitle(task?: Task) {
+  return task?.title || "Untitled task";
+}
 type Notice = { tone: "success" | "error"; message: string } | null;
 
 function App() {
   if (!firebaseConfigured) return <ConfigurationRequired />;
-  return <AuthProvider><Routes>
-    <Route path="/login" element={<Login />} />
-    <Route element={<RequireStaff />}>
-      <Route path="/admin/:section?" element={<Portal scope="admin" />} />
-      <Route element={<RequireSuperadmin />}><Route path="/superadmin/:section?" element={<Portal scope="superadmin" />} /></Route>
-    </Route>
-    <Route path="*" element={<EntryRedirect />} />
-  </Routes></AuthProvider>;
+  return (
+    <AuthProvider>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route element={<RequireStaff />}>
+          <Route path="/admin/:section?" element={<Portal scope="admin" />} />
+          <Route element={<RequireSuperadmin />}>
+            <Route
+              path="/superadmin/:section?"
+              element={<Portal scope="superadmin" />}
+            />
+          </Route>
+        </Route>
+        <Route path="*" element={<EntryRedirect />} />
+      </Routes>
+    </AuthProvider>
+  );
 }
 
-function ConfigurationRequired() { return <main className="auth-page"><section className="auth-card"><p className="brand">TASKLINK</p><h1>Portal configuration required</h1><p>Add the Firebase web configuration values to <code>admin-portal/.env</code>. Use the provided <code>.env.example</code> as the safe template; never add an Admin SDK key.</p></section></main>; }
-function EntryRedirect() { const { authority } = useAuth(); if (authority === "loading") return <LoadingScreen />; if (authority === "superadmin") return <Navigate to="/superadmin/dashboard" replace />; if (authority === "admin") return <Navigate to="/admin/dashboard" replace />; if (authority === "denied") return <DeniedScreen />; return <Navigate to="/login" replace />; }
-function RequireStaff() { const { authority } = useAuth(); if (authority === "loading") return <LoadingScreen />; if (authority === "denied") return <DeniedScreen />; return authority === "admin" || authority === "superadmin" ? <Outlet /> : <Navigate to="/login" replace />; }
-function RequireSuperadmin() { const { authority } = useAuth(); return authority === "superadmin" ? <Outlet /> : <Navigate to="/admin/dashboard" replace />; }
+function ConfigurationRequired() {
+  return (
+    <main className="auth-page">
+      <section className="auth-card">
+        <p className="brand">TASKLINK</p>
+        <h1>Portal configuration required</h1>
+        <p>
+          Add the Firebase web configuration values to{" "}
+          <code>admin-portal/.env</code>. Use the provided{" "}
+          <code>.env.example</code> as the safe template; never add an Admin SDK
+          key.
+        </p>
+      </section>
+    </main>
+  );
+}
+function EntryRedirect() {
+  const { authority } = useAuth();
+  if (authority === "loading") return <LoadingScreen />;
+  if (authority === "superadmin")
+    return <Navigate to="/superadmin/dashboard" replace />;
+  if (authority === "admin") return <Navigate to="/admin/dashboard" replace />;
+  if (authority === "denied") return <DeniedScreen />;
+  return <Navigate to="/login" replace />;
+}
+function RequireStaff() {
+  const { authority } = useAuth();
+  if (authority === "loading") return <LoadingScreen />;
+  if (authority === "denied") return <DeniedScreen />;
+  return authority === "admin" || authority === "superadmin" ? (
+    <Outlet />
+  ) : (
+    <Navigate to="/login" replace />
+  );
+}
+function RequireSuperadmin() {
+  const { authority } = useAuth();
+  return authority === "superadmin" ? (
+    <Outlet />
+  ) : (
+    <Navigate to="/admin/dashboard" replace />
+  );
+}
 
 function Login() {
-  const { authority, signIn } = useAuth(); const navigate = useNavigate(); const [mobile, setMobile] = useState(""); const [password, setPassword] = useState(""); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
-  useEffect(() => { if (authority === "admin") navigate("/admin/dashboard", { replace: true }); if (authority === "superadmin") navigate("/superadmin/dashboard", { replace: true }); }, [authority, navigate]);
+  const { authority, signIn } = useAuth();
+  const navigate = useNavigate();
+  const [mobile, setMobile] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (authority === "admin") navigate("/admin/dashboard", { replace: true });
+    if (authority === "superadmin")
+      navigate("/superadmin/dashboard", { replace: true });
+  }, [authority, navigate]);
   if (authority === "denied") return <DeniedScreen />;
-  async function submit(event: FormEvent) { event.preventDefault(); setBusy(true); setError(""); try { await signIn(mobile, password); } catch (failure) { setError(errorText(failure)); } finally { setBusy(false); } }
-  return <main className="auth-page"><section className="auth-card"><p className="brand">TASKLINK</p><h1>Administration portal</h1><p className="subtle">Sign in with an authorized staff account.</p><form onSubmit={submit}><label>Mobile number<input value={mobile} onChange={(event) => setMobile(event.target.value)} autoComplete="username" inputMode="tel" placeholder="09123456789" required /></label><label>Password<input value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" type="password" required /></label>{error ? <p className="inline-error">{error}</p> : null}<button className="button primary full" disabled={busy}>{busy ? <><LoaderCircle className="spin" size={17} /> Signing in</> : "Sign in"}</button></form></section></main>;
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await signIn(mobile, password);
+    } catch (failure) {
+      setError(errorText(failure));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <main className="auth-page">
+      <section className="auth-card">
+        <p className="brand">TASKLINK</p>
+        <h1>Administration portal</h1>
+        <p className="subtle">Sign in with an authorized staff account.</p>
+        <form onSubmit={submit}>
+          <label>
+            Mobile number
+            <input
+              value={mobile}
+              onChange={(event) => setMobile(event.target.value)}
+              autoComplete="username"
+              inputMode="tel"
+              placeholder="09123456789"
+              required
+            />
+          </label>
+          <label>
+            Password
+            <input
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              autoComplete="current-password"
+              type="password"
+              required
+            />
+          </label>
+          {error ? <p className="inline-error">{error}</p> : null}
+          <button className="button primary full" disabled={busy}>
+            {busy ? (
+              <>
+                <LoaderCircle className="spin" size={17} /> Signing in
+              </>
+            ) : (
+              "Sign in"
+            )}
+          </button>
+        </form>
+      </section>
+    </main>
+  );
 }
-function LoadingScreen() { return <main className="auth-page"><LoaderCircle className="spin brand-icon" size={32} /><p>Restoring secure session…</p></main>; }
-function DeniedScreen() { const { user, signOut } = useAuth(); return <main className="auth-page"><section className="auth-card"><p className="brand">TASKLINK</p><h1>Access denied</h1><p className="subtle">{user?.email || "This account"} is not authorized to use the TaskLink Administration Portal.</p><button className="button secondary full" onClick={() => void signOut()}>Sign out</button></section></main>; }
+function LoadingScreen() {
+  return (
+    <main className="auth-page">
+      <LoaderCircle className="spin brand-icon" size={32} />
+      <p>Restoring secure session…</p>
+    </main>
+  );
+}
+function DeniedScreen() {
+  const { user, signOut } = useAuth();
+  return (
+    <main className="auth-page">
+      <section className="auth-card">
+        <p className="brand">TASKLINK</p>
+        <h1>Access denied</h1>
+        <p className="subtle">
+          {user?.email || "This account"} is not authorized to use the TaskLink
+          Administration Portal.
+        </p>
+        <button
+          className="button secondary full"
+          onClick={() => void signOut()}
+        >
+          Sign out
+        </button>
+      </section>
+    </main>
+  );
+}
 
 type Scope = "admin" | "superadmin";
-const adminNavigation = [["dashboard", "Dashboard", LayoutDashboard], ["users", "Users", Users], ["tasks", "Tasks", ListChecks], ["applications", "Applications", FileText], ["verifications", "Verifications", ClipboardCheck], ["feedback", "Feedback", Star], ["analytics", "Analytics", BarChart3]] as const;
-const superNavigation = [...adminNavigation, ["reports", "Reports", Flag], ["audit", "Audit log", ShieldCheck]] as const;
+const adminNavigation = [
+  ["dashboard", "Dashboard", LayoutDashboard],
+  ["users", "Users", Users],
+  ["tasks", "Tasks", ListChecks],
+  ["applications", "Applications", FileText],
+  ["verifications", "Verifications", ClipboardCheck],
+  ["feedback", "Feedback", Star],
+  ["analytics", "Analytics", BarChart3],
+] as const;
+const superNavigation = [
+  ...adminNavigation,
+  ["reports", "Reports", Flag],
+  ["audit", "Audit log", ShieldCheck],
+] as const;
 
 function Portal({ scope }: { scope: Scope }) {
-  const { section = "dashboard" } = useParams(); const { user, signOut } = useAuth(); const navigate = useNavigate(); const [menuOpen, setMenuOpen] = useState(false); const [notice, setNotice] = useState<Notice>(null);
+  const { section = "dashboard" } = useParams();
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [notice, setNotice] = useState<Notice>(null);
   const navigation = scope === "superadmin" ? superNavigation : adminNavigation;
-  const validSection = navigation.some(([id]) => id === section) ? section : "dashboard";
-  useEffect(() => { if (section !== validSection) navigate(`/${scope}/${validSection}`, { replace: true }); }, [section, validSection, navigate, scope]);
-  return <div className="portal-shell"><aside className={`sidebar ${menuOpen ? "open" : ""}`}><div className="sidebar-head"><span className="brand">TASKLINK</span><button className="icon-button close-menu" onClick={() => setMenuOpen(false)} aria-label="Close navigation"><X size={19} /></button></div><p className="portal-role">{scope === "superadmin" ? "SUPERADMIN PORTAL" : "ADMIN PORTAL"}</p><nav>{navigation.map(([id, label, Icon]) => <NavLink key={id} to={`/${scope}/${id}`} onClick={() => setMenuOpen(false)} className={({ isActive }) => `side-link ${isActive ? "active" : ""}`}><Icon size={18} /><span>{label}</span></NavLink>)}</nav><div className="sidebar-bottom"><p>{user?.email}</p><button className="logout" onClick={() => void signOut()}><LogOut size={17} /> Sign out</button></div></aside><div className="mobile-overlay" onClick={() => setMenuOpen(false)} /><main className="workspace"><header className="topbar"><button className="icon-button menu-button" onClick={() => setMenuOpen(true)} aria-label="Open navigation"><Menu size={20} /></button><div><p className="eyebrow">{scope === "superadmin" ? "SYSTEM OVERSIGHT" : "OPERATIONS"}</p><h1>{navigation.find(([id]) => id === validSection)?.[1] ?? "Dashboard"}</h1></div><div className="staff-chip"><ShieldCheck size={17} /><span>{scope === "superadmin" ? "Superadmin" : "Admin"}</span></div></header>{notice ? <NoticeBanner notice={notice} onClose={() => setNotice(null)} /> : null}<Page section={validSection} scope={scope} notify={setNotice} /></main></div>;
+  const validSection = navigation.some(([id]) => id === section)
+    ? section
+    : "dashboard";
+  useEffect(() => {
+    if (section !== validSection)
+      navigate(`/${scope}/${validSection}`, { replace: true });
+  }, [section, validSection, navigate, scope]);
+  return (
+    <div className="portal-shell">
+      <aside className={`sidebar ${menuOpen ? "open" : ""}`}>
+        <div className="sidebar-head">
+          <span className="brand">TASKLINK</span>
+          <button
+            className="icon-button close-menu"
+            onClick={() => setMenuOpen(false)}
+            aria-label="Close navigation"
+          >
+            <X size={19} />
+          </button>
+        </div>
+        <p className="portal-role">
+          {scope === "superadmin" ? "SUPERADMIN PORTAL" : "ADMIN PORTAL"}
+        </p>
+        <nav>
+          {navigation.map(([id, label, Icon]) => (
+            <NavLink
+              key={id}
+              to={`/${scope}/${id}`}
+              onClick={() => setMenuOpen(false)}
+              className={({ isActive }) =>
+                `side-link ${isActive ? "active" : ""}`
+              }
+            >
+              <Icon size={18} />
+              <span>{label}</span>
+            </NavLink>
+          ))}
+        </nav>
+        <div className="sidebar-bottom">
+          <p>{user?.email}</p>
+          <button className="logout" onClick={() => void signOut()}>
+            <LogOut size={17} /> Sign out
+          </button>
+        </div>
+      </aside>
+      <div className="mobile-overlay" onClick={() => setMenuOpen(false)} />
+      <main className="workspace">
+        <header className="topbar">
+          <button
+            className="icon-button menu-button"
+            onClick={() => setMenuOpen(true)}
+            aria-label="Open navigation"
+          >
+            <Menu size={20} />
+          </button>
+          <div>
+            <p className="eyebrow">
+              {scope === "superadmin" ? "SYSTEM OVERSIGHT" : "OPERATIONS"}
+            </p>
+            <h1>
+              {navigation.find(([id]) => id === validSection)?.[1] ??
+                "Dashboard"}
+            </h1>
+          </div>
+          <div className="staff-chip">
+            <ShieldCheck size={17} />
+            <span>{scope === "superadmin" ? "Superadmin" : "Admin"}</span>
+          </div>
+        </header>
+        {notice ? (
+          <NoticeBanner notice={notice} onClose={() => setNotice(null)} />
+        ) : null}
+        <Page section={validSection} scope={scope} notify={setNotice} />
+      </main>
+    </div>
+  );
 }
 
-function Page({ section, scope, notify }: { section: string; scope: Scope; notify: (notice: Notice) => void }) {
+function Page({
+  section,
+  scope,
+  notify,
+}: {
+  section: string;
+  scope: Scope;
+  notify: (notice: Notice) => void;
+}) {
   if (section === "dashboard") return <Dashboard />;
   if (section === "users") return <UsersPage scope={scope} notify={notify} />;
   if (section === "tasks") return <TasksPage />;
@@ -63,78 +363,1470 @@ function Page({ section, scope, notify }: { section: string; scope: Scope; notif
   if (section === "verifications") return <VerificationPage notify={notify} />;
   if (section === "feedback") return <FeedbackPage />;
   if (section === "analytics") return <AnalyticsPage />;
-  if (scope === "superadmin" && section === "reports") return <ReportsPage notify={notify} />;
+  if (scope === "superadmin" && section === "reports")
+    return <ReportsPage notify={notify} />;
   if (scope === "superadmin" && section === "audit") return <AuditPage />;
   return <Navigate to={`/${scope}/dashboard`} replace />;
 }
 
 function Dashboard() {
-  const [counts, setCounts] = useState<BasicDashboardCounts | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
-  const load = useCallback(async () => { setLoading(true); setError(""); try { setCounts(await getBasicDashboardCounts()); } catch (failure) { setError(errorText(failure)); } finally { setLoading(false); } }, []);
-  useEffect(() => { void load(); }, [load]);
-  return <div className="page-stack"><div className="page-heading"><div><h2>Live TaskLink overview</h2><p>Current totals from the TaskLink database.</p></div><button className="button secondary" onClick={() => void load()} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></div>{loading && !counts ? <SkeletonCards /> : null}{error && !counts ? <ErrorState message={error} retry={() => void load()} /> : null}{counts ? <><section className="metric-grid"><Metric label="Total users" value={counts.users} icon={<Users />} /><Metric label="Employers" value={counts.employers} icon={<Users />} /><Metric label="Taskers" value={counts.taskers} icon={<Users />} /><Metric label="Total tasks" value={counts.tasks} icon={<ListChecks />} /><Metric label="Active tasks" value={counts.activeTasks} icon={<ListChecks />} /><Metric label="Completed tasks" value={counts.completedTasks} icon={<CheckCircle2 />} /><Metric label="Payment records" value={counts.paymentRecords} icon={<FileText />} /><Metric label="Pending payments" value={counts.submittedPayments} icon={<FileText />} /><Metric label="Pending verification" value={counts.pendingVerifications} icon={<ClipboardCheck />} /></section><section className="dashboard-grid"><Panel title="Account totals"><dl className="key-values"><div><dt>All users</dt><dd>{counts.users}</dd></div><div><dt>Employers</dt><dd>{counts.employers}</dd></div><div><dt>Taskers</dt><dd>{counts.taskers}</dd></div><div><dt>Pending verification</dt><dd>{counts.pendingVerifications}</dd></div></dl></Panel><Panel title="Task and payment totals"><dl className="key-values"><div><dt>All tasks</dt><dd>{counts.tasks}</dd></div><div><dt>Active tasks</dt><dd>{counts.activeTasks}</dd></div><div><dt>Completed tasks</dt><dd>{counts.completedTasks}</dd></div><div><dt>Payment records</dt><dd>{counts.paymentRecords}</dd></div></dl></Panel></section></> : null}</div>;
+  const [counts, setCounts] = useState<BasicDashboardCounts | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      setCounts(await getBasicDashboardCounts());
+    } catch (failure) {
+      setError(errorText(failure));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+  useEffect(() => {
+    void load();
+  }, [load]);
+  return (
+    <div className="page-stack">
+      <div className="page-heading">
+        <div>
+          <h2>Live TaskLink overview</h2>
+          <p>Current totals from the TaskLink database.</p>
+        </div>
+        <button
+          className="button secondary"
+          onClick={() => void load()}
+          disabled={loading}
+        >
+          {loading ? "Refreshing…" : "Refresh"}
+        </button>
+      </div>
+      {loading && !counts ? <SkeletonCards /> : null}
+      {error && !counts ? (
+        <ErrorState message={error} retry={() => void load()} />
+      ) : null}
+      {counts ? (
+        <>
+          <section className="metric-grid">
+            <Metric label="Total users" value={counts.users} icon={<Users />} />
+            <Metric
+              label="Employers"
+              value={counts.employers}
+              icon={<Users />}
+            />
+            <Metric label="Taskers" value={counts.taskers} icon={<Users />} />
+            <Metric
+              label="Total tasks"
+              value={counts.tasks}
+              icon={<ListChecks />}
+            />
+            <Metric
+              label="Active tasks"
+              value={counts.activeTasks}
+              icon={<ListChecks />}
+            />
+            <Metric
+              label="Completed tasks"
+              value={counts.completedTasks}
+              icon={<CheckCircle2 />}
+            />
+            <Metric
+              label="Payment records"
+              value={counts.paymentRecords}
+              icon={<FileText />}
+            />
+            <Metric
+              label="Pending payments"
+              value={counts.submittedPayments}
+              icon={<FileText />}
+            />
+            <Metric
+              label="Pending verification"
+              value={counts.pendingVerifications}
+              icon={<ClipboardCheck />}
+            />
+          </section>
+          <section className="dashboard-grid">
+            <Panel title="Account totals">
+              <dl className="key-values">
+                <div>
+                  <dt>All users</dt>
+                  <dd>{counts.users}</dd>
+                </div>
+                <div>
+                  <dt>Employers</dt>
+                  <dd>{counts.employers}</dd>
+                </div>
+                <div>
+                  <dt>Taskers</dt>
+                  <dd>{counts.taskers}</dd>
+                </div>
+                <div>
+                  <dt>Pending verification</dt>
+                  <dd>{counts.pendingVerifications}</dd>
+                </div>
+              </dl>
+            </Panel>
+            <Panel title="Task and payment totals">
+              <dl className="key-values">
+                <div>
+                  <dt>All tasks</dt>
+                  <dd>{counts.tasks}</dd>
+                </div>
+                <div>
+                  <dt>Active tasks</dt>
+                  <dd>{counts.activeTasks}</dd>
+                </div>
+                <div>
+                  <dt>Completed tasks</dt>
+                  <dd>{counts.completedTasks}</dd>
+                </div>
+                <div>
+                  <dt>Payment records</dt>
+                  <dd>{counts.paymentRecords}</dd>
+                </div>
+              </dl>
+            </Panel>
+          </section>
+        </>
+      ) : null}
+    </div>
+  );
 }
 
 function usePaged<T>(name: string, field: string) {
-  const [items, setItems] = useState<T[]>([]); const [cursor, setCursor] = useState<any>(null); const [history, setHistory] = useState<any[]>([]); const [hasMore, setHasMore] = useState(false); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
-  const load = useCallback(async (nextCursor: any = null, addHistory = false) => { setLoading(true); setError(""); try { const page = await loadPage<T>(name, field, PAGE_SIZE, nextCursor); setItems(page.items); setCursor(page.cursor); setHasMore(page.hasMore); if (addHistory) setHistory((current) => [...current, nextCursor]); } catch (failure) { setError(errorText(failure)); } finally { setLoading(false); } }, [field, name]);
-  useEffect(() => { setHistory([]); void load(); }, [load]);
-  return { items, loading, error, hasMore, next: () => void load(cursor, true), previous: () => { const back = history.slice(0, -1); setHistory(back); void load(back.at(-1) ?? null); }, canGoBack: history.length > 0, refresh: () => void load(history.at(-1) ?? null) };
+  const [items, setItems] = useState<T[]>([]);
+  const [cursor, setCursor] = useState<any>(null);
+  const [history, setHistory] = useState<any[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const load = useCallback(
+    async (nextCursor: any = null, addHistory = false) => {
+      setLoading(true);
+      setError("");
+      try {
+        const page = await loadPage<T>(name, field, PAGE_SIZE, nextCursor);
+        setItems(page.items);
+        setCursor(page.cursor);
+        setHasMore(page.hasMore);
+        if (addHistory) setHistory((current) => [...current, nextCursor]);
+      } catch (failure) {
+        setError(errorText(failure));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [field, name],
+  );
+  useEffect(() => {
+    setHistory([]);
+    void load();
+  }, [load]);
+  return {
+    items,
+    loading,
+    error,
+    hasMore,
+    next: () => void load(cursor, true),
+    previous: () => {
+      const back = history.slice(0, -1);
+      setHistory(back);
+      void load(back.at(-1) ?? null);
+    },
+    canGoBack: history.length > 0,
+    refresh: () => void load(history.at(-1) ?? null),
+  };
 }
 
-function useRecordLookup<T>(ids: string[], loader: (ids: string[]) => Promise<Record<string, T>>) {
-  const key = [...new Set(ids.filter(Boolean))].sort().join("|"); const [data, setData] = useState<Record<string, T>>({});
-  useEffect(() => { let active = true; if (!key) { setData({}); return () => { active = false; }; } void loader(key.split("|")).then((next) => { if (active) setData(next); }).catch(() => { if (active) setData({}); }); return () => { active = false; }; }, [key, loader]);
+function useRecordLookup<T>(
+  ids: string[],
+  loader: (ids: string[]) => Promise<Record<string, T>>,
+) {
+  const key = [...new Set(ids.filter(Boolean))].sort().join("|");
+  const [data, setData] = useState<Record<string, T>>({});
+  useEffect(() => {
+    let active = true;
+    if (!key) {
+      setData({});
+      return () => {
+        active = false;
+      };
+    }
+    void loader(key.split("|"))
+      .then((next) => {
+        if (active) setData(next);
+      })
+      .catch(() => {
+        if (active) setData({});
+      });
+    return () => {
+      active = false;
+    };
+  }, [key, loader]);
   return data;
 }
 
-function UsersPage({ scope, notify }: { scope: Scope; notify: (notice: Notice) => void }) {
-  const page = usePaged<Profile>("publicProfiles", "fullName"); const [search, setSearch] = useState(""); const [role, setRole] = useState("all"); const [modal, setModal] = useState<{ user: Profile; action: "suspend" | "active" | "name" } | null>(null);
-  const filtered = page.items.filter((user) => (role === "all" || user.role === role) && `${user.fullName} ${user.businessName ?? ""}`.toLowerCase().includes(search.toLowerCase()));
-  return <div className="page-stack"><div className="page-heading"><div><h2>User directory</h2><p>Public profile data only. Sensitive account changes require trusted server authorization.</p></div><div className="toolbar"><SearchBox value={search} onChange={setSearch} /><select value={role} onChange={(event) => setRole(event.target.value)}><option value="all">All roles</option><option value="worker">Taskers</option><option value="client">Employers</option></select></div></div><Panel title="Accounts" description="Search and filter the current result page"><Table headers={["Name", "Role", "Identity", "Rating", ...(scope === "superadmin" ? ["Actions"] : [])]}>{filtered.map((user) => <tr key={user.id}><td><strong>{user.fullName || "Unnamed account"}</strong><small>{user.businessName || user.id}</small></td><td><Badge value={roleLabel(user.role)} /></td><td>{user.verificationStatus || user.identityStatus || "Not submitted"}</td><td>{user.rating ?? 0}{user.ratingCount ? ` (${user.ratingCount})` : ""}</td>{scope === "superadmin" ? <td><div className="row-actions"><button className="text-button danger-text" onClick={() => setModal({ user, action: "suspend" })}>Restrict</button><button className="text-button" onClick={() => setModal({ user, action: "active" })}>Reactivate</button><button className="text-button" onClick={() => setModal({ user, action: "name" })}>Correct name</button></div></td> : null}</tr>)}</Table>{!page.loading && !filtered.length ? <EmptyState title="No accounts in this result" /> : null}{page.error ? <ErrorState message={page.error} retry={page.refresh} /> : null}<Pager {...page} /></Panel>{modal ? <UserActionModal modal={modal} close={() => setModal(null)} notify={notify} refreshed={page.refresh} /> : null}</div>;
+function UsersPage({
+  scope,
+  notify,
+}: {
+  scope: Scope;
+  notify: (notice: Notice) => void;
+}) {
+  const page = usePaged<Profile>("publicProfiles", "fullName");
+  const [search, setSearch] = useState("");
+  const [role, setRole] = useState("all");
+  const [modal, setModal] = useState<{
+    user: Profile;
+    action: "suspend" | "active" | "name";
+  } | null>(null);
+  const filtered = page.items.filter(
+    (user) =>
+      (role === "all" || user.role === role) &&
+      `${user.fullName} ${user.businessName ?? ""}`
+        .toLowerCase()
+        .includes(search.toLowerCase()),
+  );
+  return (
+    <div className="page-stack">
+      <div className="page-heading">
+        <div>
+          <h2>User directory</h2>
+          <p>
+            Public profile data only. Sensitive account changes require trusted
+            server authorization.
+          </p>
+        </div>
+        <div className="toolbar">
+          <SearchBox value={search} onChange={setSearch} />
+          <select
+            value={role}
+            onChange={(event) => setRole(event.target.value)}
+          >
+            <option value="all">All roles</option>
+            <option value="worker">Taskers</option>
+            <option value="client">Employers</option>
+          </select>
+        </div>
+      </div>
+      <Panel
+        title="Accounts"
+        description="Search and filter the current result page"
+      >
+        <Table
+          headers={[
+            "Name",
+            "Role",
+            "Identity",
+            "Rating",
+            ...(scope === "superadmin" ? ["Actions"] : []),
+          ]}
+        >
+          {filtered.map((user) => (
+            <tr key={user.id}>
+              <td>
+                <strong>{user.fullName || "Unnamed account"}</strong>
+                <small>{user.businessName || user.id}</small>
+              </td>
+              <td>
+                <Badge value={roleLabel(user.role)} />
+              </td>
+              <td>
+                {user.verificationStatus ||
+                  user.identityStatus ||
+                  "Not submitted"}
+              </td>
+              <td>
+                {user.rating ?? 0}
+                {user.ratingCount ? ` (${user.ratingCount})` : ""}
+              </td>
+              {scope === "superadmin" ? (
+                <td>
+                  <div className="row-actions">
+                    <button
+                      className="text-button danger-text"
+                      onClick={() => setModal({ user, action: "suspend" })}
+                    >
+                      Restrict
+                    </button>
+                    <button
+                      className="text-button"
+                      onClick={() => setModal({ user, action: "active" })}
+                    >
+                      Reactivate
+                    </button>
+                    <button
+                      className="text-button"
+                      onClick={() => setModal({ user, action: "name" })}
+                    >
+                      Correct name
+                    </button>
+                  </div>
+                </td>
+              ) : null}
+            </tr>
+          ))}
+        </Table>
+        {!page.loading && !filtered.length ? (
+          <EmptyState title="No accounts in this result" />
+        ) : null}
+        {page.error ? (
+          <ErrorState message={page.error} retry={page.refresh} />
+        ) : null}
+        <Pager {...page} />
+      </Panel>
+      {modal ? (
+        <UserActionModal
+          modal={modal}
+          close={() => setModal(null)}
+          notify={notify}
+          refreshed={page.refresh}
+        />
+      ) : null}
+    </div>
+  );
 }
 
 function TasksPage() {
-  const page = usePaged<Task>("tasks", "createdAt"); const [search, setSearch] = useState(""); const [status, setStatus] = useState("all"); const employers = useRecordLookup<Profile>(page.items.map((task) => task.clientId || ""), loadProfilesById); const filtered = page.items.filter((task) => (status === "all" || task.status === status) && `${task.title} ${task.category} ${task.location} ${employers[task.clientId || ""]?.fullName || ""}`.toLowerCase().includes(search.toLowerCase()));
-  return <div className="page-stack"><div className="page-heading"><div><h2>Task oversight</h2><p>Live task postings and workflow status.</p></div><div className="toolbar"><SearchBox value={search} onChange={setSearch} /><select value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">All statuses</option>{["Finding Workers", "Applied", "Accepted", "In Progress", "Pending Approval", "Finished", "Archived", "Cancelled", "Disputed", "Expired"].map((value) => <option key={value}>{value}</option>)}</select></div></div><Panel title="Task postings"><Table headers={["Task / employer", "Category", "Location", "Budget", "Applicants", "Status", "Created"]}>{filtered.map((task) => <tr key={task.id}><td><strong>{taskTitle(task)}</strong><small>{employers[task.clientId || ""]?.fullName || task.clientId || "Employer unavailable"}</small></td><td>{task.category || "—"}</td><td>{task.location || "—"}</td><td>{task.agreedAmount || task.wage || "—"}</td><td>{task.applicantIds?.length ?? 0}</td><td><Badge value={task.status || "Unknown"} /></td><td>{date(task.createdAt)}</td></tr>)}</Table>{!page.loading && !filtered.length ? <EmptyState title="No tasks in this result" /> : null}{page.error ? <ErrorState message={page.error} retry={page.refresh} /> : null}<Pager {...page} /></Panel></div>;
+  const page = usePaged<Task>("tasks", "createdAt");
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("all");
+  const employers = useRecordLookup<Profile>(
+    page.items.map((task) => task.clientId || ""),
+    loadProfilesById,
+  );
+  const filtered = page.items.filter(
+    (task) =>
+      (status === "all" || task.status === status) &&
+      `${task.title} ${task.category} ${task.location} ${employers[task.clientId || ""]?.fullName || ""}`
+        .toLowerCase()
+        .includes(search.toLowerCase()),
+  );
+  return (
+    <div className="page-stack">
+      <div className="page-heading">
+        <div>
+          <h2>Task oversight</h2>
+          <p>Live task postings and workflow status.</p>
+        </div>
+        <div className="toolbar">
+          <SearchBox value={search} onChange={setSearch} />
+          <select
+            value={status}
+            onChange={(event) => setStatus(event.target.value)}
+          >
+            <option value="all">All statuses</option>
+            {[
+              "Finding Workers",
+              "Applied",
+              "Accepted",
+              "In Progress",
+              "Pending Approval",
+              "Finished",
+              "Archived",
+              "Cancelled",
+              "Disputed",
+              "Expired",
+            ].map((value) => (
+              <option key={value}>{value}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <Panel title="Task postings">
+        <Table
+          headers={[
+            "Task / employer",
+            "Category",
+            "Location",
+            "Budget",
+            "Applicants",
+            "Status",
+            "Created",
+          ]}
+        >
+          {filtered.map((task) => (
+            <tr key={task.id}>
+              <td>
+                <strong>{taskTitle(task)}</strong>
+                <small>
+                  {employers[task.clientId || ""]?.fullName ||
+                    task.clientId ||
+                    "Employer unavailable"}
+                </small>
+              </td>
+              <td>{task.category || "—"}</td>
+              <td>{task.location || "—"}</td>
+              <td>{task.agreedAmount || task.wage || "—"}</td>
+              <td>{task.applicantIds?.length ?? 0}</td>
+              <td>
+                <Badge value={task.status || "Unknown"} />
+              </td>
+              <td>{date(task.createdAt)}</td>
+            </tr>
+          ))}
+        </Table>
+        {!page.loading && !filtered.length ? (
+          <EmptyState title="No tasks in this result" />
+        ) : null}
+        {page.error ? (
+          <ErrorState message={page.error} retry={page.refresh} />
+        ) : null}
+        <Pager {...page} />
+      </Panel>
+    </div>
+  );
 }
 
 function ApplicationsPage() {
-  const page = usePaged<TaskMatch>("taskMatches", "createdAt"); const [search, setSearch] = useState(""); const tasks = useRecordLookup<Task>(page.items.map((match) => match.taskId || ""), loadTasksById); const profiles = useRecordLookup<Profile>(page.items.flatMap((match) => [match.workerId || "", match.clientId || ""]), loadProfilesById); const filtered = page.items.filter((match) => `${match.taskId} ${tasks[match.taskId || ""]?.title || ""} ${match.workerId} ${profiles[match.workerId || ""]?.fullName || ""} ${match.clientId} ${profiles[match.clientId || ""]?.fullName || ""}`.toLowerCase().includes(search.toLowerCase()));
-  return <div className="page-stack"><div className="page-heading"><div><h2>Applications monitoring</h2><p>Application records are read-only here; employer selection remains unchanged.</p></div><SearchBox value={search} onChange={setSearch} /></div><Panel title="Task applications"><Table headers={["Task", "Tasker", "Employer", "Proposed bid", "Status", "Applied"]}>{filtered.map((match) => <tr key={match.id}><td><strong>{taskTitle(tasks[match.taskId || ""])}</strong><small>{match.taskId || "—"}</small></td><td>{profiles[match.workerId || ""]?.fullName || match.workerId || "—"}</td><td>{profiles[match.clientId || ""]?.fullName || match.clientId || "—"}</td><td>{match.proposedAmount || "—"}</td><td><Badge value={match.acceptanceStatus || "Unknown"} /></td><td>{date(match.createdAt)}</td></tr>)}</Table>{!page.loading && !filtered.length ? <EmptyState title="No applications in this result" /> : null}{page.error ? <ErrorState message={page.error} retry={page.refresh} /> : null}<Pager {...page} /></Panel></div>;
+  const page = usePaged<TaskMatch>("taskMatches", "createdAt");
+  const [search, setSearch] = useState("");
+  const tasks = useRecordLookup<Task>(
+    page.items.map((match) => match.taskId || ""),
+    loadTasksById,
+  );
+  const profiles = useRecordLookup<Profile>(
+    page.items.flatMap((match) => [match.workerId || "", match.clientId || ""]),
+    loadProfilesById,
+  );
+  const filtered = page.items.filter((match) =>
+    `${match.taskId} ${tasks[match.taskId || ""]?.title || ""} ${match.workerId} ${profiles[match.workerId || ""]?.fullName || ""} ${match.clientId} ${profiles[match.clientId || ""]?.fullName || ""}`
+      .toLowerCase()
+      .includes(search.toLowerCase()),
+  );
+  return (
+    <div className="page-stack">
+      <div className="page-heading">
+        <div>
+          <h2>Applications monitoring</h2>
+          <p>
+            Application records are read-only here; employer selection remains
+            unchanged.
+          </p>
+        </div>
+        <SearchBox value={search} onChange={setSearch} />
+      </div>
+      <Panel title="Task applications">
+        <Table
+          headers={[
+            "Task",
+            "Tasker",
+            "Employer",
+            "Proposed bid",
+            "Status",
+            "Applied",
+          ]}
+        >
+          {filtered.map((match) => (
+            <tr key={match.id}>
+              <td>
+                <strong>{taskTitle(tasks[match.taskId || ""])}</strong>
+                <small>{match.taskId || "—"}</small>
+              </td>
+              <td>
+                {profiles[match.workerId || ""]?.fullName ||
+                  match.workerId ||
+                  "—"}
+              </td>
+              <td>
+                {profiles[match.clientId || ""]?.fullName ||
+                  match.clientId ||
+                  "—"}
+              </td>
+              <td>{match.proposedAmount || "—"}</td>
+              <td>
+                <Badge value={match.acceptanceStatus || "Unknown"} />
+              </td>
+              <td>{date(match.createdAt)}</td>
+            </tr>
+          ))}
+        </Table>
+        {!page.loading && !filtered.length ? (
+          <EmptyState title="No applications in this result" />
+        ) : null}
+        {page.error ? (
+          <ErrorState message={page.error} retry={page.refresh} />
+        ) : null}
+        <Pager {...page} />
+      </Panel>
+    </div>
+  );
 }
 
 function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
-  const [requests, setRequests] = useState<VerificationRequest[]>([]); const [payments, setPayments] = useState<Payment[]>([]); const [error, setError] = useState(""); const [loading, setLoading] = useState(true); const [modal, setModal] = useState<{ kind: "verification"; item: VerificationRequest; decision: "Verified" | "Rejected" | "Needs Resubmission" } | { kind: "payment"; item: Payment; decision: "Verified" | "Rejected" } | null>(null); const [document, setDocument] = useState<{ path: string; label: string } | null>(null);
-  const refreshPayments = useCallback(async () => { try { setPayments(await loadSubmittedPayments()); } catch (failure) { setError(errorText(failure)); } }, []);
-  useEffect(() => { let unsubscribe: () => void = () => {}; try { unsubscribe = subscribePendingVerifications((items) => { setRequests(items); setLoading(false); }, (failure) => { setError(errorText(failure)); setLoading(false); }); void refreshPayments().finally(() => setLoading(false)); } catch (failure) { setError(errorText(failure)); setLoading(false); } return unsubscribe; }, [refreshPayments]);
-  return <div className="page-stack"><div className="page-heading"><div><h2>Verification requests</h2><p>Open the submitted ID and medical certificate before deciding. Decisions update the user profile through a trusted Function.</p></div><button className="button secondary" onClick={() => void refreshPayments()}>Refresh payments</button></div>{error ? <ErrorState message={error} retry={() => void refreshPayments()} /> : null}<section className="dashboard-grid"><Panel title={`Identity review (${requests.length})`} description="Pending Tasker and Employer requests"><Table headers={["Account", "Uploaded requirements", "Submitted", "Decision"]}>{requests.map((item) => <tr key={item.id}><td>{item.userId}</td><td><strong>{item.validIdType || "Identity document"}</strong><div className="row-actions document-actions">{item.validIdPath ? <button className="text-button" onClick={() => setDocument({ path: item.validIdPath || "", label: "Valid ID" })}>View valid ID</button> : <span className="missing-file">Valid ID unavailable</span>}{item.medicalCertificatePath ? <button className="text-button" onClick={() => setDocument({ path: item.medicalCertificatePath || "", label: "Medical certificate" })}>View medical certificate</button> : <span className="missing-file">Medical certificate unavailable</span>}</div></td><td>{date(item.submittedAt)}</td><td><div className="row-actions"><button className="text-button success-text" onClick={() => setModal({ kind: "verification", item, decision: "Verified" })}>Verify user</button><button className="text-button" onClick={() => setModal({ kind: "verification", item, decision: "Needs Resubmission" })}>Request update</button><button className="text-button danger-text" onClick={() => setModal({ kind: "verification", item, decision: "Rejected" })}>Reject</button></div></td></tr>)}</Table>{loading ? <TableLoading /> : null}{!loading && !requests.length ? <EmptyState title="No pending verification requests" /> : null}</Panel><Panel title={`Payment review (${payments.length})`} description="Submitted GCash evidence only"><Table headers={["Task", "Amount", "Submitted", "Decision"]}>{payments.map((item) => <tr key={item.id}><td>{item.taskId || item.id}</td><td>{item.agreedAmount || "—"}</td><td>{date(item.updatedAt || item.createdAt)}</td><td><div className="row-actions"><button className="text-button success-text" onClick={() => setModal({ kind: "payment", item, decision: "Verified" })}>Verify</button><button className="text-button danger-text" onClick={() => setModal({ kind: "payment", item, decision: "Rejected" })}>Reject</button></div></td></tr>)}</Table>{loading ? <TableLoading /> : null}{!loading && !payments.length ? <EmptyState title="No submitted payment evidence" /> : null}</Panel></section>{modal ? <ReviewModal modal={modal} close={() => setModal(null)} refreshPayments={refreshPayments} notify={notify} /> : null}{document ? <VerificationDocumentModal document={document} close={() => setDocument(null)} /> : null}</div>;
+  const [requests, setRequests] = useState<VerificationRequest[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [modal, setModal] = useState<
+    | {
+        kind: "verification";
+        item: VerificationRequest;
+        decision: "Verified" | "Rejected" | "Needs Resubmission";
+      }
+    | { kind: "payment"; item: Payment; decision: "Verified" | "Rejected" }
+    | null
+  >(null);
+  const [document, setDocument] = useState<{
+    path: string;
+    label: string;
+  } | null>(null);
+  const refreshPayments = useCallback(async () => {
+    try {
+      setPayments(await loadSubmittedPayments());
+    } catch (failure) {
+      setError(errorText(failure));
+    }
+  }, []);
+  useEffect(() => {
+    let unsubscribe: () => void = () => {};
+    try {
+      unsubscribe = subscribePendingVerifications(
+        (items) => {
+          setRequests(items);
+          setLoading(false);
+        },
+        (failure) => {
+          setError(errorText(failure));
+          setLoading(false);
+        },
+      );
+      void refreshPayments().finally(() => setLoading(false));
+    } catch (failure) {
+      setError(errorText(failure));
+      setLoading(false);
+    }
+    return unsubscribe;
+  }, [refreshPayments]);
+  return (
+    <div className="page-stack">
+      <div className="page-heading">
+        <div>
+          <h2>Verification requests</h2>
+          <p>
+            Open the valid ID, medical certificate, and police clearance before
+            deciding. Decisions update the user profile through a trusted
+            Function.
+          </p>
+        </div>
+        <button
+          className="button secondary"
+          onClick={() => void refreshPayments()}
+        >
+          Refresh payments
+        </button>
+      </div>
+      {error ? (
+        <ErrorState message={error} retry={() => void refreshPayments()} />
+      ) : null}
+      <section className="dashboard-grid">
+        <Panel
+          title={`Identity review (${requests.length})`}
+          description="Pending Tasker and Employer requests"
+        >
+          <Table
+            headers={[
+              "Account",
+              "Uploaded requirements",
+              "Submitted",
+              "Decision",
+            ]}
+          >
+          {requests.map((item) => {
+            const requirementsComplete = Boolean(
+              item.validIdPath &&
+                item.medicalCertificatePath &&
+                item.policeClearancePath,
+            );
+            return <tr key={item.id}>
+                <td>{item.userId}</td>
+                <td>
+                  <strong>{item.validIdType || "Identity document"}</strong>
+                  <div className="row-actions document-actions">
+                    {item.validIdPath ? (
+                      <button
+                        className="text-button"
+                        onClick={() =>
+                          setDocument({
+                            path: item.validIdPath || "",
+                            label: "Valid ID",
+                          })
+                        }
+                      >
+                        View valid ID
+                      </button>
+                    ) : (
+                      <span className="missing-file">Valid ID unavailable</span>
+                    )}
+                    {item.medicalCertificatePath ? (
+                      <button
+                        className="text-button"
+                        onClick={() =>
+                          setDocument({
+                            path: item.medicalCertificatePath || "",
+                            label: "Medical certificate",
+                          })
+                        }
+                      >
+                        View medical certificate
+                      </button>
+                    ) : (
+                      <span className="missing-file">
+                        Medical certificate unavailable
+                      </span>
+                    )}
+                    {item.policeClearancePath ? (
+                      <button
+                        className="text-button"
+                        onClick={() =>
+                          setDocument({
+                            path: item.policeClearancePath || "",
+                            label: "Police clearance",
+                          })
+                        }
+                      >
+                        View police clearance
+                      </button>
+                    ) : (
+                      <span className="missing-file">
+                        Police clearance unavailable
+                      </span>
+                    )}
+                  </div>
+                </td>
+                <td>{date(item.submittedAt)}</td>
+                <td>
+                  <div className="row-actions">
+                    <button
+                      className="text-button success-text"
+                      disabled={!requirementsComplete}
+                      title={
+                        requirementsComplete
+                          ? undefined
+                          : "All three documents are required before approval."
+                      }
+                      onClick={() =>
+                        setModal({
+                          kind: "verification",
+                          item,
+                          decision: "Verified",
+                        })
+                      }
+                    >
+                      Verify user
+                    </button>
+                    <button
+                      className="text-button"
+                      onClick={() =>
+                        setModal({
+                          kind: "verification",
+                          item,
+                          decision: "Needs Resubmission",
+                        })
+                      }
+                    >
+                      Request update
+                    </button>
+                    <button
+                      className="text-button danger-text"
+                      onClick={() =>
+                        setModal({
+                          kind: "verification",
+                          item,
+                          decision: "Rejected",
+                        })
+                      }
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </td>
+              </tr>;
+          })}
+          </Table>
+          {loading ? <TableLoading /> : null}
+          {!loading && !requests.length ? (
+            <EmptyState title="No pending verification requests" />
+          ) : null}
+        </Panel>
+        <Panel
+          title={`Payment review (${payments.length})`}
+          description="Submitted GCash evidence only"
+        >
+          <Table headers={["Task", "Amount", "Submitted", "Decision"]}>
+            {payments.map((item) => (
+              <tr key={item.id}>
+                <td>{item.taskId || item.id}</td>
+                <td>{item.agreedAmount || "—"}</td>
+                <td>{date(item.updatedAt || item.createdAt)}</td>
+                <td>
+                  <div className="row-actions">
+                    <button
+                      className="text-button success-text"
+                      onClick={() =>
+                        setModal({
+                          kind: "payment",
+                          item,
+                          decision: "Verified",
+                        })
+                      }
+                    >
+                      Verify
+                    </button>
+                    <button
+                      className="text-button danger-text"
+                      onClick={() =>
+                        setModal({
+                          kind: "payment",
+                          item,
+                          decision: "Rejected",
+                        })
+                      }
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </Table>
+          {loading ? <TableLoading /> : null}
+          {!loading && !payments.length ? (
+            <EmptyState title="No submitted payment evidence" />
+          ) : null}
+        </Panel>
+      </section>
+      {modal ? (
+        <ReviewModal
+          modal={modal}
+          close={() => setModal(null)}
+          refreshPayments={refreshPayments}
+          notify={notify}
+        />
+      ) : null}
+      {document ? (
+        <VerificationDocumentModal
+          document={document}
+          close={() => setDocument(null)}
+        />
+      ) : null}
+    </div>
+  );
 }
 
-function FeedbackPage() { const page = usePaged<Rating>("ratings", "createdAt"); const [score, setScore] = useState("all"); const filtered = page.items.filter((rating) => score === "all" || String(rating.score) === score); return <div className="page-stack"><div className="page-heading"><div><h2>Reviews and feedback</h2><p>Live feedback records from employers and taskers.</p></div><select value={score} onChange={(event) => setScore(event.target.value)}><option value="all">All ratings</option>{[5, 4, 3, 2, 1].map((value) => <option key={value} value={value}>{value} stars</option>)}</select></div><Panel title="Feedback"><Table headers={["Rating", "Feedback", "Target", "Task", "Date"]}>{filtered.map((rating) => <tr key={rating.id}><td><span className="rating"><Star size={15} fill="currentColor" />{rating.score ?? "—"}</span></td><td>{rating.feedback || "No written feedback"}</td><td>{rating.targetUserId || "—"}</td><td>{rating.taskId || "—"}</td><td>{date(rating.createdAt)}</td></tr>)}</Table>{!page.loading && !filtered.length ? <EmptyState title="No feedback in this result" /> : null}{page.error ? <ErrorState message={page.error} retry={page.refresh} /> : null}<Pager {...page} /></Panel></div>; }
+function FeedbackPage() {
+  const page = usePaged<Rating>("ratings", "createdAt");
+  const [score, setScore] = useState("all");
+  const filtered = page.items.filter(
+    (rating) => score === "all" || String(rating.score) === score,
+  );
+  return (
+    <div className="page-stack">
+      <div className="page-heading">
+        <div>
+          <h2>Reviews and feedback</h2>
+          <p>Live feedback records from employers and taskers.</p>
+        </div>
+        <select
+          value={score}
+          onChange={(event) => setScore(event.target.value)}
+        >
+          <option value="all">All ratings</option>
+          {[5, 4, 3, 2, 1].map((value) => (
+            <option key={value} value={value}>
+              {value} stars
+            </option>
+          ))}
+        </select>
+      </div>
+      <Panel title="Feedback">
+        <Table headers={["Rating", "Feedback", "Target", "Task", "Date"]}>
+          {filtered.map((rating) => (
+            <tr key={rating.id}>
+              <td>
+                <span className="rating">
+                  <Star size={15} fill="currentColor" />
+                  {rating.score ?? "—"}
+                </span>
+              </td>
+              <td>{rating.feedback || "No written feedback"}</td>
+              <td>{rating.targetUserId || "—"}</td>
+              <td>{rating.taskId || "—"}</td>
+              <td>{date(rating.createdAt)}</td>
+            </tr>
+          ))}
+        </Table>
+        {!page.loading && !filtered.length ? (
+          <EmptyState title="No feedback in this result" />
+        ) : null}
+        {page.error ? (
+          <ErrorState message={page.error} retry={page.refresh} />
+        ) : null}
+        <Pager {...page} />
+      </Panel>
+    </div>
+  );
+}
 
-function AnalyticsPage() { return <Dashboard />; }
+function AnalyticsPage() {
+  return <Dashboard />;
+}
 
-function ReportsPage({ notify }: { notify: (notice: Notice) => void }) { const [data, setData] = useState<ViolationReport[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [modal, setModal] = useState<ViolationReport | null>(null); const load = useCallback(async () => { setLoading(true); try { const overview = await getSuperadminOverview(); setData(overview.reports); setError(""); } catch (failure) { setError(errorText(failure)); } finally { setLoading(false); } }, []); useEffect(() => { void load(); }, [load]); return <div className="page-stack"><div className="page-heading"><div><h2>Violation reports</h2><p>Superadmin-only report data from the trusted overview Function.</p></div><button className="button secondary" onClick={() => void load()} disabled={loading}>Refresh</button></div><Panel title="Reports"><Table headers={["Category", "Reason", "Target", "Status", "Created", "Action"]}>{data.map((report) => <tr key={report.id}><td><Badge value={report.category || "Other"} /></td><td>{report.reason || "—"}</td><td>{report.targetUserId || "—"}</td><td>{report.status || "—"}</td><td>{date(report.createdAt)}</td><td>{report.status === "Open" ? <button className="text-button danger-text" onClick={() => setModal(report)}>Restrict account</button> : "—"}</td></tr>)}</Table>{loading ? <TableLoading /> : null}{!loading && !data.length ? <EmptyState title="No violation reports" /> : null}{error ? <ErrorState message={error} retry={() => void load()} /> : null}</Panel>{modal ? <ReportActionModal report={modal} close={() => setModal(null)} notify={notify} refreshed={load} /> : null}</div>; }
-function AuditPage() { const page = usePaged<AuditLog>("auditLogs", "createdAt"); return <div className="page-stack"><div className="page-heading"><div><h2>Audit log</h2><p>Immutable staff action records.</p></div></div><Panel title="Recent actions"><Table headers={["Action", "Target", "Reason", "Actor", "Date"]}>{page.items.map((item) => <tr key={item.id}><td>{item.action || "—"}</td><td>{item.targetType ? `${item.targetType}: ${item.targetId || "—"}` : "—"}</td><td>{item.reason || "—"}</td><td>{item.actorId || "—"}</td><td>{date(item.createdAt)}</td></tr>)}</Table>{!page.loading && !page.items.length ? <EmptyState title="No audit records in this result" /> : null}{page.error ? <ErrorState message={page.error} retry={page.refresh} /> : null}<Pager {...page} /></Panel></div>; }
+function ReportsPage({ notify }: { notify: (notice: Notice) => void }) {
+  const [data, setData] = useState<ViolationReport[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [modal, setModal] = useState<ViolationReport | null>(null);
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const overview = await getSuperadminOverview();
+      setData(overview.reports);
+      setError("");
+    } catch (failure) {
+      setError(errorText(failure));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+  useEffect(() => {
+    void load();
+  }, [load]);
+  return (
+    <div className="page-stack">
+      <div className="page-heading">
+        <div>
+          <h2>Violation reports</h2>
+          <p>Superadmin-only report data from the trusted overview Function.</p>
+        </div>
+        <button
+          className="button secondary"
+          onClick={() => void load()}
+          disabled={loading}
+        >
+          Refresh
+        </button>
+      </div>
+      <Panel title="Reports">
+        <Table
+          headers={[
+            "Category",
+            "Reason",
+            "Target",
+            "Status",
+            "Created",
+            "Action",
+          ]}
+        >
+          {data.map((report) => (
+            <tr key={report.id}>
+              <td>
+                <Badge value={report.category || "Other"} />
+              </td>
+              <td>{report.reason || "—"}</td>
+              <td>{report.targetUserId || "—"}</td>
+              <td>{report.status || "—"}</td>
+              <td>{date(report.createdAt)}</td>
+              <td>
+                {report.status === "Open" ? (
+                  <button
+                    className="text-button danger-text"
+                    onClick={() => setModal(report)}
+                  >
+                    Restrict account
+                  </button>
+                ) : (
+                  "—"
+                )}
+              </td>
+            </tr>
+          ))}
+        </Table>
+        {loading ? <TableLoading /> : null}
+        {!loading && !data.length ? (
+          <EmptyState title="No violation reports" />
+        ) : null}
+        {error ? (
+          <ErrorState message={error} retry={() => void load()} />
+        ) : null}
+      </Panel>
+      {modal ? (
+        <ReportActionModal
+          report={modal}
+          close={() => setModal(null)}
+          notify={notify}
+          refreshed={load}
+        />
+      ) : null}
+    </div>
+  );
+}
+function AuditPage() {
+  const page = usePaged<AuditLog>("auditLogs", "createdAt");
+  return (
+    <div className="page-stack">
+      <div className="page-heading">
+        <div>
+          <h2>Audit log</h2>
+          <p>Immutable staff action records.</p>
+        </div>
+      </div>
+      <Panel title="Recent actions">
+        <Table headers={["Action", "Target", "Reason", "Actor", "Date"]}>
+          {page.items.map((item) => (
+            <tr key={item.id}>
+              <td>{item.action || "—"}</td>
+              <td>
+                {item.targetType
+                  ? `${item.targetType}: ${item.targetId || "—"}`
+                  : "—"}
+              </td>
+              <td>{item.reason || "—"}</td>
+              <td>{item.actorId || "—"}</td>
+              <td>{date(item.createdAt)}</td>
+            </tr>
+          ))}
+        </Table>
+        {!page.loading && !page.items.length ? (
+          <EmptyState title="No audit records in this result" />
+        ) : null}
+        {page.error ? (
+          <ErrorState message={page.error} retry={page.refresh} />
+        ) : null}
+        <Pager {...page} />
+      </Panel>
+    </div>
+  );
+}
 
-function UserActionModal({ modal, close, notify, refreshed }: { modal: { user: Profile; action: "suspend" | "active" | "name" }; close: () => void; notify: (notice: Notice) => void; refreshed: () => void }) { const [reason, setReason] = useState(""); const [name, setName] = useState(modal.user.fullName || ""); const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const title = modal.action === "suspend" ? "Restrict account" : modal.action === "active" ? "Reactivate account" : "Correct locked name"; async function submit(event: FormEvent) { event.preventDefault(); if (modal.action === "name" && !name.trim()) { setError("Enter the corrected full name."); return; } setBusy(true); setError(""); const auditNote = reason.trim() || "No additional note provided."; try { if (modal.action === "name") await correctName(modal.user.id, name, auditNote); else await changeAccountStatus(modal.user.id, modal.action === "active" ? "active" : "suspended", auditNote); notify({ tone: "success", message: `${title} completed.` }); refreshed(); close(); } catch (failure) { setError(errorText(failure)); } finally { setBusy(false); } } return <Modal title={title} close={close}><form onSubmit={submit}><p><strong>{modal.user.fullName || modal.user.id}</strong></p>{modal.action === "name" ? <label>Correct full name<input value={name} onChange={(event) => setName(event.target.value)} required /></label> : null}<label>Optional audit note<textarea value={reason} onChange={(event) => setReason(event.target.value)} /></label>{error ? <p className="inline-error">{error}</p> : null}<ModalActions busy={busy} close={close} confirm={modal.action === "suspend" ? "Restrict account" : modal.action === "active" ? "Reactivate account" : "Save correction"} danger={modal.action === "suspend"} /></form></Modal>; }
-function ReviewModal({ modal, close, refreshPayments, notify }: { modal: { kind: "verification"; item: VerificationRequest; decision: "Verified" | "Rejected" | "Needs Resubmission" } | { kind: "payment"; item: Payment; decision: "Verified" | "Rejected" }; close: () => void; refreshPayments: () => Promise<void>; notify: (notice: Notice) => void }) { const [reason, setReason] = useState(""); const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const needsReason = modal.decision !== "Verified"; async function submit(event: FormEvent) { event.preventDefault(); if (needsReason && !reason.trim()) { setError("A reason is required for this decision."); return; } setBusy(true); try { if (modal.kind === "verification") await reviewVerification(modal.item.userId, modal.decision, reason); else await reviewPayment(modal.item.taskId || modal.item.id, modal.decision, reason); notify({ tone: "success", message: `Review marked ${modal.decision}.` }); if (modal.kind === "payment") await refreshPayments(); close(); } catch (failure) { setError(errorText(failure)); } finally { setBusy(false); } } return <Modal title={`${modal.decision} ${modal.kind === "verification" ? "verification" : "payment"}`} close={close}><form onSubmit={submit}><p className="subtle">{modal.kind === "verification" ? modal.item.userId : modal.item.taskId || modal.item.id}</p><label>Review reason{needsReason ? "" : " (optional)"}<textarea value={reason} onChange={(event) => setReason(event.target.value)} required={needsReason} /></label>{error ? <p className="inline-error">{error}</p> : null}<ModalActions busy={busy} close={close} confirm={modal.decision} danger={modal.decision === "Rejected"} /></form></Modal>; }
-function VerificationDocumentModal({ document, close }: { document: { path: string; label: string }; close: () => void }) { const [url, setUrl] = useState(""); const [error, setError] = useState(""); useEffect(() => { let active = true; void getVerificationDocumentUrl(document.path).then((next) => { if (active) setUrl(next); }).catch((failure) => { if (active) setError(errorText(failure)); }); return () => { active = false; }; }, [document.path]); const isPdf = document.path.toLowerCase().endsWith(".pdf"); return <Modal title={document.label} close={close}>{error ? <ErrorState message={error} /> : null}{!url && !error ? <TableLoading /> : null}{url ? <div className="document-preview">{isPdf ? <iframe src={url} title={document.label} /> : <img src={url} alt={document.label} />}<a className="button secondary" href={url} target="_blank" rel="noreferrer">Open original</a></div> : null}</Modal>; }
-function ReportActionModal({ report, close, notify, refreshed }: { report: ViolationReport; close: () => void; notify: (notice: Notice) => void; refreshed: () => void }) { const [reason, setReason] = useState(""); const [busy, setBusy] = useState(false); const [error, setError] = useState(""); async function submit(event: FormEvent) { event.preventDefault(); if (!report.targetUserId) { setError("The report is missing its target account."); return; } setBusy(true); try { await changeAccountStatus(report.targetUserId, "suspended", reason.trim() || "Account restricted after violation report review.", report.id); notify({ tone: "success", message: "Account restricted and report actioned." }); await refreshed(); close(); } catch (failure) { setError(errorText(failure)); } finally { setBusy(false); } } return <Modal title="Restrict reported account" close={close}><form onSubmit={submit}><p className="subtle">This action is server-authorized and creates an audit record.</p><label>Optional audit note<textarea value={reason} onChange={(event) => setReason(event.target.value)} /></label>{error ? <p className="inline-error">{error}</p> : null}<ModalActions busy={busy} close={close} confirm="Restrict account" danger /></form></Modal>; }
+function UserActionModal({
+  modal,
+  close,
+  notify,
+  refreshed,
+}: {
+  modal: { user: Profile; action: "suspend" | "active" | "name" };
+  close: () => void;
+  notify: (notice: Notice) => void;
+  refreshed: () => void;
+}) {
+  const [reason, setReason] = useState("");
+  const [name, setName] = useState(modal.user.fullName || "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const title =
+    modal.action === "suspend"
+      ? "Restrict account"
+      : modal.action === "active"
+        ? "Reactivate account"
+        : "Correct locked name";
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (modal.action === "name" && !name.trim()) {
+      setError("Enter the corrected full name.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    const auditNote = reason.trim() || "No additional note provided.";
+    try {
+      if (modal.action === "name")
+        await correctName(modal.user.id, name, auditNote);
+      else
+        await changeAccountStatus(
+          modal.user.id,
+          modal.action === "active" ? "active" : "suspended",
+          auditNote,
+        );
+      notify({ tone: "success", message: `${title} completed.` });
+      refreshed();
+      close();
+    } catch (failure) {
+      setError(errorText(failure));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal title={title} close={close}>
+      <form onSubmit={submit}>
+        <p>
+          <strong>{modal.user.fullName || modal.user.id}</strong>
+        </p>
+        {modal.action === "name" ? (
+          <label>
+            Correct full name
+            <input
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              required
+            />
+          </label>
+        ) : null}
+        <label>
+          Optional audit note
+          <textarea
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+          />
+        </label>
+        {error ? <p className="inline-error">{error}</p> : null}
+        <ModalActions
+          busy={busy}
+          close={close}
+          confirm={
+            modal.action === "suspend"
+              ? "Restrict account"
+              : modal.action === "active"
+                ? "Reactivate account"
+                : "Save correction"
+          }
+          danger={modal.action === "suspend"}
+        />
+      </form>
+    </Modal>
+  );
+}
+function ReviewModal({
+  modal,
+  close,
+  refreshPayments,
+  notify,
+}: {
+  modal:
+    | {
+        kind: "verification";
+        item: VerificationRequest;
+        decision: "Verified" | "Rejected" | "Needs Resubmission";
+      }
+    | { kind: "payment"; item: Payment; decision: "Verified" | "Rejected" };
+  close: () => void;
+  refreshPayments: () => Promise<void>;
+  notify: (notice: Notice) => void;
+}) {
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const needsReason = modal.decision !== "Verified";
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (needsReason && !reason.trim()) {
+      setError("A reason is required for this decision.");
+      return;
+    }
+    setBusy(true);
+    try {
+      if (modal.kind === "verification")
+        await reviewVerification(modal.item.userId, modal.decision, reason);
+      else
+        await reviewPayment(
+          modal.item.taskId || modal.item.id,
+          modal.decision,
+          reason,
+        );
+      notify({ tone: "success", message: `Review marked ${modal.decision}.` });
+      if (modal.kind === "payment") await refreshPayments();
+      close();
+    } catch (failure) {
+      setError(errorText(failure));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal
+      title={`${modal.decision} ${modal.kind === "verification" ? "verification" : "payment"}`}
+      close={close}
+    >
+      <form onSubmit={submit}>
+        <p className="subtle">
+          {modal.kind === "verification"
+            ? modal.item.userId
+            : modal.item.taskId || modal.item.id}
+        </p>
+        <label>
+          Review reason{needsReason ? "" : " (optional)"}
+          <textarea
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            required={needsReason}
+          />
+        </label>
+        {error ? <p className="inline-error">{error}</p> : null}
+        <ModalActions
+          busy={busy}
+          close={close}
+          confirm={modal.decision}
+          danger={modal.decision === "Rejected"}
+        />
+      </form>
+    </Modal>
+  );
+}
+function VerificationDocumentModal({
+  document,
+  close,
+}: {
+  document: { path: string; label: string };
+  close: () => void;
+}) {
+  const [url, setUrl] = useState("");
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let active = true;
+    void getVerificationDocumentUrl(document.path)
+      .then((next) => {
+        if (active) setUrl(next);
+      })
+      .catch((failure) => {
+        if (active) setError(errorText(failure));
+      });
+    return () => {
+      active = false;
+    };
+  }, [document.path]);
+  const isPdf = document.path.toLowerCase().endsWith(".pdf");
+  return (
+    <Modal title={document.label} close={close}>
+      {error ? <ErrorState message={error} /> : null}
+      {!url && !error ? <TableLoading /> : null}
+      {url ? (
+        <div className="document-preview">
+          {isPdf ? (
+            <iframe src={url} title={document.label} />
+          ) : (
+            <img src={url} alt={document.label} />
+          )}
+          <a
+            className="button secondary"
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Open original
+          </a>
+        </div>
+      ) : null}
+    </Modal>
+  );
+}
+function ReportActionModal({
+  report,
+  close,
+  notify,
+  refreshed,
+}: {
+  report: ViolationReport;
+  close: () => void;
+  notify: (notice: Notice) => void;
+  refreshed: () => void;
+}) {
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!report.targetUserId) {
+      setError("The report is missing its target account.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await changeAccountStatus(
+        report.targetUserId,
+        "suspended",
+        reason.trim() || "Account restricted after violation report review.",
+        report.id,
+      );
+      notify({
+        tone: "success",
+        message: "Account restricted and report actioned.",
+      });
+      await refreshed();
+      close();
+    } catch (failure) {
+      setError(errorText(failure));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal title="Restrict reported account" close={close}>
+      <form onSubmit={submit}>
+        <p className="subtle">
+          This action is server-authorized and creates an audit record.
+        </p>
+        <label>
+          Optional audit note
+          <textarea
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+          />
+        </label>
+        {error ? <p className="inline-error">{error}</p> : null}
+        <ModalActions
+          busy={busy}
+          close={close}
+          confirm="Restrict account"
+          danger
+        />
+      </form>
+    </Modal>
+  );
+}
 
-function Modal({ title, close, children }: { title: string; close: () => void; children: ReactNode }) { return <div className="modal-backdrop" role="presentation"><section className="modal" role="dialog" aria-modal="true" aria-label={title}><header><h2>{title}</h2><button className="icon-button" onClick={close} aria-label="Close"><X size={19} /></button></header>{children}</section></div>; }
-function ModalActions({ busy, close, confirm, danger = false }: { busy: boolean; close: () => void; confirm: string; danger?: boolean }) { return <div className="modal-actions"><button type="button" className="button secondary" onClick={close}>Cancel</button><button className={`button ${danger ? "danger" : "primary"}`} disabled={busy}>{busy ? <><LoaderCircle className="spin" size={16} /> Saving</> : confirm}</button></div>; }
-function Panel({ title, description, children }: { title: string; description?: string; children: ReactNode }) { return <section className="panel"><div className="panel-head"><div><h3>{title}</h3>{description ? <p>{description}</p> : null}</div></div>{children}</section>; }
-function Metric({ label, value, icon }: { label: string; value: number; icon: ReactNode }) { return <article className="metric"><span className="metric-icon">{icon}</span><p>{label}</p><strong>{value.toLocaleString()}</strong></article>; }
-function Table({ headers, children }: { headers: string[]; children: ReactNode }) { return <div className="table-wrap"><table><thead><tr>{headers.map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{children}</tbody></table></div>; }
-function Pager({ loading, hasMore, next, previous, canGoBack }: { loading: boolean; hasMore: boolean; next: () => void; previous: () => void; canGoBack: boolean }) { return <div className="pager"><span>{loading ? "Loading…" : ""}</span><div><button className="icon-button" disabled={!canGoBack || loading} onClick={previous} aria-label="Previous page"><ChevronLeft size={18} /></button><button className="icon-button" disabled={!hasMore || loading} onClick={next} aria-label="Next page"><ChevronRight size={18} /></button></div></div>; }
-function SearchBox({ value, onChange }: { value: string; onChange: (value: string) => void }) { return <label className="search"><Search size={17} /><input value={value} onChange={(event) => onChange(event.target.value)} placeholder="Search current page" aria-label="Search current page" /></label>; }
-function Badge({ value }: { value: string }) { return <span className="badge">{value}</span>; }
-function EmptyState({ title }: { title: string }) { return <div className="empty"><Bell size={22} /><p>{title}</p></div>; }
-function ErrorState({ message, retry }: { message: string; retry?: () => void }) { return <div className="error-state"><ShieldAlert size={20} /><div><strong>Data unavailable</strong><p>{message}</p></div>{retry ? <button className="button secondary" onClick={retry}>Try again</button> : null}</div>; }
-function TableLoading() { return <div className="table-loading"><LoaderCircle className="spin" size={20} /> Loading live data…</div>; }
-function SkeletonCards() { return <section className="metric-grid">{[1, 2, 3, 4].map((key) => <div className="skeleton metric" key={key} />)}</section>; }
-function NoticeBanner({ notice, onClose }: { notice: Exclude<Notice, null>; onClose: () => void }) { return <div className={`notice ${notice.tone}`}><span>{notice.tone === "success" ? <CheckCircle2 size={18} /> : <ShieldAlert size={18} />}</span><p>{notice.message}</p><button onClick={onClose} aria-label="Dismiss"><X size={16} /></button></div>; }
+function Modal({
+  title,
+  close,
+  children,
+}: {
+  title: string;
+  close: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <section
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+      >
+        <header>
+          <h2>{title}</h2>
+          <button className="icon-button" onClick={close} aria-label="Close">
+            <X size={19} />
+          </button>
+        </header>
+        {children}
+      </section>
+    </div>
+  );
+}
+function ModalActions({
+  busy,
+  close,
+  confirm,
+  danger = false,
+}: {
+  busy: boolean;
+  close: () => void;
+  confirm: string;
+  danger?: boolean;
+}) {
+  return (
+    <div className="modal-actions">
+      <button type="button" className="button secondary" onClick={close}>
+        Cancel
+      </button>
+      <button
+        className={`button ${danger ? "danger" : "primary"}`}
+        disabled={busy}
+      >
+        {busy ? (
+          <>
+            <LoaderCircle className="spin" size={16} /> Saving
+          </>
+        ) : (
+          confirm
+        )}
+      </button>
+    </div>
+  );
+}
+function Panel({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <div>
+          <h3>{title}</h3>
+          {description ? <p>{description}</p> : null}
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
+function Metric({
+  label,
+  value,
+  icon,
+}: {
+  label: string;
+  value: number;
+  icon: ReactNode;
+}) {
+  return (
+    <article className="metric">
+      <span className="metric-icon">{icon}</span>
+      <p>{label}</p>
+      <strong>{value.toLocaleString()}</strong>
+    </article>
+  );
+}
+function Table({
+  headers,
+  children,
+}: {
+  headers: string[];
+  children: ReactNode;
+}) {
+  return (
+    <div className="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            {headers.map((header) => (
+              <th key={header}>{header}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>{children}</tbody>
+      </table>
+    </div>
+  );
+}
+function Pager({
+  loading,
+  hasMore,
+  next,
+  previous,
+  canGoBack,
+}: {
+  loading: boolean;
+  hasMore: boolean;
+  next: () => void;
+  previous: () => void;
+  canGoBack: boolean;
+}) {
+  return (
+    <div className="pager">
+      <span>{loading ? "Loading…" : ""}</span>
+      <div>
+        <button
+          className="icon-button"
+          disabled={!canGoBack || loading}
+          onClick={previous}
+          aria-label="Previous page"
+        >
+          <ChevronLeft size={18} />
+        </button>
+        <button
+          className="icon-button"
+          disabled={!hasMore || loading}
+          onClick={next}
+          aria-label="Next page"
+        >
+          <ChevronRight size={18} />
+        </button>
+      </div>
+    </div>
+  );
+}
+function SearchBox({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="search">
+      <Search size={17} />
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="Search current page"
+        aria-label="Search current page"
+      />
+    </label>
+  );
+}
+function Badge({ value }: { value: string }) {
+  return <span className="badge">{value}</span>;
+}
+function EmptyState({ title }: { title: string }) {
+  return (
+    <div className="empty">
+      <Bell size={22} />
+      <p>{title}</p>
+    </div>
+  );
+}
+function ErrorState({
+  message,
+  retry,
+}: {
+  message: string;
+  retry?: () => void;
+}) {
+  return (
+    <div className="error-state">
+      <ShieldAlert size={20} />
+      <div>
+        <strong>Data unavailable</strong>
+        <p>{message}</p>
+      </div>
+      {retry ? (
+        <button className="button secondary" onClick={retry}>
+          Try again
+        </button>
+      ) : null}
+    </div>
+  );
+}
+function TableLoading() {
+  return (
+    <div className="table-loading">
+      <LoaderCircle className="spin" size={20} /> Loading live data…
+    </div>
+  );
+}
+function SkeletonCards() {
+  return (
+    <section className="metric-grid">
+      {[1, 2, 3, 4].map((key) => (
+        <div className="skeleton metric" key={key} />
+      ))}
+    </section>
+  );
+}
+function NoticeBanner({
+  notice,
+  onClose,
+}: {
+  notice: Exclude<Notice, null>;
+  onClose: () => void;
+}) {
+  return (
+    <div className={`notice ${notice.tone}`}>
+      <span>
+        {notice.tone === "success" ? (
+          <CheckCircle2 size={18} />
+        ) : (
+          <ShieldAlert size={18} />
+        )}
+      </span>
+      <p>{notice.message}</p>
+      <button onClick={onClose} aria-label="Dismiss">
+        <X size={16} />
+      </button>
+    </div>
+  );
+}
 
-createRoot(document.getElementById("root")!).render(<BrowserRouter><App /></BrowserRouter>);
+createRoot(document.getElementById("root")!).render(
+  <BrowserRouter>
+    <App />
+  </BrowserRouter>,
+);

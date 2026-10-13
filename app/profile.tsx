@@ -63,6 +63,7 @@ export default function ProfileScreen() {
   const [validIdType, setValidIdType] = useState(currentUser?.validIdType ?? "");
   const [validIdUrl, setValidIdUrl] = useState(currentUser?.validIdUrl ?? "");
   const [medicalCertificateUrl, setMedicalCertificateUrl] = useState(currentUser?.medicalCertificateUrl ?? "");
+  const [policeClearanceUrl, setPoliceClearanceUrl] = useState(currentUser?.policeClearanceUrl ?? "");
   const [documentsChanged, setDocumentsChanged] = useState(false);
   const [uploadingField, setUploadingField] = useState<string>();
   const [uploadMessage, setUploadMessage] = useState("");
@@ -132,7 +133,8 @@ export default function ProfileScreen() {
           role: currentUser.role === "client" ? "client" : "worker",
           validIdType,
           validIdPath: validIdUrl,
-          medicalCertificatePath: medicalCertificateUrl
+          medicalCertificatePath: medicalCertificateUrl,
+          policeClearancePath: policeClearanceUrl
         });
         setDocumentsChanged(false);
         setUploadMessage("Verification documents submitted for administrator review.");
@@ -159,7 +161,7 @@ export default function ProfileScreen() {
     }
   }
 
-  async function uploadVerificationDocument(kind: "valid-id" | "medical-certificate") {
+  async function uploadVerificationDocument(kind: "valid-id" | "medical-certificate" | "police-clearance") {
     if (!currentUser) return;
     setUploadingField(kind);
     setUploadMessage("");
@@ -167,7 +169,8 @@ export default function ProfileScreen() {
       const uploaded = await pickAndUploadPrivateDocument(currentUser.id, kind);
       if (uploaded) {
         if (kind === "valid-id") setValidIdUrl(uploaded.path);
-        else setMedicalCertificateUrl(uploaded.path);
+        else if (kind === "medical-certificate") setMedicalCertificateUrl(uploaded.path);
+        else setPoliceClearanceUrl(uploaded.path);
         setDocumentsChanged(true);
         setUploadMessage(`${uploaded.name} uploaded privately. Save changes to submit it for review.`);
       }
@@ -330,25 +333,34 @@ export default function ProfileScreen() {
                     placeholder="Tap to upload profile photo"
                     onSelect={uploadProfilePhoto}
                   />
-                  <Field label="Valid ID Type" value={validIdType} onChangeText={(value) => {
+                  <Field editable={!fullNameLocked} label="Valid ID Type" value={validIdType} onChangeText={(value) => {
                     setValidIdType(value);
                     setDocumentsChanged(true);
                   }} placeholder="e.g. National ID, Driver's License" />
                   <UploadField
-                    disabled={uploadingField === "valid-id"}
+                    disabled={fullNameLocked || uploadingField === "valid-id"}
                     label="Valid ID"
                     value={validIdUrl}
                     placeholder="Tap to upload valid ID"
                     onSelect={() => uploadVerificationDocument("valid-id")}
                   />
                   <UploadField
-                    disabled={uploadingField === "medical-certificate"}
-                    label={currentUser.role === "worker" ? "Medical Certificate / Clearance" : "Barangay or Police Clearance"}
+                    disabled={fullNameLocked || uploadingField === "medical-certificate"}
+                    label="Medical Certificate"
                     value={medicalCertificateUrl}
-                    placeholder="Tap to upload supporting clearance"
+                    placeholder="Tap to upload medical certificate"
                     onSelect={() => uploadVerificationDocument("medical-certificate")}
                   />
-                  <Text style={styles.helperText}>Documents are private and available only to you and authorized administrators.</Text>
+                  <UploadField
+                    disabled={fullNameLocked || uploadingField === "police-clearance"}
+                    label="Police Clearance"
+                    value={policeClearanceUrl}
+                    placeholder="Tap to upload police clearance"
+                    onSelect={() => uploadVerificationDocument("police-clearance")}
+                  />
+                  <Text style={styles.helperText}>{fullNameLocked
+                    ? "Your approved identity details are locked. Contact support if a correction is needed."
+                    : "Submit a valid ID, medical certificate, and police clearance. Documents are private and available only to you and authorized administrators."}</Text>
                 </>
               )}
               {uploadMessage ? <Text style={styles.locationMessage}>{uploadMessage}</Text> : null}

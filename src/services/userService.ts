@@ -244,6 +244,7 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
     sanitizedUpdates.validIdType ||
     sanitizedUpdates.validIdUrl ||
     sanitizedUpdates.medicalCertificateUrl ||
+    sanitizedUpdates.policeClearanceUrl ||
     sanitizedUpdates.verificationStatus ||
     sanitizedUpdates.currentLatitude !== undefined ||
     sanitizedUpdates.currentLongitude !== undefined ||
@@ -267,6 +268,7 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
           validIdType: sanitizedUpdates.validIdType,
           validIdUrl: sanitizedUpdates.validIdUrl,
           medicalCertificateUrl: sanitizedUpdates.medicalCertificateUrl,
+          policeClearanceUrl: sanitizedUpdates.policeClearanceUrl,
           verificationStatus: sanitizedUpdates.verificationStatus,
           currentLatitude: sanitizedUpdates.currentLatitude,
           currentLongitude: sanitizedUpdates.currentLongitude,

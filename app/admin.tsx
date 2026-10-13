@@ -172,6 +172,7 @@ export default function AdminScreen() {
               <View style={styles.row}>
                 <Action label="View ID" tone="neutral" disabled={Boolean(busyKey)} onPress={() => openPrivateFile(item.validIdPath)} />
                 <Action label="View medical certificate" tone="neutral" disabled={Boolean(busyKey)} onPress={() => openPrivateFile(item.medicalCertificatePath)} />
+                {item.policeClearancePath ? <Action label="View police clearance" tone="neutral" disabled={Boolean(busyKey)} onPress={() => openPrivateFile(item.policeClearancePath)} /> : null}
               </View>
               <View style={styles.row}>
                 <Action label="Approve" tone="positive" disabled={Boolean(busyKey)} onPress={() => run(`verify:${item.id}`, () => reviewWorkerVerification(item.userId, "Verified", reason))} />

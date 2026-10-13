@@ -212,6 +212,7 @@ service cloud.firestore {
           'validIdType',
           'validIdUrl',
           'medicalCertificateUrl',
+          'policeClearanceUrl',
           'verificationStatus',
           'identityStatus',
           'availabilityStatus',
@@ -242,30 +243,38 @@ service cloud.firestore {
         )
         && (
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['verificationStatus'])
-          || request.resource.data.verificationStatus == 'Pending Verification'
+          || (
+            !identityLocked(resource.data)
+            && request.resource.data.verificationStatus == 'Pending Verification'
+          )
         )
         && (
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['identityStatus'])
           || (
             !identityLocked(resource.data)
-            && request.resource.data.role == 'worker'
+            && request.resource.data.role in ['worker', 'client']
             && request.resource.data.identityStatus == 'Pending Approval'
             && verificationAfter(request.auth.uid).status == 'Pending Verification'
           )
         )
         && (
           !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-            'validIdType', 'validIdUrl', 'medicalCertificateUrl'
+            'validIdType', 'validIdUrl', 'medicalCertificateUrl', 'policeClearanceUrl'
           ])
           || (
-            request.resource.data.role == 'worker'
+            !identityLocked(resource.data)
+            && request.resource.data.role in ['worker', 'client']
             && request.resource.data.verificationStatus == 'Pending Verification'
             && request.resource.data.validIdUrl.matches('verification/' + request.auth.uid + '/.*')
             && request.resource.data.medicalCertificateUrl.matches('verification/' + request.auth.uid + '/.*')
+            && (!('policeClearanceUrl' in request.resource.data)
+              || request.resource.data.policeClearanceUrl.matches('verification/' + request.auth.uid + '/.*'))
             && verificationAfter(request.auth.uid).status == 'Pending Verification'
             && verificationAfter(request.auth.uid).validIdType == request.resource.data.validIdType
             && verificationAfter(request.auth.uid).validIdPath == request.resource.data.validIdUrl
             && verificationAfter(request.auth.uid).medicalCertificatePath == request.resource.data.medicalCertificateUrl
+            && (!('policeClearanceUrl' in request.resource.data)
+              || verificationAfter(request.auth.uid).policeClearancePath == request.resource.data.policeClearanceUrl)
           )
         )
         && (
@@ -453,6 +462,7 @@ service cloud.firestore {
           'validIdType',
           'validIdUrl',
           'medicalCertificateUrl',
+          'policeClearanceUrl',
           'verificationStatus',
           'currentLatitude',
           'currentLongitude',
@@ -471,16 +481,21 @@ service cloud.firestore {
         )
         && (
           !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-            'validIdType', 'validIdUrl', 'medicalCertificateUrl', 'verificationStatus'
+            'validIdType', 'validIdUrl', 'medicalCertificateUrl', 'policeClearanceUrl', 'verificationStatus'
           ])
           || (
-            request.resource.data.verificationStatus == 'Pending Verification'
+            !identityLocked(get(/databases/$(database)/documents/users/$(userId)).data)
+            && request.resource.data.verificationStatus == 'Pending Verification'
             && request.resource.data.validIdUrl.matches('verification/' + userId + '/.*')
             && request.resource.data.medicalCertificateUrl.matches('verification/' + userId + '/.*')
+            && (!('policeClearanceUrl' in request.resource.data)
+              || request.resource.data.policeClearanceUrl.matches('verification/' + userId + '/.*'))
             && verificationAfter(userId).status == 'Pending Verification'
             && verificationAfter(userId).validIdType == request.resource.data.validIdType
             && verificationAfter(userId).validIdPath == request.resource.data.validIdUrl
             && verificationAfter(userId).medicalCertificatePath == request.resource.data.medicalCertificateUrl
+            && (!('policeClearanceUrl' in request.resource.data)
+              || verificationAfter(userId).policeClearancePath == request.resource.data.policeClearanceUrl)
           )
         )
         && (
@@ -1140,7 +1155,7 @@ service cloud.firestore {
       allow create, update: if (hasRole('worker') || hasRole('client'))
         && request.auth.uid == userId
         && request.resource.data.keys().hasOnly([
-          'userId', 'validIdType', 'validIdPath', 'medicalCertificatePath',
+          'userId', 'validIdType', 'validIdPath', 'medicalCertificatePath', 'policeClearancePath',
           'status', 'submittedAt', 'updatedAt'
         ])
         && request.resource.data.userId == userId
@@ -1148,6 +1163,8 @@ service cloud.firestore {
         && request.resource.data.validIdType.size() > 0
         && request.resource.data.validIdPath.matches('verification/' + userId + '/.*')
         && request.resource.data.medicalCertificatePath.matches('verification/' + userId + '/.*')
+        && (!('policeClearancePath' in request.resource.data)
+          || request.resource.data.policeClearancePath.matches('verification/' + userId + '/.*'))
         && request.resource.data.status == 'Pending Verification';
       allow delete: if false;
     }

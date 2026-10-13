@@ -51,6 +51,7 @@ export type UserProfile = {
   validIdType?: string;
   validIdUrl?: string;
   medicalCertificateUrl?: string;
+  policeClearanceUrl?: string;
   verificationStatus?: VerificationStatus;
   identityStatus?: IdentityStatus;
   identityApprovedAt?: string;
@@ -234,6 +235,7 @@ export type VerificationRequest = {
   validIdType: string;
   validIdPath: string;
   medicalCertificatePath: string;
+  policeClearancePath: string;
   status: VerificationStatus;
   submittedAt: string;
   updatedAt: string;
