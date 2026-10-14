@@ -69,6 +69,7 @@ type EventDraftInput = {
 type ServiceSelectionInput = {
   attendeeCount: number
   budgetPerHead: number
+  cateringMenuItemIds?: string[]
   cateringOption?: CateringPricingOption
   estimatedTotal: number
   mealType?: string
@@ -149,11 +150,13 @@ export type ClientEventDraftSummary = {
 let activePlanningEventId = ''
 
 export const calculateServiceQuote = async ({
+  menuItemIds,
   optionId,
   packageId,
   quantity,
   serviceId,
 }: {
+  menuItemIds?: string[]
   optionId?: string
   packageId?: string
   quantity?: number
@@ -165,13 +168,20 @@ export const calculateServiceQuote = async ({
     if (!client || !event || !isUuid(serviceId)) {
       return { ok: false, message: 'Choose a published service to calculate its event price.' }
     }
-    const { data, error } = await client.rpc('calculate_event_service_quote', {
+    const { data, error } = await client.rpc(
+      menuItemIds !== undefined ? 'calculate_catering_menu_quote' : 'calculate_event_service_quote',
+      menuItemIds !== undefined ? {
+        target_event_id: event.eventId,
+        target_menu_item_ids: menuItemIds,
+        target_service_id: serviceId,
+      } : {
       target_event_id: event.eventId,
       target_option_id: optionId ?? null,
       target_package_id: packageId && isUuid(packageId) ? packageId : null,
       target_quantity: quantity ?? null,
       target_service_id: serviceId,
-    })
+      }
+    )
     if (error) return { ok: false, message: error.message }
     const quote = data && typeof data === 'object' ? data as Record<string, unknown> : {}
     return {
@@ -414,7 +424,7 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
     client
       .from('event_service_selections')
       .select(
-        'id, service_id, service_name, category_name, estimated_amount, attendee_count, catering_option_name, venue_option_name, venue_booked_hours, status, updated_at, selected_provider_snapshot, services(cover_image_url)'
+        'id, service_id, service_name, category_name, estimated_amount, attendee_count, catering_option_name, catering_option_snapshot, venue_option_name, venue_booked_hours, status, updated_at, selected_provider_snapshot, services(cover_image_url)'
       )
       .eq('event_id', event.id)
       .not('status', 'in', '(declined,cancelled)')
@@ -633,6 +643,16 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
         ? selection.services[0]
         : selection.services
       const name = selection.service_name || 'Selected service'
+      const cateringSnapshot = selection.catering_option_snapshot
+        && typeof selection.catering_option_snapshot === 'object'
+        ? selection.catering_option_snapshot as Record<string, unknown>
+        : {}
+      const selectedFoodNames = Array.isArray(cateringSnapshot.selectedItems)
+        ? cateringSnapshot.selectedItems.flatMap((item) => item && typeof item === 'object'
+          && typeof (item as Record<string, unknown>).name === 'string'
+          ? [(item as Record<string, unknown>).name as string]
+          : [])
+        : []
 
       return {
         category: selection.category_name || 'SERVICE',
@@ -641,7 +661,7 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
         detail: selection.venue_option_name
           ? `${selection.venue_option_name} · ${selection.venue_booked_hours ?? 0} hours`
           : selection.catering_option_name
-          ? `${selection.catering_option_name} · ${selection.attendee_count ?? 0} Guests`
+          ? `${selection.catering_option_name}${selectedFoodNames.length ? `: ${selectedFoodNames.slice(0, 2).join(', ')}${selectedFoodNames.length > 2 ? '…' : ''}` : ''} · ${selection.attendee_count ?? 0} Guests`
           : selection.attendee_count
             ? `${selection.attendee_count} Guests`
           : selection.category_name || 'Service',
@@ -1327,34 +1347,13 @@ export const savePlanningPayment = async (
     if (eventStatusError) return { ok: false, message: eventStatusError.message }
 
     for (const booking of bookingRows) {
-      if (!booking.providerUserId) continue
+      // Conversations are server-managed from the booking relationship. The
+      // booking trigger also covers older clients if this RPC is unavailable.
+      const { error: conversationError } = await client.rpc('open_booking_conversation', {
+        target_booking_id: booking.id,
+      })
 
-      const { data: existingConversation } = await client
-        .from('conversations')
-        .select('id')
-        .eq('booking_id', booking.id)
-        .maybeSingle()
-      const conversationResult = existingConversation?.id
-        ? { data: existingConversation }
-        : await client
-            .from('conversations')
-            .insert({
-              booking_id: booking.id,
-              event_id: event.eventId,
-              title: `${eventRow.name}: ${booking.serviceName}`,
-            })
-            .select('id')
-            .single()
-
-      if (conversationResult.data?.id) {
-        await client.from('conversation_participants').upsert(
-          [
-            { conversation_id: conversationResult.data.id, user_id: event.userId },
-            { conversation_id: conversationResult.data.id, user_id: booking.providerUserId },
-          ],
-          { onConflict: 'conversation_id,user_id' }
-        )
-      }
+      if (conversationError) return { ok: false, message: conversationError.message }
 
       if (booking.isNew) {
         await client.from('notifications').insert({
@@ -1399,7 +1398,7 @@ export const assignCoordinatorToEvent = async (
 
 export const chooseCoordinatorPackage = async (
   packageId: string,
-  cateringOptionChoices: Record<string, string> = {},
+  cateringOptionChoices: Record<string, string | string[]> = {},
   replaceConflicts = false
 ): Promise<PlanningResult> => {
   try {
@@ -1500,16 +1499,26 @@ export const saveServiceSelection = async (
     const serviceId = value.service.bookingServiceId ?? value.service.id
     const packageId = value.service.bookingPackageId ?? value.service.packageId
     if (isUuid(serviceId)) {
-      const { data, error } = await client.rpc('save_my_event_service_selection', {
-        replace_existing: true,
-        target_event_id: event.eventId,
-        target_meal_type: value.mealType ?? null,
-        target_notes: value.notes,
-        target_option_id: value.venueOption?.id ?? value.cateringOption?.id ?? null,
-        target_package_id: isUuid(packageId) ? packageId : null,
-        target_quantity: value.venueBookedHours ?? null,
-        target_service_id: serviceId,
-      })
+      const selectionResult = value.cateringMenuItemIds !== undefined
+        ? await client.rpc('save_my_catering_menu_service_selection', {
+          replace_existing: true,
+          target_event_id: event.eventId,
+          target_meal_type: value.mealType ?? null,
+          target_menu_item_ids: value.cateringMenuItemIds,
+          target_notes: value.notes,
+          target_service_id: serviceId,
+        })
+        : await client.rpc('save_my_event_service_selection', {
+          replace_existing: true,
+          target_event_id: event.eventId,
+          target_meal_type: value.mealType ?? null,
+          target_notes: value.notes,
+          target_option_id: value.venueOption?.id ?? value.cateringOption?.id ?? null,
+          target_package_id: isUuid(packageId) ? packageId : null,
+          target_quantity: value.venueBookedHours ?? null,
+          target_service_id: serviceId,
+        })
+      const { data, error } = selectionResult
       if (error) {
         return {
           ok: false,

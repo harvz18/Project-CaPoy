@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native'
 import { MerchantBottomNavigation } from '../components/MerchantBottomNavigation'
+import type { CateringFoodTasting } from '../lib/merchant'
 import type { MerchantHomeTab } from './16-MerchantHome'
 
 export type BookingRequestStatus = 'new' | 'confirmed' | 'completed' | 'cancelled'
@@ -26,10 +27,13 @@ export interface MerchantBookedService {
   amount: number
   attendeeCount?: number
   budgetPerHead?: number
+  cateringMenuItems?: string[]
   cateringOptionName?: string
   clientNotes?: string
   completionPaymentStatus?: 'awaiting_external_payment' | 'partially_confirmed' | 'fully_confirmed'
   confirmedExternalPaymentAmount?: number
+  foodTasting?: CateringFoodTasting
+  foodTastingEnabled?: boolean
   dietaryNotes?: string
   downpaymentAmount?: number
   id: string
@@ -58,11 +62,14 @@ export interface MerchantBookingRequest {
   amount: number
   attendeeCount?: number
   budgetPerHead?: number
+  cateringMenuItems?: string[]
   cateringOptionName?: string
   clientEmail?: string
   clientNotes?: string
   completionPaymentStatus?: 'awaiting_external_payment' | 'partially_confirmed' | 'fully_confirmed'
   confirmedExternalPaymentAmount?: number
+  foodTasting?: CateringFoodTasting
+  foodTastingEnabled?: boolean
   dietaryNotes?: string
   downpaymentAmount?: number
   clientName: string

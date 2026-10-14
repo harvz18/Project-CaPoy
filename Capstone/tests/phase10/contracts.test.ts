@@ -29,6 +29,10 @@ const migrations = [
   'database/67_budget_allocation_upsert_correction.sql',
   'database/68_conditional_event_coordinator_step.sql',
   'database/69_provider_external_payment_confirmation.sql',
+  'database/70_booking_restricted_messaging.sql',
+  'database/71_catering_custom_menu_pricing.sql',
+  'database/72_catering_food_tasting_scheduling.sql',
+  'database/73_catering_food_tasting_timezone_guard.sql',
 ]
 
 test('Revision 2 migrations remain ordered, transactional, additive, and non-destructive', () => {
@@ -97,6 +101,96 @@ test('catering prices remain guest-based and validate provider option ranges', (
     'maximumGuests',
     'pricePerHead',
   ], 'client catering UI')
+})
+
+test('item-priced catering menus use provider prices, validate selections, and snapshot bookings', () => {
+  const migration = read('database/71_catering_custom_menu_pricing.sql')
+  const providerBuilder = read('src/components/CategorySpecificServiceDetails.tsx')
+  const details = read('src/screens/08-ServiceDetails.tsx')
+  const planning = read('src/lib/planning.ts')
+  const providerRequest = read('src/screens/19.1-BookingRequest.tsx')
+
+  mustContain(migration, [
+    "'customMenuSections'",
+    "'pricePerHead'",
+    'create or replace function public.calculate_catering_menu_quote(',
+    'create or replace function public.save_my_catering_menu_service_selection(',
+    'target_menu_item_ids jsonb',
+    'A food item can only be selected once.',
+    'catering_option_snapshot',
+    'list_phase11_package_catering_menus',
+  ], 'custom catering migration')
+  mustContain(providerBuilder, [
+    'CustomCateringMenuBuilder',
+    'Price per head',
+    'Required inclusion',
+    'Available to clients',
+  ], 'provider item-menu builder')
+  mustContain(details, [
+    'selectedCateringMenuItemIds',
+    'calculateCateringCustomMenuPrice',
+    'Selected menu total',
+    'menuItemIds:',
+  ], 'client item-menu selection')
+  mustContain(planning, [
+    "'calculate_catering_menu_quote'",
+    "client.rpc('save_my_catering_menu_service_selection'",
+    'cateringMenuItemIds',
+  ], 'authoritative item-menu planning integration')
+  mustContain(providerRequest, [
+    'SELECTED FOOD ITEMS',
+    'cateringMenuItems',
+  ], 'provider selected-food details')
+})
+
+test('food tastings stay optional, booking-bound, availability-checked, and historically preserved', () => {
+  const migration = read('database/72_catering_food_tasting_scheduling.sql')
+  const providerBuilder = read('src/components/CategorySpecificServiceDetails.tsx')
+  const clientBooking = read('src/screens/11.1-BookingDetails.tsx')
+  const providerBooking = read('src/screens/19.1-BookingRequest.tsx')
+  const merchant = read('src/lib/merchant.ts')
+
+  mustContain(migration, [
+    'create table if not exists public.catering_food_tastings',
+    "status in ('requested', 'confirmed', 'reschedule_proposed', 'rejected', 'cancelled', 'completed')",
+    'catering_food_tastings_one_active_booking_idx',
+    'create or replace function public.list_my_catering_food_tasting_slots(',
+    'create or replace function public.request_my_catering_food_tasting(',
+    'create or replace function public.respond_to_catering_food_tasting(',
+    'create or replace function public.respond_to_my_catering_food_tasting_proposal(',
+    'cancel_catering_food_tastings_after_booking_change',
+    'provider_availability',
+    'provider_operating_hours',
+    'Food tastings cannot be scheduled after the event date.',
+    'Booking participants can view catering food tastings',
+  ], 'food tasting migration')
+  mustContain(read('database/73_catering_food_tasting_timezone_guard.sql'), [
+    'normalize_catering_food_tasting_timezone',
+    "'Asia/Manila'",
+  ], 'food tasting timezone guard')
+  mustContain(providerBuilder, [
+    'CateringTastingSettingsBuilder',
+    'Offer optional food tastings',
+    'Available tasting start times',
+  ], 'provider food-tasting configuration')
+  mustContain(clientBooking, [
+    'Schedule Food Tasting',
+    'onLoadFoodTastingSlots',
+    'onRequestFoodTasting',
+    'onMessageProviderForBooking',
+    'reschedule_proposed',
+  ], 'client food-tasting booking details')
+  mustContain(providerBooking, [
+    'Confirm tasting',
+    'Propose another',
+    'onFoodTastingResponse',
+  ], 'provider food-tasting response flow')
+  mustContain(merchant, [
+    "client.rpc('list_my_catering_food_tasting_slots'",
+    "client.rpc('request_my_catering_food_tasting'",
+    "client.rpc('respond_to_catering_food_tasting'",
+    "client.rpc('respond_to_my_catering_food_tasting_proposal'",
+  ], 'food tasting RPC integration')
 })
 
 test('category budget edits, locks, removal, replacement, and checkout validation share one contract', () => {
@@ -316,6 +410,52 @@ test('provider completion records direct external payments atomically before ser
     'handleBookingCompletionPayment',
     'onCompletionPayment={handleBookingCompletionPayment}',
   ], 'provider completion-payment app flow')
+})
+
+test('messaging is restricted to active booking relationships while closed history remains readable', () => {
+  const migration = read('database/70_booking_restricted_messaging.sql')
+  const messaging = read('src/lib/messaging.ts')
+  const planning = read('src/lib/planning.ts')
+  const app = read('src/App.tsx')
+  const chat = read('src/screens/03.2-ChatThread.tsx')
+
+  mustContain(migration, [
+    'create or replace function public.is_valid_booking_message_member(',
+    "'requested',",
+    "'confirmed',",
+    "event.coordinator_assignment_status = 'accepted'",
+    'create or replace function public.open_booking_conversation(',
+    'create or replace function public.send_booking_message(',
+    'create or replace function public.mark_booking_conversation_read(',
+    "This conversation is read-only because the booking is no longer active.",
+    'revoke insert, update, delete on table public.conversations,',
+    'public.conversation_participants,',
+    'public.messages from public, anon, authenticated;',
+    'alter publication supabase_realtime add table public.messages;',
+  ], 'booking-authorized messaging migration')
+  mustContain(messaging, [
+    "client.rpc('open_booking_conversation'",
+    "client.rpc('send_booking_message'",
+    "client.rpc('mark_booking_conversation_read'",
+    'isReadOnly: booking ? isClosedBookingStatus(booking.status) : true',
+  ], 'secure messaging client integration')
+  assert.doesNotMatch(messaging, /\.from\('messages'\)\s*\.insert/)
+  assert.doesNotMatch(messaging, /\.from\('conversation_participants'\)\s*\.upsert/)
+  mustContain(planning, [
+    "client.rpc('open_booking_conversation'",
+    'Conversations are server-managed from the booking relationship.',
+  ], 'booking conversation creation')
+  mustContain(app, [
+    'openBookingConversationFor',
+    "table: 'messages'",
+    'isLoadingMessages={isLoadingConversationMessages}',
+    'isReadOnly={selectedConversation?.isReadOnly}',
+  ], 'message realtime and loading integration')
+  mustContain(chat, [
+    'Conversation closed',
+    'This booking is no longer active.',
+    'isLoadingMessages = false',
+  ], 'read-only conversation UI')
 })
 
 test('package selection checks duplicate categories, manual conflicts, dynamic options, and total budget', () => {

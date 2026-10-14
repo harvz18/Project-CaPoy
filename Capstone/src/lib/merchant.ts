@@ -2,7 +2,10 @@ import { supabase, supabaseConfig } from './supabase'
 import type { CateringServiceType } from './catalog'
 import {
   categoryDetailsForStorage,
+  cateringCustomMenuStartingPrice,
+  getCateringCustomMenu,
   getCateringPricingOptions,
+  getCateringTastingSettings,
   isLegacyCategoryDetails,
   normalizeCategoryDetails,
   type ServiceCategoryDetails,
@@ -38,6 +41,44 @@ type MerchantResult = {
   ok: boolean
   message?: string
   service?: MerchantServiceListing
+}
+
+export type CateringFoodTastingStatus =
+  | 'requested'
+  | 'confirmed'
+  | 'reschedule_proposed'
+  | 'rejected'
+  | 'cancelled'
+  | 'completed'
+
+export interface CateringFoodTasting {
+  bookingId: string
+  clientNote?: string
+  confirmedAt?: string
+  endTime: string
+  id: string
+  location: string
+  providerNote?: string
+  respondedAt?: string
+  scheduledDate: string
+  startTime: string
+  status: CateringFoodTastingStatus
+  timezone: string
+  updatedAt: string
+}
+
+export interface CateringFoodTastingSlot {
+  endTime: string
+  location: string
+  scheduledDate: string
+  startTime: string
+  timezone: string
+}
+
+export interface CateringFoodTastingSlotsResult {
+  data?: CateringFoodTastingSlot[]
+  message?: string
+  ok: boolean
 }
 
 export type ProviderCompletionPaymentInput = {
@@ -292,6 +333,10 @@ const findCategoryId = async (categoryName: string) => {
 
 const amountFromListing = (value: ServiceListingReviewValue) => {
   if (value.pricing.model === 'customQuote') return null
+  const customMenuStartingPrice = cateringCustomMenuStartingPrice(
+    getCateringCustomMenu(value.information.categoryDetails)
+  )
+  if (customMenuStartingPrice) return customMenuStartingPrice
   const cateringOptions = getCateringPricingOptions(value.information.categoryDetails)
   if (cateringOptions.length > 0) {
     return Math.min(...cateringOptions.map((option) => option.pricePerHead))
@@ -773,6 +818,48 @@ const mapServiceBookingStatus = (status: string): BookingServiceItem['status'] =
   return 'requested'
 }
 
+const foodTastingStatusFrom = (value: unknown): CateringFoodTastingStatus => {
+  switch (textFrom(value)) {
+    case 'confirmed':
+    case 'reschedule_proposed':
+    case 'rejected':
+    case 'cancelled':
+    case 'completed':
+      return textFrom(value) as CateringFoodTastingStatus
+    default:
+      return 'requested'
+  }
+}
+
+const mapFoodTastingsByBooking = (rows: unknown): Map<string, CateringFoodTasting> => {
+  const result = new Map<string, CateringFoodTasting>()
+  if (!Array.isArray(rows)) return result
+
+  rows.forEach((row) => {
+    const record = row as Record<string, unknown>
+    const bookingId = textFrom(record.booking_id)
+    const id = textFrom(record.id)
+    if (!bookingId || !id || result.has(bookingId)) return
+    result.set(bookingId, {
+      bookingId,
+      clientNote: textFrom(record.client_note) || undefined,
+      confirmedAt: textFrom(record.confirmed_at) || undefined,
+      endTime: textFrom(record.end_time),
+      id,
+      location: textFrom(record.location),
+      providerNote: textFrom(record.provider_note) || undefined,
+      respondedAt: textFrom(record.responded_at) || undefined,
+      scheduledDate: toIsoDate(record.scheduled_date),
+      startTime: textFrom(record.start_time),
+      status: foodTastingStatusFrom(record.status),
+      timezone: textFrom(record.timezone, 'Asia/Manila'),
+      updatedAt: textFrom(record.updated_at),
+    })
+  })
+
+  return result
+}
+
 const parseBookingDate = (value: string) => {
   const trimmed = value.trim()
   const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed)
@@ -877,6 +964,114 @@ export const rescheduleClientEventBookings = async (
     }
   } catch (error) {
     return { ok: false, message: toMessage(error, 'Unable to reschedule this booking.') }
+  }
+}
+
+export const loadCateringFoodTastingSlots = async (
+  bookingId: string
+): Promise<CateringFoodTastingSlotsResult> => {
+  try {
+    const client = getClient()
+    if (!client || !isUuid(bookingId)) {
+      return { ok: false, message: 'This catering booking could not be identified.' }
+    }
+
+    const { data, error } = await client.rpc('list_my_catering_food_tasting_slots', {
+      target_booking_id: bookingId,
+    })
+    if (error) return { ok: false, message: error.message }
+
+    const slots = Array.isArray(data)
+      ? data.flatMap((row) => {
+          const record = row as Record<string, unknown>
+          const scheduledDate = toIsoDate(record.scheduled_date)
+          const startTime = textFrom(record.start_time)
+          const endTime = textFrom(record.end_time)
+          const location = textFrom(record.location)
+          if (!scheduledDate || !startTime || !endTime || !location) return []
+          return [{
+            endTime,
+            location,
+            scheduledDate,
+            startTime,
+            timezone: textFrom(record.timezone, 'Asia/Manila'),
+          } satisfies CateringFoodTastingSlot]
+        })
+      : []
+
+    return { ok: true, data: slots }
+  } catch (error) {
+    return { ok: false, message: toMessage(error, 'Unable to load food tasting availability.') }
+  }
+}
+
+export const requestCateringFoodTasting = async (value: {
+  bookingId: string
+  note?: string
+  scheduledDate: string
+  startTime: string
+}): Promise<MerchantResult> => {
+  try {
+    const client = getClient()
+    if (!client || !isUuid(value.bookingId)) {
+      return { ok: false, message: 'This catering booking could not be identified.' }
+    }
+
+    const { error } = await client.rpc('request_my_catering_food_tasting', {
+      requested_date: value.scheduledDate,
+      requested_note: value.note?.trim() || null,
+      requested_start_time: value.startTime,
+      target_booking_id: value.bookingId,
+    })
+    return { ok: !error, message: error?.message }
+  } catch (error) {
+    return { ok: false, message: toMessage(error, 'Unable to request the food tasting.') }
+  }
+}
+
+export const respondToCateringFoodTasting = async (value: {
+  action: 'confirm' | 'reject' | 'propose'
+  note?: string
+  proposedDate?: string
+  proposedStartTime?: string
+  tastingId: string
+}): Promise<MerchantResult> => {
+  try {
+    const client = getClient()
+    if (!client || !isUuid(value.tastingId)) {
+      return { ok: false, message: 'This food tasting request could not be identified.' }
+    }
+
+    const { error } = await client.rpc('respond_to_catering_food_tasting', {
+      proposed_date: value.proposedDate ?? null,
+      proposed_start_time: value.proposedStartTime ?? null,
+      response_action: value.action,
+      response_note: value.note?.trim() || null,
+      target_tasting_id: value.tastingId,
+    })
+    return { ok: !error, message: error?.message }
+  } catch (error) {
+    return { ok: false, message: toMessage(error, 'Unable to update the food tasting request.') }
+  }
+}
+
+export const respondToCateringFoodTastingProposal = async (
+  tastingId: string,
+  acceptProposal: boolean
+): Promise<MerchantResult> => {
+  try {
+    const client = getClient()
+    if (!client || !isUuid(tastingId)) {
+      return { ok: false, message: 'This food tasting proposal could not be identified.' }
+    }
+
+    const { error } = await client.rpc('respond_to_my_catering_food_tasting_proposal', {
+      accept_proposal: acceptProposal,
+      target_tasting_id: tastingId,
+    })
+    return { ok: !error, message: error?.message }
+  } catch (error) {
+    return { ok: false, message: toMessage(error, 'Unable to respond to the food tasting proposal.') }
   }
 }
 
@@ -1074,7 +1269,7 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
   const { data, error } = await client
     .from('bookings')
     .select(
-      'id, event_id, provider_id, service_id, amount, provider_amount, status, requested_date, requested_time, created_at, updated_at, events(id, coordinator_id, name, event_type, event_date, event_time, guest_count, venue, location, status), services(name, cover_image_url, service_categories(name)), provider_profiles(business_name), payments!inner(status, amount, service_subtotal, provider_initial_allocation, paid_at, metadata)'
+      'id, event_id, provider_id, service_id, amount, provider_amount, status, requested_date, requested_time, created_at, updated_at, events(id, coordinator_id, name, event_type, event_date, event_time, guest_count, venue, location, status), services(name, cover_image_url, category_details, service_categories(name)), provider_profiles(business_name), payments!inner(status, amount, service_subtotal, provider_initial_allocation, paid_at, metadata)'
     )
     .eq('client_id', userId)
     .neq('status', 'payment_required')
@@ -1092,7 +1287,7 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
     const coordinatorId = textFrom(event?.coordinator_id)
     return coordinatorId ? [coordinatorId] : []
   })))
-  const [reviewResult, coordinatorResult, coordinatorReviewResult, externalPaymentSummaries] =
+  const [reviewResult, coordinatorResult, coordinatorReviewResult, externalPaymentSummaries, foodTastingResult] =
     await Promise.all([
       bookingIds.length
         ? client
@@ -1112,10 +1307,14 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
             .in('event_id', eventIds)
         : Promise.resolve({ data: [] }),
       fetchExternalPaymentSummaries(client, bookingIds),
+      bookingIds.length
+        ? client.rpc('list_my_catering_food_tastings', { target_booking_ids: bookingIds })
+        : Promise.resolve({ data: [] }),
     ])
   const reviewRows = reviewResult.data
   const coordinatorProfiles = coordinatorResult.data
   const coordinatorReviewRows = coordinatorReviewResult.data
+  const foodTastingsByBooking = mapFoodTastingsByBooking(foodTastingResult.data)
   const reviewedBookingIds = new Set((reviewRows ?? []).map((row) => textFrom(row.booking_id)))
   const reviewedCoordinatorEventIds = new Set(
     (coordinatorReviewRows ?? []).map((row) => textFrom(row.event_id))
@@ -1167,6 +1366,8 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
       category: textFrom(category?.name, 'Service'),
       completionPaymentStatus,
       confirmedExternalPaymentAmount,
+      foodTasting: foodTastingsByBooking.get(bookingId),
+      foodTastingEnabled: Boolean(getCateringTastingSettings(service?.category_details)),
       image: textFrom(service?.cover_image_url),
       initialProviderShare,
       paymentStatus: textFrom(latestPayment?.status, 'pending'),
@@ -1262,7 +1463,7 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
   const { data, error } = await context.client
     .from('bookings')
     .select(
-      'id, event_id, service_id, amount, provider_amount, status, requested_date, requested_time, client_notes, catering_option_name, catering_option_snapshot, venue_option_name, venue_booked_hours, venue_end_at, created_at, profiles(full_name, email), events(name, event_type, event_date, event_time, guest_count, venue, location), services(name, description, service_categories(name)), service_packages(name, description, inclusions), payments!inner(status, amount, service_subtotal, platform_fee_amount, provider_initial_allocation, paid_at, verified_at, created_at, metadata)'
+      'id, event_id, service_id, amount, provider_amount, status, requested_date, requested_time, client_notes, catering_option_name, catering_option_snapshot, venue_option_name, venue_booked_hours, venue_end_at, created_at, profiles(full_name, email), events(name, event_type, event_date, event_time, guest_count, venue, location), services(name, description, category_details, service_categories(name)), service_packages(name, description, inclusions), payments!inner(status, amount, service_subtotal, platform_fee_amount, provider_initial_allocation, paid_at, verified_at, created_at, metadata)'
     )
     .eq('provider_id', context.providerId)
     .neq('status', 'payment_required')
@@ -1275,7 +1476,7 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
     new Set(data.map((row) => row.event_id as string | null).filter(Boolean))
   ) as string[]
   const bookingIds = data.map((row) => textFrom(row.id)).filter(Boolean)
-  const [instructionResult, selectionResult, externalPaymentSummaries] = eventIds.length
+  const [instructionResult, selectionResult, externalPaymentSummaries, foodTastingResult] = eventIds.length
     ? await Promise.all([
         context.client
           .from('event_provider_instructions')
@@ -1290,10 +1491,14 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
           .eq('provider_id', context.providerId)
           .not('status', 'in', '(declined,cancelled)'),
         fetchExternalPaymentSummaries(context.client, bookingIds),
+        bookingIds.length
+          ? context.client.rpc('list_my_catering_food_tastings', { target_booking_ids: bookingIds })
+          : Promise.resolve({ data: [] }),
       ])
-    : [{ data: [] }, { data: [] }, new Map<string, ExternalPaymentSummary>()]
+    : [{ data: [] }, { data: [] }, new Map<string, ExternalPaymentSummary>(), { data: [] }]
   const instructionRows = instructionResult.data
   const selectionRows = selectionResult.data
+  const foodTastingsByBooking = mapFoodTastingsByBooking(foodTastingResult.data)
 
   const individualRequests = data.map((row) => {
     const record = row as Record<string, unknown>
@@ -1331,6 +1536,19 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
     const bookingDetails = (selectionRows ?? []).find(
       (selection) => selection.event_id === eventId && selection.service_id === serviceId
     )
+    const cateringSnapshot = record.catering_option_snapshot
+      && typeof record.catering_option_snapshot === 'object'
+      ? record.catering_option_snapshot as Record<string, unknown>
+      : {}
+    const cateringMenuItems = Array.isArray(cateringSnapshot.selectedItems)
+      ? cateringSnapshot.selectedItems.flatMap((item) => {
+          if (!item || typeof item !== 'object') return []
+          const menuItem = item as Record<string, unknown>
+          const name = textFrom(menuItem.name)
+          const price = numberFrom(menuItem.pricePerHead)
+          return name ? [`${name}${price > 0 ? ` — PHP ${price.toLocaleString('en-PH')}/head` : ''}`] : []
+        })
+      : []
     const instructions = (instructionRows ?? [])
       .filter(
         (instruction) =>
@@ -1356,7 +1574,10 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
       budgetPerHead: bookingDetails?.budget_per_head == null
         ? undefined
         : numberFrom(bookingDetails.budget_per_head),
+      cateringMenuItems: cateringMenuItems.length ? cateringMenuItems : undefined,
       cateringOptionName: textFrom(record.catering_option_name) || undefined,
+      foodTasting: foodTastingsByBooking.get(textFrom(record.id)),
+      foodTastingEnabled: Boolean(getCateringTastingSettings(service?.category_details)),
       clientEmail: textFrom(profile?.email),
       clientNotes: textFrom(record.client_notes),
       dietaryNotes: textFrom(bookingDetails?.dietary_notes) || undefined,
@@ -1413,7 +1634,10 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
       amount: request.amount,
       attendeeCount: request.attendeeCount,
       budgetPerHead: request.budgetPerHead,
+      cateringMenuItems: request.cateringMenuItems,
       cateringOptionName: request.cateringOptionName,
+      foodTasting: request.foodTasting,
+      foodTastingEnabled: request.foodTastingEnabled,
       clientNotes: request.clientNotes,
       completionPaymentStatus: request.completionPaymentStatus,
       confirmedExternalPaymentAmount: request.confirmedExternalPaymentAmount,

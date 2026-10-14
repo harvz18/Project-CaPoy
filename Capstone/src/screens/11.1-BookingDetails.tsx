@@ -2,6 +2,7 @@ import { Text } from '../components/AppText'
 import { MaterialIcons } from '@expo/vector-icons'
 import React from 'react'
 import { Image, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native'
+import type { CateringFoodTastingSlot, CateringFoodTastingSlotsResult } from '../lib/merchant'
 import type { BookingItem } from './11-BookingScreen'
 
 export interface BookingChangeActionResult {
@@ -26,10 +27,22 @@ interface BookingDetailsScreenProps {
   onBack?: () => void
   onCancelBooking?: (reason: string) => Promise<BookingChangeActionResult>
   onMessageProvider?: () => void
+  onMessageProviderForBooking?: (bookingId: string) => void
+  onLoadFoodTastingSlots?: (bookingId: string) => Promise<CateringFoodTastingSlotsResult>
+  onRequestFoodTasting?: (value: {
+    bookingId: string
+    note?: string
+    scheduledDate: string
+    startTime: string
+  }) => Promise<BookingChangeActionResult>
   onRescheduleBooking?: (value: {
     date: string
     time: string
   }) => Promise<BookingChangeActionResult>
+  onRespondToFoodTastingProposal?: (
+    tastingId: string,
+    acceptProposal: boolean
+  ) => Promise<BookingChangeActionResult>
   onSubmitReview?: () => void
 }
 
@@ -70,13 +83,44 @@ const completionPaymentLabel = (service: NonNullable<BookingItem['services']>[nu
   return 'Awaiting remaining payment'
 }
 
+const formatTastingDate = (value: string) => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (!match) return value
+  return new Intl.DateTimeFormat('en-PH', {
+    day: 'numeric',
+    month: 'long',
+    weekday: 'long',
+    year: 'numeric',
+  }).format(new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])))
+}
+
+const formatTastingTime = (value: string) => {
+  const match = /^(\d{2}):(\d{2})/.exec(value)
+  if (!match) return value
+  const hours = Number(match[1])
+  return `${hours % 12 || 12}:${match[2]} ${hours >= 12 ? 'PM' : 'AM'}`
+}
+
+const formatTastingStatus = (status: string) => ({
+  cancelled: 'Cancelled',
+  completed: 'Completed',
+  confirmed: 'Confirmed',
+  rejected: 'Declined',
+  requested: 'Awaiting provider confirmation',
+  reschedule_proposed: 'Provider proposed a new schedule',
+}[status] ?? 'Scheduled')
+
 export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
   booking,
   details,
   onBack,
   onCancelBooking,
   onMessageProvider,
+  onMessageProviderForBooking,
+  onLoadFoodTastingSlots,
+  onRequestFoodTasting,
   onRescheduleBooking,
+  onRespondToFoodTastingProposal,
   onSubmitReview,
 }) => {
   const provider = booking ?? defaultProvider
@@ -90,6 +134,14 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
   const [newDate, setNewDate] = React.useState(booking?.date ?? '')
   const [newTime, setNewTime] = React.useState(booking?.requestedTime ?? '')
   const [isSubmittingChange, setIsSubmittingChange] = React.useState(false)
+  const [tastingServiceId, setTastingServiceId] = React.useState('')
+  const [tastingSlots, setTastingSlots] = React.useState<CateringFoodTastingSlot[]>([])
+  const [selectedTastingSlot, setSelectedTastingSlot] = React.useState<CateringFoodTastingSlot>()
+  const [tastingNote, setTastingNote] = React.useState('')
+  const [tastingError, setTastingError] = React.useState('')
+  const [isLoadingTastingSlots, setIsLoadingTastingSlots] = React.useState(false)
+  const [isSavingTasting, setIsSavingTasting] = React.useState(false)
+  const [dismissedTastingPrompts, setDismissedTastingPrompts] = React.useState<Set<string>>(new Set())
   const value = {
     ...defaultDetails,
     ...(booking
@@ -105,6 +157,13 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
       : {}),
     ...details,
   }
+  const tastingSlotsByDate = React.useMemo(() => tastingSlots.reduce<Record<string, CateringFoodTastingSlot[]>>(
+    (groups, slot) => ({
+      ...groups,
+      [slot.scheduledDate]: [...(groups[slot.scheduledDate] ?? []), slot],
+    }),
+    {}
+  ), [tastingSlots])
 
   React.useEffect(() => {
     setChangeMode(undefined)
@@ -112,6 +171,12 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
     setCancelReason('')
     setNewDate(booking?.date ?? '')
     setNewTime(booking?.requestedTime ?? '')
+    setTastingServiceId('')
+    setTastingSlots([])
+    setSelectedTastingSlot(undefined)
+    setTastingNote('')
+    setTastingError('')
+    setDismissedTastingPrompts(new Set())
   }, [booking?.date, booking?.id, booking?.requestedTime])
 
   const closeChangeModal = () => {
@@ -148,6 +213,57 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
     }
 
     setChangeMode(undefined)
+  }
+
+  const closeTastingModal = () => {
+    if (isSavingTasting) return
+    setTastingServiceId('')
+    setSelectedTastingSlot(undefined)
+    setTastingError('')
+  }
+
+  const openTastingSchedule = async (service: NonNullable<BookingItem['services']>[number]) => {
+    if (!onLoadFoodTastingSlots || isLoadingTastingSlots) return
+    setTastingServiceId(service.bookingId)
+    setTastingSlots([])
+    setSelectedTastingSlot(undefined)
+    setTastingNote('')
+    setTastingError('')
+    setIsLoadingTastingSlots(true)
+    const result = await onLoadFoodTastingSlots(service.bookingId)
+    setIsLoadingTastingSlots(false)
+    if (!result.ok) {
+      setTastingError(result.message ?? 'Unable to load food tasting availability.')
+      return
+    }
+    setTastingSlots(result.data ?? [])
+  }
+
+  const submitFoodTasting = async () => {
+    if (!onRequestFoodTasting || !selectedTastingSlot || !tastingServiceId || isSavingTasting) return
+    setIsSavingTasting(true)
+    setTastingError('')
+    const result = await onRequestFoodTasting({
+      bookingId: tastingServiceId,
+      note: tastingNote,
+      scheduledDate: selectedTastingSlot.scheduledDate,
+      startTime: selectedTastingSlot.startTime,
+    })
+    setIsSavingTasting(false)
+    if (!result.ok) {
+      setTastingError(result.message ?? 'Unable to request the food tasting.')
+      return
+    }
+    closeTastingModal()
+  }
+
+  const respondToTastingProposal = async (tastingId: string, acceptProposal: boolean) => {
+    if (!onRespondToFoodTastingProposal || isSavingTasting) return
+    setIsSavingTasting(true)
+    setTastingError('')
+    const result = await onRespondToFoodTastingProposal(tastingId, acceptProposal)
+    setIsSavingTasting(false)
+    if (!result.ok) setTastingError(result.message ?? 'Unable to update the food tasting proposal.')
   }
 
   return (
@@ -321,6 +437,87 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                         </Text>
                       </View>
                     ) : null}
+                  {(service.foodTasting || (
+                    service.foodTastingEnabled
+                    && service.status === 'confirmed'
+                    && !dismissedTastingPrompts.has(service.bookingId)
+                  )) ? (
+                    <View style={styles.tastingCard}>
+                      <View style={styles.tastingHeading}>
+                        <View style={styles.tastingIcon}>
+                          <MaterialIcons color={palette.burgundy} name="restaurant" size={19} />
+                        </View>
+                        <View style={styles.tastingCopy}>
+                          <Text style={styles.tastingTitle}>
+                            {service.foodTasting ? 'Food Tasting' : 'Catering Booking Confirmed'}
+                          </Text>
+                          <Text style={styles.tastingText}>
+                            {service.foodTasting
+                              ? `${formatTastingStatus(service.foodTasting.status)} - ${formatTastingDate(service.foodTasting.scheduledDate)}, ${formatTastingTime(service.foodTasting.startTime)}${service.foodTasting.endTime ? ` to ${formatTastingTime(service.foodTasting.endTime)}` : ''}`
+                              : 'Your catering provider has accepted your booking. Food tasting is optional.'}
+                          </Text>
+                        </View>
+                      </View>
+                      {service.foodTasting ? (
+                        <>
+                          <Text style={styles.tastingLocation}>
+                            {service.foodTasting.location} - {service.foodTasting.timezone}
+                          </Text>
+                          {service.foodTasting.providerNote ? (
+                            <Text style={styles.tastingNote}>Provider note: {service.foodTasting.providerNote}</Text>
+                          ) : null}
+                          {service.foodTasting.status === 'reschedule_proposed' ? (
+                            <View style={styles.tastingActions}>
+                              <Pressable
+                                accessibilityLabel="Decline proposed food tasting schedule"
+                                disabled={isSavingTasting || !onRespondToFoodTastingProposal}
+                                onPress={() => void respondToTastingProposal(service.foodTasting!.id, false)}
+                                style={({ pressed }) => [styles.tastingSecondaryButton, pressed && styles.pressed]}
+                              >
+                                <Text style={styles.tastingSecondaryText}>Decline</Text>
+                              </Pressable>
+                              <Pressable
+                                accessibilityLabel="Accept proposed food tasting schedule"
+                                disabled={isSavingTasting || !onRespondToFoodTastingProposal}
+                                onPress={() => void respondToTastingProposal(service.foodTasting!.id, true)}
+                                style={({ pressed }) => [styles.tastingPrimaryButton, pressed && styles.pressed]}
+                              >
+                                <Text style={styles.tastingPrimaryText}>Accept schedule</Text>
+                              </Pressable>
+                            </View>
+                          ) : null}
+                        </>
+                      ) : (
+                        <View style={styles.tastingActions}>
+                          <Pressable
+                            accessibilityLabel={`Schedule food tasting with ${service.providerName}`}
+                            disabled={!onLoadFoodTastingSlots || isLoadingTastingSlots}
+                            onPress={() => void openTastingSchedule(service)}
+                            style={({ pressed }) => [styles.tastingPrimaryButton, pressed && styles.pressed]}
+                          >
+                            <Text style={styles.tastingPrimaryText}>
+                              {isLoadingTastingSlots && tastingServiceId === service.bookingId ? 'Loading...' : 'Schedule Food Tasting'}
+                            </Text>
+                          </Pressable>
+                          <Pressable
+                            accessibilityLabel="Decide about food tasting later"
+                            onPress={() => setDismissedTastingPrompts((current) => new Set([...current, service.bookingId]))}
+                            style={({ pressed }) => [styles.tastingSecondaryButton, pressed && styles.pressed]}
+                          >
+                            <Text style={styles.tastingSecondaryText}>Not now</Text>
+                          </Pressable>
+                        </View>
+                      )}
+                      <Pressable
+                        accessibilityLabel={`Message ${service.providerName} about food tasting`}
+                        onPress={() => onMessageProviderForBooking?.(service.bookingId)}
+                        style={({ pressed }) => [styles.tastingMessageButton, pressed && styles.pressed]}
+                      >
+                        <MaterialIcons color={palette.burgundy} name="chat-bubble-outline" size={16} />
+                        <Text style={styles.tastingMessageText}>Message Provider</Text>
+                      </Pressable>
+                    </View>
+                  ) : null}
                 </View>
               </View>
             ))}
@@ -388,6 +585,128 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
           ) : null}
         </View>
       </ScrollView>
+
+      <Modal
+        animationType="slide"
+        onRequestClose={closeTastingModal}
+        transparent
+        visible={Boolean(tastingServiceId)}
+      >
+        <View style={styles.tastingBackdrop}>
+          <View accessibilityViewIsModal style={styles.tastingModal}>
+            <View style={styles.changeHeader}>
+              <View style={styles.changeHeaderCopy}>
+                <Text style={styles.changeTitle}>Schedule Food Tasting</Text>
+                <Text style={styles.changeSubtitle}>
+                  Choose an available provider slot before your event. Times are shown in the provider&apos;s configured timezone.
+                </Text>
+              </View>
+              <Pressable
+                accessibilityLabel="Close food tasting calendar"
+                accessibilityRole="button"
+                disabled={isSavingTasting}
+                onPress={closeTastingModal}
+                style={styles.changeClose}
+              >
+                <MaterialIcons color={palette.muted} name="close" size={23} />
+              </Pressable>
+            </View>
+
+            <ScrollView contentContainerStyle={styles.tastingCalendarContent} showsVerticalScrollIndicator={false}>
+              {isLoadingTastingSlots ? (
+                <Text style={styles.tastingEmpty}>Loading provider availability...</Text>
+              ) : Object.keys(tastingSlotsByDate).length ? (
+                Object.entries(tastingSlotsByDate).map(([date, slots]) => (
+                  <View key={date} style={styles.tastingDateGroup}>
+                    <Text style={styles.tastingDateTitle}>{formatTastingDate(date)}</Text>
+                    <View style={styles.tastingSlotRow}>
+                      {slots.map((slot) => {
+                        const selected = selectedTastingSlot?.scheduledDate === slot.scheduledDate
+                          && selectedTastingSlot.startTime === slot.startTime
+                        return (
+                          <Pressable
+                            accessibilityLabel={`Choose ${formatTastingDate(slot.scheduledDate)} at ${formatTastingTime(slot.startTime)}`}
+                            accessibilityRole="radio"
+                            accessibilityState={{ selected }}
+                            key={`${slot.scheduledDate}-${slot.startTime}`}
+                            onPress={() => setSelectedTastingSlot(slot)}
+                            style={({ pressed }) => [
+                              styles.tastingSlot,
+                              selected && styles.tastingSlotSelected,
+                              pressed && styles.pressed,
+                            ]}
+                          >
+                            <Text style={[styles.tastingSlotText, selected && styles.tastingSlotTextSelected]}>
+                              {formatTastingTime(slot.startTime)}
+                            </Text>
+                          </Pressable>
+                        )
+                      })}
+                    </View>
+                  </View>
+                ))
+              ) : (
+                <Text style={styles.tastingEmpty}>
+                  {tastingError || 'No food tasting slots are currently available. The provider may need to configure slots or update availability.'}
+                </Text>
+              )}
+
+              {selectedTastingSlot ? (
+                <View style={styles.tastingSelectionSummary}>
+                  <Text style={styles.tastingSelectionTitle}>Selected appointment</Text>
+                  <Text style={styles.tastingSelectionText}>
+                    {formatTastingDate(selectedTastingSlot.scheduledDate)} - {formatTastingTime(selectedTastingSlot.startTime)} to {formatTastingTime(selectedTastingSlot.endTime)}
+                  </Text>
+                  <Text style={styles.tastingSelectionText}>{selectedTastingSlot.location}</Text>
+                  <Text style={styles.tastingSelectionText}>{selectedTastingSlot.timezone}</Text>
+                </View>
+              ) : null}
+
+              <View style={styles.changeField}>
+                <Text style={styles.changeLabel}>NOTE FOR PROVIDER (OPTIONAL)</Text>
+                <TextInput
+                  accessibilityLabel="Food tasting note for provider"
+                  editable={!isSavingTasting}
+                  maxLength={600}
+                  multiline
+                  onChangeText={setTastingNote}
+                  placeholder="Menu preferences, allergies, or questions"
+                  placeholderTextColor="#9A9291"
+                  style={[styles.changeInput, styles.reasonInput]}
+                  textAlignVertical="top"
+                  value={tastingNote}
+                />
+              </View>
+              {tastingError && Object.keys(tastingSlotsByDate).length > 0 ? (
+                <Text style={styles.changeError}>{tastingError}</Text>
+              ) : null}
+            </ScrollView>
+
+            <View style={styles.changeActions}>
+              <Pressable
+                accessibilityRole="button"
+                disabled={isSavingTasting}
+                onPress={closeTastingModal}
+                style={({ pressed }) => [styles.changeBackButton, pressed && styles.pressed]}
+              >
+                <Text style={styles.changeBackText}>Not now</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                disabled={!selectedTastingSlot || isSavingTasting || !onRequestFoodTasting}
+                onPress={() => void submitFoodTasting()}
+                style={({ pressed }) => [
+                  styles.changeSubmit,
+                  (!selectedTastingSlot || isSavingTasting || !onRequestFoodTasting) && styles.changeSubmitDisabled,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text style={styles.changeSubmitText}>{isSavingTasting ? 'Requesting...' : 'Request Food Tasting'}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         animationType="fade"
@@ -909,6 +1228,35 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 1.1,
   },
+  tastingCard: { gap: 9, borderRadius: 10, backgroundColor: '#F8F0F1', padding: 11, marginTop: 12 },
+  tastingHeading: { flexDirection: 'row', alignItems: 'flex-start', gap: 9 },
+  tastingIcon: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: '#F0DDE1' },
+  tastingCopy: { minWidth: 0, flex: 1 },
+  tastingTitle: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '700' },
+  tastingText: { color: palette.muted, fontSize: 11, lineHeight: 16, marginTop: 1 },
+  tastingLocation: { color: palette.text, fontSize: 11, lineHeight: 16, fontWeight: '600' },
+  tastingNote: { color: palette.muted, fontSize: 10, lineHeight: 15 },
+  tastingActions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+  tastingPrimaryButton: { minHeight: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 8, backgroundColor: palette.burgundy, paddingHorizontal: 11 },
+  tastingPrimaryText: { color: palette.surface, fontSize: 10, lineHeight: 14, fontWeight: '700' },
+  tastingSecondaryButton: { minHeight: 36, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#D9C6CA', borderRadius: 8, paddingHorizontal: 11 },
+  tastingSecondaryText: { color: palette.burgundy, fontSize: 10, lineHeight: 14, fontWeight: '700' },
+  tastingMessageButton: { flexDirection: 'row', alignSelf: 'flex-start', alignItems: 'center', gap: 5, paddingVertical: 2 },
+  tastingMessageText: { color: palette.burgundy, fontSize: 10, lineHeight: 14, fontWeight: '700' },
+  tastingBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(31, 20, 23, 0.55)', padding: 16 },
+  tastingModal: { width: '100%', maxWidth: 560, maxHeight: '92%', borderRadius: 18, backgroundColor: palette.surface, padding: 20 },
+  tastingCalendarContent: { gap: 13, paddingBottom: 4 },
+  tastingEmpty: { color: palette.muted, fontSize: 13, lineHeight: 20, paddingVertical: 18, textAlign: 'center' },
+  tastingDateGroup: { gap: 8, borderBottomWidth: 1, borderBottomColor: palette.card, paddingBottom: 12 },
+  tastingDateTitle: { color: palette.text, fontSize: 13, lineHeight: 19, fontWeight: '700' },
+  tastingSlotRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  tastingSlot: { minHeight: 36, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 8, backgroundColor: palette.background, paddingHorizontal: 11 },
+  tastingSlotSelected: { borderColor: palette.burgundy, backgroundColor: '#F4E7EA' },
+  tastingSlotText: { color: palette.text, fontSize: 11, lineHeight: 15, fontWeight: '600' },
+  tastingSlotTextSelected: { color: palette.burgundy, fontWeight: '700' },
+  tastingSelectionSummary: { gap: 3, borderRadius: 10, backgroundColor: '#F4E7EA', padding: 12 },
+  tastingSelectionTitle: { color: palette.burgundy, fontSize: 11, lineHeight: 15, fontWeight: '700' },
+  tastingSelectionText: { color: palette.text, fontSize: 11, lineHeight: 16 },
   changeBackdrop: {
     flex: 1,
     alignItems: 'center',

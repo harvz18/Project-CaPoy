@@ -70,11 +70,15 @@ import {
   fetchMerchantServices,
   loadMerchantServiceDraft,
   loadMerchantServiceForEditing,
+  loadCateringFoodTastingSlots,
   MerchantPackageListing,
   MerchantServiceListing,
   markMerchantNotificationRead,
   markMerchantNotificationsRead,
   requestMerchantPayout,
+  requestCateringFoodTasting,
+  respondToCateringFoodTasting,
+  respondToCateringFoodTastingProposal,
   rescheduleClientEventBookings,
   saveAvailabilityCalendar,
   saveBookingDecision,
@@ -172,6 +176,8 @@ import { CoordinatorDetailsScreen } from './screens/06.1-CoordinatorDetails'
 import { ServiceDetailsScreen } from './screens/08-ServiceDetails'
 import {
   emptyCategoryDetails,
+  cateringCustomMenuStartingPrice,
+  getCateringCustomMenu,
   getCateringPricingOptions,
   isLegacyCategoryDetails,
   normalizeCategoryDetails,
@@ -206,7 +212,7 @@ import {
   fetchNotifications,
   mapNotificationRecord,
   markConversationRead,
-  openCoordinatorProviderConversation,
+  openBookingConversation,
   sendConversationMessage,
 } from './lib/messaging'
 import {
@@ -568,6 +574,7 @@ export const App: React.FC = () => {
   const [conversations, setConversations] = React.useState<ClientConversation[]>([])
   const [conversationMessages, setConversationMessages] = React.useState<ChatMessage[]>([])
   const [notifications, setNotifications] = React.useState<MerchantNotification[]>([])
+  const [isLoadingConversationMessages, setIsLoadingConversationMessages] = React.useState(false)
   const [isSendingMessage, setIsSendingMessage] = React.useState(false)
   const [catalogServices, setCatalogServices] = React.useState<CatalogService[]>([])
   const [serviceCategories, setServiceCategories] =
@@ -1254,6 +1261,12 @@ export const App: React.FC = () => {
       ) ?? current
     })
     setMerchantRequests(requests)
+    setSelectedMerchantRequest((current) => {
+      if (!current) return current
+      return requests.find((item) =>
+        item.id === current.id || Boolean(item.eventId && current.eventId && item.eventId === current.eventId)
+      ) ?? current
+    })
     setMerchantServices((current) =>
       merchantServiceRows.length > 0 ? merchantServiceRows : current
     )
@@ -1490,16 +1503,40 @@ export const App: React.FC = () => {
     [busyCoordinatorInvitationId, loadCoordinatorWorkspace, refreshLiveData]
   )
 
-  const handleCoordinatorMessageProvider = React.useCallback(
-    async (_event: CoordinatorEvent, service: CoordinatorBookedService) => {
-      if (!service.bookingId) {
-        setToastMessage('A provider conversation becomes available after this service is booked.')
+  const openExistingConversation = React.useCallback(
+    async (conversation: ClientConversation, returnScreen: AppScreen = 'messages') => {
+      setSelectedConversation(conversation)
+      setConversationMessages([])
+      setIsLoadingConversationMessages(true)
+      setChatReturnScreen(returnScreen)
+      setScreen('chatThread')
+
+      const [messages] = await Promise.all([
+        fetchConversationMessages(conversation.id),
+        markConversationRead(conversation.id),
+      ])
+
+      setConversationMessages(messages)
+      setConversations((current) =>
+        current.map((item) =>
+          item.id === conversation.id ? { ...item, unreadCount: 0 } : item
+        )
+      )
+      setIsLoadingConversationMessages(false)
+    },
+    [setScreen]
+  )
+
+  const openBookingConversationFor = React.useCallback(
+    async (bookingId: string | undefined, returnScreen: AppScreen = 'messages') => {
+      if (!bookingId) {
+        setToastMessage('A conversation becomes available after a booking request is submitted.')
         return
       }
 
-      const result = await openCoordinatorProviderConversation(service.bookingId)
+      const result = await openBookingConversation(bookingId)
       if (!result.ok || !result.conversationId) {
-        setToastMessage(result.error ?? 'Unable to open the provider conversation.')
+        setToastMessage(result.error ?? 'This booking conversation is not available to your account.')
         return
       }
 
@@ -1511,15 +1548,16 @@ export const App: React.FC = () => {
       }
 
       setConversations(latestConversations)
-      setSelectedConversation(conversation)
-      setConversationMessages([])
-      setChatReturnScreen('coordinatorHome')
-      setScreen('chatThread')
-      const messages = await fetchConversationMessages(conversation.id)
-      setConversationMessages(messages)
-      await markConversationRead(conversation.id)
+      await openExistingConversation(conversation, returnScreen)
     },
-    [setScreen]
+    [openExistingConversation]
+  )
+
+  const handleCoordinatorMessageProvider = React.useCallback(
+    async (_event: CoordinatorEvent, service: CoordinatorBookedService) => {
+      await openBookingConversationFor(service.bookingId, 'coordinatorHome')
+    },
+    [openBookingConversationFor]
   )
 
   const routeForRole = React.useCallback((role?: AccountRole | string | null) => {
@@ -1817,6 +1855,40 @@ export const App: React.FC = () => {
       void client.removeChannel(notificationChannel)
     }
   }, [authenticatedUserId])
+
+  React.useEffect(() => {
+    if (!supabase || !authenticatedUserId) return undefined
+
+    const client = supabase
+    const activeConversationId = selectedConversation?.id
+    const messageChannel = client
+      .channel(`booking-messages-${authenticatedUserId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'messages',
+        },
+        (payload) => {
+          const record = payload.new as Record<string, unknown>
+          const conversationId = typeof record.conversation_id === 'string'
+            ? record.conversation_id
+            : ''
+
+          void fetchConversations().then((rows) => setConversations(rows))
+
+          if (conversationId && conversationId === activeConversationId) {
+            void fetchConversationMessages(conversationId).then(setConversationMessages)
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      void client.removeChannel(messageChannel)
+    }
+  }, [authenticatedUserId, selectedConversation?.id])
 
   React.useEffect(() => {
     void setApplicationBadgeFromUnreadCount(
@@ -2223,7 +2295,7 @@ export const App: React.FC = () => {
 
   const handleChooseCoordinatorPackage = async (
     packageId: string,
-    cateringOptionChoices: Record<string, string>
+    cateringOptionChoices: Record<string, string | string[]>
   ) => {
     if (!currentService?.coordinatorUserId || assigningCoordinatorId || selectingCoordinatorPackageId) return
     if (!hasEventOrganizerBudget) {
@@ -2663,6 +2735,53 @@ export const App: React.FC = () => {
     await refreshLiveData()
     setScreen('bookings')
     return result
+  }
+
+  const handleClientFoodTastingRequest = async (value: {
+    bookingId: string
+    note?: string
+    scheduledDate: string
+    startTime: string
+  }) => {
+    const result = await requestCateringFoodTasting(value)
+    if (!result.ok) return result
+
+    await refreshLiveData()
+    const message = 'Food tasting request sent to the catering provider.'
+    setToastMessage(message)
+    return { ok: true, message }
+  }
+
+  const handleClientFoodTastingProposal = async (tastingId: string, acceptProposal: boolean) => {
+    const result = await respondToCateringFoodTastingProposal(tastingId, acceptProposal)
+    if (!result.ok) return result
+
+    await refreshLiveData()
+    const message = acceptProposal
+      ? 'Food tasting schedule confirmed.'
+      : 'Food tasting proposal declined. You can request another available slot.'
+    setToastMessage(message)
+    return { ok: true, message }
+  }
+
+  const handleProviderFoodTastingResponse = async (value: {
+    action: 'confirm' | 'reject' | 'propose'
+    note?: string
+    proposedDate?: string
+    proposedStartTime?: string
+    tastingId: string
+  }) => {
+    const result = await respondToCateringFoodTasting(value)
+    if (!result.ok) return result
+
+    await refreshLiveData()
+    const message = value.action === 'confirm'
+      ? 'Food tasting confirmed. The client was notified.'
+      : value.action === 'reject'
+        ? 'Food tasting request declined. The client was notified.'
+        : 'Alternative food tasting schedule sent to the client.'
+    setToastMessage(message)
+    return { ok: true, message }
   }
 
   const pickMerchantServicePhotos = async () => {
@@ -3127,9 +3246,9 @@ export const App: React.FC = () => {
             onNext={(value) => {
               const details = normalizeCategoryDetails(value.category, value.categoryDetails)
               const cateringOptions = getCateringPricingOptions(details)
-              const cateringStartingPrice = cateringOptions.length
+              const cateringStartingPrice = cateringCustomMenuStartingPrice(getCateringCustomMenu(details)) ?? (cateringOptions.length
                 ? Math.min(...cateringOptions.map((option) => option.pricePerHead))
-                : undefined
+                : undefined)
               const nextPricing = details.kind === 'catering'
                 ? {
                     ...merchantServicePricing,
@@ -3323,8 +3442,11 @@ export const App: React.FC = () => {
               setSelectedMerchantRequest(value.request)
               setScreen('providerBookingDecline')
             }}
-            onMessageClient={() => setScreen('messages')}
+            onMessageClient={(request) =>
+              void openBookingConversationFor(request.id, 'providerBookingRequestDetails')
+            }
             onCompletionPayment={handleBookingCompletionPayment}
+            onFoodTastingResponse={handleProviderFoodTastingResponse}
           />
         )
       case 'providerBookingDecline':
@@ -3826,6 +3948,7 @@ export const App: React.FC = () => {
             hasBudget={totalBudget > 0}
             onAddSelection={handleAddSelection}
             onCalculateQuote={(value) => calculateServiceQuote({
+              menuItemIds: value.menuItemIds,
               optionId: value.optionId,
               packageId: value.packageId,
               quantity: value.quantity,
@@ -3893,23 +4016,9 @@ export const App: React.FC = () => {
                 ? openProviderProfile()
                 : openAccountProfile('messages')
             }
-            onSelectConversation={(conversation) => {
-              setSelectedConversation(conversation)
-              setConversationMessages([])
-              setChatReturnScreen('messages')
-              setScreen('chatThread')
-              void Promise.all([
-                fetchConversationMessages(conversation.id),
-                markConversationRead(conversation.id),
-              ]).then(([messages]) => {
-                setConversationMessages(messages)
-                setConversations((current) =>
-                  current.map((item) =>
-                    item.id === conversation.id ? { ...item, unreadCount: 0 } : item
-                  )
-                )
-              })
-            }}
+            onSelectConversation={(conversation) =>
+              void openExistingConversation(conversation, 'messages')
+            }
             onNewMessage={() => {
               setServiceBrowseMode('explore')
               setToastMessage('Choose a service to start a provider conversation.')
@@ -3933,6 +4042,8 @@ export const App: React.FC = () => {
                   }
                 : null
             }
+            isLoadingMessages={isLoadingConversationMessages}
+            isReadOnly={selectedConversation?.isReadOnly}
             isSending={isSendingMessage}
             messages={conversationMessages}
             participant={
@@ -4100,8 +4211,26 @@ export const App: React.FC = () => {
             }}
             onBack={() => setScreen('bookings')}
             onCancelBooking={handleClientBookingCancellation}
-            onMessageProvider={() => setScreen('messages')}
+            onMessageProvider={() => {
+              const bookingIds = selectedBooking?.services
+                ?.map((service) => service.bookingId)
+                .filter(Boolean) ?? []
+
+              if (bookingIds.length === 1) {
+                void openBookingConversationFor(bookingIds[0], 'bookingDetails')
+                return
+              }
+
+              setToastMessage('Select one of your existing provider conversations to continue.')
+              setScreen('messages')
+            }}
+            onMessageProviderForBooking={(bookingId) =>
+              void openBookingConversationFor(bookingId, 'bookingDetails')
+            }
+            onLoadFoodTastingSlots={loadCateringFoodTastingSlots}
+            onRequestFoodTasting={handleClientFoodTastingRequest}
             onRescheduleBooking={handleClientBookingReschedule}
+            onRespondToFoodTastingProposal={handleClientFoodTastingProposal}
             onSubmitReview={
               selectedBooking?.status === 'completed' && !selectedBooking.hasFeedback
                 ? () => setScreen('eventFeedback')

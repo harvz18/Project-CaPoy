@@ -19,7 +19,10 @@ import {
 } from '../lib/catalog'
 import { customerPriceFromProviderPrice } from '../lib/pricing'
 import {
+  calculateCateringCustomMenuPrice,
   calculateCateringPrice,
+  defaultCateringCustomMenuItemIds,
+  getCateringCustomMenu,
   getCateringPricingOptions,
   getVenueBookingOptions,
   getVenueBookingRules,
@@ -34,6 +37,7 @@ export type MealType = CateringServiceType
 export interface ServiceSelectionValue {
   attendeeCount: number
   budgetPerHead: number
+  cateringMenuItemIds?: string[]
   cateringOption?: CateringPricingOption
   estimatedTotal: number
   mealType?: MealType
@@ -60,6 +64,7 @@ interface ServiceDetailsScreenProps {
   service?: CatalogService
   onAddSelection?: (value: ServiceSelectionValue) => Promise<void> | void
   onCalculateQuote?: (value: {
+    menuItemIds?: string[]
     optionId?: string
     packageId?: string
     quantity?: number
@@ -144,6 +149,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   const heroHeight = Math.max(280, Math.min(460, height * 0.42))
   const [heroIndex, setHeroIndex] = React.useState(0)
   const [mealType, setMealType] = React.useState<MealType>()
+  const [selectedCateringMenuItemIds, setSelectedCateringMenuItemIds] = React.useState<string[]>([])
   const [selectedCateringOptionId, setSelectedCateringOptionId] = React.useState('')
   const [selectedVenueOptionId, setSelectedVenueOptionId] = React.useState('')
   const [venueHours, setVenueHours] = React.useState('')
@@ -181,6 +187,9 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   React.useEffect(() => {
     setSelectedPackageId(service?.packageId ?? '')
     setMealType(service?.cateringServiceTypes?.[0])
+    setSelectedCateringMenuItemIds(defaultCateringCustomMenuItemIds(
+      getCateringCustomMenu(service?.categoryDetails)
+    ))
     const options = getCateringPricingOptions(service?.categoryDetails, service?.providerMinPrice)
     setSelectedCateringOptionId(options.length === 1 ? options[0].id : '')
     const venueOptions = getVenueBookingOptions(service?.categoryDetails)
@@ -215,7 +224,15 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     const isCateringService = service.categoryId === 'catering'
     const isVenueService = service.categoryId === 'venues'
     const requestedHours = Number(venueHours)
-    if (isCateringService && !selectedCateringOptionId) return
+    const customMenu = getCateringCustomMenu(service.categoryDetails)
+    if (isCateringService && customMenu) {
+      const calculation = calculateCateringCustomMenuPrice(
+        customMenu,
+        selectedCateringMenuItemIds,
+        eventGuestCount
+      )
+      if (!calculation.fitsGuestCount) return
+    } else if (isCateringService && !selectedCateringOptionId) return
     if (isVenueService && (
       !selectedVenueOptionId
       || !Number.isFinite(requestedHours)
@@ -226,6 +243,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     setQuoteLoading(true)
     const timer = setTimeout(() => {
       void onCalculateQuote({
+        menuItemIds: isCateringService && customMenu ? selectedCateringMenuItemIds : undefined,
         optionId: isVenueService ? selectedVenueOptionId
           : isCateringService ? selectedCateringOptionId : undefined,
         packageId: selectedPackageId || service.packageId,
@@ -266,6 +284,8 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   }, [
     isExploreMode,
     onCalculateQuote,
+    eventGuestCount,
+    selectedCateringMenuItemIds,
     selectedCateringOptionId,
     selectedPackageId,
     selectedVenueOptionId,
@@ -292,15 +312,38 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   const categoryFacts = summarizeCategoryDetails(service.categoryName, service.categoryDetails)
   const isCatering = service.categoryId === 'catering'
   const isVenue = service.categoryId === 'venues'
+  const customCateringMenu = getCateringCustomMenu(service.categoryDetails)
+  const isCustomCateringMenu = isCatering && Boolean(customCateringMenu)
   const cateringOptions = getCateringPricingOptions(service.categoryDetails, service.providerMinPrice)
   const selectedCateringOption = cateringOptions.find((option) => option.id === selectedCateringOptionId)
+  const customCateringCalculation = customCateringMenu
+    ? calculateCateringCustomMenuPrice(customCateringMenu, selectedCateringMenuItemIds, attendeeCount)
+    : undefined
   const cateringCalculation = selectedCateringOption
     ? calculateCateringPrice(selectedCateringOption, attendeeCount)
     : undefined
-  const budgetPerHead = selectedCateringOption?.pricePerHead ?? 0
+  const selectedCustomCateringOption: CateringPricingOption | undefined = customCateringMenu && customCateringCalculation
+    ? {
+        id: 'custom-menu',
+        maximumGuests: customCateringMenu.maximumGuests,
+        menuSections: customCateringMenu.sections.map((section) => ({
+          id: section.id,
+          items: customCateringCalculation.selectedItems
+            .filter((item) => section.items.some((candidate) => candidate.id === item.id))
+            .map((item) => item.name),
+          name: section.name,
+        })),
+        minimumGuests: customCateringMenu.minimumGuests,
+        name: 'Custom menu',
+        pricePerHead: customCateringCalculation.unitPrice,
+      }
+    : undefined
+  const activeCateringOption = isCustomCateringMenu ? selectedCustomCateringOption : selectedCateringOption
+  const activeCateringCalculation = isCustomCateringMenu ? customCateringCalculation : cateringCalculation
+  const budgetPerHead = activeCateringOption?.pricePerHead ?? 0
   const availableMealTypes = service.cateringServiceTypes ?? []
   const cateringSelectionUnavailable = isCatering && (
-    !selectedCateringOption || !cateringCalculation?.fitsGuestCount
+    !activeCateringOption || !activeCateringCalculation?.fitsGuestCount
   )
   const venueOptions = getVenueBookingOptions(service.categoryDetails)
   const venueRules = getVenueBookingRules(service.categoryDetails)
@@ -374,18 +417,19 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
       await onAddSelection({
         attendeeCount,
         budgetPerHead,
-        cateringOption: selectedCateringOption,
+        cateringMenuItemIds: isCustomCateringMenu ? selectedCateringMenuItemIds : undefined,
+        cateringOption: activeCateringOption,
         estimatedTotal,
         mealType,
         notes,
         venueBookedHours: isVenue ? parsedVenueHours : undefined,
         venueOption: selectedVenueOption,
-        service: isCatering && selectedCateringOption
+        service: isCatering && activeCateringOption
           ? {
               ...service,
-              minPrice: customerPriceFromProviderPrice(selectedCateringOption.pricePerHead, service.commissionRate),
+              minPrice: customerPriceFromProviderPrice(activeCateringOption.pricePerHead, service.commissionRate),
               pricingUnit: 'person',
-              providerMinPrice: selectedCateringOption.pricePerHead,
+              providerMinPrice: activeCateringOption.pricePerHead,
             }
           : selectedPackage
             ? {
@@ -687,6 +731,53 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                   </View>
                   <MaterialCommunityIcons color={palette.primary} name="account-group-outline" size={28} />
                 </View>
+                {isCustomCateringMenu && customCateringMenu && customCateringCalculation ? <>
+                  <Text style={styles.cateringInstruction}>Choose the food items you would like. Prices update for the event guest count immediately.</Text>
+                  {customCateringMenu.sections.map((section) => (
+                    <View key={section.id} style={styles.cateringOptionCard}>
+                      <View style={styles.cateringOptionHeading}>
+                        <View>
+                          <Text style={styles.cateringOptionName}>{section.name}</Text>
+                          <Text style={styles.cateringOptionRange}>
+                            {section.minimumSelections > 0 ? `Choose at least ${section.minimumSelections}` : 'Optional'}
+                            {section.maximumSelections ? ` · up to ${section.maximumSelections}` : ''}
+                          </Text>
+                        </View>
+                      </View>
+                      {section.items.map((item) => {
+                        const selected = selectedCateringMenuItemIds.includes(item.id)
+                        const disabled = !item.isActive || item.isRequired
+                        return (
+                          <Pressable
+                            key={item.id}
+                            accessibilityRole="checkbox"
+                            accessibilityState={{ checked: selected, disabled }}
+                            disabled={disabled}
+                            onPress={() => setSelectedCateringMenuItemIds((current) => selected
+                              ? current.filter((id) => id !== item.id)
+                              : [...current, item.id]
+                            )}
+                            style={[styles.cateringMenuItemChoice, selected && styles.cateringMenuItemChoiceSelected, disabled && !item.isRequired && styles.cateringOptionCardDisabled]}
+                          >
+                            <MaterialCommunityIcons color={selected ? palette.primary : palette.secondary} name={selected ? 'checkbox-marked' : 'checkbox-blank-outline'} size={22} />
+                            <View style={styles.menuItemChoiceCopy}>
+                              <Text style={styles.cateringMenuName}>{item.name}{item.isRequired ? ' · Required' : ''}</Text>
+                              {item.description ? <Text style={styles.cateringMenuItems}>{item.description}</Text> : null}
+                              {!item.isActive ? <Text style={styles.cateringMismatch}>Unavailable</Text> : null}
+                            </View>
+                            <Text style={styles.cateringOptionUnit}>{formatPeso(customerPriceFromProviderPrice(item.pricePerHead, service.commissionRate))}/head</Text>
+                          </Pressable>
+                        )
+                      })}
+                    </View>
+                  ))}
+                  <View style={styles.cateringSummaryCard}>
+                    <Text style={styles.cateringOptionName}>Selected menu total</Text>
+                    <Text style={styles.cateringOptionUnit}>{formatPeso(customerPriceFromProviderPrice(customCateringCalculation.unitPrice, service.commissionRate))} / head</Text>
+                    <Text style={styles.cateringOptionSubtotal}>{formatPeso(customerPriceFromProviderPrice(customCateringCalculation.providerSubtotal, service.commissionRate))} for {attendeeCount.toLocaleString('en-PH')} guests</Text>
+                    {!customCateringCalculation.fitsGuestCount ? <Text style={styles.cateringMismatch}>{customCateringCalculation.reason}</Text> : null}
+                  </View>
+                </> : <>
                 <Text style={styles.cateringInstruction}>Choose one provider menu and pricing option.</Text>
                 {cateringOptions.map((option) => {
                   const calculation = calculateCateringPrice(option, attendeeCount)
@@ -731,6 +822,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                     <Text style={styles.unavailableNoticeText}>This provider must add a per-head catering option before this service can be selected.</Text>
                   </View>
                 ) : null}
+                </>}
               </View>
             ) : null}
 
@@ -1390,6 +1482,10 @@ const styles = StyleSheet.create({
   cateringOptionUnit: { color: palette.primary, fontSize: 13, lineHeight: 19, fontWeight: '700' },
   cateringOptionSubtotal: { color: palette.text, fontSize: 11, lineHeight: 16, marginTop: 2 },
   cateringMenuSection: { borderTopWidth: 1, borderTopColor: palette.surfaceVariant, paddingTop: 8 },
+  cateringMenuItemChoice: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 10, borderTopWidth: 1, borderTopColor: palette.surfaceVariant, paddingVertical: 10 },
+  cateringMenuItemChoiceSelected: { backgroundColor: '#FCF5F6', marginHorizontal: -6, paddingHorizontal: 6 },
+  menuItemChoiceCopy: { minWidth: 0, flex: 1 },
+  cateringSummaryCard: { gap: 4, borderRadius: 12, backgroundColor: '#F8EFF1', padding: 14 },
   cateringMenuName: { color: palette.text, fontSize: 12, lineHeight: 17, fontWeight: '700' },
   cateringMenuItems: { color: palette.secondary, fontSize: 11, lineHeight: 17, marginTop: 2 },
   cateringMismatch: { color: '#A12A35', fontSize: 11, lineHeight: 17, fontWeight: '700' },

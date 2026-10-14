@@ -272,6 +272,137 @@ const MenuBuilder = ({ onChange, value }: { onChange: (value: JsonRecord[]) => v
   )
 }
 
+const CustomCateringMenuBuilder = ({ details, set }: {
+  details: ServiceCategoryDetails
+  set: (key: string, value: unknown) => void
+}) => {
+  const sections = Array.isArray(details.customMenuSections)
+    ? details.customMenuSections.map(asRecord)
+    : []
+  const updateSection = (index: number, patch: JsonRecord) => set(
+    'customMenuSections',
+    sections.map((section, sectionIndex) => sectionIndex === index ? { ...section, ...patch } : section)
+  )
+  const updateItem = (sectionIndex: number, itemIndex: number, patch: JsonRecord) => {
+    const items = Array.isArray(sections[sectionIndex]?.items)
+      ? sections[sectionIndex].items.map(asRecord)
+      : []
+    updateSection(sectionIndex, {
+      items: items.map((item, index) => index === itemIndex ? { ...item, ...patch } : item),
+    })
+  }
+
+  return (
+    <Section
+      title="Custom item-priced menu"
+      description="Each selected food item is charged per guest. Required items are always included; inactive items remain in history but cannot be selected."
+    >
+      <View style={styles.twoColumns}>
+        <NumberField label="Minimum Guests" min={1} onChange={(minimumGuests) => set('minimumGuests', minimumGuests)} value={details.minimumGuests} />
+        <NumberField label="Maximum Guests" min={1} onChange={(maximumGuests) => set('maximumGuests', maximumGuests)} value={details.maximumGuests} />
+      </View>
+      {sections.map((section, sectionIndex) => {
+        const items = Array.isArray(section.items) ? section.items.map(asRecord) : []
+        return (
+          <View key={textValue(section.id) || sectionIndex} style={styles.repeatCard}>
+            <TextField label="Menu section" onChange={(name) => updateSection(sectionIndex, { name })} placeholder="e.g., Main course" value={section.name} />
+            <View style={styles.twoColumns}>
+              <NumberField label="Minimum selections" min={0} onChange={(minimumSelections) => updateSection(sectionIndex, { minimumSelections })} value={section.minimumSelections} />
+              <NumberField label="Maximum selections (optional)" min={0} onChange={(maximumSelections) => updateSection(sectionIndex, { maximumSelections })} value={section.maximumSelections} />
+            </View>
+            {items.map((item, itemIndex) => (
+              <View key={textValue(item.id) || itemIndex} style={styles.menuItemCard}>
+                <TextField label="Food item" onChange={(name) => updateItem(sectionIndex, itemIndex, { name })} placeholder="e.g., Chicken Cordon Bleu" value={item.name} />
+                <TextField label="Description (optional)" onChange={(description) => updateItem(sectionIndex, itemIndex, { description })} placeholder="Short description" value={item.description} />
+                <NumberField label="Price per head" min={1} onChange={(pricePerHead) => updateItem(sectionIndex, itemIndex, { pricePerHead })} suffix="PHP / guest" value={item.pricePerHead} />
+                <ToggleField label="Available to clients" onChange={(isActive) => updateItem(sectionIndex, itemIndex, { isActive })} value={item.isActive !== false} />
+                <ToggleField label="Included by default" onChange={(isDefault) => updateItem(sectionIndex, itemIndex, { isDefault })} value={item.isDefault === true} />
+                <ToggleField label="Required inclusion" onChange={(isRequired) => updateItem(sectionIndex, itemIndex, { isRequired, isDefault: isRequired ? true : item.isDefault })} value={item.isRequired === true} />
+                <Pressable onPress={() => updateSection(sectionIndex, { items: items.filter((_, index) => index !== itemIndex) })} style={styles.removeButton}>
+                  <Text style={styles.removeText}>Remove food item</Text>
+                </Pressable>
+              </View>
+            ))}
+            <Pressable onPress={() => updateSection(sectionIndex, { items: [...items, { id: newId('food'), name: '', description: '', pricePerHead: undefined, isActive: true, isDefault: false, isRequired: false }] })} style={styles.addButton}>
+              <Text style={styles.addButtonText}>+ Add food item</Text>
+            </Pressable>
+            <Pressable onPress={() => set('customMenuSections', sections.filter((_, index) => index !== sectionIndex))} style={styles.removeButton}>
+              <Text style={styles.removeText}>Remove menu section</Text>
+            </Pressable>
+          </View>
+        )
+      })}
+      <Pressable onPress={() => set('customMenuSections', [...sections, { id: newId('custom-menu'), name: '', minimumSelections: 0, maximumSelections: undefined, items: [] }])} style={styles.addButton}>
+        <Text style={styles.addButtonText}>+ Add menu section</Text>
+      </Pressable>
+    </Section>
+  )
+}
+
+const CateringTastingSettingsBuilder = ({ details, set }: {
+  details: ServiceCategoryDetails
+  set: (key: string, value: unknown) => void
+}) => {
+  const settings = asRecord(details.tastingSettings)
+  const update = (patch: JsonRecord) => set('tastingSettings', { ...settings, ...patch })
+  const enabled = settings.enabled === true
+
+  return (
+    <Section
+      title="Optional food tasting"
+      description="Food tastings become available only after you accept a catering booking. Slots are checked against your availability calendar and operating hours."
+    >
+      <ToggleField
+        label="Offer optional food tastings"
+        onChange={(next) => update({ enabled: next })}
+        value={enabled}
+      />
+      {enabled ? (
+        <>
+          <TextField
+            label="Tasting location"
+            onChange={(location) => update({ location })}
+            placeholder="e.g., Main tasting room, Bacolod City"
+            value={settings.location}
+          />
+          <TagField
+            label="Available tasting start times"
+            onChange={(tastingTimeSlots) => update({ tastingTimeSlots })}
+            options={[]}
+            value={settings.tastingTimeSlots}
+          />
+          <Text style={styles.integrationNote}>
+            Enter times in 24-hour HH:MM format, for example 10:00 or 14:00. We only show slots that also fit your availability calendar and operating hours.
+          </Text>
+          <View style={styles.twoColumns}>
+            <NumberField
+              label="Duration"
+              min={15}
+              onChange={(durationMinutes) => update({ durationMinutes })}
+              suffix="minutes"
+              value={settings.durationMinutes ?? 60}
+            />
+            <NumberField
+              label="Minimum lead time"
+              min={0}
+              onChange={(minimumLeadDays) => update({ minimumLeadDays })}
+              suffix="days"
+              value={settings.minimumLeadDays ?? 1}
+            />
+          </View>
+          <NumberField
+            label="Latest booking window before the event"
+            min={0}
+            onChange={(latestDaysBeforeEvent) => update({ latestDaysBeforeEvent })}
+            suffix="days before event (0 = any time before)"
+            value={settings.latestDaysBeforeEvent ?? 0}
+          />
+        </>
+      ) : null}
+    </Section>
+  )
+}
+
 const CateringOptionsBuilder = ({ details, set }: {
   details: ServiceCategoryDetails
   set: (key: string, value: unknown) => void
@@ -287,9 +418,12 @@ const CateringOptionsBuilder = ({ details, set }: {
   )
 
   return (
+    <>
+      <CustomCateringMenuBuilder details={details} set={set} />
+      <CateringTastingSettingsBuilder details={details} set={set} />
     <Section
-      title="Menu & Pricing Options"
-      description="Clients choose one option. Each price is charged per event guest."
+      title="Fixed menu options"
+      description="Keep existing fixed-price menus for compatibility. Clients use the item-priced menu above when one is configured."
     >
       {options.map((option, index) => (
         <View key={textValue(option.id) || index} style={styles.repeatCard}>
@@ -338,6 +472,7 @@ const CateringOptionsBuilder = ({ details, set }: {
         <Text style={styles.addButtonText}>+ Add catering option</Text>
       </Pressable>
     </Section>
+    </>
   )
 }
 
@@ -615,6 +750,7 @@ const styles = StyleSheet.create({
   selectedTag: { borderRadius: 15, backgroundColor: palette.primarySoft, paddingHorizontal: 10, paddingVertical: 6 },
   selectedTagText: { color: palette.primary, fontSize: 11, fontWeight: '600' },
   repeatCard: { gap: 14, borderWidth: 1, borderColor: '#D8D1D3', borderRadius: 10, backgroundColor: '#FFFFFF', padding: 14 },
+  menuItemCard: { gap: 12, borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 14 },
   addButton: { minHeight: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.primary, borderRadius: 8, paddingHorizontal: 14 },
   addButtonText: { color: palette.primary, fontSize: 13, fontWeight: '700' },
   removeButton: { alignSelf: 'flex-start', paddingVertical: 5 },

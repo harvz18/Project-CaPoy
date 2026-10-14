@@ -25,6 +25,7 @@ export interface ClientConversation {
   id: string
   isOnline?: boolean
   isPinned?: boolean
+  isReadOnly?: boolean
   lastMessage: string
   lastMessageAt: string
   participantName: string
@@ -287,7 +288,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                 </View>
               ) : null}
             </View>
-            <Text style={styles.subtitle}>Keep every provider conversation in one place.</Text>
+            <Text style={styles.subtitle}>Only people connected through a booking can message here.</Text>
           </View>
           <Pressable
             accessibilityRole="button"
@@ -400,7 +401,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                 onPress={onNewMessage}
                 style={({ pressed }) => [styles.emptyButton, pressed && styles.primaryPressed]}
               >
-                <Text style={styles.emptyButtonText}>Start a conversation</Text>
+                <Text style={styles.emptyButtonText}>View services</Text>
               </Pressable>
             ) : null}
           </View>

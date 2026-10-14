@@ -45,6 +45,9 @@ const toBookingStatus = (
   return 'pending'
 }
 
+const isClosedBookingStatus = (value: unknown) =>
+  ['rejected', 'cancelled', 'expired'].includes(textFrom(value).toLowerCase())
+
 const toNotificationCategory = (value: unknown): MerchantNotificationCategory => {
   const category = textFrom(value).toLowerCase()
   if (category.includes('booking')) return 'booking'
@@ -151,6 +154,7 @@ export const fetchConversations = async (): Promise<ClientConversation[]> => {
           : undefined,
         bookingStatus: booking ? toBookingStatus(booking.status) : undefined,
         id: conversationId,
+        isReadOnly: booking ? isClosedBookingStatus(booking.status) : true,
         lastMessage: textFrom(lastMessage?.body, 'Conversation started.'),
         lastMessageAt: textFrom(lastMessage?.created_at, textFrom(record.updated_at)),
         participantName,
@@ -171,15 +175,15 @@ export const fetchConversations = async (): Promise<ClientConversation[]> => {
     )
 }
 
-export const openCoordinatorProviderConversation = async (
+export const openBookingConversation = async (
   bookingId: string
 ): Promise<OpenConversationResult> => {
   const client = getClient()
   if (!client || !bookingId) {
-    return { error: 'Unable to open this provider conversation.', ok: false }
+    return { error: 'Unable to open this booking conversation.', ok: false }
   }
 
-  const { data, error } = await client.rpc('open_coordinator_provider_conversation', {
+  const { data, error } = await client.rpc('open_booking_conversation', {
     target_booking_id: bookingId,
   })
 
@@ -192,8 +196,11 @@ export const openCoordinatorProviderConversation = async (
 
   return conversationId
     ? { conversationId, ok: true }
-    : { error: 'The provider conversation could not be opened.', ok: false }
+    : { error: 'The booking conversation could not be opened.', ok: false }
 }
+
+// Kept for coordinator callers while every role uses the same secure booking RPC.
+export const openCoordinatorProviderConversation = openBookingConversation
 
 export const fetchConversationMessages = async (
   conversationId: string
@@ -221,15 +228,11 @@ export const fetchConversationMessages = async (
 
 export const markConversationRead = async (conversationId: string) => {
   const client = getClient()
-  const userId = await getCurrentUserId()
-  if (!client || !userId || !conversationId) return false
+  if (!client || !conversationId) return false
 
-  const { error } = await client
-    .from('messages')
-    .update({ read_at: new Date().toISOString() })
-    .eq('conversation_id', conversationId)
-    .neq('sender_id', userId)
-    .is('read_at', null)
+  const { error } = await client.rpc('mark_booking_conversation_read', {
+    target_conversation_id: conversationId,
+  })
 
   return !error
 }
@@ -239,51 +242,37 @@ export const sendConversationMessage = async (
   body: string
 ): Promise<MessageResult> => {
   const client = getClient()
-  const userId = await getCurrentUserId()
   const normalizedBody = body.trim()
 
-  if (!client || !userId || !conversationId || !normalizedBody) {
+  if (!client || !conversationId || !normalizedBody) {
     return { ok: false, error: 'Unable to send this message.' }
   }
 
-  const { data, error } = await client
-    .from('messages')
-    .insert({ body: normalizedBody, conversation_id: conversationId, sender_id: userId })
-    .select('id, body, created_at')
-    .single()
+  const { data, error } = await client.rpc('send_booking_message', {
+    message_body: normalizedBody,
+    target_conversation_id: conversationId,
+  })
 
   if (error || !data) return { ok: false, error: error?.message }
 
-  await client
-    .from('conversations')
-    .update({ updated_at: data.created_at })
-    .eq('id', conversationId)
+  const payload = data && typeof data === 'object' && !Array.isArray(data)
+    ? (data as Record<string, unknown>)
+    : {}
+  const messageId = textFrom(payload.id)
+  const messageBody = textFrom(payload.body)
+  const createdAt = textFrom(payload.created_at)
 
-  const { data: recipients } = await client
-    .from('conversation_participants')
-    .select('user_id')
-    .eq('conversation_id', conversationId)
-    .neq('user_id', userId)
-
-  if (recipients?.length) {
-    await client.from('notifications').insert(
-      recipients.map((recipient) => ({
-        body: normalizedBody.slice(0, 180),
-        resource_id: conversationId,
-        resource_type: 'message',
-        title: 'New message',
-        user_id: recipient.user_id,
-      }))
-    )
+  if (!messageId || !messageBody || !createdAt) {
+    return { ok: false, error: 'The message was saved but its delivery details could not be loaded.' }
   }
 
   return {
     message: {
-      createdAt: data.created_at,
-      id: data.id,
+      createdAt,
+      id: messageId,
       sender: 'currentUser',
       status: 'sent',
-      text: data.body,
+      text: messageBody,
     },
     ok: true,
   }

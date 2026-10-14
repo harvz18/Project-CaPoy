@@ -13,7 +13,11 @@ import {
 import { Text } from '../components/AppText'
 import { formatPeso, type CatalogService } from '../lib/catalog'
 import { customerPriceFromProviderPrice } from '../lib/pricing'
-import { calculateCateringPrice } from '../lib/service-category-details'
+import {
+  calculateCateringCustomMenuPrice,
+  calculateCateringPrice,
+  defaultCateringCustomMenuItemIds,
+} from '../lib/service-category-details'
 
 interface CoordinatorDetailsScreenProps {
   assigning?: boolean
@@ -24,7 +28,7 @@ interface CoordinatorDetailsScreenProps {
   mode?: 'explore' | 'planning'
   onBack?: () => void
   onSelectProvider?: () => void
-  onSelectPackage?: (packageId: string, cateringOptionChoices: Record<string, string>) => void
+  onSelectPackage?: (packageId: string, cateringOptionChoices: Record<string, string | string[]>) => void
   selectingPackageId?: string
   service?: CatalogService
 }
@@ -66,7 +70,7 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
   const isAvailable = service?.coordinatorAvailable !== false
   const reviews = service?.coordinatorReviews ?? []
   const packages = service?.coordinatorPackages ?? []
-  const [cateringChoices, setCateringChoices] = React.useState<Record<string, string>>({})
+  const [cateringChoices, setCateringChoices] = React.useState<Record<string, string | string[]>>({})
   const averageRating = reviews.length
     ? reviews.reduce((total, review) => total + review.rating, 0) / reviews.length
     : 0
@@ -162,19 +166,29 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
             <Text style={styles.packageIntro}>Choose a package to add its current provider services to your plan, or book the coordinator only below.</Text>
           </View>
           {packages.length ? <View style={styles.packageList}>{packages.map((item) => {
-            const cateringItems = item.items.filter((packageItem) => packageItem.requiresCateringOption)
+            const cateringItems = item.items.filter((packageItem) => packageItem.requiresCateringOption || packageItem.requiresCateringMenu)
             const venueItems = item.items.filter((packageItem) => packageItem.venueOptions.length > 0)
-            const packageChoices: Record<string, string> = Object.fromEntries(cateringItems.flatMap((packageItem) => {
-              const optionId = cateringChoices[`${item.id}:${packageItem.serviceId}`]
-              return optionId ? [[packageItem.serviceId, optionId]] : []
+            const packageChoices: Record<string, string | string[]> = Object.fromEntries(cateringItems.flatMap((packageItem) => {
+              const choice = cateringChoices[`${item.id}:${packageItem.serviceId}`]
+              const menuChoice = packageItem.customCateringMenu
+                ? (Array.isArray(choice) ? choice : defaultCateringCustomMenuItemIds(packageItem.customCateringMenu))
+                : choice
+              return menuChoice && (typeof menuChoice !== 'string' || menuChoice.length > 0)
+                ? [[packageItem.serviceId, menuChoice]]
+                : []
             }))
             venueItems.forEach((packageItem) => {
               const optionId = cateringChoices[`${item.id}:venueOption:${packageItem.serviceId}`]
               const hours = cateringChoices[`${item.id}:venueHours:${packageItem.serviceId}`]
-              if (optionId) packageChoices[`venueOption:${packageItem.serviceId}`] = optionId
-              if (hours) packageChoices[`venueHours:${packageItem.serviceId}`] = hours
+              if (typeof optionId === 'string') packageChoices[`venueOption:${packageItem.serviceId}`] = optionId
+              if (typeof hours === 'string') packageChoices[`venueHours:${packageItem.serviceId}`] = hours
             })
             const cateringChoicesComplete = cateringItems.every((packageItem) => {
+              if (packageItem.requiresCateringMenu && packageItem.customCateringMenu) {
+                const selectedIds = packageChoices[packageItem.serviceId]
+                return Array.isArray(selectedIds)
+                  && calculateCateringCustomMenuPrice(packageItem.customCateringMenu, selectedIds, eventGuestCount).fitsGuestCount
+              }
               const optionId = packageChoices[packageItem.serviceId]
               const option = packageItem.cateringOptions.find((candidate) => candidate.id === optionId)
               return option ? calculateCateringPrice(option, eventGuestCount).fitsGuestCount : false
@@ -202,6 +216,12 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
                   ? packageItem.providerPrice * billedHours
                   : packageItem.providerPrice
                 return customerPriceFromProviderPrice(providerAmount, packageItem.commissionRate)
+              }
+              if (packageItem.requiresCateringMenu && packageItem.customCateringMenu) {
+                const selectedIds = packageChoices[packageItem.serviceId]
+                if (!Array.isArray(selectedIds)) return packageItem.estimatedAmount
+                const calculation = calculateCateringCustomMenuPrice(packageItem.customCateringMenu, selectedIds, eventGuestCount)
+                return customerPriceFromProviderPrice(calculation.providerSubtotal, packageItem.commissionRate)
               }
               if (!packageItem.requiresCateringOption) return packageItem.estimatedAmount
               const optionId = packageChoices[packageItem.serviceId]
@@ -249,7 +269,59 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
                     </Text>
                   </View>
                 </View>
-                {packageItem.requiresCateringOption ? <View style={styles.cateringChoices}>
+                {packageItem.requiresCateringMenu && packageItem.customCateringMenu ? <View style={styles.cateringChoices}>
+                  <Text style={styles.cateringChoiceLabel}>Choose food items for {eventGuestCount} guests</Text>
+                  {packageItem.customCateringMenu.sections.map((section) => {
+                    const choiceKey = `${item.id}:${packageItem.serviceId}`
+                    const currentChoice = cateringChoices[choiceKey]
+                    const selectedIds = Array.isArray(currentChoice)
+                      ? currentChoice
+                      : defaultCateringCustomMenuItemIds(packageItem.customCateringMenu)
+                    return <View key={section.id} style={styles.customMenuSection}>
+                      <Text style={styles.packageItemProvider}>
+                        {section.name} · {section.minimumSelections > 0 ? `choose ${section.minimumSelections}+` : 'optional'}{section.maximumSelections ? ` · up to ${section.maximumSelections}` : ''}
+                      </Text>
+                      {section.items.map((food) => {
+                        const selected = selectedIds.includes(food.id)
+                        const disabled = !food.isActive || food.isRequired
+                        return <Pressable
+                          key={food.id}
+                          disabled={disabled}
+                          onPress={() => setCateringChoices((current) => {
+                            const active = Array.isArray(current[choiceKey])
+                              ? current[choiceKey] as string[]
+                              : defaultCateringCustomMenuItemIds(packageItem.customCateringMenu)
+                            return {
+                              ...current,
+                              [choiceKey]: selected ? active.filter((id) => id !== food.id) : [...active, food.id],
+                            }
+                          })}
+                          style={[styles.cateringChoice, selected && styles.cateringChoiceSelected, disabled && !food.isRequired && styles.cateringChoiceDisabled]}
+                        >
+                          <MaterialCommunityIcons color={selected ? palette.primaryContainer : palette.muted} name={selected ? 'checkbox-marked' : 'checkbox-blank-outline'} size={18} />
+                          <View style={styles.packageItemCopy}>
+                            <Text style={styles.cateringChoiceName}>{food.name}{food.isRequired ? ' · Required' : ''}</Text>
+                            <Text style={styles.packageItemProvider}>{food.description || `${formatPeso(customerPriceFromProviderPrice(food.pricePerHead, packageItem.commissionRate))}/head`}</Text>
+                          </View>
+                          <Text style={styles.packageItemPrice}>{formatPeso(customerPriceFromProviderPrice(food.pricePerHead, packageItem.commissionRate))}/head</Text>
+                        </Pressable>
+                      })}
+                    </View>
+                  })}
+                  {(() => {
+                    const selectedIds = packageChoices[packageItem.serviceId]
+                    const calculation = calculateCateringCustomMenuPrice(
+                      packageItem.customCateringMenu,
+                      Array.isArray(selectedIds) ? selectedIds : [],
+                      eventGuestCount
+                    )
+                    return <Text style={calculation.fitsGuestCount ? styles.packageItemProvider : styles.cateringChoiceError}>
+                      {calculation.fitsGuestCount
+                        ? `${formatPeso(customerPriceFromProviderPrice(calculation.unitPrice, packageItem.commissionRate))}/head · ${formatPeso(customerPriceFromProviderPrice(calculation.providerSubtotal, packageItem.commissionRate))} total`
+                        : calculation.reason}
+                    </Text>
+                  })()}
+                </View> : packageItem.requiresCateringOption ? <View style={styles.cateringChoices}>
                   <Text style={styles.cateringChoiceLabel}>Choose a menu for {eventGuestCount} guests</Text>
                   {packageItem.cateringOptions.map((option) => {
                     const calculation = calculateCateringPrice(option, eventGuestCount)
@@ -299,7 +371,9 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
                     placeholder={`${packageItem.venueRules?.minimumBookingHours ?? 1} booking hours`}
                     placeholderTextColor={palette.muted}
                     style={styles.venueHoursInput}
-                    value={cateringChoices[`${item.id}:venueHours:${packageItem.serviceId}`] ?? ''}
+                    value={typeof cateringChoices[`${item.id}:venueHours:${packageItem.serviceId}`] === 'string'
+                      ? cateringChoices[`${item.id}:venueHours:${packageItem.serviceId}`] as string
+                      : ''}
                   />
                   <Text style={styles.packageItemProvider}>
                     {packageItem.venueRules?.minimumBookingHours ?? 1} hour minimum · {packageItem.venueRules?.durationIncrementHours ?? 1} hour increments · Setup/ingress {packageItem.venueRules?.setupAllowanceHours ?? 0} hours
@@ -473,6 +547,7 @@ const styles = StyleSheet.create({
   packageBudgetFit: { color: palette.success, fontSize: 8, fontWeight: '700' },
   packageBudgetWarning: { color: '#A12A35', fontSize: 8, fontWeight: '700' },
   cateringChoices: { gap: 7, marginLeft: 92, marginTop: 8 },
+  customMenuSection: { gap: 6, borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 8 },
   cateringChoiceLabel: { color: palette.primaryContainer, fontSize: 10, lineHeight: 15, fontWeight: '700' },
   cateringChoice: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: palette.border, borderRadius: 10, padding: 10 },
   cateringChoiceSelected: { borderColor: palette.primaryContainer, backgroundColor: palette.surfaceTint },

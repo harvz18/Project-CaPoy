@@ -14,6 +14,8 @@ import {
 import type { CateringServiceType } from '../lib/catalog'
 import { MultiSelectField } from '../components/MultiSelectField'
 import {
+  cateringCustomMenuStartingPrice,
+  getCateringCustomMenu,
   getCateringPricingOptions,
   type ServiceCategoryDetails,
 } from '../lib/service-category-details'
@@ -108,9 +110,9 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
   const isWide = width >= 768
   const isCatering = categoryName.toLowerCase().includes('cater')
   const cateringOptions = getCateringPricingOptions(categoryDetails)
-  const cateringStartingPrice = cateringOptions.length
+  const cateringStartingPrice = cateringCustomMenuStartingPrice(getCateringCustomMenu(categoryDetails)) ?? (cateringOptions.length
     ? Math.min(...cateringOptions.map((option) => option.pricePerHead))
-    : undefined
+    : undefined)
   const categoryPricingUnit = categoryDetails?.kind === 'catering'
     ? 'person' as const
     : undefined

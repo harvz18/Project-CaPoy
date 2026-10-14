@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native'
 import { ClientBottomNavigation, ClientMainTab } from '../components/ClientBottomNavigation'
+import type { CateringFoodTasting } from '../lib/merchant'
 
 export type BookingStatus = 'all' | 'confirmed' | 'requested' | 'completed' | 'cancelled'
 export type BookingTab = ClientMainTab | 'merchants'
@@ -20,6 +21,8 @@ export interface BookingServiceItem {
   category: string
   completionPaymentStatus?: 'awaiting_external_payment' | 'partially_confirmed' | 'fully_confirmed'
   confirmedExternalPaymentAmount?: number
+  foodTasting?: CateringFoodTasting
+  foodTastingEnabled?: boolean
   image: string
   initialProviderShare?: number
   paymentStatus: string

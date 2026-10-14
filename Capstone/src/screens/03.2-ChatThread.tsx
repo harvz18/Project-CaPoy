@@ -1,6 +1,7 @@
 import { Text } from '../components/AppText'
 import React from 'react'
 import {
+  ActivityIndicator,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -58,7 +59,9 @@ export interface ChatSendValue {
 interface ChatThreadScreenProps {
   booking?: ChatBookingContext | null
   draftValue?: string
+  isLoadingMessages?: boolean
   isParticipantTyping?: boolean
+  isReadOnly?: boolean
   isSending?: boolean
   messages?: ChatMessage[]
   onAttach?: () => void
@@ -202,7 +205,9 @@ const PhoneIcon = () => (
 export const ChatThreadScreen: React.FC<ChatThreadScreenProps> = ({
   booking = defaultBooking,
   draftValue,
+  isLoadingMessages = false,
   isParticipantTyping = false,
+  isReadOnly = false,
   isSending = false,
   messages = defaultMessages,
   onAttach,
@@ -225,7 +230,7 @@ export const ChatThreadScreen: React.FC<ChatThreadScreenProps> = ({
   const value = { ...defaultParticipant, ...participant }
   const draft = draftValue ?? internalDraft
   const normalizedDraft = draft.trim()
-  const canSend = Boolean(normalizedDraft || pendingAttachments.length) && !isSending
+  const canSend = Boolean(normalizedDraft || pendingAttachments.length) && !isSending && !isReadOnly
 
   const changeDraft = (nextDraft: string) => {
     if (draftValue === undefined) setInternalDraft(nextDraft)
@@ -355,7 +360,12 @@ export const ChatThreadScreen: React.FC<ChatThreadScreenProps> = ({
         showsVerticalScrollIndicator={false}
         style={styles.messageScroll}
       >
-        {messages.length ? (
+        {isLoadingMessages ? (
+          <View style={styles.loadingConversation}>
+            <ActivityIndicator color={palette.primaryContainer} />
+            <Text style={styles.loadingConversationText}>Loading conversation…</Text>
+          </View>
+        ) : messages.length ? (
           messages.map((message, index) => {
             const previousMessage = messages[index - 1]
             const nextMessage = messages[index + 1]
@@ -403,6 +413,15 @@ export const ChatThreadScreen: React.FC<ChatThreadScreenProps> = ({
 
       <View style={styles.composerContainer}>
         <View style={[styles.composerContent, isWide && styles.horizontalPaddingWide]}>
+          {isReadOnly ? (
+            <View accessibilityRole="text" style={styles.readOnlyNotice}>
+              <Text style={styles.readOnlyNoticeTitle}>Conversation closed</Text>
+              <Text style={styles.readOnlyNoticeText}>
+                This booking is no longer active. Its message history remains available, but new messages cannot be sent.
+              </Text>
+            </View>
+          ) : (
+            <>
           {pendingAttachments.length ? (
             <ScrollView
               contentContainerStyle={styles.pendingAttachmentList}
@@ -466,6 +485,8 @@ export const ChatThreadScreen: React.FC<ChatThreadScreenProps> = ({
               <Text style={styles.sendButtonText}>{isSending ? '…' : '\u2191'}</Text>
             </Pressable>
           </View>
+            </>
+          )}
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -766,6 +787,8 @@ const styles = StyleSheet.create({
   attachmentArrow: { color: palette.secondary, fontSize: 18, lineHeight: 20 },
   attachmentArrowCurrentUser: { color: palette.onPrimary },
   emptyConversation: { alignItems: 'center', paddingHorizontal: 20, paddingVertical: 36 },
+  loadingConversation: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 20, paddingVertical: 36 },
+  loadingConversationText: { color: palette.secondary, fontSize: 10, lineHeight: 16 },
   emptyTitle: { color: palette.text, fontSize: 16, lineHeight: 22, fontWeight: '700', textAlign: 'center', marginTop: 13 },
   emptyText: { maxWidth: 390, color: palette.secondary, fontSize: 10, lineHeight: 16, textAlign: 'center', marginTop: 4 },
   typingRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 8 },
@@ -774,6 +797,9 @@ const styles = StyleSheet.create({
   typingLabel: { color: palette.muted, fontSize: 7, lineHeight: 10 },
   composerContainer: { zIndex: 40, borderTopWidth: 1, borderTopColor: palette.border, backgroundColor: palette.white },
   composerContent: { width: '100%', maxWidth: 820, alignSelf: 'center', paddingHorizontal: 12, paddingTop: 9, paddingBottom: 11 },
+  readOnlyNotice: { borderRadius: 10, backgroundColor: palette.pendingSoft, paddingHorizontal: 13, paddingVertical: 10 },
+  readOnlyNoticeTitle: { color: palette.pending, fontSize: 10, lineHeight: 14, fontWeight: '700' },
+  readOnlyNoticeText: { color: palette.secondary, fontSize: 9, lineHeight: 14, marginTop: 2 },
   pendingAttachmentList: { gap: 7, paddingBottom: 8 },
   pendingAttachment: { maxWidth: 230, flexDirection: 'row', alignItems: 'center', gap: 7, borderRadius: 7, backgroundColor: palette.primarySoft, paddingLeft: 10, paddingRight: 7, paddingVertical: 5 },
   pendingAttachmentName: { minWidth: 0, flex: 1, color: palette.primaryContainer, fontSize: 8, lineHeight: 12, fontWeight: '600' },

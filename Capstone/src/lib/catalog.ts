@@ -5,11 +5,13 @@ import {
   normalizeCommissionRate,
 } from './pricing'
 import {
+  getCateringCustomMenu,
   getCateringPricingOptions,
   getVenueBookingOptions,
   getVenueBookingRules,
   normalizeCategoryDetails,
   type CateringPricingOption,
+  type CateringCustomMenu,
   type ServiceCategoryDetails,
   type VenueBookingOption,
   type VenueBookingRules,
@@ -41,6 +43,7 @@ export interface CoordinatorReview {
 }
 
 export interface CoordinatorPackageItem {
+  customCateringMenu?: CateringCustomMenu
   cateringOptions: CateringPricingOption[]
   categoryName: string
   commissionRate: number
@@ -48,6 +51,7 @@ export interface CoordinatorPackageItem {
   estimatedAmount: number
   pricingUnit: 'event' | 'person' | 'hour' | 'day'
   requiresCateringOption: boolean
+  requiresCateringMenu: boolean
   providerId: string
   providerName: string
   providerPrice: number
@@ -464,12 +468,14 @@ export const fetchAvailableCoordinators = async (): Promise<CatalogService[]> =>
     { data: reviewData },
     { data: packageData },
     { data: packageVenueData },
+    { data: packageCateringMenuData },
     { data: configuredCommissionRate },
   ] = await Promise.all([
     supabase.rpc('list_bookable_event_coordinators'),
     supabase.rpc('list_event_coordinator_review_data'),
     supabase.rpc('list_bookable_coordinator_packages'),
     supabase.rpc('list_phase9_package_venue_requirements'),
+    supabase.rpc('list_phase11_package_catering_menus'),
     supabase.rpc('get_public_commission_rate'),
   ])
   if (error || !Array.isArray(data)) return []
@@ -483,12 +489,20 @@ export const fetchAvailableCoordinators = async (): Promise<CatalogService[]> =>
   )
   const packagesByCoordinator = new Map<string, CoordinatorPackage[]>()
   const packageVenueDetails = new Map<string, ServiceCategoryDetails>()
+  const packageCateringMenus = new Map<string, CateringCustomMenu>()
   for (const entry of Array.isArray(packageVenueData) ? packageVenueData : []) {
     if (!entry || typeof entry !== 'object') continue
     const row = entry as Record<string, unknown>
     const key = `${textFrom(row.package_id, '')}:${textFrom(row.service_id, '')}`
     if (key === ':') continue
     packageVenueDetails.set(key, normalizeCategoryDetails('Venues & Estates', row.venue_details))
+  }
+  for (const entry of Array.isArray(packageCateringMenuData) ? packageCateringMenuData : []) {
+    if (!entry || typeof entry !== 'object') continue
+    const row = entry as Record<string, unknown>
+    const key = `${textFrom(row.package_id, '')}:${textFrom(row.service_id, '')}`
+    const menu = getCateringCustomMenu(row.menu_details)
+    if (key !== ':' && menu) packageCateringMenus.set(key, menu)
   }
   for (const entry of Array.isArray(packageData) ? packageData : []) {
     const row = entry as Record<string, unknown>
@@ -508,6 +522,7 @@ export const fetchAvailableCoordinators = async (): Promise<CatalogService[]> =>
             ? item.pricing_unit as CoordinatorPackageItem['pricingUnit']
             : 'event'
           const venueDetails = packageVenueDetails.get(`${packageId}:${serviceId}`)
+          const customCateringMenu = packageCateringMenus.get(`${packageId}:${serviceId}`)
           return [{
             cateringOptions: getCateringPricingOptions({
               kind: 'catering',
@@ -516,11 +531,13 @@ export const fetchAvailableCoordinators = async (): Promise<CatalogService[]> =>
               schemaVersion: 1,
             }),
             categoryName: textFrom(item.category_name, 'Service'),
+            customCateringMenu,
             commissionRate: normalizeCommissionRate(item.commission_rate, DEFAULT_COMMISSION_RATE),
             customerUnitPrice: numberFrom(item.customer_unit_price, 0),
             estimatedAmount: numberFrom(item.estimated_amount, 0),
             pricingUnit,
-            requiresCateringOption: item.requires_catering_option === true,
+            requiresCateringOption: item.requires_catering_option === true && !customCateringMenu,
+            requiresCateringMenu: Boolean(customCateringMenu),
             providerId: textFrom(item.provider_id, ''),
             providerName: textFrom(item.provider_name, 'Provider'),
             providerPrice: numberFrom(item.provider_price, 0),

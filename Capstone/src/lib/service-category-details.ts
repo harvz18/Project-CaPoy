@@ -31,6 +31,48 @@ export type CateringPricingOption = {
   pricePerHead: number
 }
 
+// Item-priced menus are deliberately stored beside the established fixed-menu
+// option format. That keeps published listings and historic selections
+// readable while letting providers opt into a configurable menu.
+export type CateringCustomMenuItem = {
+  description?: string
+  id: string
+  isActive: boolean
+  isDefault: boolean
+  isRequired: boolean
+  name: string
+  pricePerHead: number
+}
+
+export type CateringCustomMenuSection = {
+  id: string
+  items: CateringCustomMenuItem[]
+  maximumSelections?: number
+  minimumSelections: number
+  name: string
+}
+
+export type CateringCustomMenu = {
+  maximumGuests: number
+  minimumGuests: number
+  sections: CateringCustomMenuSection[]
+}
+
+// Food tastings are opt-in per catering listing. Slots are provider-entered
+// local times; server-side availability remains the source of truth.
+export type CateringTastingSettings = {
+  durationMinutes: number
+  enabled: boolean
+  latestDaysBeforeEvent: number
+  location?: string
+  minimumLeadDays: number
+  slots: string[]
+}
+
+export type CateringCustomMenuPriceCalculation = CateringPriceCalculation & {
+  selectedItems: CateringCustomMenuItem[]
+}
+
 export type CateringPriceCalculation = {
   fitsGuestCount: boolean
   guestCount: number
@@ -188,6 +230,142 @@ export const getCateringPricingOptions = (
   }]
 }
 
+export const getCateringCustomMenu = (value: unknown): CateringCustomMenu | undefined => {
+  const details = asObject(value)
+  const rows = Array.isArray(details.customMenuSections)
+    ? details.customMenuSections.map(asObject)
+    : []
+  const sections = rows.map((section, sectionIndex) => ({
+    id: text(section.id) || `custom-section-${sectionIndex + 1}`,
+    items: (Array.isArray(section.items) ? section.items : []).map(asObject).flatMap((item) => {
+      const id = text(item.id)
+      const name = text(item.name)
+      const pricePerHead = number(item.pricePerHead)
+      if (!id || !name || pricePerHead <= 0) return []
+      return [{
+        description: text(item.description) || undefined,
+        id,
+        isActive: item.isActive !== false,
+        isDefault: item.isDefault === true,
+        isRequired: item.isRequired === true,
+        name,
+        pricePerHead,
+      }]
+    }),
+    maximumSelections: number(section.maximumSelections) > 0
+      ? Math.floor(number(section.maximumSelections))
+      : undefined,
+    minimumSelections: Math.max(0, Math.floor(number(section.minimumSelections))),
+    name: text(section.name),
+  })).filter((section) => section.name && section.items.length > 0)
+
+  if (sections.length === 0) return undefined
+  const minimumGuests = Math.max(1, Math.floor(number(details.minimumGuests)))
+  const maximumGuests = Math.floor(number(details.maximumGuests))
+  return {
+    maximumGuests: Math.max(maximumGuests, minimumGuests),
+    minimumGuests,
+    sections,
+  }
+}
+
+export const getCateringTastingSettings = (
+  value: unknown
+): CateringTastingSettings | undefined => {
+  const details = asObject(value)
+  const settings = asObject(details.tastingSettings)
+  if (settings.enabled !== true) return undefined
+
+  const slots = list(settings.tastingTimeSlots)
+    .map((slot) => /^([01]\d|2[0-3]):[0-5]\d$/.test(slot) ? slot : '')
+    .filter(Boolean)
+
+  if (slots.length === 0) return undefined
+
+  return {
+    durationMinutes: Math.min(480, Math.max(15, Math.floor(number(settings.durationMinutes) || 60))),
+    enabled: true,
+    latestDaysBeforeEvent: Math.max(0, Math.floor(number(settings.latestDaysBeforeEvent))),
+    location: text(settings.location) || undefined,
+    minimumLeadDays: Math.max(0, Math.floor(number(settings.minimumLeadDays))),
+    slots: Array.from(new Set(slots)).sort(),
+  }
+}
+
+export const defaultCateringCustomMenuItemIds = (menu?: CateringCustomMenu) =>
+  menu?.sections.flatMap((section) => section.items
+    .filter((item) => item.isDefault || item.isRequired)
+    .map((item) => item.id)) ?? []
+
+export const cateringCustomMenuStartingPrice = (menu?: CateringCustomMenu) => {
+  if (!menu) return undefined
+  const selected = new Set(defaultCateringCustomMenuItemIds(menu))
+  for (const section of menu.sections) {
+    const selectedInSection = section.items.filter((item) => selected.has(item.id))
+    const needed = Math.max(0, section.minimumSelections - selectedInSection.length)
+    section.items
+      .filter((item) => item.isActive && !selected.has(item.id))
+      .sort((left, right) => left.pricePerHead - right.pricePerHead)
+      .slice(0, needed)
+      .forEach((item) => selected.add(item.id))
+  }
+  const items = menu.sections.flatMap((section) => section.items)
+  const price = Array.from(selected).reduce((total, id) => total + (items.find((item) => item.id === id)?.pricePerHead ?? 0), 0)
+  return price > 0 ? Math.round(price * 100) / 100 : undefined
+}
+
+export const calculateCateringCustomMenuPrice = (
+  menu: CateringCustomMenu,
+  selectedItemIds: string[],
+  guestCount: number
+): CateringCustomMenuPriceCalculation => {
+  const guests = Math.max(0, Math.floor(Number(guestCount) || 0))
+  const selectedIds = selectedItemIds.filter(Boolean)
+  const uniqueIds = new Set(selectedIds)
+  const itemsById = new Map(menu.sections.flatMap((section) => section.items.map((item) => [item.id, item])))
+  const selectedItems = Array.from(uniqueIds).flatMap((id) => {
+    const item = itemsById.get(id)
+    return item && item.isActive ? [item] : []
+  })
+  let reason: string | undefined
+
+  if (guests <= 0) reason = 'Set the event guest count before choosing catering.'
+  else if (guests < menu.minimumGuests) reason = `Requires at least ${menu.minimumGuests} guests.`
+  else if (guests > menu.maximumGuests) reason = `Supports up to ${menu.maximumGuests} guests.`
+  else if (uniqueIds.size !== selectedIds.length || selectedItems.length !== uniqueIds.size) {
+    reason = 'One or more selected food items are no longer available.'
+  } else if (selectedItems.length === 0) {
+    reason = 'Select at least one food item.'
+  } else {
+    for (const section of menu.sections) {
+      const selectedInSection = selectedItems.filter((item) => section.items.some((candidate) => candidate.id === item.id))
+      const requiredMissing = section.items.some((item) => item.isRequired && !uniqueIds.has(item.id))
+      if (requiredMissing) {
+        reason = `${section.name} includes a required item.`
+        break
+      }
+      if (selectedInSection.length < section.minimumSelections) {
+        reason = `Choose at least ${section.minimumSelections} item${section.minimumSelections === 1 ? '' : 's'} from ${section.name}.`
+        break
+      }
+      if (section.maximumSelections && selectedInSection.length > section.maximumSelections) {
+        reason = `Choose up to ${section.maximumSelections} item${section.maximumSelections === 1 ? '' : 's'} from ${section.name}.`
+        break
+      }
+    }
+  }
+
+  const unitPrice = Math.round(selectedItems.reduce((sum, item) => sum + item.pricePerHead, 0) * 100) / 100
+  return {
+    fitsGuestCount: !reason,
+    guestCount: guests,
+    providerSubtotal: Math.round(unitPrice * guests * 100) / 100,
+    reason,
+    selectedItems,
+    unitPrice,
+  }
+}
+
 export const calculateCateringPrice = (
   option: CateringPricingOption,
   guestCount: number
@@ -293,7 +471,36 @@ export const validateCategoryDetails = (
 
   if (details.kind === 'catering') {
     const rawOptions = Array.isArray(details.pricingOptions) ? details.pricingOptions.map(asObject) : []
-    if (rawOptions.length === 0) errors.push('Add at least one catering menu and pricing option.')
+    const rawCustomSections = Array.isArray(details.customMenuSections)
+      ? details.customMenuSections.map(asObject)
+      : []
+    const hasCustomMenu = rawCustomSections.length > 0
+    if (!hasCustomMenu && rawOptions.length === 0) errors.push('Add an item-priced menu or at least one catering pricing option.')
+    if (hasCustomMenu) {
+      const itemIds: string[] = []
+      const minimumGuests = number(details.minimumGuests)
+      const maximumGuests = number(details.maximumGuests)
+      if (minimumGuests <= 0) errors.push('Custom catering menu minimum guests must be greater than zero.')
+      if (maximumGuests < minimumGuests) errors.push('Custom catering menu maximum guests must be at least the minimum guests.')
+      rawCustomSections.forEach((section, sectionIndex) => {
+        const label = `Custom menu section ${sectionIndex + 1}`
+        if (!text(section.name)) errors.push(`${label} needs a name.`)
+        const minimum = number(section.minimumSelections)
+        const maximum = number(section.maximumSelections)
+        if (minimum < 0) errors.push(`${label} minimum selections cannot be negative.`)
+        if (maximum > 0 && maximum < minimum) errors.push(`${label} maximum selections must be at least the minimum.`)
+        const items = Array.isArray(section.items) ? section.items.map(asObject) : []
+        if (items.length === 0) errors.push(`${label} needs at least one food item.`)
+        items.forEach((item, itemIndex) => {
+          const itemLabel = `${label} item ${itemIndex + 1}`
+          if (!text(item.id)) errors.push(`${itemLabel} needs an ID.`)
+          if (!text(item.name)) errors.push(`${itemLabel} needs a name.`)
+          if (number(item.pricePerHead) <= 0) errors.push(`${itemLabel} price per head must be greater than zero.`)
+          if (text(item.id)) itemIds.push(text(item.id))
+        })
+      })
+      if (new Set(itemIds).size !== itemIds.length) errors.push('Every custom menu food item needs a unique ID.')
+    }
     const optionIds = rawOptions.map((option) => text(option.id)).filter(Boolean)
     if (new Set(optionIds).size !== rawOptions.length) errors.push('Every catering option needs a unique ID.')
     rawOptions.forEach((option, index) => {
@@ -309,6 +516,25 @@ export const validateCategoryDetails = (
         errors.push(`${label} needs at least one named menu section with an item.`)
       }
     })
+    const tasting = asObject(details.tastingSettings)
+    if (tasting.enabled === true) {
+      const tastingSlots = list(tasting.tastingTimeSlots)
+      if (tastingSlots.length === 0) errors.push('Add at least one food tasting start time.')
+      if (tastingSlots.some((slot) => !/^([01]\d|2[0-3]):[0-5]\d$/.test(slot))) {
+        errors.push('Food tasting start times must use 24-hour HH:MM format.')
+      }
+      if (new Set(tastingSlots).size !== tastingSlots.length) {
+        errors.push('Food tasting start times cannot be duplicated.')
+      }
+      const durationMinutes = number(tasting.durationMinutes)
+      if (durationMinutes < 15 || durationMinutes > 480) {
+        errors.push('Food tasting duration must be between 15 and 480 minutes.')
+      }
+      if (number(tasting.minimumLeadDays) < 0 || number(tasting.latestDaysBeforeEvent) < 0) {
+        errors.push('Food tasting scheduling windows cannot be negative.')
+      }
+      if (!text(tasting.location)) errors.push('Add the food tasting location.')
+    }
   }
 
   if (details.kind === 'venues') {
@@ -424,6 +650,11 @@ export const summarizeCategoryDetails = (
     const menus = options.length === 0 && Array.isArray(detail.menuSections) ? detail.menuSections.map(asObject) : []
     add('Menu', menus.map((menu) => `${text(menu.name)}: ${joined(menu.items)}`).filter(Boolean).join(' · '))
     add('Dietary options', joined(detail.dietaryOptions))
+    const tasting = getCateringTastingSettings(detail)
+    if (tasting) {
+      add('Food tasting', `Optional - ${tasting.slots.join(', ')} - ${tasting.durationMinutes} minutes`)
+      add('Tasting location', tasting.location)
+    }
   } else if (detail.kind === 'venues') {
     add('Venue type', text(detail.venueTypeOther) || text(detail.venueType))
     add('Address', detail.address)
