@@ -33,6 +33,7 @@ const migrations = [
   'database/71_catering_custom_menu_pricing.sql',
   'database/72_catering_food_tasting_scheduling.sql',
   'database/73_catering_food_tasting_timezone_guard.sql',
+  'database/74_external_payment_request_key_disambiguation.sql',
 ]
 
 test('Revision 2 migrations remain ordered, transactional, additive, and non-destructive', () => {
@@ -385,6 +386,12 @@ test('provider completion records direct external payments atomically before ser
     'external_confirmation_totals',
     'A coordinator remittance already covers this booking.',
   ], 'provider external-payment migration')
+  const phase5RequestKeyFix = read('database/74_external_payment_request_key_disambiguation.sql')
+  mustContain(phase5RequestKeyFix, [
+    'create or replace function public.confirm_provider_external_payment(',
+    'confirmation.request_key = trim($3)',
+    'trim($3), nullif(trim(provider_note), \'\')',
+  ], 'provider external-payment request-key fix')
   mustContain(merchant, [
     "client.rpc('confirm_provider_external_payment'",
     "client.rpc('mark_provider_booking_awaiting_external_payment'",
