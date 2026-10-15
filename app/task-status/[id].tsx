@@ -1,5 +1,5 @@
 import { Href, useLocalSearchParams, useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import LocationMap from "../../src/components/LocationMap";
@@ -53,6 +53,17 @@ export default function TaskStatusScreen() {
   const [workerProofFileName, setWorkerProofFileName] = useState(task?.workerProofOfPaymentUrl?.split("/").pop() ?? "");
   const [uploadingWorkerProof, setUploadingWorkerProof] = useState(false);
   const [disputeDialogOpen, setDisputeDialogOpen] = useState(false);
+
+  // Task data is delivered by a Firestore listener, so it can arrive after this
+  // screen's first render. Keep an already-uploaded local receipt, while also
+  // making a receipt that arrives with the task available for submission.
+  useEffect(() => {
+    if (!task?.proofOfPaymentUrl) return;
+    setProofOfPaymentUrl((current) => current || task.proofOfPaymentUrl || "");
+    setProofFileName((current) => current || task.proofOfPaymentUrl?.split("/").pop() || "");
+  }, [task?.proofOfPaymentUrl]);
+
+  const clientProofPath = proofOfPaymentUrl || task?.proofOfPaymentUrl || "";
   const liveTrackingEnabled = shouldTrackTaskLocation(
     currentUser?.role,
     currentUser?.id,
@@ -182,7 +193,7 @@ export default function TaskStatusScreen() {
 
     try {
       setActionWarning("");
-      await submitPaymentProof(task.id, proofOfPaymentText, proofOfPaymentUrl || undefined);
+      await submitPaymentProof(task.id, proofOfPaymentText, clientProofPath || undefined);
     } catch (error) {
       setActionWarning(error instanceof Error ? error.message : "Unable to submit payment proof.");
     }
@@ -452,16 +463,16 @@ export default function TaskStatusScreen() {
                       {uploadingProof ? "Uploading..." : proofFileName || "Upload receipt image or PDF (required, max 5 MB)"}
                     </Text>
                   </Pressable>
-                  {!proofOfPaymentUrl && task.paymentStatus !== "Submitted" && task.paymentStatus !== "Verified" ? (
+                  {!clientProofPath && task.paymentStatus !== "Submitted" && task.paymentStatus !== "Verified" ? (
                     <Text style={styles.geoHint}>A receipt image or PDF is required before payment confirmation.</Text>
                   ) : null}
                   <Pressable
                     accessibilityRole="button"
-                    disabled={actionLoading || !proofOfPaymentUrl || task.paymentStatus === "Submitted" || task.paymentStatus === "Verified"}
+                    disabled={uploadingProof || actionLoading || !clientProofPath || task.paymentStatus === "Submitted" || task.paymentStatus === "Verified"}
                     onPress={handleSubmitPaymentProof}
                     style={({ pressed }) => [
                       styles.paymentButton,
-                      (actionLoading || !proofOfPaymentUrl || task.paymentStatus === "Submitted" || task.paymentStatus === "Verified") && styles.primaryActionDisabled,
+                      (uploadingProof || actionLoading || !clientProofPath || task.paymentStatus === "Submitted" || task.paymentStatus === "Verified") && styles.primaryActionDisabled,
                       pressed && styles.pressed
                     ]}
                   >
