@@ -122,6 +122,22 @@ test('provider-created catering packages remain fixed event totals', () => {
   ], 'client provider-package selection')
 })
 
+test('Provider 1 customizable catering demo remains client-selectable and starting-at priced', () => {
+  const migration = read('supabase/migrations/20261017000500_provider1_customizable_catering_demo.sql')
+
+  mustContain(migration, [
+    "'Customizable Catering'",
+    "'provider1@multivent.com'",
+    "'startingAt'",
+    "'person'",
+    '"pricingOptions"',
+    '"customMenuSections"',
+    '"Classic Celebration Buffet"',
+    '"Signature Plated Feast"',
+    '"tastingSettings"',
+  ], 'Provider 1 customizable catering demo migration')
+})
+
 test('item-priced catering menus use provider prices, validate selections, and snapshot bookings', () => {
   const migration = read('database/71_catering_custom_menu_pricing.sql')
   const providerBuilder = read('src/components/CategorySpecificServiceDetails.tsx')
