@@ -26,6 +26,7 @@ export interface CoordinatorBookedService {
   providerName: string
   providerPhone?: string
   providerUserId?: string
+  replacementStatus?: string
   serviceId?: string
   serviceName: string
   status: string
@@ -516,6 +517,7 @@ export const fetchCoordinatorDashboard = async (): Promise<CoordinatorResult<Coo
     { data: feeData },
     { data: bookingDetailData, error: bookingDetailError },
     { data: assignmentContextData, error: assignmentContextError },
+    { data: bookingStatusData, error: bookingStatusError },
   ] =
     await Promise.all([
       supabase.rpc('get_coordinator_dashboard'),
@@ -523,6 +525,7 @@ export const fetchCoordinatorDashboard = async (): Promise<CoordinatorResult<Coo
       supabase.rpc('get_my_coordinator_booking_fees'),
       supabase.rpc('get_my_coordinator_booking_details'),
       supabase.rpc('get_my_coordinator_assignment_context'),
+      supabase.rpc('get_my_coordinator_booking_statuses'),
     ])
   if (error) {
     return { data: emptyCoordinatorDashboard(), message: error.message, ok: false }
@@ -544,6 +547,9 @@ export const fetchCoordinatorDashboard = async (): Promise<CoordinatorResult<Coo
   }
   if (assignmentContextError) {
     console.warn('Unable to load complete coordinator event context:', assignmentContextError.message)
+  }
+  if (bookingStatusError) {
+    console.warn('Unable to load coordinator booking statuses:', bookingStatusError.message)
   }
   const feesByEvent = new Map(
     (Array.isArray(feeData) ? feeData : []).map((entry) => {
@@ -608,6 +614,35 @@ export const fetchCoordinatorDashboard = async (): Promise<CoordinatorResult<Coo
     })
   )
   const assignmentContexts = parseAssignmentContexts(assignmentContextData)
+  const bookingStatusesByEvent = new Map<string, CoordinatorBookedService[]>()
+  for (const entry of Array.isArray(bookingStatusData) ? bookingStatusData : []) {
+    const row = recordFrom(entry)
+    const eventId = textFrom(row.event_id)
+    const bookingId = textFrom(row.booking_id)
+    if (!eventId || !bookingId) continue
+    const current = bookingStatusesByEvent.get(eventId) ?? []
+    current.push({
+      amount: numberFrom(row.amount),
+      bookingId,
+      booked: true,
+      cateringOptionName: optionalText(row.catering_option_name),
+      categoryName: textFrom(row.category_name, 'Service'),
+      clientNotes: optionalText(row.client_notes),
+      id: bookingId,
+      instructions: [],
+      providerId: optionalText(row.provider_id),
+      providerName: textFrom(row.provider_name, 'Provider'),
+      replacementStatus: optionalText(row.replacement_status),
+      serviceId: optionalText(row.service_id),
+      serviceName: textFrom(row.service_name, 'Service'),
+      status: textFrom(row.status, 'requested'),
+      venueBookedHours: row.venue_booked_hours == null
+        ? undefined
+        : numberFrom(row.venue_booked_hours),
+      venueOptionName: optionalText(row.venue_option_name),
+    })
+    bookingStatusesByEvent.set(eventId, current)
+  }
 
   return {
     data: {
@@ -651,16 +686,47 @@ export const fetchCoordinatorDashboard = async (): Promise<CoordinatorResult<Coo
       events: dashboard.events.map((event) => {
         const context = assignmentContexts.get(event.id)
         const currentServices = new Map(event.services.map((service) => [service.id, service]))
-        const services = context?.services.length
+        const contextServices = context?.services.length
           ? context.services.map((service) => ({
               ...currentServices.get(service.id),
               ...service,
               instructions: currentServices.get(service.id)?.instructions ?? [],
             }))
           : event.services
+        const statusServices = bookingStatusesByEvent.get(event.id) ?? []
+        const matchedBookingIds = new Set<string>()
+        const services = contextServices.map((service) => {
+          const statusService = statusServices.find((candidate) =>
+            (service.bookingId && candidate.bookingId === service.bookingId)
+            || (!service.bookingId
+              && candidate.serviceId === service.serviceId
+              && candidate.providerId === service.providerId)
+          )
+          if (!statusService) return service
+          if (statusService.bookingId) matchedBookingIds.add(statusService.bookingId)
+          return {
+            ...service,
+            ...statusService,
+            instructions: service.instructions,
+            providerEmail: service.providerEmail,
+            providerPhone: service.providerPhone,
+            providerUserId: service.providerUserId,
+          }
+        })
+        for (const statusService of statusServices) {
+          if (statusService.bookingId && !matchedBookingIds.has(statusService.bookingId)) {
+            services.push(statusService)
+          }
+        }
+        const bookedServices = services.filter((service) => service.booked && service.bookingId)
+        const confirmedBookingCount = bookedServices.filter((service) =>
+          ['confirmed', 'completed', 'paid', 'approved'].includes(service.status)
+        ).length
 
         return {
           ...event,
+          bookingCount: bookedServices.length,
+          confirmedBookingCount,
           ...(context ? {
             budgetAllocations: context.budgetAllocations,
             clientName: context.clientName,

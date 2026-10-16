@@ -185,6 +185,14 @@ const EventCard: React.FC<{
 }> = ({ event, onMessageProvider }) => {
   const progress = eventProgress(event)
   const venue = event.venue || event.location || 'Venue to be confirmed'
+  const bookingServices = event.services.filter((service) => service.booked && service.bookingId)
+  const pendingBookingCount = bookingServices.filter((service) =>
+    ['requested', 'payment_required', 'paid', 'approved'].includes(service.status)
+  ).length
+  const declinedBookingCount = bookingServices.filter((service) => service.status === 'rejected').length
+  const replacementBookingCount = bookingServices.filter((service) =>
+    Boolean(service.replacementStatus && !['closed'].includes(service.replacementStatus))
+  ).length
   const [expanded, setExpanded] = React.useState(false)
   const [expandedServiceIds, setExpandedServiceIds] = React.useState<string[]>([])
 
@@ -273,6 +281,15 @@ const EventCard: React.FC<{
               <Text style={styles.eventFooterText}>
                 {event.confirmedBookingCount}/{event.bookingCount} providers secured
               </Text>
+            </View>
+            <View style={styles.requestFacts}>
+              <Text style={styles.requestFact}>Services: {bookingServices.length}</Text>
+              <Text style={styles.requestFact}>Confirmed: {event.confirmedBookingCount}</Text>
+              <Text style={styles.requestFact}>Pending: {pendingBookingCount}</Text>
+              <Text style={styles.requestFact}>Declined: {declinedBookingCount}</Text>
+              {replacementBookingCount ? (
+                <Text style={styles.requestFact}>Replacement activity: {replacementBookingCount}</Text>
+              ) : null}
             </View>
 
             <View style={styles.requestFacts}>
@@ -400,6 +417,11 @@ const EventCard: React.FC<{
                             {service.venueBookedHours ? ` · ${service.venueBookedHours} hours` : ''}
                           </Text>
                         ) : null}
+                        {service.replacementStatus ? (
+                          <Text style={styles.requestServiceMeta}>
+                            Replacement: {statusLabel(service.replacementStatus)}
+                          </Text>
+                        ) : null}
                         {service.instructions.map((instruction) => (
                           <View key={instruction.id} style={styles.instructionRow}>
                             <MaterialIcons
@@ -421,7 +443,7 @@ const EventCard: React.FC<{
                         {!instructionCount ? (
                           <Text style={styles.noServicesText}>The client has not added instructions for this service.</Text>
                         ) : null}
-                        {service.booked ? (
+                        {service.booked && !['rejected', 'cancelled', 'expired'].includes(service.status) ? (
                           <View style={styles.providerActions}>
                             <Pressable
                               accessibilityRole="button"

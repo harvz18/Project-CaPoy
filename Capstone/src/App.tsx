@@ -31,6 +31,7 @@ import {
 } from './lib/catalog'
 import {
   assignCoordinatorToEvent,
+  activateBookingReplacement,
   calculateServiceQuote,
   chooseCoordinatorPackage,
   ClientEventDraftSummary,
@@ -583,6 +584,14 @@ export const App: React.FC = () => {
     React.useState<'explore' | 'planning'>('planning')
   const [selectedCategory, setSelectedCategory] =
     React.useState<CatalogCategoryId>('catering')
+  const [replacementBooking, setReplacementBooking] = React.useState<{
+    baselineAmount: number
+    bookingId: string
+    category: string
+    providerName: string
+    serviceName: string
+    serviceId?: string
+  }>()
   const [currentServiceId, setCurrentServiceId] = React.useState('')
   const [serviceReviewInsights, setServiceReviewInsights] =
     React.useState<ServiceReviewInsights>()
@@ -2160,14 +2169,20 @@ export const App: React.FC = () => {
       if (!confirmed) return
     }
 
-    let result = await saveServiceSelection(value)
+    let result = await saveServiceSelection({
+      ...value,
+      replacementBookingId: replacementBooking?.bookingId,
+    })
 
     // A category-budget update may finish while the quote screen is open.
     // Retry only that transient allocation conflict once after refreshing;
     // genuine over-budget choices retain their authoritative database error.
     if (!result.ok && result.message?.includes('Category allocations cannot exceed')) {
       await refreshLiveData()
-      result = await saveServiceSelection(value)
+      result = await saveServiceSelection({
+        ...value,
+        replacementBookingId: replacementBooking?.bookingId,
+      })
     }
 
     if (!result.ok) {
@@ -2221,11 +2236,42 @@ export const App: React.FC = () => {
     setSelectedServices(nextSelectedServices)
     setMaxPlanningStep((current) => Math.min(current, 4))
 
+    if (replacementBooking) {
+      setToastMessage('Alternative selected. Confirm its schedule, then complete a separate payment request. The declined provider will not receive these funds.')
+      await refreshLiveData()
+      setScreen('instructionModule')
+      return
+    }
+
     setToastMessage(nextPlanningCategory
       ? 'Service added. Moving to your next allocated category.'
       : 'Service added. Your allocated service categories are ready to review.')
     await refreshLiveData()
     openPlanningHub(undefined, nextPlanningCategory ?? categoryNameToId(nextSelection.category))
+  }
+
+  const handleFindAlternativeServices = async (service: NonNullable<BookingItem['services']>[number]) => {
+    const eventId = selectedBooking?.eventId
+    if (!eventId) {
+      setToastMessage('This booking is no longer linked to an event.')
+      return
+    }
+    const result = await activateBookingReplacement(eventId, service.bookingId)
+    if (!result.ok) {
+      setToastMessage(result.message ?? 'A replacement is not available for this booking.')
+      return
+    }
+    setReplacementBooking({
+      baselineAmount: service.amount,
+      bookingId: service.bookingId,
+      category: service.category,
+      providerName: service.providerName,
+      serviceId: service.serviceId,
+      serviceName: service.serviceName,
+    })
+    setServiceBrowseMode('planning')
+    setSelectedCategory(categoryNameToId(service.category))
+    setScreen('categoryBrowse')
   }
 
   const handleAssignCoordinator = async () => {
@@ -3815,7 +3861,12 @@ export const App: React.FC = () => {
             categoryName={catalogCategoryName(selectedCategory)}
               eventGuestCount={eventDetails.guestCount}
             mode={serviceBrowseMode}
-            services={serviceBrowseMode === 'explore' ? catalogServices : visibleCatalogServices}
+            services={(serviceBrowseMode === 'explore' ? catalogServices : visibleCatalogServices).filter(
+              (service) => !replacementBooking || (
+                service.categoryName.toLowerCase() === replacementBooking.category.toLowerCase()
+                && service.id !== replacementBooking.serviceId
+              )
+            )}
             hasBudget={totalBudget > 0}
             selectedServiceCount={selectedServices.length}
             selectedServices={selectedServices}
@@ -3831,6 +3882,11 @@ export const App: React.FC = () => {
             remainingBudget={unallocatedPlanBudget}
             unallocatedCategoryCount={unallocatedPlanningCategoryCount}
             planningSelectionsComplete={planningSelectionsComplete}
+            replacementContext={replacementBooking ? {
+              baselineAmount: replacementBooking.baselineAmount,
+              currentProviderName: replacementBooking.providerName,
+              serviceName: replacementBooking.serviceName,
+            } : undefined}
             showBottomNavigation={false}
             onBack={() => {
               if (
@@ -3887,6 +3943,13 @@ export const App: React.FC = () => {
               setToastMessage('')
               setCurrentServiceId(serviceId)
               setScreen('serviceDetails')
+            }}
+            onConfirmReplacement={(serviceId) => {
+              const replacement = catalogServices.find((service) => service.id === serviceId)
+              if (!replacement || replacement.id === replacementBooking?.serviceId) return false
+              setCurrentServiceId(serviceId)
+              setScreen('serviceDetails')
+              return true
             }}
             onSelectCategory={(category) => {
               setSelectedCategory(categoryNameToId(category.name))
@@ -4138,7 +4201,13 @@ export const App: React.FC = () => {
             onPay={(value) => {
               if (isFinalizingPayment) return
               setIsFinalizingPayment(true)
-              void savePlanningPayment(value, payableItems).then(async (result) => {
+              void savePlanningPayment(
+                value,
+                replacementBooking
+                  ? payableItems.filter((item) => item.id === replacementBooking.serviceId || item.id === currentServiceId)
+                  : payableItems,
+                replacementBooking?.bookingId
+              ).then(async (result) => {
                 if (!result.ok) {
                   setIsFinalizingPayment(false)
                   setToastMessage(result.message ?? 'Unable to record the payment.')
@@ -4148,7 +4217,10 @@ export const App: React.FC = () => {
                 setLastPayment(value)
                 await refreshLiveData()
                 setIsFinalizingPayment(false)
-                setToastMessage('Payment recorded. Booking requests were sent to your providers.')
+                setToastMessage(replacementBooking
+                  ? 'Replacement payment recorded. The new provider has received a separate booking request.'
+                  : 'Payment recorded. Booking requests were sent to your providers.')
+                setReplacementBooking(undefined)
                 setScreen('confirmation')
               })
             }}
@@ -4211,6 +4283,7 @@ export const App: React.FC = () => {
             }}
             onBack={() => setScreen('bookings')}
             onCancelBooking={handleClientBookingCancellation}
+            onFindAlternativeServices={(service) => void handleFindAlternativeServices(service)}
             onMessageProvider={() => {
               const bookingIds = selectedBooking?.services
                 ?.map((service) => service.bookingId)

@@ -49,6 +49,7 @@ interface CategoryBrowseScreenProps {
   unallocatedCategoryCount?: number
   planningSelectionsComplete?: boolean
   replacementContext?: {
+    baselineAmount: number
     currentProviderName: string
     serviceName: string
   }
@@ -879,6 +880,28 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                 </View>
 
                 <Text style={styles.price}>{formatServicePrice(vendor)}</Text>
+                {replacementContext ? (() => {
+                  const alternativeAmount = vendor.budgetRecommendation?.calculatedAmount
+                  if (vendor.categoryId === 'catering' && !alternativeAmount) {
+                    return (
+                      <View style={styles.recommendationBadge}>
+                        <Text style={styles.recommendationBadgeText}>PRICE CONFIRMED AT QUOTE</Text>
+                      </View>
+                    )
+                  }
+                  const quotedAmount = alternativeAmount ?? vendor.minPrice
+                  const difference = Math.round(quotedAmount - replacementContext.baselineAmount)
+                  const label = difference === 0
+                    ? 'SAME PRICE'
+                    : difference > 0
+                      ? `PHP ${formatCurrency(difference)} HIGHER`
+                      : `PHP ${formatCurrency(Math.abs(difference))} LOWER`
+                  return (
+                    <View style={styles.recommendationBadge}>
+                      <Text style={styles.recommendationBadgeText}>{label}</Text>
+                    </View>
+                  )
+                })() : null}
 
                 {!isExploreMode
                   && vendor.budgetRecommendation

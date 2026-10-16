@@ -74,6 +74,7 @@ type ServiceSelectionInput = {
   estimatedTotal: number
   mealType?: string
   notes: string
+  replacementBookingId?: string
   service: CatalogService
   venueBookedHours?: number
   venueOption?: VenueBookingOption
@@ -719,7 +720,8 @@ const toEventPayload = (budget?: number, details?: EventDraftInput) => {
 const ensureDraftEvent = async (
   budget?: number,
   details?: EventDraftInput,
-  createNew = false
+  createNew = false,
+  allowBookingEvent = false
 ) => {
   const client = getClient()
 
@@ -779,7 +781,7 @@ const ensureDraftEvent = async (
           .select('id')
           .eq('id', activePlanningEventId)
           .eq('client_id', userId)
-          .in('status', ['draft', 'planning'])
+          .in('status', allowBookingEvent ? ['draft', 'planning', 'booking'] : ['draft', 'planning'])
           .maybeSingle()
       : { data: null, error: null }
 
@@ -867,6 +869,29 @@ export const resumeClientEventDraft = async (eventId: string): Promise<PlanningR
     if (!data?.id) return { ok: false, message: 'This event draft can no longer be resumed.' }
 
     activePlanningEventId = data.id as string
+    return { ok: true }
+  } catch (error) {
+    return { ok: false, message: toMessage(error) }
+  }
+}
+
+export const activateBookingReplacement = async (
+  eventId: string,
+  rejectedBookingId: string
+): Promise<PlanningResult> => {
+  try {
+    const client = getClient()
+    const userId = await getCurrentUserId()
+    if (!client || !userId || !isUuid(eventId) || !isUuid(rejectedBookingId)) {
+      return { ok: false, message: 'This replacement is no longer available.' }
+    }
+    const [{ data: replacement, error: replacementError }, { data: event, error: eventError }] = await Promise.all([
+      client.rpc('start_my_booking_replacement', { target_booking_id: rejectedBookingId }),
+      client.from('events').select('id').eq('id', eventId).eq('client_id', userId).eq('status', 'booking').maybeSingle(),
+    ])
+    if (replacementError) return { ok: false, message: replacementError.message }
+    if (eventError || !event?.id || !replacement) return { ok: false, message: 'This event can no longer accept a replacement request.' }
+    activePlanningEventId = event.id as string
     return { ok: true }
   } catch (error) {
     return { ok: false, message: toMessage(error) }
@@ -1018,11 +1043,12 @@ export const savePlanningPayment = async (
     name: string
     price: number
     providerPrice?: number
-  }>
+  }>,
+  replacementBookingId?: string
 ): Promise<PlanningResult> => {
   try {
     const client = getClient()
-    const event = await ensureDraftEvent()
+    const event = await ensureDraftEvent(undefined, undefined, false, Boolean(replacementBookingId))
 
     if (!client || !event) {
       return { ok: false, message: 'Supabase is not configured or no user is signed in.' }
@@ -1059,7 +1085,7 @@ export const savePlanningPayment = async (
           )
           .eq('event_id', event.eventId)
           .eq('client_id', event.userId)
-          .in('status', ['selected', 'requested']),
+          .in('status', replacementBookingId ? ['selected'] : ['selected', 'requested']),
         client.rpc('get_public_commission_rate'),
       ])
 
@@ -1085,7 +1111,7 @@ export const savePlanningPayment = async (
     const coordinatorId = eventRow.coordinator_assignment_status === 'pending'
       ? eventRow.pending_coordinator_id
       : eventRow.coordinator_id
-    const hasCoordinatorPayment = isUuid(coordinatorId)
+    const hasCoordinatorPayment = !replacementBookingId && isUuid(coordinatorId)
       && Number(eventRow.coordinator_fee_amount ?? 0) > 0
 
     if (requestableSelections.length === 0 && !hasCoordinatorPayment) {
@@ -1489,7 +1515,7 @@ export const saveServiceSelection = async (
 ): Promise<PlanningResult> => {
   try {
     const client = getClient()
-    const event = await ensureDraftEvent()
+    const event = await ensureDraftEvent(undefined, undefined, false, Boolean(value.replacementBookingId))
 
     if (!client || !event) {
       return { ok: false, message: 'Supabase is not configured or no user is signed in.' }
@@ -1528,6 +1554,13 @@ export const saveServiceSelection = async (
         }
       }
       const result = data && typeof data === 'object' ? data as Record<string, unknown> : {}
+      if (value.replacementBookingId) {
+        const { error: replacementError } = await client.rpc('stage_my_booking_replacement', {
+          target_booking_id: value.replacementBookingId,
+          target_service_id: serviceId,
+        })
+        if (replacementError) return { ok: false, message: replacementError.message }
+      }
       return {
         calculatedAmount: Number(result.customerAmount ?? value.estimatedTotal),
         ok: true,
@@ -1650,6 +1683,14 @@ export const saveServiceSelection = async (
           .select('id')
           .single()
     const { data: selection, error } = selectionResult
+
+    if (!error && value.replacementBookingId && isUuid(serviceId)) {
+      const { error: replacementError } = await client.rpc('stage_my_booking_replacement', {
+        target_booking_id: value.replacementBookingId,
+        target_service_id: serviceId,
+      })
+      if (replacementError) return { ok: false, message: replacementError.message }
+    }
 
     return {
       ok: !error,

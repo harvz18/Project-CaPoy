@@ -26,6 +26,7 @@ interface BookingDetailsScreenProps {
   details?: Partial<BookingDetailValue>
   onBack?: () => void
   onCancelBooking?: (reason: string) => Promise<BookingChangeActionResult>
+  onFindAlternativeServices?: (service: NonNullable<BookingItem['services']>[number]) => void
   onMessageProvider?: () => void
   onMessageProviderForBooking?: (bookingId: string) => void
   onLoadFoodTastingSlots?: (bookingId: string) => Promise<CateringFoodTastingSlotsResult>
@@ -115,6 +116,7 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
   details,
   onBack,
   onCancelBooking,
+  onFindAlternativeServices,
   onMessageProvider,
   onMessageProviderForBooking,
   onLoadFoodTastingSlots,
@@ -437,6 +439,31 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                         </Text>
                       </View>
                     ) : null}
+                  {service.status === 'declined' && service.replacementAvailable ? (
+                    <View style={styles.tastingCard}>
+                      <View style={styles.tastingHeading}>
+                        <View style={styles.tastingIcon}>
+                          <MaterialIcons color={palette.error} name="warning-amber" size={19} />
+                        </View>
+                        <View style={styles.tastingCopy}>
+                          <Text style={styles.tastingTitle}>Service Booking Declined</Text>
+                          <Text style={styles.tastingText}>
+                            This provider could not accept your request. Find a similar {service.category} service without changing the held payment for this booking.
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.tastingActions}>
+                        <Pressable
+                          accessibilityLabel={`Find an alternative ${service.category} service`}
+                          disabled={!onFindAlternativeServices}
+                          onPress={() => onFindAlternativeServices?.(service)}
+                          style={({ pressed }) => [styles.tastingPrimaryButton, pressed && styles.pressed]}
+                        >
+                          <Text style={styles.tastingPrimaryText}>Find Alternative Services</Text>
+                        </Pressable>
+                      </View>
+                    </View>
+                  ) : null}
                   {(service.foodTasting || (
                     service.foodTastingEnabled
                     && service.status === 'confirmed'

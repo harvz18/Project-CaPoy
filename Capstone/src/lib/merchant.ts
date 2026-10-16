@@ -1287,7 +1287,7 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
     const coordinatorId = textFrom(event?.coordinator_id)
     return coordinatorId ? [coordinatorId] : []
   })))
-  const [reviewResult, coordinatorResult, coordinatorReviewResult, externalPaymentSummaries, foodTastingResult] =
+  const [reviewResult, coordinatorResult, coordinatorReviewResult, externalPaymentSummaries, foodTastingResult, replacementResult] =
     await Promise.all([
       bookingIds.length
         ? client
@@ -1310,11 +1310,21 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
       bookingIds.length
         ? client.rpc('list_my_catering_food_tastings', { target_booking_ids: bookingIds })
         : Promise.resolve({ data: [] }),
+      bookingIds.length
+        ? client
+            .from('booking_replacements')
+            .select('rejected_booking_id, status')
+            .in('rejected_booking_id', bookingIds)
+            .neq('status', 'closed')
+        : Promise.resolve({ data: [] }),
     ])
   const reviewRows = reviewResult.data
   const coordinatorProfiles = coordinatorResult.data
   const coordinatorReviewRows = coordinatorReviewResult.data
   const foodTastingsByBooking = mapFoodTastingsByBooking(foodTastingResult.data)
+  const replacementBookingIds = new Set(
+    (replacementResult.data ?? []).map((row) => textFrom(row.rejected_booking_id)).filter(Boolean)
+  )
   const reviewedBookingIds = new Set((reviewRows ?? []).map((row) => textFrom(row.booking_id)))
   const reviewedCoordinatorEventIds = new Set(
     (coordinatorReviewRows ?? []).map((row) => textFrom(row.event_id))
@@ -1374,6 +1384,7 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
       providerId: textFrom(record.provider_id),
       providerName: textFrom(provider?.business_name, 'Service provider'),
       rawStatus,
+      replacementAvailable: rawStatus === 'rejected' && replacementBookingIds.has(bookingId),
       remainingServiceBalance,
       serviceId: textFrom(record.service_id),
       serviceAmount,

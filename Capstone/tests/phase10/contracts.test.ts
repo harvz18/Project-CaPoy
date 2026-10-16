@@ -126,9 +126,14 @@ test('item-priced catering menus use provider prices, validate selections, and s
     'Price per head',
     'Required inclusion',
     'Available to clients',
+    'clients choose their preferred offering',
   ], 'provider item-menu builder')
   mustContain(details, [
     'selectedCateringMenuItemIds',
+    "type CateringOffering = 'custom' | 'preset'",
+    'Choose Preset Package',
+    'Customize Your Menu',
+    'expandedCateringMenuSections',
     'calculateCateringCustomMenuPrice',
     'Selected menu total',
     'menuItemIds:',

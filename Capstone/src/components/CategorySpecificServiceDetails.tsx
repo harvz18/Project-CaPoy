@@ -423,7 +423,7 @@ const CateringOptionsBuilder = ({ details, set }: {
       <CateringTastingSettingsBuilder details={details} set={set} />
     <Section
       title="Fixed menu options"
-      description="Keep existing fixed-price menus for compatibility. Clients use the item-priced menu above when one is configured."
+      description="Configure preset packages alongside an item-priced custom menu. If both are configured, clients choose their preferred offering."
     >
       {options.map((option, index) => (
         <View key={textValue(option.id) || index} style={styles.repeatCard}>

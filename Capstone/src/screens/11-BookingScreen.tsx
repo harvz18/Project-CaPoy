@@ -29,6 +29,7 @@ export interface BookingServiceItem {
   providerId: string
   providerName: string
   rawStatus: string
+  replacementAvailable?: boolean
   remainingServiceBalance?: number
   serviceAmount?: number
   serviceId: string
