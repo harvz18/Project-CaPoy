@@ -231,7 +231,8 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     const isVenueService = service.categoryId === 'venues'
     const requestedHours = Number(venueHours)
     const customMenu = getCateringCustomMenu(service.categoryDetails)
-    const useCustomCateringMenu = isCateringService && Boolean(customMenu)
+    const useSelectedProviderPackage = Boolean(selectedPackageId)
+    const useCustomCateringMenu = isCateringService && !useSelectedProviderPackage && Boolean(customMenu)
       && (getCateringPricingOptions(service.categoryDetails, service.providerMinPrice).length === 0
         || selectedCateringOffering === 'custom')
     if (useCustomCateringMenu && customMenu) {
@@ -241,7 +242,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
         eventGuestCount
       )
       if (!calculation.fitsGuestCount) return
-    } else if (isCateringService && !selectedCateringOptionId) return
+    } else if (isCateringService && !useSelectedProviderPackage && !selectedCateringOptionId) return
     if (isVenueService && (
       !selectedVenueOptionId
       || !Number.isFinite(requestedHours)
@@ -254,7 +255,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
       void onCalculateQuote({
         menuItemIds: useCustomCateringMenu ? selectedCateringMenuItemIds : undefined,
         optionId: isVenueService ? selectedVenueOptionId
-          : isCateringService ? selectedCateringOptionId : undefined,
+          : isCateringService && !useSelectedProviderPackage ? selectedCateringOptionId : undefined,
         packageId: selectedPackageId || service.packageId,
         quantity: isVenueService ? requestedHours : undefined,
         service,
@@ -324,9 +325,11 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   const isVenue = service.categoryId === 'venues'
   const customCateringMenu = getCateringCustomMenu(service.categoryDetails)
   const cateringOptions = getCateringPricingOptions(service.categoryDetails, service.providerMinPrice)
+  const selectedPackage = service.packages?.find((item) => item.id === selectedPackageId)
+  const usesSelectedProviderPackage = Boolean(selectedPackage)
   const hasCustomCateringMenu = isCatering && Boolean(customCateringMenu)
   const hasPresetCateringMenus = isCatering && cateringOptions.length > 0
-  const usesCustomCateringMenu = hasCustomCateringMenu
+  const usesCustomCateringMenu = !usesSelectedProviderPackage && hasCustomCateringMenu
     && (!hasPresetCateringMenus || selectedCateringOffering === 'custom')
   const selectedCateringOption = cateringOptions.find((option) => option.id === selectedCateringOptionId)
   const customCateringCalculation = customCateringMenu
@@ -355,7 +358,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   const activeCateringCalculation = usesCustomCateringMenu ? customCateringCalculation : cateringCalculation
   const budgetPerHead = activeCateringOption?.pricePerHead ?? 0
   const availableMealTypes = service.cateringServiceTypes ?? []
-  const cateringSelectionUnavailable = isCatering && (
+  const cateringSelectionUnavailable = isCatering && !usesSelectedProviderPackage && (
     !activeCateringOption || !activeCateringCalculation?.fitsGuestCount
   )
   const venueOptions = getVenueBookingOptions(service.categoryDetails)
@@ -374,12 +377,13 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     || (venueRules.maximumBookingHours !== undefined
       && parsedVenueHours > venueRules.maximumBookingHours)
   )
-  const selectedPackage = service.packages?.find((item) => item.id === selectedPackageId)
   const selectedUnit = selectedPackage?.unit ?? service.pricingUnit ?? 'event'
   const selectedPrice = selectedPackage?.price ?? service.minPrice
   const selectedProviderPrice = selectedPackage?.providerPrice ?? service.providerMinPrice
   const requiresQuote = service.pricingModel === 'customQuote' || selectedPrice <= 0
-  const locallyEstimatedProviderTotal = isCatering
+  const locallyEstimatedProviderTotal = usesSelectedProviderPackage
+    ? selectedProviderPrice
+    : isCatering
     ? cateringCalculation?.providerSubtotal ?? 0
     : isVenue && selectedUnit === 'hour'
       ? selectedProviderPrice * parsedVenueHours
@@ -429,30 +433,32 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     try {
       await onAddSelection({
         attendeeCount,
-        budgetPerHead,
+        budgetPerHead: usesSelectedProviderPackage && attendeeCount > 0
+          ? selectedPrice / attendeeCount
+          : budgetPerHead,
         cateringMenuItemIds: usesCustomCateringMenu ? selectedCateringMenuItemIds : undefined,
-        cateringOption: activeCateringOption,
+        cateringOption: usesSelectedProviderPackage ? undefined : activeCateringOption,
         estimatedTotal,
         mealType,
         notes,
         venueBookedHours: isVenue ? parsedVenueHours : undefined,
         venueOption: selectedVenueOption,
-        service: isCatering && activeCateringOption
+        service: selectedPackage
+          ? {
+              ...service,
+              minPrice: selectedPackage.price,
+              packageId: selectedPackage.id,
+              pricingUnit: 'event',
+              providerMinPrice: selectedPackage.providerPrice,
+            }
+          : isCatering && activeCateringOption
           ? {
               ...service,
               minPrice: customerPriceFromProviderPrice(activeCateringOption.pricePerHead, service.commissionRate),
               pricingUnit: 'person',
               providerMinPrice: activeCateringOption.pricePerHead,
             }
-          : selectedPackage
-            ? {
-              ...service,
-              minPrice: selectedPackage.price,
-              packageId: selectedPackage.id,
-              pricingUnit: selectedPackage.unit ?? service.pricingUnit,
-              providerMinPrice: selectedPackage.providerPrice,
-            }
-            : service,
+          : service,
       })
     } finally {
       setIsAddingSelection(false)
@@ -602,6 +608,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
               <View style={styles.packageList}>
                 {service.packages.map((item) => {
                   const isSelected = item.id === selectedPackageId
+                  const packageUnit = isCatering ? 'event' : item.unit
 
                   return (
                     <Pressable
@@ -636,7 +643,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                           ) : null}
                           <Text style={styles.packagePrice}>
                             {formatPeso(item.price)}
-                            {item.unit ? ` / ${pricingUnitLabel(item.unit)}` : ''}
+                            {packageUnit ? ` / ${pricingUnitLabel(packageUnit)}` : ''}
                           </Text>
                         </View>
                       </View>
@@ -744,7 +751,13 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                   </View>
                   <MaterialCommunityIcons color={palette.primary} name="account-group-outline" size={28} />
                 </View>
-                {hasCustomCateringMenu && hasPresetCateringMenus ? (
+                {usesSelectedProviderPackage ? (
+                  <View style={styles.cateringSummaryCard}>
+                    <Text style={styles.cateringOptionName}>{selectedPackage?.name}</Text>
+                    <Text style={styles.cateringOptionRange}>Provider package · fixed total for the event</Text>
+                    <Text style={styles.cateringOptionUnit}>{formatPeso(selectedPackage?.price ?? 0)} total</Text>
+                  </View>
+                ) : hasCustomCateringMenu && hasPresetCateringMenus ? (
                   <View style={styles.mealTypeGrid}>
                     <Pressable accessibilityRole="radio" accessibilityState={{ checked: selectedCateringOffering === 'preset' }} onPress={() => setSelectedCateringOffering('preset')} style={[styles.mealCard, selectedCateringOffering === 'preset' && styles.mealCardSelected]}>
                       <MaterialCommunityIcons color={selectedCateringOffering === 'preset' ? palette.primary : palette.secondary} name="food-variant" size={27} />

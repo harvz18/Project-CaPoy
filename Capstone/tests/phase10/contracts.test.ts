@@ -104,6 +104,24 @@ test('catering prices remain guest-based and validate provider option ranges', (
   ], 'client catering UI')
 })
 
+test('provider-created catering packages remain fixed event totals', () => {
+  const migration = read('supabase/migrations/20261017000400_catering_provider_package_fixed_total.sql')
+  const details = read('src/screens/08-ServiceDetails.tsx')
+
+  mustContain(migration, [
+    'rename to calculate_event_service_quote_standard',
+    "category_key is distinct from 'catering'",
+    "'provider_package_fixed_total'",
+    'A selected provider catering package is always a fixed event total',
+    'provider_amount := round(coalesce(package_row.package_price, 0), 2);',
+  ], 'provider catering package fixed-total migration')
+  mustContain(details, [
+    'usesSelectedProviderPackage',
+    'Provider package · fixed total for the event',
+    "pricingUnit: 'event'",
+  ], 'client provider-package selection')
+})
+
 test('item-priced catering menus use provider prices, validate selections, and snapshot bookings', () => {
   const migration = read('database/71_catering_custom_menu_pricing.sql')
   const providerBuilder = read('src/components/CategorySpecificServiceDetails.tsx')
