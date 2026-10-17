@@ -483,7 +483,7 @@ test('messaging is restricted to active booking relationships while closed histo
     "client.rpc('open_booking_conversation'",
     "client.rpc('send_booking_message'",
     "client.rpc('mark_booking_conversation_read'",
-    'isReadOnly: booking ? isClosedBookingStatus(booking.status) : true',
+    'isReadOnly: booking ? !canSendBookingMessages(booking.status) : true',
   ], 'secure messaging client integration')
   assert.doesNotMatch(messaging, /\.from\('messages'\)\s*\.insert/)
   assert.doesNotMatch(messaging, /\.from\('conversation_participants'\)\s*\.upsert/)
@@ -502,6 +502,37 @@ test('messaging is restricted to active booking relationships while closed histo
     'This booking is no longer active.',
     'isLoadingMessages = false',
   ], 'read-only conversation UI')
+})
+
+test('Phase 1 limits client booking-detail messaging to each confirmed provider booking', () => {
+  const migration = read('supabase/migrations/20261017000600_phase1_confirmed_booking_messaging.sql')
+  const clientDetails = read('src/screens/11.1-BookingDetails.tsx')
+  const app = read('src/App.tsx')
+  const messaging = read('src/lib/messaging.ts')
+
+  mustContain(migration, [
+    "booking.status::text in ('confirmed', 'completed')",
+    "booking_row.status::text not in ('confirmed', 'completed')",
+    "new.status::text in ('confirmed', 'completed')",
+    "and booking.status::text in ('confirmed', 'completed')",
+    "Messaging is available only after the provider confirms the booking.",
+  ], 'confirmed booking messaging migration')
+  assert.doesNotMatch(migration, /'requested'/)
+  mustContain(clientDetails, [
+    "service.status === 'confirmed' || service.status === 'completed'",
+    'accessibilityLabel={`Message ${service.providerName}`}',
+    'onMessageProviderForBooking?.(service.bookingId)',
+  ], 'client booking-detail messaging UI')
+  assert.doesNotMatch(clientDetails, /onMessageProvider\?:/)
+  assert.doesNotMatch(clientDetails, /messageButton/)
+  mustContain(app, [
+    'after the provider confirms the booking',
+    "openBookingConversationFor(bookingId, 'bookingDetails')",
+  ], 'direct confirmed booking conversation navigation')
+  mustContain(messaging, [
+    "['confirmed', 'completed'].includes(textFrom(value).toLowerCase())",
+    'isReadOnly: booking ? !canSendBookingMessages(booking.status) : true',
+  ], 'client message composer state')
 })
 
 test('package selection checks duplicate categories, manual conflicts, dynamic options, and total budget', () => {

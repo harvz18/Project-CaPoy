@@ -1539,7 +1539,7 @@ export const App: React.FC = () => {
   const openBookingConversationFor = React.useCallback(
     async (bookingId: string | undefined, returnScreen: AppScreen = 'messages') => {
       if (!bookingId) {
-        setToastMessage('A conversation becomes available after a booking request is submitted.')
+        setToastMessage('A conversation becomes available after the provider confirms the booking.')
         return
       }
 
@@ -4284,19 +4284,6 @@ export const App: React.FC = () => {
             onBack={() => setScreen('bookings')}
             onCancelBooking={handleClientBookingCancellation}
             onFindAlternativeServices={(service) => void handleFindAlternativeServices(service)}
-            onMessageProvider={() => {
-              const bookingIds = selectedBooking?.services
-                ?.map((service) => service.bookingId)
-                .filter(Boolean) ?? []
-
-              if (bookingIds.length === 1) {
-                void openBookingConversationFor(bookingIds[0], 'bookingDetails')
-                return
-              }
-
-              setToastMessage('Select one of your existing provider conversations to continue.')
-              setScreen('messages')
-            }}
             onMessageProviderForBooking={(bookingId) =>
               void openBookingConversationFor(bookingId, 'bookingDetails')
             }

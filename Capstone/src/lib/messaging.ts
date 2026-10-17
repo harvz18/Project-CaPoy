@@ -45,8 +45,8 @@ const toBookingStatus = (
   return 'pending'
 }
 
-const isClosedBookingStatus = (value: unknown) =>
-  ['rejected', 'cancelled', 'expired'].includes(textFrom(value).toLowerCase())
+const canSendBookingMessages = (value: unknown) =>
+  ['confirmed', 'completed'].includes(textFrom(value).toLowerCase())
 
 const toNotificationCategory = (value: unknown): MerchantNotificationCategory => {
   const category = textFrom(value).toLowerCase()
@@ -154,7 +154,7 @@ export const fetchConversations = async (): Promise<ClientConversation[]> => {
           : undefined,
         bookingStatus: booking ? toBookingStatus(booking.status) : undefined,
         id: conversationId,
-        isReadOnly: booking ? isClosedBookingStatus(booking.status) : true,
+        isReadOnly: booking ? !canSendBookingMessages(booking.status) : true,
         lastMessage: textFrom(lastMessage?.body, 'Conversation started.'),
         lastMessageAt: textFrom(lastMessage?.created_at, textFrom(record.updated_at)),
         participantName,

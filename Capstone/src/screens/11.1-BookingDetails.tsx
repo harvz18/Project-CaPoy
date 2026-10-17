@@ -27,7 +27,6 @@ interface BookingDetailsScreenProps {
   onBack?: () => void
   onCancelBooking?: (reason: string) => Promise<BookingChangeActionResult>
   onFindAlternativeServices?: (service: NonNullable<BookingItem['services']>[number]) => void
-  onMessageProvider?: () => void
   onMessageProviderForBooking?: (bookingId: string) => void
   onLoadFoodTastingSlots?: (bookingId: string) => Promise<CateringFoodTastingSlotsResult>
   onRequestFoodTasting?: (value: {
@@ -117,7 +116,6 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
   onBack,
   onCancelBooking,
   onFindAlternativeServices,
-  onMessageProvider,
   onMessageProviderForBooking,
   onLoadFoodTastingSlots,
   onRequestFoodTasting,
@@ -365,8 +363,11 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
         {bookedServices.length > 0 ? (
           <View style={styles.servicesSection}>
             <Text style={styles.cardTitle}>Booked Services</Text>
-            {bookedServices.map((service) => (
-              <View key={service.bookingId} style={styles.serviceCard}>
+            {bookedServices.map((service) => {
+              const canMessageProvider = service.status === 'confirmed' || service.status === 'completed'
+
+              return (
+                <View key={service.bookingId} style={styles.serviceCard}>
                 {service.image ? (
                   <Image
                     accessibilityLabel={service.serviceName}
@@ -399,7 +400,22 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                       </Text>
                     </View>
                   </View>
-                  <Text style={styles.serviceProvider}>{service.providerName}</Text>
+                  <View style={styles.serviceProviderRow}>
+                    <Text style={styles.serviceProvider}>{service.providerName}</Text>
+                    {canMessageProvider ? (
+                      <Pressable
+                        accessibilityLabel={`Message ${service.providerName}`}
+                        accessibilityRole="button"
+                        onPress={() => onMessageProviderForBooking?.(service.bookingId)}
+                        style={({ pressed }) => [
+                          styles.serviceMessageButton,
+                          pressed && styles.serviceMessageButtonPressed,
+                        ]}
+                      >
+                        <MaterialIcons color={palette.burgundy} name="chat-bubble-outline" size={18} />
+                      </Pressable>
+                    ) : null}
+                  </View>
                   <Text style={styles.serviceMeta}>
                     {service.category} · PHP {Math.round(service.amount).toLocaleString('en-PH')}
                   </Text>
@@ -535,19 +551,12 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                           </Pressable>
                         </View>
                       )}
-                      <Pressable
-                        accessibilityLabel={`Message ${service.providerName} about food tasting`}
-                        onPress={() => onMessageProviderForBooking?.(service.bookingId)}
-                        style={({ pressed }) => [styles.tastingMessageButton, pressed && styles.pressed]}
-                      >
-                        <MaterialIcons color={palette.burgundy} name="chat-bubble-outline" size={16} />
-                        <Text style={styles.tastingMessageText}>Message Provider</Text>
-                      </Pressable>
                     </View>
                   ) : null}
                 </View>
-              </View>
-            ))}
+                </View>
+              )
+            })}
           </View>
         ) : null}
 
@@ -584,20 +593,6 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
               <Text style={styles.reviewButtonText}>Share Event Experience</Text>
             </Pressable>
           )}
-          <Pressable
-            accessibilityRole="button"
-            onPress={onMessageProvider}
-            style={({ pressed }) => [
-              styles.messageButton,
-              pressed && styles.messageButtonPressed,
-            ]}
-          >
-            <View style={styles.messageIcon}>
-              <View style={styles.messageIconTail} />
-            </View>
-            <Text style={styles.messageButtonText}>Message Provider</Text>
-          </Pressable>
-
           {!isCompleted && !isCancelled ? (
             <Pressable
               accessibilityRole="button"
@@ -1122,7 +1117,19 @@ const styles = StyleSheet.create({
   serviceCopy: { flex: 1, minWidth: 0 },
   serviceHeading: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   serviceName: { flex: 1, color: palette.text, fontSize: 15, lineHeight: 21, fontWeight: '700' },
-  serviceProvider: { color: palette.muted, fontSize: 13, lineHeight: 19, marginTop: 2 },
+  serviceProviderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 2 },
+  serviceProvider: { flex: 1, color: palette.muted, fontSize: 13, lineHeight: 19 },
+  serviceMessageButton: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#D9C6CA',
+    borderRadius: 16,
+    backgroundColor: '#F8F1F3',
+  },
+  serviceMessageButtonPressed: { opacity: 0.82, transform: [{ scale: 0.96 }] },
   serviceMeta: { color: palette.burgundy, fontSize: 13, lineHeight: 19, fontWeight: '600', marginTop: 3 },
   servicePaymentSummary: { gap: 5, borderTopWidth: 1, borderTopColor: palette.border, marginTop: 10, paddingTop: 9 },
   servicePaymentRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
@@ -1213,40 +1220,6 @@ const styles = StyleSheet.create({
   },
   reviewButtonPressed: { opacity: 0.88, transform: [{ scale: 0.98 }] },
   reviewButtonText: { color: palette.surface, fontSize: 16, lineHeight: 24, fontWeight: '700' },
-  messageButton: {
-    width: '100%',
-    minHeight: 58,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    borderWidth: 1,
-    borderColor: palette.burgundy,
-    borderRadius: 12,
-    backgroundColor: palette.background,
-    paddingHorizontal: 24,
-    paddingVertical: 15,
-  },
-  messageButtonPressed: { backgroundColor: '#F8F1F3', transform: [{ scale: 0.98 }] },
-  messageIcon: {
-    width: 19,
-    height: 15,
-    borderWidth: 2,
-    borderColor: palette.burgundy,
-    borderRadius: 5,
-  },
-  messageIconTail: {
-    position: 'absolute',
-    bottom: -5,
-    left: 3,
-    width: 6,
-    height: 6,
-    borderBottomWidth: 2,
-    borderLeftWidth: 2,
-    borderColor: palette.burgundy,
-    transform: [{ rotate: '-20deg' }],
-  },
-  messageButtonText: { color: palette.burgundy, fontSize: 18, lineHeight: 28, fontWeight: '700' },
   secondaryButton: { minHeight: 40, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
   secondaryButtonText: {
     color: palette.muted,
@@ -1268,8 +1241,6 @@ const styles = StyleSheet.create({
   tastingPrimaryText: { color: palette.surface, fontSize: 10, lineHeight: 14, fontWeight: '700' },
   tastingSecondaryButton: { minHeight: 36, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#D9C6CA', borderRadius: 8, paddingHorizontal: 11 },
   tastingSecondaryText: { color: palette.burgundy, fontSize: 10, lineHeight: 14, fontWeight: '700' },
-  tastingMessageButton: { flexDirection: 'row', alignSelf: 'flex-start', alignItems: 'center', gap: 5, paddingVertical: 2 },
-  tastingMessageText: { color: palette.burgundy, fontSize: 10, lineHeight: 14, fontWeight: '700' },
   tastingBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(31, 20, 23, 0.55)', padding: 16 },
   tastingModal: { width: '100%', maxWidth: 560, maxHeight: '92%', borderRadius: 18, backgroundColor: palette.surface, padding: 20 },
   tastingCalendarContent: { gap: 13, paddingBottom: 4 },
