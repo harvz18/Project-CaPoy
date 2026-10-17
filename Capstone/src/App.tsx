@@ -214,6 +214,7 @@ import {
   mapNotificationRecord,
   markConversationRead,
   openBookingConversation,
+  openEventCoordinatorConversation,
   sendConversationMessage,
 } from './lib/messaging'
 import {
@@ -237,6 +238,7 @@ import {
   fetchCoordinatorDashboard,
   fetchCoordinatorRemittanceDetails,
   respondToCoordinatorInvitation,
+  saveCoordinatorChurchWeddingArrangement,
   updateCoordinatorTaskStatus,
 } from './lib/coordinator'
 import {
@@ -1563,12 +1565,46 @@ export const App: React.FC = () => {
     [openExistingConversation]
   )
 
+  const openEventCoordinatorConversationFor = React.useCallback(
+    async (eventId: string | undefined, returnScreen: AppScreen = 'messages') => {
+      if (!eventId) {
+        setToastMessage('A coordinator conversation is not available for this event yet.')
+        return
+      }
+      const result = await openEventCoordinatorConversation(eventId)
+      if (!result.ok || !result.conversationId) {
+        setToastMessage(result.error ?? 'This coordinator conversation is not available to your account.')
+        return
+      }
+      const latestConversations = await fetchConversations()
+      const conversation = latestConversations.find((item) => item.id === result.conversationId)
+      if (!conversation) {
+        setToastMessage('The conversation was opened, but it could not be loaded yet. Pull to refresh and try again.')
+        return
+      }
+      setConversations(latestConversations)
+      await openExistingConversation(conversation, returnScreen)
+    },
+    [openExistingConversation]
+  )
+
   const handleCoordinatorMessageProvider = React.useCallback(
     async (_event: CoordinatorEvent, service: CoordinatorBookedService) => {
       await openBookingConversationFor(service.bookingId, 'coordinatorHome')
     },
     [openBookingConversationFor]
   )
+
+  const handleSaveChurchArrangement = React.useCallback(async (
+    input: Parameters<typeof saveCoordinatorChurchWeddingArrangement>[0]
+  ) => {
+    const result = await saveCoordinatorChurchWeddingArrangement(input)
+    if (result.ok) {
+      setToastMessage('Church arrangement saved. This does not create a church reservation.')
+      await loadCoordinatorWorkspace(true, true)
+    }
+    return result
+  }, [loadCoordinatorWorkspace])
 
   const routeForRole = React.useCallback((role?: AccountRole | string | null) => {
     switch (role) {
@@ -3660,6 +3696,7 @@ export const App: React.FC = () => {
             isRefreshing={isCoordinatorRefreshing}
             onCreateTask={handleCreateCoordinatorTask}
             onMessageProvider={(event, service) => void handleCoordinatorMessageProvider(event, service)}
+            onSaveChurchArrangement={handleSaveChurchArrangement}
             onOpenNotifications={() => setScreen('coordinatorNotifications')}
             onOpenPackages={() => setScreen('coordinatorPackages')}
             onOpenProfile={() => openAccountProfile('coordinatorHome')}
@@ -4287,6 +4324,9 @@ export const App: React.FC = () => {
             onFindAlternativeServices={(service) => void handleFindAlternativeServices(service)}
             onMessageProviderForBooking={(bookingId) =>
               void openBookingConversationFor(bookingId, 'bookingDetails')
+            }
+            onMessageCoordinatorForEvent={(eventId) =>
+              void openEventCoordinatorConversationFor(eventId, 'bookingDetails')
             }
             onLoadFoodTastingSlots={loadCateringFoodTastingSlots}
             onRequestFoodTasting={handleClientFoodTastingRequest}

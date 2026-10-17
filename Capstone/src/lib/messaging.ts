@@ -48,6 +48,14 @@ const toBookingStatus = (
 const canSendBookingMessages = (value: unknown) =>
   ['confirmed', 'completed'].includes(textFrom(value).toLowerCase())
 
+const canSendEventCoordinatorMessages = (event: Record<string, unknown> | undefined) =>
+  Boolean(
+    event
+      && event.is_church_wedding === true
+      && textFrom(event.coordinator_assignment_status) === 'accepted'
+      && textFrom(event.status) !== 'cancelled'
+  )
+
 const toNotificationCategory = (value: unknown): MerchantNotificationCategory => {
   const category = textFrom(value).toLowerCase()
   if (category.includes('booking')) return 'booking'
@@ -90,7 +98,7 @@ export const fetchConversations = async (): Promise<ClientConversation[]> => {
       client
         .from('conversations')
         .select(
-          'id, title, booking_id, updated_at, bookings(id, status, requested_date, services(name))'
+          'id, title, booking_id, conversation_kind, updated_at, bookings(id, status, requested_date, services(name)), events(id, status, event_date, coordinator_assignment_status, is_church_wedding)'
         )
         .in('id', conversationIds),
       client
@@ -135,7 +143,12 @@ export const fetchConversations = async (): Promise<ClientConversation[]> => {
       const profile = nested(participant?.profiles) as Record<string, unknown> | undefined
       const provider = providersByUser.get(textFrom(participant?.user_id))
       const booking = nested(record.bookings) as Record<string, unknown> | undefined
+      const event = nested(record.events) as Record<string, unknown> | undefined
       const service = nested(booking?.services) as Record<string, unknown> | undefined
+      const isEventCoordinatorConversation = textFrom(record.conversation_kind) === 'event_coordinator'
+      // Preserve the confirmed-booking rule for every provider conversation:
+      // isReadOnly: booking ? !canSendBookingMessages(booking.status) : true
+      const bookingReadOnly = booking ? !canSendBookingMessages(booking.status) : true
       const messages = (messageRows ?? []).filter(
         (message) => message.conversation_id === conversationId
       )
@@ -147,14 +160,16 @@ export const fetchConversations = async (): Promise<ClientConversation[]> => {
 
       return {
         avatarUrl: textFrom(profile?.avatar_url) || undefined,
-        bookingDate: textFrom(booking?.requested_date) || undefined,
+        bookingDate: textFrom(booking?.requested_date, textFrom(event?.event_date)) || undefined,
         bookingId: textFrom(booking?.id) || undefined,
         bookingReference: booking?.id
           ? `Booking #${textFrom(booking.id).slice(0, 8).toUpperCase()}`
-          : undefined,
-        bookingStatus: booking ? toBookingStatus(booking.status) : undefined,
+          : isEventCoordinatorConversation ? 'Event coordinator' : undefined,
+        bookingStatus: booking ? toBookingStatus(booking.status) : isEventCoordinatorConversation ? 'confirmed' : undefined,
         id: conversationId,
-        isReadOnly: booking ? !canSendBookingMessages(booking.status) : true,
+        isReadOnly: isEventCoordinatorConversation
+          ? !canSendEventCoordinatorMessages(event)
+          : bookingReadOnly,
         lastMessage: textFrom(lastMessage?.body, 'Conversation started.'),
         lastMessageAt: textFrom(lastMessage?.created_at, textFrom(record.updated_at)),
         participantName,
@@ -163,7 +178,9 @@ export const fetchConversations = async (): Promise<ClientConversation[]> => {
           textFrom(profile?.default_role, 'Service provider').replaceAll('_', ' ')
         ),
         participantUserId: textFrom(participant?.user_id) || undefined,
-        serviceName: textFrom(service?.name, textFrom(record.title, 'Service inquiry')),
+        serviceName: isEventCoordinatorConversation
+          ? 'Event coordinator'
+          : textFrom(service?.name, textFrom(record.title, 'Service inquiry')),
         unreadCount: messages.filter(
           (message) => message.sender_id !== userId && !message.read_at
         ).length,
@@ -197,6 +214,27 @@ export const openBookingConversation = async (
   return conversationId
     ? { conversationId, ok: true }
     : { error: 'The booking conversation could not be opened.', ok: false }
+}
+
+export const openEventCoordinatorConversation = async (
+  eventId: string
+): Promise<OpenConversationResult> => {
+  const client = getClient()
+  if (!client || !eventId) {
+    return { error: 'Unable to open this event coordinator conversation.', ok: false }
+  }
+
+  const { data, error } = await client.rpc('open_event_coordinator_conversation', {
+    target_event_id: eventId,
+  })
+  if (error) return { error: error.message, ok: false }
+  const payload = data && typeof data === 'object' && !Array.isArray(data)
+    ? data as Record<string, unknown>
+    : {}
+  const conversationId = textFrom(payload.conversation_id)
+  return conversationId
+    ? { conversationId, ok: true }
+    : { error: 'The event coordinator conversation could not be opened.', ok: false }
 }
 
 // Kept for coordinator callers while every role uses the same secure booking RPC.

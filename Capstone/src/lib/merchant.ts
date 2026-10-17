@@ -1269,7 +1269,7 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
   const { data, error } = await client
     .from('bookings')
     .select(
-      'id, event_id, provider_id, service_id, amount, provider_amount, status, requested_date, requested_time, created_at, updated_at, events(id, coordinator_id, name, event_type, is_church_wedding, event_date, event_time, guest_count, venue, location, status), services(name, cover_image_url, category_details, service_categories(name)), provider_profiles(business_name), payments!inner(status, amount, service_subtotal, provider_initial_allocation, paid_at, metadata)'
+      'id, event_id, provider_id, service_id, amount, provider_amount, status, requested_date, requested_time, created_at, updated_at, events(id, coordinator_id, coordinator_assignment_status, name, event_type, is_church_wedding, event_date, event_time, guest_count, venue, location, status), services(name, cover_image_url, category_details, service_categories(name)), provider_profiles(business_name), payments!inner(status, amount, service_subtotal, provider_initial_allocation, paid_at, metadata)'
     )
     .eq('client_id', userId)
     .neq('status', 'payment_required')
@@ -1287,7 +1287,7 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
     const coordinatorId = textFrom(event?.coordinator_id)
     return coordinatorId ? [coordinatorId] : []
   })))
-  const [reviewResult, coordinatorResult, coordinatorReviewResult, externalPaymentSummaries, foodTastingResult, replacementResult] =
+  const [reviewResult, coordinatorResult, coordinatorReviewResult, externalPaymentSummaries, foodTastingResult, replacementResult, churchArrangementResult] =
     await Promise.all([
       bookingIds.length
         ? client
@@ -1317,6 +1317,7 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
             .in('rejected_booking_id', bookingIds)
             .neq('status', 'closed')
         : Promise.resolve({ data: [] }),
+      client.rpc('get_my_church_wedding_arrangements'),
     ])
   const reviewRows = reviewResult.data
   const coordinatorProfiles = coordinatorResult.data
@@ -1336,6 +1337,22 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
     coordinatorProfileRows
       .filter((profile) => coordinatorIds.includes(textFrom(profile.id)))
       .map((profile) => [textFrom(profile.id), profile])
+  )
+  const churchArrangementsByEvent = new Map(
+    (Array.isArray(churchArrangementResult.data) ? churchArrangementResult.data : []).map((entry) => {
+      const arrangement = entry as Record<string, unknown>
+      return [textFrom(arrangement.event_id), {
+        arrangementStatus: textFrom(arrangement.arrangement_status, 'not_started'),
+        ceremonyDate: textFrom(arrangement.ceremony_date) || undefined,
+        ceremonyTime: textFrom(arrangement.ceremony_time) || undefined,
+        churchAddress: textFrom(arrangement.church_address) || undefined,
+        churchContact: textFrom(arrangement.church_contact) || undefined,
+        churchName: textFrom(arrangement.church_name) || undefined,
+        notes: textFrom(arrangement.notes) || undefined,
+        preferredChurch: textFrom(arrangement.preferred_church) || undefined,
+        updatedAt: textFrom(arrangement.updated_at) || undefined,
+      }] as const
+    }).filter(([eventId]) => Boolean(eventId))
   )
   const grouped = new Map<string, BookingItem>()
 
@@ -1418,6 +1435,7 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
       category: textFrom(event?.event_type, 'Event'),
       createdAt: textFrom(record.created_at),
       coordinatorAvatarUrl: textFrom(coordinator?.avatar_url) || undefined,
+      coordinatorAssignmentStatus: textFrom(event?.coordinator_assignment_status) || undefined,
       coordinatorName: coordinatorId
         ? textFrom(coordinator?.full_name, 'Event Coordinator')
         : undefined,
@@ -1431,6 +1449,7 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
       image: serviceItem.image,
       imageLabel: eventName,
       isChurchWedding: event?.is_church_wedding === true,
+      churchArrangement: churchArrangementsByEvent.get(eventId),
       location: textFrom(event?.location),
       name: eventName,
       paymentStatus: latestPayment ? paymentType : 'Pending',

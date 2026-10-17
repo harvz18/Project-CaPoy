@@ -45,6 +45,18 @@ export interface BookingItem {
   coordinatorAvatarUrl?: string
   coordinatorName?: string
   coordinatorUserId?: string
+  coordinatorAssignmentStatus?: string
+  churchArrangement?: {
+    arrangementStatus: string
+    ceremonyDate?: string
+    ceremonyTime?: string
+    churchAddress?: string
+    churchContact?: string
+    churchName?: string
+    notes?: string
+    preferredChurch?: string
+    updatedAt?: string
+  }
   date: string
   eventId?: string
   isChurchWedding?: boolean

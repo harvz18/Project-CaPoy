@@ -27,6 +27,7 @@ interface BookingDetailsScreenProps {
   onBack?: () => void
   onCancelBooking?: (reason: string) => Promise<BookingChangeActionResult>
   onFindAlternativeServices?: (service: NonNullable<BookingItem['services']>[number]) => void
+  onMessageCoordinatorForEvent?: (eventId: string) => void
   onMessageProviderForBooking?: (bookingId: string) => void
   onLoadFoodTastingSlots?: (bookingId: string) => Promise<CateringFoodTastingSlotsResult>
   onRequestFoodTasting?: (value: {
@@ -110,12 +111,21 @@ const formatTastingStatus = (status: string) => ({
   reschedule_proposed: 'Provider proposed a new schedule',
 }[status] ?? 'Scheduled')
 
+const formatChurchArrangementStatus = (status?: string) => ({
+  awaiting_client_confirmation: 'Awaiting your confirmation',
+  confirmed: 'Confirmed',
+  looking_for_church: 'Looking for a church',
+  not_started: 'Not started',
+  proposed: 'Church proposed',
+}[status ?? 'not_started'] ?? 'Not started')
+
 export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
   booking,
   details,
   onBack,
   onCancelBooking,
   onFindAlternativeServices,
+  onMessageCoordinatorForEvent,
   onMessageProviderForBooking,
   onLoadFoodTastingSlots,
   onRequestFoodTasting,
@@ -127,6 +137,11 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
   const isConfirmed = booking?.status === 'confirmed' || booking?.status === 'completed'
   const isCompleted = booking?.status === 'completed'
   const isCancelled = booking?.status === 'cancelled'
+  const canMessageCoordinator = Boolean(
+    booking?.eventId
+      && booking?.isChurchWedding
+      && booking?.coordinatorAssignmentStatus === 'accepted'
+  )
   const bookedServices = booking?.services ?? []
   const [changeMode, setChangeMode] = React.useState<'cancel' | 'options' | 'reschedule'>()
   const [changeError, setChangeError] = React.useState('')
@@ -362,6 +377,62 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
           <DetailRow label="SERVICES" value={value.coverage} />
           <DetailRow label="PRICE" last price value={value.price} />
         </View>
+
+        {booking?.isChurchWedding ? (
+          <View style={styles.churchArrangementCard}>
+            <View style={styles.churchArrangementHeading}>
+              <View>
+                <Text style={styles.cardTitle}>Church Arrangement</Text>
+                <Text style={styles.churchArrangementStatus}>
+                  {formatChurchArrangementStatus(booking.churchArrangement?.arrangementStatus)}
+                </Text>
+              </View>
+              <MaterialIcons color={palette.burgundy} name="church" size={25} />
+            </View>
+            {booking.churchArrangement?.preferredChurch ? (
+              <DetailRow label="PREFERRED CHURCH" value={booking.churchArrangement.preferredChurch} />
+            ) : null}
+            {booking.churchArrangement?.churchName ? (
+              <DetailRow label="CHURCH" value={booking.churchArrangement.churchName} />
+            ) : null}
+            {booking.churchArrangement?.churchAddress ? (
+              <DetailRow label="LOCATION" value={booking.churchArrangement.churchAddress} />
+            ) : null}
+            {booking.churchArrangement?.churchContact ? (
+              <DetailRow label="CONTACT" value={booking.churchArrangement.churchContact} />
+            ) : null}
+            {booking.churchArrangement?.ceremonyDate || booking.churchArrangement?.ceremonyTime ? (
+              <DetailRow
+                label="CEREMONY"
+                value={[booking.churchArrangement.ceremonyDate, booking.churchArrangement.ceremonyTime].filter(Boolean).join(' · ')}
+              />
+            ) : null}
+            {booking.churchArrangement?.notes ? (
+              <DetailRow last label="COORDINATOR NOTES" value={booking.churchArrangement.notes} />
+            ) : null}
+            {booking.churchArrangement?.updatedAt ? (
+              <Text style={styles.churchArrangementUpdatedAt}>
+                Last updated {new Date(booking.churchArrangement.updatedAt).toLocaleString('en-PH')}
+              </Text>
+            ) : null}
+            {!booking.churchArrangement?.churchName && !booking.churchArrangement?.notes ? (
+              <Text style={styles.churchArrangementEmpty}>Your coordinator has not recorded church details yet.</Text>
+            ) : null}
+            <Text style={styles.churchArrangementDisclaimer}>
+              This is coordination information only. It does not confirm a church reservation or payment.
+            </Text>
+            {canMessageCoordinator ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => onMessageCoordinatorForEvent?.(booking.eventId!)}
+                style={({ pressed }) => [styles.messageCoordinatorButton, pressed && styles.serviceMessageButtonPressed]}
+              >
+                <MaterialIcons color={palette.surface} name="chat-bubble-outline" size={18} />
+                <Text style={styles.messageCoordinatorButtonText}>Message Coordinator</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
 
         {bookedServices.length > 0 ? (
           <View style={styles.servicesSection}>
@@ -1099,6 +1170,14 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   priceValue: { color: palette.burgundy, fontSize: 18, lineHeight: 26, fontWeight: '700' },
+  churchArrangementCard: { borderWidth: 1, borderColor: '#D9C6CA', borderRadius: 12, backgroundColor: '#FEFAFB', padding: 20, marginBottom: 32 },
+  churchArrangementHeading: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
+  churchArrangementStatus: { color: palette.burgundy, fontSize: 12, lineHeight: 17, fontWeight: '700', marginTop: -11, marginBottom: 5 },
+  churchArrangementEmpty: { color: palette.muted, fontSize: 13, lineHeight: 19, marginTop: 8 },
+  churchArrangementUpdatedAt: { color: palette.muted, fontSize: 11, lineHeight: 16, marginTop: 10 },
+  churchArrangementDisclaimer: { color: palette.muted, fontSize: 11, lineHeight: 16, marginTop: 14 },
+  messageCoordinatorButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 9, backgroundColor: palette.burgundy, marginTop: 14, paddingHorizontal: 14 },
+  messageCoordinatorButtonText: { color: palette.surface, fontSize: 12, lineHeight: 16, fontWeight: '700' },
   servicesSection: { gap: 12, marginBottom: 32 },
   serviceCard: {
     flexDirection: 'row',

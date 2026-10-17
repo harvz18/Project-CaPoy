@@ -22,8 +22,10 @@ import type {
   CoordinatorEvent,
   CoordinatorInvitation,
   CoordinatorResult,
+  ChurchArrangementStatus,
   CoordinatorTask,
   CreateCoordinatorTaskInput,
+  SaveChurchWeddingArrangementInput,
 } from '../lib/coordinator'
 
 type CoordinatorView = 'events' | 'overview' | 'tasks'
@@ -40,6 +42,7 @@ interface CoordinatorScreenProps {
   isRefreshing?: boolean
   onCreateTask?: (input: CreateCoordinatorTaskInput) => Promise<CoordinatorResult>
   onMessageProvider?: (event: CoordinatorEvent, service: CoordinatorBookedService) => void
+  onSaveChurchArrangement?: (input: SaveChurchWeddingArrangementInput) => Promise<CoordinatorResult>
   onOpenNotifications?: () => void
   onOpenPackages?: () => void
   onOpenProfile?: () => void
@@ -182,7 +185,8 @@ const todayHeading = () =>
 const EventCard: React.FC<{
   event: CoordinatorEvent
   onMessageProvider?: (event: CoordinatorEvent, service: CoordinatorBookedService) => void
-}> = ({ event, onMessageProvider }) => {
+  onSaveChurchArrangement?: (input: SaveChurchWeddingArrangementInput) => Promise<CoordinatorResult>
+}> = ({ event, onMessageProvider, onSaveChurchArrangement }) => {
   const progress = eventProgress(event)
   const venue = event.venue || event.location || 'Venue to be confirmed'
   const bookingServices = event.services.filter((service) => service.booked && service.bookingId)
@@ -294,6 +298,10 @@ const EventCard: React.FC<{
                 <Text style={styles.requestFact}>Replacement activity: {replacementBookingCount}</Text>
               ) : null}
             </View>
+
+            {event.isChurchWedding ? (
+              <ChurchArrangementPanel event={event} onSave={onSaveChurchArrangement} />
+            ) : null}
 
             <View style={styles.requestFacts}>
               <Text style={styles.requestFact}>Event type: {statusLabel(event.type || 'Event')}</Text>
@@ -493,6 +501,114 @@ const EventCard: React.FC<{
           </View>
         ) : null}
       </View>
+    </View>
+  )
+}
+
+const churchArrangementOptions: Array<{ label: string; value: ChurchArrangementStatus }> = [
+  { label: 'Not started', value: 'not_started' },
+  { label: 'Looking', value: 'looking_for_church' },
+  { label: 'Proposed', value: 'proposed' },
+  { label: 'Awaiting client', value: 'awaiting_client_confirmation' },
+  { label: 'Confirmed', value: 'confirmed' },
+]
+
+const ChurchArrangementPanel: React.FC<{
+  event: CoordinatorEvent
+  onSave?: (input: SaveChurchWeddingArrangementInput) => Promise<CoordinatorResult>
+}> = ({ event, onSave }) => {
+  const arrangement = event.churchArrangement
+  const [status, setStatus] = React.useState<ChurchArrangementStatus>(arrangement?.arrangementStatus ?? 'not_started')
+  const [preferredChurch, setPreferredChurch] = React.useState(arrangement?.preferredChurch ?? '')
+  const [churchName, setChurchName] = React.useState(arrangement?.churchName ?? '')
+  const [churchAddress, setChurchAddress] = React.useState(arrangement?.churchAddress ?? '')
+  const [churchContact, setChurchContact] = React.useState(arrangement?.churchContact ?? '')
+  const [ceremonyDate, setCeremonyDate] = React.useState(arrangement?.ceremonyDate ?? '')
+  const [ceremonyTime, setCeremonyTime] = React.useState(arrangement?.ceremonyTime ?? '')
+  const [notes, setNotes] = React.useState(arrangement?.notes ?? '')
+  const [error, setError] = React.useState('')
+  const [saving, setSaving] = React.useState(false)
+
+  React.useEffect(() => {
+    setStatus(arrangement?.arrangementStatus ?? 'not_started')
+    setPreferredChurch(arrangement?.preferredChurch ?? '')
+    setChurchName(arrangement?.churchName ?? '')
+    setChurchAddress(arrangement?.churchAddress ?? '')
+    setChurchContact(arrangement?.churchContact ?? '')
+    setCeremonyDate(arrangement?.ceremonyDate ?? '')
+    setCeremonyTime(arrangement?.ceremonyTime ?? '')
+    setNotes(arrangement?.notes ?? '')
+    setError('')
+  }, [arrangement, event.id])
+
+  const save = async () => {
+    if (!onSave || saving) return
+    setSaving(true)
+    setError('')
+    const result = await onSave({
+      arrangementStatus: status,
+      ceremonyDate,
+      ceremonyTime,
+      churchAddress,
+      churchContact,
+      churchName,
+      eventId: event.id,
+      notes,
+      preferredChurch,
+    })
+    setSaving(false)
+    if (!result.ok) setError(result.message ?? 'Unable to save the church arrangement.')
+  }
+
+  return (
+    <View style={styles.churchArrangementPanel}>
+      <View style={styles.churchArrangementPanelHeading}>
+        <View style={styles.instructionCopy}>
+          <Text style={styles.churchArrangementTitle}>CHURCH ARRANGEMENT</Text>
+          <Text style={styles.churchArrangementCaption}>Record coordination details only. This does not reserve a church or confirm payment.</Text>
+        </View>
+        <MaterialIcons color={palette.primaryContainer} name="church" size={21} />
+      </View>
+      <Text style={styles.inputLabel}>STATUS</Text>
+      <ScrollView contentContainerStyle={styles.churchStatusChoices} horizontal showsHorizontalScrollIndicator={false}>
+        {churchArrangementOptions.map((option) => (
+          <Pressable
+            key={option.value}
+            accessibilityRole="button"
+            accessibilityState={{ selected: status === option.value }}
+            onPress={() => setStatus(option.value)}
+            style={[styles.churchStatusChip, status === option.value && styles.churchStatusChipSelected]}
+          >
+            <Text style={[styles.churchStatusChipText, status === option.value && styles.churchStatusChipTextSelected]}>{option.label}</Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+      <Text style={styles.inputLabel}>CLIENT PREFERRED CHURCH</Text>
+      <TextInput onChangeText={setPreferredChurch} placeholder="Client preference, if shared" placeholderTextColor={palette.secondary} style={styles.textInput} value={preferredChurch} />
+      <Text style={styles.inputLabel}>PROPOSED / SELECTED CHURCH</Text>
+      <TextInput onChangeText={setChurchName} placeholder="Church name" placeholderTextColor={palette.secondary} style={styles.textInput} value={churchName} />
+      <Text style={styles.inputLabel}>ADDRESS OR LOCATION</Text>
+      <TextInput onChangeText={setChurchAddress} placeholder="Church address or location" placeholderTextColor={palette.secondary} style={styles.textInput} value={churchAddress} />
+      <Text style={styles.inputLabel}>CHURCH CONTACT</Text>
+      <TextInput onChangeText={setChurchContact} placeholder="Contact person or number" placeholderTextColor={palette.secondary} style={styles.textInput} value={churchContact} />
+      <View style={styles.churchDateTimeRow}>
+        <View style={styles.churchDateTimeField}>
+          <Text style={styles.inputLabel}>CEREMONY DATE</Text>
+          <TextInput onChangeText={setCeremonyDate} placeholder="YYYY-MM-DD" placeholderTextColor={palette.secondary} style={styles.textInput} value={ceremonyDate} />
+        </View>
+        <View style={styles.churchDateTimeField}>
+          <Text style={styles.inputLabel}>TIME</Text>
+          <TextInput onChangeText={setCeremonyTime} placeholder="HH:MM" placeholderTextColor={palette.secondary} style={styles.textInput} value={ceremonyTime} />
+        </View>
+      </View>
+      <Text style={styles.inputLabel}>NOTES / INSTRUCTIONS</Text>
+      <TextInput multiline onChangeText={setNotes} placeholder="Record coordination notes for the client" placeholderTextColor={palette.secondary} style={[styles.textInput, styles.notesInput]} textAlignVertical="top" value={notes} />
+      {arrangement?.updatedAt ? <Text style={styles.churchUpdatedAt}>Last updated {new Date(arrangement.updatedAt).toLocaleString('en-PH')}</Text> : null}
+      {error ? <Text style={styles.formError}>{error}</Text> : null}
+      <Pressable accessibilityRole="button" disabled={!onSave || saving} onPress={() => void save()} style={({ pressed }) => [styles.createButton, (!onSave || saving) && styles.disabled, pressed && styles.addButtonPressed]}>
+        {saving ? <ActivityIndicator color="#FFFFFF" size="small" /> : <MaterialIcons color="#FFFFFF" name="save" size={16} />}
+        <Text style={styles.createButtonText}>{saving ? 'Saving...' : 'Save church arrangement'}</Text>
+      </Pressable>
     </View>
   )
 }
@@ -722,6 +838,7 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
   isRefreshing = false,
   onCreateTask,
   onMessageProvider,
+  onSaveChurchArrangement,
   onOpenNotifications,
   onOpenPackages,
   onOpenProfile,
@@ -1172,6 +1289,7 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
                 <EventCard
                   event={activeEvents[0] ?? dashboard.events[0]}
                   onMessageProvider={onMessageProvider}
+                  onSaveChurchArrangement={onSaveChurchArrangement}
                 />
               </View>
 
@@ -1214,7 +1332,7 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
             <View style={[styles.eventList, isWide && styles.eventListWide]}>
               {dashboard.events.map((event) => (
                 <View key={event.id} style={isWide ? styles.eventCardWide : undefined}>
-                  <EventCard event={event} onMessageProvider={onMessageProvider} />
+                  <EventCard event={event} onMessageProvider={onMessageProvider} onSaveChurchArrangement={onSaveChurchArrangement} />
                 </View>
               ))}
             </View>
@@ -1467,6 +1585,18 @@ const styles = StyleSheet.create({
   requestFacts: { gap: 3 },
   requestFact: { color: palette.secondary, fontSize: 10, lineHeight: 15 },
   churchWeddingFact: { color: palette.primaryContainer, fontSize: 10, lineHeight: 15, fontWeight: '700' },
+  churchArrangementPanel: { borderWidth: 1, borderColor: '#D9C4C8', borderRadius: 10, backgroundColor: '#FFFBFB', marginTop: 13, padding: 12 },
+  churchArrangementPanelHeading: { flexDirection: 'row', alignItems: 'flex-start', gap: 9 },
+  churchArrangementTitle: { color: palette.primaryContainer, fontSize: 9, lineHeight: 13, fontWeight: '700', letterSpacing: 0.7 },
+  churchArrangementCaption: { color: palette.secondary, fontSize: 8, lineHeight: 12, marginTop: 2 },
+  churchStatusChoices: { gap: 7, paddingRight: 6 },
+  churchStatusChip: { minHeight: 32, justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 16, paddingHorizontal: 10 },
+  churchStatusChipSelected: { borderColor: palette.primaryContainer, backgroundColor: palette.primarySoft },
+  churchStatusChipText: { color: palette.secondary, fontSize: 9, lineHeight: 13, fontWeight: '600' },
+  churchStatusChipTextSelected: { color: palette.primaryContainer, fontWeight: '700' },
+  churchDateTimeRow: { flexDirection: 'row', gap: 8 },
+  churchDateTimeField: { minWidth: 0, flex: 1 },
+  churchUpdatedAt: { color: palette.secondary, fontSize: 8, lineHeight: 12, marginTop: 10 },
   requestServicesBlock: { gap: 7 },
   requestServiceRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderRadius: 8, backgroundColor: palette.surfaceLow, padding: 9 },
   requestServiceCopy: { minWidth: 0, flex: 1 },

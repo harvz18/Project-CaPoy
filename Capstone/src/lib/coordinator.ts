@@ -2,6 +2,29 @@ import { supabase, supabaseConfig } from './supabase'
 
 export type CoordinatorTaskStatus = 'blocked' | 'completed' | 'in_progress' | 'pending'
 
+export type ChurchArrangementStatus =
+  | 'not_started'
+  | 'looking_for_church'
+  | 'proposed'
+  | 'awaiting_client_confirmation'
+  | 'confirmed'
+
+export interface ChurchWeddingArrangement {
+  arrangementStatus: ChurchArrangementStatus
+  ceremonyDate?: string
+  ceremonyTime?: string
+  churchAddress?: string
+  churchContact?: string
+  churchName?: string
+  notes?: string
+  preferredChurch?: string
+  updatedAt?: string
+}
+
+export interface SaveChurchWeddingArrangementInput extends ChurchWeddingArrangement {
+  eventId: string
+}
+
 export interface CoordinatorServiceInstruction {
   body?: string
   id: string
@@ -101,6 +124,7 @@ export interface CoordinatorEvent {
   id: string
   instructions: CoordinatorServiceInstruction[]
   isChurchWedding?: boolean
+  churchArrangement?: ChurchWeddingArrangement
   location?: string
   name: string
   services: CoordinatorBookedService[]
@@ -522,6 +546,7 @@ export const fetchCoordinatorDashboard = async (): Promise<CoordinatorResult<Coo
     { data: assignmentContextData, error: assignmentContextError },
     { data: bookingStatusData, error: bookingStatusError },
     { data: churchWeddingData, error: churchWeddingError },
+    { data: churchArrangementData, error: churchArrangementError },
   ] =
     await Promise.all([
       supabase.rpc('get_coordinator_dashboard'),
@@ -531,6 +556,7 @@ export const fetchCoordinatorDashboard = async (): Promise<CoordinatorResult<Coo
       supabase.rpc('get_my_coordinator_assignment_context'),
       supabase.rpc('get_my_coordinator_booking_statuses'),
       supabase.rpc('get_my_church_wedding_event_flags'),
+      supabase.rpc('get_my_church_wedding_arrangements'),
     ])
   if (error) {
     return { data: emptyCoordinatorDashboard(), message: error.message, ok: false }
@@ -559,11 +585,38 @@ export const fetchCoordinatorDashboard = async (): Promise<CoordinatorResult<Coo
   if (churchWeddingError) {
     console.warn('Unable to load church wedding flags:', churchWeddingError.message)
   }
+  if (churchArrangementError) {
+    console.warn('Unable to load church wedding arrangements:', churchArrangementError.message)
+  }
   const churchWeddingEventIds = new Set(
     (Array.isArray(churchWeddingData) ? churchWeddingData : [])
       .filter((entry) => recordFrom(entry).is_church_wedding === true)
       .map((entry) => textFrom(recordFrom(entry).event_id))
       .filter(Boolean)
+  )
+  const churchArrangementsByEvent = new Map<string, ChurchWeddingArrangement>(
+    (Array.isArray(churchArrangementData) ? churchArrangementData : []).flatMap((entry) => {
+      const row = recordFrom(entry)
+      const eventId = textFrom(row.event_id)
+      if (!eventId) return []
+      const status = textFrom(row.arrangement_status, 'not_started')
+      const arrangementStatus: ChurchArrangementStatus = [
+        'not_started', 'looking_for_church', 'proposed', 'awaiting_client_confirmation', 'confirmed',
+      ].includes(status)
+        ? status as ChurchArrangementStatus
+        : 'not_started'
+      return [[eventId, {
+        arrangementStatus,
+        ceremonyDate: optionalText(row.ceremony_date),
+        ceremonyTime: optionalText(row.ceremony_time),
+        churchAddress: optionalText(row.church_address),
+        churchContact: optionalText(row.church_contact),
+        churchName: optionalText(row.church_name),
+        notes: optionalText(row.notes),
+        preferredChurch: optionalText(row.preferred_church),
+        updatedAt: optionalText(row.updated_at),
+      }] as const]
+    })
   )
   const feesByEvent = new Map(
     (Array.isArray(feeData) ? feeData : []).map((entry) => {
@@ -759,6 +812,7 @@ export const fetchCoordinatorDashboard = async (): Promise<CoordinatorResult<Coo
             venueStatus: context.venueStatus,
           } : {}),
           isChurchWedding: churchWeddingEventIds.has(event.id),
+          churchArrangement: churchArrangementsByEvent.get(event.id),
           ...(feesByEvent.get(event.id) ?? {}),
           ...(bookingDetailsByEvent.get(event.id) ?? {}),
           instructions: instructionsByEvent.get(event.id) ?? [],
@@ -837,6 +891,28 @@ export const createCoordinatorTask = async (
     target_event_id: input.eventId,
     task_description: input.description?.trim() || null,
     task_title: input.title.trim(),
+  })
+
+  return error ? { message: error.message, ok: false } : { ok: true }
+}
+
+export const saveCoordinatorChurchWeddingArrangement = async (
+  input: SaveChurchWeddingArrangementInput
+): Promise<CoordinatorResult> => {
+  if (!supabase || !supabaseConfig.isConfigured) {
+    return { message: unavailableMessage, ok: false }
+  }
+
+  const { error } = await supabase.rpc('save_my_church_wedding_arrangement', {
+    target_arrangement_status: input.arrangementStatus,
+    target_ceremony_date: input.ceremonyDate?.trim() || null,
+    target_ceremony_time: input.ceremonyTime?.trim() || null,
+    target_church_address: input.churchAddress?.trim() || null,
+    target_church_contact: input.churchContact?.trim() || null,
+    target_church_name: input.churchName?.trim() || null,
+    target_event_id: input.eventId,
+    target_notes: input.notes?.trim() || null,
+    target_preferred_church: input.preferredChurch?.trim() || null,
   })
 
   return error ? { message: error.message, ok: false } : { ok: true }
