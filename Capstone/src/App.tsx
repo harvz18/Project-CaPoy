@@ -374,6 +374,7 @@ const DEFAULT_EVENT: EventCreationValue = {
   eventName: '',
   eventType: 'wedding',
   guestCount: 120,
+  isChurchWedding: false,
   time: '',
   venueStatus: 'searching',
 }

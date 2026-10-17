@@ -535,6 +535,44 @@ test('Phase 1 limits client booking-detail messaging to each confirmed provider 
   ], 'client message composer state')
 })
 
+test('Phase 2 saves church wedding preference without creating a church booking workflow', () => {
+  const migration = read('supabase/migrations/20261017000700_church_wedding_event_preference.sql')
+  const creation = read('src/screens/04-EventCreation.tsx')
+  const planning = read('src/lib/planning.ts')
+  const bookingDetails = read('src/screens/11.1-BookingDetails.tsx')
+  const coordinator = read('src/lib/coordinator.ts')
+
+  mustContain(migration, [
+    'add column if not exists is_church_wedding boolean not null default false',
+    'get_my_church_wedding_event_flags',
+    'Church wedding arrangement required',
+    'this does not confirm a church reservation',
+    "new.coordinator_assignment_status = 'accepted'",
+  ], 'church wedding preference migration')
+  assert.doesNotMatch(migration, /Church Venue/i)
+  mustContain(creation, [
+    "eventType === 'wedding'",
+    'IS THIS A CHURCH WEDDING?',
+    'Yes — Church Wedding',
+    'No — Non-Church / Outdoor Wedding',
+    'isChurchWedding,',
+  ], 'church wedding creation UI')
+  mustContain(planning, [
+    'is_church_wedding',
+    "details.eventType === 'wedding' && details.isChurchWedding === true",
+    'isChurchWedding: event.is_church_wedding === true',
+  ], 'church wedding draft persistence')
+  mustContain(bookingDetails, [
+    'booking?.isChurchWedding',
+    'WEDDING FORMAT',
+    'Church wedding',
+  ], 'church wedding client booking details')
+  mustContain(coordinator, [
+    "get_my_church_wedding_event_flags",
+    'isChurchWedding: churchWeddingEventIds.has(event.id)',
+  ], 'church wedding coordinator context')
+})
+
 test('package selection checks duplicate categories, manual conflicts, dynamic options, and total budget', () => {
   const packages = read(migrations[1])
   const catering = read(migrations[2])

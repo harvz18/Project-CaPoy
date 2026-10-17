@@ -29,6 +29,7 @@ export interface EventCreationValue {
   eventName: string
   eventType: EventType
   guestCount: number
+  isChurchWedding?: boolean
   time: string
   venueAddress?: string
   venueLatitude?: number
@@ -234,6 +235,9 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
   const [selectedWeddingThemes, setSelectedWeddingThemes] = React.useState<string[]>(
     initialValue?.weddingThemes ?? []
   )
+  const [isChurchWedding, setIsChurchWedding] = React.useState(
+    initialValue?.isChurchWedding === true
+  )
   const [themeLimitMessage, setThemeLimitMessage] = React.useState(false)
   const themeLimitTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -320,6 +324,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
     venueLongitude: venueMap.longitude,
     venueName: venueMap.name,
     guestCount,
+    isChurchWedding,
     weddingThemes: selectedWeddingThemes,
   }
   const isStepComplete = Boolean(
@@ -425,6 +430,58 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                 <Text style={styles.themeLimitMessage}>You can only pick up to 2.</Text>
               )}
             </View>
+
+            {eventType === 'wedding' ? (
+              <View style={styles.churchWeddingSection}>
+                <Text style={styles.fieldLabel}>IS THIS A CHURCH WEDDING?</Text>
+                <Text style={styles.churchWeddingHelper}>
+                  This helps a booked coordinator prepare for church arrangements. It does not reserve a church or change your budget.
+                </Text>
+                <View style={styles.churchWeddingChoices}>
+                  {[
+                    {
+                      description: 'A coordinator can help with church arrangements after their booking is accepted.',
+                      label: 'Yes — Church Wedding',
+                      value: true,
+                    },
+                    {
+                      description: 'Continue with your preferred venue or ceremony location.',
+                      label: 'No — Non-Church / Outdoor Wedding',
+                      value: false,
+                    },
+                  ].map((option) => {
+                    const selected = isChurchWedding === option.value
+                    return (
+                      <Pressable
+                        key={option.label}
+                        accessibilityLabel={option.label}
+                        accessibilityRole="radio"
+                        accessibilityState={{ checked: selected }}
+                        onPress={() => setIsChurchWedding(option.value)}
+                        style={({ pressed }) => [
+                          styles.churchWeddingChoice,
+                          selected && styles.selectionCardActive,
+                          pressed && styles.cardPressed,
+                        ]}
+                      >
+                        <View style={[styles.churchWeddingIcon, selected && styles.churchWeddingIconSelected]}>
+                          <MaterialIcons
+                            color={selected ? palette.surface : palette.burgundy}
+                            name={option.value ? 'church' : 'location-on'}
+                            size={21}
+                          />
+                        </View>
+                        <View style={styles.churchWeddingCopy}>
+                          <Text style={styles.churchWeddingTitle}>{option.label}</Text>
+                          <Text style={styles.churchWeddingDescription}>{option.description}</Text>
+                        </View>
+                        {selected ? <SelectionCheck /> : null}
+                      </Pressable>
+                    )
+                  })}
+                </View>
+              </View>
+            ) : null}
 
             <View style={[styles.dateTimeGrid, isWide && styles.dateTimeGridWide]}>
               <PickerField
@@ -1849,6 +1906,25 @@ const styles = StyleSheet.create({
   themeChipText: { color: '#8A8A8A', fontSize: 12, lineHeight: 16, fontWeight: '600' },
   themeChipTextSelected: { color: palette.surface },
   themeLimitMessage: { color: '#8A8A8A', fontSize: 12, lineHeight: 18 },
+  churchWeddingSection: { gap: 12, marginTop: -20 },
+  churchWeddingHelper: { color: palette.muted, fontSize: 13, lineHeight: 20, marginTop: -4 },
+  churchWeddingChoices: { gap: 10 },
+  churchWeddingChoice: {
+    minHeight: 76,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 2,
+    borderColor: palette.border,
+    borderRadius: 16,
+    backgroundColor: '#F8F8F9',
+    padding: 14,
+  },
+  churchWeddingIcon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: '#F1E4E7' },
+  churchWeddingIconSelected: { backgroundColor: palette.burgundy },
+  churchWeddingCopy: { minWidth: 0, flex: 1 },
+  churchWeddingTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '700' },
+  churchWeddingDescription: { color: palette.muted, fontSize: 11, lineHeight: 16, marginTop: 2 },
   guestSection: {
     alignItems: 'center',
     borderTopWidth: 1,

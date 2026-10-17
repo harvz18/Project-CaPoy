@@ -1269,7 +1269,7 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
   const { data, error } = await client
     .from('bookings')
     .select(
-      'id, event_id, provider_id, service_id, amount, provider_amount, status, requested_date, requested_time, created_at, updated_at, events(id, coordinator_id, name, event_type, event_date, event_time, guest_count, venue, location, status), services(name, cover_image_url, category_details, service_categories(name)), provider_profiles(business_name), payments!inner(status, amount, service_subtotal, provider_initial_allocation, paid_at, metadata)'
+      'id, event_id, provider_id, service_id, amount, provider_amount, status, requested_date, requested_time, created_at, updated_at, events(id, coordinator_id, name, event_type, is_church_wedding, event_date, event_time, guest_count, venue, location, status), services(name, cover_image_url, category_details, service_categories(name)), provider_profiles(business_name), payments!inner(status, amount, service_subtotal, provider_initial_allocation, paid_at, metadata)'
     )
     .eq('client_id', userId)
     .neq('status', 'payment_required')
@@ -1430,6 +1430,7 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
       id: eventId,
       image: serviceItem.image,
       imageLabel: eventName,
+      isChurchWedding: event?.is_church_wedding === true,
       location: textFrom(event?.location),
       name: eventName,
       paymentStatus: latestPayment ? paymentType : 'Pending',

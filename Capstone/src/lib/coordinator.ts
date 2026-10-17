@@ -76,6 +76,7 @@ export interface CoordinatorInvitation {
   eventName: string
   eventType?: string
   guestCount?: number
+  isChurchWedding?: boolean
   location?: string
   requestedAt?: string
   status?: string
@@ -99,6 +100,7 @@ export interface CoordinatorEvent {
   guestCount?: number
   id: string
   instructions: CoordinatorServiceInstruction[]
+  isChurchWedding?: boolean
   location?: string
   name: string
   services: CoordinatorBookedService[]
@@ -423,6 +425,7 @@ interface CoordinatorAssignmentContext {
   eventName: string
   eventType?: string
   guestCount?: number
+  isChurchWedding?: boolean
   location?: string
   services: CoordinatorBookedService[]
   status?: string
@@ -518,6 +521,7 @@ export const fetchCoordinatorDashboard = async (): Promise<CoordinatorResult<Coo
     { data: bookingDetailData, error: bookingDetailError },
     { data: assignmentContextData, error: assignmentContextError },
     { data: bookingStatusData, error: bookingStatusError },
+    { data: churchWeddingData, error: churchWeddingError },
   ] =
     await Promise.all([
       supabase.rpc('get_coordinator_dashboard'),
@@ -526,6 +530,7 @@ export const fetchCoordinatorDashboard = async (): Promise<CoordinatorResult<Coo
       supabase.rpc('get_my_coordinator_booking_details'),
       supabase.rpc('get_my_coordinator_assignment_context'),
       supabase.rpc('get_my_coordinator_booking_statuses'),
+      supabase.rpc('get_my_church_wedding_event_flags'),
     ])
   if (error) {
     return { data: emptyCoordinatorDashboard(), message: error.message, ok: false }
@@ -551,6 +556,15 @@ export const fetchCoordinatorDashboard = async (): Promise<CoordinatorResult<Coo
   if (bookingStatusError) {
     console.warn('Unable to load coordinator booking statuses:', bookingStatusError.message)
   }
+  if (churchWeddingError) {
+    console.warn('Unable to load church wedding flags:', churchWeddingError.message)
+  }
+  const churchWeddingEventIds = new Set(
+    (Array.isArray(churchWeddingData) ? churchWeddingData : [])
+      .filter((entry) => recordFrom(entry).is_church_wedding === true)
+      .map((entry) => textFrom(recordFrom(entry).event_id))
+      .filter(Boolean)
+  )
   const feesByEvent = new Map(
     (Array.isArray(feeData) ? feeData : []).map((entry) => {
       const row = recordFrom(entry)
@@ -679,6 +693,7 @@ export const fetchCoordinatorDashboard = async (): Promise<CoordinatorResult<Coo
             venue: context.venue,
             venueStatus: context.venueStatus,
           } : {}),
+          isChurchWedding: churchWeddingEventIds.has(invitation.eventId),
           ...(feesByEvent.get(invitation.eventId) ?? {}),
           ...(bookingDetailsByEvent.get(invitation.eventId) ?? {}),
         }
@@ -743,6 +758,7 @@ export const fetchCoordinatorDashboard = async (): Promise<CoordinatorResult<Coo
             venue: context.venue,
             venueStatus: context.venueStatus,
           } : {}),
+          isChurchWedding: churchWeddingEventIds.has(event.id),
           ...(feesByEvent.get(event.id) ?? {}),
           ...(bookingDetailsByEvent.get(event.id) ?? {}),
           instructions: instructionsByEvent.get(event.id) ?? [],

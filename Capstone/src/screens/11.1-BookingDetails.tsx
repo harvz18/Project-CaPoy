@@ -350,6 +350,9 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
           {booking?.guestCount ? (
             <DetailRow label="GUESTS" value={`${booking.guestCount} guests`} />
           ) : null}
+          {booking?.isChurchWedding ? (
+            <DetailRow label="WEDDING FORMAT" value="Church wedding" />
+          ) : null}
           {booking?.venue || booking?.location ? (
             <DetailRow
               label="VENUE"

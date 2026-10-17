@@ -47,6 +47,7 @@ export interface BookingItem {
   coordinatorUserId?: string
   date: string
   eventId?: string
+  isChurchWedding?: boolean
   hasFeedback?: boolean
   eventType?: string
   guestCount?: number

@@ -219,6 +219,9 @@ const EventCard: React.FC<{
             <Text style={styles.eventType}>{statusLabel(event.type || 'Event')}</Text>
             <Text numberOfLines={2} style={styles.eventName}>{event.name}</Text>
             <Text style={styles.clientName}>For {event.clientName}</Text>
+            {event.isChurchWedding ? (
+              <Text style={styles.churchWeddingNotice}>Church wedding — church coordination required</Text>
+            ) : null}
           </View>
           <View style={styles.eventHeaderAside}>
             <View style={styles.statusPill}>
@@ -294,6 +297,9 @@ const EventCard: React.FC<{
 
             <View style={styles.requestFacts}>
               <Text style={styles.requestFact}>Event type: {statusLabel(event.type || 'Event')}</Text>
+              {event.isChurchWedding ? (
+                <Text style={styles.churchWeddingFact}>Church wedding: church coordination required</Text>
+              ) : null}
               <Text style={styles.requestFact}>Guests: {event.guestCount ?? 'Not specified'}</Text>
               <Text style={styles.requestFact}>
                 Event budget: {event.totalBudget == null ? 'Not specified' : pesoLabel(event.totalBudget)}
@@ -528,6 +534,9 @@ const InvitationCard: React.FC<{
         ? 'Review the request below, then accept to add the event to your coordinator workspace.'
         : 'You can review or decline this request now. Acceptance unlocks as soon as the client downpayment is confirmed.'}
     </Text>
+    {invitation.isChurchWedding ? (
+      <Text style={styles.churchWeddingNotice}>Church wedding — church coordination will be required after acceptance.</Text>
+    ) : null}
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ expanded }}
@@ -547,6 +556,9 @@ const InvitationCard: React.FC<{
       <View style={styles.invitationExpanded}>
         <View style={styles.requestFacts}>
           <Text style={styles.requestFact}>Event type: {statusLabel(invitation.eventType || 'Event')}</Text>
+          {invitation.isChurchWedding ? (
+            <Text style={styles.churchWeddingFact}>Church wedding: church coordination required</Text>
+          ) : null}
           <Text style={styles.requestFact}>Time: {timeLabel(invitation.time)}</Text>
           <Text style={styles.requestFact}>
             Event budget: {invitation.totalBudget == null
@@ -1448,11 +1460,13 @@ const styles = StyleSheet.create({
   invitationMeta: { gap: 3, borderTopWidth: 1, borderTopColor: palette.border, marginTop: 12, paddingTop: 10 },
   invitationMetaText: { color: palette.secondary, fontSize: 10, lineHeight: 15 },
   invitationNotice: { color: palette.secondary, fontSize: 9, lineHeight: 14, marginTop: 10 },
+  churchWeddingNotice: { color: palette.primaryContainer, fontSize: 10, lineHeight: 15, fontWeight: '700', marginTop: 5 },
   invitationDisclosure: { minHeight: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, borderWidth: 1, borderColor: palette.border, borderRadius: 8, backgroundColor: palette.surfaceLow, marginTop: 10, paddingHorizontal: 10 },
   invitationDisclosureText: { color: palette.primaryContainer, fontSize: 10, lineHeight: 14, fontWeight: '700' },
   invitationExpanded: { gap: 10, borderTopWidth: 1, borderTopColor: palette.border, marginTop: 12, paddingTop: 12 },
   requestFacts: { gap: 3 },
   requestFact: { color: palette.secondary, fontSize: 10, lineHeight: 15 },
+  churchWeddingFact: { color: palette.primaryContainer, fontSize: 10, lineHeight: 15, fontWeight: '700' },
   requestServicesBlock: { gap: 7 },
   requestServiceRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderRadius: 8, backgroundColor: palette.surfaceLow, padding: 9 },
   requestServiceCopy: { minWidth: 0, flex: 1 },

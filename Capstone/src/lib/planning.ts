@@ -60,6 +60,7 @@ type EventDraftInput = {
   eventName: string
   eventType: string
   guestCount: number
+  isChurchWedding?: boolean
   time: string
   venueAddress?: string
   venueName?: string
@@ -370,7 +371,7 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
   if (!client || !userId) return { selectedServices: [] }
 
   const eventSelection =
-    'id, coordinator_id, pending_coordinator_id, coordinator_assignment_status, coordinator_preference, coordinator_fee_amount, name, event_type, event_date, event_time, guest_count, total_budget, venue_status, venue, location, status, updated_at'
+    'id, coordinator_id, pending_coordinator_id, coordinator_assignment_status, coordinator_preference, coordinator_fee_amount, name, event_type, is_church_wedding, event_date, event_time, guest_count, total_budget, venue_status, venue, location, status, updated_at'
   const { data: selectedEvent } = activePlanningEventId
     ? await client
         .from('events')
@@ -585,6 +586,7 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
         ? (event.event_type as EventType)
         : 'wedding',
       guestCount: Number(event.guest_count ?? 0),
+      isChurchWedding: event.is_church_wedding === true,
       time: event.event_time ?? '',
       venueAddress: event.location ?? '',
       venueName: event.venue ?? '',
@@ -706,6 +708,7 @@ const toEventPayload = (budget?: number, details?: EventDraftInput) => {
     payload.name = details.eventName.trim() || defaultEventName
     payload.event_type = details.eventType
     payload.guest_count = details.guestCount
+    payload.is_church_wedding = details.eventType === 'wedding' && details.isChurchWedding === true
     payload.venue = details.venueStatus === 'secured' ? details.venueName?.trim() || null : null
     payload.location = details.venueStatus === 'secured' ? details.venueAddress?.trim() || null : null
     payload.venue_status = details.venueStatus
