@@ -25,6 +25,7 @@ export interface BookingServiceItem {
   foodTastingEnabled?: boolean
   image: string
   initialProviderShare?: number
+  initialPaymentRecordedAt?: string
   paymentStatus: string
   providerId: string
   providerName: string

@@ -1397,6 +1397,7 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
       foodTastingEnabled: Boolean(getCateringTastingSettings(service?.category_details)),
       image: textFrom(service?.cover_image_url),
       initialProviderShare,
+      initialPaymentRecordedAt: textFrom(latestPayment?.paid_at) || undefined,
       paymentStatus: textFrom(latestPayment?.status, 'pending'),
       providerId: textFrom(record.provider_id),
       providerName: textFrom(provider?.business_name, 'Service provider'),

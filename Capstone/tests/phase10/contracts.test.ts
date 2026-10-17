@@ -463,6 +463,28 @@ test('provider completion records direct external payments atomically before ser
   ], 'provider completion-payment app flow')
 })
 
+test('client booking details consolidate authoritative provider balances without double counting', () => {
+  const clientDetails = read('src/screens/11.1-BookingDetails.tsx')
+  const merchant = read('src/lib/merchant.ts')
+
+  mustContain(clientDetails, [
+    'calculateEventPaymentSummary',
+    "!['cancelled', 'declined'].includes(service.status)",
+    'Event Payment Summary',
+    'TOTAL EVENT SERVICE CHARGES',
+    'RECORDED SERVICE PAYMENTS',
+    'TOTAL REMAINING BALANCE',
+    'All Provider Balances Cleared',
+    'MULTIVENT platform fees, held funds, and provider payouts',
+    'External payments are provider-confirmed',
+  ], 'client event payment summary')
+  mustContain(merchant, [
+    'get_my_booking_external_payment_summaries',
+    'confirmedExternalPaymentAmount',
+    'remainingServiceBalance',
+  ], 'authoritative client payment inputs')
+})
+
 test('messaging is restricted to active booking relationships while closed history remains readable', () => {
   const migration = read('database/70_booking_restricted_messaging.sql')
   const messaging = read('src/lib/messaging.ts')

@@ -70,7 +70,103 @@ const defaultDetails: BookingDetailValue = {
 }
 
 const formatPeso = (value: number) =>
-  `PHP ${Math.round(Math.max(0, value)).toLocaleString('en-PH')}`
+  `PHP ${Math.max(0, value).toLocaleString('en-PH', {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
+  })}`
+
+export interface EventProviderBalance {
+  confirmedExternalPaymentAmount: number
+  initialPaymentRecordedAt?: string
+  initialProviderShare: number
+  providerName: string
+  remainingBalance: number
+  serviceAmount: number
+  status: 'cleared' | 'partially_confirmed' | 'awaiting_payment'
+}
+
+export interface EventPaymentSummary {
+  confirmedExternalPaymentAmount: number
+  initialProviderShare: number
+  isCleared: boolean
+  providerBalances: EventProviderBalance[]
+  recordedPaymentAmount: number
+  remainingBalance: number
+  serviceAmount: number
+}
+
+export const calculateEventPaymentSummary = (
+  services: NonNullable<BookingItem['services']>
+): EventPaymentSummary | undefined => {
+  const activeServices = services.filter(
+    (service) => !['cancelled', 'declined'].includes(service.status)
+  )
+  if (!activeServices.length) return undefined
+
+  const byProvider = new Map<string, EventProviderBalance>()
+  activeServices.forEach((service) => {
+    const serviceAmount = Math.max(0, service.serviceAmount ?? service.amount)
+    const initialProviderShare = Math.max(0, service.initialProviderShare ?? 0)
+    const confirmedExternalPaymentAmount = Math.max(0, service.confirmedExternalPaymentAmount ?? 0)
+    const remainingBalance = Math.max(
+      0,
+      service.remainingServiceBalance ?? serviceAmount - initialProviderShare - confirmedExternalPaymentAmount
+    )
+    const key = service.providerId || service.bookingId
+    const current = byProvider.get(key) ?? {
+      confirmedExternalPaymentAmount: 0,
+      initialProviderShare: 0,
+      providerName: service.providerName,
+      remainingBalance: 0,
+      serviceAmount: 0,
+      status: 'awaiting_payment' as const,
+    }
+    const initialPaymentRecordedAt = current.initialPaymentRecordedAt ?? service.initialPaymentRecordedAt
+    const next: EventProviderBalance = {
+      ...current,
+      confirmedExternalPaymentAmount: current.confirmedExternalPaymentAmount + confirmedExternalPaymentAmount,
+      initialPaymentRecordedAt,
+      initialProviderShare: current.initialProviderShare + initialProviderShare,
+      remainingBalance: current.remainingBalance + remainingBalance,
+      serviceAmount: current.serviceAmount + serviceAmount,
+      status: remainingBalance <= 0 && current.remainingBalance <= 0
+        ? 'cleared'
+        : confirmedExternalPaymentAmount > 0 || current.confirmedExternalPaymentAmount > 0
+          ? 'partially_confirmed'
+          : 'awaiting_payment',
+    }
+    byProvider.set(key, next)
+  })
+
+  const providerBalances = Array.from(byProvider.values())
+  const serviceAmount = providerBalances.reduce((total, provider) => total + provider.serviceAmount, 0)
+  const initialProviderShare = providerBalances.reduce((total, provider) => total + provider.initialProviderShare, 0)
+  const confirmedExternalPaymentAmount = providerBalances.reduce(
+    (total, provider) => total + provider.confirmedExternalPaymentAmount,
+    0
+  )
+  const remainingBalance = providerBalances.reduce((total, provider) => total + provider.remainingBalance, 0)
+
+  return {
+    confirmedExternalPaymentAmount,
+    initialProviderShare,
+    isCleared: serviceAmount > 0 && remainingBalance <= 0,
+    providerBalances,
+    recordedPaymentAmount: Math.max(0, serviceAmount - remainingBalance),
+    remainingBalance,
+    serviceAmount,
+  }
+}
+
+const formatPaymentDate = (value?: string) => {
+  if (!value) return undefined
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? undefined : date.toLocaleDateString('en-PH', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+}
 
 const completionPaymentLabel = (service: NonNullable<BookingItem['services']>[number]) => {
   const remaining = Math.max(0, service.remainingServiceBalance ?? 0)
@@ -143,6 +239,7 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
       && booking?.coordinatorAssignmentStatus === 'accepted'
   )
   const bookedServices = booking?.services ?? []
+  const eventPaymentSummary = calculateEventPaymentSummary(bookedServices)
   const [changeMode, setChangeMode] = React.useState<'cancel' | 'options' | 'reschedule'>()
   const [changeError, setChangeError] = React.useState('')
   const [cancelReason, setCancelReason] = React.useState('')
@@ -431,6 +528,79 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                 <Text style={styles.messageCoordinatorButtonText}>Message Coordinator</Text>
               </Pressable>
             ) : null}
+          </View>
+        ) : null}
+
+        {eventPaymentSummary ? (
+          <View style={styles.eventPaymentCard}>
+            <View style={styles.eventPaymentHeading}>
+              <View>
+                <Text style={styles.cardTitle}>Event Payment Summary</Text>
+                <Text style={styles.eventPaymentReference}>
+                  Event reference: {booking?.eventId ? `#${booking.eventId.slice(0, 8).toUpperCase()}` : booking?.name}
+                </Text>
+              </View>
+              <MaterialIcons color={palette.burgundy} name="receipt-long" size={25} />
+            </View>
+            <View style={styles.eventPaymentTotalRow}>
+              <Text style={styles.eventPaymentTotalLabel}>TOTAL EVENT SERVICE CHARGES</Text>
+              <Text style={styles.eventPaymentTotalValue}>{formatPeso(eventPaymentSummary.serviceAmount)}</Text>
+            </View>
+            <View style={styles.eventPaymentRow}>
+              <Text style={styles.eventPaymentLabel}>RECORDED SERVICE PAYMENTS</Text>
+              <Text style={styles.eventPaymentValue}>{formatPeso(eventPaymentSummary.recordedPaymentAmount)}</Text>
+            </View>
+            <View style={styles.eventPaymentRow}>
+              <Text style={styles.eventPaymentLabel}>TOTAL REMAINING BALANCE</Text>
+              <Text style={styles.eventPaymentRemaining}>{formatPeso(eventPaymentSummary.remainingBalance)}</Text>
+            </View>
+            {eventPaymentSummary.isCleared ? (
+              <View style={styles.clearedBalanceNotice}>
+                <MaterialIcons color="#145133" name="check-circle" size={19} />
+                <View style={styles.eventPaymentNoticeCopy}>
+                  <Text style={styles.clearedBalanceTitle}>All Provider Balances Cleared</Text>
+                  <Text style={styles.clearedBalanceText}>All active provider service balances have been recorded as paid.</Text>
+                </View>
+              </View>
+            ) : null}
+            <Text style={styles.eventPaymentCaption}>Provider balance breakdown</Text>
+            {eventPaymentSummary.providerBalances.map((provider) => {
+              const initialPaymentDate = formatPaymentDate(provider.initialPaymentRecordedAt)
+              const statusLabel = provider.status === 'cleared'
+                ? 'Cleared'
+                : provider.status === 'partially_confirmed'
+                  ? 'Partially confirmed'
+                  : 'Awaiting payment'
+              return (
+                <View key={provider.providerName} style={styles.providerBalanceRow}>
+                  <View style={styles.providerBalanceHeading}>
+                    <Text numberOfLines={1} style={styles.providerBalanceName}>{provider.providerName}</Text>
+                    <Text style={[
+                      styles.providerBalanceStatus,
+                      provider.status === 'cleared' && styles.providerBalanceStatusCleared,
+                    ]}>{statusLabel}</Text>
+                  </View>
+                  <View style={styles.providerBalanceAmounts}>
+                    <Text style={styles.providerBalanceMeta}>Agreed: {formatPeso(provider.serviceAmount)}</Text>
+                    <Text style={styles.providerBalanceMeta}>Initial: {formatPeso(provider.initialProviderShare)}</Text>
+                    <Text style={styles.providerBalanceMeta}>External confirmed: {formatPeso(provider.confirmedExternalPaymentAmount)}</Text>
+                  </View>
+                  {initialPaymentDate ? (
+                    <Text style={styles.providerBalanceHistory}>Initial service payment recorded {initialPaymentDate}</Text>
+                  ) : null}
+                  {provider.confirmedExternalPaymentAmount > 0 ? (
+                    <Text style={styles.providerBalanceHistory}>Provider-confirmed external payment recorded</Text>
+                  ) : null}
+                  <View style={styles.providerBalanceOutstandingRow}>
+                    <Text style={styles.providerBalanceOutstandingLabel}>REMAINING</Text>
+                    <Text style={styles.providerBalanceOutstandingValue}>{formatPeso(provider.remainingBalance)}</Text>
+                  </View>
+                </View>
+              )
+            })}
+            <Text style={styles.eventPaymentDisclaimer}>
+              Totals cover service charges only. MULTIVENT platform fees, held funds, and provider payouts follow their existing separate workflows and are not counted again here. External payments are provider-confirmed, not verified PayMongo transactions.
+            </Text>
           </View>
         ) : null}
 
@@ -1178,6 +1348,33 @@ const styles = StyleSheet.create({
   churchArrangementDisclaimer: { color: palette.muted, fontSize: 11, lineHeight: 16, marginTop: 14 },
   messageCoordinatorButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 9, backgroundColor: palette.burgundy, marginTop: 14, paddingHorizontal: 14 },
   messageCoordinatorButtonText: { color: palette.surface, fontSize: 12, lineHeight: 16, fontWeight: '700' },
+  eventPaymentCard: { borderWidth: 1, borderColor: '#D9C6CA', borderRadius: 12, backgroundColor: '#FFFCFC', padding: 20, marginBottom: 32 },
+  eventPaymentHeading: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
+  eventPaymentReference: { color: palette.muted, fontSize: 11, lineHeight: 16, marginTop: -11, marginBottom: 6 },
+  eventPaymentTotalRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, borderTopWidth: 1, borderTopColor: palette.border, marginTop: 10, paddingTop: 13 },
+  eventPaymentTotalLabel: { flex: 1, color: palette.text, fontSize: 12, lineHeight: 17, fontWeight: '700', letterSpacing: 0.3 },
+  eventPaymentTotalValue: { color: palette.burgundy, fontSize: 16, lineHeight: 21, fontWeight: '700', textAlign: 'right' },
+  eventPaymentRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginTop: 10 },
+  eventPaymentLabel: { flex: 1, color: palette.muted, fontSize: 10, lineHeight: 15, fontWeight: '700', letterSpacing: 0.4 },
+  eventPaymentValue: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '600', textAlign: 'right' },
+  eventPaymentRemaining: { color: palette.burgundy, fontSize: 14, lineHeight: 19, fontWeight: '700', textAlign: 'right' },
+  clearedBalanceNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 9, borderRadius: 8, backgroundColor: '#E7F3EB', marginTop: 14, padding: 11 },
+  eventPaymentNoticeCopy: { flex: 1, minWidth: 0 },
+  clearedBalanceTitle: { color: '#145133', fontSize: 12, lineHeight: 17, fontWeight: '700' },
+  clearedBalanceText: { color: '#356744', fontSize: 11, lineHeight: 16, marginTop: 2 },
+  eventPaymentCaption: { color: palette.muted, fontSize: 10, lineHeight: 15, fontWeight: '700', letterSpacing: 0.5, marginTop: 18, marginBottom: 7 },
+  providerBalanceRow: { borderTopWidth: 1, borderTopColor: palette.border, paddingVertical: 11 },
+  providerBalanceHeading: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
+  providerBalanceName: { flex: 1, color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '700' },
+  providerBalanceStatus: { color: palette.burgundy, fontSize: 10, lineHeight: 14, fontWeight: '700', textAlign: 'right' },
+  providerBalanceStatusCleared: { color: '#145133' },
+  providerBalanceAmounts: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 5 },
+  providerBalanceMeta: { color: palette.muted, fontSize: 10, lineHeight: 15 },
+  providerBalanceHistory: { color: palette.muted, fontSize: 10, lineHeight: 15, marginTop: 3 },
+  providerBalanceOutstandingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 8 },
+  providerBalanceOutstandingLabel: { color: palette.muted, fontSize: 10, lineHeight: 14, fontWeight: '700', letterSpacing: 0.5 },
+  providerBalanceOutstandingValue: { color: palette.burgundy, fontSize: 12, lineHeight: 17, fontWeight: '700' },
+  eventPaymentDisclaimer: { color: palette.muted, fontSize: 10, lineHeight: 15, marginTop: 10 },
   servicesSection: { gap: 12, marginBottom: 32 },
   serviceCard: {
     flexDirection: 'row',
