@@ -96,7 +96,7 @@ import { colors } from './theme/tokens'
 import { ClientBottomNavigation } from './components/ClientBottomNavigation'
 import { MerchantBottomNavigation } from './components/MerchantBottomNavigation'
 import { NonBlockingActivityBar, ScreenMotionFrame } from './components/MotionFeedback'
-import { ClientHomeScreen, ClientHomeTab } from './screens/03-ClientHome'
+import { ClientHomeScreen, ClientHomeTab, getClientBookingProgress } from './screens/03-ClientHome'
 import { ClientConversation, MessagesScreen } from './screens/03.1-Messages'
 import { ChatMessage, ChatThreadScreen } from './screens/03.2-ChatThread'
 import { MerchantHomeScreen, MerchantHomeTab } from './screens/16-MerchantHome'
@@ -1309,6 +1309,17 @@ export const App: React.FC = () => {
     return planningState
   }, [])
 
+  const refreshClientBookings = React.useCallback(async () => {
+    const bookings = await fetchClientBookings()
+    setClientBookings(bookings)
+    setSelectedBooking((current) => {
+      if (!current) return current
+      return bookings.find((item) =>
+        item.id === current.id || Boolean(item.eventId && current.eventId && item.eventId === current.eventId)
+      ) ?? current
+    })
+  }, [])
+
   React.useEffect(() => {
     if (screen === 'clientHome') void refreshLiveData()
   }, [refreshLiveData, screen])
@@ -2132,6 +2143,7 @@ export const App: React.FC = () => {
     const client = supabase
     let active = true
     let bookingChannel: RealtimeChannel | undefined
+    let eventChannel: RealtimeChannel | undefined
 
     void client.auth.getUser().then(({ data }) => {
       if (!active || !data.user) return
@@ -2147,7 +2159,23 @@ export const App: React.FC = () => {
             table: 'bookings',
           },
           () => {
-            void refreshLiveData()
+            void refreshClientBookings()
+          }
+        )
+        .subscribe()
+
+      eventChannel = client
+        .channel(`client-event-progress-${data.user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            filter: `client_id=eq.${data.user.id}`,
+            schema: 'public',
+            table: 'events',
+          },
+          () => {
+            void refreshClientBookings()
           }
         )
         .subscribe()
@@ -2156,8 +2184,9 @@ export const App: React.FC = () => {
     return () => {
       active = false
       if (bookingChannel) void client.removeChannel(bookingChannel)
+      if (eventChannel) void client.removeChannel(eventChannel)
     }
-  }, [refreshLiveData])
+  }, [refreshClientBookings])
 
   React.useEffect(() => {
     if (screen !== 'bookings' && screen !== 'bookingDetails') return undefined
@@ -2958,15 +2987,24 @@ export const App: React.FC = () => {
     () => rankHomeRecommendations(catalogServices),
     [catalogServices]
   )
+  const clientBookingProgress = React.useMemo(
+    () => getClientBookingProgress(clientBookings),
+    [clientBookings]
+  )
 
   const renderClientHome = () => (
     <ClientHomeScreen
       draftEvents={clientEventDrafts}
+      bookingProgressEvents={clientBookingProgress}
       recommendations={homeRecommendations}
       userAvatarUrl={userAvatarUrl}
       userName={userName}
       selectedServiceCount={selectedServices.length}
       onOpenDraft={(draftId) => void resumeClientDraft(draftId)}
+      onOpenBookingProgress={(booking) => {
+        setSelectedBooking(booking)
+        setScreen('bookingDetails')
+      }}
       onStartNewEvent={startNewClientEvent}
       onOpenProfile={() => openAccountProfile('clientHome')}
       onOpenNotifications={() => {

@@ -364,7 +364,7 @@ test('planning categories, progression, and budget re-entry share one allocation
   ], 'planning budget guidance')
 })
 
-test('client home uses live eligible services and preserves resumable event drafts', () => {
+test('client home uses live eligible services, resumable drafts, and booking progress', () => {
   const app = read('src/App.tsx')
   const planning = read('src/lib/planning.ts')
   const home = read('src/screens/03-ClientHome.tsx')
@@ -375,6 +375,8 @@ test('client home uses live eligible services and preserves resumable event draf
     'createClientEventDraft()',
     'resumeClientEventDraft(draftId)',
     'rankHomeRecommendations(catalogServices)',
+    'getClientBookingProgress(clientBookings)',
+    'client-event-progress-',
   ], 'client home data integration')
   mustContain(planning, [
     "event_service_selections(status)",
@@ -385,8 +387,11 @@ test('client home uses live eligible services and preserves resumable event draf
   mustContain(home, [
     'draftEvents = []',
     'recommendations = []',
-    'draftEvents.slice(0, 3)',
-    'See All Drafts',
+    'draftEvents.slice(0, 1)',
+    'Expand Drafts',
+    'getClientBookingProgress',
+    'YOUR EVENT BOOKINGS',
+    'onOpenBookingProgress',
     'formatServicePrice(recommendation.service)',
     'recommendation.service.reviewCount',
     'No saved drafts yet',

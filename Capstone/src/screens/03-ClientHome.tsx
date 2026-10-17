@@ -15,13 +15,24 @@ import { ClientMainTab } from '../components/ClientBottomNavigation'
 import { formatServicePrice } from '../lib/catalog'
 import type { HomeServiceRecommendation } from '../lib/home-recommendations'
 import type { ClientEventDraftSummary } from '../lib/planning'
+import type { BookingItem } from './11-BookingScreen'
 
 export type ClientHomeAction = 'newEvent' | 'vendors' | 'tasks'
 export type ClientHomeTab = ClientMainTab
 export type ClientHomeRecommendation = HomeServiceRecommendation
 
+export interface ClientBookingProgress {
+  booking: BookingItem
+  confirmedServiceCount: number
+  daysRemaining?: number
+  progressPercent: number
+  statusLabel: string
+  totalActiveServiceCount: number
+}
+
 interface ClientHomeScreenProps {
   draftEvents?: ClientEventDraftSummary[]
+  bookingProgressEvents?: ClientBookingProgress[]
   recommendations?: HomeServiceRecommendation[]
   selectedServiceCount?: number
   userAvatarUrl?: string
@@ -29,6 +40,7 @@ interface ClientHomeScreenProps {
   searchValue?: string
   onChangeSearch?: (value: string) => void
   onOpenDraft?: (draftId: string) => void
+  onOpenBookingProgress?: (booking: BookingItem) => void
   onStartNewEvent?: () => Promise<boolean | void> | boolean | void
   onOpenNotifications?: () => void
   onOpenProfile?: () => void
@@ -51,21 +63,61 @@ const formatDraftDate = (value: string) => {
   })
 }
 
-const getDaysLeft = (value: string) => {
+const getDaysLeft = (value: string, now = new Date()) => {
   if (!value) return null
 
   const eventDate = new Date(`${value}T00:00:00`)
-  const today = new Date()
+  const today = new Date(now)
   today.setHours(0, 0, 0, 0)
 
   if (Number.isNaN(eventDate.getTime())) return null
-  return Math.max(0, Math.ceil((eventDate.getTime() - today.getTime()) / 86_400_000))
+  return Math.ceil((eventDate.getTime() - today.getTime()) / 86_400_000)
 }
+
+export const getClientBookingProgress = (
+  bookings: BookingItem[],
+  now = new Date()
+): ClientBookingProgress[] => bookings.flatMap((booking) => {
+  if (['cancelled', 'completed'].includes(booking.rawStatus ?? '')) return []
+  const activeServices = (booking.services ?? []).filter(
+    (service) => !['cancelled', 'declined'].includes(service.status)
+  )
+  if (!activeServices.length) return []
+
+  const confirmedServiceCount = activeServices.filter(
+    (service) => ['confirmed', 'completed'].includes(service.status)
+  ).length
+  const totalActiveServiceCount = activeServices.length
+  const progressPercent = Math.round((confirmedServiceCount / totalActiveServiceCount) * 100)
+  const daysRemaining = getDaysLeft(booking.date, now)
+  const statusLabel = daysRemaining === 0
+    ? 'Event is today'
+    : daysRemaining !== null && daysRemaining < 0
+      ? booking.status === 'completed' ? 'Completed' : 'Event date has passed'
+      : confirmedServiceCount === totalActiveServiceCount
+        ? 'All active providers confirmed'
+        : `${totalActiveServiceCount - confirmedServiceCount} provider${totalActiveServiceCount - confirmedServiceCount === 1 ? '' : 's'} awaiting confirmation`
+
+  return [{
+    booking,
+    confirmedServiceCount,
+    daysRemaining: daysRemaining === null ? undefined : daysRemaining,
+    progressPercent,
+    statusLabel,
+    totalActiveServiceCount,
+  }]
+}).sort((left, right) => {
+  const leftTime = new Date(left.booking.updatedAt ?? left.booking.date).getTime()
+  const rightTime = new Date(right.booking.updatedAt ?? right.booking.date).getTime()
+  return rightTime - leftTime
+})
 
 export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   draftEvents = [],
+  bookingProgressEvents = [],
   recommendations = [],
   onOpenDraft,
+  onOpenBookingProgress,
   onOpenNotifications,
   onOpenProfile,
   onScrollDirectionChange,
@@ -81,8 +133,8 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   const [isDraftPromptVisible, setIsDraftPromptVisible] = React.useState(false)
   const [isStartingNewEvent, setIsStartingNewEvent] = React.useState(false)
   const [showAllDrafts, setShowAllDrafts] = React.useState(false)
-  const visibleDrafts = showAllDrafts ? draftEvents : draftEvents.slice(0, 3)
-  const hasAdditionalDrafts = draftEvents.length > 3
+  const visibleDrafts = showAllDrafts ? draftEvents : draftEvents.slice(0, 1)
+  const hasAdditionalDrafts = draftEvents.length > 1
   const draftEvent = visibleDrafts[0]
   const onOpenActiveEvent = () => {
     if (draftEvent) onOpenDraft?.(draftEvent.id)
@@ -189,11 +241,11 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
             </View>
             {hasAdditionalDrafts ? (
               <Pressable
-                accessibilityLabel={showAllDrafts ? 'Show fewer event drafts' : 'See all event drafts'}
+                accessibilityLabel={showAllDrafts ? 'Collapse event drafts' : 'Expand event drafts'}
                 accessibilityRole="button"
                 onPress={() => setShowAllDrafts((current) => !current)}
               >
-                <Text style={styles.exploreAll}>{showAllDrafts ? 'Show Less' : 'See All Drafts'}</Text>
+                <Text style={styles.exploreAll}>{showAllDrafts ? 'Collapse Drafts' : 'Expand Drafts'}</Text>
               </Pressable>
             ) : null}
           </View>
@@ -268,6 +320,60 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
               </View>
             </View>
           ) : null}
+        </View>
+
+        <View style={styles.referenceSection}>
+          <View style={styles.referenceSectionHeader}>
+            <View>
+              <Text style={styles.referenceSectionTitle}>YOUR EVENT BOOKINGS</Text>
+              <Text style={styles.referenceSectionSubtitle}>Active provider confirmation progress</Text>
+            </View>
+          </View>
+          {bookingProgressEvents.length ? bookingProgressEvents.map((progress) => (
+            <Pressable
+              key={progress.booking.id}
+              accessibilityLabel={`View booking details for ${progress.booking.name}`}
+              accessibilityRole="button"
+              onPress={() => onOpenBookingProgress?.(progress.booking)}
+              style={({ pressed }) => [styles.bookingProgressCard, pressed && styles.referencePressed]}
+            >
+              <View style={styles.bookingProgressHeading}>
+                <View style={styles.bookingProgressCopy}>
+                  <Text numberOfLines={1} style={styles.bookingProgressName}>{progress.booking.name}</Text>
+                  <Text style={styles.bookingProgressDate}>{formatDraftDate(progress.booking.date)}</Text>
+                </View>
+                <View style={styles.bookingProgressBadge}>
+                  <Text style={styles.bookingProgressBadgeText}>
+                    {progress.daysRemaining === undefined
+                      ? 'Date pending'
+                      : progress.daysRemaining < 0
+                        ? 'Past event'
+                        : progress.daysRemaining === 0
+                          ? 'Today'
+                          : `${progress.daysRemaining} day${progress.daysRemaining === 1 ? '' : 's'} left`}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.bookingProgressMetrics}>
+                <Text style={styles.bookingProgressStatus}>{progress.statusLabel}</Text>
+                <Text style={styles.bookingProgressCount}>
+                  {progress.confirmedServiceCount} of {progress.totalActiveServiceCount} providers confirmed
+                </Text>
+              </View>
+              <View style={styles.bookingProgressTrack}>
+                <View style={[styles.bookingProgressFill, { width: `${progress.progressPercent}%` }]} />
+              </View>
+              <Text style={styles.bookingProgressLink}>View Booking Details →</Text>
+            </Pressable>
+          )) : (
+            <View style={styles.emptyDraftState}>
+              <MaterialIcons name="event-available" size={24} color="#8A2944" />
+              <View style={styles.emptyDraftCopy}>
+                <Text style={styles.emptyDraftTitle}>No active bookings yet</Text>
+                <Text style={styles.emptyDraftText}>Provider confirmations for your active events will appear here.</Text>
+              </View>
+            </View>
+          )}
         </View>
 
         <View style={styles.referenceSection}>
@@ -594,6 +700,19 @@ const styles = StyleSheet.create({
   compactDraftName: { color: '#241E1E', fontSize: 13, fontWeight: '700', lineHeight: 17 },
   compactDraftMeta: { color: '#7C7271', fontSize: 11, lineHeight: 15, marginTop: 2 },
   compactDraftAction: { color: '#8A2944', fontSize: 12, fontWeight: '700' },
+  bookingProgressCard: { borderWidth: 1, borderColor: '#E4D9D5', borderRadius: 9, backgroundColor: '#FFFFFF', marginBottom: 9, padding: 12, shadowColor: '#5B1B2C', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 1 },
+  bookingProgressHeading: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
+  bookingProgressCopy: { flex: 1, minWidth: 0 },
+  bookingProgressName: { color: '#241E1E', fontSize: 14, lineHeight: 19, fontWeight: '700' },
+  bookingProgressDate: { color: '#7C7271', fontSize: 11, lineHeight: 16, marginTop: 2 },
+  bookingProgressBadge: { borderRadius: 11, backgroundColor: '#F8EDEF', paddingHorizontal: 8, paddingVertical: 4 },
+  bookingProgressBadgeText: { color: '#8A2944', fontSize: 10, lineHeight: 13, fontWeight: '700' },
+  bookingProgressMetrics: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginTop: 11 },
+  bookingProgressStatus: { flex: 1, color: '#7C7271', fontSize: 11, lineHeight: 16 },
+  bookingProgressCount: { color: '#8A2944', fontSize: 11, lineHeight: 16, fontWeight: '700', textAlign: 'right' },
+  bookingProgressTrack: { height: 5, overflow: 'hidden', borderRadius: 3, backgroundColor: '#E8DDE0', marginTop: 8 },
+  bookingProgressFill: { height: '100%', backgroundColor: '#8A2944' },
+  bookingProgressLink: { color: '#8A2944', fontSize: 11, lineHeight: 16, fontWeight: '700', marginTop: 9 },
   emptyDraftState: {
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
