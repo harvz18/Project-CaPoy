@@ -51,7 +51,6 @@ const canSendBookingMessages = (value: unknown) =>
 const canSendEventCoordinatorMessages = (event: Record<string, unknown> | undefined) =>
   Boolean(
     event
-      && event.is_church_wedding === true
       && textFrom(event.coordinator_assignment_status) === 'accepted'
       && textFrom(event.status) !== 'cancelled'
   )
@@ -98,7 +97,7 @@ export const fetchConversations = async (): Promise<ClientConversation[]> => {
       client
         .from('conversations')
         .select(
-          'id, title, booking_id, conversation_kind, updated_at, bookings(id, status, requested_date, services(name)), events(id, status, event_date, coordinator_assignment_status, is_church_wedding)'
+          'id, title, booking_id, conversation_kind, updated_at, bookings(id, status, requested_date, services(name)), events(id, name, status, event_date, coordinator_assignment_status, is_church_wedding)'
         )
         .in('id', conversationIds),
       client
@@ -166,6 +165,11 @@ export const fetchConversations = async (): Promise<ClientConversation[]> => {
           ? `Booking #${textFrom(booking.id).slice(0, 8).toUpperCase()}`
           : isEventCoordinatorConversation ? 'Event coordinator' : undefined,
         bookingStatus: booking ? toBookingStatus(booking.status) : isEventCoordinatorConversation ? 'confirmed' : undefined,
+        conversationKind: isEventCoordinatorConversation ? 'event_coordinator' : 'booking',
+        eventDate: textFrom(event?.event_date) || undefined,
+        eventId: textFrom(event?.id) || undefined,
+        eventName: textFrom(event?.name, textFrom(record.title, 'Event')),
+        eventStatus: textFrom(event?.status) || undefined,
         id: conversationId,
         isReadOnly: isEventCoordinatorConversation
           ? !canSendEventCoordinatorMessages(event)

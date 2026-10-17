@@ -13,6 +13,7 @@ import {
 } from 'react-native'
 import type { ClientHomeTab } from './03-ClientHome'
 import type { MerchantHomeTab } from './16-MerchantHome'
+import type { BookingItem } from './11-BookingScreen'
 
 export type ClientConversationFilter = 'all' | 'unread' | 'bookings'
 
@@ -22,6 +23,11 @@ export interface ClientConversation {
   bookingId?: string
   bookingReference?: string
   bookingStatus?: 'pending' | 'confirmed' | 'completed'
+  conversationKind?: 'booking' | 'event_coordinator'
+  eventDate?: string
+  eventId?: string
+  eventName?: string
+  eventStatus?: string
   id: string
   isOnline?: boolean
   isPinned?: boolean
@@ -33,10 +39,12 @@ export interface ClientConversation {
   participantUserId?: string
   serviceName?: string
   unreadCount: number
+  isVirtualCoordinator?: boolean
 }
 
 interface MessagesScreenProps {
   conversations?: ClientConversation[]
+  clientBookings?: BookingItem[]
   hasUnreadNotifications?: boolean
   initialFilter?: ClientConversationFilter
   showBottomNavigation?: boolean
@@ -44,6 +52,7 @@ interface MessagesScreenProps {
   onNewMessage?: () => void
   onOpenNotifications?: () => void
   onOpenProfile?: () => void
+  onOpenEventCoordinatorForEvent?: (eventId: string) => void
   onSearchChange?: (value: string) => void
   onSelectConversation?: (conversation: ClientConversation) => void
   navigationVariant?: 'client' | 'merchant'
@@ -52,56 +61,6 @@ interface MessagesScreenProps {
   userAvatarUrl?: string
   userName?: string
 }
-
-const defaultConversations: ClientConversation[] = [
-  {
-    bookingReference: 'Booking #MV-1048',
-    id: 'conversation-floral-arts',
-    isOnline: true,
-    isPinned: true,
-    lastMessage: 'We can match the arrangements to your burgundy and blush palette.',
-    lastMessageAt: '2026-09-03T10:42:00+08:00',
-    participantName: 'Floral Arts',
-    participantRole: 'Floral Designer',
-    unreadCount: 2,
-  },
-  {
-    bookingReference: 'Quote #QT-209',
-    id: 'conversation-lens-light',
-    isOnline: true,
-    lastMessage: 'I sent the revised photography package for your review.',
-    lastMessageAt: '2026-09-03T09:18:00+08:00',
-    participantName: 'Lens & Light Studio',
-    participantRole: 'Photographer',
-    unreadCount: 1,
-  },
-  {
-    bookingReference: 'Booking #MV-1027',
-    id: 'conversation-grand-vista',
-    lastMessage: 'You: Thank you! We will confirm the final guest count this week.',
-    lastMessageAt: '2026-09-02T16:05:00+08:00',
-    participantName: 'Grand Vista Events Place',
-    participantRole: 'Venue',
-    unreadCount: 0,
-  },
-  {
-    id: 'conversation-sweet-canvas',
-    lastMessage: 'The tasting schedule is available on Friday afternoon.',
-    lastMessageAt: '2026-08-31T14:30:00+08:00',
-    participantName: 'Sweet Canvas Cakes',
-    participantRole: 'Cakes & Desserts',
-    unreadCount: 0,
-  },
-  {
-    bookingReference: 'Inquiry #IN-088',
-    id: 'conversation-eventful',
-    lastMessage: 'You: Is the buffet package available for 120 guests?',
-    lastMessageAt: '2026-08-27T11:12:00+08:00',
-    participantName: 'Eventful Catering',
-    participantRole: 'Catering',
-    unreadCount: 0,
-  },
-]
 
 const filterOptions: Array<{ id: ClientConversationFilter; label: string }> = [
   { id: 'all', label: 'All' },
@@ -157,8 +116,27 @@ const SearchIcon = () => (
   </View>
 )
 
+type EventConversationGroup = {
+  conversations: ClientConversation[]
+  date?: string
+  id: string
+  name: string
+}
+
+const formatEventDate = (value?: string) => {
+  if (!value) return 'Date to be confirmed'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat('en-PH', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(date)
+}
+
 export const MessagesScreen: React.FC<MessagesScreenProps> = ({
-  conversations = defaultConversations,
+  conversations = [],
+  clientBookings = [],
   hasUnreadNotifications = false,
   initialFilter = 'all',
   navigationVariant = 'client',
@@ -167,6 +145,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
   onNewMessage,
   onOpenNotifications,
   onOpenProfile,
+  onOpenEventCoordinatorForEvent,
   onSearchChange,
   onSelectConversation,
   onSelectTab,
@@ -179,16 +158,95 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
   const isCompact = width < 390
   const [filter, setFilter] = React.useState<ClientConversationFilter>(initialFilter)
   const [internalSearch, setInternalSearch] = React.useState('')
+  const [selectedEventId, setSelectedEventId] = React.useState<string>()
   const [readIds, setReadIds] = React.useState(
     () => new Set(conversations.filter((item) => item.unreadCount === 0).map((item) => item.id))
   )
+  React.useEffect(() => {
+    setReadIds((current) => {
+      const next = new Set(current)
+      conversations.forEach((conversation) => {
+        if (conversation.unreadCount > 0) next.delete(conversation.id)
+        else next.add(conversation.id)
+      })
+      return next
+    })
+  }, [conversations])
   const query = searchValue ?? internalSearch
   const normalizedQuery = query.trim().toLowerCase()
   const unreadCount = conversations.reduce(
     (count, conversation) => count + (readIds.has(conversation.id) ? 0 : conversation.unreadCount),
     0
   )
-  const visibleConversations = conversations.filter((conversation) => {
+  const eventGroups = React.useMemo(() => {
+    const groups = new Map<string, EventConversationGroup>()
+    const addConversation = (conversation: ClientConversation) => {
+      const eventId = conversation.eventId
+      if (!eventId) return
+      const current = groups.get(eventId) ?? {
+        conversations: [],
+        date: conversation.eventDate,
+        id: eventId,
+        name: conversation.eventName || 'Event',
+      }
+      current.conversations.push(conversation)
+      if (!current.date && conversation.eventDate) current.date = conversation.eventDate
+      if (current.name === 'Event' && conversation.eventName) current.name = conversation.eventName
+      groups.set(eventId, current)
+    }
+
+    conversations.forEach(addConversation)
+
+    for (const booking of clientBookings) {
+      const eventId = booking.eventId
+      const hasAcceptedCoordinator =
+        booking.coordinatorAssignmentStatus === 'accepted' && Boolean(booking.coordinatorUserId)
+      if (!eventId || !hasAcceptedCoordinator) continue
+
+      const current = groups.get(eventId) ?? {
+        conversations: [],
+        date: booking.date,
+        id: eventId,
+        name: booking.name || 'Event',
+      }
+      const hasCoordinatorConversation = current.conversations.some(
+        (conversation) => conversation.conversationKind === 'event_coordinator'
+      )
+      if (!hasCoordinatorConversation) {
+        current.conversations.push({
+          avatarUrl: booking.coordinatorAvatarUrl,
+          bookingReference: 'Event coordinator',
+          bookingStatus: 'confirmed',
+          conversationKind: 'event_coordinator',
+          eventDate: booking.date,
+          eventId,
+          eventName: booking.name,
+          eventStatus: booking.rawStatus,
+          id: `event-coordinator:${eventId}`,
+          isVirtualCoordinator: true,
+          lastMessage: 'Start a direct conversation with your event coordinator.',
+          lastMessageAt: booking.updatedAt || booking.createdAt || new Date(0).toISOString(),
+          participantName: booking.coordinatorName || 'Event Coordinator',
+          participantRole: 'Event coordinator',
+          participantUserId: booking.coordinatorUserId,
+          serviceName: 'Event coordinator',
+          unreadCount: 0,
+        })
+      }
+      groups.set(eventId, current)
+    }
+
+    return Array.from(groups.values()).sort((left, right) => {
+      const latestLeft = Math.max(...left.conversations.map((item) => new Date(item.lastMessageAt).getTime()))
+      const latestRight = Math.max(...right.conversations.map((item) => new Date(item.lastMessageAt).getTime()))
+      return latestRight - latestLeft
+    })
+  }, [clientBookings, conversations])
+  const selectedEvent = eventGroups.find((group) => group.id === selectedEventId)
+  const conversationSource = navigationVariant === 'client'
+    ? selectedEvent?.conversations ?? []
+    : conversations
+  const visibleConversations = conversationSource.filter((conversation) => {
     const matchesFilter =
       filter === 'all' ||
       (filter === 'unread' && !readIds.has(conversation.id) && conversation.unreadCount > 0) ||
@@ -208,6 +266,10 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
   }
 
   const selectConversation = (conversation: ClientConversation) => {
+    if (conversation.isVirtualCoordinator && conversation.eventId) {
+      onOpenEventCoordinatorForEvent?.(conversation.eventId)
+      return
+    }
     if (!readIds.has(conversation.id) && conversation.unreadCount > 0) {
       const readConversation = { ...conversation, unreadCount: 0 }
       setReadIds((current) => new Set(current).add(conversation.id))
@@ -218,6 +280,24 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
 
     onSelectConversation?.(conversation)
   }
+
+  const visibleEventGroups = eventGroups.filter((group) => {
+    const matchesFilter =
+      filter === 'all' ||
+      (filter === 'unread' && group.conversations.some(
+        (conversation) => !readIds.has(conversation.id) && conversation.unreadCount > 0
+      )) ||
+      (filter === 'bookings' && group.conversations.some((conversation) => Boolean(conversation.bookingReference)))
+    const matchesSearch =
+      !normalizedQuery ||
+      group.name.toLowerCase().includes(normalizedQuery) ||
+      group.conversations.some((conversation) =>
+        conversation.participantName.toLowerCase().includes(normalizedQuery) ||
+        conversation.participantRole.toLowerCase().includes(normalizedQuery) ||
+        conversation.serviceName?.toLowerCase().includes(normalizedQuery)
+      )
+    return matchesFilter && matchesSearch
+  })
 
   return (
     <View style={styles.screen}>
@@ -288,17 +368,37 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                 </View>
               ) : null}
             </View>
-            <Text style={styles.subtitle}>Only people connected through a booking can message here.</Text>
+            <Text style={styles.subtitle}>
+              {navigationVariant === 'client'
+                ? selectedEvent
+                  ? 'Direct conversations for this event.'
+                  : 'Choose an event to see its booked service conversations.'
+                : 'Only people connected through a booking can message here.'}
+            </Text>
           </View>
-          <Pressable
-            accessibilityRole="button"
-            onPress={onNewMessage}
-            style={({ pressed }) => [styles.newMessageButton, pressed && styles.primaryPressed]}
-          >
-            <Text style={styles.newMessagePlus}>+</Text>
-            <Text style={styles.newMessageText}>{isCompact ? 'New' : 'New message'}</Text>
-          </Pressable>
+          {navigationVariant === 'merchant' ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={onNewMessage}
+              style={({ pressed }) => [styles.newMessageButton, pressed && styles.primaryPressed]}
+            >
+              <Text style={styles.newMessagePlus}>+</Text>
+              <Text style={styles.newMessageText}>{isCompact ? 'New' : 'New message'}</Text>
+            </Pressable>
+          ) : null}
         </View>
+
+        {navigationVariant === 'client' && selectedEvent ? (
+          <Pressable
+            accessibilityLabel="Back to events"
+            accessibilityRole="button"
+            onPress={() => setSelectedEventId(undefined)}
+            style={({ pressed }) => [styles.eventBackButton, pressed && styles.surfacePressed]}
+          >
+            <Text style={styles.eventBackText}>{'\u2039'} All events</Text>
+            <Text numberOfLines={1} style={styles.eventBackName}>{selectedEvent.name}</Text>
+          </Pressable>
+        ) : null}
 
         <View style={styles.searchShell}>
           <SearchIcon />
@@ -362,7 +462,45 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
           })}
         </View>
 
-        {visibleConversations.length ? (
+        {navigationVariant === 'client' && !selectedEvent ? (
+          visibleEventGroups.length ? (
+            <View style={styles.eventCardList}>
+              {visibleEventGroups.map((group) => {
+                const unread = group.conversations.reduce(
+                  (count, conversation) => count + (readIds.has(conversation.id) ? 0 : conversation.unreadCount),
+                  0
+                )
+                return (
+                  <Pressable
+                    accessibilityLabel={`Open ${group.name} messages`}
+                    accessibilityRole="button"
+                    key={group.id}
+                    onPress={() => setSelectedEventId(group.id)}
+                    style={({ pressed }) => [styles.eventCard, pressed && styles.conversationRowPressed]}
+                  >
+                    <View style={styles.eventCardCopy}>
+                      <Text numberOfLines={1} style={styles.eventName}>{group.name}</Text>
+                      <Text style={styles.eventDate}>{formatEventDate(group.date)}</Text>
+                      <Text style={styles.eventAvailability}>
+                        {group.conversations.length} available conversation{group.conversations.length === 1 ? '' : 's'}
+                      </Text>
+                    </View>
+                    <View style={styles.eventOpenArea}>
+                      {unread ? <View style={styles.eventUnreadBadge}><Text style={styles.eventUnreadText}>{unread}</Text></View> : null}
+                      <Text style={styles.eventOpenText}>Open event ›</Text>
+                    </View>
+                  </Pressable>
+                )
+              })}
+            </View>
+          ) : (
+            <MessageEmptyState
+              filter={filter}
+              normalizedQuery={normalizedQuery}
+              showAction={false}
+            />
+          )
+        ) : visibleConversations.length ? (
           <View style={styles.conversationCard}>
             {visibleConversations.map((conversation, index) => (
               <ConversationRow
@@ -376,35 +514,12 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
             ))}
           </View>
         ) : (
-          <View style={styles.emptyState}>
-            <View style={styles.emptyMessageIcon}>
-              <View style={styles.emptyMessageBody} />
-              <View style={styles.emptyMessageTail} />
-            </View>
-            <Text style={styles.emptyTitle}>
-              {normalizedQuery
-                ? 'No conversations found'
-                : filter === 'unread'
-                  ? 'You are all caught up'
-                  : filter === 'bookings'
-                    ? 'No booking conversations'
-                    : 'No messages yet'}
-            </Text>
-            <Text style={styles.emptyText}>
-              {normalizedQuery
-                ? 'Try a different provider, service, or booking reference.'
-                : 'Your conversations with event providers will appear here.'}
-            </Text>
-            {!normalizedQuery && filter === 'all' ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={onNewMessage}
-                style={({ pressed }) => [styles.emptyButton, pressed && styles.primaryPressed]}
-              >
-                <Text style={styles.emptyButtonText}>View services</Text>
-              </Pressable>
-            ) : null}
-          </View>
+          <MessageEmptyState
+            filter={filter}
+            normalizedQuery={normalizedQuery}
+            onAction={onNewMessage}
+            showAction={navigationVariant === 'merchant'}
+          />
         )}
       </ScrollView>
 
@@ -417,6 +532,48 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
     </View>
   )
 }
+
+const MessageEmptyState = ({
+  filter,
+  normalizedQuery,
+  onAction,
+  showAction,
+}: {
+  filter: ClientConversationFilter
+  normalizedQuery: string
+  onAction?: () => void
+  showAction: boolean
+}) => (
+  <View style={styles.emptyState}>
+    <View style={styles.emptyMessageIcon}>
+      <View style={styles.emptyMessageBody} />
+      <View style={styles.emptyMessageTail} />
+    </View>
+    <Text style={styles.emptyTitle}>
+      {normalizedQuery
+        ? 'No conversations found'
+        : filter === 'unread'
+          ? 'You are all caught up'
+          : filter === 'bookings'
+            ? 'No booking conversations'
+            : 'No messages yet'}
+    </Text>
+    <Text style={styles.emptyText}>
+      {normalizedQuery
+        ? 'Try a different event, provider, or service.'
+        : 'Your authorized conversations will appear here after a booking is confirmed.'}
+    </Text>
+    {showAction && !normalizedQuery && filter === 'all' ? (
+      <Pressable
+        accessibilityRole="button"
+        onPress={onAction}
+        style={({ pressed }) => [styles.emptyButton, pressed && styles.primaryPressed]}
+      >
+        <Text style={styles.emptyButtonText}>View services</Text>
+      </Pressable>
+    ) : null}
+  </View>
+)
 
 const ConversationRow = ({
   conversation,
@@ -550,6 +707,9 @@ const styles = StyleSheet.create({
   primaryPressed: { opacity: 0.86, transform: [{ scale: 0.985 }] },
   newMessagePlus: { color: palette.onPrimary, fontSize: 19, lineHeight: 21, fontWeight: '400' },
   newMessageText: { color: palette.onPrimary, fontSize: 10, lineHeight: 15, fontWeight: '700' },
+  eventBackButton: { minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14, paddingHorizontal: 4 },
+  eventBackText: { color: palette.primaryContainer, fontSize: 11, lineHeight: 16, fontWeight: '700' },
+  eventBackName: { minWidth: 0, flex: 1, color: palette.secondary, fontSize: 10, lineHeight: 15 },
   searchShell: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: palette.border, borderRadius: 9, backgroundColor: palette.white, paddingHorizontal: 14, marginTop: 20 },
   searchIcon: { width: 18, height: 18 },
   searchLens: { width: 12, height: 12, borderWidth: 1.5, borderColor: palette.secondary, borderRadius: 6 },
@@ -563,6 +723,16 @@ const styles = StyleSheet.create({
   filterButtonPressed: { opacity: 0.65 },
   filterButtonText: { color: palette.secondary, fontSize: 9, lineHeight: 14, fontWeight: '600' },
   filterButtonTextSelected: { color: palette.primaryContainer },
+  eventCardList: { gap: 10 },
+  eventCard: { minHeight: 106, flexDirection: 'row', alignItems: 'center', gap: 14, borderWidth: 1, borderColor: palette.border, borderRadius: 10, backgroundColor: palette.white, paddingHorizontal: 16, paddingVertical: 15 },
+  eventCardCopy: { minWidth: 0, flex: 1 },
+  eventName: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '700' },
+  eventDate: { color: palette.secondary, fontSize: 10, lineHeight: 15, marginTop: 3 },
+  eventAvailability: { color: palette.muted, fontSize: 9, lineHeight: 14, marginTop: 8 },
+  eventOpenArea: { alignItems: 'flex-end', gap: 7 },
+  eventOpenText: { color: palette.primaryContainer, fontSize: 10, lineHeight: 15, fontWeight: '700' },
+  eventUnreadBadge: { minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: palette.primaryContainer, paddingHorizontal: 5 },
+  eventUnreadText: { color: palette.onPrimary, fontSize: 8, lineHeight: 11, fontWeight: '700' },
   conversationCard: { overflow: 'hidden', borderWidth: 1, borderColor: palette.border, borderRadius: 10, backgroundColor: palette.white },
   conversationRow: { minHeight: 94, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 13 },
   conversationRowUnread: { backgroundColor: '#FCF8F9' },

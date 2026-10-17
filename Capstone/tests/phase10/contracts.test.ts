@@ -562,6 +562,38 @@ test('Phase 1 limits client booking-detail messaging to each confirmed provider 
   ], 'client message composer state')
 })
 
+test('Phase 6 keeps event messaging direct, event-organized, and coordinator-authorized', () => {
+  const migration = read('supabase/migrations/20261017000900_event_based_messaging.sql')
+  const messages = read('src/screens/03.1-Messages.tsx')
+  const messaging = read('src/lib/messaging.ts')
+  const app = read('src/App.tsx')
+
+  mustContain(migration, [
+    'create or replace function public.is_valid_event_coordinator_message_member(',
+    "event.coordinator_assignment_status = 'accepted'",
+    "auth.uid() in (event.client_id, event.coordinator_id)",
+    "conversation.conversation_kind = 'event_coordinator'",
+  ], 'event-based messaging authorization')
+  assert.match(
+    migration,
+    /values \(resolved_conversation_id, event_row\.client_id\), \(resolved_conversation_id, event_row\.coordinator_id\)/
+  )
+  mustContain(messages, [
+    'const eventGroups = React.useMemo(() => {',
+    'available conversation',
+    'isVirtualCoordinator',
+    "conversations = []",
+  ], 'event-organized client inbox')
+  mustContain(messaging, [
+    'eventId: textFrom(event?.id) || undefined',
+    "conversationKind: isEventCoordinatorConversation ? 'event_coordinator' : 'booking'",
+  ], 'event metadata mapping')
+  mustContain(app, [
+    'onOpenEventCoordinatorForEvent',
+    "openEventCoordinatorConversationFor(eventId, 'messages')",
+  ], 'coordinator inbox navigation')
+})
+
 test('Phase 2 saves church wedding preference without creating a church booking workflow', () => {
   const migration = read('supabase/migrations/20261017000700_church_wedding_event_preference.sql')
   const creation = read('src/screens/04-EventCreation.tsx')

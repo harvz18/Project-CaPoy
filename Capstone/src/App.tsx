@@ -4137,6 +4137,7 @@ export const App: React.FC = () => {
       case 'messages':
         return (
           <MessagesScreen
+            clientBookings={homeReturnScreen === 'providerHome' ? [] : clientBookings}
             conversations={conversations}
             hasUnreadNotifications={notifications.some((notification) => !notification.isRead)}
             navigationVariant={homeReturnScreen === 'providerHome' ? 'merchant' : 'client'}
@@ -4154,6 +4155,9 @@ export const App: React.FC = () => {
               homeReturnScreen === 'providerHome'
                 ? openProviderProfile()
                 : openAccountProfile('messages')
+            }
+            onOpenEventCoordinatorForEvent={(eventId) =>
+              void openEventCoordinatorConversationFor(eventId, 'messages')
             }
             onSelectConversation={(conversation) =>
               void openExistingConversation(conversation, 'messages')
