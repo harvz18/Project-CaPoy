@@ -417,6 +417,8 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
       : requiresQuote && !authoritativeQuote
         ? 'Quote required'
       : `PHP ${formatCurrency(estimatedTotal)}`
+  const scheduleUnavailable = !isExploreMode
+    && service.budgetRecommendation?.availabilityStatus === 'unavailable'
 
   const handleAddSelection = async () => {
     if (
@@ -426,6 +428,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
       || venueSelectionUnavailable
       || authoritativeQuoteUnavailable
       || exceedsAvailableCategoryBudget
+      || scheduleUnavailable
     ) return
 
     setIsAddingSelection(true)
@@ -692,6 +695,18 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
             <Text style={styles.sectionHeading}>
               {service.categoryId === 'catering' ? 'Booking Details' : 'Request This Service'}
             </Text>
+
+            {scheduleUnavailable ? (
+              <View style={styles.scheduleUnavailableNotice}>
+                <MaterialCommunityIcons color={palette.secondary} name="calendar-remove-outline" size={21} />
+                <View style={styles.scheduleUnavailableCopy}>
+                  <Text style={styles.scheduleUnavailableTitle}>Not available on your event schedule</Text>
+                  <Text style={styles.unavailableNoticeText}>
+                    This provider is unavailable at the selected date and time. Choose another provider or update your event schedule.
+                  </Text>
+                </View>
+              </View>
+            ) : null}
 
             {service.categoryId === 'catering' ? <View style={styles.mealTypeGrid}>
               {mealTypes.map((meal) => {
@@ -1196,13 +1211,13 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                   : `Add to selection for ${formatCurrency(estimatedTotal)} pesos`
               }
               accessibilityRole="button"
-              accessibilityState={{ disabled: isAddingSelection || cateringSelectionUnavailable || venueSelectionUnavailable || authoritativeQuoteUnavailable || exceedsAvailableCategoryBudget }}
-              disabled={isAddingSelection || cateringSelectionUnavailable || venueSelectionUnavailable || authoritativeQuoteUnavailable || exceedsAvailableCategoryBudget}
+              accessibilityState={{ disabled: isAddingSelection || cateringSelectionUnavailable || venueSelectionUnavailable || authoritativeQuoteUnavailable || exceedsAvailableCategoryBudget || scheduleUnavailable }}
+              disabled={isAddingSelection || cateringSelectionUnavailable || venueSelectionUnavailable || authoritativeQuoteUnavailable || exceedsAvailableCategoryBudget || scheduleUnavailable}
               onPress={handleAddSelection}
               style={({ pressed }) => [
                 styles.addButton,
                 isWide && styles.addButtonWide,
-                (isAddingSelection || cateringSelectionUnavailable || venueSelectionUnavailable || authoritativeQuoteUnavailable || exceedsAvailableCategoryBudget) && styles.addButtonDisabled,
+                (isAddingSelection || cateringSelectionUnavailable || venueSelectionUnavailable || authoritativeQuoteUnavailable || exceedsAvailableCategoryBudget || scheduleUnavailable) && styles.addButtonDisabled,
                 pressed && styles.addPressed,
               ]}
             >
@@ -1219,6 +1234,8 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                         ? 'Event Price Unavailable'
                       : exceedsAvailableCategoryBudget
                         ? 'Over Available Category Budget'
+                    : scheduleUnavailable
+                      ? 'Unavailable on Your Schedule'
                     : 'Add to Selection'}
               </Text>
               {!isWide ? <Text style={styles.addDivider}>|</Text> : null}
@@ -1490,6 +1507,24 @@ const styles = StyleSheet.create({
   inclusionText: { color: palette.text, fontSize: 14, lineHeight: 21 },
   noPackages: { color: palette.secondary, fontSize: 15, lineHeight: 23 },
   bookingSection: { borderBottomWidth: 1, borderBottomColor: palette.surfaceVariant, paddingVertical: 40 },
+  scheduleUnavailableNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: '#BDBDBD',
+    borderRadius: 12,
+    backgroundColor: '#F1F1F1',
+    padding: 13,
+    marginBottom: 22,
+  },
+  scheduleUnavailableCopy: { flex: 1, gap: 2 },
+  scheduleUnavailableTitle: {
+    color: palette.text,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '800',
+  },
   sectionHeading: { color: palette.text, fontSize: 24, lineHeight: 32, fontWeight: '700', marginBottom: 24 },
   mealTypeGrid: { flexDirection: 'row', gap: 12, marginBottom: 32 },
   mealCard: {

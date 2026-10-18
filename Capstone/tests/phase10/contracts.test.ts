@@ -138,6 +138,31 @@ test('Provider 1 customizable catering demo remains client-selectable and starti
   ], 'Provider 1 customizable catering demo migration')
 })
 
+test('service selection keeps option-aware budget fits while exposing exact schedule conflicts', () => {
+  const marketplaceMigration = read('supabase/migrations/20261018000300_marketplace_budget_and_schedule_visibility.sql')
+  const browse = read('src/screens/06-CategoryBrowse.tsx')
+  const details = read('src/screens/08-ServiceDetails.tsx')
+
+  mustContain(marketplaceMigration, [
+    'booking.requested_date = event.event_date',
+    'booking.requested_time = event.event_time',
+    "then 'unavailable'",
+    'current_availability_status',
+  ], 'marketplace schedule migration')
+  mustContain(browse, [
+    'vendor.budgetRecommendation.categoryBudget > 0',
+    '!vendor.budgetRecommendation.isWithinBudget',
+    'Not Available on Your Schedule',
+    'vendorCardUnavailable',
+    'disabled={isScheduleUnavailable(vendor)}',
+  ], 'service selection marketplace UI')
+  mustContain(details, [
+    'scheduleUnavailable',
+    'Not available on your event schedule',
+    "'Unavailable on Your Schedule'",
+  ], 'service detail availability guard')
+})
+
 test('item-priced catering menus use provider prices, validate selections, and snapshot bookings', () => {
   const migration = read('database/71_catering_custom_menu_pricing.sql')
   const providerBuilder = read('src/components/CategorySpecificServiceDetails.tsx')

@@ -250,6 +250,10 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     )
   }, [])
 
+  const isScheduleUnavailable = React.useCallback((vendor: CatalogService) => (
+    vendor.budgetRecommendation?.availabilityStatus === 'unavailable'
+  ), [])
+
   const visibleVendors = services.filter((vendor) => {
     const normalizedQuery = query.trim().toLowerCase()
 
@@ -257,6 +261,23 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
       isExploreMode &&
       selectedExploreCategory !== 'All' &&
       vendor.categoryName !== selectedExploreCategory
+    ) {
+      return false
+    }
+
+    // Recommendations price catering with the lowest option that supports the
+    // event guest count. Keep a provider in the selection list whenever one
+    // of its options fits the allocated category budget, but do not offer a
+    // provider when none of its options can fit it.
+    //
+    // Availability is intentionally not part of this filter: a service that
+    // fits the budget but conflicts with the event schedule remains searchable
+    // below as a disabled, clearly labelled result.
+    if (
+      !isExploreMode
+      && vendor.budgetRecommendation
+      && vendor.budgetRecommendation.categoryBudget > 0
+      && !vendor.budgetRecommendation.isWithinBudget
     ) {
       return false
     }
@@ -362,9 +383,17 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
           ),
         },
         {
+          id: 'schedule-unavailable',
+          label: 'Not Available on Your Schedule',
+          vendors: visibleVendors.filter(isScheduleUnavailable),
+        },
+        {
           id: 'review',
-          label: 'Over Budget or Needs Review',
-          vendors: visibleVendors.filter((vendor) => !vendor.budgetRecommendation?.isRecommended),
+          label: 'Needs Price Review',
+          vendors: visibleVendors.filter((vendor) => (
+            !vendor.budgetRecommendation?.isRecommended
+            && !isScheduleUnavailable(vendor)
+          )),
         },
       ].filter((section) => section.vendors.length > 0)
     : [{ id: 'all', label: '', vendors: visibleVendors }]
@@ -809,12 +838,17 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
               {section.vendors.map((vendor) => (
             <Pressable
               key={vendor.id}
-              accessibilityLabel={`Open ${vendor.name}, rated ${vendor.rating}`}
+              accessibilityLabel={isScheduleUnavailable(vendor)
+                ? `${vendor.name}, not available for the selected event schedule`
+                : `Open ${vendor.name}, rated ${vendor.rating}`}
               accessibilityRole="button"
+              accessibilityState={{ disabled: isScheduleUnavailable(vendor) }}
+              disabled={isScheduleUnavailable(vendor)}
               onPress={() => onSelectVendor?.(vendor.id)}
               style={({ pressed }) => [
                 styles.vendorCard,
                 useHorizontalCards && styles.vendorCardHorizontal,
+                isScheduleUnavailable(vendor) && styles.vendorCardUnavailable,
                 pressed && styles.cardPressed,
               ]}
             >
@@ -847,6 +881,14 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                   useHorizontalCards && styles.vendorCopyHorizontal,
                 ]}
               >
+                {isScheduleUnavailable(vendor) ? (
+                  <View style={styles.scheduleUnavailableBadge}>
+                    <MaterialCommunityIcons color="#5E5E5E" name="calendar-remove-outline" size={14} />
+                    <Text style={styles.scheduleUnavailableBadgeText}>
+                      NOT AVAILABLE ON YOUR SCHEDULE
+                    </Text>
+                  </View>
+                ) : null}
                 {isPersonalizedRecommendation(vendor) || vendor.isMostBooked ? (
                   <View style={styles.decisionBadges}>
                     {isPersonalizedRecommendation(vendor) ? (
@@ -976,7 +1018,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                   ))}
                 </View>
 
-                {replacementContext ? (
+                {replacementContext && !isScheduleUnavailable(vendor) ? (
                   <Pressable
                     accessibilityLabel={`Change to ${vendor.providerName}`}
                     accessibilityRole="button"
@@ -2144,6 +2186,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: palette.surfaceHighest,
   },
+  vendorCardUnavailable: {
+    opacity: 0.52,
+  },
   vendorCardHorizontal: {
     minHeight: 190,
     flexDirection: 'row',
@@ -2183,6 +2228,26 @@ const styles = StyleSheet.create({
   vendorCopyHorizontal: {
     flex: 1,
     justifyContent: 'center',
+  },
+  scheduleUnavailableBadge: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderWidth: 1,
+    borderColor: '#A9A9A9',
+    borderRadius: 12,
+    backgroundColor: '#EEEEEE',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginBottom: 9,
+  },
+  scheduleUnavailableBadgeText: {
+    color: '#4F4F4F',
+    fontSize: 9,
+    lineHeight: 12,
+    fontWeight: '900',
+    letterSpacing: 0.35,
   },
   decisionBadges: {
     flexDirection: 'row',
