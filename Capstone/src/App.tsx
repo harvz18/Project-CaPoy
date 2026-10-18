@@ -216,6 +216,7 @@ import {
   mapNotificationRecord,
   markConversationRead,
   openBookingConversation,
+  openCoordinatorProviderConversation,
   openEventCoordinatorConversation,
   sendConversationMessage,
 } from './lib/messaging'
@@ -566,6 +567,8 @@ export const App: React.FC = () => {
   const [userName, setUserName] = React.useState('Planner')
   const [homeReturnScreen, setHomeReturnScreen] =
     React.useState<'clientHome' | 'providerHome'>('clientHome')
+  const [messageWorkspace, setMessageWorkspace] =
+    React.useState<'client' | 'coordinator' | 'merchant'>('client')
   const [loginReturnScreen, setLoginReturnScreen] =
     React.useState<LoginReturnScreen>('roleSelection')
   const [verificationEmail, setVerificationEmail] = React.useState('')
@@ -994,7 +997,10 @@ export const App: React.FC = () => {
       setScreen('categoryBrowse')
     }
     if (tab === 'bookings') setScreen('bookings')
-    if (tab === 'messages') setScreen('messages')
+    if (tab === 'messages') {
+      setMessageWorkspace('client')
+      setScreen('messages')
+    }
     if (tab === 'profile') openAccountProfile('clientHome')
   }
   const openMerchantTab = (tab: MerchantHomeTab) => {
@@ -1002,7 +1008,10 @@ export const App: React.FC = () => {
     if (tab === 'home') setScreen('providerHome')
     if (tab === 'services') setScreen('providerServices')
     if (tab === 'bookings') setScreen('providerBookingRequests')
-    if (tab === 'messages') setScreen('messages')
+    if (tab === 'messages') {
+      setMessageWorkspace('merchant')
+      setScreen('messages')
+    }
     if (tab === 'profile') openProviderProfile()
   }
   const openMessageTab = (tab: ClientHomeTab | MerchantHomeTab) => {
@@ -1608,9 +1617,32 @@ export const App: React.FC = () => {
 
   const handleCoordinatorMessageProvider = React.useCallback(
     async (_event: CoordinatorEvent, service: CoordinatorBookedService) => {
-      await openBookingConversationFor(service.bookingId, 'coordinatorHome')
+      if (!service.bookingId) {
+        setToastMessage('A provider conversation becomes available after the booking is confirmed.')
+        return
+      }
+      const result = await openCoordinatorProviderConversation(service.bookingId)
+      if (!result.ok || !result.conversationId) {
+        setToastMessage(result.error ?? 'This provider conversation is not available to your account.')
+        return
+      }
+      const latestConversations = await fetchConversations()
+      const conversation = latestConversations.find((item) => item.id === result.conversationId)
+      if (!conversation) {
+        setToastMessage('The conversation was opened, but it could not be loaded yet. Pull to refresh and try again.')
+        return
+      }
+      setConversations(latestConversations)
+      await openExistingConversation(conversation, 'coordinatorHome')
     },
-    [openBookingConversationFor]
+    [openExistingConversation]
+  )
+
+  const handleCoordinatorMessageClient = React.useCallback(
+    async (event: CoordinatorEvent, returnScreen: AppScreen = 'coordinatorHome') => {
+      await openEventCoordinatorConversationFor(event.id, returnScreen)
+    },
+    [openEventCoordinatorConversationFor]
   )
 
   const handleSaveChurchArrangement = React.useCallback(async (
@@ -1788,6 +1820,13 @@ export const App: React.FC = () => {
     (resourceType?: string, resourceId?: string) => {
       const normalizedType = resourceType?.toLowerCase() ?? ''
       if (normalizedType.includes('message') || normalizedType.includes('conversation')) {
+        setMessageWorkspace(
+          screenRef.current.startsWith('coordinator')
+            ? 'coordinator'
+            : homeReturnScreen === 'providerHome'
+              ? 'merchant'
+              : 'client'
+        )
         setScreen('messages')
         return
       }
@@ -3308,7 +3347,10 @@ export const App: React.FC = () => {
             }}
             onSelectQuickAction={(action) => {
               setHomeReturnScreen('providerHome')
-              if (action === 'newQuote') setScreen('messages')
+              if (action === 'newQuote') {
+                setMessageWorkspace('merchant')
+                setScreen('messages')
+              }
               if (action === 'calendar') setScreen('providerAvailability')
               if (action === 'clients') setScreen('providerBookingRequests')
               if (action === 'invoices') setScreen('providerPayouts')
@@ -3586,7 +3628,10 @@ export const App: React.FC = () => {
               if (tab === 'events') setScreen('providerHome')
               if (tab === 'bookings') setScreen('providerBookingRequests')
               if (tab === 'budget') setScreen('providerPayouts')
-              if (tab === 'chat') setScreen('messages')
+              if (tab === 'chat') {
+                setMessageWorkspace('merchant')
+                setScreen('messages')
+              }
             }}
             onSelectMerchantTab={openMerchantTab}
             onSelectRequest={(request) => {
@@ -3658,7 +3703,10 @@ export const App: React.FC = () => {
               setSelectedMerchantRequest(request)
               setScreen('providerBookingDecline')
             }}
-            onEmailClient={() => setScreen('messages')}
+            onEmailClient={() => {
+              setMessageWorkspace('merchant')
+              setScreen('messages')
+            }}
           />
         )
       case 'providerReviews':
@@ -3666,7 +3714,10 @@ export const App: React.FC = () => {
           <ReviewPerformanceScreen
             onBack={() => setScreen('providerProfile')}
             onOpenAccount={() => setScreen('providerProfile')}
-            onReplyToReview={() => setScreen('messages')}
+            onReplyToReview={() => {
+              setMessageWorkspace('merchant')
+              setScreen('messages')
+            }}
             onSelectReview={() => setScreen('providerReviews')}
           />
         )
@@ -3779,7 +3830,10 @@ export const App: React.FC = () => {
             onSelectNotification={(notification) => {
               if (notification.category === 'booking') setScreen('providerBookingRequests')
               if (notification.category === 'payment') setScreen('providerPayouts')
-              if (notification.category === 'message') setScreen('messages')
+              if (notification.category === 'message') {
+                setMessageWorkspace('merchant')
+                setScreen('messages')
+              }
               if (notification.category === 'review') setScreen('providerReviews')
             }}
           />
@@ -3796,8 +3850,14 @@ export const App: React.FC = () => {
             isRefreshing={isCoordinatorRefreshing}
             onCreateTask={handleCreateCoordinatorTask}
             onConfirmChurchArrangement={handleConfirmChurchArrangement}
+            onMessageClient={(event) => void handleCoordinatorMessageClient(event)}
             onMessageProvider={(event, service) => void handleCoordinatorMessageProvider(event, service)}
             onSaveChurchArrangement={handleSaveChurchArrangement}
+            onOpenMessages={() => {
+              setMessageWorkspace('coordinator')
+              setScreen('messages')
+              void fetchConversations().then(setConversations)
+            }}
             onOpenNotifications={() => setScreen('coordinatorNotifications')}
             onOpenPackages={() => setScreen('coordinatorPackages')}
             onOpenProfile={() => openAccountProfile('coordinatorHome')}
@@ -3810,6 +3870,7 @@ export const App: React.FC = () => {
               void handleSignOut()
             }}
             onToggleTask={(task) => void handleCoordinatorTaskToggle(task)}
+            unreadMessageCount={conversations.reduce((total, conversation) => total + conversation.unreadCount, 0)}
             unreadNotificationCount={notifications.filter((notification) => !notification.isRead).length}
             userName={userName}
           />
@@ -3844,7 +3905,10 @@ export const App: React.FC = () => {
             }}
             onSelectNotification={(notification) => {
               void markMerchantNotificationRead(notification).then(() => refreshLiveData())
-              if (
+              if (notification.category === 'message') {
+                setMessageWorkspace('coordinator')
+                setScreen('messages')
+              } else if (
                 notification.resourceType === 'event_cash_remittance'
                 && notification.resourceId
               ) {
@@ -4200,11 +4264,13 @@ export const App: React.FC = () => {
       case 'messages':
         return (
           <MessagesScreen
-            clientBookings={homeReturnScreen === 'providerHome' ? [] : clientBookings}
+            clientBookings={messageWorkspace === 'client' ? clientBookings : []}
+            coordinatorEvents={messageWorkspace === 'coordinator' ? coordinatorDashboard.events : []}
             conversations={conversations}
             hasUnreadNotifications={notifications.some((notification) => !notification.isRead)}
-            navigationVariant={homeReturnScreen === 'providerHome' ? 'merchant' : 'client'}
+            navigationVariant={messageWorkspace}
             showBottomNavigation={false}
+            onBack={messageWorkspace === 'coordinator' ? () => setScreen('coordinatorHome') : undefined}
             onMarkRead={(conversation) => {
               setConversations((current) =>
                 current.map((item) =>
@@ -4213,9 +4279,11 @@ export const App: React.FC = () => {
               )
               void markConversationRead(conversation.id)
             }}
-            onOpenNotifications={() => setScreen('notifications')}
+            onOpenNotifications={() => setScreen(
+              messageWorkspace === 'coordinator' ? 'coordinatorNotifications' : 'notifications'
+            )}
             onOpenProfile={() =>
-              homeReturnScreen === 'providerHome'
+              messageWorkspace === 'merchant'
                 ? openProviderProfile()
                 : openAccountProfile('messages')
             }
@@ -4225,12 +4293,12 @@ export const App: React.FC = () => {
             onSelectConversation={(conversation) =>
               void openExistingConversation(conversation, 'messages')
             }
-            onNewMessage={() => {
+            onNewMessage={messageWorkspace === 'merchant' ? () => {
               setServiceBrowseMode('explore')
               setToastMessage('Choose a service to start a provider conversation.')
               setScreen('categoryBrowse')
-            }}
-            onSelectTab={openMessageTab}
+            } : undefined}
+            onSelectTab={messageWorkspace === 'coordinator' ? undefined : openMessageTab}
             userName={userName}
             userAvatarUrl={userAvatarUrl}
           />
@@ -4269,7 +4337,7 @@ export const App: React.FC = () => {
             }}
             onOpenBooking={() =>
               setScreen(
-                chatReturnScreen === 'coordinatorHome'
+                chatReturnScreen === 'coordinatorHome' || messageWorkspace === 'coordinator'
                   ? 'coordinatorHome'
                   : homeReturnScreen === 'providerHome'
                   ? 'providerBookingRequests'
@@ -4303,7 +4371,10 @@ export const App: React.FC = () => {
               void markMerchantNotificationRead(notification).then(() => refreshLiveData())
             }}
             onSelectNotification={(notification: MerchantNotification) => {
-              if (notification.category === 'message') setScreen('messages')
+              if (notification.category === 'message') {
+                setMessageWorkspace(homeReturnScreen === 'providerHome' ? 'merchant' : 'client')
+                setScreen('messages')
+              }
               else if (notification.category === 'payment') {
                 setScreen(
                   homeReturnScreen === 'providerHome' ? 'providerPayouts' : 'eventLedger'

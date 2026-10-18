@@ -45,9 +45,11 @@ interface CoordinatorScreenProps {
   isRefreshing?: boolean
   onCreateTask?: (input: CreateCoordinatorTaskInput) => Promise<CoordinatorResult>
   onConfirmChurchArrangement?: (input: ConfirmChurchWeddingArrangementInput) => Promise<CoordinatorResult>
+  onMessageClient?: (event: CoordinatorEvent) => void
   onMessageProvider?: (event: CoordinatorEvent, service: CoordinatorBookedService) => void
   onSaveChurchArrangement?: (input: SaveChurchWeddingArrangementInput) => Promise<CoordinatorResult>
   onOpenNotifications?: () => void
+  onOpenMessages?: () => void
   onOpenPackages?: () => void
   onOpenProfile?: () => void
   onOpenServiceProfile?: () => void
@@ -56,6 +58,7 @@ interface CoordinatorScreenProps {
   onSignOut?: () => void
   onToggleTask?: (task: CoordinatorTask) => void
   unreadNotificationCount?: number
+  unreadMessageCount?: number
   userName?: string
 }
 
@@ -189,9 +192,10 @@ const todayHeading = () =>
 const EventCard: React.FC<{
   event: CoordinatorEvent
   onConfirmChurchArrangement?: (input: ConfirmChurchWeddingArrangementInput) => Promise<CoordinatorResult>
+  onMessageClient?: (event: CoordinatorEvent) => void
   onMessageProvider?: (event: CoordinatorEvent, service: CoordinatorBookedService) => void
   onSaveChurchArrangement?: (input: SaveChurchWeddingArrangementInput) => Promise<CoordinatorResult>
-}> = ({ event, onConfirmChurchArrangement, onMessageProvider, onSaveChurchArrangement }) => {
+}> = ({ event, onConfirmChurchArrangement, onMessageClient, onMessageProvider, onSaveChurchArrangement }) => {
   const progress = eventProgress(event)
   const venue = event.venue || event.location || 'Venue to be confirmed'
   const bookingServices = event.services.filter((service) => service.booked && service.bookingId)
@@ -308,9 +312,20 @@ const EventCard: React.FC<{
               <ChurchArrangementPanel
                 event={event}
                 onConfirm={onConfirmChurchArrangement}
+                onMessageClient={() => onMessageClient?.(event)}
                 onSave={onSaveChurchArrangement}
               />
-            ) : null}
+            ) : (
+              <Pressable
+                accessibilityLabel={`Message ${event.clientName} about ${event.name}`}
+                accessibilityRole="button"
+                onPress={() => onMessageClient?.(event)}
+                style={({ pressed }) => [styles.confirmChurchButton, pressed && styles.pressed]}
+              >
+                <MaterialIcons color={palette.primaryContainer} name="chat-bubble-outline" size={17} />
+                <Text style={styles.confirmChurchButtonText}>Message Client</Text>
+              </Pressable>
+            )}
 
             <View style={styles.requestFacts}>
               <Text style={styles.requestFact}>Event type: {statusLabel(event.type || 'Event')}</Text>
@@ -534,8 +549,9 @@ const churchConfirmationMethods: Array<{ label: string; value: ChurchConfirmatio
 const ChurchArrangementPanel: React.FC<{
   event: CoordinatorEvent
   onConfirm?: (input: ConfirmChurchWeddingArrangementInput) => Promise<CoordinatorResult>
+  onMessageClient?: () => void
   onSave?: (input: SaveChurchWeddingArrangementInput) => Promise<CoordinatorResult>
-}> = ({ event, onConfirm, onSave }) => {
+}> = ({ event, onConfirm, onMessageClient, onSave }) => {
   const arrangement = event.churchArrangement
   const [preferredChurch, setPreferredChurch] = React.useState(arrangement?.preferredChurch ?? '')
   const [churchName, setChurchName] = React.useState(arrangement?.churchName ?? '')
@@ -636,6 +652,15 @@ const ChurchArrangementPanel: React.FC<{
           <Text style={styles.churchProposalVersion}>Proposal version {arrangement.proposalVersion}</Text>
         ) : null}
       </View>
+      <Pressable
+        accessibilityLabel={`Message ${event.clientName} about the church arrangement`}
+        accessibilityRole="button"
+        onPress={onMessageClient}
+        style={({ pressed }) => [styles.confirmChurchButton, pressed && styles.pressed]}
+      >
+        <MaterialIcons color={palette.primaryContainer} name="chat-bubble-outline" size={17} />
+        <Text style={styles.confirmChurchButtonText}>Message Client</Text>
+      </Pressable>
       {arrangement?.clientResponseStatus && arrangement.clientResponseStatus !== 'not_requested' ? (
         <View style={styles.churchResponseCard}>
           <Text style={styles.inputLabel}>CLIENT RESPONSE</Text>
@@ -997,8 +1022,10 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
   isRefreshing = false,
   onCreateTask,
   onConfirmChurchArrangement,
+  onMessageClient,
   onMessageProvider,
   onSaveChurchArrangement,
+  onOpenMessages,
   onOpenNotifications,
   onOpenPackages,
   onOpenProfile,
@@ -1007,6 +1034,7 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
   onRespondInvitation,
   onSignOut,
   onToggleTask,
+  unreadMessageCount = 0,
   unreadNotificationCount = 0,
   userName = 'Coordinator',
 }) => {
@@ -1136,6 +1164,21 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
             </View>
           </View>
           <View style={styles.headerActions}>
+            <Pressable
+              accessibilityLabel="Open messages"
+              accessibilityRole="button"
+              onPress={onOpenMessages}
+              style={({ pressed }) => [styles.iconButton, pressed && styles.pressedSurface]}
+            >
+              <MaterialIcons color={palette.primary} name="chat-bubble-outline" size={21} />
+              {unreadMessageCount > 0 ? (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationBadgeText}>
+                    {Math.min(unreadMessageCount, 9)}
+                  </Text>
+                </View>
+              ) : null}
+            </Pressable>
             <Pressable
               accessibilityLabel="Manage coordinator packages"
               accessibilityRole="button"
@@ -1449,6 +1492,7 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
                 <EventCard
                   event={activeEvents[0] ?? dashboard.events[0]}
                   onConfirmChurchArrangement={onConfirmChurchArrangement}
+                  onMessageClient={onMessageClient}
                   onMessageProvider={onMessageProvider}
                   onSaveChurchArrangement={onSaveChurchArrangement}
                 />
@@ -1496,6 +1540,7 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
                   <EventCard
                     event={event}
                     onConfirmChurchArrangement={onConfirmChurchArrangement}
+                    onMessageClient={onMessageClient}
                     onMessageProvider={onMessageProvider}
                     onSaveChurchArrangement={onSaveChurchArrangement}
                   />

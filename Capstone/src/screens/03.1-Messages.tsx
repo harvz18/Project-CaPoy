@@ -14,6 +14,7 @@ import {
 import type { ClientHomeTab } from './03-ClientHome'
 import type { MerchantHomeTab } from './16-MerchantHome'
 import type { BookingItem } from './11-BookingScreen'
+import type { CoordinatorEvent } from '../lib/coordinator'
 
 export type ClientConversationFilter = 'all' | 'unread' | 'bookings'
 
@@ -23,7 +24,7 @@ export interface ClientConversation {
   bookingId?: string
   bookingReference?: string
   bookingStatus?: 'pending' | 'confirmed' | 'completed'
-  conversationKind?: 'booking' | 'event_coordinator'
+  conversationKind?: 'booking' | 'coordinator_provider' | 'event_coordinator'
   eventDate?: string
   eventId?: string
   eventName?: string
@@ -45,17 +46,19 @@ export interface ClientConversation {
 interface MessagesScreenProps {
   conversations?: ClientConversation[]
   clientBookings?: BookingItem[]
+  coordinatorEvents?: CoordinatorEvent[]
   hasUnreadNotifications?: boolean
   initialFilter?: ClientConversationFilter
   showBottomNavigation?: boolean
   onMarkRead?: (conversation: ClientConversation) => void
+  onBack?: () => void
   onNewMessage?: () => void
   onOpenNotifications?: () => void
   onOpenProfile?: () => void
   onOpenEventCoordinatorForEvent?: (eventId: string) => void
   onSearchChange?: (value: string) => void
   onSelectConversation?: (conversation: ClientConversation) => void
-  navigationVariant?: 'client' | 'merchant'
+  navigationVariant?: 'client' | 'coordinator' | 'merchant'
   onSelectTab?: (tab: ClientHomeTab | MerchantHomeTab) => void
   searchValue?: string
   userAvatarUrl?: string
@@ -137,10 +140,12 @@ const formatEventDate = (value?: string) => {
 export const MessagesScreen: React.FC<MessagesScreenProps> = ({
   conversations = [],
   clientBookings = [],
+  coordinatorEvents = [],
   hasUnreadNotifications = false,
   initialFilter = 'all',
   navigationVariant = 'client',
   showBottomNavigation = true,
+  onBack,
   onMarkRead,
   onNewMessage,
   onOpenNotifications,
@@ -174,6 +179,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
   }, [conversations])
   const query = searchValue ?? internalSearch
   const normalizedQuery = query.trim().toLowerCase()
+  const usesEventGroups = navigationVariant !== 'merchant'
   const unreadCount = conversations.reduce(
     (count, conversation) => count + (readIds.has(conversation.id) ? 0 : conversation.unreadCount),
     0
@@ -236,14 +242,46 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
       groups.set(eventId, current)
     }
 
+    for (const event of coordinatorEvents) {
+      const current = groups.get(event.id) ?? {
+        conversations: [],
+        date: event.date,
+        id: event.id,
+        name: event.name || 'Event',
+      }
+      const hasClientConversation = current.conversations.some(
+        (conversation) => conversation.conversationKind === 'event_coordinator'
+      )
+      if (!hasClientConversation) {
+        current.conversations.push({
+          bookingReference: 'Event client',
+          bookingStatus: 'confirmed',
+          conversationKind: 'event_coordinator',
+          eventDate: event.date,
+          eventId: event.id,
+          eventName: event.name,
+          eventStatus: event.status,
+          id: `event-coordinator:${event.id}`,
+          isVirtualCoordinator: true,
+          lastMessage: 'Start a direct conversation with this event client.',
+          lastMessageAt: event.date || new Date(0).toISOString(),
+          participantName: event.clientName || 'Event client',
+          participantRole: 'Client',
+          serviceName: 'Event client',
+          unreadCount: 0,
+        })
+      }
+      groups.set(event.id, current)
+    }
+
     return Array.from(groups.values()).sort((left, right) => {
       const latestLeft = Math.max(...left.conversations.map((item) => new Date(item.lastMessageAt).getTime()))
       const latestRight = Math.max(...right.conversations.map((item) => new Date(item.lastMessageAt).getTime()))
       return latestRight - latestLeft
     })
-  }, [clientBookings, conversations])
+  }, [clientBookings, conversations, coordinatorEvents])
   const selectedEvent = eventGroups.find((group) => group.id === selectedEventId)
-  const conversationSource = navigationVariant === 'client'
+  const conversationSource = usesEventGroups
     ? selectedEvent?.conversations ?? []
     : conversations
   const visibleConversations = conversationSource.filter((conversation) => {
@@ -303,14 +341,35 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
     <View style={styles.screen}>
       <View style={[
         styles.topAppBar,
-        navigationVariant === 'client' && styles.clientTopAppBar,
+        usesEventGroups && styles.clientTopAppBar,
       ]}>
         <View style={[styles.topAppBarContent, isWide && styles.horizontalPaddingWide]}>
-          {navigationVariant === 'client' ? (
+          {usesEventGroups ? (
             <>
-              <View style={styles.clientHeaderButton} />
+              {navigationVariant === 'coordinator' ? (
+                <Pressable
+                  accessibilityLabel="Back to coordinator workspace"
+                  accessibilityRole="button"
+                  hitSlop={8}
+                  onPress={onBack}
+                  style={({ pressed }) => [styles.clientHeaderButton, pressed && styles.surfacePressed]}
+                >
+                  <Text style={styles.coordinatorBackIcon}>{'\u2039'}</Text>
+                </Pressable>
+              ) : <View style={styles.clientHeaderButton} />}
               <Text style={styles.clientHeaderTitle}>MESSAGES</Text>
-              <View style={styles.clientHeaderButton} />
+              {navigationVariant === 'coordinator' ? (
+                <Pressable
+                  accessibilityLabel="Open notifications"
+                  accessibilityRole="button"
+                  hitSlop={8}
+                  onPress={onOpenNotifications}
+                  style={({ pressed }) => [styles.clientHeaderButton, pressed && styles.surfacePressed]}
+                >
+                  <BellIcon />
+                  {hasUnreadNotifications ? <View style={styles.notificationDot} /> : null}
+                </Pressable>
+              ) : <View style={styles.clientHeaderButton} />}
             </>
           ) : (
             <>
@@ -369,10 +428,12 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
               ) : null}
             </View>
             <Text style={styles.subtitle}>
-              {navigationVariant === 'client'
+              {usesEventGroups
                 ? selectedEvent
                   ? 'Direct conversations for this event.'
-                  : 'Choose an event to see its booked service conversations.'
+                  : navigationVariant === 'coordinator'
+                    ? 'Choose an event to message its client or confirmed providers.'
+                    : 'Choose an event to see its booked service conversations.'
                 : 'Only people connected through a booking can message here.'}
             </Text>
           </View>
@@ -388,7 +449,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
           ) : null}
         </View>
 
-        {navigationVariant === 'client' && selectedEvent ? (
+        {usesEventGroups && selectedEvent ? (
           <Pressable
             accessibilityLabel="Back to events"
             accessibilityRole="button"
@@ -462,7 +523,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
           })}
         </View>
 
-        {navigationVariant === 'client' && !selectedEvent ? (
+        {usesEventGroups && !selectedEvent ? (
           visibleEventGroups.length ? (
             <View style={styles.eventCardList}>
               {visibleEventGroups.map((group) => {
@@ -683,6 +744,7 @@ const styles = StyleSheet.create({
   horizontalPaddingWide: { paddingHorizontal: 64 },
   clientHeaderButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },
   clientHeaderTitle: { color: palette.white, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 1.2, textAlign: 'center' },
+  coordinatorBackIcon: { color: palette.white, fontSize: 32, lineHeight: 34, fontWeight: '300' },
   userAvatar: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19, backgroundColor: palette.primaryContainer },
   userAvatarImage: { width: '100%', height: '100%', borderRadius: 19 },
   userAvatarText: { color: palette.onPrimary, fontSize: 13, lineHeight: 18, fontWeight: '700' },

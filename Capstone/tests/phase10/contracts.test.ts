@@ -635,12 +635,59 @@ test('Phase 6 keeps event messaging direct, event-organized, and coordinator-aut
   ], 'event-organized client inbox')
   mustContain(messaging, [
     'eventId: textFrom(event?.id) || undefined',
-    "conversationKind: isEventCoordinatorConversation ? 'event_coordinator' : 'booking'",
+    "? 'event_coordinator'",
+    "? 'coordinator_provider'",
   ], 'event metadata mapping')
   mustContain(app, [
     'onOpenEventCoordinatorForEvent',
     "openEventCoordinatorConversationFor(eventId, 'messages')",
   ], 'coordinator inbox navigation')
+})
+
+test('V7 Phase 2 gives coordinators direct event-grouped messaging without creating group chats', () => {
+  const migration = read('supabase/migrations/20261019000100_coordinator_direct_messaging.sql')
+  const messages = read('src/screens/03.1-Messages.tsx')
+  const coordinator = read('src/screens/23-Coordinator.tsx')
+  const messaging = read('src/lib/messaging.ts')
+  const app = read('src/App.tsx')
+
+  mustContain(migration, [
+    'create or replace function public.is_valid_client_provider_message_member(',
+    'create or replace function public.is_valid_coordinator_provider_message_member(',
+    "conversation.conversation_kind = 'coordinator_provider'",
+    "auth.uid() in (event.coordinator_id, provider.user_id)",
+    'create or replace function public.open_coordinator_provider_conversation(',
+    'perform public.ensure_coordinator_provider_conversation(new.id);',
+  ], 'direct coordinator messaging authorization')
+  assert.match(
+    migration,
+    /values\s*\(resolved_conversation_id, booking_row\.coordinator_user_id\),\s*\(resolved_conversation_id, booking_row\.provider_user_id\)/
+  )
+  assert.doesNotMatch(
+    migration,
+    /values\s*\(resolved_conversation_id, booking_row\.client_id\),\s*\(resolved_conversation_id, booking_row\.provider_user_id\),\s*\(resolved_conversation_id, booking_row\.coordinator_user_id\)/
+  )
+  mustContain(messaging, [
+    "client.rpc('open_coordinator_provider_conversation'",
+    "conversationKind === 'coordinator_provider'",
+  ], 'coordinator-provider RPC integration')
+  mustContain(messages, [
+    "navigationVariant?: 'client' | 'coordinator' | 'merchant'",
+    'for (const event of coordinatorEvents)',
+    "participantRole: 'Client'",
+    "usesEventGroups && !selectedEvent",
+  ], 'event-grouped coordinator inbox')
+  mustContain(coordinator, [
+    'onOpenMessages?: () => void',
+    'onMessageClient?: (event: CoordinatorEvent) => void',
+    '<Text style={styles.confirmChurchButtonText}>Message Client</Text>',
+    '<Text style={styles.providerActionText}>Message provider</Text>',
+  ], 'coordinator messaging entry points')
+  mustContain(app, [
+    "setMessageWorkspace('coordinator')",
+    'openCoordinatorProviderConversation(service.bookingId)',
+    'coordinatorEvents={messageWorkspace === \'coordinator\' ? coordinatorDashboard.events : []}',
+  ], 'coordinator messaging navigation')
 })
 
 test('checkout accepts provider-configured custom catering and notifies coordinators after payment', () => {

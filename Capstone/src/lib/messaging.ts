@@ -97,7 +97,7 @@ export const fetchConversations = async (): Promise<ClientConversation[]> => {
       client
         .from('conversations')
         .select(
-          'id, title, booking_id, conversation_kind, updated_at, bookings(id, status, requested_date, services(name)), events(id, name, status, event_date, coordinator_assignment_status, is_church_wedding)'
+          'id, title, booking_id, conversation_kind, updated_at, bookings(id, status, requested_date, services(name)), events(id, name, status, event_date, coordinator_id, coordinator_assignment_status, is_church_wedding)'
         )
         .in('id', conversationIds),
       client
@@ -144,7 +144,11 @@ export const fetchConversations = async (): Promise<ClientConversation[]> => {
       const booking = nested(record.bookings) as Record<string, unknown> | undefined
       const event = nested(record.events) as Record<string, unknown> | undefined
       const service = nested(booking?.services) as Record<string, unknown> | undefined
-      const isEventCoordinatorConversation = textFrom(record.conversation_kind) === 'event_coordinator'
+      const conversationKind = textFrom(record.conversation_kind)
+      const isEventCoordinatorConversation = conversationKind === 'event_coordinator'
+      const isCoordinatorProviderConversation = conversationKind === 'coordinator_provider'
+      const isLegacyCoordinatorGroup = conversationKind === 'booking'
+        && textFrom(event?.coordinator_id) === userId
       // Preserve the confirmed-booking rule for every provider conversation:
       // isReadOnly: booking ? !canSendBookingMessages(booking.status) : true
       const bookingReadOnly = booking ? !canSendBookingMessages(booking.status) : true
@@ -165,7 +169,11 @@ export const fetchConversations = async (): Promise<ClientConversation[]> => {
           ? `Booking #${textFrom(booking.id).slice(0, 8).toUpperCase()}`
           : isEventCoordinatorConversation ? 'Event coordinator' : undefined,
         bookingStatus: booking ? toBookingStatus(booking.status) : isEventCoordinatorConversation ? 'confirmed' : undefined,
-        conversationKind: isEventCoordinatorConversation ? 'event_coordinator' : 'booking',
+        conversationKind: isEventCoordinatorConversation
+          ? 'event_coordinator'
+          : isCoordinatorProviderConversation
+            ? 'coordinator_provider'
+            : 'booking',
         eventDate: textFrom(event?.event_date) || undefined,
         eventId: textFrom(event?.id) || undefined,
         eventName: textFrom(event?.name, textFrom(record.title, 'Event')),
@@ -173,7 +181,7 @@ export const fetchConversations = async (): Promise<ClientConversation[]> => {
         id: conversationId,
         isReadOnly: isEventCoordinatorConversation
           ? !canSendEventCoordinatorMessages(event)
-          : bookingReadOnly,
+          : bookingReadOnly || isLegacyCoordinatorGroup,
         lastMessage: textFrom(lastMessage?.body, 'Conversation started.'),
         lastMessageAt: textFrom(lastMessage?.created_at, textFrom(record.updated_at)),
         participantName,
@@ -241,8 +249,26 @@ export const openEventCoordinatorConversation = async (
     : { error: 'The event coordinator conversation could not be opened.', ok: false }
 }
 
-// Kept for coordinator callers while every role uses the same secure booking RPC.
-export const openCoordinatorProviderConversation = openBookingConversation
+export const openCoordinatorProviderConversation = async (
+  bookingId: string
+): Promise<OpenConversationResult> => {
+  const client = getClient()
+  if (!client || !bookingId) {
+    return { error: 'Unable to open this coordinator and provider conversation.', ok: false }
+  }
+
+  const { data, error } = await client.rpc('open_coordinator_provider_conversation', {
+    target_booking_id: bookingId,
+  })
+  if (error) return { error: error.message, ok: false }
+  const payload = data && typeof data === 'object' && !Array.isArray(data)
+    ? data as Record<string, unknown>
+    : {}
+  const conversationId = textFrom(payload.conversation_id)
+  return conversationId
+    ? { conversationId, ok: true }
+    : { error: 'The coordinator and provider conversation could not be opened.', ok: false }
+}
 
 export const fetchConversationMessages = async (
   conversationId: string
