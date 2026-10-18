@@ -756,6 +756,11 @@ const textFrom = (value: unknown, fallback = '') =>
 const numberFrom = (value: unknown, fallback = 0) =>
   typeof value === 'number' && Number.isFinite(value) ? value : fallback
 
+const optionalNumber = (value: unknown) => {
+  const numeric = Number(value)
+  return Number.isFinite(numeric) ? numeric : undefined
+}
+
 const nested = (value: unknown) => (Array.isArray(value) ? value[0] : value)
 
 const toIsoDate = (value: unknown) => textFrom(value, 'Date to be confirmed')
@@ -1350,7 +1355,7 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
             .in('rejected_booking_id', bookingIds)
             .neq('status', 'closed')
         : Promise.resolve({ data: [] }),
-      client.rpc('get_my_church_wedding_arrangements'),
+      client.rpc('get_my_church_wedding_arrangements_v7'),
     ])
   const reviewRows = reviewResult.data
   const coordinatorProfiles = coordinatorResult.data
@@ -1381,6 +1386,8 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
         ceremonyTime: textFrom(arrangement.ceremony_time) || undefined,
         churchAddress: textFrom(arrangement.church_address) || undefined,
         churchContact: textFrom(arrangement.church_contact) || undefined,
+        churchLatitude: optionalNumber(arrangement.church_latitude),
+        churchLongitude: optionalNumber(arrangement.church_longitude),
         churchName: textFrom(arrangement.church_name) || undefined,
         clientRespondedAt: textFrom(arrangement.client_responded_at) || undefined,
         clientResponseReason: textFrom(arrangement.client_response_reason) || undefined,

@@ -803,6 +803,66 @@ test('V7 Phase 1 preserves church proposal history and separates client response
   ], 'client church proposal UI')
 })
 
+test('V7 Phase 3 saves optional church pins and uses schedule-safe mobile pickers', () => {
+  const migration = read('supabase/migrations/20261019000300_church_location_and_schedule_pickers.sql')
+  const controls = read('src/components/ChurchArrangementControls.tsx')
+  const coordinator = read('src/lib/coordinator.ts')
+  const coordinatorScreen = read('src/screens/23-Coordinator.tsx')
+  const merchant = read('src/lib/merchant.ts')
+  const booking = read('src/screens/11-BookingScreen.tsx')
+  const bookingDetails = read('src/screens/11.1-BookingDetails.tsx')
+
+  mustContain(migration, [
+    'add column if not exists church_latitude double precision',
+    'add column if not exists church_longitude double precision',
+    'create or replace function public.get_my_church_wedding_arrangements_v7()',
+    'create or replace function public.save_my_church_wedding_arrangement_v7(',
+    'Church latitude and longitude must be saved together.',
+    'The ceremony date must match the configured event date.',
+    'arrangement_before.church_latitude is distinct from target_church_latitude',
+    "'Revised church proposal awaiting confirmation'",
+    'event_row.coordinator_assignment_status <> \'accepted\'',
+    'grant execute on function public.save_my_church_wedding_arrangement_v7(',
+  ], 'church location and schedule migration')
+  assert.doesNotMatch(migration, /drop\s+table/i)
+  mustContain(controls, [
+    'export const ChurchLocationMap',
+    'Tap to place the church pin',
+    'openstreetmap.org',
+    'export const ChurchDatePickerModal',
+    'This date matches the configured event schedule.',
+    'export const ChurchTimePickerModal',
+    'Saved as local ceremony time without timezone conversion.',
+  ], 'church map, date, and time controls')
+  mustContain(coordinator, [
+    "supabase.rpc('get_my_church_wedding_arrangements_v7'",
+    "supabase.rpc('save_my_church_wedding_arrangement_v7'",
+    'target_church_latitude: input.churchLatitude ?? null',
+    'target_church_longitude: input.churchLongitude ?? null',
+  ], 'coordinator church coordinate persistence')
+  mustContain(coordinatorScreen, [
+    'Pin church location',
+    'Edit map pin',
+    '<ChurchDatePickerModal',
+    '<ChurchTimePickerModal',
+    'Use Address Only',
+    'The ceremony date must match the configured event date:',
+  ], 'coordinator church picker UI')
+  mustContain(merchant, [
+    "client.rpc('get_my_church_wedding_arrangements_v7'",
+    'churchLatitude: optionalNumber(arrangement.church_latitude)',
+    'churchLongitude: optionalNumber(arrangement.church_longitude)',
+  ], 'client church coordinate mapping')
+  mustContain(booking, ['churchLatitude?: number', 'churchLongitude?: number'], 'booking church coordinate contract')
+  mustContain(bookingDetails, [
+    'CHURCH MAP PIN',
+    '<ChurchLocationMap coordinates={{',
+    'No map pin was saved. Use the written church address above.',
+    'formatChurchDate(',
+    'formatChurchTime(',
+  ], 'client read-only church preview')
+})
+
 test('package selection checks duplicate categories, manual conflicts, dynamic options, and total budget', () => {
   const packages = read(migrations[1])
   const catering = read(migrations[2])

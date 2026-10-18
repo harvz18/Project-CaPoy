@@ -1,4 +1,5 @@
 import { Text } from '../components/AppText'
+import { ChurchLocationMap, formatChurchDate, formatChurchTime } from '../components/ChurchArrangementControls'
 import { MaterialIcons } from '@expo/vector-icons'
 import React from 'react'
 import { Image, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native'
@@ -537,13 +538,30 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
             {booking.churchArrangement?.churchAddress ? (
               <DetailRow label="LOCATION" value={booking.churchArrangement.churchAddress} />
             ) : null}
+            {booking.churchArrangement?.churchLatitude != null && booking.churchArrangement.churchLongitude != null ? (
+              <View style={styles.churchMapPreview}>
+                <Text style={styles.churchMapPreviewLabel}>CHURCH MAP PIN</Text>
+                <ChurchLocationMap coordinates={{
+                  latitude: booking.churchArrangement.churchLatitude,
+                  longitude: booking.churchArrangement.churchLongitude,
+                }} />
+              </View>
+            ) : booking.churchArrangement?.churchAddress ? (
+              <View style={styles.churchMapFallback}>
+                <MaterialIcons color={palette.burgundy} name="location-off" size={18} />
+                <Text style={styles.churchMapFallbackText}>No map pin was saved. Use the written church address above.</Text>
+              </View>
+            ) : null}
             {booking.churchArrangement?.churchContact ? (
               <DetailRow label="CONTACT" value={booking.churchArrangement.churchContact} />
             ) : null}
             {booking.churchArrangement?.ceremonyDate || booking.churchArrangement?.ceremonyTime ? (
               <DetailRow
                 label="CEREMONY"
-                value={[booking.churchArrangement.ceremonyDate, booking.churchArrangement.ceremonyTime].filter(Boolean).join(' · ')}
+                value={[
+                  booking.churchArrangement.ceremonyDate ? formatChurchDate(booking.churchArrangement.ceremonyDate) : undefined,
+                  booking.churchArrangement.ceremonyTime ? formatChurchTime(booking.churchArrangement.ceremonyTime) : undefined,
+                ].filter(Boolean).join(' · ')}
               />
             ) : null}
             {booking.churchArrangement?.notes ? (
@@ -1531,6 +1549,10 @@ const styles = StyleSheet.create({
   churchArrangementEmpty: { color: palette.muted, fontSize: 13, lineHeight: 19, marginTop: 8 },
   churchArrangementUpdatedAt: { color: palette.muted, fontSize: 11, lineHeight: 16, marginTop: 10 },
   churchArrangementDisclaimer: { color: palette.muted, fontSize: 11, lineHeight: 16, marginTop: 14 },
+  churchMapPreview: { gap: 8, borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 14, marginTop: 4, marginBottom: 14 },
+  churchMapPreviewLabel: { color: palette.muted, fontSize: 9, lineHeight: 12, fontWeight: '700', letterSpacing: 0.8 },
+  churchMapFallback: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 9, backgroundColor: '#F8F3F4', padding: 10, marginBottom: 12 },
+  churchMapFallbackText: { minWidth: 0, flex: 1, color: palette.muted, fontSize: 10, lineHeight: 15 },
   churchResponseNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, borderColor: '#CDE1D3', borderRadius: 10, backgroundColor: '#F2F8F4', padding: 11, marginTop: 10 },
   churchDeclinedNotice: { borderColor: '#EDCDD3', backgroundColor: '#FFF6F7' },
   churchDeclinedNoticeTitle: { color: palette.error, fontSize: 12, lineHeight: 17, fontWeight: '700' },

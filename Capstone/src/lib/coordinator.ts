@@ -22,6 +22,8 @@ export interface ChurchWeddingArrangement {
   ceremonyTime?: string
   churchAddress?: string
   churchContact?: string
+  churchLatitude?: number
+  churchLongitude?: number
   churchName?: string
   clientRespondedAt?: string
   clientResponseReason?: string
@@ -42,6 +44,8 @@ export interface SaveChurchWeddingArrangementInput {
   ceremonyTime?: string
   churchAddress?: string
   churchContact?: string
+  churchLatitude?: number
+  churchLongitude?: number
   churchName?: string
   eventId: string
   notes?: string
@@ -296,6 +300,11 @@ const numberFrom = (value: unknown, fallback = 0) => {
 const optionalText = (value: unknown) => {
   const text = textFrom(value)
   return text || undefined
+}
+
+const optionalNumber = (value: unknown) => {
+  const numeric = Number(value)
+  return Number.isFinite(numeric) ? numeric : undefined
 }
 
 const emptyFinancials = (coordinationFee = 0): CoordinatorBookingFinancials => ({
@@ -585,7 +594,7 @@ export const fetchCoordinatorDashboard = async (): Promise<CoordinatorResult<Coo
       supabase.rpc('get_my_coordinator_assignment_context'),
       supabase.rpc('get_my_coordinator_booking_statuses'),
       supabase.rpc('get_my_church_wedding_event_flags'),
-      supabase.rpc('get_my_church_wedding_arrangements'),
+      supabase.rpc('get_my_church_wedding_arrangements_v7'),
     ])
   if (error) {
     return { data: emptyCoordinatorDashboard(), message: error.message, ok: false }
@@ -654,6 +663,8 @@ export const fetchCoordinatorDashboard = async (): Promise<CoordinatorResult<Coo
         ceremonyTime: optionalText(row.ceremony_time),
         churchAddress: optionalText(row.church_address),
         churchContact: optionalText(row.church_contact),
+        churchLatitude: optionalNumber(row.church_latitude),
+        churchLongitude: optionalNumber(row.church_longitude),
         churchName: optionalText(row.church_name),
         clientRespondedAt: optionalText(row.client_responded_at),
         clientResponseReason: optionalText(row.client_response_reason),
@@ -954,12 +965,14 @@ export const saveCoordinatorChurchWeddingArrangement = async (
     return { message: unavailableMessage, ok: false }
   }
 
-  const { error } = await supabase.rpc('save_my_church_wedding_arrangement', {
+  const { error } = await supabase.rpc('save_my_church_wedding_arrangement_v7', {
     target_arrangement_status: input.arrangementStatus,
     target_ceremony_date: input.ceremonyDate?.trim() || null,
     target_ceremony_time: input.ceremonyTime?.trim() || null,
     target_church_address: input.churchAddress?.trim() || null,
     target_church_contact: input.churchContact?.trim() || null,
+    target_church_latitude: input.churchLatitude ?? null,
+    target_church_longitude: input.churchLongitude ?? null,
     target_church_name: input.churchName?.trim() || null,
     target_event_id: input.eventId,
     target_notes: input.notes?.trim() || null,

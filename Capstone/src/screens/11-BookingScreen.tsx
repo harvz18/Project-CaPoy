@@ -54,6 +54,8 @@ export interface BookingItem {
     ceremonyTime?: string
     churchAddress?: string
     churchContact?: string
+    churchLatitude?: number
+    churchLongitude?: number
     churchName?: string
     clientRespondedAt?: string
     clientResponseReason?: string

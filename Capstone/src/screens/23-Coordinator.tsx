@@ -17,6 +17,14 @@ import {
 } from 'react-native'
 import { Text } from '../components/AppText'
 import { BrandIdentity } from '../components/BrandIdentity'
+import {
+  ChurchDatePickerModal,
+  ChurchLocationMap,
+  ChurchTimePickerModal,
+  formatChurchDate,
+  formatChurchTime,
+  type ChurchCoordinates,
+} from '../components/ChurchArrangementControls'
 import type {
   CoordinatorBookedService,
   CoordinatorDashboard,
@@ -559,6 +567,12 @@ const ChurchArrangementPanel: React.FC<{
   const [churchContact, setChurchContact] = React.useState(arrangement?.churchContact ?? '')
   const [ceremonyDate, setCeremonyDate] = React.useState(arrangement?.ceremonyDate ?? '')
   const [ceremonyTime, setCeremonyTime] = React.useState(arrangement?.ceremonyTime ?? '')
+  const [coordinates, setCoordinates] = React.useState<ChurchCoordinates | undefined>(() =>
+    arrangement?.churchLatitude != null && arrangement.churchLongitude != null
+      ? { latitude: arrangement.churchLatitude, longitude: arrangement.churchLongitude }
+      : undefined
+  )
+  const [draftCoordinates, setDraftCoordinates] = React.useState<ChurchCoordinates | undefined>()
   const [notes, setNotes] = React.useState(arrangement?.notes ?? '')
   const [error, setError] = React.useState('')
   const [saving, setSaving] = React.useState(false)
@@ -567,6 +581,9 @@ const ChurchArrangementPanel: React.FC<{
   const [confirmationNotes, setConfirmationNotes] = React.useState('')
   const [confirmationError, setConfirmationError] = React.useState('')
   const [confirming, setConfirming] = React.useState(false)
+  const [showDatePicker, setShowDatePicker] = React.useState(false)
+  const [showLocationPicker, setShowLocationPicker] = React.useState(false)
+  const [showTimePicker, setShowTimePicker] = React.useState(false)
 
   React.useEffect(() => {
     setPreferredChurch(arrangement?.preferredChurch ?? '')
@@ -575,12 +592,20 @@ const ChurchArrangementPanel: React.FC<{
     setChurchContact(arrangement?.churchContact ?? '')
     setCeremonyDate(arrangement?.ceremonyDate ?? '')
     setCeremonyTime(arrangement?.ceremonyTime ?? '')
+    setCoordinates(arrangement?.churchLatitude != null && arrangement.churchLongitude != null
+      ? { latitude: arrangement.churchLatitude, longitude: arrangement.churchLongitude }
+      : undefined)
     setNotes(arrangement?.notes ?? '')
     setError('')
   }, [arrangement, event.id])
 
   const save = async () => {
     if (!onSave || saving) return
+    const eventDate = event.date?.slice(0, 10)
+    if (ceremonyDate && eventDate && ceremonyDate !== eventDate) {
+      setError(`The ceremony date must match the configured event date: ${formatChurchDate(eventDate)}.`)
+      return
+    }
     const normalizedChurchName = churchName.trim()
     setSaving(true)
     setError('')
@@ -594,6 +619,8 @@ const ChurchArrangementPanel: React.FC<{
       ceremonyTime,
       churchAddress,
       churchContact,
+      churchLatitude: coordinates?.latitude,
+      churchLongitude: coordinates?.longitude,
       churchName,
       eventId: event.id,
       notes,
@@ -686,16 +713,48 @@ const ChurchArrangementPanel: React.FC<{
       <TextInput onChangeText={setChurchName} placeholder="Church name" placeholderTextColor={palette.secondary} style={styles.textInput} value={churchName} />
       <Text style={styles.inputLabel}>ADDRESS OR LOCATION</Text>
       <TextInput onChangeText={setChurchAddress} placeholder="Church address or location" placeholderTextColor={palette.secondary} style={styles.textInput} value={churchAddress} />
+      <View style={styles.churchLocationCard}>
+        {coordinates ? (
+          <ChurchLocationMap coordinates={coordinates} />
+        ) : (
+          <View style={styles.churchLocationFallback}>
+            <MaterialIcons color={palette.primaryContainer} name="location-off" size={21} />
+            <View style={styles.instructionCopy}>
+              <Text style={styles.churchLocationFallbackTitle}>No map pin saved</Text>
+              <Text style={styles.churchLocationFallbackText}>The written address remains available even without coordinates.</Text>
+            </View>
+          </View>
+        )}
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            setDraftCoordinates(coordinates)
+            setShowLocationPicker(true)
+          }}
+          style={({ pressed }) => [styles.churchPickerButton, pressed && styles.pressed]}
+        >
+          <MaterialIcons color={palette.primaryContainer} name={coordinates ? 'edit-location-alt' : 'add-location-alt'} size={18} />
+          <Text style={styles.churchPickerButtonText}>{coordinates ? 'Edit map pin' : 'Pin church location'}</Text>
+        </Pressable>
+      </View>
       <Text style={styles.inputLabel}>CHURCH CONTACT</Text>
       <TextInput onChangeText={setChurchContact} placeholder="Contact person or number" placeholderTextColor={palette.secondary} style={styles.textInput} value={churchContact} />
       <View style={styles.churchDateTimeRow}>
         <View style={styles.churchDateTimeField}>
           <Text style={styles.inputLabel}>CEREMONY DATE</Text>
-          <TextInput onChangeText={setCeremonyDate} placeholder="YYYY-MM-DD" placeholderTextColor={palette.secondary} style={styles.textInput} value={ceremonyDate} />
+          <Pressable accessibilityRole="button" onPress={() => setShowDatePicker(true)} style={({ pressed }) => [styles.churchPickerField, pressed && styles.pressed]}>
+            <MaterialIcons color={palette.primaryContainer} name="event" size={18} />
+            <Text numberOfLines={1} style={[styles.churchPickerFieldText, !ceremonyDate && styles.churchPickerPlaceholder]}>{formatChurchDate(ceremonyDate)}</Text>
+            <MaterialIcons color={palette.secondary} name="expand-more" size={19} />
+          </Pressable>
         </View>
         <View style={styles.churchDateTimeField}>
           <Text style={styles.inputLabel}>TIME</Text>
-          <TextInput onChangeText={setCeremonyTime} placeholder="HH:MM" placeholderTextColor={palette.secondary} style={styles.textInput} value={ceremonyTime} />
+          <Pressable accessibilityRole="button" onPress={() => setShowTimePicker(true)} style={({ pressed }) => [styles.churchPickerField, pressed && styles.pressed]}>
+            <MaterialIcons color={palette.primaryContainer} name="schedule" size={18} />
+            <Text numberOfLines={1} style={[styles.churchPickerFieldText, !ceremonyTime && styles.churchPickerPlaceholder]}>{formatChurchTime(ceremonyTime)}</Text>
+            <MaterialIcons color={palette.secondary} name="expand-more" size={19} />
+          </Pressable>
         </View>
       </View>
       <Text style={styles.inputLabel}>NOTES / INSTRUCTIONS</Text>
@@ -788,6 +847,64 @@ const ChurchArrangementPanel: React.FC<{
               <Pressable accessibilityRole="button" disabled={!onConfirm || confirming} onPress={() => void confirmArrangement()} style={[styles.churchModalConfirm, (!onConfirm || confirming) && styles.disabled]}>
                 {confirming ? <ActivityIndicator color="#FFFFFF" size="small" /> : null}
                 <Text style={styles.churchModalConfirmText}>{confirming ? 'Confirming...' : 'Confirm Arrangement'}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      {showDatePicker ? (
+        <ChurchDatePickerModal
+          eventDate={event.date?.slice(0, 10)}
+          onClose={() => setShowDatePicker(false)}
+          onConfirm={setCeremonyDate}
+          value={ceremonyDate}
+        />
+      ) : null}
+      {showTimePicker ? (
+        <ChurchTimePickerModal
+          onClose={() => setShowTimePicker(false)}
+          onConfirm={setCeremonyTime}
+          value={ceremonyTime}
+        />
+      ) : null}
+      <Modal animationType="fade" onRequestClose={() => setShowLocationPicker(false)} transparent visible={showLocationPicker}>
+        <View style={styles.churchModalBackdrop}>
+          <View accessibilityViewIsModal style={styles.churchMapModalCard}>
+            <View style={styles.churchModalHeader}>
+              <View style={styles.instructionCopy}>
+                <Text style={styles.churchModalTitle}>Pin Church Location</Text>
+                <Text style={styles.churchModalText}>Tap the demo coordinate map to place or move the pin. Confirm only coordinates you have checked.</Text>
+              </View>
+              <Pressable accessibilityLabel="Close location picker" accessibilityRole="button" onPress={() => setShowLocationPicker(false)}>
+                <MaterialIcons color={palette.secondary} name="close" size={22} />
+              </Pressable>
+            </View>
+            <ChurchLocationMap coordinates={draftCoordinates} interactive onChange={setDraftCoordinates} showOpenStreetMapLink={false} />
+            <Text style={styles.churchMapDisclaimer}>The map does not claim or verify a church. Use OpenStreetMap after saving to verify the exact coordinates.</Text>
+            <View style={styles.churchModalActions}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  setCoordinates(undefined)
+                  setDraftCoordinates(undefined)
+                  setShowLocationPicker(false)
+                }}
+                style={styles.churchModalCancel}
+              >
+                <Text style={styles.churchModalCancelText}>Use Address Only</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !draftCoordinates }}
+                disabled={!draftCoordinates}
+                onPress={() => {
+                  setCoordinates(draftCoordinates)
+                  setShowLocationPicker(false)
+                }}
+                style={[styles.churchModalConfirm, !draftCoordinates && styles.disabled]}
+              >
+                <MaterialIcons color="#FFFFFF" name="location-on" size={17} />
+                <Text style={styles.churchModalConfirmText}>Confirm Pin</Text>
               </Pressable>
             </View>
           </View>
@@ -1811,14 +1928,24 @@ const styles = StyleSheet.create({
   churchStatusChipSelected: { borderColor: palette.primaryContainer, backgroundColor: palette.primarySoft },
   churchStatusChipText: { color: palette.secondary, fontSize: 9, lineHeight: 13, fontWeight: '600' },
   churchStatusChipTextSelected: { color: palette.primaryContainer, fontWeight: '700' },
+  churchLocationCard: { gap: 10, borderWidth: 1, borderColor: palette.border, borderRadius: 11, backgroundColor: palette.surfaceLow, padding: 10 },
+  churchLocationFallback: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 10 },
+  churchLocationFallbackTitle: { color: palette.text, fontSize: 10, lineHeight: 15, fontWeight: '700' },
+  churchLocationFallbackText: { color: palette.secondary, fontSize: 9, lineHeight: 14, marginTop: 2 },
+  churchPickerButton: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderWidth: 1, borderColor: palette.primaryContainer, borderRadius: 9 },
+  churchPickerButtonText: { color: palette.primaryContainer, fontSize: 10, lineHeight: 14, fontWeight: '700' },
   churchDateTimeRow: { flexDirection: 'row', gap: 8 },
   churchDateTimeField: { minWidth: 0, flex: 1 },
+  churchPickerField: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 7, borderWidth: 1, borderColor: palette.border, borderRadius: 9, backgroundColor: '#FCFBFB', paddingHorizontal: 10 },
+  churchPickerFieldText: { minWidth: 0, flex: 1, color: palette.text, fontSize: 10, lineHeight: 14, fontWeight: '600' },
+  churchPickerPlaceholder: { color: palette.secondary, fontWeight: '400' },
   churchUpdatedAt: { color: palette.secondary, fontSize: 8, lineHeight: 12, marginTop: 10 },
   confirmChurchButton: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderWidth: 1, borderColor: palette.primaryContainer, borderRadius: 9, marginTop: 9 },
   confirmChurchButtonText: { color: palette.primaryContainer, fontSize: 11, lineHeight: 15, fontWeight: '700' },
   churchDeclinedGuidance: { color: palette.danger, fontSize: 9, lineHeight: 14, marginTop: 7 },
   churchModalBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(28, 18, 20, 0.58)', padding: 20 },
   churchModalCard: { width: '100%', maxWidth: 520, borderRadius: 16, backgroundColor: palette.surface, padding: 18 },
+  churchMapModalCard: { width: '100%', maxWidth: 620, borderRadius: 16, backgroundColor: palette.surface, padding: 18 },
   churchModalHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 16 },
   churchModalTitle: { color: palette.text, fontSize: 17, lineHeight: 23, fontWeight: '700' },
   churchModalText: { color: palette.secondary, fontSize: 11, lineHeight: 17, marginTop: 4 },
@@ -1828,6 +1955,7 @@ const styles = StyleSheet.create({
   churchConfirmationChoiceText: { color: palette.text, fontSize: 10, lineHeight: 14, fontWeight: '600' },
   churchConfirmationChoiceTextSelected: { color: '#FFFFFF' },
   churchConfirmationDisclaimer: { color: palette.secondary, fontSize: 9, lineHeight: 14, marginTop: 9 },
+  churchMapDisclaimer: { color: palette.secondary, fontSize: 9, lineHeight: 14, marginTop: 10 },
   churchModalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 16 },
   churchModalCancel: { minHeight: 40, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 9, paddingHorizontal: 15 },
   churchModalCancelText: { color: palette.primaryContainer, fontSize: 10, lineHeight: 14, fontWeight: '700' },
