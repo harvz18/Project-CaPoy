@@ -594,6 +594,30 @@ test('Phase 6 keeps event messaging direct, event-organized, and coordinator-aut
   ], 'coordinator inbox navigation')
 })
 
+test('checkout accepts provider-configured custom catering and notifies coordinators after payment', () => {
+  const migration = read('supabase/migrations/20261018000100_checkout_catering_and_coordinator_timing.sql')
+  const coordinatorTiming = read('supabase/migrations/20261018000200_coordinator_request_after_payment.sql')
+  const planning = read('src/lib/planning.ts')
+
+  mustContain(migration, [
+    "selection_row.catering_option_id = 'custom-menu'",
+    'public.calculate_catering_menu_quote(',
+    'Coordinator selected; request will be delivered after the client downpayment.',
+    'create trigger notify_paid_coordinator_booking_request_trigger',
+    "new.payment_scope is distinct from 'coordinator_service'",
+  ], 'checkout catering and coordinator timing migration')
+  mustContain(planning, [
+    'Their booking request will be sent after your required downpayment is recorded.',
+    "client.rpc('save_my_catering_menu_service_selection'",
+  ], 'client checkout integration')
+  mustContain(coordinatorTiming, [
+    "'awaiting_payment'",
+    "event.coordinator_assignment_status in ('awaiting_payment', 'pending')",
+    "event.coordinator_assignment_status = 'awaiting_payment'",
+    "coordinator_assignment_status = 'pending'",
+  ], 'post-payment coordinator request boundary')
+})
+
 test('Phase 2 saves church wedding preference without creating a church booking workflow', () => {
   const migration = read('supabase/migrations/20261017000700_church_wedding_event_preference.sql')
   const creation = read('src/screens/04-EventCreation.tsx')

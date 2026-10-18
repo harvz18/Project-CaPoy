@@ -397,7 +397,7 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
   activePlanningEventId = event.id
 
   const visibleCoordinatorId =
-    event.coordinator_assignment_status === 'pending'
+    ['awaiting_payment', 'pending'].includes(String(event.coordinator_assignment_status))
       ? event.pending_coordinator_id
       : event.coordinator_id
   const [{ data: coordinatorRows }, { data: configuredCommissionRate }] = await Promise.all([
@@ -547,10 +547,12 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
           serviceSubtotal: Number(coordinatorPackageRows[0].service_subtotal ?? 0),
         }
       : undefined,
-    coordinatorAssignmentStatus: ['accepted', 'pending', 'awaiting_assignment'].includes(
+    coordinatorAssignmentStatus: ['accepted', 'pending', 'awaiting_assignment', 'awaiting_payment'].includes(
       String(event.coordinator_assignment_status)
     )
-      ? (event.coordinator_assignment_status as 'accepted' | 'pending' | 'awaiting_assignment')
+      ? (event.coordinator_assignment_status === 'awaiting_payment'
+          ? 'pending'
+          : event.coordinator_assignment_status as 'accepted' | 'pending' | 'awaiting_assignment')
       : undefined,
     coordinatorPreference: ['undecided', 'skipped', 'selected'].includes(
       String(event.coordinator_preference)
@@ -576,7 +578,9 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
           ),
           providerPrice: coordinatorProviderPrice,
           status:
-            event.coordinator_assignment_status === 'pending' ? 'pending' : 'accepted',
+            ['awaiting_payment', 'pending'].includes(String(event.coordinator_assignment_status))
+              ? 'pending'
+              : 'accepted',
         }
       : undefined,
     event: {
@@ -1111,7 +1115,9 @@ export const savePlanningPayment = async (
     const requestableSelections = (selections ?? []).filter(
       (selection) => isUuid(selection.provider_id) && isUuid(selection.service_id)
     )
-    const coordinatorId = eventRow.coordinator_assignment_status === 'pending'
+    const coordinatorId = ['awaiting_payment', 'pending'].includes(
+      String(eventRow.coordinator_assignment_status)
+    )
       ? eventRow.pending_coordinator_id
       : eventRow.coordinator_id
     const hasCoordinatorPayment = !replacementBookingId && isUuid(coordinatorId)
@@ -1419,7 +1425,10 @@ export const assignCoordinatorToEvent = async (
 
     return error
       ? { ok: false, message: error.message }
-      : { ok: true, message: `Booking request sent to ${coordinator.name}. They must accept before receiving event access.` }
+      : {
+          ok: true,
+          message: `${coordinator.name} was selected. Their booking request will be sent after your required downpayment is recorded.`,
+        }
   } catch (error) {
     return { ok: false, message: toMessage(error) }
   }

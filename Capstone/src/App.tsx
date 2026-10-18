@@ -2376,7 +2376,9 @@ export const App: React.FC = () => {
     setCoordinatorBudgetCost(currentService.minPrice)
     setCoordinatorPreferenceState('selected')
     setCoordinatorAssignmentStatus('pending')
-    setToastMessage(result.message ?? `Booking request sent to ${currentService.name}.`)
+    setToastMessage(
+      result.message ?? `${currentService.name} was selected. Their booking request will be sent after downpayment.`
+    )
     await refreshLiveData()
     openPlanningHub(undefined, defaultPlanningCategory)
   }
