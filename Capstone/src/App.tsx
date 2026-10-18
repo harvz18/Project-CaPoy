@@ -705,6 +705,10 @@ export const App: React.FC = () => {
   const [completingBookingId, setCompletingBookingId] = React.useState('')
   const [processingMerchantBookingId, setProcessingMerchantBookingId] = React.useState('')
   const [isFinalizingPayment, setIsFinalizingPayment] = React.useState(false)
+  // State updates are asynchronous, so state alone cannot protect two taps
+  // that arrive in the same render frame. Keep this guard outside the render
+  // cycle until the current payment attempt has settled.
+  const paymentSubmissionInFlight = React.useRef(false)
   const [coordinatorDashboard, setCoordinatorDashboard] =
     React.useState<CoordinatorDashboard>(emptyCoordinatorDashboard())
   const [coordinatorError, setCoordinatorError] = React.useState('')
@@ -4295,30 +4299,42 @@ export const App: React.FC = () => {
             onOpenCancellationPolicy={() => setScreen('payment')}
             onOpenTerms={() => setScreen('payment')}
             onPay={(value) => {
-              if (isFinalizingPayment) return
-              setIsFinalizingPayment(true)
-              void savePlanningPayment(
-                value,
-                replacementBooking
-                  ? payableItems.filter((item) => item.id === replacementBooking.serviceId || item.id === currentServiceId)
-                  : payableItems,
-                replacementBooking?.bookingId
-              ).then(async (result) => {
-                if (!result.ok) {
-                  setIsFinalizingPayment(false)
-                  setToastMessage(result.message ?? 'Unable to record the payment.')
-                  return
-                }
+              if (paymentSubmissionInFlight.current) return
 
-                setLastPayment(value)
-                await refreshLiveData()
-                setIsFinalizingPayment(false)
-                setToastMessage(replacementBooking
-                  ? 'Replacement payment recorded. The new provider has received a separate booking request.'
-                  : 'Payment recorded. Booking requests were sent to your providers.')
-                setReplacementBooking(undefined)
-                setScreen('confirmation')
-              })
+              paymentSubmissionInFlight.current = true
+              setIsFinalizingPayment(true)
+              void (async () => {
+                try {
+                  const result = await savePlanningPayment(
+                    value,
+                    replacementBooking
+                      ? payableItems.filter((item) => item.id === replacementBooking.serviceId || item.id === currentServiceId)
+                      : payableItems,
+                    replacementBooking?.bookingId
+                  )
+
+                  if (!result.ok) {
+                    setToastMessage(result.message ?? 'Unable to record the payment.')
+                    return
+                  }
+
+                  // A completed payment must advance immediately. Refreshing
+                  // the surrounding workspace is useful, but it must never
+                  // block the receipt screen when an unrelated read fails.
+                  setLastPayment(value)
+                  setReplacementBooking(undefined)
+                  setToastMessage(replacementBooking
+                    ? 'Replacement payment recorded. The new provider has received a separate booking request.'
+                    : 'Payment recorded. Booking requests were sent to your providers.')
+                  setScreen('confirmation')
+                  void refreshLiveData().catch(() => undefined)
+                } catch (error) {
+                  setToastMessage(error instanceof Error ? error.message : 'Unable to record the payment.')
+                } finally {
+                  paymentSubmissionInFlight.current = false
+                  setIsFinalizingPayment(false)
+                }
+              })()
             }}
           />
         )

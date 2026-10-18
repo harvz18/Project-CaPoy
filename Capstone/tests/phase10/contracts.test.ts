@@ -975,6 +975,31 @@ test('hardware and browser Back stay inside the application navigation history',
   ], 'cross-platform in-app Back navigation')
 })
 
+test('checkout advances after a recorded payment and retries do not duplicate it', () => {
+  const app = read('src/App.tsx')
+  const planning = read('src/lib/planning.ts')
+  const migration = read('supabase/migrations/20261018000400_payment_checkout_idempotency.sql')
+
+  mustContain(app, [
+    'paymentSubmissionInFlight',
+    "setScreen('confirmation')",
+    'void refreshLiveData().catch(() => undefined)',
+  ], 'checkout success transition')
+  assert.ok(
+    app.indexOf("setScreen('confirmation')") < app.indexOf('void refreshLiveData().catch(() => undefined)'),
+    'The receipt must not wait for the non-critical workspace refresh.'
+  )
+  mustContain(planning, [
+    'checkout_reference:',
+    "onConflict: 'checkout_reference'",
+    'ignoreDuplicates: true',
+  ], 'idempotent payment submission')
+  mustContain(migration, [
+    'add column if not exists checkout_reference text',
+    'create unique index if not exists payments_checkout_reference_key',
+  ], 'checkout idempotency migration')
+})
+
 test('historical booking and financial snapshots remain protected from current listing changes', () => {
   const payment = read(migrations[3])
   const deletion = read('database/52_service_deletion_booking_history.sql')

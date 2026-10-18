@@ -1277,6 +1277,10 @@ export const savePlanningPayment = async (
           ? breakdown.initialPayment
           : breakdown.clientTotal,
         booking_id: booking.id,
+        // Kept stable across a retry so the database can treat a repeated
+        // checkout submission as the same payment rather than charging it
+        // again. A booking id is immutable for the life of this request.
+        checkout_reference: `checkout-${event.eventId}-${booking.id}-deposit`,
         client_total: breakdown.clientTotal,
         currency: 'PHP',
         event_id: event.eventId,
@@ -1337,6 +1341,7 @@ export const savePlanningPayment = async (
           ? breakdown.initialPayment
           : breakdown.clientTotal,
         booking_id: null,
+        checkout_reference: `checkout-${event.eventId}-coordinator-${coordinatorId}-deposit`,
         client_total: breakdown.clientTotal,
         coordinator_id: coordinatorId,
         currency: 'PHP',
@@ -1378,7 +1383,12 @@ export const savePlanningPayment = async (
         status: 'paid',
       })
     }
-    const { error: paymentError } = await client.from('payments').insert(paymentRows)
+    // The checkout reference has a unique database index. If the app retries
+    // after a successful response was delayed or lost, this becomes a safe
+    // no-op instead of inserting a second downpayment.
+    const { error: paymentError } = await client
+      .from('payments')
+      .upsert(paymentRows, { ignoreDuplicates: true, onConflict: 'checkout_reference' })
 
     if (paymentError) return { ok: false, message: paymentError.message }
 
