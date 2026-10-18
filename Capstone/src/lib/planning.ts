@@ -882,6 +882,36 @@ export const resumeClientEventDraft = async (eventId: string): Promise<PlanningR
   }
 }
 
+// Client event drafts can contain selections and coordinator planning data, so
+// removing one is intentionally a cancellation rather than a hard delete.
+// This keeps financial/booking history intact while removing the plan from all
+// draft and active-planning queries.
+export const deleteClientEventDraft = async (eventId: string): Promise<PlanningResult> => {
+  try {
+    const client = getClient()
+    const userId = await getCurrentUserId()
+    if (!client || !userId || !isUuid(eventId)) {
+      return { ok: false, message: 'This event draft is no longer available.' }
+    }
+
+    const { data, error } = await client
+      .from('events')
+      .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+      .eq('id', eventId)
+      .eq('client_id', userId)
+      .in('status', ['draft', 'planning'])
+      .select('id')
+      .maybeSingle()
+
+    if (error) return { ok: false, message: error.message }
+    if (!data?.id) return { ok: false, message: 'Only an unbooked event draft can be deleted.' }
+    if (activePlanningEventId === eventId) activePlanningEventId = ''
+    return { ok: true }
+  } catch (error) {
+    return { ok: false, message: toMessage(error) }
+  }
+}
+
 export const activateBookingReplacement = async (
   eventId: string,
   rejectedBookingId: string

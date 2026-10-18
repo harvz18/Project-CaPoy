@@ -39,6 +39,7 @@ interface ClientHomeScreenProps {
   userName?: string
   searchValue?: string
   onChangeSearch?: (value: string) => void
+  onDeleteDraft?: (draftId: string) => Promise<boolean | void> | boolean | void
   onOpenDraft?: (draftId: string) => void
   onOpenBookingProgress?: (booking: BookingItem) => void
   onStartNewEvent?: () => Promise<boolean | void> | boolean | void
@@ -107,8 +108,21 @@ export const getClientBookingProgress = (
     totalActiveServiceCount,
   }]
 }).sort((left, right) => {
-  const leftTime = new Date(left.booking.updatedAt ?? left.booking.date).getTime()
-  const rightTime = new Date(right.booking.updatedAt ?? right.booking.date).getTime()
+  const nowStart = new Date(now)
+  nowStart.setHours(0, 0, 0, 0)
+  const dateTime = (booking: BookingItem) => {
+    const date = new Date(`${booking.date}T00:00:00`).getTime()
+    return Number.isFinite(date) ? date : Number.POSITIVE_INFINITY
+  }
+  const leftTime = dateTime(left.booking)
+  const rightTime = dateTime(right.booking)
+  const leftUpcoming = leftTime >= nowStart.getTime()
+  const rightUpcoming = rightTime >= nowStart.getTime()
+
+  // Put the next event first. Any unresolved past or date-less event remains
+  // visible after upcoming events instead of displacing the imminent booking.
+  if (leftUpcoming !== rightUpcoming) return leftUpcoming ? -1 : 1
+  if (leftUpcoming) return leftTime - rightTime
   return rightTime - leftTime
 })
 
@@ -116,6 +130,7 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   draftEvents = [],
   bookingProgressEvents = [],
   recommendations = [],
+  onDeleteDraft,
   onOpenDraft,
   onOpenBookingProgress,
   onOpenNotifications,
@@ -133,8 +148,15 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   const [isDraftPromptVisible, setIsDraftPromptVisible] = React.useState(false)
   const [isStartingNewEvent, setIsStartingNewEvent] = React.useState(false)
   const [showAllDrafts, setShowAllDrafts] = React.useState(false)
+  const [showAllBookingProgress, setShowAllBookingProgress] = React.useState(false)
+  const [draftPendingDeletion, setDraftPendingDeletion] = React.useState<ClientEventDraftSummary>()
+  const [isDeletingDraft, setIsDeletingDraft] = React.useState(false)
   const visibleDrafts = showAllDrafts ? draftEvents : draftEvents.slice(0, 1)
   const hasAdditionalDrafts = draftEvents.length > 1
+  const visibleBookingProgress = showAllBookingProgress
+    ? bookingProgressEvents
+    : bookingProgressEvents.slice(0, 3)
+  const hasAdditionalBookingProgress = bookingProgressEvents.length > 3
   const draftEvent = visibleDrafts[0]
   const onOpenActiveEvent = () => {
     if (draftEvent) onOpenDraft?.(draftEvent.id)
@@ -156,6 +178,14 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
     const started = await onStartNewEvent?.()
     setIsStartingNewEvent(false)
     if (started !== false) setIsDraftPromptVisible(false)
+  }
+
+  const handleDeleteDraft = async () => {
+    if (!draftPendingDeletion || isDeletingDraft) return
+    setIsDeletingDraft(true)
+    const deleted = await onDeleteDraft?.(draftPendingDeletion.id)
+    setIsDeletingDraft(false)
+    if (deleted !== false) setDraftPendingDeletion(undefined)
   }
 
   return (
@@ -250,16 +280,17 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
             ) : null}
           </View>
           {draftEvent ? (
-            <Pressable
-              accessibilityLabel={`Continue planning ${draftEvent.name}`}
-              accessibilityRole="button"
-              onPress={onOpenActiveEvent}
-              style={({ pressed }) => [
-                styles.activeEventCard,
-                styles.draftEventCard,
-                pressed && styles.referencePressed,
-              ]}
-            >
+            <View style={styles.draftCardGroup}>
+              <Pressable
+                accessibilityLabel={`Continue planning ${draftEvent.name}`}
+                accessibilityRole="button"
+                onPress={onOpenActiveEvent}
+                style={({ pressed }) => [
+                  styles.activeEventCard,
+                  styles.draftEventCard,
+                  pressed && styles.referencePressed,
+                ]}
+              >
               <View style={styles.activeEventHeader}>
                 <View style={styles.activeEventHeading}>
                   <Text style={styles.activeEventEyebrow}>• DRAFT IN PROGRESS</Text>
@@ -292,10 +323,21 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
                 <Text numberOfLines={1} style={styles.nextTask}>Next: {draftEvent.nextStep}</Text>
                 <Text style={styles.nextTaskLink}>Continue <Text style={styles.nextTaskArrow}>→</Text></Text>
               </View>
-            </Pressable>
+              </Pressable>
+              <Pressable
+                accessibilityLabel={`Delete draft ${draftEvent.name}`}
+                accessibilityRole="button"
+                onPress={() => setDraftPendingDeletion(draftEvent)}
+                style={({ pressed }) => [styles.deleteDraftButton, pressed && styles.referencePressed]}
+              >
+                <MaterialIcons color="#8A2944" name="delete-outline" size={17} />
+                <Text style={styles.deleteDraftButtonText}>Delete Draft</Text>
+              </Pressable>
+            </View>
           ) : null}
           {visibleDrafts.slice(1).map((draft) => (
-            <Pressable
+            <View key={draft.id} style={styles.compactDraftGroup}>
+              <Pressable
               key={draft.id}
               accessibilityLabel={`Resume planning ${draft.name}`}
               accessibilityRole="button"
@@ -309,7 +351,16 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
                 </Text>
               </View>
               <Text style={styles.compactDraftAction}>Resume →</Text>
-            </Pressable>
+              </Pressable>
+              <Pressable
+                accessibilityLabel={`Delete draft ${draft.name}`}
+                accessibilityRole="button"
+                onPress={() => setDraftPendingDeletion(draft)}
+                style={({ pressed }) => [styles.compactDraftDeleteButton, pressed && styles.referencePressed]}
+              >
+                <MaterialIcons color="#8A2944" name="delete-outline" size={18} />
+              </Pressable>
+            </View>
           ))}
           {!draftEvent ? (
             <View style={styles.emptyDraftState}>
@@ -328,8 +379,25 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
               <Text style={styles.referenceSectionTitle}>YOUR EVENT BOOKINGS</Text>
               <Text style={styles.referenceSectionSubtitle}>Active provider confirmation progress</Text>
             </View>
+            {hasAdditionalBookingProgress ? (
+              <Pressable
+                accessibilityLabel={showAllBookingProgress ? 'Collapse event bookings' : 'Expand event bookings'}
+                accessibilityRole="button"
+                onPress={() => setShowAllBookingProgress((current) => !current)}
+                style={styles.bookingDropdown}
+              >
+                <Text style={styles.exploreAll}>
+                  {showAllBookingProgress ? 'Show less' : `Show all (${bookingProgressEvents.length})`}
+                </Text>
+                <MaterialIcons
+                  color="#8A2944"
+                  name={showAllBookingProgress ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
+                  size={19}
+                />
+              </Pressable>
+            ) : null}
           </View>
-          {bookingProgressEvents.length ? bookingProgressEvents.map((progress) => (
+          {visibleBookingProgress.length ? visibleBookingProgress.map((progress) => (
             <Pressable
               key={progress.booking.id}
               accessibilityLabel={`View booking details for ${progress.booking.name}`}
@@ -464,6 +532,43 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
               style={styles.draftPromptCancel}
             >
               <Text style={styles.draftPromptCancelText}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        animationType="fade"
+        onRequestClose={() => !isDeletingDraft && setDraftPendingDeletion(undefined)}
+        transparent
+        visible={Boolean(draftPendingDeletion)}
+      >
+        <View style={styles.draftPromptBackdrop}>
+          <View accessibilityViewIsModal style={styles.draftPromptCard}>
+            <View style={styles.draftPromptIcon}>
+              <MaterialIcons name="delete-outline" size={25} color={palette.primary} />
+            </View>
+            <Text style={styles.draftPromptTitle}>Delete this draft?</Text>
+            <Text style={styles.draftPromptCopy}>
+              {draftPendingDeletion?.name || 'This event'} will be removed from your drafts. Bookings are never deleted from this action.
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              disabled={isDeletingDraft}
+              onPress={() => void handleDeleteDraft()}
+              style={({ pressed }) => [styles.draftPromptPrimary, pressed && styles.referencePressed]}
+            >
+              <Text style={styles.draftPromptPrimaryText}>
+                {isDeletingDraft ? 'Deleting…' : 'Delete Draft'}
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              disabled={isDeletingDraft}
+              onPress={() => setDraftPendingDeletion(undefined)}
+              style={styles.draftPromptCancel}
+            >
+              <Text style={styles.draftPromptCancelText}>Keep Draft</Text>
             </Pressable>
           </View>
         </View>
@@ -683,6 +788,17 @@ const styles = StyleSheet.create({
   draftEventCard: {
     marginBottom: 10,
   },
+  draftCardGroup: { marginBottom: 10 },
+  deleteDraftButton: {
+    alignSelf: 'flex-end',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+  },
+  deleteDraftButtonText: { color: '#8A2944', fontSize: 11, lineHeight: 15, fontWeight: '700' },
+  compactDraftGroup: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 8 },
   compactDraftCard: {
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
@@ -692,7 +808,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     justifyContent: 'space-between',
-    marginBottom: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
@@ -700,6 +815,8 @@ const styles = StyleSheet.create({
   compactDraftName: { color: '#241E1E', fontSize: 13, fontWeight: '700', lineHeight: 17 },
   compactDraftMeta: { color: '#7C7271', fontSize: 11, lineHeight: 15, marginTop: 2 },
   compactDraftAction: { color: '#8A2944', fontSize: 12, fontWeight: '700' },
+  compactDraftDeleteButton: { padding: 8 },
+  bookingDropdown: { flexDirection: 'row', alignItems: 'center', gap: 1 },
   bookingProgressCard: { borderWidth: 1, borderColor: '#E4D9D5', borderRadius: 9, backgroundColor: '#FFFFFF', marginBottom: 9, padding: 12, shadowColor: '#5B1B2C', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 1 },
   bookingProgressHeading: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
   bookingProgressCopy: { flex: 1, minWidth: 0 },

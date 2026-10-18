@@ -163,6 +163,30 @@ test('service selection keeps option-aware budget fits while exposing exact sche
   ], 'service detail availability guard')
 })
 
+test('client home can safely remove drafts and collapses bookings to the next three events', () => {
+  const planning = read('src/lib/planning.ts')
+  const home = read('src/screens/03-ClientHome.tsx')
+  const app = read('src/App.tsx')
+
+  mustContain(planning, [
+    'export const deleteClientEventDraft',
+    "update({ status: 'cancelled'",
+    ".in('status', ['draft', 'planning'])",
+    "activePlanningEventId = ''",
+  ], 'client draft deletion')
+  mustContain(home, [
+    'bookingProgressEvents.slice(0, 3)',
+    'showAllBookingProgress',
+    'Show all (${bookingProgressEvents.length})',
+    'Delete Draft',
+    'draftPendingDeletion',
+  ], 'client home draft and booking controls')
+  mustContain(app, [
+    'deleteClientEventDraft',
+    'onDeleteDraft={deleteClientDraft}',
+  ], 'client-home draft deletion integration')
+})
+
 test('item-priced catering menus use provider prices, validate selections, and snapshot bookings', () => {
   const migration = read('database/71_catering_custom_menu_pricing.sql')
   const providerBuilder = read('src/components/CategorySpecificServiceDetails.tsx')

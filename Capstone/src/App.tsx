@@ -36,6 +36,7 @@ import {
   chooseCoordinatorPackage,
   ClientEventDraftSummary,
   createClientEventDraft,
+  deleteClientEventDraft,
   fetchClientEventDrafts,
   fetchClientPlanningState,
   removeCoordinatorFromEvent,
@@ -2985,6 +2986,18 @@ export const App: React.FC = () => {
     setScreen(nextStep >= 5 ? 'payment' : 'instructionModule')
   }
 
+  const deleteClientDraft = async (draftId: string) => {
+    const result = await deleteClientEventDraft(draftId)
+    if (!result.ok) {
+      setToastMessage(result.message ?? 'Unable to delete this event draft.')
+      return false
+    }
+
+    setClientEventDrafts((current) => current.filter((draft) => draft.id !== draftId))
+    setToastMessage('Event draft deleted.')
+    return true
+  }
+
   const homeRecommendations = React.useMemo(
     () => rankHomeRecommendations(catalogServices),
     [catalogServices]
@@ -3003,6 +3016,7 @@ export const App: React.FC = () => {
       userName={userName}
       selectedServiceCount={selectedServices.length}
       onOpenDraft={(draftId) => void resumeClientDraft(draftId)}
+      onDeleteDraft={deleteClientDraft}
       onOpenBookingProgress={(booking) => {
         setSelectedBooking(booking)
         setScreen('bookingDetails')
