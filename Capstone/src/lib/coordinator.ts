@@ -7,21 +7,50 @@ export type ChurchArrangementStatus =
   | 'looking_for_church'
   | 'proposed'
   | 'awaiting_client_confirmation'
+  | 'declined'
+  | 'client_approved'
+  | 'coordinator_confirmed'
   | 'confirmed'
 
+export type ChurchClientResponseStatus = 'not_requested' | 'pending' | 'approved' | 'declined'
+export type ChurchConfirmationMethod = 'external_discussion' | 'multivent' | 'other'
+
 export interface ChurchWeddingArrangement {
+  activeProposalId?: string
   arrangementStatus: ChurchArrangementStatus
   ceremonyDate?: string
   ceremonyTime?: string
   churchAddress?: string
   churchContact?: string
   churchName?: string
+  clientRespondedAt?: string
+  clientResponseReason?: string
+  clientResponseStatus: ChurchClientResponseStatus
+  confirmationMethod?: ChurchConfirmationMethod
+  confirmationNotes?: string
+  coordinatorConfirmedAt?: string
+  coordinatorConfirmedBy?: string
   notes?: string
   preferredChurch?: string
+  proposalVersion: number
   updatedAt?: string
 }
 
-export interface SaveChurchWeddingArrangementInput extends ChurchWeddingArrangement {
+export interface SaveChurchWeddingArrangementInput {
+  arrangementStatus: ChurchArrangementStatus
+  ceremonyDate?: string
+  ceremonyTime?: string
+  churchAddress?: string
+  churchContact?: string
+  churchName?: string
+  eventId: string
+  notes?: string
+  preferredChurch?: string
+}
+
+export interface ConfirmChurchWeddingArrangementInput {
+  confirmationMethod: ChurchConfirmationMethod
+  confirmationNotes?: string
   eventId: string
 }
 
@@ -601,19 +630,41 @@ export const fetchCoordinatorDashboard = async (): Promise<CoordinatorResult<Coo
       if (!eventId) return []
       const status = textFrom(row.arrangement_status, 'not_started')
       const arrangementStatus: ChurchArrangementStatus = [
-        'not_started', 'looking_for_church', 'proposed', 'awaiting_client_confirmation', 'confirmed',
+        'not_started', 'looking_for_church', 'proposed', 'awaiting_client_confirmation',
+        'declined', 'client_approved', 'coordinator_confirmed', 'confirmed',
       ].includes(status)
         ? status as ChurchArrangementStatus
         : 'not_started'
+      const clientResponseStatusValue = textFrom(row.client_response_status, 'not_requested')
+      const clientResponseStatus: ChurchClientResponseStatus = [
+        'not_requested', 'pending', 'approved', 'declined',
+      ].includes(clientResponseStatusValue)
+        ? clientResponseStatusValue as ChurchClientResponseStatus
+        : 'not_requested'
+      const confirmationMethodValue = optionalText(row.confirmation_method)
+      const confirmationMethod = confirmationMethodValue && [
+        'external_discussion', 'multivent', 'other',
+      ].includes(confirmationMethodValue)
+        ? confirmationMethodValue as ChurchConfirmationMethod
+        : undefined
       return [[eventId, {
+        activeProposalId: optionalText(row.active_proposal_id),
         arrangementStatus,
         ceremonyDate: optionalText(row.ceremony_date),
         ceremonyTime: optionalText(row.ceremony_time),
         churchAddress: optionalText(row.church_address),
         churchContact: optionalText(row.church_contact),
         churchName: optionalText(row.church_name),
+        clientRespondedAt: optionalText(row.client_responded_at),
+        clientResponseReason: optionalText(row.client_response_reason),
+        clientResponseStatus,
+        confirmationMethod,
+        confirmationNotes: optionalText(row.confirmation_notes),
+        coordinatorConfirmedAt: optionalText(row.coordinator_confirmed_at),
+        coordinatorConfirmedBy: optionalText(row.coordinator_confirmed_by),
         notes: optionalText(row.notes),
         preferredChurch: optionalText(row.preferred_church),
+        proposalVersion: numberFrom(row.proposal_version),
         updatedAt: optionalText(row.updated_at),
       }] as const]
     })
@@ -913,6 +964,22 @@ export const saveCoordinatorChurchWeddingArrangement = async (
     target_event_id: input.eventId,
     target_notes: input.notes?.trim() || null,
     target_preferred_church: input.preferredChurch?.trim() || null,
+  })
+
+  return error ? { message: error.message, ok: false } : { ok: true }
+}
+
+export const confirmCoordinatorChurchWeddingArrangement = async (
+  input: ConfirmChurchWeddingArrangementInput
+): Promise<CoordinatorResult> => {
+  if (!supabase || !supabaseConfig.isConfigured) {
+    return { message: unavailableMessage, ok: false }
+  }
+
+  const { error } = await supabase.rpc('confirm_my_church_wedding_arrangement', {
+    target_confirmation_method: input.confirmationMethod,
+    target_confirmation_notes: input.confirmationNotes?.trim() || null,
+    target_event_id: input.eventId,
   })
 
   return error ? { message: error.message, ok: false } : { ok: true }

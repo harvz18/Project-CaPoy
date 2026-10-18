@@ -48,14 +48,23 @@ export interface BookingItem {
   coordinatorUserId?: string
   coordinatorAssignmentStatus?: string
   churchArrangement?: {
+    activeProposalId?: string
     arrangementStatus: string
     ceremonyDate?: string
     ceremonyTime?: string
     churchAddress?: string
     churchContact?: string
     churchName?: string
+    clientRespondedAt?: string
+    clientResponseReason?: string
+    clientResponseStatus?: 'not_requested' | 'pending' | 'approved' | 'declined'
+    confirmationMethod?: 'external_discussion' | 'multivent' | 'other'
+    confirmationNotes?: string
+    coordinatorConfirmedAt?: string
+    coordinatorConfirmedBy?: string
     notes?: string
     preferredChurch?: string
+    proposalVersion?: number
     updatedAt?: string
   }
   date: string

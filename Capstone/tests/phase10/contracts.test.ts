@@ -705,6 +705,51 @@ test('Phase 2 saves church wedding preference without creating a church booking 
   ], 'church wedding coordinator context')
 })
 
+test('V7 Phase 1 preserves church proposal history and separates client response from coordinator confirmation', () => {
+  const migration = read('supabase/migrations/20261018000500_church_proposal_confirmation_workflow.sql')
+  const coordinator = read('src/lib/coordinator.ts')
+  const coordinatorScreen = read('src/screens/23-Coordinator.tsx')
+  const merchant = read('src/lib/merchant.ts')
+  const bookingDetails = read('src/screens/11.1-BookingDetails.tsx')
+
+  mustContain(migration, [
+    'create table if not exists public.event_church_arrangement_proposals',
+    'unique (event_id, proposal_version)',
+    "arrangement_status = 'awaiting_client_confirmation'",
+    'create or replace function public.respond_my_church_wedding_proposal(',
+    'create or replace function public.confirm_my_church_wedding_arrangement(',
+    "event.client_id = auth.uid()",
+    "event_row.coordinator_assignment_status <> 'accepted'",
+    "arrangement_row.client_response_status <> 'pending'",
+    "arrangement_row.arrangement_status = 'declined'",
+    "perform pg_advisory_xact_lock(hashtext('multivent-church-arrangement:'",
+    'This does not independently verify the church reservation.',
+  ], 'secure church proposal workflow')
+  assert.doesNotMatch(migration, /drop\s+table/i)
+  mustContain(coordinator, [
+    "supabase.rpc('confirm_my_church_wedding_arrangement'",
+    'clientResponseReason:',
+    'coordinatorConfirmedAt:',
+  ], 'coordinator church workflow integration')
+  mustContain(coordinatorScreen, [
+    'Submit Revised Church Proposal',
+    'Mark Church as Confirmed',
+    'Discussed with Client Externally',
+    'The client declined this proposal. Submit a revised proposal before confirming an arrangement.',
+  ], 'coordinator church proposal UI')
+  mustContain(merchant, [
+    "client.rpc('respond_my_church_wedding_proposal'",
+    'Enter a reason for declining this church proposal.',
+  ], 'client church response integration')
+  mustContain(bookingDetails, [
+    'Decline Church Proposal',
+    'Please tell your coordinator why you are declining this church.',
+    'Submit Decline',
+    'Approve Proposal',
+    'clientResponseReason',
+  ], 'client church proposal UI')
+})
+
 test('package selection checks duplicate categories, manual conflicts, dynamic options, and total budget', () => {
   const packages = read(migrations[1])
   const catering = read(migrations[2])

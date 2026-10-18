@@ -29,6 +29,7 @@ interface BookingDetailsScreenProps {
   onFindAlternativeServices?: (service: NonNullable<BookingItem['services']>[number]) => void
   onMessageCoordinatorForEvent?: (eventId: string) => void
   onMessageProviderForBooking?: (bookingId: string) => void
+  onRespondChurchProposal?: (approved: boolean, declineReason?: string) => Promise<BookingChangeActionResult>
   onLoadFoodTastingSlots?: (bookingId: string) => Promise<CateringFoodTastingSlotsResult>
   onRequestFoodTasting?: (value: {
     bookingId: string
@@ -209,7 +210,10 @@ const formatTastingStatus = (status: string) => ({
 
 const formatChurchArrangementStatus = (status?: string) => ({
   awaiting_client_confirmation: 'Awaiting your confirmation',
+  client_approved: 'You approved this proposal',
   confirmed: 'Confirmed',
+  coordinator_confirmed: 'Coordinator confirmed',
+  declined: 'Declined',
   looking_for_church: 'Looking for a church',
   not_started: 'Not started',
   proposed: 'Church proposed',
@@ -223,6 +227,7 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
   onFindAlternativeServices,
   onMessageCoordinatorForEvent,
   onMessageProviderForBooking,
+  onRespondChurchProposal,
   onLoadFoodTastingSlots,
   onRequestFoodTasting,
   onRescheduleBooking,
@@ -254,6 +259,10 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
   const [isLoadingTastingSlots, setIsLoadingTastingSlots] = React.useState(false)
   const [isSavingTasting, setIsSavingTasting] = React.useState(false)
   const [dismissedTastingPrompts, setDismissedTastingPrompts] = React.useState<Set<string>>(new Set())
+  const [churchResponseMode, setChurchResponseMode] = React.useState<'approve' | 'decline'>()
+  const [churchDeclineReason, setChurchDeclineReason] = React.useState('')
+  const [churchResponseError, setChurchResponseError] = React.useState('')
+  const [isSavingChurchResponse, setIsSavingChurchResponse] = React.useState(false)
   const value = {
     ...defaultDetails,
     ...(booking
@@ -269,6 +278,9 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
       : {}),
     ...details,
   }
+  const churchProposalPending = booking?.churchArrangement?.arrangementStatus === 'awaiting_client_confirmation'
+    && booking.churchArrangement.clientResponseStatus === 'pending'
+  const coordinatorConfirmedChurch = booking?.churchArrangement?.arrangementStatus === 'coordinator_confirmed'
   const tastingSlotsByDate = React.useMemo(() => tastingSlots.reduce<Record<string, CateringFoodTastingSlot[]>>(
     (groups, slot) => ({
       ...groups,
@@ -289,7 +301,37 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
     setTastingNote('')
     setTastingError('')
     setDismissedTastingPrompts(new Set())
-  }, [booking?.date, booking?.id, booking?.requestedTime])
+    setChurchResponseMode(undefined)
+    setChurchDeclineReason('')
+    setChurchResponseError('')
+  }, [booking?.churchArrangement?.activeProposalId, booking?.date, booking?.id, booking?.requestedTime])
+
+  const closeChurchResponse = () => {
+    if (isSavingChurchResponse) return
+    setChurchResponseMode(undefined)
+    setChurchResponseError('')
+  }
+
+  const submitChurchResponse = async () => {
+    if (!churchResponseMode || !onRespondChurchProposal || isSavingChurchResponse) return
+    const approved = churchResponseMode === 'approve'
+    const normalizedReason = churchDeclineReason.trim()
+    if (!approved && !normalizedReason) {
+      setChurchResponseError('Please tell your coordinator why you are declining this church.')
+      return
+    }
+
+    setIsSavingChurchResponse(true)
+    setChurchResponseError('')
+    const result = await onRespondChurchProposal(approved, approved ? undefined : normalizedReason)
+    setIsSavingChurchResponse(false)
+    if (!result.ok) {
+      setChurchResponseError(result.message ?? 'Unable to update this church proposal.')
+      return
+    }
+    setChurchResponseMode(undefined)
+    setChurchDeclineReason('')
+  }
 
   const closeChangeModal = () => {
     if (isSubmittingChange) return
@@ -479,7 +521,7 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
           <View style={styles.churchArrangementCard}>
             <View style={styles.churchArrangementHeading}>
               <View>
-                <Text style={styles.cardTitle}>Church Arrangement</Text>
+                <Text style={styles.cardTitle}>{churchProposalPending ? 'Church Proposal' : 'Church Arrangement'}</Text>
                 <Text style={styles.churchArrangementStatus}>
                   {formatChurchArrangementStatus(booking.churchArrangement?.arrangementStatus)}
                 </Text>
@@ -507,6 +549,42 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
             {booking.churchArrangement?.notes ? (
               <DetailRow last label="COORDINATOR NOTES" value={booking.churchArrangement.notes} />
             ) : null}
+            {booking.churchArrangement?.clientResponseStatus === 'approved' ? (
+              <View style={styles.churchResponseNotice}>
+                <MaterialIcons color="#145133" name="check-circle" size={18} />
+                <Text style={styles.churchResponseNoticeText}>You accepted this proposed church arrangement.</Text>
+              </View>
+            ) : null}
+            {booking.churchArrangement?.clientResponseStatus === 'declined' ? (
+              <View style={[styles.churchResponseNotice, styles.churchDeclinedNotice]}>
+                <MaterialIcons color={palette.error} name="cancel" size={18} />
+                <View style={styles.churchResponseNoticeCopy}>
+                  <Text style={styles.churchDeclinedNoticeTitle}>You declined this proposal.</Text>
+                  {booking.churchArrangement.clientResponseReason ? (
+                    <Text style={styles.churchResponseNoticeText}>Reason: {booking.churchArrangement.clientResponseReason}</Text>
+                  ) : null}
+                </View>
+              </View>
+            ) : null}
+            {coordinatorConfirmedChurch ? (
+              <View style={styles.coordinatorConfirmationNotice}>
+                <MaterialIcons color={palette.burgundy} name="verified" size={18} />
+                <View style={styles.churchResponseNoticeCopy}>
+                  <Text style={styles.coordinatorConfirmationTitle}>Coordinator-confirmed arrangement</Text>
+                  <Text style={styles.churchResponseNoticeText}>
+                    Your coordinator documented this arrangement
+                    {booking.churchArrangement?.confirmationMethod === 'external_discussion'
+                      ? ' after discussing it with you outside Multivent.'
+                      : booking.churchArrangement?.confirmationMethod === 'multivent'
+                        ? ' through Multivent.'
+                        : '.'}
+                  </Text>
+                  {booking.churchArrangement?.confirmationNotes ? (
+                    <Text style={styles.churchResponseNoticeText}>{booking.churchArrangement.confirmationNotes}</Text>
+                  ) : null}
+                </View>
+              </View>
+            ) : null}
             {booking.churchArrangement?.updatedAt ? (
               <Text style={styles.churchArrangementUpdatedAt}>
                 Last updated {new Date(booking.churchArrangement.updatedAt).toLocaleString('en-PH')}
@@ -516,8 +594,33 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
               <Text style={styles.churchArrangementEmpty}>Your coordinator has not recorded church details yet.</Text>
             ) : null}
             <Text style={styles.churchArrangementDisclaimer}>
-              This is coordination information only. It does not confirm a church reservation or payment.
+              Client approval or coordinator confirmation accepts the proposed arrangement only. It does not independently verify a church reservation or payment.
             </Text>
+            {churchProposalPending && onRespondChurchProposal ? (
+              <View style={styles.churchProposalActions}>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => {
+                    setChurchResponseError('')
+                    setChurchResponseMode('decline')
+                  }}
+                  style={({ pressed }) => [styles.churchDeclineButton, pressed && styles.serviceMessageButtonPressed]}
+                >
+                  <Text style={styles.churchDeclineButtonText}>Decline</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => {
+                    setChurchResponseError('')
+                    setChurchResponseMode('approve')
+                  }}
+                  style={({ pressed }) => [styles.churchApproveButton, pressed && styles.serviceMessageButtonPressed]}
+                >
+                  <MaterialIcons color={palette.surface} name="check" size={18} />
+                  <Text style={styles.churchApproveButtonText}>Approve</Text>
+                </Pressable>
+              </View>
+            ) : null}
             {canMessageCoordinator ? (
               <Pressable
                 accessibilityRole="button"
@@ -851,6 +954,88 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
           ) : null}
         </View>
       </ScrollView>
+
+      <Modal
+        animationType="fade"
+        onRequestClose={closeChurchResponse}
+        transparent
+        visible={Boolean(churchResponseMode)}
+      >
+        <View style={styles.changeBackdrop}>
+          <View accessibilityViewIsModal style={styles.churchResponseModal}>
+            <View style={styles.changeHeader}>
+              <View style={styles.changeHeaderCopy}>
+                <Text style={styles.changeTitle}>
+                  {churchResponseMode === 'decline' ? 'Decline Church Proposal' : 'Approve Church Proposal'}
+                </Text>
+                <Text style={styles.changeSubtitle}>
+                  {churchResponseMode === 'decline'
+                    ? 'Please tell your coordinator why you are declining this church.'
+                    : 'Approve this coordinator-proposed church arrangement? This does not verify that the church accepted a reservation.'}
+                </Text>
+              </View>
+              <Pressable
+                accessibilityLabel="Close church proposal response"
+                accessibilityRole="button"
+                disabled={isSavingChurchResponse}
+                onPress={closeChurchResponse}
+                style={styles.changeClose}
+              >
+                <MaterialIcons color={palette.muted} name="close" size={23} />
+              </Pressable>
+            </View>
+
+            {churchResponseMode === 'decline' ? (
+              <View style={styles.changeField}>
+                <Text style={styles.changeLabel}>REASON</Text>
+                <TextInput
+                  accessibilityLabel="Reason for declining church proposal"
+                  editable={!isSavingChurchResponse}
+                  maxLength={1000}
+                  multiline
+                  onChangeText={setChurchDeclineReason}
+                  placeholder="Explain what should be changed in the next proposal"
+                  placeholderTextColor="#9A9291"
+                  style={[styles.changeInput, styles.reasonInput]}
+                  textAlignVertical="top"
+                  value={churchDeclineReason}
+                />
+              </View>
+            ) : null}
+
+            {churchResponseError ? <Text style={styles.changeError}>{churchResponseError}</Text> : null}
+            <View style={styles.changeActions}>
+              <Pressable
+                accessibilityRole="button"
+                disabled={isSavingChurchResponse}
+                onPress={closeChurchResponse}
+                style={({ pressed }) => [styles.changeBackButton, pressed && styles.pressed]}
+              >
+                <Text style={styles.changeBackText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                disabled={isSavingChurchResponse}
+                onPress={() => void submitChurchResponse()}
+                style={({ pressed }) => [
+                  styles.changeSubmit,
+                  churchResponseMode === 'decline' && styles.cancelSubmit,
+                  isSavingChurchResponse && styles.changeSubmitDisabled,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text style={styles.changeSubmitText}>
+                  {isSavingChurchResponse
+                    ? 'Saving...'
+                    : churchResponseMode === 'decline'
+                      ? 'Submit Decline'
+                      : 'Approve Proposal'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         animationType="slide"
@@ -1346,6 +1531,19 @@ const styles = StyleSheet.create({
   churchArrangementEmpty: { color: palette.muted, fontSize: 13, lineHeight: 19, marginTop: 8 },
   churchArrangementUpdatedAt: { color: palette.muted, fontSize: 11, lineHeight: 16, marginTop: 10 },
   churchArrangementDisclaimer: { color: palette.muted, fontSize: 11, lineHeight: 16, marginTop: 14 },
+  churchResponseNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, borderColor: '#CDE1D3', borderRadius: 10, backgroundColor: '#F2F8F4', padding: 11, marginTop: 10 },
+  churchDeclinedNotice: { borderColor: '#EDCDD3', backgroundColor: '#FFF6F7' },
+  churchDeclinedNoticeTitle: { color: palette.error, fontSize: 12, lineHeight: 17, fontWeight: '700' },
+  churchResponseNoticeCopy: { minWidth: 0, flex: 1 },
+  churchResponseNoticeText: { color: palette.muted, fontSize: 11, lineHeight: 17 },
+  coordinatorConfirmationNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, borderColor: '#D9C6CA', borderRadius: 10, backgroundColor: '#F9F1F3', padding: 11, marginTop: 10 },
+  coordinatorConfirmationTitle: { color: palette.burgundy, fontSize: 12, lineHeight: 17, fontWeight: '700' },
+  churchProposalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 9, marginTop: 14 },
+  churchDeclineButton: { minHeight: 42, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#D8C5C8', borderRadius: 10, paddingHorizontal: 18 },
+  churchDeclineButtonText: { color: palette.burgundy, fontSize: 12, lineHeight: 16, fontWeight: '700' },
+  churchApproveButton: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 10, backgroundColor: palette.burgundy, paddingHorizontal: 18 },
+  churchApproveButtonText: { color: palette.surface, fontSize: 12, lineHeight: 16, fontWeight: '700' },
+  churchResponseModal: { width: '100%', maxWidth: 520, borderRadius: 18, backgroundColor: palette.surface, padding: 20 },
   messageCoordinatorButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 9, backgroundColor: palette.burgundy, marginTop: 14, paddingHorizontal: 14 },
   messageCoordinatorButtonText: { color: palette.surface, fontSize: 12, lineHeight: 16, fontWeight: '700' },
   eventPaymentCard: { borderWidth: 1, borderColor: '#D9C6CA', borderRadius: 12, backgroundColor: '#FFFCFC', padding: 20, marginBottom: 32 },

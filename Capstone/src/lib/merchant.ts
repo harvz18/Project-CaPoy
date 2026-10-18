@@ -924,6 +924,39 @@ export const cancelClientEventBookings = async (
   }
 }
 
+export const respondToChurchWeddingProposal = async (
+  eventId: string,
+  approved: boolean,
+  declineReason?: string
+): Promise<MerchantResult> => {
+  try {
+    const client = getClient()
+    const normalizedReason = declineReason?.trim() ?? ''
+    if (!client || !isUuid(eventId)) {
+      return { ok: false, message: 'This church proposal could not be identified.' }
+    }
+    if (!approved && !normalizedReason) {
+      return { ok: false, message: 'Enter a reason for declining this church proposal.' }
+    }
+
+    const { error } = await client.rpc('respond_my_church_wedding_proposal', {
+      approve_proposal: approved,
+      decline_reason: approved ? null : normalizedReason,
+      target_event_id: eventId,
+    })
+
+    if (error) return { ok: false, message: error.message }
+    return {
+      ok: true,
+      message: approved
+        ? 'Church proposal approved. This accepts the coordinator\'s arrangement and does not verify an external reservation.'
+        : 'Church proposal declined. Your coordinator received your reason and can submit a revised proposal.',
+    }
+  } catch (error) {
+    return { ok: false, message: toMessage(error, 'Unable to update this church proposal.') }
+  }
+}
+
 export const rescheduleClientEventBookings = async (
   eventId: string,
   value: { date: string; time: string }
@@ -1342,14 +1375,23 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
     (Array.isArray(churchArrangementResult.data) ? churchArrangementResult.data : []).map((entry) => {
       const arrangement = entry as Record<string, unknown>
       return [textFrom(arrangement.event_id), {
+        activeProposalId: textFrom(arrangement.active_proposal_id) || undefined,
         arrangementStatus: textFrom(arrangement.arrangement_status, 'not_started'),
         ceremonyDate: textFrom(arrangement.ceremony_date) || undefined,
         ceremonyTime: textFrom(arrangement.ceremony_time) || undefined,
         churchAddress: textFrom(arrangement.church_address) || undefined,
         churchContact: textFrom(arrangement.church_contact) || undefined,
         churchName: textFrom(arrangement.church_name) || undefined,
+        clientRespondedAt: textFrom(arrangement.client_responded_at) || undefined,
+        clientResponseReason: textFrom(arrangement.client_response_reason) || undefined,
+        clientResponseStatus: textFrom(arrangement.client_response_status, 'not_requested') as 'not_requested' | 'pending' | 'approved' | 'declined',
+        confirmationMethod: (textFrom(arrangement.confirmation_method) || undefined) as 'external_discussion' | 'multivent' | 'other' | undefined,
+        confirmationNotes: textFrom(arrangement.confirmation_notes) || undefined,
+        coordinatorConfirmedAt: textFrom(arrangement.coordinator_confirmed_at) || undefined,
+        coordinatorConfirmedBy: textFrom(arrangement.coordinator_confirmed_by) || undefined,
         notes: textFrom(arrangement.notes) || undefined,
         preferredChurch: textFrom(arrangement.preferred_church) || undefined,
+        proposalVersion: numberFrom(arrangement.proposal_version),
         updatedAt: textFrom(arrangement.updated_at) || undefined,
       }] as const
     }).filter(([eventId]) => Boolean(eventId))

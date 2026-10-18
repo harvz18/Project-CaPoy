@@ -6,6 +6,7 @@ import {
   Easing,
   Image,
   Linking,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -23,6 +24,8 @@ import type {
   CoordinatorInvitation,
   CoordinatorResult,
   ChurchArrangementStatus,
+  ChurchConfirmationMethod,
+  ConfirmChurchWeddingArrangementInput,
   CoordinatorTask,
   CreateCoordinatorTaskInput,
   SaveChurchWeddingArrangementInput,
@@ -41,6 +44,7 @@ interface CoordinatorScreenProps {
   isLoading?: boolean
   isRefreshing?: boolean
   onCreateTask?: (input: CreateCoordinatorTaskInput) => Promise<CoordinatorResult>
+  onConfirmChurchArrangement?: (input: ConfirmChurchWeddingArrangementInput) => Promise<CoordinatorResult>
   onMessageProvider?: (event: CoordinatorEvent, service: CoordinatorBookedService) => void
   onSaveChurchArrangement?: (input: SaveChurchWeddingArrangementInput) => Promise<CoordinatorResult>
   onOpenNotifications?: () => void
@@ -184,9 +188,10 @@ const todayHeading = () =>
 
 const EventCard: React.FC<{
   event: CoordinatorEvent
+  onConfirmChurchArrangement?: (input: ConfirmChurchWeddingArrangementInput) => Promise<CoordinatorResult>
   onMessageProvider?: (event: CoordinatorEvent, service: CoordinatorBookedService) => void
   onSaveChurchArrangement?: (input: SaveChurchWeddingArrangementInput) => Promise<CoordinatorResult>
-}> = ({ event, onMessageProvider, onSaveChurchArrangement }) => {
+}> = ({ event, onConfirmChurchArrangement, onMessageProvider, onSaveChurchArrangement }) => {
   const progress = eventProgress(event)
   const venue = event.venue || event.location || 'Venue to be confirmed'
   const bookingServices = event.services.filter((service) => service.booked && service.bookingId)
@@ -300,7 +305,11 @@ const EventCard: React.FC<{
             </View>
 
             {event.isChurchWedding ? (
-              <ChurchArrangementPanel event={event} onSave={onSaveChurchArrangement} />
+              <ChurchArrangementPanel
+                event={event}
+                onConfirm={onConfirmChurchArrangement}
+                onSave={onSaveChurchArrangement}
+              />
             ) : null}
 
             <View style={styles.requestFacts}>
@@ -505,20 +514,29 @@ const EventCard: React.FC<{
   )
 }
 
-const churchArrangementOptions: Array<{ label: string; value: ChurchArrangementStatus }> = [
-  { label: 'Not started', value: 'not_started' },
-  { label: 'Looking', value: 'looking_for_church' },
-  { label: 'Proposed', value: 'proposed' },
-  { label: 'Awaiting client', value: 'awaiting_client_confirmation' },
-  { label: 'Confirmed', value: 'confirmed' },
+const churchArrangementLabel = (status: ChurchArrangementStatus) => ({
+  awaiting_client_confirmation: 'Awaiting Client Confirmation',
+  client_approved: 'Client Approved',
+  confirmed: 'Confirmed (Existing Record)',
+  coordinator_confirmed: 'Coordinator Confirmed',
+  declined: 'Declined',
+  looking_for_church: 'Looking for a Church',
+  not_started: 'Not Started',
+  proposed: 'Awaiting Client Confirmation',
+}[status])
+
+const churchConfirmationMethods: Array<{ label: string; value: ChurchConfirmationMethod }> = [
+  { label: 'Discussed with Client Externally', value: 'external_discussion' },
+  { label: 'Confirmed Through Multivent', value: 'multivent' },
+  { label: 'Other', value: 'other' },
 ]
 
 const ChurchArrangementPanel: React.FC<{
   event: CoordinatorEvent
+  onConfirm?: (input: ConfirmChurchWeddingArrangementInput) => Promise<CoordinatorResult>
   onSave?: (input: SaveChurchWeddingArrangementInput) => Promise<CoordinatorResult>
-}> = ({ event, onSave }) => {
+}> = ({ event, onConfirm, onSave }) => {
   const arrangement = event.churchArrangement
-  const [status, setStatus] = React.useState<ChurchArrangementStatus>(arrangement?.arrangementStatus ?? 'not_started')
   const [preferredChurch, setPreferredChurch] = React.useState(arrangement?.preferredChurch ?? '')
   const [churchName, setChurchName] = React.useState(arrangement?.churchName ?? '')
   const [churchAddress, setChurchAddress] = React.useState(arrangement?.churchAddress ?? '')
@@ -528,9 +546,13 @@ const ChurchArrangementPanel: React.FC<{
   const [notes, setNotes] = React.useState(arrangement?.notes ?? '')
   const [error, setError] = React.useState('')
   const [saving, setSaving] = React.useState(false)
+  const [showConfirmation, setShowConfirmation] = React.useState(false)
+  const [confirmationMethod, setConfirmationMethod] = React.useState<ChurchConfirmationMethod>('external_discussion')
+  const [confirmationNotes, setConfirmationNotes] = React.useState('')
+  const [confirmationError, setConfirmationError] = React.useState('')
+  const [confirming, setConfirming] = React.useState(false)
 
   React.useEffect(() => {
-    setStatus(arrangement?.arrangementStatus ?? 'not_started')
     setPreferredChurch(arrangement?.preferredChurch ?? '')
     setChurchName(arrangement?.churchName ?? '')
     setChurchAddress(arrangement?.churchAddress ?? '')
@@ -543,10 +565,15 @@ const ChurchArrangementPanel: React.FC<{
 
   const save = async () => {
     if (!onSave || saving) return
+    const normalizedChurchName = churchName.trim()
     setSaving(true)
     setError('')
     const result = await onSave({
-      arrangementStatus: status,
+      arrangementStatus: normalizedChurchName
+        ? 'proposed'
+        : preferredChurch.trim() || notes.trim()
+          ? 'looking_for_church'
+          : 'not_started',
       ceremonyDate,
       ceremonyTime,
       churchAddress,
@@ -560,6 +587,39 @@ const ChurchArrangementPanel: React.FC<{
     if (!result.ok) setError(result.message ?? 'Unable to save the church arrangement.')
   }
 
+  const closeConfirmation = () => {
+    if (confirming) return
+    setShowConfirmation(false)
+    setConfirmationError('')
+  }
+
+  const confirmArrangement = async () => {
+    if (!onConfirm || confirming) return
+    setConfirming(true)
+    setConfirmationError('')
+    const result = await onConfirm({
+      confirmationMethod,
+      confirmationNotes,
+      eventId: event.id,
+    })
+    setConfirming(false)
+    if (!result.ok) {
+      setConfirmationError(result.message ?? 'Unable to confirm the church arrangement.')
+      return
+    }
+    setShowConfirmation(false)
+    setConfirmationNotes('')
+  }
+
+  const status = arrangement?.arrangementStatus ?? 'not_started'
+  const isConfirmed = ['confirmed', 'coordinator_confirmed'].includes(status)
+  const proposalWasDeclined = status === 'declined'
+  const submitLabel = churchName.trim()
+    ? arrangement?.activeProposalId
+      ? 'Submit Revised Church Proposal'
+      : 'Submit Church Proposal'
+    : 'Save Church Search Notes'
+
   return (
     <View style={styles.churchArrangementPanel}>
       <View style={styles.churchArrangementPanelHeading}>
@@ -569,20 +629,32 @@ const ChurchArrangementPanel: React.FC<{
         </View>
         <MaterialIcons color={palette.primaryContainer} name="church" size={21} />
       </View>
-      <Text style={styles.inputLabel}>STATUS</Text>
-      <ScrollView contentContainerStyle={styles.churchStatusChoices} horizontal showsHorizontalScrollIndicator={false}>
-        {churchArrangementOptions.map((option) => (
-          <Pressable
-            key={option.value}
-            accessibilityRole="button"
-            accessibilityState={{ selected: status === option.value }}
-            onPress={() => setStatus(option.value)}
-            style={[styles.churchStatusChip, status === option.value && styles.churchStatusChipSelected]}
-          >
-            <Text style={[styles.churchStatusChipText, status === option.value && styles.churchStatusChipTextSelected]}>{option.label}</Text>
-          </Pressable>
-        ))}
-      </ScrollView>
+      <View style={styles.churchCurrentStatus}>
+        <Text style={styles.inputLabel}>CURRENT STATUS</Text>
+        <Text style={styles.churchCurrentStatusText}>{churchArrangementLabel(status)}</Text>
+        {arrangement?.proposalVersion ? (
+          <Text style={styles.churchProposalVersion}>Proposal version {arrangement.proposalVersion}</Text>
+        ) : null}
+      </View>
+      {arrangement?.clientResponseStatus && arrangement.clientResponseStatus !== 'not_requested' ? (
+        <View style={styles.churchResponseCard}>
+          <Text style={styles.inputLabel}>CLIENT RESPONSE</Text>
+          <Text style={styles.churchResponseValue}>{statusLabel(arrangement.clientResponseStatus)}</Text>
+          {arrangement.clientResponseReason ? (
+            <Text style={styles.churchDeclineReason}>Reason: {arrangement.clientResponseReason}</Text>
+          ) : null}
+        </View>
+      ) : null}
+      {arrangement?.coordinatorConfirmedAt ? (
+        <View style={styles.churchResponseCard}>
+          <Text style={styles.inputLabel}>COORDINATOR CONFIRMATION</Text>
+          <Text style={styles.churchResponseValue}>
+            {churchConfirmationMethods.find((method) => method.value === arrangement.confirmationMethod)?.label ?? 'Documented confirmation'}
+          </Text>
+          {arrangement.confirmationNotes ? <Text style={styles.churchDeclineReason}>{arrangement.confirmationNotes}</Text> : null}
+          <Text style={styles.churchProposalVersion}>{new Date(arrangement.coordinatorConfirmedAt).toLocaleString('en-PH')}</Text>
+        </View>
+      ) : null}
       <Text style={styles.inputLabel}>CLIENT PREFERRED CHURCH</Text>
       <TextInput onChangeText={setPreferredChurch} placeholder="Client preference, if shared" placeholderTextColor={palette.secondary} style={styles.textInput} value={preferredChurch} />
       <Text style={styles.inputLabel}>PROPOSED / SELECTED CHURCH</Text>
@@ -607,8 +679,95 @@ const ChurchArrangementPanel: React.FC<{
       {error ? <Text style={styles.formError}>{error}</Text> : null}
       <Pressable accessibilityRole="button" disabled={!onSave || saving} onPress={() => void save()} style={({ pressed }) => [styles.createButton, (!onSave || saving) && styles.disabled, pressed && styles.addButtonPressed]}>
         {saving ? <ActivityIndicator color="#FFFFFF" size="small" /> : <MaterialIcons color="#FFFFFF" name="save" size={16} />}
-        <Text style={styles.createButtonText}>{saving ? 'Saving...' : 'Save church arrangement'}</Text>
+        <Text style={styles.createButtonText}>{saving ? 'Saving...' : submitLabel}</Text>
       </Pressable>
+      {churchName.trim() && !isConfirmed ? (
+        <>
+          <Pressable
+            accessibilityRole="button"
+            disabled={!onConfirm || confirming || proposalWasDeclined}
+            onPress={() => {
+              setConfirmationError('')
+              setShowConfirmation(true)
+            }}
+            style={({ pressed }) => [
+              styles.confirmChurchButton,
+              (!onConfirm || confirming || proposalWasDeclined) && styles.disabled,
+              pressed && styles.pressed,
+            ]}
+          >
+            <MaterialIcons color={palette.primaryContainer} name="verified" size={17} />
+            <Text style={styles.confirmChurchButtonText}>Mark Church as Confirmed</Text>
+          </Pressable>
+          {proposalWasDeclined ? (
+            <Text style={styles.churchDeclinedGuidance}>The client declined this proposal. Submit a revised proposal before confirming an arrangement.</Text>
+          ) : null}
+        </>
+      ) : null}
+
+      <Modal animationType="fade" onRequestClose={closeConfirmation} transparent visible={showConfirmation}>
+        <View style={styles.churchModalBackdrop}>
+          <View accessibilityViewIsModal style={styles.churchModalCard}>
+            <View style={styles.churchModalHeader}>
+              <View style={styles.instructionCopy}>
+                <Text style={styles.churchModalTitle}>Confirm Church Arrangement</Text>
+                <Text style={styles.churchModalText}>Are you sure this church arrangement has already been confirmed?</Text>
+              </View>
+              <Pressable accessibilityLabel="Close confirmation" accessibilityRole="button" disabled={confirming} onPress={closeConfirmation}>
+                <MaterialIcons color={palette.secondary} name="close" size={22} />
+              </Pressable>
+            </View>
+            <Text style={styles.inputLabel}>CONFIRMATION METHOD</Text>
+            <View style={styles.churchConfirmationChoices}>
+              {churchConfirmationMethods.map((method) => (
+                <Pressable
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: confirmationMethod === method.value }}
+                  key={method.value}
+                  onPress={() => setConfirmationMethod(method.value)}
+                  style={[
+                    styles.churchConfirmationChoice,
+                    confirmationMethod === method.value && styles.churchConfirmationChoiceSelected,
+                  ]}
+                >
+                  <MaterialIcons
+                    color={confirmationMethod === method.value ? '#FFFFFF' : palette.primaryContainer}
+                    name={confirmationMethod === method.value ? 'radio-button-checked' : 'radio-button-unchecked'}
+                    size={17}
+                  />
+                  <Text style={[
+                    styles.churchConfirmationChoiceText,
+                    confirmationMethod === method.value && styles.churchConfirmationChoiceTextSelected,
+                  ]}>{method.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text style={styles.inputLabel}>OPTIONAL NOTES</Text>
+            <TextInput
+              editable={!confirming}
+              maxLength={1000}
+              multiline
+              onChangeText={setConfirmationNotes}
+              placeholder="Add context about how the arrangement was confirmed"
+              placeholderTextColor={palette.secondary}
+              style={[styles.textInput, styles.notesInput]}
+              textAlignVertical="top"
+              value={confirmationNotes}
+            />
+            <Text style={styles.churchConfirmationDisclaimer}>This records the coordinator-client arrangement only. It does not verify an external church reservation.</Text>
+            {confirmationError ? <Text style={styles.formError}>{confirmationError}</Text> : null}
+            <View style={styles.churchModalActions}>
+              <Pressable accessibilityRole="button" disabled={confirming} onPress={closeConfirmation} style={styles.churchModalCancel}>
+                <Text style={styles.churchModalCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" disabled={!onConfirm || confirming} onPress={() => void confirmArrangement()} style={[styles.churchModalConfirm, (!onConfirm || confirming) && styles.disabled]}>
+                {confirming ? <ActivityIndicator color="#FFFFFF" size="small" /> : null}
+                <Text style={styles.churchModalConfirmText}>{confirming ? 'Confirming...' : 'Confirm Arrangement'}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   )
 }
@@ -837,6 +996,7 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
   isLoading = false,
   isRefreshing = false,
   onCreateTask,
+  onConfirmChurchArrangement,
   onMessageProvider,
   onSaveChurchArrangement,
   onOpenNotifications,
@@ -1288,6 +1448,7 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
                 </View>
                 <EventCard
                   event={activeEvents[0] ?? dashboard.events[0]}
+                  onConfirmChurchArrangement={onConfirmChurchArrangement}
                   onMessageProvider={onMessageProvider}
                   onSaveChurchArrangement={onSaveChurchArrangement}
                 />
@@ -1332,7 +1493,12 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
             <View style={[styles.eventList, isWide && styles.eventListWide]}>
               {dashboard.events.map((event) => (
                 <View key={event.id} style={isWide ? styles.eventCardWide : undefined}>
-                  <EventCard event={event} onMessageProvider={onMessageProvider} onSaveChurchArrangement={onSaveChurchArrangement} />
+                  <EventCard
+                    event={event}
+                    onConfirmChurchArrangement={onConfirmChurchArrangement}
+                    onMessageProvider={onMessageProvider}
+                    onSaveChurchArrangement={onSaveChurchArrangement}
+                  />
                 </View>
               ))}
             </View>
@@ -1589,6 +1755,12 @@ const styles = StyleSheet.create({
   churchArrangementPanelHeading: { flexDirection: 'row', alignItems: 'flex-start', gap: 9 },
   churchArrangementTitle: { color: palette.primaryContainer, fontSize: 9, lineHeight: 13, fontWeight: '700', letterSpacing: 0.7 },
   churchArrangementCaption: { color: palette.secondary, fontSize: 8, lineHeight: 12, marginTop: 2 },
+  churchCurrentStatus: { borderRadius: 8, backgroundColor: palette.primarySoft, marginTop: 12, padding: 10 },
+  churchCurrentStatusText: { color: palette.primaryContainer, fontSize: 11, lineHeight: 16, fontWeight: '700', marginTop: 2 },
+  churchProposalVersion: { color: palette.secondary, fontSize: 8, lineHeight: 12, marginTop: 2 },
+  churchResponseCard: { borderWidth: 1, borderColor: palette.border, borderRadius: 8, backgroundColor: palette.surfaceLow, marginTop: 9, padding: 10 },
+  churchResponseValue: { color: palette.text, fontSize: 10, lineHeight: 15, fontWeight: '700', marginTop: 2 },
+  churchDeclineReason: { color: palette.secondary, fontSize: 9, lineHeight: 14, marginTop: 4 },
   churchStatusChoices: { gap: 7, paddingRight: 6 },
   churchStatusChip: { minHeight: 32, justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 16, paddingHorizontal: 10 },
   churchStatusChipSelected: { borderColor: palette.primaryContainer, backgroundColor: palette.primarySoft },
@@ -1597,6 +1769,25 @@ const styles = StyleSheet.create({
   churchDateTimeRow: { flexDirection: 'row', gap: 8 },
   churchDateTimeField: { minWidth: 0, flex: 1 },
   churchUpdatedAt: { color: palette.secondary, fontSize: 8, lineHeight: 12, marginTop: 10 },
+  confirmChurchButton: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderWidth: 1, borderColor: palette.primaryContainer, borderRadius: 9, marginTop: 9 },
+  confirmChurchButtonText: { color: palette.primaryContainer, fontSize: 11, lineHeight: 15, fontWeight: '700' },
+  churchDeclinedGuidance: { color: palette.danger, fontSize: 9, lineHeight: 14, marginTop: 7 },
+  churchModalBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(28, 18, 20, 0.58)', padding: 20 },
+  churchModalCard: { width: '100%', maxWidth: 520, borderRadius: 16, backgroundColor: palette.surface, padding: 18 },
+  churchModalHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 16 },
+  churchModalTitle: { color: palette.text, fontSize: 17, lineHeight: 23, fontWeight: '700' },
+  churchModalText: { color: palette.secondary, fontSize: 11, lineHeight: 17, marginTop: 4 },
+  churchConfirmationChoices: { gap: 7, marginBottom: 14 },
+  churchConfirmationChoice: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: palette.border, borderRadius: 9, paddingHorizontal: 11 },
+  churchConfirmationChoiceSelected: { borderColor: palette.primaryContainer, backgroundColor: palette.primaryContainer },
+  churchConfirmationChoiceText: { color: palette.text, fontSize: 10, lineHeight: 14, fontWeight: '600' },
+  churchConfirmationChoiceTextSelected: { color: '#FFFFFF' },
+  churchConfirmationDisclaimer: { color: palette.secondary, fontSize: 9, lineHeight: 14, marginTop: 9 },
+  churchModalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 16 },
+  churchModalCancel: { minHeight: 40, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 9, paddingHorizontal: 15 },
+  churchModalCancelText: { color: palette.primaryContainer, fontSize: 10, lineHeight: 14, fontWeight: '700' },
+  churchModalConfirm: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 9, backgroundColor: palette.primaryContainer, paddingHorizontal: 15 },
+  churchModalConfirmText: { color: '#FFFFFF', fontSize: 10, lineHeight: 14, fontWeight: '700' },
   requestServicesBlock: { gap: 7 },
   requestServiceRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderRadius: 8, backgroundColor: palette.surfaceLow, padding: 9 },
   requestServiceCopy: { minWidth: 0, flex: 1 },

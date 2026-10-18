@@ -81,6 +81,7 @@ import {
   requestCateringFoodTasting,
   respondToCateringFoodTasting,
   respondToCateringFoodTastingProposal,
+  respondToChurchWeddingProposal,
   rescheduleClientEventBookings,
   saveAvailabilityCalendar,
   saveBookingDecision,
@@ -227,6 +228,7 @@ import {
   supportsRemotePushNotifications,
 } from './lib/notifications'
 import {
+  confirmCoordinatorChurchWeddingArrangement,
   CoordinatorBookedService,
   CoordinatorDashboard,
   CoordinatorEvent,
@@ -1622,6 +1624,17 @@ export const App: React.FC = () => {
     return result
   }, [loadCoordinatorWorkspace])
 
+  const handleConfirmChurchArrangement = React.useCallback(async (
+    input: Parameters<typeof confirmCoordinatorChurchWeddingArrangement>[0]
+  ) => {
+    const result = await confirmCoordinatorChurchWeddingArrangement(input)
+    if (result.ok) {
+      setToastMessage('Church arrangement confirmed. The client was notified; this does not verify an external reservation.')
+      await loadCoordinatorWorkspace(true, true)
+    }
+    return result
+  }, [loadCoordinatorWorkspace])
+
   const routeForRole = React.useCallback((role?: AccountRole | string | null) => {
     switch (role) {
       case 'client':
@@ -2883,6 +2896,35 @@ export const App: React.FC = () => {
     return { ok: true, message }
   }
 
+  const handleClientChurchProposalResponse = async (approved: boolean, declineReason?: string) => {
+    const eventId = selectedBooking?.eventId ?? selectedBooking?.id
+    if (!eventId) return { ok: false, message: 'This church proposal could not be identified.' }
+
+    const result = await respondToChurchWeddingProposal(eventId, approved, declineReason)
+    if (!result.ok) return result
+
+    const respondedAt = new Date().toISOString()
+    const updateBooking = (booking: BookingItem): BookingItem => {
+      if ((booking.eventId ?? booking.id) !== eventId || !booking.churchArrangement) return booking
+      return {
+        ...booking,
+        churchArrangement: {
+          ...booking.churchArrangement,
+          arrangementStatus: approved ? 'client_approved' : 'declined',
+          clientRespondedAt: respondedAt,
+          clientResponseReason: approved ? undefined : declineReason?.trim(),
+          clientResponseStatus: approved ? 'approved' : 'declined',
+          updatedAt: respondedAt,
+        },
+      }
+    }
+    setSelectedBooking((current) => current ? updateBooking(current) : current)
+    setClientBookings((current) => current.map(updateBooking))
+    setToastMessage(result.message ?? (approved ? 'Church proposal approved.' : 'Church proposal declined.'))
+    void refreshClientBookings().catch(() => undefined)
+    return result
+  }
+
   const handleProviderFoodTastingResponse = async (value: {
     action: 'confirm' | 'reject' | 'propose'
     note?: string
@@ -3753,6 +3795,7 @@ export const App: React.FC = () => {
             isLoading={isCoordinatorLoading}
             isRefreshing={isCoordinatorRefreshing}
             onCreateTask={handleCreateCoordinatorTask}
+            onConfirmChurchArrangement={handleConfirmChurchArrangement}
             onMessageProvider={(event, service) => void handleCoordinatorMessageProvider(event, service)}
             onSaveChurchArrangement={handleSaveChurchArrangement}
             onOpenNotifications={() => setScreen('coordinatorNotifications')}
@@ -4402,6 +4445,7 @@ export const App: React.FC = () => {
             onMessageCoordinatorForEvent={(eventId) =>
               void openEventCoordinatorConversationFor(eventId, 'bookingDetails')
             }
+            onRespondChurchProposal={handleClientChurchProposalResponse}
             onLoadFoodTastingSlots={loadCateringFoodTastingSlots}
             onRequestFoodTasting={handleClientFoodTastingRequest}
             onRescheduleBooking={handleClientBookingReschedule}
