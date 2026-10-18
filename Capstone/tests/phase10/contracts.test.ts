@@ -646,6 +646,7 @@ test('Phase 6 keeps event messaging direct, event-organized, and coordinator-aut
 
 test('V7 Phase 2 gives coordinators direct event-grouped messaging without creating group chats', () => {
   const migration = read('supabase/migrations/20261019000100_coordinator_direct_messaging.sql')
+  const backfill = read('supabase/migrations/20261019000200_backfill_coordinator_provider_conversations.sql')
   const messages = read('src/screens/03.1-Messages.tsx')
   const coordinator = read('src/screens/23-Coordinator.tsx')
   const messaging = read('src/lib/messaging.ts')
@@ -667,6 +668,11 @@ test('V7 Phase 2 gives coordinators direct event-grouped messaging without creat
     migration,
     /values\s*\(resolved_conversation_id, booking_row\.client_id\),\s*\(resolved_conversation_id, booking_row\.provider_user_id\),\s*\(resolved_conversation_id, booking_row\.coordinator_user_id\)/
   )
+  mustContain(backfill, [
+    "booking.status::text in ('confirmed', 'completed')",
+    "event.coordinator_assignment_status = 'accepted'",
+    'perform public.ensure_coordinator_provider_conversation(booking_row.id);',
+  ], 'existing eligible coordinator-provider conversation backfill')
   mustContain(messaging, [
     "client.rpc('open_coordinator_provider_conversation'",
     "conversationKind === 'coordinator_provider'",
