@@ -16,6 +16,8 @@ export type SectionKey =
   | 'services'
   | 'bookings'
   | 'payments'
+  | 'financial'
+  | 'reports'
   | 'revenue'
   | 'cashflow'
   | 'remittances'

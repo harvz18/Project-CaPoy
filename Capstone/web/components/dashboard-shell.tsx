@@ -51,6 +51,8 @@ const baseNavigation = [
   { href: '/dashboard/coordinators', label: 'Coordinator bookings', icon: mdiShieldAccountOutline, permission: 'coordinators.view' },
   { href: '/dashboard/support', label: 'Customer support', icon: mdiBellOutline, permission: 'support.view' },
   { href: '/dashboard/payments', label: 'Payments', icon: mdiCreditCardOutline, permission: 'cashflow.view' },
+  { href: '/dashboard/financial', label: 'Financial overview', icon: mdiCashMultiple, permission: 'cashflow.view' },
+  { href: '/dashboard/reports', label: 'Reports', icon: mdiClipboardTextClockOutline, permission: ['events.view', 'providers.view', 'revenue.view', 'cashflow.view', 'coordinators.view'] },
   { href: '/dashboard/revenue', label: 'Revenue', icon: mdiStarOutline, permission: 'revenue.view' },
   { href: '/dashboard/cashflow', label: 'Cash flow', icon: mdiCreditCardOutline, permission: 'cashflow.view' },
   { href: '/dashboard/remittances', label: 'Remittances', icon: mdiCashMultiple, permission: 'remittance.view' },

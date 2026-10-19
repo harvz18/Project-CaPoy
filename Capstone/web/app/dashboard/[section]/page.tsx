@@ -4,7 +4,7 @@ import type { SectionKey } from '@/lib/types'
 
 const sections: SectionKey[] = [
   'users', 'clients', 'providers', 'services', 'bookings', 'payments', 'reviews',
-  'revenue', 'cashflow', 'remittances', 'coordinators', 'support',
+  'financial', 'reports', 'revenue', 'cashflow', 'remittances', 'coordinators', 'support',
   'permissions', 'audit', 'settings',
 ]
 

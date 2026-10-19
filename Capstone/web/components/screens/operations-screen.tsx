@@ -25,10 +25,11 @@ import { AuditLogScreen } from './audit-log-screen'
 import { BusinessOperationsScreen } from './business-operations-screen'
 import { ProvidersScreen } from './providers-screen'
 import { BookingsManagementScreen, ClientsManagementScreen, CoordinatorsManagementScreen } from './operations-management-screens'
+import { FinancialOverviewScreen, ReportsScreen } from './financial-reporting-screen'
 
 type OperationSection = Exclude<SectionKey, 'overview'>
 type BusinessSection = 'revenue' | 'cashflow' | 'remittances' | 'coordinators' | 'support' | 'permissions'
-type LegacyTableSection = Exclude<OperationSection, 'settings' | 'services' | 'audit' | BusinessSection | 'clients'>
+type LegacyTableSection = Exclude<OperationSection, 'settings' | 'services' | 'audit' | BusinessSection | 'clients' | 'financial' | 'reports'>
 type Row = Record<string, unknown>
 type ConfirmationAction = { id: string; action: string; currentStatus: string; name: string; kind: 'user' | 'provider'; reason: string }
 
@@ -73,6 +74,8 @@ const pageCopy: Record<OperationSection, { eyebrow: string; title: string; descr
   services: { eyebrow: 'MARKETPLACE', title: 'Service approvals', description: 'Review provider listings before they become visible to clients.' },
   bookings: { eyebrow: 'OPERATIONS', title: 'Bookings', description: 'Monitor booking activity and lifecycle status.' },
   payments: { eyebrow: 'FINANCE', title: 'Payments', description: 'Track platform transactions and payment verification.' },
+  financial: { eyebrow: 'FINANCE', title: 'Financial overview', description: 'Review real payment, provider-fund, and payout records.' },
+  reports: { eyebrow: 'REPORTS', title: 'Reports', description: 'Export operational reports from permission-scoped data.' },
   reviews: { eyebrow: 'TRUST & SAFETY', title: 'Reviews', description: 'Monitor feedback and keep the marketplace trustworthy.' },
   revenue: { eyebrow: 'FINANCE', title: 'Revenue', description: 'Track MULTIVENT commission earnings and provider net amounts.' },
   cashflow: { eyebrow: 'FINANCE', title: 'Cash flow', description: 'Follow money entering and leaving MULTIVENT operations.' },
@@ -137,11 +140,18 @@ export function OperationsScreen({ section }: { section: OperationSection }) {
   const permissionBySection: Record<OperationSection, string> = {
     users: 'users.view', clients: 'users.view', providers: 'providers.view', services: 'services.view',
     bookings: 'events.view', payments: 'cashflow.view', reviews: 'providers.view',
+    financial: 'cashflow.view', reports: 'events.view',
     revenue: 'revenue.view', cashflow: 'cashflow.view', remittances: 'remittance.view',
     coordinators: 'coordinators.view', support: 'support.view',
     permissions: 'users.permissions.manage', audit: 'system.audit_logs', settings: 'system.settings',
   }
 
+  const canViewReports = can('events.view') || can('providers.view') || can('revenue.view') || can('cashflow.view') || can('coordinators.view')
+
+  if (section === 'reports') {
+    if (!canViewReports) return <RestrictedScreen />
+    return <ReportsScreen />
+  }
   if (section === 'permissions') {
     if (!can('users.permissions.manage') && !can('users.create') && !can('coordinators.create')) return <RestrictedScreen />
   } else if (!can(permissionBySection[section])) return <RestrictedScreen />
@@ -153,6 +163,7 @@ export function OperationsScreen({ section }: { section: OperationSection }) {
   if (section === 'bookings') return <BookingsManagementScreen />
   if (section === 'clients') return <ClientsManagementScreen />
   if (section === 'coordinators') return <CoordinatorsManagementScreen />
+  if (section === 'financial') return <FinancialOverviewScreen />
   if (['revenue', 'cashflow', 'remittances', 'coordinators', 'support', 'permissions'].includes(section)) {
     return <BusinessOperationsScreen section={section as BusinessSection} />
   }
