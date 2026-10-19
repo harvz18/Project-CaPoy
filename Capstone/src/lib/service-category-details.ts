@@ -82,12 +82,31 @@ export type CateringPriceCalculation = {
 }
 
 export type VenueBookingOption = {
+  accessEndTime?: string
+  accessStartTime?: string
   areaSqm: number
+  availabilityNotes?: string
+  baseRate?: number
   capacity: number
+  cleanupAllowanceHours?: number
+  description?: string
+  includedDurationHours?: number
+  inclusions: string[]
   id: string
+  isBookableIndividually: boolean
+  isActive: boolean
   kind: 'space' | 'combination'
+  maximumBookingHours?: number
+  minimumBookingHours?: number
+  mutuallyExclusiveOptionIds: string[]
   name: string
+  amenities: string[]
+  overtimePolicy?: string
+  photoUrls: string[]
+  pricingUnit?: 'event' | 'hour'
+  requiredOptionIds: string[]
   resourceIds: string[]
+  setupAllowanceHours?: number
   spaceType: string
 }
 
@@ -114,13 +133,56 @@ const number = (value: unknown) => {
 const list = (value: unknown) => Array.isArray(value)
   ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
   : []
+const optionalPositiveNumber = (value: unknown) => {
+  const parsed = number(value)
+  return parsed > 0 ? parsed : undefined
+}
+const optionalNonNegativeNumber = (value: unknown) => {
+  const parsed = number(value)
+  return parsed >= 0 && (typeof value === 'number' || text(value)) ? parsed : undefined
+}
+const venuePricingUnit = (value: unknown): VenueBookingOption['pricingUnit'] =>
+  value === 'event' || value === 'hour' ? value : undefined
+const activeVenueOption = (value: Record<string, unknown>) => value.isActive !== false
+const individuallyBookableVenueOption = (value: Record<string, unknown>) =>
+  value.isBookableIndividually !== false
+const combinableVenueSpace = (value: Record<string, unknown>) =>
+  value.allowsCombination !== false
+const venueOptionDetails = (value: Record<string, unknown>) => ({
+  accessEndTime: text(value.accessEndTime) || undefined,
+  accessStartTime: text(value.accessStartTime) || undefined,
+  availabilityNotes: text(value.availabilityNotes) || undefined,
+  baseRate: optionalPositiveNumber(value.baseRate),
+  cleanupAllowanceHours: optionalNonNegativeNumber(value.cleanupAllowanceHours),
+  description: text(value.description) || undefined,
+  includedDurationHours: optionalNonNegativeNumber(value.includedDurationHours),
+  inclusions: list(value.inclusions),
+  isBookableIndividually: individuallyBookableVenueOption(value),
+  isActive: activeVenueOption(value),
+  maximumBookingHours: optionalPositiveNumber(value.maximumBookingHours),
+  minimumBookingHours: optionalPositiveNumber(value.minimumBookingHours),
+  mutuallyExclusiveOptionIds: list(value.mutuallyExclusiveOptionIds),
+  amenities: list(value.amenities),
+  overtimePolicy: text(value.overtimePolicy) || undefined,
+  photoUrls: list(value.photoUrls),
+  pricingUnit: venuePricingUnit(value.pricingUnit),
+  requiredOptionIds: list(value.requiredOptionIds),
+  setupAllowanceHours: optionalNonNegativeNumber(value.setupAllowanceHours),
+})
 
 export const getVenueBookingOptions = (value: unknown): VenueBookingOption[] => {
   const details = asObject(value)
   const spaces = Array.isArray(details.spaces) ? details.spaces.map(asObject) : []
-  const availableSpaces = spaces.filter((space) => text(space.id) && text(space.name))
-  const byId = new Map(availableSpaces.map((space) => [text(space.id), space]))
-  const options: VenueBookingOption[] = availableSpaces.map((space) => ({
+  // Keep all active resources available for combination validation, while only
+  // exposing individually-bookable spaces as client-facing options. Listings
+  // created before per-option venue controls remain active and bookable.
+  const activeSpaces = spaces.filter((space) =>
+    text(space.id) && text(space.name) && activeVenueOption(space)
+  )
+  const byId = new Map(activeSpaces.map((space) => [text(space.id), space]))
+  const options: VenueBookingOption[] = activeSpaces
+    .filter(individuallyBookableVenueOption)
+    .map((space) => ({
     areaSqm: number(space.areaSqm),
     capacity: number(space.capacity),
     id: text(space.id),
@@ -128,6 +190,7 @@ export const getVenueBookingOptions = (value: unknown): VenueBookingOption[] => 
     name: text(space.name),
     resourceIds: [text(space.id)],
     spaceType: text(space.spaceType) || 'Indoor',
+    ...venueOptionDetails(space),
   }))
 
   const combinations = Array.isArray(details.combinations)
@@ -135,7 +198,11 @@ export const getVenueBookingOptions = (value: unknown): VenueBookingOption[] => 
     : []
   combinations.forEach((combination) => {
     const resourceIds = list(combination.spaceIds).filter((id) => byId.has(id))
-    if (!text(combination.id) || !text(combination.name) || resourceIds.length < 2) return
+    if (!text(combination.id) || !text(combination.name)
+      || !activeVenueOption(combination)
+      || !individuallyBookableVenueOption(combination)
+      || resourceIds.length < 2
+      || resourceIds.some((id) => !combinableVenueSpace(byId.get(id) ?? {}))) return
     const includedSpaces = resourceIds.map((id) => byId.get(id) ?? {})
     options.push({
       areaSqm: number(combination.combinedAreaSqm) || includedSpaces.reduce(
@@ -149,6 +216,7 @@ export const getVenueBookingOptions = (value: unknown): VenueBookingOption[] => 
       spaceType: Array.from(new Set(includedSpaces.map((space) => text(space.spaceType))))
         .filter(Boolean)
         .join(' + ') || 'Mixed',
+      ...venueOptionDetails(combination),
     })
   })
 
@@ -437,6 +505,12 @@ export const categoryDetailsForStorage = (
 ): Record<string, unknown> => {
   if (isLegacyCategoryDetails(value)) return {}
   const normalized = normalizeCategoryDetails(categoryName, value)
+  if (normalized.kind === 'venues') {
+    // Option-level venue configuration intentionally lives on the established
+    // spaces/combinations resources. This avoids a parallel source of truth
+    // and leaves historic, flat-price listings untouched.
+    return normalized
+  }
   if (normalized.kind !== 'catering') return normalized
   const options = getCateringPricingOptions(normalized)
   if (options.length === 0) return normalized
@@ -544,17 +618,21 @@ export const validateCategoryDetails = (
     if (new Set(spaceIds).size !== spaces.length) {
       errors.push('Every venue space needs a unique ID.')
     }
+    const combinations = Array.isArray(details.combinations)
+      ? details.combinations.map(asObject)
+      : []
+    const venueOptions = [...spaces, ...combinations]
+    const optionIds = venueOptions.map((option) => text(option.id)).filter(Boolean)
+    const optionPricingConfigured = venueOptions.some((option) =>
+      Object.prototype.hasOwnProperty.call(option, 'pricingUnit')
+      || Object.prototype.hasOwnProperty.call(option, 'baseRate')
+    )
     spaces.forEach((space, index) => {
       if (!text(space.name)) errors.push(`Space ${index + 1} needs a name.`)
       requirePositive(errors, space.areaSqm, `Space ${index + 1} area must be greater than zero.`)
       requirePositive(errors, space.capacity, `Space ${index + 1} capacity must be greater than zero.`)
     })
     const ids = new Set(spaceIds)
-    const combinations = Array.isArray(details.combinations)
-      ? details.combinations.map(asObject)
-      : []
-    const optionIds = [...spaceIds, ...combinations.map((combination) => text(combination.id))]
-      .filter(Boolean)
     if (new Set(optionIds).size !== spaces.length + combinations.length) {
       errors.push('Every venue space and combination needs a unique ID.')
     }
@@ -568,7 +646,44 @@ export const validateCategoryDetails = (
       if (selectedIds.length < 2) errors.push(`Combination ${index + 1} must contain at least two spaces.`)
       if (new Set(selectedIds).size !== selectedIds.length) errors.push(`Combination ${index + 1} contains a duplicate space.`)
       if (selectedIds.some((id) => !ids.has(id))) errors.push(`Combination ${index + 1} contains an unavailable space.`)
+      if (selectedIds.some((id) => {
+        const source = spaces.find((space) => text(space.id) === id)
+        return source?.allowsCombination === false
+      })) errors.push(`Combination ${index + 1} contains a space that cannot be combined.`)
     })
+    if (optionPricingConfigured) {
+      venueOptions.forEach((option, index) => {
+        const label = text(option.name) || `Venue option ${index + 1}`
+        const isAvailable = option.isActive !== false && option.isBookableIndividually !== false
+        const pricingUnit = venuePricingUnit(option.pricingUnit)
+        const rate = number(option.baseRate)
+        if (isAvailable && !pricingUnit) {
+          errors.push(`${label} needs an hourly or per-event price type.`)
+        }
+        if (isAvailable && rate <= 0) {
+          errors.push(`${label} needs a positive base rate.`)
+        }
+        const minimum = number(option.minimumBookingHours)
+        const maximum = number(option.maximumBookingHours)
+        const included = number(option.includedDurationHours)
+        if (minimum < 0 || maximum < 0 || included < 0) {
+          errors.push(`${label} duration values cannot be negative.`)
+        }
+        if (maximum > 0 && maximum < Math.max(minimum, 1)) {
+          errors.push(`${label} maximum duration must be at least its minimum duration.`)
+        }
+        const relationshipKeys = ['requiredOptionIds', 'mutuallyExclusiveOptionIds'] as const
+        relationshipKeys.forEach((key) => {
+          const references = list(option[key])
+          if (new Set(references).size !== references.length) {
+            errors.push(`${label} has duplicate ${key === 'requiredOptionIds' ? 'required' : 'mutually exclusive'} options.`)
+          }
+          if (references.some((id) => id === text(option.id) || !optionIds.includes(id))) {
+            errors.push(`${label} references a venue option that is unavailable.`)
+          }
+        })
+      })
+    }
     if (number(details.minimumBookingHours) < 0) errors.push('Minimum booking hours cannot be negative.')
     if (number(details.maximumBookingHours) > 0
       && number(details.maximumBookingHours) < Math.max(number(details.minimumBookingHours), 1)) {

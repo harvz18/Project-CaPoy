@@ -476,54 +476,199 @@ const CateringOptionsBuilder = ({ details, set }: {
   )
 }
 
-const VenueSpaces = ({ details, set }: { details: ServiceCategoryDetails; set: (key: string, value: unknown) => void }) => {
+const VenueOptionFields = ({ option, optionChoices, onChange, supportsCombination }: {
+  option: JsonRecord
+  optionChoices: Choice[]
+  onChange: (patch: JsonRecord) => void
+  supportsCombination?: boolean
+}) => {
+  const optionId = textValue(option.id)
+  const otherOptions = optionChoices.filter((choice) => {
+    const value = typeof choice === 'string' ? choice : choice.value
+    return value !== optionId
+  })
+
+  return (
+    <View style={styles.optionDetails}>
+      <TextField label="Description (optional)" multiline onChange={(description) => onChange({ description })} placeholder="What makes this space suitable for an event?" value={option.description} />
+      <TagField label="Option photo URLs (optional)" onChange={(photoUrls) => onChange({ photoUrls })} value={option.photoUrls} />
+      <View style={styles.twoColumns}>
+        <ChoiceField label="Price Type" onChange={(pricingUnit) => onChange({ pricingUnit })} options={[
+          { label: 'Per event', value: 'event' },
+          { label: 'Per hour', value: 'hour' },
+        ]} value={textValue(option.pricingUnit) || 'event'} />
+        <NumberField label="Base Rate" min={1} onChange={(baseRate) => onChange({ baseRate })} suffix="PHP" value={option.baseRate} />
+      </View>
+      <Text style={styles.integrationNote}>This option&apos;s price is saved independently. The existing listing price remains in place for legacy bookings until the client-facing venue-pricing phase.</Text>
+      <View style={styles.optionToggles}>
+        <ToggleField label="Active and visible to clients" onChange={(isActive) => onChange({ isActive })} value={option.isActive !== false} />
+        <ToggleField label="Can be booked on its own" onChange={(isBookableIndividually) => onChange({ isBookableIndividually })} value={option.isBookableIndividually !== false} />
+        {supportsCombination ? <ToggleField label="Can be included in combinations" onChange={(allowsCombination) => onChange({ allowsCombination })} value={option.allowsCombination !== false} /> : null}
+      </View>
+      <View style={styles.twoColumns}>
+        <NumberField label="Minimum rental duration (optional)" min={0} onChange={(minimumBookingHours) => onChange({ minimumBookingHours })} suffix="hours" value={option.minimumBookingHours} />
+        <NumberField label="Maximum rental duration (optional)" min={0} onChange={(maximumBookingHours) => onChange({ maximumBookingHours })} suffix="hours" value={option.maximumBookingHours} />
+      </View>
+      <View style={styles.twoColumns}>
+        <NumberField label="Included duration (optional)" min={0} onChange={(includedDurationHours) => onChange({ includedDurationHours })} suffix="hours" value={option.includedDurationHours} />
+        <NumberField label="Setup allowance (optional)" min={0} onChange={(setupAllowanceHours) => onChange({ setupAllowanceHours })} suffix="hours" value={option.setupAllowanceHours} />
+      </View>
+      <NumberField label="Cleanup allowance (optional)" min={0} onChange={(cleanupAllowanceHours) => onChange({ cleanupAllowanceHours })} suffix="hours" value={option.cleanupAllowanceHours} />
+      <View style={styles.twoColumns}>
+        <TextField label="Access starts (optional)" onChange={(accessStartTime) => onChange({ accessStartTime })} placeholder="08:00" value={option.accessStartTime} />
+        <TextField label="Access ends (optional)" onChange={(accessEndTime) => onChange({ accessEndTime })} placeholder="22:00" value={option.accessEndTime} />
+      </View>
+      <TextField label="Overtime policy (optional)" multiline onChange={(overtimePolicy) => onChange({ overtimePolicy })} placeholder="e.g., PHP 2,000 for each additional hour" value={option.overtimePolicy} />
+      <TextField label="Availability notes (optional)" multiline onChange={(availabilityNotes) => onChange({ availabilityNotes })} placeholder="Use the Availability screen for calendar dates; add any option-specific notes here." value={option.availabilityNotes} />
+      <TagField label="Amenities" onChange={(amenities) => onChange({ amenities })} value={option.amenities} />
+      <TagField label="Inclusions" onChange={(inclusions) => onChange({ inclusions })} value={option.inclusions} />
+      <TagField label="Restrictions" onChange={(restrictions) => onChange({ restrictions })} value={option.restrictions} />
+      <ChoiceField label="Requires these options" multiple onChange={(requiredOptionIds) => onChange({ requiredOptionIds })} options={otherOptions} value={asList(option.requiredOptionIds)} />
+      <ChoiceField label="Mutually exclusive with" multiple onChange={(mutuallyExclusiveOptionIds) => onChange({ mutuallyExclusiveOptionIds })} options={otherOptions} value={asList(option.mutuallyExclusiveOptionIds)} />
+    </View>
+  )
+}
+
+const VenueSpaces = ({ details, onChange }: {
+  details: ServiceCategoryDetails
+  onChange: (value: ServiceCategoryDetails) => void
+}) => {
   const spaces = Array.isArray(details.spaces) ? details.spaces.map(asRecord) : []
   const combinations = Array.isArray(details.combinations) ? details.combinations.map(asRecord) : []
-  const updateSpace = (index: number, patch: JsonRecord) => set('spaces', spaces.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item))
-  const updateCombination = (index: number, patch: JsonRecord) => set('combinations', combinations.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item))
+  const [expandedOptions, setExpandedOptions] = React.useState<Set<string>>(new Set())
+  const commit = (patch: JsonRecord) => onChange({ ...details, ...patch })
+  const updateSpace = (index: number, patch: JsonRecord) => commit({
+    spaces: spaces.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item),
+  })
+  const updateCombination = (index: number, patch: JsonRecord) => commit({
+    combinations: combinations.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item),
+  })
+  const toggleExpanded = (id: string) => setExpandedOptions((current) => {
+    const next = new Set(current)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    return next
+  })
+  const optionChoices = [...spaces, ...combinations]
+    .filter((option) => textValue(option.id))
+    .map((option) => ({ label: textValue(option.name) || 'Unnamed venue option', value: textValue(option.id) }))
+  const removeOptionReferences = (options: JsonRecord[], removedId: string) => options.map((option) => ({
+    ...option,
+    mutuallyExclusiveOptionIds: asList(option.mutuallyExclusiveOptionIds).filter((id) => id !== removedId),
+    requiredOptionIds: asList(option.requiredOptionIds).filter((id) => id !== removedId),
+  }))
   const removeSpace = (index: number) => {
     const removedId = textValue(spaces[index]?.id)
-    set('spaces', spaces.filter((_, itemIndex) => itemIndex !== index))
-    set('combinations', combinations.map((item) => ({ ...item, spaceIds: asList(item.spaceIds).filter((id) => id !== removedId) })))
+    commit({
+      combinations: removeOptionReferences(combinations.map((item) => ({
+        ...item,
+        spaceIds: asList(item.spaceIds).filter((id) => id !== removedId),
+      })), removedId),
+      spaces: removeOptionReferences(spaces.filter((_, itemIndex) => itemIndex !== index), removedId),
+    })
+  }
+  const removeCombination = (index: number) => {
+    const removedId = textValue(combinations[index]?.id)
+    commit({
+      combinations: removeOptionReferences(combinations.filter((_, itemIndex) => itemIndex !== index), removedId),
+      spaces: removeOptionReferences(spaces, removedId),
+    })
   }
   return (
     <>
-      <Section title="Spaces / Halls" description="Each space is stored as a separate venue resource.">
-        {spaces.map((space, index) => (
-          <View key={textValue(space.id) || index} style={styles.repeatCard}>
-            <TextField label="Space / Hall Name" onChange={(name) => updateSpace(index, { name })} placeholder="Function Hall 1" value={space.name} />
-            <View style={styles.twoColumns}>
-              <NumberField label="Area" onChange={(areaSqm) => updateSpace(index, { areaSqm })} suffix="sqm" value={space.areaSqm} />
-              <NumberField label="Guest Capacity" onChange={(capacity) => updateSpace(index, { capacity })} suffix="guests" value={space.capacity} />
-            </View>
-            <ChoiceField label="Space Type" onChange={(spaceType) => updateSpace(index, { spaceType })} options={['Indoor', 'Outdoor']} value={textValue(space.spaceType) || 'Indoor'} />
-            <Pressable onPress={() => removeSpace(index)} style={styles.removeButton}><Text style={styles.removeText}>Remove space</Text></Pressable>
-          </View>
-        ))}
-        <Pressable onPress={() => set('spaces', [...spaces, { id: newId('space'), name: '', areaSqm: undefined, capacity: undefined, spaceType: 'Indoor' }])} style={styles.addButton}><Text style={styles.addButtonText}>+ Add another space</Text></Pressable>
-      </Section>
-      <Section title="Expandable Spaces" description="Define valid combinations of two or more spaces.">
-        {combinations.map((combination, index) => {
-          const selectedIds = asList(combination.spaceIds)
+      <Section title="Venue rental options" description="Manage each room, hall, or space with its own price and availability. Existing listings without option pricing keep their current single-price behavior.">
+        {spaces.map((space, index) => {
+          const optionId = textValue(space.id) || `space-${index}`
+          const expanded = expandedOptions.has(optionId)
           return (
-            <View key={textValue(combination.id) || index} style={styles.repeatCard}>
-              <TextField label="Combination Name" onChange={(name) => updateCombination(index, { name })} placeholder="Grand Hall" value={combination.name} />
-              <ChoiceField
-                label="Connected Spaces"
-                multiple
-                onChange={(spaceIds) => updateCombination(index, { spaceIds })}
-                options={spaces.map((space) => ({ label: textValue(space.name) || 'Unnamed space', value: textValue(space.id) }))}
-                value={selectedIds}
-              />
-              <View style={styles.twoColumns}>
-                <NumberField label="Combined Capacity" onChange={(combinedCapacity) => updateCombination(index, { combinedCapacity })} suffix="guests" value={combination.combinedCapacity} />
-                <NumberField label="Combined Area" onChange={(combinedAreaSqm) => updateCombination(index, { combinedAreaSqm })} suffix="sqm" value={combination.combinedAreaSqm} />
-              </View>
-              <Pressable onPress={() => set('combinations', combinations.filter((_, itemIndex) => itemIndex !== index))} style={styles.removeButton}><Text style={styles.removeText}>Remove combination</Text></Pressable>
+            <View key={optionId} style={styles.repeatCard}>
+              <Pressable accessibilityRole="button" onPress={() => toggleExpanded(optionId)} style={styles.repeatCardHeader}>
+                <View style={styles.repeatCardTitleBlock}>
+                  <Text style={styles.repeatCardTitle}>{textValue(space.name) || `Space ${index + 1}`}</Text>
+                  <Text style={styles.repeatCardMeta}>{space.isActive === false ? 'Inactive' : 'Active'} · {textValue(space.pricingUnit) === 'hour' ? 'Hourly' : 'Per event'} {numberValue(space.baseRate) ? `· PHP ${numberValue(space.baseRate)}` : '· Rate not set'}</Text>
+                </View>
+                <Text style={styles.expandIndicator}>{expanded ? 'Hide' : 'Configure'}</Text>
+              </Pressable>
+              {expanded ? <>
+                <TextField label="Space / Hall Name" onChange={(name) => updateSpace(index, { name })} placeholder="Function Hall 1" value={space.name} />
+                <View style={styles.twoColumns}>
+                  <NumberField label="Area" onChange={(areaSqm) => updateSpace(index, { areaSqm })} suffix="sqm" value={space.areaSqm} />
+                  <NumberField label="Guest Capacity" onChange={(capacity) => updateSpace(index, { capacity })} suffix="guests" value={space.capacity} />
+                </View>
+                <ChoiceField label="Space Type" onChange={(spaceType) => updateSpace(index, { spaceType })} options={['Indoor', 'Outdoor']} value={textValue(space.spaceType) || 'Indoor'} />
+                <VenueOptionFields onChange={(patch) => updateSpace(index, patch)} option={space} optionChoices={optionChoices} supportsCombination />
+                <Pressable onPress={() => removeSpace(index)} style={styles.removeButton}><Text style={styles.removeText}>Remove space</Text></Pressable>
+              </> : null}
             </View>
           )
         })}
-        <Pressable disabled={spaces.length < 2} onPress={() => set('combinations', [...combinations, { id: newId('combination'), name: '', spaceIds: [] }])} style={[styles.addButton, spaces.length < 2 && styles.disabled]}><Text style={styles.addButtonText}>+ Add combination</Text></Pressable>
+        <Pressable onPress={() => commit({ spaces: [...spaces, {
+          allowsCombination: true,
+          amenities: [],
+          areaSqm: undefined,
+          baseRate: undefined,
+          capacity: undefined,
+          id: newId('space'),
+          inclusions: [],
+          isActive: true,
+          isBookableIndividually: true,
+          mutuallyExclusiveOptionIds: [],
+          name: '',
+          photoUrls: [],
+          pricingUnit: 'event',
+          requiredOptionIds: [],
+          restrictions: [],
+          spaceType: 'Indoor',
+        }] })} style={styles.addButton}><Text style={styles.addButtonText}>+ Add venue rental option</Text></Pressable>
+      </Section>
+      <Section title="Venue combinations" description="Combine two or more compatible spaces into a separately priced rental option.">
+        {combinations.map((combination, index) => {
+          const selectedIds = asList(combination.spaceIds)
+          const optionId = textValue(combination.id) || `combination-${index}`
+          const expanded = expandedOptions.has(optionId)
+          return (
+            <View key={optionId} style={styles.repeatCard}>
+              <Pressable accessibilityRole="button" onPress={() => toggleExpanded(optionId)} style={styles.repeatCardHeader}>
+                <View style={styles.repeatCardTitleBlock}>
+                  <Text style={styles.repeatCardTitle}>{textValue(combination.name) || `Combination ${index + 1}`}</Text>
+                  <Text style={styles.repeatCardMeta}>{combination.isActive === false ? 'Inactive' : 'Active'} · {selectedIds.length} spaces · {textValue(combination.pricingUnit) === 'hour' ? 'Hourly' : 'Per event'} {numberValue(combination.baseRate) ? `· PHP ${numberValue(combination.baseRate)}` : '· Rate not set'}</Text>
+                </View>
+                <Text style={styles.expandIndicator}>{expanded ? 'Hide' : 'Configure'}</Text>
+              </Pressable>
+              {expanded ? <>
+                <TextField label="Combination Name" onChange={(name) => updateCombination(index, { name })} placeholder="Grand Hall" value={combination.name} />
+                <ChoiceField
+                  label="Connected Spaces"
+                  multiple
+                  onChange={(spaceIds) => updateCombination(index, { spaceIds })}
+                  options={spaces.filter((space) => space.allowsCombination !== false).map((space) => ({ label: textValue(space.name) || 'Unnamed space', value: textValue(space.id) }))}
+                  value={selectedIds}
+                />
+                <View style={styles.twoColumns}>
+                  <NumberField label="Combined Capacity" onChange={(combinedCapacity) => updateCombination(index, { combinedCapacity })} suffix="guests" value={combination.combinedCapacity} />
+                  <NumberField label="Combined Area" onChange={(combinedAreaSqm) => updateCombination(index, { combinedAreaSqm })} suffix="sqm" value={combination.combinedAreaSqm} />
+                </View>
+                <VenueOptionFields onChange={(patch) => updateCombination(index, patch)} option={combination} optionChoices={optionChoices} />
+                <Pressable onPress={() => removeCombination(index)} style={styles.removeButton}><Text style={styles.removeText}>Remove combination</Text></Pressable>
+              </> : null}
+            </View>
+          )
+        })}
+        <Pressable disabled={spaces.filter((space) => space.allowsCombination !== false).length < 2} onPress={() => commit({ combinations: [...combinations, {
+          amenities: [],
+          baseRate: undefined,
+          id: newId('combination'),
+          inclusions: [],
+          isActive: true,
+          isBookableIndividually: true,
+          mutuallyExclusiveOptionIds: [],
+          name: '',
+          photoUrls: [],
+          pricingUnit: 'event',
+          requiredOptionIds: [],
+          restrictions: [],
+          spaceIds: [],
+        }] })} style={[styles.addButton, spaces.filter((space) => space.allowsCombination !== false).length < 2 && styles.disabled]}><Text style={styles.addButtonText}>+ Add combination</Text></Pressable>
       </Section>
     </>
   )
@@ -609,7 +754,7 @@ export const CategorySpecificServiceDetails: React.FC<Props> = ({ categoryName, 
             <NumberField label="Longitude (optional)" min={-180} onChange={(next) => set('longitude', next)} value={details.longitude} />
           </View>
         </Section>
-        <VenueSpaces details={details} set={set} />
+        <VenueSpaces details={details} onChange={onChange} />
         <Section title="Amenities">
           {['airConditioning', 'chairs', 'tables', 'parking', 'restrooms', 'dressingRoom', 'kitchen', 'wifi', 'stage', 'pwdAccessibility'].map((key) => <React.Fragment key={key}><ToggleField label={({ airConditioning: 'Air Conditioning', chairs: 'Chairs', tables: 'Tables', parking: 'Parking', restrooms: 'Restrooms', dressingRoom: 'Dressing Room', kitchen: 'Kitchen', wifi: 'Wi-Fi', stage: 'Stage', pwdAccessibility: 'PWD Accessibility' } as Record<string, string>)[key]} onChange={(next) => set(key, next)} value={details[key]} />{details[key] === true && ['chairs', 'tables', 'parking', 'restrooms'].includes(key) ? <NumberField label={({ chairs: 'Chair Quantity', tables: 'Table Quantity', parking: 'Parking Capacity', restrooms: 'Number of Restrooms' } as Record<string, string>)[key]} onChange={(next) => set(`${key}Quantity`, next)} value={details[`${key}Quantity`]} /> : null}</React.Fragment>)}
           <TagField label="Other Inclusions" onChange={(next) => set('otherInclusions', next)} value={details.otherInclusions} />
@@ -750,6 +895,13 @@ const styles = StyleSheet.create({
   selectedTag: { borderRadius: 15, backgroundColor: palette.primarySoft, paddingHorizontal: 10, paddingVertical: 6 },
   selectedTagText: { color: palette.primary, fontSize: 11, fontWeight: '600' },
   repeatCard: { gap: 14, borderWidth: 1, borderColor: '#D8D1D3', borderRadius: 10, backgroundColor: '#FFFFFF', padding: 14 },
+  repeatCardHeader: { minHeight: 34, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  repeatCardTitleBlock: { minWidth: 0, flex: 1, gap: 3 },
+  repeatCardTitle: { color: palette.text, fontSize: 15, lineHeight: 20, fontWeight: '700' },
+  repeatCardMeta: { color: palette.secondary, fontSize: 11, lineHeight: 16 },
+  expandIndicator: { color: palette.primary, fontSize: 12, fontWeight: '700' },
+  optionDetails: { gap: 14, borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 14 },
+  optionToggles: { gap: 4, borderRadius: 8, backgroundColor: '#FCFBFB', paddingHorizontal: 10 },
   menuItemCard: { gap: 12, borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 14 },
   addButton: { minHeight: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.primary, borderRadius: 8, paddingHorizontal: 14 },
   addButtonText: { color: palette.primary, fontSize: 13, fontWeight: '700' },

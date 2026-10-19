@@ -163,6 +163,37 @@ test('service selection keeps option-aware budget fits while exposing exact sche
   ], 'service detail availability guard')
 })
 
+test('provider venue options support independent pricing without replacing legacy venue listings', () => {
+  const migration = read('supabase/migrations/20261020000100_provider_venue_option_pricing.sql')
+  const details = read('src/components/CategorySpecificServiceDetails.tsx')
+  const categoryDetails = read('src/lib/service-category-details.ts')
+
+  mustContain(migration, [
+    'create or replace function public.validate_venue_option_pricing()',
+    "option_row ->> 'pricingUnit' not in ('event', 'hour')",
+    'Active venue option % needs a positive base rate.',
+    "array array['requiredOptionIds', 'mutuallyExclusiveOptionIds']",
+    'Existing flat-price venue services have none of these keys',
+    'Existing service RLS policies still restrict all writes to the owning provider',
+  ], 'venue option pricing migration')
+  mustContain(details, [
+    'title="Venue rental options"',
+    'Option photo URLs (optional)',
+    'Can be booked on its own',
+    'Mutually exclusive with',
+    'title="Venue combinations"',
+  ], 'provider venue-option editor')
+  mustContain(categoryDetails, [
+    "pricingUnit?: 'event' | 'hour'",
+    'isBookableIndividually: boolean',
+    'mutuallyExclusiveOptionIds: string[]',
+    'optionPricingConfigured',
+    'leaves historic, flat-price listings untouched',
+  ], 'venue option compatibility model')
+  assert.doesNotMatch(migration, /update\s+public\.bookings/i,
+    'Phase 1 must not modify historic bookings')
+})
+
 test('client home can safely remove drafts and collapses bookings to the next three events', () => {
   const planning = read('src/lib/planning.ts')
   const home = read('src/screens/03-ClientHome.tsx')
