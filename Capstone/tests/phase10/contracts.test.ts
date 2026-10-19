@@ -1241,3 +1241,27 @@ test('V7 Phase 4 separates compact coordinator events from exact event managemen
     'onDraftSaved?.()',
   ], 'church arrangement draft preservation')
 })
+
+test('coordinator messages remain in the coordinator workspace and use the coordinator navigation', () => {
+  const app = read('src/App.tsx')
+  const messages = read('src/screens/03.1-Messages.tsx')
+  const coordinatorNavigation = read('src/components/CoordinatorBottomNavigation.tsx')
+
+  mustContain(app, [
+    'const openCoordinatorTab = (tab: CoordinatorMainTab)',
+    "setMessageWorkspace('coordinator')",
+    "screen === 'messages' && messageWorkspace === 'client'",
+    "screen === 'messages' && messageWorkspace === 'merchant'",
+    "onBack={messageWorkspace === 'coordinator' ? () => setScreen('coordinatorHome') : undefined}",
+    'onSelectCoordinatorTab={openCoordinatorTab}',
+  ], 'coordinator message routing')
+  mustContain(messages, [
+    "navigationVariant === 'coordinator' && showBottomNavigation && !isWide",
+    '<CoordinatorBottomNavigation',
+    'onSelectCoordinatorTab?: (tab: CoordinatorMainTab) => void',
+  ], 'coordinator message navigation')
+  mustContain(coordinatorNavigation, [
+    "{ id: 'messages', icon: 'chat', label: 'Messages' }",
+    "{ id: 'account', icon: 'person', label: 'Account' }",
+  ], 'coordinator bottom navigation design')
+})

@@ -1,4 +1,8 @@
 import { Text } from '../components/AppText'
+import {
+  CoordinatorBottomNavigation,
+  type CoordinatorMainTab,
+} from '../components/CoordinatorBottomNavigation'
 import { MerchantBottomNavigation } from '../components/MerchantBottomNavigation'
 import React from 'react'
 import {
@@ -56,6 +60,7 @@ interface MessagesScreenProps {
   onOpenNotifications?: () => void
   onOpenProfile?: () => void
   onOpenEventCoordinatorForEvent?: (eventId: string) => void
+  onSelectCoordinatorTab?: (tab: CoordinatorMainTab) => void
   onSearchChange?: (value: string) => void
   onSelectConversation?: (conversation: ClientConversation) => void
   navigationVariant?: 'client' | 'coordinator' | 'merchant'
@@ -151,6 +156,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
   onOpenNotifications,
   onOpenProfile,
   onOpenEventCoordinatorForEvent,
+  onSelectCoordinatorTab,
   onSearchChange,
   onSelectConversation,
   onSelectTab,
@@ -584,7 +590,12 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
         )}
       </ScrollView>
 
-      {navigationVariant === 'merchant' && showBottomNavigation && !isWide ? (
+      {navigationVariant === 'coordinator' && showBottomNavigation && !isWide ? (
+        <CoordinatorBottomNavigation
+          activeTab="messages"
+          onSelectTab={onSelectCoordinatorTab}
+        />
+      ) : navigationVariant === 'merchant' && showBottomNavigation && !isWide ? (
         <MerchantBottomNavigation
           activeTab="messages"
           onSelectTab={(tab) => onSelectTab?.(tab)}

@@ -17,6 +17,7 @@ import {
 } from 'react-native'
 import { Text } from '../components/AppText'
 import { BrandIdentity } from '../components/BrandIdentity'
+import { CoordinatorBottomNavigation } from '../components/CoordinatorBottomNavigation'
 import {
   ChurchDatePickerModal,
   ChurchLocationMap,
@@ -1382,9 +1383,6 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
   const [composerError, setComposerError] = React.useState('')
   const [isCreating, setIsCreating] = React.useState(false)
   const contentSlide = React.useRef(new Animated.Value(1)).current
-  const activeIndicatorX = React.useRef(new Animated.Value(0)).current
-  const initializedIndicator = React.useRef(false)
-  const [navigationWidth, setNavigationWidth] = React.useState(0)
 
   React.useEffect(() => {
     if (controlledActiveView && controlledActiveView !== activeView) setActiveView(controlledActiveView)
@@ -1473,22 +1471,6 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
     { icon: 'event-available', id: 'events', label: 'Events' },
     { icon: 'check-circle', id: 'tasks', label: 'Tasks' },
   ]
-  const activeTabIndex = Math.max(0, tabs.findIndex((tab) => tab.id === activeView))
-  const indicatorPosition = (availableWidth: number, index: number) => {
-    const slotWidth = availableWidth / 4
-    return index * slotWidth + (slotWidth - 64) / 2
-  }
-
-  React.useEffect(() => {
-    if (!navigationWidth) return
-    activeIndicatorX.stopAnimation()
-    Animated.timing(activeIndicatorX, {
-      duration: 300,
-      easing: Easing.out(Easing.cubic),
-      toValue: indicatorPosition(navigationWidth, activeTabIndex),
-      useNativeDriver: true,
-    }).start()
-  }, [activeIndicatorX, activeTabIndex, navigationWidth])
 
   return (
     <View style={styles.screen}>
@@ -1942,61 +1924,20 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
       </Animated.ScrollView>
 
       {!isWide ? (
-        <View style={styles.bottomNavigation}>
-          <View
-            onLayout={(event) => {
-              const measuredWidth = event.nativeEvent.layout.width
-              setNavigationWidth(measuredWidth)
-              if (!initializedIndicator.current) {
-                activeIndicatorX.setValue(indicatorPosition(measuredWidth, activeTabIndex))
-                initializedIndicator.current = true
-              }
-            }}
-            style={styles.bottomNavigationContent}
-          >
-            <Animated.View
-              pointerEvents="none"
-              style={[
-                styles.bottomNavActiveIndicator,
-                { opacity: navigationWidth ? 1 : 0 },
-                { transform: [{ translateX: activeIndicatorX }] },
-              ]}
-            />
-            {tabs.map((tab) => {
-              const selected = activeView === tab.id
-              return (
-                <Pressable
-                  key={tab.id}
-                  accessibilityRole="tab"
-                  accessibilityState={{ selected }}
-                  onPress={() => selectView(tab.id)}
-                  style={({ pressed }) => [styles.bottomNavItem, pressed && styles.pressed]}
-                >
-                  <View style={styles.bottomNavIcon}>
-                    <MaterialIcons
-                      color={selected ? palette.primary : palette.secondary}
-                      name={tab.icon}
-                      size={21}
-                    />
-                  </View>
-                  <Text style={[styles.bottomNavLabel, selected && styles.bottomNavLabelSelected]}>
-                    {tab.label}
-                  </Text>
-                </Pressable>
-              )
-            })}
-            <Pressable
-              accessibilityRole="tab"
-              onPress={onOpenProfile}
-              style={({ pressed }) => [styles.bottomNavItem, pressed && styles.pressed]}
-            >
-              <View style={styles.bottomNavIcon}>
-                <MaterialIcons color={palette.secondary} name="person" size={21} />
-              </View>
-              <Text style={styles.bottomNavLabel}>Account</Text>
-            </Pressable>
-          </View>
-        </View>
+        <CoordinatorBottomNavigation
+          activeTab={activeView === 'overview' ? 'home' : activeView}
+          onSelectTab={(tab) => {
+            if (tab === 'account') {
+              onOpenProfile?.()
+              return
+            }
+            if (tab === 'messages') {
+              onOpenMessages?.()
+              return
+            }
+            selectView(tab === 'home' ? 'overview' : tab)
+          }}
+        />
       ) : null}
     </View>
   )

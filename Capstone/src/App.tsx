@@ -96,6 +96,7 @@ import {
 } from './lib/merchant'
 import { colors } from './theme/tokens'
 import { ClientBottomNavigation } from './components/ClientBottomNavigation'
+import type { CoordinatorMainTab } from './components/CoordinatorBottomNavigation'
 import { MerchantBottomNavigation } from './components/MerchantBottomNavigation'
 import { NonBlockingActivityBar, ScreenMotionFrame } from './components/MotionFeedback'
 import { ClientHomeScreen, ClientHomeTab, getClientBookingProgress } from './screens/03-ClientHome'
@@ -1027,6 +1028,25 @@ export const App: React.FC = () => {
     }
     if (tab === 'profile') openProviderProfile()
   }
+  const openCoordinatorTab = (tab: CoordinatorMainTab) => {
+    if (tab === 'home') {
+      setCoordinatorHomeView('overview')
+      setScreen('coordinatorHome')
+      return
+    }
+    if (tab === 'events' || tab === 'tasks') {
+      setCoordinatorHomeView(tab)
+      setScreen('coordinatorHome')
+      return
+    }
+    if (tab === 'messages') {
+      setMessageWorkspace('coordinator')
+      setScreen('messages')
+      void fetchConversations().then(setConversations)
+      return
+    }
+    openAccountProfile('coordinatorHome')
+  }
   const openMessageTab = (tab: ClientHomeTab | MerchantHomeTab) => {
     if (homeReturnScreen === 'providerHome') {
       openMerchantTab(tab === 'explore' ? 'services' : tab)
@@ -1800,6 +1820,8 @@ export const App: React.FC = () => {
           setAuthenticatedUserId('')
           setIsAuthRestoring(false)
           setUserName('Planner')
+          setHomeReturnScreen('clientHome')
+          setMessageWorkspace('client')
           setAccountProfile(undefined)
           setUserAvatarUrl('')
           setAccountProfileError('')
@@ -1841,7 +1863,7 @@ export const App: React.FC = () => {
       const normalizedType = resourceType?.toLowerCase() ?? ''
       if (normalizedType.includes('message') || normalizedType.includes('conversation')) {
         setMessageWorkspace(
-          screenRef.current.startsWith('coordinator')
+          screenRef.current.startsWith('coordinator') || messageWorkspace === 'coordinator'
             ? 'coordinator'
             : homeReturnScreen === 'providerHome'
               ? 'merchant'
@@ -1880,7 +1902,7 @@ export const App: React.FC = () => {
             : 'notifications'
       )
     },
-    [homeReturnScreen, setScreen]
+    [homeReturnScreen, messageWorkspace, setScreen]
   )
 
   React.useEffect(() => {
@@ -3879,11 +3901,7 @@ export const App: React.FC = () => {
               setScreen('coordinatorEventDetails')
             }}
             onSaveChurchArrangement={handleSaveChurchArrangement}
-            onOpenMessages={() => {
-              setMessageWorkspace('coordinator')
-              setScreen('messages')
-              void fetchConversations().then(setConversations)
-            }}
+            onOpenMessages={() => openCoordinatorTab('messages')}
             onOpenNotifications={() => setScreen('coordinatorNotifications')}
             onOpenPackages={() => setScreen('coordinatorPackages')}
             onOpenProfile={() => openAccountProfile('coordinatorHome')}
@@ -3975,8 +3993,7 @@ export const App: React.FC = () => {
             onSelectNotification={(notification) => {
               void markMerchantNotificationRead(notification).then(() => refreshLiveData())
               if (notification.category === 'message') {
-                setMessageWorkspace('coordinator')
-                setScreen('messages')
+                openCoordinatorTab('messages')
               } else if (
                 notification.resourceType === 'event_cash_remittance'
                 && notification.resourceId
@@ -4338,7 +4355,7 @@ export const App: React.FC = () => {
             conversations={conversations}
             hasUnreadNotifications={notifications.some((notification) => !notification.isRead)}
             navigationVariant={messageWorkspace}
-            showBottomNavigation={false}
+            showBottomNavigation={messageWorkspace === 'coordinator'}
             onBack={messageWorkspace === 'coordinator' ? () => setScreen('coordinatorHome') : undefined}
             onMarkRead={(conversation) => {
               setConversations((current) =>
@@ -4359,6 +4376,7 @@ export const App: React.FC = () => {
             onOpenEventCoordinatorForEvent={(eventId) =>
               void openEventCoordinatorConversationFor(eventId, 'messages')
             }
+            onSelectCoordinatorTab={openCoordinatorTab}
             onSelectConversation={(conversation) =>
               void openExistingConversation(conversation, 'messages')
             }
@@ -4633,7 +4651,7 @@ export const App: React.FC = () => {
         ? 'explore'
         : screen === 'bookings'
           ? 'bookings'
-          : screen === 'messages' && homeReturnScreen === 'clientHome'
+          : screen === 'messages' && messageWorkspace === 'client' && homeReturnScreen === 'clientHome'
             ? 'messages'
           : null
 
@@ -4644,7 +4662,7 @@ export const App: React.FC = () => {
         ? 'services'
         : screen === 'providerBookingRequests'
           ? 'bookings'
-          : screen === 'messages' && homeReturnScreen === 'providerHome'
+          : screen === 'messages' && messageWorkspace === 'merchant' && homeReturnScreen === 'providerHome'
             ? 'messages'
             : screen === 'providerProfile'
               ? 'profile'
