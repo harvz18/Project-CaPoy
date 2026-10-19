@@ -4305,6 +4305,7 @@ export const App: React.FC = () => {
               packageId: value.packageId,
               quantity: value.quantity,
               serviceId: value.service.bookingServiceId ?? value.service.id,
+              venueSelections: value.venueSelections,
             })}
             onBack={() => setScreen('categoryBrowse')}
             onReadAllReviews={() => setScreen('serviceDetails')}

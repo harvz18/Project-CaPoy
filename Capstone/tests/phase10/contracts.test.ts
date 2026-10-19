@@ -194,6 +194,42 @@ test('provider venue options support independent pricing without replacing legac
     'Phase 1 must not modify historic bookings')
 })
 
+test('V8 Phase 2 prices selected venue options together and preserves their booking snapshot', () => {
+  const migration = read('supabase/migrations/20261020000200_client_venue_option_dynamic_pricing.sql')
+  const details = read('src/screens/08-ServiceDetails.tsx')
+  const planning = read('src/lib/planning.ts')
+
+  mustContain(migration, [
+    'create or replace function public.calculate_event_venue_quote_v8(',
+    'create or replace function public.save_my_venue_service_selection_v8(',
+    'venue_options_snapshot jsonb not null default',
+    'venue_booking_snapshot jsonb not null default',
+    "option_row.raw ->> 'pricingUnit' = 'hour'",
+    "provider_amount := provider_amount + option_subtotal",
+    'customer_amount := round(provider_amount * (1 + commission_rate), 2);',
+    'Selected venue options cannot use the same space twice.',
+    'A selected venue option overlaps another active booking.',
+    'does not use a provider\'s current price to',
+  ], 'V8 Phase 2 venue pricing migration')
+  mustContain(details, [
+    'selectedVenueHours',
+    'venueSelections: isVenue ? selectedVenueSelections : undefined',
+    'RENTAL DURATION',
+    'Increase ${option.name} duration',
+    'VIEW RENTAL DETAILS',
+    'Fixed per-event rate',
+    'Selected venue options cannot use the same space twice.',
+  ], 'client multi-option venue selector')
+  mustContain(planning, [
+    "'calculate_event_venue_quote_v8'",
+    "'save_my_venue_service_selection_v8'",
+    'venue_options_snapshot: selection.venue_options_snapshot',
+    'venue_booking_snapshot: selection.venue_booking_snapshot',
+  ], 'venue selection and checkout snapshot integration')
+  assert.doesNotMatch(migration, /update\s+public\.bookings\s+set\s+.*provider_amount/i,
+    'Phase 2 must not recalculate existing booking amounts')
+})
+
 test('client home can safely remove drafts and collapses bookings to the next three events', () => {
   const planning = read('src/lib/planning.ts')
   const home = read('src/screens/03-ClientHome.tsx')

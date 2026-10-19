@@ -29,6 +29,7 @@ import {
   summarizeCategoryDetails,
   type CateringPricingOption,
   type VenueBookingOption,
+  type VenueOptionSelection,
 } from '../lib/service-category-details'
 import type { ReviewSentiment, ServiceReviewInsights } from '../lib/reviews'
 
@@ -46,6 +47,7 @@ export interface ServiceSelectionValue {
   service: CatalogService
   venueBookedHours?: number
   venueOption?: VenueBookingOption
+  venueSelections?: VenueOptionSelection[]
 }
 
 type ServiceQuotePreview = {
@@ -70,6 +72,7 @@ interface ServiceDetailsScreenProps {
     packageId?: string
     quantity?: number
     service: CatalogService
+    venueSelections?: VenueOptionSelection[]
   }) => Promise<ServiceQuotePreview>
   onBack?: () => void
   onReadAllReviews?: () => void
@@ -154,8 +157,8 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   const [selectedCateringOptionId, setSelectedCateringOptionId] = React.useState('')
   const [selectedCateringOffering, setSelectedCateringOffering] = React.useState<CateringOffering>('preset')
   const [expandedCateringMenuSections, setExpandedCateringMenuSections] = React.useState<Set<string>>(new Set())
-  const [selectedVenueOptionId, setSelectedVenueOptionId] = React.useState('')
-  const [venueHours, setVenueHours] = React.useState('')
+  const [selectedVenueHours, setSelectedVenueHours] = React.useState<Record<string, string>>({})
+  const [expandedVenueOptions, setExpandedVenueOptions] = React.useState<Set<string>>(new Set())
   const [notes, setNotes] = React.useState('')
   const [isAddingSelection, setIsAddingSelection] = React.useState(false)
   const [authoritativeQuote, setAuthoritativeQuote] = React.useState<{
@@ -199,9 +202,16 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     setSelectedCateringOffering(customMenu && options.length === 0 ? 'custom' : 'preset')
     setExpandedCateringMenuSections(new Set())
     const venueOptions = getVenueBookingOptions(service?.categoryDetails)
-    setSelectedVenueOptionId(venueOptions.length === 1 ? venueOptions[0].id : '')
     const venueRules = getVenueBookingRules(service?.categoryDetails)
-    setVenueHours(String(venueRules.minimumBookingHours))
+    const soleVenueOption = venueOptions.length === 1 ? venueOptions[0] : undefined
+    setSelectedVenueHours(soleVenueOption
+      ? {
+          [soleVenueOption.id]: soleVenueOption.pricingUnit === 'event'
+            ? ''
+            : String(soleVenueOption.minimumBookingHours ?? venueRules.minimumBookingHours),
+        }
+      : {})
+    setExpandedVenueOptions(new Set())
     setHeroIndex(0)
     setExpandedSentiment(undefined)
     setAuthoritativeQuote(undefined)
@@ -229,7 +239,17 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
 
     const isCateringService = service.categoryId === 'catering'
     const isVenueService = service.categoryId === 'venues'
-    const requestedHours = Number(venueHours)
+    const venueOptions = getVenueBookingOptions(service.categoryDetails)
+    const selectedVenueSelections = venueOptions.flatMap((option) => {
+      if (!Object.prototype.hasOwnProperty.call(selectedVenueHours, option.id)) return []
+      const bookedHours = Number(selectedVenueHours[option.id])
+      const isHourly = option.pricingUnit === 'hour'
+        || (!option.pricingUnit && service.pricingUnit === 'hour')
+      return [{
+        optionId: option.id,
+        ...(isHourly ? { bookedHours } : {}),
+      }]
+    })
     const customMenu = getCateringCustomMenu(service.categoryDetails)
     const useSelectedProviderPackage = Boolean(selectedPackageId)
     const useCustomCateringMenu = isCateringService && !useSelectedProviderPackage && Boolean(customMenu)
@@ -244,9 +264,11 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
       if (!calculation.fitsGuestCount) return
     } else if (isCateringService && !useSelectedProviderPackage && !selectedCateringOptionId) return
     if (isVenueService && (
-      !selectedVenueOptionId
-      || !Number.isFinite(requestedHours)
-      || requestedHours <= 0
+      selectedVenueSelections.length === 0
+      || selectedVenueSelections.some((selection) =>
+        selection.bookedHours !== undefined
+        && (!Number.isFinite(selection.bookedHours) || selection.bookedHours <= 0)
+      )
     )) return
 
     let cancelled = false
@@ -254,11 +276,12 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     const timer = setTimeout(() => {
       void onCalculateQuote({
         menuItemIds: useCustomCateringMenu ? selectedCateringMenuItemIds : undefined,
-        optionId: isVenueService ? selectedVenueOptionId
+        optionId: isVenueService ? undefined
           : isCateringService && !useSelectedProviderPackage ? selectedCateringOptionId : undefined,
         packageId: selectedPackageId || service.packageId,
-        quantity: isVenueService ? requestedHours : undefined,
+        quantity: undefined,
         service,
+        venueSelections: isVenueService ? selectedVenueSelections : undefined,
       }).then((result) => {
         if (cancelled) return
         const customerAmount = Number(result.calculatedAmount)
@@ -299,9 +322,8 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     selectedCateringOffering,
     selectedCateringOptionId,
     selectedPackageId,
-    selectedVenueOptionId,
+    selectedVenueHours,
     service,
-    venueHours,
   ])
 
   if (!service) {
@@ -363,33 +385,91 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   )
   const venueOptions = getVenueBookingOptions(service.categoryDetails)
   const venueRules = getVenueBookingRules(service.categoryDetails)
-  const selectedVenueOption = venueOptions.find((option) => option.id === selectedVenueOptionId)
-  const parsedVenueHours = Number(venueHours)
-  const venueIncrementValid = Number.isFinite(parsedVenueHours)
-    && parsedVenueHours > 0
-    && Math.abs(parsedVenueHours / venueRules.durationIncrementHours
-      - Math.round(parsedVenueHours / venueRules.durationIncrementHours)) < 0.000001
-  const venueSelectionUnavailable = isVenue && (
-    !selectedVenueOption
-    || selectedVenueOption.capacity < Math.max(attendeeCount, 1)
-    || !venueIncrementValid
-    || parsedVenueHours < venueRules.minimumBookingHours
-    || (venueRules.maximumBookingHours !== undefined
-      && parsedVenueHours > venueRules.maximumBookingHours)
+  const isHourlyVenueOption = (option: VenueBookingOption) => option.pricingUnit === 'hour'
+    || (!option.pricingUnit && service.pricingUnit === 'hour')
+  const selectedVenueOptions = venueOptions.filter((option) =>
+    Object.prototype.hasOwnProperty.call(selectedVenueHours, option.id)
   )
+  const selectedVenueSelections: VenueOptionSelection[] = selectedVenueOptions.map((option) => {
+    const bookedHours = Number(selectedVenueHours[option.id])
+    return {
+      optionId: option.id,
+      ...(isHourlyVenueOption(option) ? { bookedHours } : {}),
+    }
+  })
+  const primaryVenueOption = selectedVenueOptions[0]
+  const primaryVenueHours = primaryVenueOption && isHourlyVenueOption(primaryVenueOption)
+    ? Number(selectedVenueHours[primaryVenueOption.id])
+    : undefined
+  const optionMinimumHours = (option: VenueBookingOption) =>
+    option.minimumBookingHours ?? venueRules.minimumBookingHours
+  const optionMaximumHours = (option: VenueBookingOption) =>
+    option.maximumBookingHours ?? venueRules.maximumBookingHours
+  const venueSelectionIssue = (() => {
+    if (!isVenue) return ''
+    if (selectedVenueOptions.length === 0) return 'Choose at least one available venue option.'
+    if (!eventDate || !eventTime) return 'Set the event date and start time before choosing a venue.'
+    if (selectedVenueOptions.length > 1 && selectedVenueOptions.some((option) => !option.allowsCombination)) {
+      return 'Every selected option must allow combination with other venue options.'
+    }
+    const selectedIds = new Set(selectedVenueOptions.map((option) => option.id))
+    for (const option of selectedVenueOptions) {
+      if (option.requiredOptionIds.some((id) => !selectedIds.has(id))) {
+        return `${option.name} requires another venue option that has not been selected.`
+      }
+      if (option.mutuallyExclusiveOptionIds.some((id) => selectedIds.has(id))) {
+        return `${option.name} cannot be selected together with one of the chosen options.`
+      }
+      if (isHourlyVenueOption(option)) {
+        const hours = Number(selectedVenueHours[option.id])
+        const minimum = optionMinimumHours(option)
+        const maximum = optionMaximumHours(option)
+        const alignsWithIncrement = Number.isFinite(hours)
+          && Math.abs(hours / venueRules.durationIncrementHours
+            - Math.round(hours / venueRules.durationIncrementHours)) < 0.000001
+        if (!Number.isFinite(hours) || hours <= 0 || !alignsWithIncrement
+          || hours < minimum || (maximum !== undefined && hours > maximum)) {
+          return `${option.name} needs a valid ${minimum}-hour minimum duration${maximum ? ` (up to ${maximum} hours)` : ''}.`
+        }
+      }
+    }
+    const resources = selectedVenueOptions.flatMap((option) => option.resourceIds)
+    if (new Set(resources).size !== resources.length) {
+      return 'Selected venue options cannot use the same space twice.'
+    }
+    const combinedCapacity = selectedVenueOptions.reduce((total, option) => total + option.capacity, 0)
+    if (combinedCapacity < Math.max(attendeeCount, 1)) {
+      return 'The selected venue options do not have enough combined capacity for this event.'
+    }
+    return ''
+  })()
+  const venueSelectionUnavailable = isVenue && Boolean(venueSelectionIssue)
   const selectedUnit = selectedPackage?.unit ?? service.pricingUnit ?? 'event'
   const selectedPrice = selectedPackage?.price ?? service.minPrice
   const selectedProviderPrice = selectedPackage?.providerPrice ?? service.providerMinPrice
-  const requiresQuote = service.pricingModel === 'customQuote' || selectedPrice <= 0
+  const hasOptionLevelVenuePricing = selectedVenueOptions.length > 0
+    && selectedVenueOptions.every((option) => Boolean(option.pricingUnit && option.baseRate && option.baseRate > 0))
+  const requiresQuote = (service.pricingModel === 'customQuote' || selectedPrice <= 0)
+    && !(isVenue && hasOptionLevelVenuePricing)
+  const locallyEstimatedVenueProviderTotal = selectedVenueOptions.reduce((total, option) => {
+    if (option.pricingUnit && option.baseRate && option.baseRate > 0) {
+      return total + (option.pricingUnit === 'hour'
+        ? option.baseRate * Number(selectedVenueHours[option.id] ?? 0)
+        : option.baseRate)
+    }
+    // Legacy venue listings retain their established single-price calculation.
+    const hours = Number(selectedVenueHours[option.id] ?? 0)
+    return total + (service.pricingUnit === 'hour'
+      ? selectedProviderPrice * hours
+        + (venueRules.setupAllowanceBillable ? selectedProviderPrice * venueRules.setupAllowanceHours : 0)
+      : selectedProviderPrice)
+  }, 0)
   const locallyEstimatedProviderTotal = usesSelectedProviderPackage
     ? selectedProviderPrice
     : isCatering
     ? cateringCalculation?.providerSubtotal ?? 0
-    : isVenue && selectedUnit === 'hour'
-      ? selectedProviderPrice * parsedVenueHours
-        + (venueRules.setupAllowanceBillable
-          ? selectedProviderPrice * venueRules.setupAllowanceHours
-          : 0)
+    : isVenue
+      ? locallyEstimatedVenueProviderTotal
     : selectedUnit === 'person' && attendeeCount > 0
       ? selectedProviderPrice * attendeeCount
       : selectedProviderPrice
@@ -444,8 +524,9 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
         estimatedTotal,
         mealType,
         notes,
-        venueBookedHours: isVenue ? parsedVenueHours : undefined,
-        venueOption: selectedVenueOption,
+        venueBookedHours: isVenue ? primaryVenueHours : undefined,
+        venueOption: primaryVenueOption,
+        venueSelections: isVenue ? selectedVenueSelections : undefined,
         service: selectedPackage
           ? {
               ...service,
@@ -467,6 +548,66 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
       setIsAddingSelection(false)
     }
   }
+
+  const canAddVenueOption = (candidate: VenueBookingOption) => {
+    if (selectedVenueHours[candidate.id] !== undefined) return true
+    if (selectedVenueOptions.length === 0) return true
+    if (!candidate.allowsCombination || selectedVenueOptions.some((option) => !option.allowsCombination)) {
+      return false
+    }
+    if (candidate.resourceIds.some((resourceId) => selectedVenueOptions.some((option) =>
+      option.resourceIds.includes(resourceId)
+    ))) return false
+    if (candidate.mutuallyExclusiveOptionIds.some((id) =>
+      selectedVenueOptions.some((option) => option.id === id)
+    )) return false
+    return !selectedVenueOptions.some((option) => option.mutuallyExclusiveOptionIds.includes(candidate.id))
+  }
+
+  const toggleVenueOption = (option: VenueBookingOption) => {
+    setSelectedVenueHours((current) => {
+      if (Object.prototype.hasOwnProperty.call(current, option.id)) {
+        const remaining = { ...current }
+        delete remaining[option.id]
+        return remaining
+      }
+      if (!canAddVenueOption(option)) return current
+      return {
+        ...current,
+        [option.id]: isHourlyVenueOption(option)
+          ? String(optionMinimumHours(option))
+          : '',
+      }
+    })
+  }
+
+  const updateVenueHours = (option: VenueBookingOption, value: string) => {
+    setSelectedVenueHours((current) => ({
+      ...current,
+      [option.id]: value.replace(/[^\d.]/g, ''),
+    }))
+  }
+
+  const adjustVenueHours = (option: VenueBookingOption, direction: -1 | 1) => {
+    setSelectedVenueHours((current) => {
+      const minimum = optionMinimumHours(option)
+      const maximum = optionMaximumHours(option)
+      const currentValue = Number(current[option.id])
+      const baseValue = Number.isFinite(currentValue) && currentValue > 0 ? currentValue : minimum
+      const nextValue = direction > 0
+        ? baseValue + venueRules.durationIncrementHours
+        : baseValue - venueRules.durationIncrementHours
+      const bounded = Math.max(minimum, maximum === undefined ? nextValue : Math.min(nextValue, maximum))
+      return { ...current, [option.id]: String(bounded) }
+    })
+  }
+
+  const toggleExpandedVenueOption = (optionId: string) => setExpandedVenueOptions((current) => {
+    const next = new Set(current)
+    if (next.has(optionId)) next.delete(optionId)
+    else next.add(optionId)
+    return next
+  })
 
   return (
     <View style={styles.screen}>
@@ -907,22 +1048,22 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                   </View>
                   <MaterialCommunityIcons color={palette.primary} name="office-building-marker-outline" size={28} />
                 </View>
-                <Text style={styles.cateringInstruction}>Choose one provider-configured space or combination.</Text>
+                <Text style={styles.cateringInstruction}>Choose available venue options. Select more than one only when every option allows combination.</Text>
                 {venueOptions.map((option) => {
-                  const selected = option.id === selectedVenueOptionId
-                  const capacityFits = option.capacity >= Math.max(attendeeCount, 1)
+                  const selected = Object.prototype.hasOwnProperty.call(selectedVenueHours, option.id)
+                  const canSelect = selected || canAddVenueOption(option)
                   return (
                     <Pressable
                       key={option.id}
-                      accessibilityRole="radio"
-                      accessibilityState={{ checked: selected, disabled: !capacityFits }}
-                      disabled={!capacityFits}
-                      onPress={() => setSelectedVenueOptionId(option.id)}
-                      style={[styles.cateringOptionCard, selected && styles.cateringOptionCardSelected, !capacityFits && styles.cateringOptionCardDisabled]}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: selected, disabled: !canSelect }}
+                      disabled={!canSelect}
+                      onPress={() => toggleVenueOption(option)}
+                      style={[styles.cateringOptionCard, selected && styles.cateringOptionCardSelected, !canSelect && styles.cateringOptionCardDisabled]}
                     >
                       <View style={styles.cateringOptionHeading}>
                         <View style={styles.packageTitleRow}>
-                          <MaterialCommunityIcons color={selected ? palette.primary : palette.secondary} name={selected ? 'radiobox-marked' : 'radiobox-blank'} size={22} />
+                          <MaterialCommunityIcons color={selected ? palette.primary : palette.secondary} name={selected ? 'checkbox-marked' : 'checkbox-blank-outline'} size={22} />
                           <View>
                             <Text style={styles.cateringOptionName}>{option.name}</Text>
                             <Text style={styles.cateringOptionRange}>{option.kind === 'combination' ? 'Expandable combination' : 'Individual space'} · {option.spaceType}</Text>
@@ -930,20 +1071,87 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                         </View>
                       </View>
                       <Text style={styles.cateringMenuItems}>Capacity: {option.capacity} guests · Area: {option.areaSqm || 'Not specified'} sqm</Text>
-                      {!capacityFits ? <Text style={styles.cateringMismatch}>Capacity is below the event guest count.</Text> : null}
+                      {!canSelect ? <Text style={styles.cateringMismatch}>This option conflicts with another selected space or cannot be combined.</Text> : null}
                     </Pressable>
                   )
                 })}
+                {selectedVenueOptions.map((option) => {
+                  const expanded = expandedVenueOptions.has(option.id)
+                  const isHourly = isHourlyVenueOption(option)
+                  const minimumHours = optionMinimumHours(option)
+                  const maximumHours = optionMaximumHours(option)
+                  const enteredHours = Number(selectedVenueHours[option.id])
+                  const providerSubtotal = option.pricingUnit && option.baseRate
+                    ? option.pricingUnit === 'hour'
+                      ? option.baseRate * (Number.isFinite(enteredHours) ? enteredHours : 0)
+                      : option.baseRate
+                    : service.pricingUnit === 'hour'
+                      ? selectedProviderPrice * (Number.isFinite(enteredHours) ? enteredHours : 0)
+                      : selectedProviderPrice
+                  const unitRate = option.pricingUnit && option.baseRate
+                    ? option.baseRate
+                    : selectedProviderPrice
+                  return (
+                    <View key={`${option.id}-details`} style={styles.venueSelectionCard}>
+                      <View style={styles.cateringOptionHeading}>
+                        <View>
+                          <Text style={styles.cateringOptionName}>{option.name}</Text>
+                          <Text style={styles.cateringOptionRange}>{isHourly ? 'Hourly rental' : 'Per-event rental'} · {formatPeso(customerPriceFromProviderPrice(unitRate, service.commissionRate))} / {isHourly ? 'hour' : 'event'}</Text>
+                        </View>
+                        <Text style={styles.cateringOptionSubtotal}>{formatPeso(customerPriceFromProviderPrice(providerSubtotal, service.commissionRate))}</Text>
+                      </View>
+                      {isHourly ? <>
+                        <Text style={styles.inputLabel}>RENTAL DURATION</Text>
+                        <View style={styles.venueDurationRow}>
+                          <Pressable accessibilityLabel={`Decrease ${option.name} duration`} onPress={() => adjustVenueHours(option, -1)} style={styles.venueDurationButton}><Text style={styles.venueDurationButtonText}>−</Text></Pressable>
+                          <TextInput
+                            accessibilityLabel={`${option.name} rental duration in hours`}
+                            keyboardType="decimal-pad"
+                            onChangeText={(value) => updateVenueHours(option, value)}
+                            placeholder={String(minimumHours)}
+                            placeholderTextColor={palette.secondaryFixedDim}
+                            style={styles.venueDurationInput}
+                            value={selectedVenueHours[option.id]}
+                          />
+                          <Text style={styles.venueDurationUnit}>hours</Text>
+                          <Pressable accessibilityLabel={`Increase ${option.name} duration`} onPress={() => adjustVenueHours(option, 1)} style={styles.venueDurationButton}><Text style={styles.venueDurationButtonText}>+</Text></Pressable>
+                        </View>
+                        <Text style={styles.cateringOptionRange}>{minimumHours} hour minimum · {venueRules.durationIncrementHours} hour increments{maximumHours ? ` · ${maximumHours} hour maximum` : ''}</Text>
+                      </> : <View style={styles.venueTermsCard}>
+                        <Text style={styles.cateringOptionUnit}>Fixed per-event rate</Text>
+                        <Text style={styles.cateringOptionRange}>{option.includedDurationHours
+                          ? `Included use: up to ${option.includedDurationHours} hours`
+                          : option.minimumBookingHours
+                            ? `Minimum rental term: ${option.minimumBookingHours} hours`
+                            : 'View the provider rental conditions below.'}</Text>
+                      </View>}
+                      <Pressable accessibilityRole="button" onPress={() => toggleExpandedVenueOption(option.id)} style={styles.venueDetailsToggle}>
+                        <Text style={styles.venueDetailsToggleText}>{expanded ? 'HIDE RENTAL DETAILS' : 'VIEW RENTAL DETAILS'}</Text>
+                      </Pressable>
+                      {expanded ? <View style={styles.venueExpandedDetails}>
+                        {option.description ? <Text style={styles.venueDetailCopy}>{option.description}</Text> : null}
+                        {option.photoUrls.length ? <ScrollView horizontal showsHorizontalScrollIndicator={false}><View style={styles.venuePhotoRow}>{option.photoUrls.map((photoUrl) => <Image key={photoUrl} source={{ uri: photoUrl }} style={styles.venueOptionPhoto} />)}</View></ScrollView> : null}
+                        <Text style={styles.venueDetailCopy}>Capacity: {option.capacity} guests · Area: {option.areaSqm || 'Not specified'} sqm</Text>
+                        {option.amenities.length ? <Text style={styles.venueDetailCopy}>Amenities: {option.amenities.join(', ')}</Text> : null}
+                        {option.inclusions.length ? <Text style={styles.venueDetailCopy}>Inclusions: {option.inclusions.join(', ')}</Text> : null}
+                        {option.restrictions?.length ? <Text style={styles.venueDetailCopy}>Restrictions: {option.restrictions.join(', ')}</Text> : null}
+                        {option.availabilityNotes ? <Text style={styles.venueDetailCopy}>Availability: {option.availabilityNotes}</Text> : null}
+                        <Text style={styles.venueDetailCopy}>Access: {option.accessStartTime || venueRules.openingTime || 'Not specified'}-{option.accessEndTime || venueRules.closingTime || 'Not specified'} · Setup allowance: {option.setupAllowanceHours ?? venueRules.setupAllowanceHours} hours</Text>
+                        {option.overtimePolicy ? <Text style={styles.venueDetailCopy}>Overtime: {option.overtimePolicy}</Text> : null}
+                      </View> : null}
+                    </View>
+                  )
+                })}
+                {venueSelectionIssue ? <Text style={styles.cateringMismatch}>{venueSelectionIssue}</Text> : null}
                 <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>BOOKING DURATION (HOURS)</Text>
+                  <Text style={styles.inputLabel}>EVENT SCHEDULE</Text>
                   <TextInput
-                    accessibilityLabel="Venue booking duration in hours"
-                    keyboardType="decimal-pad"
-                    onChangeText={(value) => setVenueHours(value.replace(/[^\d.]/g, ''))}
-                    placeholder={String(venueRules.minimumBookingHours)}
+                    accessibilityLabel="Venue duration is set on each selected hourly option"
+                    editable={false}
+                    placeholder="Set each selected hourly option above"
                     placeholderTextColor={palette.secondaryFixedDim}
                     style={styles.notesInput}
-                    value={venueHours}
+                    value=""
                   />
                   <Text style={styles.cateringOptionRange}>
                     {venueRules.minimumBookingHours} hour minimum · {venueRules.durationIncrementHours} hour increments
@@ -1571,6 +1779,19 @@ const styles = StyleSheet.create({
   cateringOptionUnit: { color: palette.primary, fontSize: 13, lineHeight: 19, fontWeight: '700' },
   cateringOptionSubtotal: { color: palette.text, fontSize: 11, lineHeight: 16, marginTop: 2 },
   cateringMenuSection: { borderTopWidth: 1, borderTopColor: palette.surfaceVariant, paddingTop: 8 },
+  venueSelectionCard: { gap: 10, borderWidth: 1, borderColor: '#E6C4C8', borderRadius: 12, backgroundColor: '#FCF5F6', padding: 14 },
+  venueDurationRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  venueDurationButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: palette.primary },
+  venueDurationButtonText: { color: palette.white, fontSize: 21, lineHeight: 24, fontWeight: '700' },
+  venueDurationInput: { width: 72, minHeight: 42, borderWidth: 1, borderColor: palette.surfaceVariant, borderRadius: 8, backgroundColor: palette.surfaceLowest, color: palette.text, fontSize: 16, fontWeight: '700', textAlign: 'center', paddingHorizontal: 8 },
+  venueDurationUnit: { flex: 1, color: palette.secondary, fontSize: 13, lineHeight: 18 },
+  venueTermsCard: { gap: 3, borderRadius: 8, backgroundColor: palette.surfaceLow, padding: 11 },
+  venueDetailsToggle: { alignSelf: 'flex-start', paddingVertical: 4 },
+  venueDetailsToggleText: { color: palette.primary, fontSize: 11, lineHeight: 16, fontWeight: '800', letterSpacing: 0.7 },
+  venueExpandedDetails: { gap: 7, borderTopWidth: 1, borderTopColor: '#E6C4C8', paddingTop: 12 },
+  venueDetailCopy: { color: palette.secondary, fontSize: 12, lineHeight: 18 },
+  venuePhotoRow: { flexDirection: 'row', gap: 8, paddingVertical: 2 },
+  venueOptionPhoto: { width: 112, height: 76, borderRadius: 8, backgroundColor: palette.surfaceLow },
   cateringMenuItemChoice: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 10, borderTopWidth: 1, borderTopColor: palette.surfaceVariant, paddingVertical: 10 },
   cateringMenuItemChoiceSelected: { backgroundColor: '#FCF5F6', marginHorizontal: -6, paddingHorizontal: 6 },
   menuItemChoiceCopy: { minWidth: 0, flex: 1 },

@@ -85,6 +85,7 @@ export type VenueBookingOption = {
   accessEndTime?: string
   accessStartTime?: string
   areaSqm: number
+  allowsCombination: boolean
   availabilityNotes?: string
   baseRate?: number
   capacity: number
@@ -105,9 +106,15 @@ export type VenueBookingOption = {
   photoUrls: string[]
   pricingUnit?: 'event' | 'hour'
   requiredOptionIds: string[]
+  restrictions: string[]
   resourceIds: string[]
   setupAllowanceHours?: number
   spaceType: string
+}
+
+export type VenueOptionSelection = {
+  bookedHours?: number
+  optionId: string
 }
 
 export type VenueBookingRules = {
@@ -152,6 +159,10 @@ const venueOptionDetails = (value: Record<string, unknown>) => ({
   accessEndTime: text(value.accessEndTime) || undefined,
   accessStartTime: text(value.accessStartTime) || undefined,
   availabilityNotes: text(value.availabilityNotes) || undefined,
+  // This explicit provider control is used for client multi-selection. Older
+  // venue listings have no such flag and therefore retain their one-option
+  // selection behavior, while their preconfigured combinations stay usable.
+  allowsCombination: value.allowsCombination === true,
   baseRate: optionalPositiveNumber(value.baseRate),
   cleanupAllowanceHours: optionalNonNegativeNumber(value.cleanupAllowanceHours),
   description: text(value.description) || undefined,
@@ -167,6 +178,7 @@ const venueOptionDetails = (value: Record<string, unknown>) => ({
   photoUrls: list(value.photoUrls),
   pricingUnit: venuePricingUnit(value.pricingUnit),
   requiredOptionIds: list(value.requiredOptionIds),
+  restrictions: list(value.restrictions),
   setupAllowanceHours: optionalNonNegativeNumber(value.setupAllowanceHours),
 })
 

@@ -16,7 +16,11 @@ import type {
   EventType,
   VenueStatus,
 } from '../screens/04-EventCreation'
-import type { CateringPricingOption, VenueBookingOption } from './service-category-details'
+import type {
+  CateringPricingOption,
+  VenueBookingOption,
+  VenueOptionSelection,
+} from './service-category-details'
 import type {
   BudgetPriority,
   CategoryBudgetAllocation,
@@ -79,6 +83,7 @@ type ServiceSelectionInput = {
   service: CatalogService
   venueBookedHours?: number
   venueOption?: VenueBookingOption
+  venueSelections?: VenueOptionSelection[]
 }
 
 export type ClientPlanningState = {
@@ -157,12 +162,14 @@ export const calculateServiceQuote = async ({
   packageId,
   quantity,
   serviceId,
+  venueSelections,
 }: {
   menuItemIds?: string[]
   optionId?: string
   packageId?: string
   quantity?: number
   serviceId: string
+  venueSelections?: VenueOptionSelection[]
 }): Promise<PlanningResult> => {
   try {
     const client = getClient()
@@ -170,9 +177,16 @@ export const calculateServiceQuote = async ({
     if (!client || !event || !isUuid(serviceId)) {
       return { ok: false, message: 'Choose a published service to calculate its event price.' }
     }
+    const rpcName = venueSelections !== undefined
+      ? 'calculate_event_venue_quote_v8'
+      : menuItemIds !== undefined ? 'calculate_catering_menu_quote' : 'calculate_event_service_quote'
     const { data, error } = await client.rpc(
-      menuItemIds !== undefined ? 'calculate_catering_menu_quote' : 'calculate_event_service_quote',
-      menuItemIds !== undefined ? {
+      rpcName,
+      venueSelections !== undefined ? {
+        target_event_id: event.eventId,
+        target_option_selections: venueSelections,
+        target_service_id: serviceId,
+      } : menuItemIds !== undefined ? {
         target_event_id: event.eventId,
         target_menu_item_ids: menuItemIds,
         target_service_id: serviceId,
@@ -1118,7 +1132,7 @@ export const savePlanningPayment = async (
         client
           .from('event_service_selections')
           .select(
-            'id, provider_id, service_id, package_id, estimated_amount, notes, service_name, status, selected_provider_snapshot, catering_option_id, catering_option_name, catering_option_snapshot, venue_option_id, venue_option_name, venue_option_snapshot, venue_booked_hours, venue_setup_start_at, venue_start_at, venue_end_at, provider_profiles(user_id)'
+            'id, provider_id, service_id, package_id, estimated_amount, notes, service_name, status, selected_provider_snapshot, catering_option_id, catering_option_name, catering_option_snapshot, venue_option_id, venue_option_name, venue_option_snapshot, venue_options_snapshot, venue_booking_snapshot, venue_booked_hours, venue_setup_start_at, venue_start_at, venue_end_at, provider_profiles(user_id)'
           )
           .eq('event_id', event.eventId)
           .eq('client_id', event.userId)
@@ -1227,6 +1241,8 @@ export const savePlanningPayment = async (
         venue_option_id: selection.venue_option_id,
         venue_option_name: selection.venue_option_name,
         venue_option_snapshot: selection.venue_option_snapshot,
+        venue_options_snapshot: selection.venue_options_snapshot,
+        venue_booking_snapshot: selection.venue_booking_snapshot,
         venue_setup_start_at: selection.venue_setup_start_at,
         venue_start_at: selection.venue_start_at,
       }
@@ -1574,7 +1590,15 @@ export const saveServiceSelection = async (
     const serviceId = value.service.bookingServiceId ?? value.service.id
     const packageId = value.service.bookingPackageId ?? value.service.packageId
     if (isUuid(serviceId)) {
-      const selectionResult = value.cateringMenuItemIds !== undefined
+      const selectionResult = value.venueSelections !== undefined
+        ? await client.rpc('save_my_venue_service_selection_v8', {
+          replace_existing: true,
+          target_event_id: event.eventId,
+          target_notes: value.notes,
+          target_option_selections: value.venueSelections,
+          target_service_id: serviceId,
+        })
+        : value.cateringMenuItemIds !== undefined
         ? await client.rpc('save_my_catering_menu_service_selection', {
           replace_existing: true,
           target_event_id: event.eventId,
@@ -1597,8 +1621,10 @@ export const saveServiceSelection = async (
       if (error) {
         return {
           ok: false,
-          message: error.message.toLowerCase().includes('save_my_event_service_selection')
-            ? 'Phase 9 service selection is not installed yet. Apply database/60_service_selection_revision.sql.'
+          message: error.message.toLowerCase().includes('save_my_venue_service_selection_v8')
+            ? 'Venue option pricing is not installed yet. Apply the V8 Phase 2 database migration.'
+            : error.message.toLowerCase().includes('save_my_event_service_selection')
+              ? 'Phase 9 service selection is not installed yet. Apply database/60_service_selection_revision.sql.'
             : error.message,
         }
       }
