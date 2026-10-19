@@ -185,7 +185,10 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
   }, [conversations])
   const query = searchValue ?? internalSearch
   const normalizedQuery = query.trim().toLowerCase()
-  const usesEventGroups = navigationVariant !== 'merchant'
+  // Every role works from event-scoped conversations. Providers may have
+  // several direct threads for the same event, so grouping first keeps their
+  // inbox consistent with the client and coordinator workspaces.
+  const usesEventGroups = true
   const unreadCount = conversations.reduce(
     (count, conversation) => count + (readIds.has(conversation.id) ? 0 : conversation.unreadCount),
     0

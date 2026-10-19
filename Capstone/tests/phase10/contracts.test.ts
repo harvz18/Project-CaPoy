@@ -707,6 +707,18 @@ test('V7 Phase 2 gives coordinators direct event-grouped messaging without creat
   ], 'coordinator messaging navigation')
 })
 
+test('provider inbox groups direct booking conversations by event', () => {
+  const messages = read('src/screens/03.1-Messages.tsx')
+
+  mustContain(messages, [
+    'Every role works from event-scoped conversations.',
+    'const usesEventGroups = true',
+    "navigationVariant === 'merchant' ? (",
+    'usesEventGroups && !selectedEvent',
+  ], 'event-grouped provider inbox')
+  assert.doesNotMatch(messages, /navigationVariant !== 'merchant'/)
+})
+
 test('coordinator-provider messages remain writable for active client-selected bookings', () => {
   const migration = read('supabase/migrations/20261019000600_coordinator_provider_active_booking_messaging.sql')
   const messaging = read('src/lib/messaging.ts')
