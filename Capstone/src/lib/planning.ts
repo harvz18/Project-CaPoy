@@ -1422,13 +1422,10 @@ export const savePlanningPayment = async (
     if (eventStatusError) return { ok: false, message: eventStatusError.message }
 
     for (const booking of bookingRows) {
-      // Conversations are server-managed from the booking relationship. The
-      // booking trigger also covers older clients if this RPC is unavailable.
-      const { error: conversationError } = await client.rpc('open_booking_conversation', {
-        target_booking_id: booking.id,
-      })
-
-      if (conversationError) return { ok: false, message: conversationError.message }
+      // Messaging intentionally opens only after provider confirmation. Calling
+      // the restricted conversation RPC here would make an already-recorded
+      // payment look like a failed checkout and prevent the receipt handoff.
+      // The server-side confirmation trigger creates the conversation later.
 
       if (booking.isNew) {
         await client.from('notifications').insert({

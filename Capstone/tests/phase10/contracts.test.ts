@@ -563,10 +563,15 @@ test('messaging is restricted to active booking relationships while closed histo
   ], 'secure messaging client integration')
   assert.doesNotMatch(messaging, /\.from\('messages'\)\s*\.insert/)
   assert.doesNotMatch(messaging, /\.from\('conversation_participants'\)\s*\.upsert/)
+  assert.doesNotMatch(
+    planning,
+    /\.rpc\('open_booking_conversation'/,
+    'checkout must defer booking conversations until provider confirmation'
+  )
   mustContain(planning, [
-    "client.rpc('open_booking_conversation'",
-    'Conversations are server-managed from the booking relationship.',
-  ], 'booking conversation creation')
+    'Messaging intentionally opens only after provider confirmation.',
+    'The server-side confirmation trigger creates the conversation later.',
+  ], 'booking conversation handoff')
   mustContain(app, [
     'openBookingConversationFor',
     "table: 'messages'",
@@ -1166,6 +1171,10 @@ test('checkout advances after a recorded payment and retries do not duplicate it
   const app = read('src/App.tsx')
   const planning = read('src/lib/planning.ts')
   const migration = read('supabase/migrations/20261018000400_payment_checkout_idempotency.sql')
+  const confirmedMessaging = read('supabase/migrations/20261017000600_phase1_confirmed_booking_messaging.sql')
+  const checkoutStart = planning.indexOf('export const savePlanningPayment')
+  const checkoutEnd = planning.indexOf('export const assignCoordinatorToEvent')
+  const checkout = planning.slice(checkoutStart, checkoutEnd)
 
   mustContain(app, [
     'paymentSubmissionInFlight',
@@ -1181,6 +1190,19 @@ test('checkout advances after a recorded payment and retries do not duplicate it
     "onConflict: 'checkout_reference'",
     'ignoreDuplicates: true',
   ], 'idempotent payment submission')
+  assert.doesNotMatch(
+    checkout,
+    /\.rpc\('open_booking_conversation'/,
+    'a provider-confirmation-only messaging check must not block the payment receipt'
+  )
+  mustContain(checkout, [
+    'Messaging intentionally opens only after provider confirmation.',
+    'The server-side confirmation trigger creates the conversation later.',
+  ], 'checkout messaging handoff')
+  mustContain(confirmedMessaging, [
+    "booking.status::text in ('confirmed', 'completed')",
+    'Messaging is available only after the provider confirms the booking.',
+  ], 'provider-confirmed messaging boundary')
   mustContain(migration, [
     'add column if not exists checkout_reference text',
     'create unique index if not exists payments_checkout_reference_key',
