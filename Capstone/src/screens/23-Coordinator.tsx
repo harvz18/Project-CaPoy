@@ -538,7 +538,7 @@ const EventCard: React.FC<{
                         {!instructionCount ? (
                           <Text style={styles.noServicesText}>The client has not added instructions for this service.</Text>
                         ) : null}
-                        {service.booked && ['confirmed', 'completed'].includes(service.status) ? (
+                        {service.booked && service.bookingId && !['rejected', 'cancelled', 'expired'].includes(service.status) ? (
                           <View style={styles.providerActions}>
                             <Pressable
                               accessibilityRole="button"
@@ -631,6 +631,7 @@ const ChurchArrangementPanel: React.FC<{
   const [error, setError] = React.useState('')
   const [saving, setSaving] = React.useState(false)
   const [showConfirmation, setShowConfirmation] = React.useState(false)
+  const [detailsExpanded, setDetailsExpanded] = React.useState(false)
   const [confirmationMethod, setConfirmationMethod] = React.useState<ChurchConfirmationMethod>('external_discussion')
   const [confirmationNotes, setConfirmationNotes] = React.useState('')
   const [confirmationError, setConfirmationError] = React.useState('')
@@ -741,13 +742,23 @@ const ChurchArrangementPanel: React.FC<{
         </View>
         <MaterialIcons color={palette.primaryContainer} name="church" size={21} />
       </View>
-      <View style={styles.churchCurrentStatus}>
-        <Text style={styles.inputLabel}>CURRENT STATUS</Text>
-        <Text style={styles.churchCurrentStatusText}>{churchArrangementLabel(status)}</Text>
-        {arrangement?.proposalVersion ? (
-          <Text style={styles.churchProposalVersion}>Proposal version {arrangement.proposalVersion}</Text>
-        ) : null}
-      </View>
+      <Pressable
+        accessibilityLabel={detailsExpanded ? 'Hide church proposal and details' : 'Show church proposal and details'}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: detailsExpanded }}
+        onPress={() => setDetailsExpanded((current) => !current)}
+        style={({ pressed }) => [styles.churchDetailsDisclosure, pressed && styles.pressed]}
+      >
+        <View style={styles.instructionCopy}>
+          <Text style={styles.inputLabel}>CURRENT STATUS</Text>
+          <Text style={styles.churchCurrentStatusText}>{churchArrangementLabel(status)}</Text>
+          {arrangement?.proposalVersion ? (
+            <Text style={styles.churchProposalVersion}>Proposal version {arrangement.proposalVersion}</Text>
+          ) : null}
+        </View>
+        <MaterialIcons color={palette.primaryContainer} name={detailsExpanded ? 'expand-less' : 'expand-more'} size={22} />
+      </Pressable>
+      <View style={!detailsExpanded && styles.churchDetailsCollapsed}>
       <Pressable
         accessibilityLabel={`Message ${event.clientName} about the church arrangement`}
         accessibilityRole="button"
@@ -862,6 +873,7 @@ const ChurchArrangementPanel: React.FC<{
           ) : null}
         </>
       ) : null}
+      </View>
 
       <Modal animationType="fade" onRequestClose={closeConfirmation} transparent visible={showConfirmation}>
         <View style={styles.churchModalBackdrop}>
@@ -2088,7 +2100,8 @@ const styles = StyleSheet.create({
   churchArrangementPanelHeading: { flexDirection: 'row', alignItems: 'flex-start', gap: 9 },
   churchArrangementTitle: { color: palette.primaryContainer, fontSize: 9, lineHeight: 13, fontWeight: '700', letterSpacing: 0.7 },
   churchArrangementCaption: { color: palette.secondary, fontSize: 8, lineHeight: 12, marginTop: 2 },
-  churchCurrentStatus: { borderRadius: 8, backgroundColor: palette.primarySoft, marginTop: 12, padding: 10 },
+  churchDetailsDisclosure: { minHeight: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderRadius: 8, backgroundColor: palette.primarySoft, marginTop: 12, padding: 10 },
+  churchDetailsCollapsed: { display: 'none' },
   churchCurrentStatusText: { color: palette.primaryContainer, fontSize: 11, lineHeight: 16, fontWeight: '700', marginTop: 2 },
   churchProposalVersion: { color: palette.secondary, fontSize: 8, lineHeight: 12, marginTop: 2 },
   churchResponseCard: { borderWidth: 1, borderColor: palette.border, borderRadius: 8, backgroundColor: palette.surfaceLow, marginTop: 9, padding: 10 },

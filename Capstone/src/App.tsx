@@ -1658,7 +1658,7 @@ export const App: React.FC = () => {
       returnScreen: AppScreen = 'coordinatorHome'
     ) => {
       if (!service.bookingId) {
-        setToastMessage('A provider conversation becomes available after the booking is confirmed.')
+        setToastMessage('A provider conversation becomes available after the client-selected booking is created.')
         return
       }
       const result = await openCoordinatorProviderConversation(service.bookingId)

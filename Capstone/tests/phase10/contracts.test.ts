@@ -693,13 +693,42 @@ test('V7 Phase 2 gives coordinators direct event-grouped messaging without creat
     'onMessageClient?: (event: CoordinatorEvent) => void',
     '<Text style={styles.confirmChurchButtonText}>Message Client</Text>',
     '<Text style={styles.providerActionText}>Message provider</Text>',
-    "service.booked && ['confirmed', 'completed'].includes(service.status)",
+    "service.booked && service.bookingId && !['rejected', 'cancelled', 'expired'].includes(service.status)",
   ], 'coordinator messaging entry points')
+  mustContain(coordinator, [
+    "accessibilityLabel={detailsExpanded ? 'Hide church proposal and details' : 'Show church proposal and details'}",
+    "accessibilityState={{ expanded: detailsExpanded }}",
+    "name={detailsExpanded ? 'expand-less' : 'expand-more'}",
+  ], 'collapsible coordinator church arrangement')
   mustContain(app, [
     "setMessageWorkspace('coordinator')",
     'openCoordinatorProviderConversation(service.bookingId)',
     'coordinatorEvents={messageWorkspace === \'coordinator\' ? coordinatorDashboard.events : []}',
   ], 'coordinator messaging navigation')
+})
+
+test('coordinator-provider messages remain writable for active client-selected bookings', () => {
+  const migration = read('supabase/migrations/20261019000600_coordinator_provider_active_booking_messaging.sql')
+  const messaging = read('src/lib/messaging.ts')
+  const coordinator = read('src/screens/23-Coordinator.tsx')
+
+  mustContain(migration, [
+    "'requested',",
+    "'payment_required',",
+    "'confirmed',",
+    'create or replace function public.ensure_coordinator_provider_conversation',
+    'create or replace function public.open_coordinator_provider_conversation',
+    'create or replace function public.notify_booking_message_recipients',
+    'while accepted coordinators and selected providers may message throughout their active booking',
+  ], 'active coordinator-provider messaging migration')
+  mustContain(messaging, [
+    'const canSendCoordinatorProviderMessages = (',
+    "['requested', 'approved', 'payment_required', 'paid', 'confirmed', 'completed']",
+    '? !canSendCoordinatorProviderMessages(booking, event)',
+  ], 'active coordinator-provider composer state')
+  mustContain(coordinator, [
+    "service.booked && service.bookingId && !['rejected', 'cancelled', 'expired'].includes(service.status)",
+  ], 'active selected-provider message entry point')
 })
 
 test('checkout accepts provider-configured custom catering and notifies coordinators after payment', () => {

@@ -48,6 +48,19 @@ const toBookingStatus = (
 const canSendBookingMessages = (value: unknown) =>
   ['confirmed', 'completed'].includes(textFrom(value).toLowerCase())
 
+const canSendCoordinatorProviderMessages = (
+  booking: Record<string, unknown> | undefined,
+  event: Record<string, unknown> | undefined
+) =>
+  Boolean(
+    booking
+      && event
+      && ['requested', 'approved', 'payment_required', 'paid', 'confirmed', 'completed']
+        .includes(textFrom(booking.status).toLowerCase())
+      && textFrom(event.coordinator_assignment_status) === 'accepted'
+      && textFrom(event.status) !== 'cancelled'
+  )
+
 const canSendEventCoordinatorMessages = (event: Record<string, unknown> | undefined) =>
   Boolean(
     event
@@ -181,7 +194,9 @@ export const fetchConversations = async (): Promise<ClientConversation[]> => {
         id: conversationId,
         isReadOnly: isEventCoordinatorConversation
           ? !canSendEventCoordinatorMessages(event)
-          : bookingReadOnly || isLegacyCoordinatorGroup,
+          : isCoordinatorProviderConversation
+            ? !canSendCoordinatorProviderMessages(booking, event)
+            : bookingReadOnly || isLegacyCoordinatorGroup,
         lastMessage: textFrom(lastMessage?.body, 'Conversation started.'),
         lastMessageAt: textFrom(lastMessage?.created_at, textFrom(record.updated_at)),
         participantName,
