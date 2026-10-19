@@ -980,7 +980,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                     {vendor.budgetRecommendation.calculatedAmount ? (
                       <>
                         <Text style={styles.calculatedPrice}>
-                          Event estimate: ₱{formatCurrency(vendor.budgetRecommendation.calculatedAmount)}
+                          {vendor.categoryId === 'venues' ? 'Starting estimate' : 'Event estimate'}: ₱{formatCurrency(vendor.budgetRecommendation.calculatedAmount)}
                         </Text>
                         {vendor.budgetRecommendation.pricingBasis ? (
                           <Text style={styles.pricingBasis}>

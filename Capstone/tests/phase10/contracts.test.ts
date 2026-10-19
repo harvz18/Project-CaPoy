@@ -923,6 +923,30 @@ test('venue choices, hours, capacity, schedule, and immutable snapshots reach bo
   ], 'client venue UI')
 })
 
+test('venue marketplace visibility uses a capacity-compatible starting total without replacing the final quote', () => {
+  const venueMarketplace = read('supabase/migrations/20261019000400_venue_marketplace_budget_visibility.sql')
+  const browse = read('src/screens/06-CategoryBrowse.tsx')
+
+  mustContain(venueMarketplace, [
+    'venue_marketplace_fits as',
+    "base.category_key = 'venue'",
+    'minimumBookingHours',
+    'bookingDurationIncrementHours',
+    'setupAllowanceBillable',
+    'option_row.capacity >= greatest(event.guest_count, 1)',
+    'Starting venue total is PHP',
+    'Choose a space and duration for the authoritative total.',
+  ], 'venue marketplace budget visibility')
+  assert.doesNotMatch(
+    venueMarketplace,
+    /when base\.category_key = 'venue' then null::numeric/i,
+    'venue marketplace recommendations must not blank every venue amount'
+  )
+  mustContain(browse, [
+    "vendor.categoryId === 'venues' ? 'Starting estimate' : 'Event estimate'",
+  ], 'venue marketplace estimate label')
+})
+
 test('payment, held funds, individual decisions, balances, and payouts remain separated', () => {
   const payment = read(migrations[3])
   const acceptance = read(migrations[4])
