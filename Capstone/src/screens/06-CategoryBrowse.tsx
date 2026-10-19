@@ -17,7 +17,12 @@ import {
 } from 'react-native'
 import { PlanningScreenHeader } from '../components/PlanningScreenHeader'
 import { ClientBottomNavigation, ClientMainTab } from '../components/ClientBottomNavigation'
-import { CatalogService, formatServicePrice, ServiceCategoryOption } from '../lib/catalog'
+import {
+  CatalogService,
+  formatServicePrice,
+  marketplaceStartingPrice,
+  ServiceCategoryOption,
+} from '../lib/catalog'
 import { customerPriceFromProviderPrice } from '../lib/pricing'
 import { calculateCateringPrice, getCateringPricingOptions, getVenueBookingOptions } from '../lib/service-category-details'
 import type { AssignedCoordinatorSummary, SelectedSummaryService } from './07-SelectedSummary'
@@ -292,7 +297,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
         if (selectedFilter === 'withinBudget' && !recommendation?.isWithinBudget) return false
         if (selectedFilter === 'available' && recommendation?.availabilityStatus === 'unavailable') return false
         if (selectedFilter === 'rating4' && (Number.parseFloat(vendor.rating) || 0) < 4) return false
-        if (selectedFilter === 'priceLow' && vendor.minPrice > Math.max(categoryBudget, remainingBudget)) return false
+        if (selectedFilter === 'priceLow' && marketplaceStartingPrice(vendor) > Math.max(categoryBudget, remainingBudget)) return false
         if (selectedFilter === 'under500') {
           const options = getCateringPricingOptions(vendor.categoryDetails, vendor.providerMinPrice)
           if (!options.some((option) => customerPriceFromProviderPrice(option.pricePerHead, vendor.commissionRate) < 500)) return false
@@ -354,10 +359,10 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
         || left.name.localeCompare(right.name)
     }
     if (!isExploreMode && sortMode === 'priceLow') {
-      return left.minPrice - right.minPrice || rightRating - leftRating
+      return marketplaceStartingPrice(left) - marketplaceStartingPrice(right) || rightRating - leftRating
     }
     if (!isExploreMode && sortMode === 'priceHigh') {
-      return right.minPrice - left.minPrice || rightRating - leftRating
+      return marketplaceStartingPrice(right) - marketplaceStartingPrice(left) || rightRating - leftRating
     }
     return rightRating - leftRating
       || right.reviewCount - left.reviewCount
@@ -1048,7 +1053,9 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
               <Text style={styles.emptyCopy}>
                 {replacementContext
                   ? 'Another published provider in this category is required before this service can be changed.'
-                  : 'Services will appear here after providers publish them.'}
+                  : categoryName.toLowerCase().includes('venue') && categoryBudget > 0
+                    ? 'No available venue configuration fits this category budget. Adjust the budget or try another category.'
+                    : 'Services will appear here after providers publish them.'}
               </Text>
             </View>
           ) : null}

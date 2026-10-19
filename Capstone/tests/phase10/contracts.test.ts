@@ -230,6 +230,44 @@ test('V8 Phase 2 prices selected venue options together and preserves their book
     'Phase 2 must not recalculate existing booking amounts')
 })
 
+test('V8 Phase 3 filters venues by an eligible option-level starting configuration', () => {
+  const migration = read('supabase/migrations/20261020000300_venue_marketplace_starting_prices.sql')
+  const catalog = read('src/lib/catalog.ts')
+  const browse = read('src/screens/06-CategoryBrowse.tsx')
+  const details = read('src/screens/08-ServiceDetails.tsx')
+
+  mustContain(migration, [
+    'create or replace function public.calculate_venue_starting_quote_v8(',
+    'create or replace function public.list_my_budget_aware_service_recommendations_phase9(',
+    'required_options(candidate_id, option_id)',
+    "option_row.pricing_unit in ('hour', 'event')",
+    "option_row.pricing_unit = 'hour'",
+    'ceil(option_row.minimum_hours / option_row.duration_increment)',
+    'component.all_components_allow_combination',
+    'resource.use_count > 1',
+    "Starting price is PHP %s over the category budget.",
+    'No bookable venue option configuration fits the event requirements.',
+    'snapshots continue to be priced only by the authoritative checkout flow.',
+  ], 'V8 Phase 3 venue starting-price migration')
+  mustContain(catalog, [
+    'export const marketplaceStartingPrice',
+    'return `From ${formatPeso(venueStartingPrice)}`',
+    "return 'No eligible venue option'",
+  ], 'venue card starting price')
+  mustContain(browse, [
+    'marketplaceStartingPrice(vendor)',
+    "vendor.categoryId === 'venues' ? 'Starting estimate' : 'Event estimate'",
+    'No available venue configuration fits this category budget.',
+  ], 'venue-aware marketplace filtering and presentation')
+  mustContain(details, [
+    'categoryBudgetOverage',
+    'over the available {service.categoryName} budget',
+    'Adjust the venue options or rental duration',
+  ], 'final venue selection budget warning')
+  assert.doesNotMatch(migration, /update\s+public\.(bookings|event_service_selections)\s+set/i,
+    'Phase 3 must not rewrite existing booking or selection prices')
+})
+
 test('client home can safely remove drafts and collapses bookings to the next three events', () => {
   const planning = read('src/lib/planning.ts')
   const home = read('src/screens/03-ClientHome.tsx')

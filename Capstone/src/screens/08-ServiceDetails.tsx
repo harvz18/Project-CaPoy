@@ -489,6 +489,9 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     && (quoteLoading || Boolean(quoteError) || !authoritativeQuote)
   const exceedsAvailableCategoryBudget = hasSetBudget
     && estimatedTotal > availableCategoryBudget
+  const categoryBudgetOverage = exceedsAvailableCategoryBudget
+    ? Math.max(0, estimatedTotal - availableCategoryBudget)
+    : 0
   const estimatedDisplay =
     quoteLoading
       ? 'Calculating...'
@@ -711,6 +714,16 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
         ) : null}
 
         <View style={[styles.content, isWide && styles.contentPaddingWide]}>
+          {exceedsAvailableCategoryBudget ? (
+            <View style={styles.budgetOverageNotice}>
+              <MaterialCommunityIcons color={palette.primary} name="alert-circle-outline" size={20} />
+              <Text style={styles.budgetOverageNoticeText}>
+                This configuration is {formatPeso(categoryBudgetOverage)} over the available {service.categoryName} budget. {isVenue
+                  ? 'Adjust the venue options or rental duration, or return to update the category budget.'
+                  : 'Adjust the service selection or return to update the category budget.'}
+              </Text>
+            </View>
+          ) : null}
           <View style={styles.descriptionSection}>
             <Text style={styles.description}>{service.description}</Text>
             <View style={styles.serviceFacts}>
@@ -1406,7 +1419,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                 {quoteError ? <Text style={styles.quoteError}>{quoteError}</Text> : null}
                 {exceedsAvailableCategoryBudget ? (
                   <Text style={styles.quoteError}>
-                    Increase the event budget or reduce another category allocation first.
+                    {formatPeso(categoryBudgetOverage)} over the available category budget. Adjust the selection or budget before continuing.
                   </Text>
                 ) : null}
               </View>
@@ -1971,6 +1984,8 @@ const styles = StyleSheet.create({
   estimatedLabel: { color: palette.secondary, fontSize: 11, lineHeight: 15, fontWeight: '700', letterSpacing: 1.1 },
   estimatedValue: { color: palette.text, fontSize: 20, lineHeight: 27, fontWeight: '700', marginTop: 2 },
   quoteError: { color: palette.primary, fontSize: 11, lineHeight: 15, marginTop: 2, maxWidth: 420 },
+  budgetOverageNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 9, borderWidth: 1, borderColor: '#E6C4C8', borderRadius: 12, backgroundColor: '#FCF5F6', padding: 13, marginBottom: 18 },
+  budgetOverageNoticeText: { flex: 1, color: palette.primary, fontSize: 13, lineHeight: 19, fontWeight: '600' },
   addButton: { width: '100%', minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, borderRadius: 25, backgroundColor: palette.primary, paddingHorizontal: 24, paddingVertical: 13 },
   addButtonWide: { width: 'auto', minWidth: 280 },
   addButtonText: { color: palette.white, fontSize: 16, lineHeight: 22, fontWeight: '500' },

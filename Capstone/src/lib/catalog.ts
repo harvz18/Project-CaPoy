@@ -273,6 +273,19 @@ export const formatPeso = (value: number) =>
   `PHP ${Math.max(0, Math.floor(value)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`
 
 export const formatServicePrice = (service: CatalogService) => {
+  const venueStartingPrice = service.categoryId === 'venues'
+    ? service.budgetRecommendation?.calculatedAmount
+    : undefined
+  if (venueStartingPrice && venueStartingPrice > 0) {
+    return `From ${formatPeso(venueStartingPrice)}`
+  }
+  const hasOptionLevelVenuePricing = service.categoryId === 'venues'
+    && getVenueBookingOptions(service.categoryDetails).some((option) => (
+      Boolean(option.pricingUnit && option.baseRate && option.baseRate > 0)
+    ))
+  if (hasOptionLevelVenuePricing && service.budgetRecommendation) {
+    return 'No eligible venue option'
+  }
   if (service.pricingModel === 'customQuote' || service.minPrice <= 0) return 'Request a quote'
 
   const unit = service.pricingUnit
@@ -286,6 +299,17 @@ export const formatServicePrice = (service: CatalogService) => {
   const prefix = service.pricingModel === 'startingAt' ? 'From ' : ''
   return `${prefix}${formatPeso(service.minPrice)}${unit}`
 }
+
+// Venue option prices are event-specific. Keep the persisted service price
+// untouched for booking calculations and use this read-only value solely for
+// marketplace filtering and price sorting.
+export const marketplaceStartingPrice = (service: CatalogService) => (
+  service.categoryId === 'venues'
+    && service.budgetRecommendation?.calculatedAmount
+    && service.budgetRecommendation.calculatedAmount > 0
+    ? service.budgetRecommendation.calculatedAmount
+    : service.minPrice
+)
 
 const getCateringServiceTypes = (value: unknown): CateringServiceType[] => {
   if (!Array.isArray(value)) return []
