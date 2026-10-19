@@ -72,9 +72,12 @@ export const ChurchLocationMap: React.FC<ChurchLocationMapProps> = ({
   onChange,
   showOpenStreetMapLink = true,
 }) => {
-  const [center] = React.useState(
+  const [interactiveCenter] = React.useState(
     coordinatesAreValid(coordinates) ? coordinates as ChurchCoordinates : defaultCenter
   )
+  const center = interactive
+    ? interactiveCenter
+    : coordinatesAreValid(coordinates) ? coordinates as ChurchCoordinates : defaultCenter
   const [size, setSize] = React.useState({ height: 1, width: 1 })
   const north = center.latitude + latitudeSpan / 2
   const west = center.longitude - longitudeSpan / 2

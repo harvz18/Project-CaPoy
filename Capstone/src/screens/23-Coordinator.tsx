@@ -489,7 +489,7 @@ const EventCard: React.FC<{
                         {!instructionCount ? (
                           <Text style={styles.noServicesText}>The client has not added instructions for this service.</Text>
                         ) : null}
-                        {service.booked && !['rejected', 'cancelled', 'expired'].includes(service.status) ? (
+                        {service.booked && ['confirmed', 'completed'].includes(service.status) ? (
                           <View style={styles.providerActions}>
                             <Pressable
                               accessibilityRole="button"
@@ -867,49 +867,51 @@ const ChurchArrangementPanel: React.FC<{
           value={ceremonyTime}
         />
       ) : null}
-      <Modal animationType="fade" onRequestClose={() => setShowLocationPicker(false)} transparent visible={showLocationPicker}>
-        <View style={styles.churchModalBackdrop}>
-          <View accessibilityViewIsModal style={styles.churchMapModalCard}>
-            <View style={styles.churchModalHeader}>
-              <View style={styles.instructionCopy}>
-                <Text style={styles.churchModalTitle}>Pin Church Location</Text>
-                <Text style={styles.churchModalText}>Tap the demo coordinate map to place or move the pin. Confirm only coordinates you have checked.</Text>
+      {showLocationPicker ? (
+        <Modal animationType="fade" onRequestClose={() => setShowLocationPicker(false)} transparent visible>
+          <View style={styles.churchModalBackdrop}>
+            <View accessibilityViewIsModal style={styles.churchMapModalCard}>
+              <View style={styles.churchModalHeader}>
+                <View style={styles.instructionCopy}>
+                  <Text style={styles.churchModalTitle}>Pin Church Location</Text>
+                  <Text style={styles.churchModalText}>Tap the demo coordinate map to place or move the pin. Confirm only coordinates you have checked.</Text>
+                </View>
+                <Pressable accessibilityLabel="Close location picker" accessibilityRole="button" onPress={() => setShowLocationPicker(false)}>
+                  <MaterialIcons color={palette.secondary} name="close" size={22} />
+                </Pressable>
               </View>
-              <Pressable accessibilityLabel="Close location picker" accessibilityRole="button" onPress={() => setShowLocationPicker(false)}>
-                <MaterialIcons color={palette.secondary} name="close" size={22} />
-              </Pressable>
-            </View>
-            <ChurchLocationMap coordinates={draftCoordinates} interactive onChange={setDraftCoordinates} showOpenStreetMapLink={false} />
-            <Text style={styles.churchMapDisclaimer}>The map does not claim or verify a church. Use OpenStreetMap after saving to verify the exact coordinates.</Text>
-            <View style={styles.churchModalActions}>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => {
-                  setCoordinates(undefined)
-                  setDraftCoordinates(undefined)
-                  setShowLocationPicker(false)
-                }}
-                style={styles.churchModalCancel}
-              >
-                <Text style={styles.churchModalCancelText}>Use Address Only</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityState={{ disabled: !draftCoordinates }}
-                disabled={!draftCoordinates}
-                onPress={() => {
-                  setCoordinates(draftCoordinates)
-                  setShowLocationPicker(false)
-                }}
-                style={[styles.churchModalConfirm, !draftCoordinates && styles.disabled]}
-              >
-                <MaterialIcons color="#FFFFFF" name="location-on" size={17} />
-                <Text style={styles.churchModalConfirmText}>Confirm Pin</Text>
-              </Pressable>
+              <ChurchLocationMap coordinates={draftCoordinates} interactive onChange={setDraftCoordinates} showOpenStreetMapLink={false} />
+              <Text style={styles.churchMapDisclaimer}>The map does not claim or verify a church. Use OpenStreetMap after saving to verify the exact coordinates.</Text>
+              <View style={styles.churchModalActions}>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => {
+                    setCoordinates(undefined)
+                    setDraftCoordinates(undefined)
+                    setShowLocationPicker(false)
+                  }}
+                  style={styles.churchModalCancel}
+                >
+                  <Text style={styles.churchModalCancelText}>Use Address Only</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: !draftCoordinates }}
+                  disabled={!draftCoordinates}
+                  onPress={() => {
+                    setCoordinates(draftCoordinates)
+                    setShowLocationPicker(false)
+                  }}
+                  style={[styles.churchModalConfirm, !draftCoordinates && styles.disabled]}
+                >
+                  <MaterialIcons color="#FFFFFF" name="location-on" size={17} />
+                  <Text style={styles.churchModalConfirmText}>Confirm Pin</Text>
+                </Pressable>
+              </View>
             </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      ) : null}
     </View>
   )
 }

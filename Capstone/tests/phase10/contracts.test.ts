@@ -688,6 +688,7 @@ test('V7 Phase 2 gives coordinators direct event-grouped messaging without creat
     'onMessageClient?: (event: CoordinatorEvent) => void',
     '<Text style={styles.confirmChurchButtonText}>Message Client</Text>',
     '<Text style={styles.providerActionText}>Message provider</Text>',
+    "service.booked && ['confirmed', 'completed'].includes(service.status)",
   ], 'coordinator messaging entry points')
   mustContain(app, [
     "setMessageWorkspace('coordinator')",
@@ -827,6 +828,7 @@ test('V7 Phase 3 saves optional church pins and uses schedule-safe mobile picker
   assert.doesNotMatch(migration, /drop\s+table/i)
   mustContain(controls, [
     'export const ChurchLocationMap',
+    'const center = interactive',
     'Tap to place the church pin',
     'openstreetmap.org',
     'export const ChurchDatePickerModal',
@@ -837,6 +839,7 @@ test('V7 Phase 3 saves optional church pins and uses schedule-safe mobile picker
   mustContain(coordinator, [
     "supabase.rpc('get_my_church_wedding_arrangements_v7'",
     "supabase.rpc('save_my_church_wedding_arrangement_v7'",
+    "if (value == null || value === '') return undefined",
     'target_church_latitude: input.churchLatitude ?? null',
     'target_church_longitude: input.churchLongitude ?? null',
   ], 'coordinator church coordinate persistence')
@@ -846,10 +849,12 @@ test('V7 Phase 3 saves optional church pins and uses schedule-safe mobile picker
     '<ChurchDatePickerModal',
     '<ChurchTimePickerModal',
     'Use Address Only',
+    '{showLocationPicker ? (',
     'The ceremony date must match the configured event date:',
   ], 'coordinator church picker UI')
   mustContain(merchant, [
     "client.rpc('get_my_church_wedding_arrangements_v7'",
+    "if (value == null || value === '') return undefined",
     'churchLatitude: optionalNumber(arrangement.church_latitude)',
     'churchLongitude: optionalNumber(arrangement.church_longitude)',
   ], 'client church coordinate mapping')

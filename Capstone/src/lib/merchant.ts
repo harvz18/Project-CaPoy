@@ -757,6 +757,7 @@ const numberFrom = (value: unknown, fallback = 0) =>
   typeof value === 'number' && Number.isFinite(value) ? value : fallback
 
 const optionalNumber = (value: unknown) => {
+  if (value == null || value === '') return undefined
   const numeric = Number(value)
   return Number.isFinite(numeric) ? numeric : undefined
 }

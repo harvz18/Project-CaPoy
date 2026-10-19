@@ -303,6 +303,7 @@ const optionalText = (value: unknown) => {
 }
 
 const optionalNumber = (value: unknown) => {
+  if (value == null || value === '') return undefined
   const numeric = Number(value)
   return Number.isFinite(numeric) ? numeric : undefined
 }
