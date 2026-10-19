@@ -1,10 +1,7 @@
-import { MdiIcon } from './icons'
-import { mdiCalendarStar } from '@mdi/js'
-
 export function Brand({ compact = false }: { compact?: boolean }) {
   return (
-    <div className={`brand ${compact ? 'brand--compact' : ''}`}>
-      <span className="brand__mark"><MdiIcon path={mdiCalendarStar} size={0.95} /></span>
+    <div className={`brand ${compact ? 'brand--compact' : ''}`} aria-label="MULTIVENT">
+      <span className="brand__mark" aria-hidden="true">M</span>
       <span className="brand__copy">
         <strong>MULTIVENT</strong>
         {!compact && <small>Events, thoughtfully managed</small>}

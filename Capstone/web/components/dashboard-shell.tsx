@@ -13,6 +13,7 @@ import {
   mdiCogOutline,
   mdiCreditCardOutline,
   mdiLogout,
+  mdiMagnify,
   mdiMenu,
   mdiShieldAccountOutline,
   mdiShieldCrownOutline,
@@ -41,7 +42,7 @@ export function useStaff() {
 }
 
 const baseNavigation = [
-  { href: '/dashboard', label: 'Overview', icon: mdiViewDashboardOutline, permission: null },
+  { href: '/dashboard', label: 'Dashboard', icon: mdiViewDashboardOutline, permission: null },
   { href: '/dashboard/users', label: 'Users', icon: mdiAccountGroupOutline, permission: 'users.view' },
   { href: '/dashboard/providers', label: 'Provider applications', icon: mdiStorefrontOutline, permission: 'providers.view' },
   { href: '/dashboard/services', label: 'Service applications', icon: mdiStoreCheckOutline, permission: 'services.view' },
@@ -161,6 +162,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     || (Array.isArray(permission) ? permission.some(can) : can(permission))
   const visibleBaseNavigation = baseNavigation.filter((item) => canNavigate(item.permission))
   const visibleGovernanceNavigation = governanceNavigation.filter((item) => canNavigate(item.permission))
+  const activeNavigation = [...visibleBaseNavigation, ...visibleGovernanceNavigation]
+    .find((item) => item.href === '/dashboard' ? pathname === item.href : pathname.startsWith(item.href))
   const roleLabel = ({
     admin: 'Administrator',
     superadmin: 'Superadmin',
@@ -189,8 +192,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           </nav>
           <div className="sidebar__bottom">
             <div className="role-card">
-              <MdiIcon path={profile.default_role === 'superadmin' ? mdiShieldCrownOutline : mdiShieldAccountOutline} />
-              <div><span>Signed in as</span><strong>{roleLabel}</strong></div>
+              <span className="sidebar-avatar">{initials}</span>
+              <div><strong>{profile.full_name || 'MULTIVENT Staff'}</strong><span>{roleLabel}</span></div>
             </div>
             <button className="signout-button" onClick={signOut}><MdiIcon path={mdiLogout} /><span>Sign out</span></button>
           </div>
@@ -200,12 +203,16 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <div className="dashboard-main">
           <header className="topbar">
             <button className="mobile-menu" onClick={() => setMobileOpen(true)} aria-label="Open menu"><MdiIcon path={mdiMenu} /></button>
-            <div className="topbar__status"><span className="status-dot" /> Secure staff workspace</div>
+            <div className="topbar__page">{activeNavigation?.label || 'Admin workspace'}</div>
             <div className="topbar__actions">
+              <div className="global-search" aria-label="Global search preview">
+                <MdiIcon path={mdiMagnify} size={0.84} />
+                <span>Search providers, clients, bookings…</span>
+              </div>
               <button className="notification-button" aria-label="Notifications"><MdiIcon path={mdiBellOutline} /><i /></button>
               <button className="profile-button">
                 <span className="avatar">{initials}</span>
-                <span className="profile-button__copy"><strong>{profile.full_name || 'MULTIVENT Staff'}</strong><small>{profile.email}</small></span>
+                <span className="profile-button__copy"><strong>{profile.full_name || 'MULTIVENT Staff'}</strong><small>{roleLabel}</small></span>
                 <MdiIcon path={mdiChevronDown} size={0.7} />
               </button>
             </div>
