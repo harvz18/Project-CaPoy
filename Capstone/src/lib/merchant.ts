@@ -1309,7 +1309,7 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
   const { data, error } = await client
     .from('bookings')
     .select(
-      'id, event_id, provider_id, service_id, amount, provider_amount, status, requested_date, requested_time, venue_option_snapshot, venue_options_snapshot, venue_booking_snapshot, created_at, updated_at, events(id, coordinator_id, coordinator_assignment_status, name, event_type, is_church_wedding, event_date, event_time, guest_count, venue, location, status), services(name, cover_image_url, category_details, service_categories(name)), provider_profiles(business_name), payments!inner(status, amount, service_subtotal, provider_initial_allocation, paid_at, metadata)'
+      'id, event_id, provider_id, service_id, amount, provider_amount, status, requested_date, requested_time, client_notes, venue_option_snapshot, venue_options_snapshot, venue_booking_snapshot, created_at, updated_at, events(id, coordinator_id, coordinator_assignment_status, name, event_type, is_church_wedding, event_date, event_time, guest_count, venue, location, status), services(name, cover_image_url, category_details, service_categories(name)), provider_profiles(business_name), payments!inner(status, amount, service_subtotal, provider_initial_allocation, paid_at, metadata)'
     )
     .eq('client_id', userId)
     .neq('status', 'payment_required')
@@ -1447,6 +1447,7 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
       amount: numberFrom(record.amount),
       bookingId,
       category: textFrom(category?.name, 'Service'),
+      clientNotes: textFrom(record.client_notes) || undefined,
       completionPaymentStatus,
       confirmedExternalPaymentAmount,
       foodTasting: foodTastingsByBooking.get(bookingId),

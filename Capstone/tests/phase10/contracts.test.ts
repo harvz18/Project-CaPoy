@@ -306,6 +306,53 @@ test('V8 Phase 4 exposes the agreed venue snapshot and keeps booking financial t
     'Phase 4 must not rewrite historical booking values')
 })
 
+test('V8 Phase 5 removes only the redundant service-detail dietary input', () => {
+  const details = read('src/screens/08-ServiceDetails.tsx')
+  const instructions = read('src/screens/10-InstructionModule.tsx')
+  const planning = read('src/lib/planning.ts')
+  const merchant = read('src/lib/merchant.ts')
+  const providerDetails = read('src/screens/19.1-BookingRequest.tsx')
+  const clientDetails = read('src/screens/11.1-BookingDetails.tsx')
+  const categoryDetails = read('src/components/CategorySpecificServiceDetails.tsx')
+  const app = read('src/App.tsx')
+
+  assert.doesNotMatch(details, /DIETARY REQUIREMENTS &amp; NOTES/,
+    'the redundant service-detail dietary field must be removed')
+  assert.doesNotMatch(details, /Dietary requirements and notes/,
+    'the redundant dietary field must not remain accessible')
+  assert.doesNotMatch(details, /const \[notes, setNotes\]/,
+    'service details must not retain hidden dietary-note state')
+  mustContain(details, [
+    'Instruction Module, reached after service selection.',
+    "notes: ''",
+  ], 'service-detail instruction handoff')
+  mustContain(instructions, [
+    'DIETARY RESTRICTIONS / ALLERGIES',
+    'SPECIAL MENU REQUESTS',
+  ], 'existing instruction module')
+  mustContain(app, [
+    "setScreen('instructionModule')",
+    'saveProviderInstructions(value)',
+  ], 'instruction module workflow')
+  mustContain(planning, [
+    'const selectionNotes = value.notes.trim() || savedNotes',
+    'note previously saved for this same selection',
+  ], 'saved-note preservation')
+  mustContain(categoryDetails, [
+    'label="Dietary Options"',
+  ], 'provider dietary accommodation information')
+  mustContain(merchant, [
+    'dietary_notes',
+    'clientNotes: textFrom(record.client_notes)',
+  ], 'historical booking notes')
+  mustContain(providerDetails, [
+    'Dietary notes: {service.dietaryNotes}',
+  ], 'provider historical dietary notes')
+  mustContain(clientDetails, [
+    'SAVED BOOKING NOTE',
+  ], 'client read-only historical note')
+})
+
 test('client home can safely remove drafts and collapses bookings to the next three events', () => {
   const planning = read('src/lib/planning.ts')
   const home = read('src/screens/03-ClientHome.tsx')

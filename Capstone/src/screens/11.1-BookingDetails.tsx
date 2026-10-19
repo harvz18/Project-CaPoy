@@ -788,6 +788,12 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                   {service.venueBooking ? (
                     <VenueBookingSummary audience="client" configuration={service.venueBooking} />
                   ) : null}
+                  {service.clientNotes ? (
+                    <View style={styles.legacyBookingNote}>
+                      <Text style={styles.legacyBookingNoteLabel}>SAVED BOOKING NOTE</Text>
+                      <Text style={styles.legacyBookingNoteText}>{service.clientNotes}</Text>
+                    </View>
+                  ) : null}
                   {service.serviceAmount !== undefined
                     || service.initialProviderShare !== undefined
                     || service.remainingServiceBalance !== undefined ? (
@@ -1641,6 +1647,9 @@ const styles = StyleSheet.create({
   servicePaymentRemaining: { color: palette.burgundy, fontSize: 11, lineHeight: 15, fontWeight: '700', textAlign: 'right' },
   servicePaymentStatus: { color: palette.text, fontSize: 10, lineHeight: 15, fontWeight: '700', marginTop: 2 },
   servicePaymentNotice: { color: palette.muted, fontSize: 9, lineHeight: 13 },
+  legacyBookingNote: { borderRadius: 9, backgroundColor: '#F7F1F2', marginTop: 12, padding: 11 },
+  legacyBookingNoteLabel: { color: palette.burgundy, fontSize: 9, fontWeight: '700', letterSpacing: 0.5, lineHeight: 14 },
+  legacyBookingNoteText: { color: palette.text, fontSize: 11, lineHeight: 16, marginTop: 3 },
   serviceStatus: {
     borderRadius: 10,
     backgroundColor: '#FFF1D9',

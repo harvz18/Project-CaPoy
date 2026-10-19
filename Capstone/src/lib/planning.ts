@@ -1590,11 +1590,33 @@ export const saveServiceSelection = async (
     const serviceId = value.service.bookingServiceId ?? value.service.id
     const packageId = value.service.bookingPackageId ?? value.service.packageId
     if (isUuid(serviceId)) {
+      // The Phase 5 service screen no longer collects dietary notes. Retain a
+      // note previously saved for this same selection instead of erasing it
+      // when the client revisits or updates the service configuration.
+      const { data: existingServiceSelection, error: existingServiceSelectionError } = await client
+        .from('event_service_selections')
+        .select('notes, dietary_notes')
+        .eq('event_id', event.eventId)
+        .eq('client_id', event.userId)
+        .eq('service_id', serviceId)
+        .not('status', 'in', '(declined,cancelled)')
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (existingServiceSelectionError) {
+        return { ok: false, message: existingServiceSelectionError.message }
+      }
+      const savedNotes = typeof existingServiceSelection?.notes === 'string'
+        ? existingServiceSelection.notes
+        : typeof existingServiceSelection?.dietary_notes === 'string'
+          ? existingServiceSelection.dietary_notes
+          : ''
+      const selectionNotes = value.notes.trim() || savedNotes
       const selectionResult = value.venueSelections !== undefined
         ? await client.rpc('save_my_venue_service_selection_v8', {
           replace_existing: true,
           target_event_id: event.eventId,
-          target_notes: value.notes,
+          target_notes: selectionNotes,
           target_option_selections: value.venueSelections,
           target_service_id: serviceId,
         })
@@ -1604,14 +1626,14 @@ export const saveServiceSelection = async (
           target_event_id: event.eventId,
           target_meal_type: value.mealType ?? null,
           target_menu_item_ids: value.cateringMenuItemIds,
-          target_notes: value.notes,
+          target_notes: selectionNotes,
           target_service_id: serviceId,
         })
         : await client.rpc('save_my_event_service_selection', {
           replace_existing: true,
           target_event_id: event.eventId,
           target_meal_type: value.mealType ?? null,
-          target_notes: value.notes,
+          target_notes: selectionNotes,
           target_option_id: value.venueOption?.id ?? value.cateringOption?.id ?? null,
           target_package_id: isUuid(packageId) ? packageId : null,
           target_quantity: value.venueBookedHours ?? null,

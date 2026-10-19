@@ -159,7 +159,6 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   const [expandedCateringMenuSections, setExpandedCateringMenuSections] = React.useState<Set<string>>(new Set())
   const [selectedVenueHours, setSelectedVenueHours] = React.useState<Record<string, string>>({})
   const [expandedVenueOptions, setExpandedVenueOptions] = React.useState<Set<string>>(new Set())
-  const [notes, setNotes] = React.useState('')
   const [isAddingSelection, setIsAddingSelection] = React.useState(false)
   const [authoritativeQuote, setAuthoritativeQuote] = React.useState<{
     customerAmount: number
@@ -526,7 +525,9 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
         cateringOption: usesSelectedProviderPackage ? undefined : activeCateringOption,
         estimatedTotal,
         mealType,
-        notes,
+        // Client dietary and special requests belong in the dedicated
+        // Instruction Module, reached after service selection.
+        notes: '',
         venueBookedHours: isVenue ? primaryVenueHours : undefined,
         venueOption: primaryVenueOption,
         venueSelections: isVenue ? selectedVenueSelections : undefined,
@@ -1183,23 +1184,6 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
               </View>
             ) : null}
 
-            <View style={styles.notesSection}>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>DIETARY REQUIREMENTS &amp; NOTES</Text>
-                <TextInput
-                  accessibilityLabel="Dietary requirements and notes"
-                  multiline
-                  numberOfLines={3}
-                  onChangeText={setNotes}
-                  placeholder="List any allergies, vegan preferences, or specific requests..."
-                  placeholderTextColor={palette.secondaryFixedDim}
-                  style={styles.notesInput}
-                  textAlignVertical="top"
-                  value={notes}
-                />
-              </View>
-
-            </View>
             </View>
           ) : null}
 
@@ -1888,7 +1872,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 8,
   },
-  notesSection: { gap: 24 },
   notesInput: {
     minHeight: 104,
     color: palette.text,

@@ -20,6 +20,7 @@ export interface BookingServiceItem {
   amount: number
   bookingId: string
   category: string
+  clientNotes?: string
   completionPaymentStatus?: 'awaiting_external_payment' | 'partially_confirmed' | 'fully_confirmed'
   confirmedExternalPaymentAmount?: number
   foodTasting?: CateringFoodTasting
