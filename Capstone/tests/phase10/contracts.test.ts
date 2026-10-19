@@ -724,7 +724,9 @@ test('coordinator-provider messages remain writable for active client-selected b
   mustContain(messaging, [
     'const canSendCoordinatorProviderMessages = (',
     "['requested', 'approved', 'payment_required', 'paid', 'confirmed', 'completed']",
-    '? !canSendCoordinatorProviderMessages(booking, event)',
+    "client.rpc('get_my_coordinator_booking_statuses')",
+    'coordinatorBookingStatusesById',
+    '? !canSendCoordinatorProviderMessages(bookingStatus)',
   ], 'active coordinator-provider composer state')
   mustContain(coordinator, [
     "service.booked && service.bookingId && !['rejected', 'cancelled', 'expired'].includes(service.status)",

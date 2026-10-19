@@ -48,18 +48,9 @@ const toBookingStatus = (
 const canSendBookingMessages = (value: unknown) =>
   ['confirmed', 'completed'].includes(textFrom(value).toLowerCase())
 
-const canSendCoordinatorProviderMessages = (
-  booking: Record<string, unknown> | undefined,
-  event: Record<string, unknown> | undefined
-) =>
-  Boolean(
-    booking
-      && event
-      && ['requested', 'approved', 'payment_required', 'paid', 'confirmed', 'completed']
-        .includes(textFrom(booking.status).toLowerCase())
-      && textFrom(event.coordinator_assignment_status) === 'accepted'
-      && textFrom(event.status) !== 'cancelled'
-  )
+const canSendCoordinatorProviderMessages = (bookingStatus: unknown) =>
+  ['requested', 'approved', 'payment_required', 'paid', 'confirmed', 'completed']
+    .includes(textFrom(bookingStatus).toLowerCase())
 
 const canSendEventCoordinatorMessages = (event: Record<string, unknown> | undefined) =>
   Boolean(
@@ -105,7 +96,12 @@ export const fetchConversations = async (): Promise<ClientConversation[]> => {
   if (membershipError || !membershipRows?.length) return []
 
   const conversationIds = membershipRows.map((row) => row.conversation_id as string)
-  const [{ data: conversationRows }, { data: participantRows }, { data: messageRows }] =
+  const [
+    { data: conversationRows },
+    { data: participantRows },
+    { data: messageRows },
+    { data: coordinatorBookingStatusRows },
+  ] =
     await Promise.all([
       client
         .from('conversations')
@@ -123,6 +119,11 @@ export const fetchConversations = async (): Promise<ClientConversation[]> => {
         .select('id, conversation_id, sender_id, body, read_at, created_at')
         .in('conversation_id', conversationIds)
         .order('created_at', { ascending: true }),
+      // Coordinators deliberately receive booking status through this scoped
+      // RPC. Their direct table access may not include the nested booking row
+      // returned with a conversation, even when the server authorizes them to
+      // message the selected provider.
+      client.rpc('get_my_coordinator_booking_statuses'),
     ])
 
   const participantUserIds = (participantRows ?? []).map((row) => row.user_id as string)
@@ -136,6 +137,12 @@ export const fetchConversations = async (): Promise<ClientConversation[]> => {
   const providersByUser = new Map(
     (providerRows ?? []).map((row) => [row.user_id as string, row as Record<string, unknown>])
   )
+  const coordinatorBookingStatusesById = new Map<string, string>()
+  for (const row of coordinatorBookingStatusRows ?? []) {
+    const record = row as Record<string, unknown>
+    const bookingId = textFrom(record.booking_id)
+    if (bookingId) coordinatorBookingStatusesById.set(bookingId, textFrom(record.status))
+  }
   const participantsByConversation = new Map<string, Array<Record<string, unknown>>>()
   for (const row of participantRows ?? []) {
     const conversationId = row.conversation_id as string
@@ -157,6 +164,11 @@ export const fetchConversations = async (): Promise<ClientConversation[]> => {
       const booking = nested(record.bookings) as Record<string, unknown> | undefined
       const event = nested(record.events) as Record<string, unknown> | undefined
       const service = nested(booking?.services) as Record<string, unknown> | undefined
+      const bookingId = textFrom(booking?.id, textFrom(record.booking_id))
+      const bookingStatus = textFrom(
+        booking?.status,
+        coordinatorBookingStatusesById.get(bookingId)
+      )
       const conversationKind = textFrom(record.conversation_kind)
       const isEventCoordinatorConversation = conversationKind === 'event_coordinator'
       const isCoordinatorProviderConversation = conversationKind === 'coordinator_provider'
@@ -164,7 +176,7 @@ export const fetchConversations = async (): Promise<ClientConversation[]> => {
         && textFrom(event?.coordinator_id) === userId
       // Preserve the confirmed-booking rule for every provider conversation:
       // isReadOnly: booking ? !canSendBookingMessages(booking.status) : true
-      const bookingReadOnly = booking ? !canSendBookingMessages(booking.status) : true
+      const bookingReadOnly = bookingStatus ? !canSendBookingMessages(bookingStatus) : true
       const messages = (messageRows ?? []).filter(
         (message) => message.conversation_id === conversationId
       )
@@ -177,11 +189,13 @@ export const fetchConversations = async (): Promise<ClientConversation[]> => {
       return {
         avatarUrl: textFrom(profile?.avatar_url) || undefined,
         bookingDate: textFrom(booking?.requested_date, textFrom(event?.event_date)) || undefined,
-        bookingId: textFrom(booking?.id) || undefined,
-        bookingReference: booking?.id
-          ? `Booking #${textFrom(booking.id).slice(0, 8).toUpperCase()}`
+        bookingId: bookingId || undefined,
+        bookingReference: bookingId
+          ? `Booking #${bookingId.slice(0, 8).toUpperCase()}`
           : isEventCoordinatorConversation ? 'Event coordinator' : undefined,
-        bookingStatus: booking ? toBookingStatus(booking.status) : isEventCoordinatorConversation ? 'confirmed' : undefined,
+        bookingStatus: bookingStatus
+          ? toBookingStatus(bookingStatus)
+          : isEventCoordinatorConversation ? 'confirmed' : undefined,
         conversationKind: isEventCoordinatorConversation
           ? 'event_coordinator'
           : isCoordinatorProviderConversation
@@ -195,7 +209,7 @@ export const fetchConversations = async (): Promise<ClientConversation[]> => {
         isReadOnly: isEventCoordinatorConversation
           ? !canSendEventCoordinatorMessages(event)
           : isCoordinatorProviderConversation
-            ? !canSendCoordinatorProviderMessages(booking, event)
+            ? !canSendCoordinatorProviderMessages(bookingStatus)
             : bookingReadOnly || isLegacyCoordinatorGroup,
         lastMessage: textFrom(lastMessage?.body, 'Conversation started.'),
         lastMessageAt: textFrom(lastMessage?.created_at, textFrom(record.updated_at)),
