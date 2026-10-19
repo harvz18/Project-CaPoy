@@ -1,6 +1,16 @@
 import { MaterialIcons } from '@expo/vector-icons'
 import React from 'react'
-import { Linking, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native'
+import {
+  Animated,
+  FlatList,
+  Linking,
+  Modal,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  Pressable,
+  StyleSheet,
+  View,
+} from 'react-native'
 import { Text } from './AppText'
 
 export interface ChurchCoordinates {
@@ -10,6 +20,8 @@ export interface ChurchCoordinates {
 
 const padTwo = (value: number) => String(value).padStart(2, '0')
 const weekdays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
+const wheelRowHeight = 44
+const wheelVisibleRows = 5
 
 const parseDate = (value?: string) => {
   const match = value?.match(/^(\d{4})-(\d{2})-(\d{2})$/)
@@ -183,9 +195,17 @@ export const ChurchDatePickerModal: React.FC<DatePickerProps> = ({ eventDate, on
         <View accessibilityViewIsModal style={styles.sheet}>
           <PickerHeader onClose={onClose} title="Choose ceremony date" />
           <View style={styles.monthHeader}>
-            <MonthButton label="Previous month" onPress={() => setVisibleMonth((month) => new Date(month.getFullYear(), month.getMonth() - 1, 1))} symbol="\u2039" />
+            <MonthButton
+              direction="left"
+              label="Previous month"
+              onPress={() => setVisibleMonth((month) => new Date(month.getFullYear(), month.getMonth() - 1, 1))}
+            />
             <Text style={styles.monthLabel}>{new Intl.DateTimeFormat('en-PH', { month: 'long', year: 'numeric' }).format(visibleMonth)}</Text>
-            <MonthButton label="Next month" onPress={() => setVisibleMonth((month) => new Date(month.getFullYear(), month.getMonth() + 1, 1))} symbol="\u203a" />
+            <MonthButton
+              direction="right"
+              label="Next month"
+              onPress={() => setVisibleMonth((month) => new Date(month.getFullYear(), month.getMonth() + 1, 1))}
+            />
           </View>
           <View style={styles.weekdayRow}>{weekdays.map((day) => <Text key={day} style={styles.weekday}>{day}</Text>)}</View>
           <View style={styles.calendarGrid}>
@@ -243,11 +263,37 @@ export const ChurchTimePickerModal: React.FC<TimePickerProps> = ({ onClose, onCo
         <View accessibilityViewIsModal style={styles.sheet}>
           <PickerHeader onClose={onClose} title="Choose ceremony time" />
           <View style={styles.timePreview}><MaterialIcons color={palette.burgundy} name="schedule" size={22} /><Text style={styles.timePreviewText}>{hour}:{padTwo(minute)} {meridiem}</Text></View>
-          <Text style={styles.optionLabel}>HOUR</Text>
-          <View style={styles.optionGrid}>{Array.from({ length: 12 }, (_, index) => index + 1).map((option) => <TimeOption key={option} label={String(option)} onPress={() => setHour(option)} selected={hour === option} />)}</View>
-          <Text style={styles.optionLabel}>MINUTE</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.minuteRow}>{minutes.map((option) => <TimeOption key={option} label={padTwo(option)} onPress={() => setMinute(option)} selected={minute === option} />)}</ScrollView>
-          <View style={styles.meridiemRow}>{(['AM', 'PM'] as const).map((option) => <TimeOption key={option} label={option} onPress={() => setMeridiem(option)} selected={meridiem === option} wide />)}</View>
+          <View style={styles.wheelColumnLabelRow}>
+            <Text style={styles.wheelColumnLabel}>HOUR</Text>
+            <Text style={styles.wheelColumnLabel}>MINUTE</Text>
+            <Text style={styles.wheelColumnLabel}>AM / PM</Text>
+          </View>
+          <View style={styles.wheelColumns}>
+            <ChurchWheelColumn
+              accessibilityLabel="Ceremony hour wheel"
+              onSelect={(nextHour) => setHour(Number(nextHour))}
+              options={Array.from({ length: 12 }, (_, index) => index + 1).map((option) => ({
+                label: padTwo(option),
+                value: String(option),
+              }))}
+              selected={String(hour)}
+            />
+            <ChurchWheelColumn
+              accessibilityLabel="Ceremony minute wheel"
+              onSelect={(nextMinute) => setMinute(Number(nextMinute))}
+              options={minutes.map((option) => ({
+                label: padTwo(option),
+                value: String(option),
+              }))}
+              selected={String(minute)}
+            />
+            <ChurchWheelColumn
+              accessibilityLabel="Ceremony AM or PM wheel"
+              onSelect={(nextMeridiem) => setMeridiem(nextMeridiem as 'AM' | 'PM')}
+              options={(['AM', 'PM'] as const).map((option) => ({ label: option, value: option }))}
+              selected={meridiem}
+            />
+          </View>
           <Text style={styles.timezoneNote}>Saved as local ceremony time without timezone conversion.</Text>
           <PickerActions onCancel={onClose} onConfirm={() => { onConfirm(storedTime(hour, minute, meridiem)); onClose() }} confirmLabel="CONFIRM TIME" />
         </View>
@@ -260,13 +306,198 @@ const PickerHeader = ({ onClose, title }: { onClose: () => void; title: string }
   <View style={styles.header}><View style={styles.headerCopy}><Text style={styles.eyebrow}>CHURCH CEREMONY</Text><Text style={styles.title}>{title}</Text></View><Pressable accessibilityLabel="Close picker" accessibilityRole="button" onPress={onClose}><MaterialIcons color={palette.muted} name="close" size={23} /></Pressable></View>
 )
 
-const MonthButton = ({ label, onPress, symbol }: { label: string; onPress: () => void; symbol: string }) => (
-  <Pressable accessibilityLabel={label} accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.monthButton, pressed && styles.pressed]}><Text style={styles.monthButtonText}>{symbol}</Text></Pressable>
+const MonthButton = ({ direction, label, onPress }: {
+  direction: 'left' | 'right'
+  label: string
+  onPress: () => void
+}) => (
+  <Pressable
+    accessibilityLabel={label}
+    accessibilityRole="button"
+    hitSlop={6}
+    onPress={onPress}
+    style={({ pressed }) => [styles.monthButton, pressed && styles.pressed]}
+  >
+    <MaterialIcons
+      color={palette.burgundy}
+      name={direction === 'left' ? 'chevron-left' : 'chevron-right'}
+      size={28}
+    />
+  </Pressable>
 )
 
-const TimeOption = ({ label, onPress, selected, wide = false }: { label: string; onPress: () => void; selected: boolean; wide?: boolean }) => (
-  <Pressable accessibilityRole="radio" accessibilityState={{ selected }} onPress={onPress} style={[styles.timeOption, wide && styles.timeOptionWide, selected && styles.timeOptionSelected]}><Text style={[styles.timeOptionText, selected && styles.timeOptionTextSelected]}>{label}</Text></Pressable>
-)
+interface ChurchWheelOption {
+  label: string
+  value: string
+}
+
+interface ChurchWheelColumnProps {
+  accessibilityLabel: string
+  onSelect: (value: string) => void
+  options: ChurchWheelOption[]
+  selected: string
+}
+
+const ChurchWheelColumn: React.FC<ChurchWheelColumnProps> = ({
+  accessibilityLabel,
+  onSelect,
+  options,
+  selected,
+}) => {
+  const listRef = React.useRef<FlatList<ChurchWheelOption>>(null)
+  const scrollOffset = React.useRef(new Animated.Value(0)).current
+  const settleTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const latestOffset = React.useRef(0)
+  const optionsRef = React.useRef(options)
+  const onSelectRef = React.useRef(onSelect)
+  const selectedRef = React.useRef(selected)
+  const selectedIndex = Math.max(0, options.findIndex((option) => option.value === selected))
+
+  optionsRef.current = options
+  onSelectRef.current = onSelect
+  selectedRef.current = selected
+
+  React.useEffect(() => {
+    const timeout = setTimeout(() => {
+      const offset = selectedIndex * wheelRowHeight
+      listRef.current?.scrollToOffset({ animated: false, offset })
+      latestOffset.current = offset
+    }, 0)
+
+    return () => clearTimeout(timeout)
+  }, [options, selectedIndex])
+
+  React.useEffect(() => () => {
+    if (settleTimer.current) clearTimeout(settleTimer.current)
+  }, [])
+
+  const settleWheel = (offset: number, animated = true) => {
+    const currentOptions = optionsRef.current
+    const index = Math.max(0, Math.min(
+      currentOptions.length - 1,
+      Math.round(offset / wheelRowHeight)
+    ))
+    const snappedOffset = index * wheelRowHeight
+    latestOffset.current = snappedOffset
+
+    if (Math.abs(offset - snappedOffset) > 0.5) {
+      listRef.current?.scrollToOffset({ animated, offset: snappedOffset })
+    }
+
+    const option = currentOptions[index]
+    if (option && option.value !== selectedRef.current) {
+      selectedRef.current = option.value
+      onSelectRef.current(option.value)
+    }
+  }
+
+  const scheduleSettle = (offset: number) => {
+    latestOffset.current = offset
+    if (settleTimer.current) clearTimeout(settleTimer.current)
+    settleTimer.current = setTimeout(() => {
+      settleTimer.current = null
+      settleWheel(latestOffset.current)
+    }, 120)
+  }
+
+  return (
+    <View accessibilityLabel={accessibilityLabel} accessibilityRole="adjustable" style={styles.wheelColumn}>
+      <View pointerEvents="none" style={styles.wheelSelectionBand} />
+      <Animated.FlatList
+        ref={listRef}
+        contentContainerStyle={styles.wheelOptionList}
+        data={options}
+        decelerationRate="fast"
+        disableIntervalMomentum
+        getItemLayout={(_, index) => ({
+          index,
+          length: wheelRowHeight,
+          offset: wheelRowHeight * index,
+        })}
+        initialNumToRender={9}
+        keyExtractor={(option) => option.value}
+        nestedScrollEnabled
+        onMomentumScrollBegin={() => {
+          if (settleTimer.current) clearTimeout(settleTimer.current)
+        }}
+        onMomentumScrollEnd={(event) => {
+          if (settleTimer.current) clearTimeout(settleTimer.current)
+          settleTimer.current = null
+          settleWheel(event.nativeEvent.contentOffset.y)
+        }}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollOffset } } }],
+          {
+            listener: (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+              scheduleSettle(event.nativeEvent.contentOffset.y)
+            },
+            useNativeDriver: true,
+          }
+        )}
+        onScrollEndDrag={(event) => scheduleSettle(event.nativeEvent.contentOffset.y)}
+        renderItem={({ index, item }) => {
+          const isSelected = item.value === selected
+          const inputRange = [
+            (index - 2) * wheelRowHeight,
+            (index - 1) * wheelRowHeight,
+            index * wheelRowHeight,
+            (index + 1) * wheelRowHeight,
+            (index + 2) * wheelRowHeight,
+          ]
+          const opacity = scrollOffset.interpolate({
+            extrapolate: 'clamp',
+            inputRange,
+            outputRange: [0.16, 0.46, 1, 0.46, 0.16],
+          })
+          const rotateX = scrollOffset.interpolate({
+            extrapolate: 'clamp',
+            inputRange,
+            outputRange: ['48deg', '24deg', '0deg', '-24deg', '-48deg'],
+          })
+          const scale = scrollOffset.interpolate({
+            extrapolate: 'clamp',
+            inputRange,
+            outputRange: [0.82, 0.92, 1, 0.92, 0.82],
+          })
+
+          return (
+            <Animated.View style={{ opacity, transform: [{ perspective: 700 }, { rotateX }, { scale }] }}>
+              <Pressable
+                accessibilityLabel={item.label}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isSelected }}
+                onPress={() => {
+                  if (settleTimer.current) clearTimeout(settleTimer.current)
+                  settleTimer.current = null
+                  latestOffset.current = index * wheelRowHeight
+                  listRef.current?.scrollToOffset({
+                    animated: true,
+                    offset: index * wheelRowHeight,
+                  })
+                  if (item.value !== selectedRef.current) {
+                    selectedRef.current = item.value
+                    onSelectRef.current(item.value)
+                  }
+                }}
+                style={({ pressed }) => [styles.wheelOption, pressed && styles.pressed]}
+              >
+                <Text style={[styles.wheelOptionText, isSelected && styles.wheelOptionTextSelected]}>
+                  {item.label}
+                </Text>
+              </Pressable>
+            </Animated.View>
+          )
+        }}
+        scrollEventThrottle={16}
+        showsVerticalScrollIndicator={false}
+        snapToAlignment="start"
+        snapToInterval={wheelRowHeight}
+        style={styles.wheelList}
+        windowSize={7}
+      />
+    </View>
+  )
+}
 
 const PickerActions = ({ confirmLabel, disabled = false, onCancel, onConfirm }: { confirmLabel: string; disabled?: boolean; onCancel: () => void; onConfirm: () => void }) => (
   <View style={styles.actions}><Pressable accessibilityRole="button" onPress={onCancel} style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}><Text style={styles.secondaryButtonText}>CANCEL</Text></Pressable><Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onConfirm} style={({ pressed }) => [styles.primaryButton, disabled && styles.disabled, pressed && styles.pressed]}><Text style={styles.primaryButtonText}>{confirmLabel}</Text></Pressable></View>
@@ -302,9 +533,10 @@ const styles = StyleSheet.create({
   sheet: { width: '100%', maxWidth: 520, maxHeight: '92%', gap: 15, padding: 19, borderRadius: 18, backgroundColor: palette.surface },
   header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }, headerCopy: { minWidth: 0, flex: 1 },
   eyebrow: { color: palette.burgundy, fontSize: 9, lineHeight: 12, fontWeight: '800', letterSpacing: 1.1 }, title: { color: palette.text, fontSize: 20, lineHeight: 27, fontWeight: '800' },
-  monthHeader: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, monthButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 19 }, monthButtonText: { color: palette.burgundy, fontSize: 27, lineHeight: 30 }, monthLabel: { color: palette.text, fontSize: 15, lineHeight: 21, fontWeight: '800' },
+  monthHeader: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, monthButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 19 }, monthLabel: { color: palette.text, fontSize: 15, lineHeight: 21, fontWeight: '800' },
   weekdayRow: { flexDirection: 'row' }, weekday: { width: '14.2857%', color: palette.muted, fontSize: 8, lineHeight: 12, fontWeight: '800', textAlign: 'center' }, calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' }, day: { width: '14.2857%', height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 21 }, daySelected: { backgroundColor: palette.burgundy }, dayText: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '600' }, dayTextSelected: { color: palette.surface, fontWeight: '800' }, scheduledDot: { width: 4, height: 4, marginTop: 1, borderRadius: 2, backgroundColor: palette.burgundy },
   notice: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: 10, backgroundColor: '#E8F5EC' }, noticeError: { backgroundColor: '#FFF0F0' }, noticeText: { minWidth: 0, flex: 1, color: palette.success, fontSize: 11, lineHeight: 16, fontWeight: '600' }, noticeTextError: { color: palette.error },
-  timePreview: { minHeight: 62, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, borderRadius: 12, backgroundColor: '#F7EFF1' }, timePreviewText: { color: palette.burgundy, fontSize: 25, lineHeight: 32, fontWeight: '800' }, optionLabel: { color: palette.muted, fontSize: 9, lineHeight: 12, fontWeight: '800', letterSpacing: 0.9 }, optionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 }, timeOption: { width: 46, minHeight: 39, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 9 }, timeOptionWide: { flex: 1, width: undefined }, timeOptionSelected: { borderColor: palette.burgundy, backgroundColor: palette.burgundy }, timeOptionText: { color: palette.text, fontSize: 12, lineHeight: 16, fontWeight: '700' }, timeOptionTextSelected: { color: palette.surface }, minuteRow: { gap: 7, paddingRight: 5 }, meridiemRow: { flexDirection: 'row', gap: 8 }, timezoneNote: { color: palette.muted, fontSize: 10, lineHeight: 15, textAlign: 'center' },
+  timePreview: { minHeight: 62, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, borderRadius: 12, backgroundColor: '#F7EFF1' }, timePreviewText: { color: palette.burgundy, fontSize: 25, lineHeight: 32, fontWeight: '800' },
+  wheelColumnLabelRow: { flexDirection: 'row', gap: 8 }, wheelColumnLabel: { flex: 1, color: palette.muted, fontSize: 9, lineHeight: 12, fontWeight: '800', letterSpacing: 0.9, textAlign: 'center' }, wheelColumns: { flexDirection: 'row', gap: 8 }, wheelColumn: { flex: 1, height: wheelRowHeight * wheelVisibleRows, overflow: 'hidden', borderRadius: 10, backgroundColor: '#FBF8F9' }, wheelSelectionBand: { position: 'absolute', top: wheelRowHeight * 2, right: 0, left: 0, zIndex: 0, height: wheelRowHeight, borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#C99AA4', backgroundColor: '#F8EDEF' }, wheelList: { zIndex: 1, height: wheelRowHeight * wheelVisibleRows }, wheelOptionList: { paddingVertical: wheelRowHeight * 2 }, wheelOption: { height: wheelRowHeight, alignItems: 'center', justifyContent: 'center' }, wheelOptionText: { color: '#A9A2A4', fontSize: 14, lineHeight: 20, fontWeight: '500', opacity: 0.56 }, wheelOptionTextSelected: { color: palette.burgundy, fontSize: 16, fontWeight: '800', opacity: 1 }, timezoneNote: { color: palette.muted, fontSize: 10, lineHeight: 15, textAlign: 'center' },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 9, marginTop: 2 }, secondaryButton: { minHeight: 43, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 17, borderWidth: 1, borderColor: palette.border, borderRadius: 10 }, secondaryButtonText: { color: palette.burgundy, fontSize: 10, lineHeight: 14, fontWeight: '800', letterSpacing: 0.7 }, primaryButton: { minHeight: 43, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 17, borderRadius: 10, backgroundColor: palette.burgundy }, primaryButtonText: { color: palette.surface, fontSize: 10, lineHeight: 14, fontWeight: '800', letterSpacing: 0.7 }, disabled: { opacity: 0.42 }, pressed: { opacity: 0.72 },
 })

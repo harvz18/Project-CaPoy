@@ -839,6 +839,12 @@ test('V7 Phase 3 saves optional church pins and uses schedule-safe mobile picker
     'export const ChurchDatePickerModal',
     'This date matches the configured event schedule.',
     'export const ChurchTimePickerModal',
+    "name={direction === 'left' ? 'chevron-left' : 'chevron-right'}",
+    'const ChurchWheelColumn',
+    'Ceremony hour wheel',
+    'Ceremony minute wheel',
+    'Ceremony AM or PM wheel',
+    'snapToInterval={wheelRowHeight}',
     'Saved as local ceremony time without timezone conversion.',
   ], 'church map, date, and time controls')
   mustContain(coordinator, [
