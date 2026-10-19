@@ -268,6 +268,44 @@ test('V8 Phase 3 filters venues by an eligible option-level starting configurati
     'Phase 3 must not rewrite existing booking or selection prices')
 })
 
+test('V8 Phase 4 exposes the agreed venue snapshot and keeps booking financial terms authoritative', () => {
+  const migration = read('supabase/migrations/20261020000400_venue_booking_integrity.sql')
+  const merchant = read('src/lib/merchant.ts')
+  const providerDetails = read('src/screens/19.1-BookingRequest.tsx')
+  const clientDetails = read('src/screens/11.1-BookingDetails.tsx')
+  const venueSummary = read('src/components/VenueBookingSummary.tsx')
+
+  mustContain(migration, [
+    'create or replace function public.enforce_v8_venue_booking_terms()',
+    'public.calculate_event_venue_quote_v8(',
+    'pg_advisory_xact_lock',
+    'Venue booking terms are immutable after the client payment is recorded.',
+    'create or replace function public.assert_v8_venue_booking_integrity(target_booking_id uuid)',
+    'A selected venue option overlaps another active booking.',
+    'create trigger v8_enforce_venue_acceptance_integrity_trigger',
+    'Legacy records have no detailed option array.',
+  ], 'V8 Phase 4 venue integrity migration')
+  mustContain(merchant, [
+    'venue_options_snapshot, venue_booking_snapshot',
+    'venueBookingConfigurationFrom(',
+    'venueBooking,',
+  ], 'booking snapshot data mapping')
+  mustContain(providerDetails, [
+    '<VenueBookingSummary audience="provider"',
+    'venueBooking: service.venueBooking',
+  ], 'provider venue booking review')
+  mustContain(clientDetails, [
+    '<VenueBookingSummary audience="client"',
+  ], 'client venue booking review')
+  mustContain(venueSummary, [
+    'PROVIDER BASE TOTAL',
+    'CLIENT-FACING TOTAL',
+    'Your earnings and payout remain based on the provider base total.',
+  ], 'shared venue snapshot presentation')
+  assert.doesNotMatch(migration, /update\s+public\.bookings\s+set/i,
+    'Phase 4 must not rewrite historical booking values')
+})
+
 test('client home can safely remove drafts and collapses bookings to the next three events', () => {
   const planning = read('src/lib/planning.ts')
   const home = read('src/screens/03-ClientHome.tsx')

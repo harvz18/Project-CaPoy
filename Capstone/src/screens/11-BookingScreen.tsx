@@ -11,6 +11,7 @@ import {
 } from 'react-native'
 import { ClientBottomNavigation, ClientMainTab } from '../components/ClientBottomNavigation'
 import type { CateringFoodTasting } from '../lib/merchant'
+import type { VenueBookingConfiguration } from '../lib/venue-booking'
 
 export type BookingStatus = 'all' | 'confirmed' | 'requested' | 'completed' | 'cancelled'
 export type BookingTab = ClientMainTab | 'merchants'
@@ -37,6 +38,7 @@ export interface BookingServiceItem {
   serviceName: string
   status: 'confirmed' | 'declined' | 'requested' | 'completed' | 'cancelled'
   updatedAt: string
+  venueBooking?: VenueBookingConfiguration
 }
 
 export interface BookingItem {
@@ -87,6 +89,7 @@ export interface BookingItem {
   services?: BookingServiceItem[]
   updatedAt?: string
   venue?: string
+  venueBooking?: VenueBookingConfiguration
 }
 
 interface BookingScreenProps {

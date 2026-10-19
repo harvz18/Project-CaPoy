@@ -10,6 +10,7 @@ import {
 } from 'react-native'
 import { MerchantBottomNavigation } from '../components/MerchantBottomNavigation'
 import type { CateringFoodTasting } from '../lib/merchant'
+import type { VenueBookingConfiguration } from '../lib/venue-booking'
 import type { MerchantHomeTab } from './16-MerchantHome'
 
 export type BookingRequestStatus = 'new' | 'confirmed' | 'completed' | 'cancelled'
@@ -56,6 +57,7 @@ export interface MerchantBookedService {
   venueBookedHours?: number
   venueEndAt?: string
   venueOptionName?: string
+  venueBooking?: VenueBookingConfiguration
 }
 
 export interface MerchantBookingRequest {
@@ -102,6 +104,7 @@ export interface MerchantBookingRequest {
   venueBookedHours?: number
   venueEndAt?: string
   venueOptionName?: string
+  venueBooking?: VenueBookingConfiguration
 }
 
 interface BookingRequestScreenProps {

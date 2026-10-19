@@ -1,5 +1,6 @@
 import { Text } from '../components/AppText'
 import { ChurchLocationMap, formatChurchDate, formatChurchTime } from '../components/ChurchArrangementControls'
+import { VenueBookingSummary } from '../components/VenueBookingSummary'
 import { MaterialIcons } from '@expo/vector-icons'
 import React from 'react'
 import { Image, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native'
@@ -784,6 +785,9 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                   <Text style={styles.serviceMeta}>
                     {service.category} · PHP {Math.round(service.amount).toLocaleString('en-PH')}
                   </Text>
+                  {service.venueBooking ? (
+                    <VenueBookingSummary audience="client" configuration={service.venueBooking} />
+                  ) : null}
                   {service.serviceAmount !== undefined
                     || service.initialProviderShare !== undefined
                     || service.remainingServiceBalance !== undefined ? (

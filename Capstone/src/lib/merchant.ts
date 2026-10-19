@@ -10,6 +10,7 @@ import {
   normalizeCategoryDetails,
   type ServiceCategoryDetails,
 } from './service-category-details'
+import { venueBookingConfigurationFrom } from './venue-booking'
 import type {
   AvailabilityCalendarValue,
   BookingItem,
@@ -1308,7 +1309,7 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
   const { data, error } = await client
     .from('bookings')
     .select(
-      'id, event_id, provider_id, service_id, amount, provider_amount, status, requested_date, requested_time, created_at, updated_at, events(id, coordinator_id, coordinator_assignment_status, name, event_type, is_church_wedding, event_date, event_time, guest_count, venue, location, status), services(name, cover_image_url, category_details, service_categories(name)), provider_profiles(business_name), payments!inner(status, amount, service_subtotal, provider_initial_allocation, paid_at, metadata)'
+      'id, event_id, provider_id, service_id, amount, provider_amount, status, requested_date, requested_time, venue_option_snapshot, venue_options_snapshot, venue_booking_snapshot, created_at, updated_at, events(id, coordinator_id, coordinator_assignment_status, name, event_type, is_church_wedding, event_date, event_time, guest_count, venue, location, status), services(name, cover_image_url, category_details, service_categories(name)), provider_profiles(business_name), payments!inner(status, amount, service_subtotal, provider_initial_allocation, paid_at, metadata)'
     )
     .eq('client_id', userId)
     .neq('status', 'payment_required')
@@ -1437,6 +1438,11 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
         : confirmedExternalPaymentAmount > 0
           ? 'partially_confirmed'
           : 'awaiting_external_payment')
+    const venueBooking = venueBookingConfigurationFrom(
+      record.venue_options_snapshot,
+      record.venue_booking_snapshot,
+      record.venue_option_snapshot
+    )
     const serviceItem: BookingServiceItem = {
       amount: numberFrom(record.amount),
       bookingId,
@@ -1459,6 +1465,7 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
       serviceName,
       status: mapServiceBookingStatus(rawStatus),
       updatedAt: textFrom(record.updated_at),
+      venueBooking,
     }
 
     const current = grouped.get(eventId)
@@ -1545,7 +1552,7 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
   const { data, error } = await context.client
     .from('bookings')
     .select(
-      'id, event_id, service_id, amount, provider_amount, status, requested_date, requested_time, client_notes, catering_option_name, catering_option_snapshot, venue_option_name, venue_booked_hours, venue_end_at, created_at, profiles(full_name, email), events(name, event_type, event_date, event_time, guest_count, venue, location), services(name, description, category_details, service_categories(name)), service_packages(name, description, inclusions), payments!inner(status, amount, service_subtotal, platform_fee_amount, provider_initial_allocation, paid_at, verified_at, created_at, metadata)'
+      'id, event_id, service_id, amount, provider_amount, status, requested_date, requested_time, client_notes, catering_option_name, catering_option_snapshot, venue_option_name, venue_option_snapshot, venue_options_snapshot, venue_booking_snapshot, venue_booked_hours, venue_setup_start_at, venue_start_at, venue_end_at, created_at, profiles(full_name, email), events(name, event_type, event_date, event_time, guest_count, venue, location), services(name, description, category_details, service_categories(name)), service_packages(name, description, inclusions), payments!inner(status, amount, service_subtotal, platform_fee_amount, provider_initial_allocation, paid_at, verified_at, created_at, metadata)'
     )
     .eq('provider_id', context.providerId)
     .neq('status', 'payment_required')
@@ -1615,6 +1622,11 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
         : confirmedExternalPaymentAmount > 0
           ? 'partially_confirmed'
           : 'awaiting_external_payment')
+    const venueBooking = venueBookingConfigurationFrom(
+      record.venue_options_snapshot,
+      record.venue_booking_snapshot,
+      record.venue_option_snapshot
+    )
     const bookingDetails = (selectionRows ?? []).find(
       (selection) => selection.event_id === eventId && selection.service_id === serviceId
     )
@@ -1705,6 +1717,7 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
         : numberFrom(record.venue_booked_hours),
       venueEndAt: textFrom(record.venue_end_at) || undefined,
       venueOptionName: textFrom(record.venue_option_name) || undefined,
+      venueBooking,
     }
   })
 
@@ -1745,6 +1758,7 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
       venueBookedHours: request.venueBookedHours,
       venueEndAt: request.venueEndAt,
       venueOptionName: request.venueOptionName,
+      venueBooking: request.venueBooking,
     }
     const existing = grouped.get(groupId)
 

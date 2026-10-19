@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native'
 import { Text } from '../components/AppText'
+import { VenueBookingSummary } from '../components/VenueBookingSummary'
 import type { MerchantBookedService, MerchantBookingRequest } from './19-BookingRequest'
 
 export interface MerchantBookingRequestDetails {
@@ -145,6 +146,7 @@ const servicesFor = (request: MerchantBookingRequest): MerchantBookedService[] =
         venueBookedHours: request.venueBookedHours,
         venueEndAt: request.venueEndAt,
         venueOptionName: request.venueOptionName,
+        venueBooking: request.venueBooking,
       }]
 
 const requestForService = (
@@ -182,6 +184,7 @@ const requestForService = (
   venueBookedHours: service.venueBookedHours,
   venueEndAt: service.venueEndAt,
   venueOptionName: service.venueOptionName,
+  venueBooking: service.venueBooking,
 })
 
 const hasEventDateArrived = (value: string) => {
@@ -461,6 +464,10 @@ export const BookingRequestDetailsScreen: React.FC<BookingRequestDetailsScreenPr
 
                 {service.packageDescription ? (
                   <Text style={styles.packageDescription}>{service.packageDescription}</Text>
+                ) : null}
+
+                {service.venueBooking ? (
+                  <VenueBookingSummary audience="provider" configuration={service.venueBooking} />
                 ) : null}
 
                 {service.paymentStatus ? (
