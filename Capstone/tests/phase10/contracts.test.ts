@@ -1210,3 +1210,34 @@ test('payment gateway boundary stays explicitly labeled instead of implying live
   assert.match(planning, /const paymentReference = `demo-/)
   assert.match(features, /generated demo payment reference rather than a confirmed external payment-gateway integration/i)
 })
+
+test('V7 Phase 4 separates compact coordinator events from exact event management details', () => {
+  const app = read('src/App.tsx')
+  const coordinatorScreen = read('src/screens/23-Coordinator.tsx')
+
+  mustContain(app, [
+    "| 'coordinatorEventDetails'",
+    'setSelectedCoordinatorEventId(event.id)',
+    "setScreen('coordinatorEventDetails')",
+    'coordinatorDashboard.events.find(',
+    'event.id === selectedCoordinatorEventId',
+    "handleCoordinatorMessageClient(event, 'coordinatorEventDetails')",
+    "handleCoordinatorMessageProvider(event, service, 'coordinatorEventDetails')",
+  ], 'coordinator event detail navigation')
+  mustContain(coordinatorScreen, [
+    "mode?: 'compact' | 'detail'",
+    'View Event',
+    'export const CoordinatorEventDetailsScreen',
+    'CLIENT REQUEST DETAILS',
+    'BOOKED &amp; SELECTED SERVICES',
+    'CHURCH ARRANGEMENT',
+    'Message Client',
+    'Message provider',
+    'daysRemainingLabel(event.date)',
+  ], 'coordinator event details UI')
+  mustContain(coordinatorScreen, [
+    'export interface ChurchArrangementDraft',
+    'onDraftChange?: (draft: ChurchArrangementDraft) => void',
+    'onDraftSaved?.()',
+  ], 'church arrangement draft preservation')
+})

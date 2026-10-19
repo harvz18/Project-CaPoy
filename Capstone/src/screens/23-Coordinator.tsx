@@ -39,11 +39,12 @@ import type {
   SaveChurchWeddingArrangementInput,
 } from '../lib/coordinator'
 
-type CoordinatorView = 'events' | 'overview' | 'tasks'
+export type CoordinatorView = 'events' | 'overview' | 'tasks'
 type TaskFilter = 'all' | 'due' | 'open'
 type DueChoice = 'event' | 'none' | 'today' | 'tomorrow'
 
 interface CoordinatorScreenProps {
+  activeView?: CoordinatorView
   avatarUrl?: string
   busyInvitationId?: string
   busyTaskId?: string
@@ -51,10 +52,12 @@ interface CoordinatorScreenProps {
   errorMessage?: string
   isLoading?: boolean
   isRefreshing?: boolean
+  initialScrollOffset?: number
   onCreateTask?: (input: CreateCoordinatorTaskInput) => Promise<CoordinatorResult>
   onConfirmChurchArrangement?: (input: ConfirmChurchWeddingArrangementInput) => Promise<CoordinatorResult>
   onMessageClient?: (event: CoordinatorEvent) => void
   onMessageProvider?: (event: CoordinatorEvent, service: CoordinatorBookedService) => void
+  onOpenEvent?: (event: CoordinatorEvent) => void
   onSaveChurchArrangement?: (input: SaveChurchWeddingArrangementInput) => Promise<CoordinatorResult>
   onOpenNotifications?: () => void
   onOpenMessages?: () => void
@@ -65,9 +68,22 @@ interface CoordinatorScreenProps {
   onRespondInvitation?: (invitation: CoordinatorInvitation, accepted: boolean) => void
   onSignOut?: () => void
   onToggleTask?: (task: CoordinatorTask) => void
+  onViewChange?: (view: CoordinatorView) => void
+  onScrollPositionChange?: (offset: number) => void
   unreadNotificationCount?: number
   unreadMessageCount?: number
   userName?: string
+}
+
+export interface ChurchArrangementDraft {
+  ceremonyDate: string
+  ceremonyTime: string
+  churchAddress: string
+  churchContact: string
+  churchName: string
+  coordinates?: ChurchCoordinates
+  notes: string
+  preferredChurch: string
 }
 
 const emptyDashboard: CoordinatorDashboard = { events: [], invitations: [], tasks: [] }
@@ -111,6 +127,18 @@ const timeLabel = (value?: string) => {
   const suffix = hours >= 12 ? 'PM' : 'AM'
   const normalizedHours = hours % 12 || 12
   return `${normalizedHours}:${String(minutes).padStart(2, '0')} ${suffix}`
+}
+
+const daysRemainingLabel = (value?: string) => {
+  const eventDate = parseLocalDate(value)
+  if (!eventDate) return 'Schedule pending'
+  const days = Math.round(
+    (startOfDay(eventDate).getTime() - startOfDay(new Date()).getTime()) / 86_400_000
+  )
+  if (days < 0) return `${Math.abs(days)} ${Math.abs(days) === 1 ? 'day' : 'days'} ago`
+  if (days === 0) return 'Today'
+  if (days === 1) return 'Tomorrow'
+  return `${days} days remaining`
 }
 
 const statusLabel = (value: string) =>
@@ -198,12 +226,28 @@ const todayHeading = () =>
   })
 
 const EventCard: React.FC<{
+  churchDraft?: ChurchArrangementDraft
   event: CoordinatorEvent
+  mode?: 'compact' | 'detail'
+  onChurchDraftChange?: (draft: ChurchArrangementDraft) => void
+  onChurchDraftSaved?: () => void
   onConfirmChurchArrangement?: (input: ConfirmChurchWeddingArrangementInput) => Promise<CoordinatorResult>
   onMessageClient?: (event: CoordinatorEvent) => void
   onMessageProvider?: (event: CoordinatorEvent, service: CoordinatorBookedService) => void
+  onOpen?: (event: CoordinatorEvent) => void
   onSaveChurchArrangement?: (input: SaveChurchWeddingArrangementInput) => Promise<CoordinatorResult>
-}> = ({ event, onConfirmChurchArrangement, onMessageClient, onMessageProvider, onSaveChurchArrangement }) => {
+}> = ({
+  churchDraft,
+  event,
+  mode = 'compact',
+  onChurchDraftChange,
+  onChurchDraftSaved,
+  onConfirmChurchArrangement,
+  onMessageClient,
+  onMessageProvider,
+  onOpen,
+  onSaveChurchArrangement,
+}) => {
   const progress = eventProgress(event)
   const venue = event.venue || event.location || 'Venue to be confirmed'
   const bookingServices = event.services.filter((service) => service.booked && service.bookingId)
@@ -214,7 +258,7 @@ const EventCard: React.FC<{
   const replacementBookingCount = bookingServices.filter((service) =>
     Boolean(service.replacementStatus && !['closed'].includes(service.replacementStatus))
   ).length
-  const [expanded, setExpanded] = React.useState(false)
+  const expanded = mode === 'detail'
   const [expandedServiceIds, setExpandedServiceIds] = React.useState<string[]>([])
 
   const toggleService = (serviceId: string) => {
@@ -230,10 +274,10 @@ const EventCard: React.FC<{
       <View style={styles.eventAccent} />
       <View style={styles.eventCardBody}>
         <Pressable
-          accessibilityLabel={`${expanded ? 'Hide' : 'Show'} details for ${event.name}`}
+          accessibilityLabel={expanded ? `${event.name} event overview` : `View details for ${event.name}`}
           accessibilityRole="button"
-          accessibilityState={{ expanded }}
-          onPress={() => setExpanded((current) => !current)}
+          disabled={expanded}
+          onPress={() => onOpen?.(event)}
           style={({ pressed }) => [styles.eventCardHeader, pressed && styles.pressedSurface]}
         >
           <View style={styles.eventHeadingCopy}>
@@ -248,14 +292,11 @@ const EventCard: React.FC<{
             <View style={styles.statusPill}>
               <Text style={styles.statusPillText}>{statusLabel(event.status)}</Text>
             </View>
-            <MaterialIcons
-              color={palette.primaryContainer}
-              name={expanded ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
-              size={23}
-            />
+            {!expanded ? <MaterialIcons color={palette.primaryContainer} name="chevron-right" size={23} /> : null}
           </View>
         </Pressable>
 
+        {expanded ? <Text style={styles.detailSectionLabel}>EVENT OVERVIEW</Text> : null}
         <View style={styles.eventMetaGrid}>
           <View style={styles.eventMetaItem}>
             <MaterialIcons color={palette.primaryContainer} name="event" size={17} />
@@ -274,23 +315,26 @@ const EventCard: React.FC<{
           </View>
         </View>
 
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => setExpanded((current) => !current)}
-          style={({ pressed }) => [styles.disclosureHint, pressed && styles.pressed]}
-        >
-          <Text style={styles.disclosureHintText}>
-            {expanded ? 'Hide event details' : 'View event details and booked services'}
-          </Text>
-          <MaterialIcons
-            color={palette.primaryContainer}
-            name={expanded ? 'expand-less' : 'expand-more'}
-            size={18}
-          />
-        </Pressable>
+        <View style={styles.eventCountdownRow}>
+          <MaterialIcons color={palette.primaryContainer} name="hourglass-bottom" size={15} />
+          <Text style={styles.eventCountdownText}>{daysRemainingLabel(event.date)}</Text>
+        </View>
+
+        {!expanded ? (
+          <Pressable
+            accessibilityLabel={`View event details for ${event.name}`}
+            accessibilityRole="button"
+            onPress={() => onOpen?.(event)}
+            style={({ pressed }) => [styles.disclosureHint, pressed && styles.pressed]}
+          >
+            <Text style={styles.disclosureHintText}>View Event</Text>
+            <MaterialIcons color={palette.primaryContainer} name="arrow-forward" size={18} />
+          </Pressable>
+        ) : null}
 
         {expanded ? (
           <View style={styles.eventExpandedContent}>
+            <Text style={styles.detailSectionLabel}>SERVICE BOOKING PROGRESS</Text>
             <View style={styles.progressHeader}>
               <Text style={styles.progressLabel}>Coordination progress</Text>
               <Text style={styles.progressValue}>{progress}%</Text>
@@ -318,7 +362,10 @@ const EventCard: React.FC<{
 
             {event.isChurchWedding ? (
               <ChurchArrangementPanel
+                draft={churchDraft}
                 event={event}
+                onDraftChange={onChurchDraftChange}
+                onDraftSaved={onChurchDraftSaved}
                 onConfirm={onConfirmChurchArrangement}
                 onMessageClient={() => onMessageClient?.(event)}
                 onSave={onSaveChurchArrangement}
@@ -335,11 +382,13 @@ const EventCard: React.FC<{
               </Pressable>
             )}
 
+            <Text style={[styles.detailSectionLabel, styles.detailManagementLabel]}>EVENT MANAGEMENT</Text>
             <View style={styles.requestFacts}>
               <Text style={styles.requestFact}>Event type: {statusLabel(event.type || 'Event')}</Text>
-              {event.isChurchWedding ? (
-                <Text style={styles.churchWeddingFact}>Church wedding: church coordination required</Text>
-              ) : null}
+              <Text style={event.isChurchWedding ? styles.churchWeddingFact : styles.requestFact}>
+                Wedding type: {event.isChurchWedding ? 'Church wedding' : 'Non-church / not applicable'}
+              </Text>
+              <Text style={styles.requestFact}>Coordinator booking: {statusLabel(event.status)}</Text>
               <Text style={styles.requestFact}>Guests: {event.guestCount ?? 'Not specified'}</Text>
               <Text style={styles.requestFact}>
                 Event budget: {event.totalBudget == null ? 'Not specified' : pesoLabel(event.totalBudget)}
@@ -555,25 +604,30 @@ const churchConfirmationMethods: Array<{ label: string; value: ChurchConfirmatio
 ]
 
 const ChurchArrangementPanel: React.FC<{
+  draft?: ChurchArrangementDraft
   event: CoordinatorEvent
   onConfirm?: (input: ConfirmChurchWeddingArrangementInput) => Promise<CoordinatorResult>
+  onDraftChange?: (draft: ChurchArrangementDraft) => void
+  onDraftSaved?: () => void
   onMessageClient?: () => void
   onSave?: (input: SaveChurchWeddingArrangementInput) => Promise<CoordinatorResult>
-}> = ({ event, onConfirm, onMessageClient, onSave }) => {
+}> = ({ draft, event, onConfirm, onDraftChange, onDraftSaved, onMessageClient, onSave }) => {
   const arrangement = event.churchArrangement
-  const [preferredChurch, setPreferredChurch] = React.useState(arrangement?.preferredChurch ?? '')
-  const [churchName, setChurchName] = React.useState(arrangement?.churchName ?? '')
-  const [churchAddress, setChurchAddress] = React.useState(arrangement?.churchAddress ?? '')
-  const [churchContact, setChurchContact] = React.useState(arrangement?.churchContact ?? '')
-  const [ceremonyDate, setCeremonyDate] = React.useState(arrangement?.ceremonyDate ?? '')
-  const [ceremonyTime, setCeremonyTime] = React.useState(arrangement?.ceremonyTime ?? '')
+  const [preferredChurch, setPreferredChurch] = React.useState(draft?.preferredChurch ?? arrangement?.preferredChurch ?? '')
+  const [churchName, setChurchName] = React.useState(draft?.churchName ?? arrangement?.churchName ?? '')
+  const [churchAddress, setChurchAddress] = React.useState(draft?.churchAddress ?? arrangement?.churchAddress ?? '')
+  const [churchContact, setChurchContact] = React.useState(draft?.churchContact ?? arrangement?.churchContact ?? '')
+  const [ceremonyDate, setCeremonyDate] = React.useState(draft?.ceremonyDate ?? arrangement?.ceremonyDate ?? '')
+  const [ceremonyTime, setCeremonyTime] = React.useState(draft?.ceremonyTime ?? arrangement?.ceremonyTime ?? '')
   const [coordinates, setCoordinates] = React.useState<ChurchCoordinates | undefined>(() =>
-    arrangement?.churchLatitude != null && arrangement.churchLongitude != null
-      ? { latitude: arrangement.churchLatitude, longitude: arrangement.churchLongitude }
-      : undefined
+    draft
+      ? draft.coordinates
+      : arrangement?.churchLatitude != null && arrangement.churchLongitude != null
+        ? { latitude: arrangement.churchLatitude, longitude: arrangement.churchLongitude }
+        : undefined
   )
   const [draftCoordinates, setDraftCoordinates] = React.useState<ChurchCoordinates | undefined>()
-  const [notes, setNotes] = React.useState(arrangement?.notes ?? '')
+  const [notes, setNotes] = React.useState(draft?.notes ?? arrangement?.notes ?? '')
   const [error, setError] = React.useState('')
   const [saving, setSaving] = React.useState(false)
   const [showConfirmation, setShowConfirmation] = React.useState(false)
@@ -586,18 +640,34 @@ const ChurchArrangementPanel: React.FC<{
   const [showTimePicker, setShowTimePicker] = React.useState(false)
 
   React.useEffect(() => {
-    setPreferredChurch(arrangement?.preferredChurch ?? '')
-    setChurchName(arrangement?.churchName ?? '')
-    setChurchAddress(arrangement?.churchAddress ?? '')
-    setChurchContact(arrangement?.churchContact ?? '')
-    setCeremonyDate(arrangement?.ceremonyDate ?? '')
-    setCeremonyTime(arrangement?.ceremonyTime ?? '')
-    setCoordinates(arrangement?.churchLatitude != null && arrangement.churchLongitude != null
-      ? { latitude: arrangement.churchLatitude, longitude: arrangement.churchLongitude }
-      : undefined)
-    setNotes(arrangement?.notes ?? '')
+    setPreferredChurch(draft?.preferredChurch ?? arrangement?.preferredChurch ?? '')
+    setChurchName(draft?.churchName ?? arrangement?.churchName ?? '')
+    setChurchAddress(draft?.churchAddress ?? arrangement?.churchAddress ?? '')
+    setChurchContact(draft?.churchContact ?? arrangement?.churchContact ?? '')
+    setCeremonyDate(draft?.ceremonyDate ?? arrangement?.ceremonyDate ?? '')
+    setCeremonyTime(draft?.ceremonyTime ?? arrangement?.ceremonyTime ?? '')
+    setCoordinates(draft
+      ? draft.coordinates
+      : arrangement?.churchLatitude != null && arrangement.churchLongitude != null
+        ? { latitude: arrangement.churchLatitude, longitude: arrangement.churchLongitude }
+        : undefined)
+    setNotes(draft?.notes ?? arrangement?.notes ?? '')
     setError('')
-  }, [arrangement, event.id])
+  }, [arrangement, draft, event.id])
+
+  const publishDraft = (updates: Partial<ChurchArrangementDraft>) => {
+    onDraftChange?.({
+      ceremonyDate,
+      ceremonyTime,
+      churchAddress,
+      churchContact,
+      churchName,
+      coordinates,
+      notes,
+      preferredChurch,
+      ...updates,
+    })
+  }
 
   const save = async () => {
     if (!onSave || saving) return
@@ -627,7 +697,11 @@ const ChurchArrangementPanel: React.FC<{
       preferredChurch,
     })
     setSaving(false)
-    if (!result.ok) setError(result.message ?? 'Unable to save the church arrangement.')
+    if (!result.ok) {
+      setError(result.message ?? 'Unable to save the church arrangement.')
+      return
+    }
+    onDraftSaved?.()
   }
 
   const closeConfirmation = () => {
@@ -708,11 +782,11 @@ const ChurchArrangementPanel: React.FC<{
         </View>
       ) : null}
       <Text style={styles.inputLabel}>CLIENT PREFERRED CHURCH</Text>
-      <TextInput onChangeText={setPreferredChurch} placeholder="Client preference, if shared" placeholderTextColor={palette.secondary} style={styles.textInput} value={preferredChurch} />
+      <TextInput onChangeText={(value) => { setPreferredChurch(value); publishDraft({ preferredChurch: value }) }} placeholder="Client preference, if shared" placeholderTextColor={palette.secondary} style={styles.textInput} value={preferredChurch} />
       <Text style={styles.inputLabel}>PROPOSED / SELECTED CHURCH</Text>
-      <TextInput onChangeText={setChurchName} placeholder="Church name" placeholderTextColor={palette.secondary} style={styles.textInput} value={churchName} />
+      <TextInput onChangeText={(value) => { setChurchName(value); publishDraft({ churchName: value }) }} placeholder="Church name" placeholderTextColor={palette.secondary} style={styles.textInput} value={churchName} />
       <Text style={styles.inputLabel}>ADDRESS OR LOCATION</Text>
-      <TextInput onChangeText={setChurchAddress} placeholder="Church address or location" placeholderTextColor={palette.secondary} style={styles.textInput} value={churchAddress} />
+      <TextInput onChangeText={(value) => { setChurchAddress(value); publishDraft({ churchAddress: value }) }} placeholder="Church address or location" placeholderTextColor={palette.secondary} style={styles.textInput} value={churchAddress} />
       <View style={styles.churchLocationCard}>
         {coordinates ? (
           <ChurchLocationMap coordinates={coordinates} />
@@ -738,7 +812,7 @@ const ChurchArrangementPanel: React.FC<{
         </Pressable>
       </View>
       <Text style={styles.inputLabel}>CHURCH CONTACT</Text>
-      <TextInput onChangeText={setChurchContact} placeholder="Contact person or number" placeholderTextColor={palette.secondary} style={styles.textInput} value={churchContact} />
+      <TextInput onChangeText={(value) => { setChurchContact(value); publishDraft({ churchContact: value }) }} placeholder="Contact person or number" placeholderTextColor={palette.secondary} style={styles.textInput} value={churchContact} />
       <View style={styles.churchDateTimeRow}>
         <View style={styles.churchDateTimeField}>
           <Text style={styles.inputLabel}>CEREMONY DATE</Text>
@@ -758,7 +832,7 @@ const ChurchArrangementPanel: React.FC<{
         </View>
       </View>
       <Text style={styles.inputLabel}>NOTES / INSTRUCTIONS</Text>
-      <TextInput multiline onChangeText={setNotes} placeholder="Record coordination notes for the client" placeholderTextColor={palette.secondary} style={[styles.textInput, styles.notesInput]} textAlignVertical="top" value={notes} />
+      <TextInput multiline onChangeText={(value) => { setNotes(value); publishDraft({ notes: value }) }} placeholder="Record coordination notes for the client" placeholderTextColor={palette.secondary} style={[styles.textInput, styles.notesInput]} textAlignVertical="top" value={notes} />
       {arrangement?.updatedAt ? <Text style={styles.churchUpdatedAt}>Last updated {new Date(arrangement.updatedAt).toLocaleString('en-PH')}</Text> : null}
       {error ? <Text style={styles.formError}>{error}</Text> : null}
       <Pressable accessibilityRole="button" disabled={!onSave || saving} onPress={() => void save()} style={({ pressed }) => [styles.createButton, (!onSave || saving) && styles.disabled, pressed && styles.addButtonPressed]}>
@@ -856,14 +930,14 @@ const ChurchArrangementPanel: React.FC<{
         <ChurchDatePickerModal
           eventDate={event.date?.slice(0, 10)}
           onClose={() => setShowDatePicker(false)}
-          onConfirm={setCeremonyDate}
+          onConfirm={(value) => { setCeremonyDate(value); publishDraft({ ceremonyDate: value }) }}
           value={ceremonyDate}
         />
       ) : null}
       {showTimePicker ? (
         <ChurchTimePickerModal
           onClose={() => setShowTimePicker(false)}
-          onConfirm={setCeremonyTime}
+          onConfirm={(value) => { setCeremonyTime(value); publishDraft({ ceremonyTime: value }) }}
           value={ceremonyTime}
         />
       ) : null}
@@ -887,6 +961,7 @@ const ChurchArrangementPanel: React.FC<{
                   accessibilityRole="button"
                   onPress={() => {
                     setCoordinates(undefined)
+                    publishDraft({ coordinates: undefined })
                     setDraftCoordinates(undefined)
                     setShowLocationPicker(false)
                   }}
@@ -900,6 +975,7 @@ const ChurchArrangementPanel: React.FC<{
                   disabled={!draftCoordinates}
                   onPress={() => {
                     setCoordinates(draftCoordinates)
+                    publishDraft({ coordinates: draftCoordinates })
                     setShowLocationPicker(false)
                   }}
                   style={[styles.churchModalConfirm, !draftCoordinates && styles.disabled]}
@@ -912,6 +988,138 @@ const ChurchArrangementPanel: React.FC<{
           </View>
         </Modal>
       ) : null}
+    </View>
+  )
+}
+
+interface CoordinatorEventDetailsScreenProps {
+  churchDraft?: ChurchArrangementDraft
+  errorMessage?: string
+  event?: CoordinatorEvent
+  isLoading?: boolean
+  isRefreshing?: boolean
+  onBack?: () => void
+  onChurchDraftChange?: (draft: ChurchArrangementDraft) => void
+  onChurchDraftSaved?: () => void
+  onConfirmChurchArrangement?: (input: ConfirmChurchWeddingArrangementInput) => Promise<CoordinatorResult>
+  onMessageClient?: (event: CoordinatorEvent) => void
+  onMessageProvider?: (event: CoordinatorEvent, service: CoordinatorBookedService) => void
+  onRefresh?: () => void
+  onSaveChurchArrangement?: (input: SaveChurchWeddingArrangementInput) => Promise<CoordinatorResult>
+}
+
+export const CoordinatorEventDetailsScreen: React.FC<CoordinatorEventDetailsScreenProps> = ({
+  churchDraft,
+  errorMessage,
+  event,
+  isLoading = false,
+  isRefreshing = false,
+  onBack,
+  onChurchDraftChange,
+  onChurchDraftSaved,
+  onConfirmChurchArrangement,
+  onMessageClient,
+  onMessageProvider,
+  onRefresh,
+  onSaveChurchArrangement,
+}) => {
+  const { width } = useWindowDimensions()
+  const isWide = width >= 768
+
+  return (
+    <View style={styles.screen}>
+      <View style={styles.detailTopBar}>
+        <View style={[styles.detailTopBarContent, isWide && styles.wideHorizontalPadding]}>
+          <Pressable
+            accessibilityLabel="Back to coordinator home"
+            accessibilityRole="button"
+            onPress={onBack}
+            style={({ pressed }) => [styles.detailBackButton, pressed && styles.pressedSurface]}
+          >
+            <MaterialIcons color={palette.primaryContainer} name="arrow-back" size={22} />
+          </Pressable>
+          <View style={styles.detailHeadingCopy}>
+            <Text style={styles.detailEyebrow}>COORDINATOR WORKSPACE</Text>
+            <Text numberOfLines={1} style={styles.detailTitle}>Event Details</Text>
+          </View>
+        </View>
+      </View>
+
+      <ScrollView
+        contentContainerStyle={[
+          styles.detailContent,
+          isWide ? styles.detailContentWide : styles.detailContentMobile,
+        ]}
+        refreshControl={
+          <RefreshControl
+            colors={[palette.primaryContainer]}
+            onRefresh={onRefresh}
+            refreshing={isRefreshing}
+            tintColor={palette.primaryContainer}
+          />
+        }
+        showsVerticalScrollIndicator={false}
+      >
+        {errorMessage ? (
+          <View style={styles.errorCard}>
+            <MaterialIcons color={palette.danger} name="error-outline" size={20} />
+            <View style={styles.errorCopy}>
+              <Text style={styles.errorTitle}>Event details could not refresh</Text>
+              <Text style={styles.errorMessage}>{errorMessage}</Text>
+            </View>
+            <Pressable accessibilityRole="button" onPress={onRefresh}>
+              <Text style={styles.retryText}>Retry</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {isLoading && !event ? (
+          <View style={styles.loadingState}>
+            <ActivityIndicator color={palette.primaryContainer} size="large" />
+            <Text style={styles.loadingTitle}>Loading event details</Text>
+            <Text style={styles.loadingText}>Syncing the event, services, and client instructions.</Text>
+          </View>
+        ) : event ? (
+          <>
+            <View style={styles.detailIntro}>
+              <Text style={styles.sectionEyebrow}>CLIENT REQUEST DETAILS</Text>
+              <Text style={styles.detailEventName}>{event.name}</Text>
+              <Text style={styles.detailIntroText}>
+                Review the confirmed request, service progress, and every coordination action in one place.
+              </Text>
+            </View>
+            <EventCard
+              churchDraft={churchDraft}
+              event={event}
+              mode="detail"
+              onChurchDraftChange={onChurchDraftChange}
+              onChurchDraftSaved={onChurchDraftSaved}
+              onConfirmChurchArrangement={onConfirmChurchArrangement}
+              onMessageClient={onMessageClient}
+              onMessageProvider={onMessageProvider}
+              onSaveChurchArrangement={onSaveChurchArrangement}
+            />
+          </>
+        ) : (
+          <View style={styles.emptyState}>
+            <View style={styles.emptyIcon}>
+              <MaterialIcons color={palette.primaryContainer} name="event-busy" size={34} />
+            </View>
+            <Text style={styles.emptyTitle}>Event is no longer available</Text>
+            <Text style={styles.emptyText}>
+              This assigned event could not be found. Return to the coordinator workspace to choose another event.
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={onBack}
+              style={({ pressed }) => [styles.refreshButton, pressed && styles.pressed]}
+            >
+              <MaterialIcons color={palette.primaryContainer} name="arrow-back" size={18} />
+              <Text style={styles.refreshButtonText}>Back to coordinator home</Text>
+            </Pressable>
+          </View>
+        )}
+      </ScrollView>
     </View>
   )
 }
@@ -1132,6 +1340,7 @@ const dueAtFrom = (
 }
 
 export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
+  activeView: controlledActiveView,
   avatarUrl,
   busyInvitationId,
   busyTaskId,
@@ -1139,10 +1348,12 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
   errorMessage,
   isLoading = false,
   isRefreshing = false,
+  initialScrollOffset = 0,
   onCreateTask,
   onConfirmChurchArrangement,
   onMessageClient,
   onMessageProvider,
+  onOpenEvent,
   onSaveChurchArrangement,
   onOpenMessages,
   onOpenNotifications,
@@ -1153,13 +1364,15 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
   onRespondInvitation,
   onSignOut,
   onToggleTask,
+  onViewChange,
+  onScrollPositionChange,
   unreadMessageCount = 0,
   unreadNotificationCount = 0,
   userName = 'Coordinator',
 }) => {
   const { width } = useWindowDimensions()
   const isWide = width >= 768
-  const [activeView, setActiveView] = React.useState<CoordinatorView>('overview')
+  const [activeView, setActiveView] = React.useState<CoordinatorView>(controlledActiveView ?? 'overview')
   const [taskFilter, setTaskFilter] = React.useState<TaskFilter>('open')
   const [showComposer, setShowComposer] = React.useState(false)
   const [selectedEventId, setSelectedEventId] = React.useState('')
@@ -1172,6 +1385,10 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
   const activeIndicatorX = React.useRef(new Animated.Value(0)).current
   const initializedIndicator = React.useRef(false)
   const [navigationWidth, setNavigationWidth] = React.useState(0)
+
+  React.useEffect(() => {
+    if (controlledActiveView && controlledActiveView !== activeView) setActiveView(controlledActiveView)
+  }, [activeView, controlledActiveView])
 
   const activeEvents = dashboard.events.filter(
     (event) => event.status !== 'completed' && event.status !== 'cancelled'
@@ -1207,13 +1424,14 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
     contentSlide.stopAnimation()
     contentSlide.setValue(0)
     setActiveView(nextView)
+    onViewChange?.(nextView)
     Animated.timing(contentSlide, {
       duration: 240,
       easing: Easing.out(Easing.cubic),
       toValue: 1,
       useNativeDriver: true,
     }).start()
-  }, [activeView, contentSlide])
+  }, [activeView, contentSlide, onViewChange])
 
   const submitTask = async () => {
     const normalizedTitle = taskTitle.trim()
@@ -1374,6 +1592,9 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
             tintColor={palette.primaryContainer}
           />
         }
+        contentOffset={{ x: 0, y: initialScrollOffset }}
+        onScroll={(event) => onScrollPositionChange?.(event.nativeEvent.contentOffset.y)}
+        scrollEventThrottle={100}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.welcomeRow}>
@@ -1613,6 +1834,7 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
                   onConfirmChurchArrangement={onConfirmChurchArrangement}
                   onMessageClient={onMessageClient}
                   onMessageProvider={onMessageProvider}
+                  onOpen={onOpenEvent}
                   onSaveChurchArrangement={onSaveChurchArrangement}
                 />
               </View>
@@ -1661,6 +1883,7 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
                     onConfirmChurchArrangement={onConfirmChurchArrangement}
                     onMessageClient={onMessageClient}
                     onMessageProvider={onMessageProvider}
+                    onOpen={onOpenEvent}
                     onSaveChurchArrangement={onSaveChurchArrangement}
                   />
                 </View>
@@ -1817,6 +2040,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
   },
+  detailTopBar: { minHeight: 64, justifyContent: 'center', borderBottomWidth: 1, borderBottomColor: palette.border, backgroundColor: palette.surface },
+  detailTopBarContent: { width: '100%', maxWidth: 900, minHeight: 64, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, paddingVertical: 10 },
+  detailBackButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 21 },
+  detailHeadingCopy: { minWidth: 0, flex: 1 },
+  detailEyebrow: { color: palette.primaryContainer, fontSize: 8, lineHeight: 11, fontWeight: '700', letterSpacing: 1 },
+  detailTitle: { color: palette.text, fontSize: 18, lineHeight: 24, fontWeight: '700', marginTop: 1 },
+  detailContent: { width: '100%', maxWidth: 900, alignSelf: 'center' },
+  detailContentMobile: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 48 },
+  detailContentWide: { paddingHorizontal: 32, paddingTop: 32, paddingBottom: 56 },
+  detailIntro: { marginBottom: 16 },
+  detailEventName: { color: palette.text, fontSize: 23, lineHeight: 30, fontWeight: '700', marginTop: 3 },
+  detailIntroText: { maxWidth: 620, color: palette.secondary, fontSize: 11, lineHeight: 17, marginTop: 4 },
+  detailSectionLabel: { color: palette.primaryContainer, fontSize: 8, lineHeight: 12, fontWeight: '700', letterSpacing: 0.8, marginBottom: 8 },
+  detailManagementLabel: { marginBottom: 6, marginTop: 14 },
   wideHorizontalPadding: { paddingHorizontal: 32 },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   roleLabel: { color: palette.secondary, fontSize: 8, lineHeight: 12, fontWeight: '700', letterSpacing: 1.1, marginLeft: 44 },
@@ -1994,6 +2231,8 @@ const styles = StyleSheet.create({
   metaLabel: { color: palette.muted, fontSize: 7, lineHeight: 10, fontWeight: '700', letterSpacing: 0.6 },
   metaValue: { color: palette.text, fontSize: 10, lineHeight: 14, fontWeight: '600', marginTop: 2 },
   metaSubvalue: { color: palette.secondary, fontSize: 9, lineHeight: 13 },
+  eventCountdownRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 9 },
+  eventCountdownText: { color: palette.primaryContainer, fontSize: 10, lineHeight: 14, fontWeight: '700' },
   disclosureHint: { minHeight: 34, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 9 },
   disclosureHintText: { color: palette.primaryContainer, fontSize: 9, lineHeight: 13, fontWeight: '700' },
   eventExpandedContent: { borderTopWidth: 1, borderTopColor: palette.border, marginTop: 4, paddingTop: 12 },

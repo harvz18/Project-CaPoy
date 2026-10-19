@@ -148,7 +148,12 @@ import {
 import { TransactionDetailsScreen } from './screens/22.3-TransactionDetails'
 import { ChangePasswordScreen } from './screens/22.4-ChangePassword'
 import { MerchantNotification, NotificationScreen } from './screens/22.5-Notification'
-import { CoordinatorScreen } from './screens/23-Coordinator'
+import {
+  CoordinatorEventDetailsScreen,
+  CoordinatorScreen,
+  type ChurchArrangementDraft,
+  type CoordinatorView,
+} from './screens/23-Coordinator'
 import { CoordinatorRemittanceDetailsScreen } from './screens/23.1-CoordinatorRemittanceDetails'
 import { CoordinatorServiceProfileScreen } from './screens/23.2-CoordinatorServiceProfile'
 import { CoordinatorPackagesScreen } from './screens/23.3-CoordinatorPackages'
@@ -288,6 +293,7 @@ type AppScreen =
   | 'accountProfile'
   | 'support'
   | 'coordinatorHome'
+  | 'coordinatorEventDetails'
   | 'coordinatorNotifications'
   | 'coordinatorRemittanceDetails'
   | 'coordinatorServiceProfile'
@@ -716,6 +722,13 @@ export const App: React.FC = () => {
   const paymentSubmissionInFlight = React.useRef(false)
   const [coordinatorDashboard, setCoordinatorDashboard] =
     React.useState<CoordinatorDashboard>(emptyCoordinatorDashboard())
+  const [selectedCoordinatorEventId, setSelectedCoordinatorEventId] = React.useState('')
+  const [coordinatorChurchDrafts, setCoordinatorChurchDrafts] = React.useState<
+    Record<string, ChurchArrangementDraft>
+  >({})
+  const [coordinatorHomeView, setCoordinatorHomeView] = React.useState<CoordinatorView>('overview')
+  const coordinatorHomeScrollOffsetRef = React.useRef(0)
+  const coordinatorWorkspaceSessionRef = React.useRef('')
   const [coordinatorError, setCoordinatorError] = React.useState('')
   const [isCoordinatorLoading, setIsCoordinatorLoading] = React.useState(false)
   const [isCoordinatorRefreshing, setIsCoordinatorRefreshing] = React.useState(false)
@@ -1353,6 +1366,7 @@ export const App: React.FC = () => {
     if (result.ok && result.data) {
       setCoordinatorDashboard(result.data)
       setCoordinatorError('')
+      coordinatorWorkspaceSessionRef.current = authenticatedUserId || 'authenticated'
     } else {
       setCoordinatorError(result.message ?? 'Unable to load the coordinator workspace.')
     }
@@ -1361,12 +1375,14 @@ export const App: React.FC = () => {
       setIsCoordinatorLoading(false)
       setIsCoordinatorRefreshing(false)
     }
-  }, [])
+  }, [authenticatedUserId])
 
   React.useEffect(() => {
     if (screen !== 'coordinatorHome') return
+    const sessionKey = authenticatedUserId || 'authenticated'
+    if (coordinatorWorkspaceSessionRef.current === sessionKey) return
     void loadCoordinatorWorkspace()
-  }, [loadCoordinatorWorkspace, screen])
+  }, [authenticatedUserId, loadCoordinatorWorkspace, screen])
 
   const loadCoordinatorRemittance = React.useCallback(async (
     eventId: string,
@@ -1464,7 +1480,7 @@ export const App: React.FC = () => {
   }, [isSavingMerchantPayoutAccount, loadMerchantPayouts, merchantPayoutPeriod])
 
   React.useEffect(() => {
-    if (screen !== 'coordinatorHome') return undefined
+    if (screen !== 'coordinatorHome' && screen !== 'coordinatorEventDetails') return undefined
 
     const refreshTimer = setInterval(() => {
       void loadCoordinatorWorkspace(false, true)
@@ -1616,7 +1632,11 @@ export const App: React.FC = () => {
   )
 
   const handleCoordinatorMessageProvider = React.useCallback(
-    async (_event: CoordinatorEvent, service: CoordinatorBookedService) => {
+    async (
+      _event: CoordinatorEvent,
+      service: CoordinatorBookedService,
+      returnScreen: AppScreen = 'coordinatorHome'
+    ) => {
       if (!service.bookingId) {
         setToastMessage('A provider conversation becomes available after the booking is confirmed.')
         return
@@ -1633,7 +1653,7 @@ export const App: React.FC = () => {
         return
       }
       setConversations(latestConversations)
-      await openExistingConversation(conversation, 'coordinatorHome')
+      await openExistingConversation(conversation, returnScreen)
     },
     [openExistingConversation]
   )
@@ -3841,6 +3861,7 @@ export const App: React.FC = () => {
       case 'coordinatorHome':
         return (
           <CoordinatorScreen
+            activeView={coordinatorHomeView}
             avatarUrl={userAvatarUrl}
             busyInvitationId={busyCoordinatorInvitationId}
             busyTaskId={busyCoordinatorTaskId}
@@ -3848,10 +3869,15 @@ export const App: React.FC = () => {
             errorMessage={coordinatorError}
             isLoading={isCoordinatorLoading}
             isRefreshing={isCoordinatorRefreshing}
+            initialScrollOffset={coordinatorHomeScrollOffsetRef.current}
             onCreateTask={handleCreateCoordinatorTask}
             onConfirmChurchArrangement={handleConfirmChurchArrangement}
             onMessageClient={(event) => void handleCoordinatorMessageClient(event)}
             onMessageProvider={(event, service) => void handleCoordinatorMessageProvider(event, service)}
+            onOpenEvent={(event) => {
+              setSelectedCoordinatorEventId(event.id)
+              setScreen('coordinatorEventDetails')
+            }}
             onSaveChurchArrangement={handleSaveChurchArrangement}
             onOpenMessages={() => {
               setMessageWorkspace('coordinator')
@@ -3870,11 +3896,54 @@ export const App: React.FC = () => {
               void handleSignOut()
             }}
             onToggleTask={(task) => void handleCoordinatorTaskToggle(task)}
+            onScrollPositionChange={(offset) => {
+              coordinatorHomeScrollOffsetRef.current = offset
+            }}
+            onViewChange={setCoordinatorHomeView}
             unreadMessageCount={conversations.reduce((total, conversation) => total + conversation.unreadCount, 0)}
             unreadNotificationCount={notifications.filter((notification) => !notification.isRead).length}
             userName={userName}
           />
         )
+      case 'coordinatorEventDetails': {
+        const selectedEvent = coordinatorDashboard.events.find(
+          (event) => event.id === selectedCoordinatorEventId
+        )
+        return (
+          <CoordinatorEventDetailsScreen
+            churchDraft={coordinatorChurchDrafts[selectedCoordinatorEventId]}
+            errorMessage={coordinatorError}
+            event={selectedEvent}
+            isLoading={isCoordinatorLoading}
+            isRefreshing={isCoordinatorRefreshing}
+            onBack={() => setScreen('coordinatorHome')}
+            onChurchDraftChange={(draft) => {
+              if (!selectedCoordinatorEventId) return
+              setCoordinatorChurchDrafts((current) => ({
+                ...current,
+                [selectedCoordinatorEventId]: draft,
+              }))
+            }}
+            onChurchDraftSaved={() => {
+              if (!selectedCoordinatorEventId) return
+              setCoordinatorChurchDrafts((current) => {
+                const next = { ...current }
+                delete next[selectedCoordinatorEventId]
+                return next
+              })
+            }}
+            onConfirmChurchArrangement={handleConfirmChurchArrangement}
+            onMessageClient={(event) =>
+              void handleCoordinatorMessageClient(event, 'coordinatorEventDetails')
+            }
+            onMessageProvider={(event, service) =>
+              void handleCoordinatorMessageProvider(event, service, 'coordinatorEventDetails')
+            }
+            onRefresh={() => void loadCoordinatorWorkspace(true)}
+            onSaveChurchArrangement={handleSaveChurchArrangement}
+          />
+        )
+      }
       case 'coordinatorServiceProfile':
         return (
           <CoordinatorServiceProfileScreen
@@ -4337,7 +4406,9 @@ export const App: React.FC = () => {
             }}
             onOpenBooking={() =>
               setScreen(
-                chatReturnScreen === 'coordinatorHome' || messageWorkspace === 'coordinator'
+                chatReturnScreen === 'coordinatorEventDetails'
+                  ? 'coordinatorEventDetails'
+                  : chatReturnScreen === 'coordinatorHome' || messageWorkspace === 'coordinator'
                   ? 'coordinatorHome'
                   : homeReturnScreen === 'providerHome'
                   ? 'providerBookingRequests'
