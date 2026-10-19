@@ -19,7 +19,6 @@ import { Text } from '../components/AppText'
 import { BrandIdentity } from '../components/BrandIdentity'
 import { CoordinatorBottomNavigation } from '../components/CoordinatorBottomNavigation'
 import {
-  ChurchDatePickerModal,
   ChurchLocationMap,
   ChurchTimePickerModal,
   formatChurchDate,
@@ -614,11 +613,11 @@ const ChurchArrangementPanel: React.FC<{
   onSave?: (input: SaveChurchWeddingArrangementInput) => Promise<CoordinatorResult>
 }> = ({ draft, event, onConfirm, onDraftChange, onDraftSaved, onMessageClient, onSave }) => {
   const arrangement = event.churchArrangement
+  const eventDate = event.date?.slice(0, 10) ?? ''
   const [preferredChurch, setPreferredChurch] = React.useState(draft?.preferredChurch ?? arrangement?.preferredChurch ?? '')
   const [churchName, setChurchName] = React.useState(draft?.churchName ?? arrangement?.churchName ?? '')
   const [churchAddress, setChurchAddress] = React.useState(draft?.churchAddress ?? arrangement?.churchAddress ?? '')
   const [churchContact, setChurchContact] = React.useState(draft?.churchContact ?? arrangement?.churchContact ?? '')
-  const [ceremonyDate, setCeremonyDate] = React.useState(draft?.ceremonyDate ?? arrangement?.ceremonyDate ?? '')
   const [ceremonyTime, setCeremonyTime] = React.useState(draft?.ceremonyTime ?? arrangement?.ceremonyTime ?? '')
   const [coordinates, setCoordinates] = React.useState<ChurchCoordinates | undefined>(() =>
     draft
@@ -636,7 +635,6 @@ const ChurchArrangementPanel: React.FC<{
   const [confirmationNotes, setConfirmationNotes] = React.useState('')
   const [confirmationError, setConfirmationError] = React.useState('')
   const [confirming, setConfirming] = React.useState(false)
-  const [showDatePicker, setShowDatePicker] = React.useState(false)
   const [showLocationPicker, setShowLocationPicker] = React.useState(false)
   const [showTimePicker, setShowTimePicker] = React.useState(false)
 
@@ -645,7 +643,6 @@ const ChurchArrangementPanel: React.FC<{
     setChurchName(draft?.churchName ?? arrangement?.churchName ?? '')
     setChurchAddress(draft?.churchAddress ?? arrangement?.churchAddress ?? '')
     setChurchContact(draft?.churchContact ?? arrangement?.churchContact ?? '')
-    setCeremonyDate(draft?.ceremonyDate ?? arrangement?.ceremonyDate ?? '')
     setCeremonyTime(draft?.ceremonyTime ?? arrangement?.ceremonyTime ?? '')
     setCoordinates(draft
       ? draft.coordinates
@@ -658,7 +655,6 @@ const ChurchArrangementPanel: React.FC<{
 
   const publishDraft = (updates: Partial<ChurchArrangementDraft>) => {
     onDraftChange?.({
-      ceremonyDate,
       ceremonyTime,
       churchAddress,
       churchContact,
@@ -667,16 +663,14 @@ const ChurchArrangementPanel: React.FC<{
       notes,
       preferredChurch,
       ...updates,
+      // The ceremony date belongs to the client event schedule and cannot be
+      // edited from the coordinator workspace.
+      ceremonyDate: eventDate,
     })
   }
 
   const save = async () => {
     if (!onSave || saving) return
-    const eventDate = event.date?.slice(0, 10)
-    if (ceremonyDate && eventDate && ceremonyDate !== eventDate) {
-      setError(`The ceremony date must match the configured event date: ${formatChurchDate(eventDate)}.`)
-      return
-    }
     const normalizedChurchName = churchName.trim()
     setSaving(true)
     setError('')
@@ -686,7 +680,7 @@ const ChurchArrangementPanel: React.FC<{
         : preferredChurch.trim() || notes.trim()
           ? 'looking_for_church'
           : 'not_started',
-      ceremonyDate,
+      ceremonyDate: eventDate || undefined,
       ceremonyTime,
       churchAddress,
       churchContact,
@@ -817,11 +811,16 @@ const ChurchArrangementPanel: React.FC<{
       <View style={styles.churchDateTimeRow}>
         <View style={styles.churchDateTimeField}>
           <Text style={styles.inputLabel}>CEREMONY DATE</Text>
-          <Pressable accessibilityRole="button" onPress={() => setShowDatePicker(true)} style={({ pressed }) => [styles.churchPickerField, pressed && styles.pressed]}>
+          <View accessibilityLabel="Ceremony date set by the client event schedule" style={styles.churchDateReadOnlyField}>
             <MaterialIcons color={palette.primaryContainer} name="event" size={18} />
-            <Text numberOfLines={1} style={[styles.churchPickerFieldText, !ceremonyDate && styles.churchPickerPlaceholder]}>{formatChurchDate(ceremonyDate)}</Text>
-            <MaterialIcons color={palette.secondary} name="expand-more" size={19} />
-          </Pressable>
+            <View style={styles.churchDateReadOnlyCopy}>
+              <Text numberOfLines={1} style={[styles.churchPickerFieldText, !eventDate && styles.churchPickerPlaceholder]}>{formatChurchDate(eventDate)}</Text>
+              <Text numberOfLines={1} style={styles.churchDateReadOnlyHint}>
+                {eventDate ? "Set by the client's event schedule" : 'Client event date not set'}
+              </Text>
+            </View>
+            <MaterialIcons color={palette.secondary} name="lock-outline" size={17} />
+          </View>
         </View>
         <View style={styles.churchDateTimeField}>
           <Text style={styles.inputLabel}>TIME</Text>
@@ -927,14 +926,6 @@ const ChurchArrangementPanel: React.FC<{
           </View>
         </View>
       </Modal>
-      {showDatePicker ? (
-        <ChurchDatePickerModal
-          eventDate={event.date?.slice(0, 10)}
-          onClose={() => setShowDatePicker(false)}
-          onConfirm={(value) => { setCeremonyDate(value); publishDraft({ ceremonyDate: value }) }}
-          value={ceremonyDate}
-        />
-      ) : null}
       {showTimePicker ? (
         <ChurchTimePickerModal
           onClose={() => setShowTimePicker(false)}
@@ -2117,6 +2108,9 @@ const styles = StyleSheet.create({
   churchDateTimeRow: { flexDirection: 'row', gap: 8 },
   churchDateTimeField: { minWidth: 0, flex: 1 },
   churchPickerField: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 7, borderWidth: 1, borderColor: palette.border, borderRadius: 9, backgroundColor: '#FCFBFB', paddingHorizontal: 10 },
+  churchDateReadOnlyField: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 7, borderWidth: 1, borderColor: palette.border, borderRadius: 9, backgroundColor: '#F6F2F3', paddingHorizontal: 10 },
+  churchDateReadOnlyCopy: { minWidth: 0, flex: 1, gap: 1 },
+  churchDateReadOnlyHint: { color: palette.secondary, fontSize: 8, lineHeight: 11 },
   churchPickerFieldText: { minWidth: 0, flex: 1, color: palette.text, fontSize: 10, lineHeight: 14, fontWeight: '600' },
   churchPickerPlaceholder: { color: palette.secondary, fontWeight: '400' },
   churchUpdatedAt: { color: palette.secondary, fontSize: 8, lineHeight: 12, marginTop: 10 },

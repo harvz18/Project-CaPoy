@@ -811,6 +811,7 @@ test('V7 Phase 1 preserves church proposal history and separates client response
 
 test('V7 Phase 3 saves optional church pins and uses schedule-safe mobile pickers', () => {
   const migration = read('supabase/migrations/20261019000300_church_location_and_schedule_pickers.sql')
+  const churchDateInheritance = read('supabase/migrations/20261019000500_church_ceremony_date_inherits_event.sql')
   const controls = read('src/components/ChurchArrangementControls.tsx')
   const coordinator = read('src/lib/coordinator.ts')
   const coordinatorScreen = read('src/screens/23-Coordinator.tsx')
@@ -831,6 +832,13 @@ test('V7 Phase 3 saves optional church pins and uses schedule-safe mobile picker
     'grant execute on function public.save_my_church_wedding_arrangement_v7(',
   ], 'church location and schedule migration')
   assert.doesNotMatch(migration, /drop\s+table/i)
+  mustContain(churchDateInheritance, [
+    'rename to save_my_church_wedding_arrangement_v7_schedule_core',
+    'client_event_date',
+    'client_event_date,',
+    'coordinators may set only the ceremony time',
+  ], 'church ceremony date inheritance')
+  assert.doesNotMatch(churchDateInheritance, /drop\s+table/i)
   mustContain(controls, [
     'export const ChurchLocationMap',
     'const center = interactive',
@@ -857,12 +865,18 @@ test('V7 Phase 3 saves optional church pins and uses schedule-safe mobile picker
   mustContain(coordinatorScreen, [
     'Pin church location',
     'Edit map pin',
-    '<ChurchDatePickerModal',
     '<ChurchTimePickerModal',
     'Use Address Only',
     '{showLocationPicker ? (',
-    'The ceremony date must match the configured event date:',
+    "const eventDate = event.date?.slice(0, 10) ?? ''",
+    "Set by the client's event schedule",
+    'ceremonyDate: eventDate || undefined',
   ], 'coordinator church picker UI')
+  assert.doesNotMatch(
+    coordinatorScreen,
+    /ChurchDatePickerModal|setShowDatePicker/,
+    'coordinators must not be able to change the client event date'
+  )
   mustContain(merchant, [
     "client.rpc('get_my_church_wedding_arrangements_v7'",
     "if (value == null || value === '') return undefined",
