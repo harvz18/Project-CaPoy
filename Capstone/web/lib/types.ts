@@ -11,6 +11,7 @@ export type StaffProfile = {
 export type SectionKey =
   | 'overview'
   | 'users'
+  | 'clients'
   | 'providers'
   | 'services'
   | 'bookings'

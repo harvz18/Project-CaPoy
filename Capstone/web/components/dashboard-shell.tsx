@@ -44,7 +44,8 @@ export function useStaff() {
 const baseNavigation = [
   { href: '/dashboard', label: 'Dashboard', icon: mdiViewDashboardOutline, permission: null },
   { href: '/dashboard/users', label: 'Users', icon: mdiAccountGroupOutline, permission: 'users.view' },
-  { href: '/dashboard/providers', label: 'Provider applications', icon: mdiStorefrontOutline, permission: 'providers.view' },
+  { href: '/dashboard/clients', label: 'Clients', icon: mdiAccountGroupOutline, permission: 'users.view' },
+  { href: '/dashboard/providers', label: 'Service providers', icon: mdiStorefrontOutline, permission: 'providers.view' },
   { href: '/dashboard/services', label: 'Service applications', icon: mdiStoreCheckOutline, permission: 'services.view' },
   { href: '/dashboard/bookings', label: 'Events & bookings', icon: mdiBookOpenPageVariantOutline, permission: 'events.view' },
   { href: '/dashboard/coordinators', label: 'Coordinator bookings', icon: mdiShieldAccountOutline, permission: 'coordinators.view' },

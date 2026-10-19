@@ -23,10 +23,12 @@ import type { SectionKey } from '@/lib/types'
 import { ServicesScreen } from './services-screen'
 import { AuditLogScreen } from './audit-log-screen'
 import { BusinessOperationsScreen } from './business-operations-screen'
+import { ProvidersScreen } from './providers-screen'
+import { BookingsManagementScreen, ClientsManagementScreen, CoordinatorsManagementScreen } from './operations-management-screens'
 
 type OperationSection = Exclude<SectionKey, 'overview'>
 type BusinessSection = 'revenue' | 'cashflow' | 'remittances' | 'coordinators' | 'support' | 'permissions'
-type LegacyTableSection = Exclude<OperationSection, 'settings' | 'services' | 'audit' | BusinessSection>
+type LegacyTableSection = Exclude<OperationSection, 'settings' | 'services' | 'audit' | BusinessSection | 'clients'>
 type Row = Record<string, unknown>
 type ConfirmationAction = { id: string; action: string; currentStatus: string; name: string; kind: 'user' | 'provider'; reason: string }
 
@@ -66,6 +68,7 @@ function analysisKindLabel(row: Row) {
 
 const pageCopy: Record<OperationSection, { eyebrow: string; title: string; description: string }> = {
   users: { eyebrow: 'COMMUNITY', title: 'User management', description: 'View accounts, access roles, and account standing.' },
+  clients: { eyebrow: 'COMMUNITY', title: 'Clients', description: 'Review client activity and account standing.' },
   providers: { eyebrow: 'MARKETPLACE', title: 'Provider approvals', description: 'Review and manage service provider applications.' },
   services: { eyebrow: 'MARKETPLACE', title: 'Service approvals', description: 'Review provider listings before they become visible to clients.' },
   bookings: { eyebrow: 'OPERATIONS', title: 'Bookings', description: 'Monitor booking activity and lifecycle status.' },
@@ -132,7 +135,7 @@ export function OperationsScreen({ section }: { section: OperationSection }) {
   const { can } = useStaff()
   const copy = pageCopy[section]
   const permissionBySection: Record<OperationSection, string> = {
-    users: 'users.view', providers: 'providers.view', services: 'services.view',
+    users: 'users.view', clients: 'users.view', providers: 'providers.view', services: 'services.view',
     bookings: 'events.view', payments: 'cashflow.view', reviews: 'providers.view',
     revenue: 'revenue.view', cashflow: 'cashflow.view', remittances: 'remittance.view',
     coordinators: 'coordinators.view', support: 'support.view',
@@ -144,8 +147,12 @@ export function OperationsScreen({ section }: { section: OperationSection }) {
   } else if (!can(permissionBySection[section])) return <RestrictedScreen />
 
   if (section === 'settings') return <SettingsScreen />
+  if (section === 'providers') return <ProvidersScreen />
   if (section === 'services') return <ServicesScreen />
   if (section === 'audit') return <AuditLogScreen />
+  if (section === 'bookings') return <BookingsManagementScreen />
+  if (section === 'clients') return <ClientsManagementScreen />
+  if (section === 'coordinators') return <CoordinatorsManagementScreen />
   if (['revenue', 'cashflow', 'remittances', 'coordinators', 'support', 'permissions'].includes(section)) {
     return <BusinessOperationsScreen section={section as BusinessSection} />
   }
