@@ -99,8 +99,7 @@ export function OverviewScreen() {
     let active = true
 
     if (!hasWorkspaceOverview) {
-      setLoading(false)
-      return () => { active = false }
+      return
     }
 
     async function loadDashboard() {
