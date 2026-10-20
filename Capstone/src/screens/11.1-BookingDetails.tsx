@@ -5,6 +5,7 @@ import { MaterialIcons } from '@expo/vector-icons'
 import React from 'react'
 import { Image, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native'
 import type { CateringFoodTastingSlot, CateringFoodTastingSlotsResult } from '../lib/merchant'
+import { formatPeso } from '../lib/catalog'
 import type { BookingItem } from './11-BookingScreen'
 
 export interface BookingChangeActionResult {
@@ -68,15 +69,9 @@ const defaultDetails: BookingDetailValue = {
   date: 'Oct 24, 2025',
   time: '1:00 PM',
   coverage: 'Full Day',
-  price: '$3,200',
+  price: '₱3,200',
   paymentStatus: 'Paid',
 }
-
-const formatPeso = (value: number) =>
-  `PHP ${Math.max(0, value).toLocaleString('en-PH', {
-    maximumFractionDigits: 2,
-    minimumFractionDigits: 2,
-  })}`
 
 export interface EventProviderBalance {
   confirmedExternalPaymentAmount: number
@@ -783,7 +778,7 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                     ) : null}
                   </View>
                   <Text style={styles.serviceMeta}>
-                    {service.category} · PHP {Math.round(service.amount).toLocaleString('en-PH')}
+                    {service.category} · {formatPeso(service.amount)}
                   </Text>
                   {service.venueBooking ? (
                     <VenueBookingSummary audience="client" configuration={service.venueBooking} />

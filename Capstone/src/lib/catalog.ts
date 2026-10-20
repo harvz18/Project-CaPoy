@@ -269,8 +269,19 @@ const getPackages = (value: unknown, commissionRate: number) => {
   })
 }
 
-export const formatPeso = (value: number) =>
-  `PHP ${Math.max(0, Math.floor(value)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`
+/**
+ * Display-only Philippine peso formatting. Monetary values remain numeric in
+ * planning, booking, and payment payloads; this helper is intentionally never
+ * used to prepare a value for persistence.
+ */
+export const formatPeso = (value: number) => {
+  const normalized = Number.isFinite(value) ? Math.max(0, Math.round(value * 100) / 100) : 0
+
+  return `₱${normalized.toLocaleString('en-PH', {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
+  })}`
+}
 
 export const formatServicePrice = (service: CatalogService) => {
   const venueStartingPrice = service.categoryId === 'venues'

@@ -119,9 +119,6 @@ const reviews = [
   },
 ] as const
 
-const formatCurrency = (value: number) =>
-  Math.max(0, Math.floor(value)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-
 const pricingUnitLabel = (unit?: 'event' | 'person' | 'hour' | 'day') => {
   if (unit === 'person') return 'per person'
   if (unit === 'hour') return 'per hour'
@@ -498,7 +495,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
         ? 'Price unavailable'
       : requiresQuote && !authoritativeQuote
         ? 'Quote required'
-      : `PHP ${formatCurrency(estimatedTotal)}`
+      : formatPeso(estimatedTotal)
   const scheduleUnavailable = !isExploreMode
     && service.budgetRecommendation?.availabilityStatus === 'unavailable'
 
@@ -1413,7 +1410,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
               accessibilityLabel={
                 requiresQuote
                   ? 'Add custom quote service to selection'
-                  : `Add to selection for ${formatCurrency(estimatedTotal)} pesos`
+                  : `Add to selection for ${formatPeso(estimatedTotal)} Philippine pesos`
               }
               accessibilityRole="button"
               accessibilityState={{ disabled: isAddingSelection || cateringSelectionUnavailable || venueSelectionUnavailable || authoritativeQuoteUnavailable || exceedsAvailableCategoryBudget || scheduleUnavailable }}

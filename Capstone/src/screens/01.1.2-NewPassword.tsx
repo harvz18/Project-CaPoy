@@ -1,12 +1,12 @@
 import { Text } from '../components/AppText'
-import React, { useState } from 'react'
+import React, { useRef, useState } from 'react'
 import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
-  
+  TextInput as NativeTextInput,
   View,
 } from 'react-native'
 import { Button } from '../components/Button'
@@ -33,6 +33,16 @@ export const NewPasswordScreen: React.FC<NewPasswordScreenProps> = ({
   const [passwordUpdated, setPasswordUpdated] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [authError, setAuthError] = useState('')
+  const scrollRef = useRef<ScrollView>(null)
+  const resetCodeRef = useRef<NativeTextInput>(null)
+  const newPasswordRef = useRef<NativeTextInput>(null)
+  const confirmPasswordRef = useRef<NativeTextInput>(null)
+  const formTop = useRef(0)
+  const fieldOffsets = useRef<Record<'resetCode' | 'newPassword' | 'confirmPassword', number>>({
+    resetCode: 0,
+    newPassword: 0,
+    confirmPassword: 0,
+  })
 
   const codeIsValid = /^\d{6}$/.test(resetCode)
   const passwordIsValid = newPassword.length >= 8
@@ -43,9 +53,11 @@ export const NewPasswordScreen: React.FC<NewPasswordScreenProps> = ({
     setSubmitted(true)
     setAuthError('')
 
-    if (!canSubmit || isLoading) {
-      return
-    }
+    if (isLoading) return
+    if (!codeIsValid) return revealField('resetCode', resetCodeRef)
+    if (!passwordIsValid) return revealField('newPassword', newPasswordRef)
+    if (!passwordsMatch) return revealField('confirmPassword', confirmPasswordRef)
+    if (!canSubmit) return
 
     setIsLoading(true)
     const result = await resetPasswordWithCode({
@@ -63,6 +75,19 @@ export const NewPasswordScreen: React.FC<NewPasswordScreenProps> = ({
     setAuthError(result.message ?? 'Unable to update your password. Please try again.')
   }
 
+  function revealField(
+    field: 'resetCode' | 'newPassword' | 'confirmPassword',
+    inputRef: React.RefObject<NativeTextInput | null>
+  ) {
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({
+        y: Math.max(0, formTop.current + fieldOffsets.current[field] - spacing.lg),
+        animated: true,
+      })
+      setTimeout(() => inputRef.current?.focus(), 180)
+    })
+  }
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -73,6 +98,7 @@ export const NewPasswordScreen: React.FC<NewPasswordScreenProps> = ({
         contentContainerStyle={styles.content}
         keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         keyboardShouldPersistTaps="handled"
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.topBar}>
@@ -126,7 +152,7 @@ export const NewPasswordScreen: React.FC<NewPasswordScreenProps> = ({
               </Text>
             </View>
 
-            <View style={styles.formCard}>
+            <View onLayout={(event) => { formTop.current = event.nativeEvent.layout.y }} style={styles.formCard}>
               <TextInput
                 error={submitted && !codeIsValid}
                 helperText={
@@ -137,7 +163,10 @@ export const NewPasswordScreen: React.FC<NewPasswordScreenProps> = ({
                 label="Reset code"
                 maxLength={6}
                 onChangeText={(value) => setResetCode(value.replace(/\D/g, ''))}
+                onContainerLayout={(event) => { fieldOffsets.current.resetCode = event.nativeEvent.layout.y }}
+                onSubmitEditing={() => newPasswordRef.current?.focus()}
                 placeholder="000000"
+                ref={resetCodeRef}
                 returnKeyType="next"
                 value={resetCode}
               />
@@ -153,7 +182,10 @@ export const NewPasswordScreen: React.FC<NewPasswordScreenProps> = ({
                 }
                 label="New password"
                 onChangeText={setNewPassword}
+                onContainerLayout={(event) => { fieldOffsets.current.newPassword = event.nativeEvent.layout.y }}
+                onSubmitEditing={() => confirmPasswordRef.current?.focus()}
                 placeholder="Enter your new password"
+                ref={newPasswordRef}
                 returnKeyType="next"
                 secureTextEntry
                 value={newPassword}
@@ -168,18 +200,14 @@ export const NewPasswordScreen: React.FC<NewPasswordScreenProps> = ({
                 }
                 label="Confirm new password"
                 onChangeText={setConfirmPassword}
+                onContainerLayout={(event) => { fieldOffsets.current.confirmPassword = event.nativeEvent.layout.y }}
                 onSubmitEditing={handleResetPassword}
                 placeholder="Re-enter your new password"
+                ref={confirmPasswordRef}
                 returnKeyType="done"
                 secureTextEntry
                 value={confirmPassword}
               />
-
-              {submitted && !canSubmit && (
-                <Text accessibilityRole="alert" style={styles.formError}>
-                  Check the reset code and password details, then try again.
-                </Text>
-              )}
 
               {authError.length > 0 && (
                 <Text accessibilityRole="alert" style={styles.formError}>
@@ -189,7 +217,7 @@ export const NewPasswordScreen: React.FC<NewPasswordScreenProps> = ({
 
               <Button
                 accessibilityLabel="Reset password"
-                disabled={!canSubmit}
+                disabled={isLoading}
                 isFullWidth
                 isLoading={isLoading}
                 onPress={handleResetPassword}

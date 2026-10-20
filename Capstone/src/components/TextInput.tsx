@@ -1,6 +1,9 @@
 import { Text } from './AppText'
-import React from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import {
+  AccessibilityInfo,
+  Animated,
+  LayoutChangeEvent,
   StyleSheet,
   
   TextInput as RNTextInput,
@@ -15,12 +18,43 @@ interface TextInputProps extends RNTextInputProps {
   error?: boolean
   icon?: React.ReactNode
   rightIcon?: React.ReactNode
+  onContainerLayout?: (event: LayoutChangeEvent) => void
 }
 
 export const TextInput = React.forwardRef<RNTextInput, TextInputProps>(
-  ({ label, helperText, error = false, icon, rightIcon, style, ...props }, ref) => {
+  ({ label, helperText, error = false, icon, rightIcon, onContainerLayout, onBlur, onFocus, style, ...props }, ref) => {
+    const [focused, setFocused] = useState(false)
+    const translateX = useRef(new Animated.Value(0)).current
+    const wasError = useRef(error)
+
+    useEffect(() => {
+      const shouldShake = error && !wasError.current
+      wasError.current = error
+      if (!shouldShake) return
+
+      let active = true
+      void AccessibilityInfo.isReduceMotionEnabled().then((reduceMotionEnabled) => {
+        if (!active || reduceMotionEnabled) return
+        translateX.setValue(0)
+        Animated.sequence([
+          Animated.timing(translateX, { toValue: -5, duration: 55, useNativeDriver: true }),
+          Animated.timing(translateX, { toValue: 5, duration: 70, useNativeDriver: true }),
+          Animated.timing(translateX, { toValue: -3, duration: 55, useNativeDriver: true }),
+          Animated.timing(translateX, { toValue: 0, duration: 55, useNativeDriver: true }),
+        ]).start()
+      })
+
+      return () => {
+        active = false
+        translateX.stopAnimation()
+      }
+    }, [error, translateX])
+
     return (
-      <View style={styles.wrapper}>
+      <Animated.View
+        onLayout={onContainerLayout}
+        style={[styles.wrapper, { transform: [{ translateX }] }]}
+      >
         {label && <Text style={styles.label}>{label}</Text>}
 
         <View style={styles.inputContainer}>
@@ -32,9 +66,18 @@ export const TextInput = React.forwardRef<RNTextInput, TextInputProps>(
               styles.input,
               icon ? styles.inputWithIcon : null,
               rightIcon ? styles.inputWithRightIcon : null,
-              error ? styles.inputError : null,
               style,
+              focused ? styles.inputFocused : null,
+              error ? styles.inputError : null,
             ]}
+            onBlur={(event) => {
+              setFocused(false)
+              onBlur?.(event)
+            }}
+            onFocus={(event) => {
+              setFocused(true)
+              onFocus?.(event)
+            }}
             {...props}
           />
           {rightIcon && <View style={styles.rightIcon}>{rightIcon}</View>}
@@ -45,7 +88,7 @@ export const TextInput = React.forwardRef<RNTextInput, TextInputProps>(
             {helperText}
           </Text>
         )}
-      </View>
+      </Animated.View>
     )
   }
 )
@@ -55,6 +98,7 @@ TextInput.displayName = 'TextInput'
 const styles = StyleSheet.create({
   wrapper: {
     width: '100%',
+    overflow: 'visible',
   },
   label: {
     fontSize: typography.secondary.fontSize,
@@ -63,8 +107,10 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   },
   inputContainer: {
+    width: '100%',
     position: 'relative',
     justifyContent: 'center',
+    overflow: 'visible',
   },
   input: {
     width: '100%',
@@ -85,7 +131,12 @@ const styles = StyleSheet.create({
     paddingRight: spacing['4xl'],
   },
   inputError: {
+    borderWidth: 1.5,
     borderColor: colors.error,
+  },
+  inputFocused: {
+    borderWidth: 1.5,
+    borderColor: colors.primary,
   },
   icon: {
     position: 'absolute',

@@ -26,7 +26,7 @@ interface ConfirmationScreenProps {
 const defaultReceipt: ConfirmationReceipt = {
   referenceNumber: '#MV-2026-8821',
   eventDate: 'Oct 24, 2026',
-  currencySymbol: '$',
+  currencySymbol: '₱',
   items: [
     {
       id: 'djPackage',

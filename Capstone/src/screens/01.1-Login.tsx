@@ -1,5 +1,5 @@
 import { Text } from '../components/AppText'
-import React, { useState } from 'react'
+import React, { useRef, useState } from 'react'
 import {
   Image,
   KeyboardAvoidingView,
@@ -7,7 +7,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  
+  TextInput as NativeTextInput,
   View,
 } from 'react-native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
@@ -38,11 +38,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const [isLoading, setIsLoading] = useState(false)
   const [isOAuthLoading, setIsOAuthLoading] = useState(false)
   const [authError, setAuthError] = useState('')
+  const scrollRef = useRef<ScrollView>(null)
+  const emailRef = useRef<NativeTextInput>(null)
+  const passwordRef = useRef<NativeTextInput>(null)
+  const formTop = useRef(0)
+  const fieldOffsets = useRef<Record<'email' | 'password', number>>({ email: 0, password: 0 })
 
   const normalizedEmail = email.trim()
   const emailIsValid = /^\S+@\S+\.\S+$/.test(normalizedEmail)
   const passwordIsValid = password.length > 0
-  const canSubmit = emailIsValid && passwordIsValid
 
   const handleLogIn = async () => {
     setSubmitted(true)
@@ -52,7 +56,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       return
     }
 
-    if (!canSubmit) return
+    if (!emailIsValid) {
+      revealField('email', emailRef)
+      return
+    }
+    if (!passwordIsValid) {
+      revealField('password', passwordRef)
+      return
+    }
 
     setIsLoading(true)
     const result = await signInWithEmail(normalizedEmail, password)
@@ -64,6 +75,19 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     }
 
     setAuthError(result.message ?? 'Unable to log in. Please try again.')
+  }
+
+  function revealField(
+    field: 'email' | 'password',
+    inputRef: React.RefObject<NativeTextInput | null>
+  ) {
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({
+        y: Math.max(0, formTop.current + fieldOffsets.current[field] - spacing.lg),
+        animated: true,
+      })
+      setTimeout(() => inputRef.current?.focus(), 180)
+    })
   }
 
   const handleGoogleLogIn = async () => {
@@ -95,6 +119,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         contentContainerStyle={styles.content}
         keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         keyboardShouldPersistTaps="handled"
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.hero}>
@@ -134,7 +159,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             </Pressable>
           </View>
 
-          <View style={styles.form}>
+          <View onLayout={(event) => { formTop.current = event.nativeEvent.layout.y }} style={styles.form}>
             <TextInput
               autoCapitalize="none"
               autoComplete="email"
@@ -146,7 +171,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               keyboardType="email-address"
               icon={<MaterialCommunityIcons color={colors.primaryDark} name="email-outline" size={18} />}
               onChangeText={setEmail}
+              onContainerLayout={(event) => { fieldOffsets.current.email = event.nativeEvent.layout.y }}
+              onSubmitEditing={() => passwordRef.current?.focus()}
               placeholder="Enter your email address"
+              ref={emailRef}
               returnKeyType="next"
               style={styles.input}
               value={email}
@@ -161,8 +189,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               }
               icon={<MaterialCommunityIcons color={colors.primaryDark} name="lock-outline" size={18} />}
               onChangeText={setPassword}
+              onContainerLayout={(event) => { fieldOffsets.current.password = event.nativeEvent.layout.y }}
               onSubmitEditing={handleLogIn}
               placeholder="Password"
+              ref={passwordRef}
               returnKeyType="done"
               secureTextEntry
               style={styles.input}
@@ -190,12 +220,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               </Pressable>
             </View>
 
-            {submitted && !canSubmit && (
-              <Text accessibilityRole="alert" style={styles.formError}>
-                Check your login details and try again.
-              </Text>
-            )}
-
             {authError.length > 0 && (
               <Text accessibilityRole="alert" style={styles.formError}>
                 {authError}
@@ -204,7 +228,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
 
             <Button
               accessibilityLabel="Log in"
-              disabled={!canSubmit}
+              disabled={isLoading}
               isFullWidth
               isLoading={isLoading}
               onPress={handleLogIn}

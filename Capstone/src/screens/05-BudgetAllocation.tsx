@@ -17,6 +17,7 @@ import {
 
 import { Text } from '../components/AppText'
 import { PlanningScreenHeader } from '../components/PlanningScreenHeader'
+import { formatPeso } from '../lib/catalog'
 
 type MaterialIconName = React.ComponentProps<typeof MaterialIcons>['name']
 
@@ -88,13 +89,31 @@ const emptyAllocations = (): AllocationMap => ({
 const sanitizeMoney = (value: number) =>
   Number.isFinite(value) ? Math.max(0, Math.round(value * 100) / 100) : 0
 
-const formatMoney = (value: number) =>
-  `₱${sanitizeMoney(value).toLocaleString('en-PH', {
-    maximumFractionDigits: 2,
-    minimumFractionDigits: 0,
-  })}`
+const formatMoney = formatPeso
 
 const formatDigits = (digits: string) => digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+
+const formatAmountInput = (value: number) =>
+  sanitizeMoney(value).toLocaleString('en-PH', {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
+  })
+
+const parseAmountInput = (value: string): number | undefined => {
+  const normalized = value.replace(/[₱,\s]/g, '')
+  if (!normalized || !/^\d+(?:\.\d{1,2})?$/.test(normalized)) return undefined
+
+  const parsed = Number(normalized)
+  return Number.isFinite(parsed) ? sanitizeMoney(parsed) : undefined
+}
+
+const normalizeAmountInput = (value: string) => {
+  const filtered = value.replace(/[^\d.]/g, '')
+  const [whole = '', ...decimals] = filtered.split('.')
+  if (decimals.length === 0) return whole
+
+  return `${whole}.${decimals.join('').slice(0, 2)}`
+}
 
 const BUDGET_ALLOCATION_STEP = 500
 
@@ -132,6 +151,8 @@ interface AllocationSliderProps {
   maxAmount: number
   minimumAmount: number
   onChange: (amount: number) => void
+  onValidationMessageChange: (message: string) => void
+  validationMessage?: string
 }
 
 const AllocationSlider: React.FC<AllocationSliderProps> = ({
@@ -143,20 +164,34 @@ const AllocationSlider: React.FC<AllocationSliderProps> = ({
   maxAmount,
   minimumAmount,
   onChange,
+  onValidationMessageChange,
+  validationMessage,
 }) => {
   const [trackWidth, setTrackWidth] = React.useState(1)
+  const [amountText, setAmountText] = React.useState(() => formatAmountInput(amount))
+  const [isAmountFocused, setIsAmountFocused] = React.useState(false)
+  const previousAmountRef = React.useRef(amount)
+  const amountInputRef = React.useRef<TextInput>(null)
   const step = BUDGET_ALLOCATION_STEP
   const minimum = sanitizeMoney(minimumAmount)
+  const maximum = sanitizeMoney(maxAmount)
   const percent = budget > 0 ? Math.min(amount / budget, 1) : 0
+
+  React.useEffect(() => {
+    if (!isAmountFocused && previousAmountRef.current !== amount) {
+      setAmountText(formatAmountInput(amount))
+    }
+    previousAmountRef.current = amount
+  }, [amount, isAmountFocused])
 
   const updateFromPosition = React.useCallback(
     (position: number) => {
       if (budget <= 0 || trackWidth <= 1 || locked) return
       const ratio = Math.max(0, Math.min(position / trackWidth, 1))
       const requested = Math.round((ratio * budget) / step) * step
-      onChange(Math.max(minimum, Math.min(requested, maxAmount)))
+      onChange(Math.max(minimum, Math.min(requested, maximum)))
     },
-    [budget, locked, maxAmount, minimum, onChange, step, trackWidth]
+    [budget, locked, maximum, minimum, onChange, step, trackWidth]
   )
 
   // Keep one responder instance for the entire drag. Recreating it after each
@@ -195,14 +230,38 @@ const AllocationSlider: React.FC<AllocationSliderProps> = ({
     setTrackWidth(Math.max(event.nativeEvent.layout.width, 1))
   }
 
-  const handleAmountChange = (value: string) => {
-    const requested = Number(value.replace(/[^\d.]/g, ''))
-    onChange(Math.max(minimum, Math.min(sanitizeMoney(requested), maxAmount)))
+  const adjust = (direction: -1 | 1) => {
+    onValidationMessageChange('')
+    onChange(Math.max(minimum, Math.min(amount + direction * step, maximum)))
   }
 
-  const adjust = (direction: -1 | 1) => {
-    onChange(Math.max(minimum, Math.min(amount + direction * step, maxAmount)))
-  }
+  const commitAmount = React.useCallback(() => {
+    const requested = parseAmountInput(amountText)
+
+    if (requested === undefined) {
+      onValidationMessageChange('Enter a valid budget amount.')
+      return false
+    }
+
+    if (requested < minimum) {
+      onValidationMessageChange(
+        minimum > 0
+          ? `This category needs at least ${formatMoney(minimum)}.`
+          : 'Budget amounts cannot be negative.'
+      )
+      return false
+    }
+
+    if (requested > maximum) {
+      onValidationMessageChange(`Only ${formatMoney(maximum)} is available for this category.`)
+      return false
+    }
+
+    onValidationMessageChange('')
+    onChange(requested)
+    setAmountText(formatAmountInput(requested))
+    return true
+  }, [amountText, maximum, minimum, onChange, onValidationMessageChange])
 
   return (
     <View style={styles.allocationEditor}>
@@ -218,20 +277,44 @@ const AllocationSlider: React.FC<AllocationSliderProps> = ({
           ) : null}
         </View>
 
-        <View style={styles.amountInputShell}>
+        <View
+          style={[
+            styles.amountInputShell,
+            isAmountFocused && styles.amountInputShellFocused,
+            validationMessage && styles.amountInputShellError,
+          ]}
+        >
           <Text style={styles.amountCurrency}>₱</Text>
           <TextInput
             accessibilityLabel={`${label} budget allocation`}
+            accessibilityHint="Enter an exact peso amount, or use the slider in 500-peso steps."
             editable={budget > 0 && !locked}
             inputMode="decimal"
             keyboardType="decimal-pad"
-            onChangeText={handleAmountChange}
+            onBlur={() => {
+              setIsAmountFocused(false)
+              commitAmount()
+            }}
+            onChangeText={(value) => {
+              setAmountText(normalizeAmountInput(value))
+              if (validationMessage) onValidationMessageChange('')
+            }}
+            onFocus={() => {
+              setIsAmountFocused(true)
+              setAmountText(String(sanitizeMoney(amount)))
+            }}
+            onSubmitEditing={() => {
+              if (commitAmount()) amountInputRef.current?.blur()
+            }}
+            ref={amountInputRef}
             selectTextOnFocus
             style={styles.amountInput}
-            value={String(sanitizeMoney(amount))}
+            value={amountText}
           />
         </View>
       </View>
+
+      {validationMessage ? <Text style={styles.amountInputError}>{validationMessage}</Text> : null}
 
       <View
         accessible
@@ -288,6 +371,10 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
   const [allocations, setAllocations] = React.useState<AllocationMap>(() =>
     buildAllocations(initialAllocations, coordinatorCost)
   )
+  const [allocationValidationMessages, setAllocationValidationMessages] = React.useState<
+    Partial<Record<BudgetPriority, string>>
+  >({})
+  const [isBudgetInputFocused, setIsBudgetInputFocused] = React.useState(false)
   const [expandedCategories, setExpandedCategories] = React.useState<Set<BudgetPriority>>(
     () =>
       new Set(
@@ -312,6 +399,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
   const coordinatorMinimum = sanitizeMoney(coordinatorCost)
   const budgetTooLow = coordinatorMinimum > budget
   const allocationExceeded = totalAllocated > budget
+  const hasAllocationValidationErrors = Object.values(allocationValidationMessages).some(Boolean)
   const legacyPriorities = React.useMemo(() => new Set(initialPriorities), [initialPriorities])
   const lockedCategories = React.useMemo(
     () => new Set(initialAllocations.filter((item) => item.locked).map((item) => item.categoryKey)),
@@ -346,13 +434,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
           (sum, [key, amount]) => sum + (key === categoryKey ? 0 : amount),
           0
         )
-        const selectionMinimum = current[categoryKey] > 0
-          ? Math.min(BUDGET_ALLOCATION_STEP, current[categoryKey])
-          : 0
-        const minimum = Math.max(
-          categoryKey === 'eventOrganizer' ? coordinatorMinimum : 0,
-          selectionMinimum
-        )
+        const minimum = categoryKey === 'eventOrganizer' ? coordinatorMinimum : 0
         const allowed = Math.max(budget - otherTotal, 0)
 
         return {
@@ -362,6 +444,20 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
       })
     },
     [budget, coordinatorMinimum, lockedCategories]
+  )
+
+  const handleAllocationValidationMessage = React.useCallback(
+    (categoryKey: BudgetPriority, message: string) => {
+      setAllocationValidationMessages((current) => {
+        if (current[categoryKey] === message) return current
+
+        const next = { ...current }
+        if (message) next[categoryKey] = message
+        else delete next[categoryKey]
+        return next
+      })
+    },
+    []
   )
 
   const animateCategoryLayout = React.useCallback(() => {
@@ -433,6 +529,12 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
       animateCategoryLayout()
       setCategoryNotice('')
       setAllocations((current) => ({ ...current, [categoryKey]: 0 }))
+      setAllocationValidationMessages((current) => {
+        if (!current[categoryKey]) return current
+        const next = { ...current }
+        delete next[categoryKey]
+        return next
+      })
       setExpandedCategories((current) => {
         const next = new Set(current)
         next.delete(categoryKey)
@@ -443,6 +545,11 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
   )
 
   const handleContinue = () => {
+    if (hasAllocationValidationErrors) {
+      setCategoryNotice('Correct the highlighted category budget before continuing.')
+      return
+    }
+
     const savedAllocations = categoryOptions
       .map((category) => ({
         amount: sanitizeMoney(allocations[category.id]),
@@ -472,11 +579,12 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
     setBudgetDigits('')
     setHasBudgetInput(false)
     setAllocations(emptyAllocations())
+    setAllocationValidationMessages({})
     setExpandedCategories(new Set())
     onBudgetChange?.(0)
   }
 
-  const canContinue = !isProcessing && !budgetTooLow && !allocationExceeded
+  const canContinue = !isProcessing && !budgetTooLow && !allocationExceeded && !hasAllocationValidationErrors
 
   return (
     <KeyboardAvoidingView
@@ -505,7 +613,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
         </View>
 
         {hasBudgetInput ? (
-          <View style={styles.budgetInputCard}>
+          <View style={[styles.budgetInputCard, isBudgetInputFocused && styles.budgetInputCardFocused]}>
             <Text style={styles.fieldLabel}>TOTAL EVENT BUDGET</Text>
             <View style={styles.totalBudgetRow}>
               <Text style={styles.totalCurrency}>₱</Text>
@@ -513,7 +621,9 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
                 accessibilityLabel="Total event budget in Philippine pesos"
                 inputMode="numeric"
                 keyboardType="number-pad"
+                onBlur={() => setIsBudgetInputFocused(false)}
                 onChangeText={handleBudgetChange}
+                onFocus={() => setIsBudgetInputFocused(true)}
                 placeholder="150,000"
                 placeholderTextColor={palette.secondaryFixedDim}
                 selectionColor={palette.primaryContainer}
@@ -621,8 +731,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
                 && minimum > 0
                 && Boolean(onRemoveCommittedCoordinator)
               const canRemoveCategory = canRemove || canRequestCoordinatorRemoval
-              const selectionMinimum = selected ? Math.min(BUDGET_ALLOCATION_STEP, amount) : 0
-              const sliderMinimum = Math.max(minimum, selectionMinimum)
+              const sliderMinimum = minimum
 
               return (
                 <View
@@ -681,9 +790,13 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
                         coordinatorMinimum={minimum}
                         label={category.label}
                         locked={locked}
-                        maxAmount={Math.max(maximum, sliderMinimum, amount)}
+                        maxAmount={maximum}
                         minimumAmount={sliderMinimum}
                         onChange={(nextAmount) => handleAllocationChange(category.id, nextAmount)}
+                        onValidationMessageChange={(message) =>
+                          handleAllocationValidationMessage(category.id, message)
+                        }
+                        validationMessage={allocationValidationMessages[category.id]}
                       />
                       <Pressable
                         accessibilityLabel={
@@ -808,6 +921,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.white,
     padding: 20,
   },
+  budgetInputCardFocused: { borderWidth: 2, borderColor: palette.primaryContainer },
   fieldLabel: {
     color: palette.secondary,
     fontSize: 11,
@@ -985,7 +1099,7 @@ const styles = StyleSheet.create({
   reservedLabel: { marginTop: 2, color: palette.primaryContainer, fontSize: 10, lineHeight: 14 },
   legacyLabel: { marginTop: 2, color: palette.secondary, fontSize: 10, lineHeight: 14 },
   amountInputShell: {
-    width: 128,
+    width: 140,
     height: 42,
     flexDirection: 'row',
     alignItems: 'center',
@@ -994,6 +1108,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 10,
   },
+  amountInputShellFocused: { borderWidth: 2, borderColor: palette.primaryContainer },
+  amountInputShellError: { borderWidth: 2, borderColor: palette.error },
   amountCurrency: { color: palette.primaryContainer, fontSize: 14, fontWeight: '700' },
   amountInput: {
     minWidth: 0,
@@ -1004,6 +1120,7 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     paddingVertical: 8,
   },
+  amountInputError: { marginTop: 6, color: palette.error, fontSize: 11, lineHeight: 16 },
   sliderTouchArea: { justifyContent: 'center', height: 38, marginTop: 10 },
   sliderTrack: {
     height: 6,

@@ -12,6 +12,7 @@ import {
 } from 'react-native'
 import { ClientBottomNavigation, ClientMainTab } from '../components/ClientBottomNavigation'
 import { PlanningScreenHeader } from '../components/PlanningScreenHeader'
+import { formatPeso } from '../lib/catalog'
 
 export type SelectedServiceId = string
 export type SelectedSummaryTab = ClientMainTab | 'plan' | 'guestList' | 'budget' | 'settings'
@@ -59,8 +60,7 @@ interface SelectedSummaryScreenProps {
   onSelectTab?: (tab: SelectedSummaryTab) => void
 }
 
-const formatCurrency = (value: number) =>
-  Math.max(0, Math.floor(value)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+const formatCurrency = formatPeso
 
 export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
   assignedCoordinator,
@@ -103,14 +103,14 @@ export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
           <View style={styles.totalCopy}>
             <Text style={styles.totalLabel}>TOTAL ESTIMATED COST</Text>
             <Text style={[styles.totalValue, isWide && styles.totalValueWide]}>
-              PHP {formatCurrency(totalEstimatedCost)}
+              {formatCurrency(totalEstimatedCost)}
             </Text>
           </View>
 
           {hasSetBudget ? (
             <View style={[styles.allocationBlock, isWide && styles.allocationBlockWide]}>
               <View style={styles.allocationLabels}>
-                <Text style={styles.budgetLabel}>Budget: PHP {formatCurrency(budget)}</Text>
+                <Text style={styles.budgetLabel}>Budget: {formatCurrency(budget)}</Text>
                 <Text style={styles.allocatedLabel}>{allocationPercent}% Allocated</Text>
               </View>
               <View
@@ -165,7 +165,7 @@ export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
                   : 'BOOKED EVENT COORDINATOR'}
               </Text>
               <Text style={styles.coordinatorName}>{assignedCoordinator.name}</Text>
-              <Text style={styles.coordinatorFee}>PHP {formatCurrency(assignedCoordinator.price)}</Text>
+              <Text style={styles.coordinatorFee}>{formatCurrency(assignedCoordinator.price)}</Text>
               <Text style={styles.coordinatorDetail}>
                 {assignedCoordinator.status === 'pending'
                   ? 'Access begins only after the coordinator accepts your booking request.'
@@ -174,7 +174,7 @@ export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
               {coordinatorPackage ? (
                 <View style={styles.coordinatorPackageBadge}>
                   <MaterialCommunityIcons color={palette.primaryContainer} name="package-variant" size={14} />
-                  <Text style={styles.coordinatorPackageText}>{coordinatorPackage.name} · PHP {formatCurrency(coordinatorPackage.serviceSubtotal)}</Text>
+                  <Text style={styles.coordinatorPackageText}>{coordinatorPackage.name} · {formatCurrency(coordinatorPackage.serviceSubtotal)}</Text>
                 </View>
               ) : null}
             </View>
@@ -270,7 +270,7 @@ export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
 
                 <View style={styles.serviceFooter}>
                   <Text style={styles.serviceDetail}>{service.detail}</Text>
-                  <Text style={styles.servicePrice}>PHP {formatCurrency(service.price)}</Text>
+                  <Text style={styles.servicePrice}>{formatCurrency(service.price)}</Text>
                 </View>
               </View>
             </Pressable>

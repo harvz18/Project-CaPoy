@@ -26,6 +26,7 @@ import {
   categoryNameToId,
   fallbackServiceCategories,
   fetchServiceCategories,
+  formatPeso,
   loadClientCatalogServices,
   ServiceCategoryOption,
 } from './lib/catalog'
@@ -4546,7 +4547,7 @@ export const App: React.FC = () => {
         return (
           <ConfirmationScreen
             receipt={{
-              currencySymbol: 'PHP ',
+              currencySymbol: '₱',
               eventDate: eventDisplayDate,
               items: payableItems.map((item) => ({
                 detail: item.description,
@@ -4591,7 +4592,7 @@ export const App: React.FC = () => {
               date: selectedBooking?.date ?? eventDisplayDate,
               paymentStatus:
                 selectedBooking?.paymentStatus ?? 'Pending',
-              price: `PHP ${Math.round(selectedBooking?.amount ?? 0).toLocaleString('en-US')}`,
+              price: formatPeso(selectedBooking?.amount ?? 0),
               requestedDate: selectedBooking?.createdAt
                 ? new Date(selectedBooking.createdAt).toLocaleDateString('en-PH')
                 : eventDisplayDate,

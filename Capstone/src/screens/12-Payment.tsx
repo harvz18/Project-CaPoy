@@ -10,6 +10,7 @@ import {
 } from 'react-native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { PlanningScreenHeader } from '../components/PlanningScreenHeader'
+import { formatPeso } from '../lib/catalog'
 import { calculatePaymentBreakdown } from '../lib/pricing'
 
 export type PaymentType = 'deposit' | 'full'
@@ -91,8 +92,7 @@ const paymentMethods = [
   { id: 'bankTransfer' as const, icon: 'bank-outline' as const, label: 'Bank Transfer' },
 ]
 
-const formatCurrency = (value: number) =>
-  `\u20B1 ${Math.max(0, Math.round(value)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`
+const formatCurrency = formatPeso
 
 export const PaymentScreen: React.FC<PaymentScreenProps> = ({
   event = defaultEvent,
@@ -330,7 +330,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
             <Text style={styles.payButtonText}>
               {isProcessing
                 ? 'Finalizing booking...'
-                : `Pay 35% Downpayment · ${formatCurrency(amountDue).replace(' ', '')}`}
+                : `Pay 35% Downpayment · ${formatCurrency(amountDue)}`}
             </Text>
           </Pressable>
         </View>

@@ -9,7 +9,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  
+  TextInput as NativeTextInput,
   useWindowDimensions,
   View,
 } from 'react-native'
@@ -28,6 +28,8 @@ interface SignupScreenProps {
   onLogIn?: () => void
 }
 
+type SignupField = 'fullName' | 'email' | 'phone' | 'password' | 'confirmPassword' | 'terms'
+
 export const SignupScreen: React.FC<SignupScreenProps> = ({
   onBack,
   onSignUp,
@@ -37,6 +39,19 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({
   const { height } = useWindowDimensions()
   const sheetEntrance = useRef(new Animated.Value(1)).current
   const sheetScroll = useRef<ScrollView>(null)
+  const fullNameRef = useRef<NativeTextInput>(null)
+  const emailRef = useRef<NativeTextInput>(null)
+  const phoneRef = useRef<NativeTextInput>(null)
+  const passwordRef = useRef<NativeTextInput>(null)
+  const confirmPasswordRef = useRef<NativeTextInput>(null)
+  const fieldOffsets = useRef<Record<SignupField, number>>({
+    fullName: 0,
+    email: 0,
+    phone: 0,
+    password: 0,
+    confirmPassword: 0,
+    terms: 0,
+  })
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [phoneNumber, setPhoneNumber] = useState('')
@@ -65,20 +80,29 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({
 
   const normalizedEmail = email.trim()
   const emailIsValid = /^\S+@\S+\.\S+$/.test(normalizedEmail)
-  const passwordsMatch = password === confirmPassword
+  const fullNameIsValid = fullName.trim().length > 0
+  const phoneIsValid = phoneNumber.trim().length > 0
+  const passwordIsValid = password.length >= 8
+  const confirmPasswordIsValid = confirmPassword.length > 0 && password === confirmPassword
   const canSubmit =
-    fullName.trim().length > 0 &&
+    fullNameIsValid &&
     emailIsValid &&
-    phoneNumber.trim().length > 0 &&
-    password.length >= 8 &&
-    confirmPassword.length > 0 &&
-    passwordsMatch &&
+    phoneIsValid &&
+    passwordIsValid &&
+    confirmPasswordIsValid &&
     acceptedTerms
 
   const handleSignUp = async () => {
     setSubmitted(true)
     setAuthError('')
-    if (!canSubmit || isLoading) return
+    if (isLoading) return
+    if (!fullNameIsValid) return revealField('fullName', fullNameRef)
+    if (!emailIsValid) return revealField('email', emailRef)
+    if (!phoneIsValid) return revealField('phone', phoneRef)
+    if (!passwordIsValid) return revealField('password', passwordRef)
+    if (!confirmPasswordIsValid) return revealField('confirmPassword', confirmPasswordRef)
+    if (!acceptedTerms) return revealField('terms')
+    if (!canSubmit) return
     setIsLoading(true)
     const result = await signUpClient({ fullName, email: normalizedEmail, phoneNumber, password })
     setIsLoading(false)
@@ -101,6 +125,19 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({
       return
     }
     setAuthError(result.message ?? 'Unable to continue with Google. Please try again.')
+  }
+
+  function revealField(
+    field: SignupField,
+    inputRef?: React.RefObject<NativeTextInput | null>
+  ) {
+    requestAnimationFrame(() => {
+      sheetScroll.current?.scrollTo({
+        y: Math.max(0, fieldOffsets.current[field] - spacing.lg),
+        animated: true,
+      })
+      if (inputRef) setTimeout(() => inputRef.current?.focus(), 180)
+    })
   }
 
   const visibilityIcon = (visible: boolean, label: string, onPress: () => void) => (
@@ -177,23 +214,25 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({
             showsVerticalScrollIndicator={false}
             style={styles.formScroll}
           >
-            <TextInput autoCapitalize="words" autoComplete="name" icon={<MaterialCommunityIcons color={colors.primaryDark} name="account-circle-outline" size={20} />} onChangeText={setFullName} placeholder="Full name" returnKeyType="next" style={[styles.input, styles.inputWithIcon]} value={fullName} />
-            <TextInput autoCapitalize="none" autoComplete="email" error={submitted && !emailIsValid} helperText={submitted && !emailIsValid ? 'Enter a valid email address.' : undefined} icon={<MaterialCommunityIcons color={colors.primaryDark} name="at" size={20} />} inputMode="email" keyboardType="email-address" onChangeText={setEmail} placeholder="Enter your email address" returnKeyType="next" style={[styles.input, styles.inputWithIcon]} value={email} />
-            <TextInput autoComplete="tel" icon={<MaterialCommunityIcons color={colors.primaryDark} name="cellphone" size={20} />} inputMode="tel" keyboardType="phone-pad" onChangeText={setPhoneNumber} placeholder="Phone number" returnKeyType="next" style={[styles.input, styles.inputWithIcon]} value={phoneNumber} />
-            <TextInput autoCapitalize="none" autoComplete="new-password" icon={<MaterialCommunityIcons color={colors.primaryDark} name="lock-outline" size={20} />} onChangeText={setPassword} onFocus={() => sheetScroll.current?.scrollTo({ y: 260, animated: true })} placeholder="Password" returnKeyType="next" rightIcon={visibilityIcon(isPasswordVisible, 'password', () => setIsPasswordVisible((visible) => !visible))} secureTextEntry={!isPasswordVisible} style={[styles.input, styles.inputWithIcon]} value={password} />
-            <TextInput autoCapitalize="none" autoComplete="new-password" error={submitted && confirmPassword.length > 0 && !passwordsMatch} helperText={submitted && confirmPassword.length > 0 && !passwordsMatch ? 'Passwords do not match.' : undefined} icon={<MaterialCommunityIcons color={colors.primaryDark} name="lock-outline" size={20} />} onChangeText={setConfirmPassword} onFocus={() => setTimeout(() => sheetScroll.current?.scrollToEnd({ animated: true }), 100)} onSubmitEditing={handleSignUp} placeholder="Confirm password" returnKeyType="done" rightIcon={visibilityIcon(isConfirmPasswordVisible, 'confirm password', () => setIsConfirmPasswordVisible((visible) => !visible))} secureTextEntry={!isConfirmPasswordVisible} style={[styles.input, styles.inputWithIcon]} value={confirmPassword} />
+            <TextInput autoCapitalize="words" autoComplete="name" error={submitted && !fullNameIsValid} helperText={submitted && !fullNameIsValid ? 'Full name is required.' : undefined} icon={<MaterialCommunityIcons color={colors.primaryDark} name="account-circle-outline" size={20} />} onChangeText={setFullName} onContainerLayout={(event) => { fieldOffsets.current.fullName = event.nativeEvent.layout.y }} onSubmitEditing={() => emailRef.current?.focus()} placeholder="Full name" ref={fullNameRef} returnKeyType="next" style={[styles.input, styles.inputWithIcon]} value={fullName} />
+            <TextInput autoCapitalize="none" autoComplete="email" error={submitted && !emailIsValid} helperText={submitted && !emailIsValid ? 'Enter a valid email address.' : undefined} icon={<MaterialCommunityIcons color={colors.primaryDark} name="at" size={20} />} inputMode="email" keyboardType="email-address" onChangeText={setEmail} onContainerLayout={(event) => { fieldOffsets.current.email = event.nativeEvent.layout.y }} onSubmitEditing={() => phoneRef.current?.focus()} placeholder="Enter your email address" ref={emailRef} returnKeyType="next" style={[styles.input, styles.inputWithIcon]} value={email} />
+            <TextInput autoComplete="tel" error={submitted && !phoneIsValid} helperText={submitted && !phoneIsValid ? 'Phone number is required.' : undefined} icon={<MaterialCommunityIcons color={colors.primaryDark} name="cellphone" size={20} />} inputMode="tel" keyboardType="phone-pad" onChangeText={setPhoneNumber} onContainerLayout={(event) => { fieldOffsets.current.phone = event.nativeEvent.layout.y }} onSubmitEditing={() => passwordRef.current?.focus()} placeholder="Phone number" ref={phoneRef} returnKeyType="next" style={[styles.input, styles.inputWithIcon]} value={phoneNumber} />
+            <TextInput autoCapitalize="none" autoComplete="new-password" error={submitted && !passwordIsValid} helperText={submitted && !passwordIsValid ? 'Password must contain at least 8 characters.' : undefined} icon={<MaterialCommunityIcons color={colors.primaryDark} name="lock-outline" size={20} />} onChangeText={setPassword} onContainerLayout={(event) => { fieldOffsets.current.password = event.nativeEvent.layout.y }} onFocus={() => sheetScroll.current?.scrollTo({ y: Math.max(0, fieldOffsets.current.password - spacing.lg), animated: true })} onSubmitEditing={() => confirmPasswordRef.current?.focus()} placeholder="Password" ref={passwordRef} returnKeyType="next" rightIcon={visibilityIcon(isPasswordVisible, 'password', () => setIsPasswordVisible((visible) => !visible))} secureTextEntry={!isPasswordVisible} style={[styles.input, styles.inputWithIcon]} value={password} />
+            <TextInput autoCapitalize="none" autoComplete="new-password" error={submitted && !confirmPasswordIsValid} helperText={submitted && !confirmPasswordIsValid ? (confirmPassword.length === 0 ? 'Confirm your password.' : 'Passwords do not match.') : undefined} icon={<MaterialCommunityIcons color={colors.primaryDark} name="lock-outline" size={20} />} onChangeText={setConfirmPassword} onContainerLayout={(event) => { fieldOffsets.current.confirmPassword = event.nativeEvent.layout.y }} onFocus={() => sheetScroll.current?.scrollTo({ y: Math.max(0, fieldOffsets.current.confirmPassword - spacing.lg), animated: true })} onSubmitEditing={handleSignUp} placeholder="Confirm password" ref={confirmPasswordRef} returnKeyType="done" rightIcon={visibilityIcon(isConfirmPasswordVisible, 'confirm password', () => setIsConfirmPasswordVisible((visible) => !visible))} secureTextEntry={!isConfirmPasswordVisible} style={[styles.input, styles.inputWithIcon]} value={confirmPassword} />
 
-          {submitted && !canSubmit && <Text accessibilityRole="alert" style={styles.formError}>Complete your profile, use a valid email, use at least 8 password characters, and accept the terms.</Text>}
           {authError.length > 0 && <Text accessibilityRole="alert" style={styles.formError}>{authError}</Text>}
 
+          <View onLayout={(event) => { fieldOffsets.current.terms = event.nativeEvent.layout.y }}>
           <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: acceptedTerms }} onPress={() => setAcceptedTerms((accepted) => !accepted)} style={styles.termsRow}>
-            <View style={[styles.checkbox, acceptedTerms && styles.checkboxChecked]}>
+            <View style={[styles.checkbox, acceptedTerms && styles.checkboxChecked, submitted && !acceptedTerms && styles.checkboxError]}>
               {acceptedTerms && <MaterialCommunityIcons color={colors.textInverse} name="check" size={14} />}
             </View>
             <Text style={styles.termsText}>I agree to the Terms of Service and Privacy Policy.</Text>
           </Pressable>
+          {submitted && !acceptedTerms && <Text accessibilityRole="alert" style={styles.termsError}>Please accept the Terms of Service and Privacy Policy.</Text>}
+          </View>
 
-          <Button accessibilityLabel="Create client account" disabled={!canSubmit} isFullWidth isLoading={isLoading} onPress={handleSignUp} size="lg" style={styles.submitButton} textStyle={styles.buttonText}>Sign Up</Button>
+          <Button accessibilityLabel="Create client account" disabled={isLoading} isFullWidth isLoading={isLoading} onPress={handleSignUp} size="lg" style={styles.submitButton} textStyle={styles.buttonText}>Sign Up</Button>
           <View style={styles.dividerRow}><View style={styles.dividerLine} /><Text style={styles.dividerText}>or</Text><View style={styles.dividerLine} /></View>
           <Button accessibilityLabel="Sign up with Google" disabled={isLoading || !onGoogleSignUp} isFullWidth isLoading={isOAuthLoading} onPress={handleGoogleSignUp} size="lg" style={styles.googleButton} textStyle={[styles.buttonText, styles.googleButtonText]} variant="secondary">Google</Button>
           </ScrollView>
@@ -229,7 +268,9 @@ const styles = StyleSheet.create({
   termsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.md, marginTop: 0 },
   checkbox: { width: 18, height: 18, flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colors.border, borderRadius: 5, backgroundColor: colors.background },
   checkboxChecked: { backgroundColor: colors.primaryDark, borderColor: colors.primaryDark },
+  checkboxError: { borderColor: colors.error, backgroundColor: '#FFF4F4' },
   termsText: { flexShrink: 1, maxWidth: 280, color: colors.textSecondary, fontSize: typography.caption, lineHeight: 18 },
+  termsError: { marginTop: spacing.xs, color: colors.error, fontSize: typography.caption, lineHeight: 18 },
   formError: { color: colors.error, fontSize: typography.body, lineHeight: 20 },
   submitButton: { borderRadius: radius.pill, backgroundColor: '#7A1D35', minHeight: 44, paddingVertical: spacing.sm, marginTop: 0, shadowColor: '#7A1D35', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 4 },
   googleButton: { borderRadius: radius.pill, minHeight: 44, paddingVertical: spacing.sm, marginTop: 0 },

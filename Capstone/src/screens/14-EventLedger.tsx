@@ -1,6 +1,7 @@
 import { Text } from '../components/AppText'
 import React from 'react'
 import { Pressable, ScrollView, StyleSheet,  View } from 'react-native'
+import { formatPeso } from '../lib/catalog'
 
 export type LedgerTransactionStatus = 'fullyPaid' | 'depositPaid' | 'refunded'
 
@@ -63,8 +64,7 @@ const defaultTransactions: LedgerTransaction[] = [
   },
 ]
 
-const formatCurrency = (value: number) =>
-  `$${Math.max(0, Math.round(value)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`
+const formatCurrency = formatPeso
 
 export const EventLedgerScreen: React.FC<EventLedgerScreenProps> = ({
   budget = 15000,

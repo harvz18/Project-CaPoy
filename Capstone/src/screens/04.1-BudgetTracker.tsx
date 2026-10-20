@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native'
 import { ClientBottomNavigation, ClientMainTab } from '../components/ClientBottomNavigation'
+import { formatPeso } from '../lib/catalog'
 
 export type MerchantCategory =
   | 'venues'
@@ -117,9 +118,6 @@ export const budgetTrackerLegacyNavigationTabs = [
   { id: 'chat' as const, icon: '○', label: 'Chat' },
 ] as const
 
-const formatCurrency = (value: number) =>
-  Math.max(0, Math.floor(value)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-
 export const BudgetTrackerScreen: React.FC<BudgetTrackerScreenProps> = ({
   remainingBudget = 45000,
   showBottomNavigation = true,
@@ -175,14 +173,14 @@ export const BudgetTrackerScreen: React.FC<BudgetTrackerScreenProps> = ({
 
       <View style={[styles.budgetWrapper, isWide && styles.horizontalPaddingWide]}>
         <Pressable
-          accessibilityLabel={`Remaining budget: ${formatCurrency(remainingBudget)} pesos`}
+          accessibilityLabel={`Remaining budget: ${formatPeso(remainingBudget)} Philippine pesos`}
           accessibilityRole="button"
           onPress={onOpenBudget}
           style={({ pressed }) => [styles.budgetPill, pressed && styles.budgetPressed]}
         >
           <Text style={styles.budgetLabel}>REMAINING BUDGET</Text>
           <View style={styles.budgetValueGroup}>
-            <Text style={styles.budgetValue}>₱{formatCurrency(remainingBudget)}</Text>
+            <Text style={styles.budgetValue}>{formatPeso(remainingBudget)}</Text>
             <Text style={styles.budgetChevron}>⌄</Text>
           </View>
         </Pressable>

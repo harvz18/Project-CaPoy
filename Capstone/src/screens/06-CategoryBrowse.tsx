@@ -19,6 +19,7 @@ import { PlanningScreenHeader } from '../components/PlanningScreenHeader'
 import { ClientBottomNavigation, ClientMainTab } from '../components/ClientBottomNavigation'
 import {
   CatalogService,
+  formatPeso,
   formatServicePrice,
   marketplaceStartingPrice,
   ServiceCategoryOption,
@@ -103,8 +104,29 @@ export const categoryBrowseNavigationTabs = [
   { id: 'profile' as const, icon: '○', label: 'Profile' },
 ] as const
 
-const formatCurrency = (value: number) =>
-  Math.max(0, Math.floor(value)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+const formatCurrency = formatPeso
+
+const formatBudgetInput = (value: number) =>
+  Math.max(0, Math.round(value * 100) / 100).toLocaleString('en-PH', {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
+  })
+
+const normalizeBudgetInput = (value: string) => {
+  const filtered = value.replace(/[^\d.]/g, '')
+  const [whole = '', ...decimals] = filtered.split('.')
+  if (decimals.length === 0) return whole
+
+  return `${whole}.${decimals.join('').slice(0, 2)}`
+}
+
+const parseBudgetInput = (value: string): number | undefined => {
+  const normalized = value.replace(/[₱,\s]/g, '')
+  if (!normalized || !/^\d+(?:\.\d{1,2})?$/.test(normalized)) return undefined
+
+  const parsed = Number(normalized)
+  return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed * 100) / 100) : undefined
+}
 
 export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   categoryName = 'Services',
@@ -163,6 +185,9 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   const [isSortOpen, setIsSortOpen] = React.useState(false)
   const [budgetTrackWidth, setBudgetTrackWidth] = React.useState(1)
   const [draftCategoryBudget, setDraftCategoryBudget] = React.useState(categoryBudget)
+  const [categoryBudgetText, setCategoryBudgetText] = React.useState(() => formatBudgetInput(categoryBudget))
+  const [isCategoryBudgetInputFocused, setIsCategoryBudgetInputFocused] = React.useState(false)
+  const [categoryBudgetInputMessage, setCategoryBudgetInputMessage] = React.useState('')
   const [isSavingCategoryBudget, setIsSavingCategoryBudget] = React.useState(false)
   const isSavingCategoryBudgetRef = React.useRef(false)
   const [selectedExploreCategory, setSelectedExploreCategory] = React.useState('All')
@@ -176,9 +201,18 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     [services]
   )
   const isBudgetDraggingRef = React.useRef(false)
+  const previousCategoryBudgetRef = React.useRef(categoryBudget)
   React.useEffect(() => {
-    if (!isBudgetDraggingRef.current) setDraftCategoryBudget(categoryBudget)
-  }, [categoryBudget])
+    if (
+      !isBudgetDraggingRef.current
+      && !isCategoryBudgetInputFocused
+      && previousCategoryBudgetRef.current !== categoryBudget
+    ) {
+      setDraftCategoryBudget(categoryBudget)
+      setCategoryBudgetText(formatBudgetInput(categoryBudget))
+    }
+    previousCategoryBudgetRef.current = categoryBudget
+  }, [categoryBudget, isCategoryBudgetInputFocused])
   React.useEffect(() => setSelectedFilters(new Set()), [categoryName])
 
   const categoryFilters = React.useMemo(() => {
@@ -432,19 +466,44 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     )
   }, [categoryBudgetMaximum])
 
-  const commitCategoryBudget = async (amount: number) => {
+  const saveCategoryBudget = async (amount: number) => {
     if (categoryBudgetLocked || isSavingCategoryBudgetRef.current) return
-    const normalized = normalizeCategoryBudget(amount)
-    setDraftCategoryBudget(normalized)
+    setDraftCategoryBudget(amount)
     isSavingCategoryBudgetRef.current = true
     setIsSavingCategoryBudget(true)
     try {
-      const saved = await onCategoryBudgetChange?.(normalized)
-      if (saved === false) setDraftCategoryBudget(categoryBudget)
+      const saved = await onCategoryBudgetChange?.(amount)
+      if (saved === false) {
+        setDraftCategoryBudget(categoryBudget)
+        setCategoryBudgetText(formatBudgetInput(categoryBudget))
+      }
     } finally {
       isSavingCategoryBudgetRef.current = false
       setIsSavingCategoryBudget(false)
     }
+  }
+
+  const commitCategoryBudget = async (amount: number) => {
+    await saveCategoryBudget(normalizeCategoryBudget(amount))
+  }
+
+  const commitExactCategoryBudget = async () => {
+    const amount = parseBudgetInput(categoryBudgetText)
+    const maximum = Math.max(0, categoryBudgetMaximum)
+
+    if (amount === undefined) {
+      setCategoryBudgetInputMessage('Enter a valid budget amount.')
+      return false
+    }
+    if (amount > maximum) {
+      setCategoryBudgetInputMessage(`Only ${formatCurrency(maximum)} is available for this category.`)
+      return false
+    }
+
+    setCategoryBudgetInputMessage('')
+    setCategoryBudgetText(formatBudgetInput(amount))
+    await saveCategoryBudget(amount)
+    return true
   }
 
   const updateDraftBudgetFromPosition = React.useCallback((position: number) => {
@@ -599,14 +658,14 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
           <View
             accessibilityLabel={
               hasSetBudget
-                ? `Remaining budget: ${formatCurrency(remainingBudget)} pesos`
+                ? `Remaining budget: ${formatCurrency(remainingBudget)} Philippine pesos`
                 : 'No budget set. Pay actual service costs'
             }
             style={styles.budgetPill}
           >
             <Text style={styles.budgetText}>
               {hasSetBudget
-                ? `Remaining Budget: ₱${formatCurrency(remainingBudget)}`
+                ? `Remaining Budget: ${formatCurrency(remainingBudget)}`
                 : 'Pay actual service costs'}
             </Text>
           </View>
@@ -658,7 +717,47 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
             <View style={styles.categoryBudgetHeading}>
               <View>
                 <Text style={styles.categoryBudgetEyebrow}>{categoryName.toUpperCase()} BUDGET</Text>
-                <Text style={styles.categoryBudgetAmount}>PHP {formatCurrency(draftCategoryBudget)}</Text>
+                {categoryBudgetLocked ? (
+                  <Text style={styles.categoryBudgetAmount}>{formatCurrency(draftCategoryBudget)}</Text>
+                ) : (
+                  <>
+                    <View
+                      style={[
+                        styles.categoryBudgetInputShell,
+                        isCategoryBudgetInputFocused && styles.categoryBudgetInputShellFocused,
+                        categoryBudgetInputMessage && styles.categoryBudgetInputShellError,
+                      ]}
+                    >
+                      <Text style={styles.categoryBudgetInputCurrency}>₱</Text>
+                      <TextInput
+                        accessibilityLabel={`${categoryName} budget amount`}
+                        accessibilityHint="Enter an exact peso amount, or use the slider and 500-peso controls."
+                        editable={!isSavingCategoryBudget}
+                        inputMode="decimal"
+                        keyboardType="decimal-pad"
+                        onBlur={() => {
+                          setIsCategoryBudgetInputFocused(false)
+                          void commitExactCategoryBudget()
+                        }}
+                        onChangeText={(value) => {
+                          setCategoryBudgetText(normalizeBudgetInput(value))
+                          if (categoryBudgetInputMessage) setCategoryBudgetInputMessage('')
+                        }}
+                        onFocus={() => {
+                          setIsCategoryBudgetInputFocused(true)
+                          setCategoryBudgetText(String(Math.max(0, draftCategoryBudget)))
+                        }}
+                        onSubmitEditing={() => void commitExactCategoryBudget()}
+                        selectTextOnFocus
+                        style={styles.categoryBudgetInput}
+                        value={categoryBudgetText}
+                      />
+                    </View>
+                    {categoryBudgetInputMessage ? (
+                      <Text style={styles.categoryBudgetInputError}>{categoryBudgetInputMessage}</Text>
+                    ) : null}
+                  </>
+                )}
               </View>
               <Text style={categoryBudgetLocked ? styles.categoryBudgetLocked : styles.categoryBudgetEditable}>
                 {categoryBudgetLocked ? 'Locked to selection' : isSavingCategoryBudget ? 'Saving...' : 'Adjustable'}
@@ -696,7 +795,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
               </View>
             </View>
             <View style={styles.categoryBudgetFooter}>
-              <Text style={styles.categoryBudgetHint}>Remaining overall budget: PHP {formatCurrency(remainingBudget)}</Text>
+              <Text style={styles.categoryBudgetHint}>Remaining overall budget: {formatCurrency(remainingBudget)}</Text>
               {!categoryBudgetLocked ? (
                 <View style={styles.categoryBudgetButtons}>
                   <Pressable disabled={isSavingCategoryBudget} onPress={() => void commitCategoryBudget(draftCategoryBudget - CATEGORY_BUDGET_STEP)} style={styles.categoryBudgetStep}><Text style={styles.categoryBudgetStepText}>-500</Text></Pressable>
@@ -941,8 +1040,8 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                   const label = difference === 0
                     ? 'SAME PRICE'
                     : difference > 0
-                      ? `PHP ${formatCurrency(difference)} HIGHER`
-                      : `PHP ${formatCurrency(Math.abs(difference))} LOWER`
+                      ? `${formatCurrency(difference)} HIGHER`
+                      : `${formatCurrency(Math.abs(difference))} LOWER`
                   return (
                     <View style={styles.recommendationBadge}>
                       <Text style={styles.recommendationBadgeText}>{label}</Text>
@@ -979,13 +1078,13 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                         </Text>
                       </View>
                       <Text style={styles.categoryBudgetText}>
-                        Category: ₱{formatCurrency(vendor.budgetRecommendation.categoryBudget)}
+                        Category: {formatCurrency(vendor.budgetRecommendation.categoryBudget)}
                       </Text>
                     </View>
                     {vendor.budgetRecommendation.calculatedAmount ? (
                       <>
                         <Text style={styles.calculatedPrice}>
-                          {vendor.categoryId === 'venues' ? 'Starting estimate' : 'Event estimate'}: ₱{formatCurrency(vendor.budgetRecommendation.calculatedAmount)}
+                          {vendor.categoryId === 'venues' ? 'Starting estimate' : 'Event estimate'}: {formatCurrency(vendor.budgetRecommendation.calculatedAmount)}
                         </Text>
                         {vendor.budgetRecommendation.pricingBasis ? (
                           <Text style={styles.pricingBasis}>
@@ -1192,13 +1291,13 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                 <View style={styles.reviewTotalCopy}>
                   <Text style={styles.reviewTotalLabel}>TOTAL ESTIMATED COST</Text>
                   <Text style={styles.reviewTotalValue}>
-                    PHP {formatCurrency(totalEstimatedCost)}
+                    {formatCurrency(totalEstimatedCost)}
                   </Text>
                 </View>
                 {budget > 0 ? (
                   <View style={styles.reviewAllocationBlock}>
                     <View style={styles.reviewAllocationLabels}>
-                      <Text style={styles.reviewBudgetLabel}>Budget: PHP {formatCurrency(budget)}</Text>
+                      <Text style={styles.reviewBudgetLabel}>Budget: {formatCurrency(budget)}</Text>
                       <Text style={styles.reviewAllocatedLabel}>
                         {Math.min(100, Math.round((totalEstimatedCost / budget) * 100))}% Allocated
                       </Text>
@@ -1248,7 +1347,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                     <Text style={styles.reviewCoordinatorName}>{assignedCoordinator.name}</Text>
                     {coordinatorPackage ? (
                       <Text style={styles.reviewCoordinatorPackage}>
-                        {coordinatorPackage.name} · PHP {formatCurrency(coordinatorPackage.serviceSubtotal)}
+                        {coordinatorPackage.name} · {formatCurrency(coordinatorPackage.serviceSubtotal)}
                       </Text>
                     ) : null}
                   </View>
@@ -1321,7 +1420,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                     </Pressable>
                   ) : null}
                   <Text style={styles.selectedServicePrice}>
-                    PHP {formatCurrency(service.price)}
+                    {formatCurrency(service.price)}
                   </Text>
                 </Pressable>
               ))}
@@ -1423,6 +1522,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
 
 const palette = {
   background: '#F9F9F9',
+  error: '#B3261E',
   surfaceContainerHigh: '#E8E8E8',
   surfaceHighest: '#E2E2E2',
   surfaceVariant: '#E2E2E2',
@@ -1993,6 +2093,30 @@ const styles = StyleSheet.create({
   categoryBudgetHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   categoryBudgetEyebrow: { color: palette.secondary, fontSize: 10, lineHeight: 14, fontWeight: '800', letterSpacing: 1 },
   categoryBudgetAmount: { color: palette.primaryContainer, fontSize: 22, lineHeight: 29, fontWeight: '800', marginTop: 2 },
+  categoryBudgetInputShell: {
+    width: 150,
+    height: 36,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+    borderWidth: 1,
+    borderColor: palette.outlineVariant,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+  },
+  categoryBudgetInputShellFocused: { borderWidth: 2, borderColor: palette.primaryContainer },
+  categoryBudgetInputShellError: { borderWidth: 2, borderColor: palette.error },
+  categoryBudgetInputCurrency: { color: palette.primaryContainer, fontSize: 18, fontWeight: '800' },
+  categoryBudgetInput: {
+    minWidth: 0,
+    flex: 1,
+    color: palette.primaryContainer,
+    fontSize: 18,
+    fontWeight: '800',
+    textAlign: 'right',
+    paddingVertical: 4,
+  },
+  categoryBudgetInputError: { maxWidth: 210, marginTop: 5, color: palette.error, fontSize: 10, lineHeight: 14 },
   categoryBudgetLocked: { color: palette.primaryContainer, fontSize: 11, lineHeight: 16, fontWeight: '700' },
   categoryBudgetEditable: { color: '#287A49', fontSize: 11, lineHeight: 16, fontWeight: '700' },
   categoryBudgetTrackTouch: { paddingVertical: 10 },

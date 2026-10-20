@@ -1,12 +1,12 @@
 import { Text } from '../components/AppText'
-import React, { useState } from 'react'
+import React, { useRef, useState } from 'react'
 import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
-  
+  TextInput as NativeTextInput,
   View,
 } from 'react-native'
 import { Button } from '../components/Button'
@@ -29,6 +29,10 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
   const [requestSent, setRequestSent] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [authError, setAuthError] = useState('')
+  const scrollRef = useRef<ScrollView>(null)
+  const contactRef = useRef<NativeTextInput>(null)
+  const formTop = useRef(0)
+  const contactOffset = useRef(0)
 
   const normalizedContact = recoveryContact.trim()
   const isEmail = /^\S+@\S+\.\S+$/.test(normalizedContact)
@@ -38,9 +42,8 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
     setSubmitted(true)
     setAuthError('')
 
-    if (!contactIsValid || isLoading) {
-      return
-    }
+    if (isLoading) return
+    if (!contactIsValid) return revealContactField()
 
     setIsLoading(true)
     const result = await requestPasswordReset(normalizedContact)
@@ -52,6 +55,16 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
     }
 
     setAuthError(result.message ?? 'Unable to request a password reset. Please try again.')
+  }
+
+  function revealContactField() {
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({
+        y: Math.max(0, formTop.current + contactOffset.current - spacing.lg),
+        animated: true,
+      })
+      setTimeout(() => contactRef.current?.focus(), 180)
+    })
   }
 
   const handleUseAnotherEmail = () => {
@@ -70,6 +83,7 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
         contentContainerStyle={styles.content}
         keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         keyboardShouldPersistTaps="handled"
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.topBar}>
@@ -138,7 +152,7 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
               </Text>
             </View>
 
-            <View style={styles.formCard}>
+            <View onLayout={(event) => { formTop.current = event.nativeEvent.layout.y }} style={styles.formCard}>
               <TextInput
                 autoCapitalize="none"
                 error={submitted && !contactIsValid}
@@ -151,8 +165,10 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
                 keyboardType="email-address"
                 label="Email address"
                 onChangeText={setRecoveryContact}
+                onContainerLayout={(event) => { contactOffset.current = event.nativeEvent.layout.y }}
                 onSubmitEditing={handleRequestReset}
                 placeholder="you@example.com"
+                ref={contactRef}
                 returnKeyType="send"
                 value={recoveryContact}
               />
@@ -165,7 +181,7 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
 
               <Button
                 accessibilityLabel="Send password reset code"
-                disabled={!contactIsValid}
+                disabled={isLoading}
                 isFullWidth
                 isLoading={isLoading}
                 onPress={handleRequestReset}
