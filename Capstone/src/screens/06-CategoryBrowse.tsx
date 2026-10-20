@@ -18,11 +18,13 @@ import {
 import { PlanningScreenHeader } from '../components/PlanningScreenHeader'
 import { ClientBottomNavigation, ClientMainTab } from '../components/ClientBottomNavigation'
 import {
+  categoryNameToId,
   CatalogService,
   formatPeso,
   formatServicePrice,
   marketplaceStartingPrice,
   ServiceCategoryOption,
+  type CatalogCategoryId,
 } from '../lib/catalog'
 import { customerPriceFromProviderPrice } from '../lib/pricing'
 import { calculateCateringPrice, getCateringPricingOptions, getVenueBookingOptions } from '../lib/service-category-details'
@@ -34,6 +36,8 @@ export type CategoryBrowseTab = ClientMainTab | 'vendors' | 'budget'
 type CategoryBrowseSort = 'recommended' | 'rating' | 'bookings' | 'priceLow' | 'priceHigh'
 
 interface CategoryBrowseScreenProps {
+  categoryCountServices?: CatalogService[]
+  categoryBudgets?: Partial<Record<CatalogCategoryId, number>>
   categoryName?: string
   categories?: ServiceCategoryOption[]
   eventGuestCount?: number
@@ -129,6 +133,8 @@ const parseBudgetInput = (value: string): number | undefined => {
 }
 
 export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
+  categoryCountServices,
+  categoryBudgets = {},
   categoryName = 'Services',
   categories = [],
   eventGuestCount = 0,
@@ -196,10 +202,28 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   const [isSelectedServicesOpen, setIsSelectedServicesOpen] = React.useState(false)
   const selectedServicesSheetOffset = React.useRef(new Animated.Value(480)).current
   const query = searchValue ?? internalSearch
+  const servicesForCategoryCounts = categoryCountServices ?? services
   const exploreCategories = React.useMemo(
-    () => ['All', ...Array.from(new Set(services.map((service) => service.categoryName)))],
-    [services]
+    () => [
+      { id: 'all', name: 'All' },
+      ...Array.from(new Map(servicesForCategoryCounts.map((service) => [
+        service.categoryId,
+        { id: service.categoryId, name: service.categoryName },
+      ])).values()),
+    ],
+    [servicesForCategoryCounts]
   )
+  const activeSelectedCategoryIds = React.useMemo(() => {
+    const categoryIds = new Set<CatalogCategoryId>()
+    selectedServices.forEach((service) => {
+      const status = service.status.trim().toLowerCase()
+      if (!['cancelled', 'deleted', 'rejected', 'removed'].includes(status)) {
+        categoryIds.add(categoryNameToId(service.category))
+      }
+    })
+    if (assignedCoordinator) categoryIds.add('eventOrganizers')
+    return categoryIds
+  }, [assignedCoordinator, selectedServices])
   const isBudgetDraggingRef = React.useRef(false)
   const previousCategoryBudgetRef = React.useRef(categoryBudget)
   React.useEffect(() => {
@@ -293,11 +317,13 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     vendor.budgetRecommendation?.availabilityStatus === 'unavailable'
   ), [])
 
-  const visibleVendors = services.filter((vendor) => {
+  const matchesMarketplaceFilters = (vendor: CatalogService, ignoreExploreCategory = false) => {
     const normalizedQuery = query.trim().toLowerCase()
 
     if (
-      isExploreMode &&
+      isExploreMode
+      && !ignoreExploreCategory
+      &&
       selectedExploreCategory !== 'All' &&
       vendor.categoryName !== selectedExploreCategory
     ) {
@@ -324,6 +350,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     if (!isExploreMode && selectedFilters.size > 0) {
       const details: Record<string, unknown> = vendor.categoryDetails ?? {}
       const recommendation = vendor.budgetRecommendation
+      const vendorCategoryBudget = categoryBudgets[vendor.categoryId] ?? categoryBudget
       const stringList = (key: string) => Array.isArray(details[key])
         ? (details[key] as unknown[]).filter((item): item is string => typeof item === 'string')
         : []
@@ -331,7 +358,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
         if (selectedFilter === 'withinBudget' && !recommendation?.isWithinBudget) return false
         if (selectedFilter === 'available' && recommendation?.availabilityStatus === 'unavailable') return false
         if (selectedFilter === 'rating4' && (Number.parseFloat(vendor.rating) || 0) < 4) return false
-        if (selectedFilter === 'priceLow' && marketplaceStartingPrice(vendor) > Math.max(categoryBudget, remainingBudget)) return false
+        if (selectedFilter === 'priceLow' && marketplaceStartingPrice(vendor) > Math.max(vendorCategoryBudget, remainingBudget)) return false
         if (selectedFilter === 'under500') {
           const options = getCateringPricingOptions(vendor.categoryDetails, vendor.providerMinPrice)
           if (!options.some((option) => customerPriceFromProviderPrice(option.pricePerHead, vendor.commissionRate) < 500)) return false
@@ -360,7 +387,29 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
       vendor.providerName.toLowerCase().includes(normalizedQuery) ||
       vendor.tags.some((tag) => tag.toLowerCase().includes(normalizedQuery))
     )
-  }).sort((left, right) => {
+  }
+
+  const categoryOptionsForCounts = isExploreMode ? exploreCategories : categories
+  const marketplaceCategoryCounts = new Map(categoryOptionsForCounts.map((option) => [
+    option.id,
+    servicesForCategoryCounts.filter((vendor) => (
+      (option.id === 'all' || vendor.categoryId === option.id)
+      && matchesMarketplaceFilters(vendor, true)
+    )).length,
+  ]))
+
+  const orderCategoryTags = (options: ServiceCategoryOption[], activeOptionId?: string) => {
+    const activeOption = options.find((option) => option.id === activeOptionId)
+    const remainingOptions = options.filter((option) => option.id !== activeOptionId)
+    const selectedOptions = remainingOptions.filter((option) => (
+      option.id !== 'all' && activeSelectedCategoryIds.has(option.id as CatalogCategoryId)
+    ))
+    const otherOptions = remainingOptions.filter((option) => !selectedOptions.includes(option))
+
+    return activeOption ? [activeOption, ...selectedOptions, ...otherOptions] : options
+  }
+
+  const visibleVendors = services.filter((vendor) => matchesMarketplaceFilters(vendor)).sort((left, right) => {
     const leftRating = Number.parseFloat(left.rating) || 0
     const rightRating = Number.parseFloat(right.rating) || 0
     const leftBookings = left.bookingCount ?? 0
@@ -403,6 +452,12 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
       || rightBookings - leftBookings
       || left.name.localeCompare(right.name)
   })
+  const activeExploreCategoryId = exploreCategories.find(
+    (option) => option.name === selectedExploreCategory
+  )?.id
+  const activePlanningCategoryId = categories.find((option) => option.name === categoryName)?.id
+  const orderedExploreCategoryTags = orderCategoryTags(exploreCategories, activeExploreCategoryId)
+  const orderedPlanningCategoryTags = orderCategoryTags(categories, activePlanningCategoryId)
   const hasCategoryRecommendationBudget = !isExploreMode && visibleVendors.some(
     (vendor) => (vendor.budgetRecommendation?.categoryBudget ?? 0) > 0
   )
@@ -813,24 +868,42 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
             showsHorizontalScrollIndicator={false}
             style={styles.exploreCategoryScroller}
           >
-            {exploreCategories.map((option) => {
-              const isSelected = selectedExploreCategory === option
+            {orderedExploreCategoryTags.map((option) => {
+              const isSelected = selectedExploreCategory === option.name
+              const isCompleted = option.id !== 'all'
+                && activeSelectedCategoryIds.has(option.id as CatalogCategoryId)
+              const serviceCount = marketplaceCategoryCounts.get(option.id) ?? 0
 
               return (
                 <Pressable
-                  key={option}
-                  accessibilityLabel={`Show ${option} services`}
+                  key={option.id}
+                  accessibilityLabel={isCompleted
+                    ? `Show ${option.name} services. A service is selected for this category.`
+                    : `Show ${option.name} services. ${serviceCount} eligible services.`}
                   accessibilityRole="button"
                   accessibilityState={{ selected: isSelected }}
-                  onPress={() => setSelectedExploreCategory(option)}
+                  onPress={() => setSelectedExploreCategory(option.name)}
                   style={({ pressed }) => [
-                    styles.filterChip,
-                    isSelected && styles.filterChipSelected,
+                    styles.categoryTag,
+                    isSelected && styles.categoryTagSelected,
                     pressed && styles.chipPressed,
                   ]}
                 >
-                  <Text style={[styles.filterLabel, isSelected && styles.filterLabelSelected]}>
-                    {option}
+                  <View style={[styles.categoryTagIndicator, isSelected && styles.categoryTagIndicatorSelected]}>
+                    {isCompleted ? (
+                      <MaterialCommunityIcons
+                        color={isSelected ? palette.onPrimary : palette.primaryContainer}
+                        name="check"
+                        size={15}
+                      />
+                    ) : (
+                      <Text style={[styles.categoryTagCount, isSelected && styles.categoryTagCountSelected]}>
+                        {serviceCount}
+                      </Text>
+                    )}
+                  </View>
+                  <Text numberOfLines={1} style={[styles.categoryTagLabel, isSelected && styles.categoryTagLabelSelected]}>
+                    {option.name}
                   </Text>
                 </Pressable>
               )
@@ -843,23 +916,40 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
             showsHorizontalScrollIndicator={false}
             style={styles.exploreCategoryScroller}
           >
-            {categories.map((option) => {
+            {orderedPlanningCategoryTags.map((option) => {
               const isSelected = option.name === categoryName
+              const isCompleted = activeSelectedCategoryIds.has(option.id as CatalogCategoryId)
+              const serviceCount = marketplaceCategoryCounts.get(option.id) ?? 0
 
               return (
                 <Pressable
                   key={option.id}
-                  accessibilityLabel={`Browse ${option.name}`}
+                  accessibilityLabel={isCompleted
+                    ? `Browse ${option.name}. A service is selected for this category.`
+                    : `Browse ${option.name}. ${serviceCount} eligible services.`}
                   accessibilityRole="button"
                   accessibilityState={{ selected: isSelected }}
                   onPress={() => onSelectCategory?.(option)}
                   style={({ pressed }) => [
-                    styles.filterChip,
-                    isSelected && styles.filterChipSelected,
+                    styles.categoryTag,
+                    isSelected && styles.categoryTagSelected,
                     pressed && styles.chipPressed,
                   ]}
                 >
-                  <Text style={[styles.filterLabel, isSelected && styles.filterLabelSelected]}>
+                  <View style={[styles.categoryTagIndicator, isSelected && styles.categoryTagIndicatorSelected]}>
+                    {isCompleted ? (
+                      <MaterialCommunityIcons
+                        color={isSelected ? palette.onPrimary : palette.primaryContainer}
+                        name="check"
+                        size={15}
+                      />
+                    ) : (
+                      <Text style={[styles.categoryTagCount, isSelected && styles.categoryTagCountSelected]}>
+                        {serviceCount}
+                      </Text>
+                    )}
+                  </View>
+                  <Text numberOfLines={1} style={[styles.categoryTagLabel, isSelected && styles.categoryTagLabelSelected]}>
                     {option.name}
                   </Text>
                 </Pressable>
@@ -2155,8 +2245,8 @@ const styles = StyleSheet.create({
     marginHorizontal: -20,
     marginTop: 12,
   },
-  exploreCategoryScroller: { marginHorizontal: -20, marginBottom: 12 },
-  exploreCategoryContent: { gap: 8, paddingHorizontal: 20, paddingBottom: 4 },
+  exploreCategoryScroller: { marginBottom: 12 },
+  exploreCategoryContent: { gap: 8, paddingRight: 20, paddingBottom: 4 },
   filterContent: {
     gap: 8,
     paddingHorizontal: 20,
@@ -2179,6 +2269,54 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
+  categoryTag: {
+    maxWidth: 220,
+    minHeight: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: palette.surfaceContainerHigh,
+    borderRadius: 20,
+    backgroundColor: palette.surfaceContainerHigh,
+    paddingLeft: 8,
+    paddingRight: 14,
+    paddingVertical: 6,
+  },
+  categoryTagSelected: {
+    borderColor: palette.primaryContainer,
+    backgroundColor: palette.primaryContainer,
+    shadowColor: palette.primaryContainer,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  categoryTagIndicator: {
+    width: 22,
+    height: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 11,
+    backgroundColor: '#F7E7E9',
+  },
+  categoryTagIndicatorSelected: { backgroundColor: '#8F3A4A' },
+  categoryTagCount: {
+    color: palette.primaryContainer,
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: '800',
+  },
+  categoryTagCountSelected: { color: palette.onPrimary },
+  categoryTagLabel: {
+    maxWidth: 160,
+    color: palette.secondary,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+  },
+  categoryTagLabelSelected: { color: palette.onPrimary },
   filterLabel: {
     color: palette.secondary,
     fontSize: 12,

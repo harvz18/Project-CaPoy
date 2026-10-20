@@ -714,6 +714,18 @@ export const App: React.FC = () => {
         ?? fallbackServiceCategories.find((category) => category.id === priorityCategory.categoryId)
     ).filter((category): category is ServiceCategoryOption => Boolean(category))
   }, [activePlanningCategories, serviceCategories])
+  const planningCategoryBudgets = React.useMemo<Partial<Record<CatalogCategoryId, number>>>(() => (
+    Object.fromEntries(activePlanningCategories.map((category) => [
+      category.categoryId,
+      planningBudgetAllocations.find((allocation) => (
+        allocation.categoryKey === category.categoryKey
+      ))?.amount ?? 0,
+    ]))
+  ), [activePlanningCategories, planningBudgetAllocations])
+  const planningCatalogServices = React.useMemo(
+    () => catalogServices.filter((service) => activePlanningCategoryIds.has(service.categoryId)),
+    [activePlanningCategoryIds, catalogServices]
+  )
   const unallocatedPlanningCategoryCount = React.useMemo(
     () => getUnallocatedPlanningCategoryCount(planningBudgetAllocations),
     [planningBudgetAllocations]
@@ -2212,6 +2224,7 @@ export const App: React.FC = () => {
       }
 
       if (nextScreen === 'budgetAllocation') {
+        setCatalogServices(await loadClientCatalogServices())
         setMaxPlanningStep((current) => Math.min(4, Math.max(current, 2)))
         budgetAllocationEntrance.setValue(width)
         setScreen(nextScreen)
@@ -4176,6 +4189,10 @@ export const App: React.FC = () => {
             style={[styles.screenTransition, { transform: [{ translateX: categoryBrowseEntrance }] }]}
           >
             <CategoryBrowseScreen
+            categoryCountServices={
+              serviceBrowseMode === 'planning' ? planningCatalogServices : catalogServices
+            }
+            categoryBudgets={planningCategoryBudgets}
             categories={serviceBrowseMode === 'planning' ? planningServiceCategories : serviceCategories}
             categoryName={catalogCategoryName(selectedCategory)}
               eventGuestCount={eventDetails.guestCount}

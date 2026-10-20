@@ -620,6 +620,33 @@ test('planning categories, progression, and budget re-entry share one allocation
   ], 'planning budget guidance')
 })
 
+test('V9 Phase 5 category tags count eligible services and mark active selections', () => {
+  const app = read('src/App.tsx')
+  const browse = read('src/screens/06-CategoryBrowse.tsx')
+
+  mustContain(app, [
+    'const planningCategoryBudgets',
+    'const planningCatalogServices',
+    'categoryCountServices=',
+    'categoryBudgets={planningCategoryBudgets}',
+    'setCatalogServices(await loadClientCatalogServices())',
+  ], 'live marketplace category inputs')
+  mustContain(browse, [
+    'categoryCountServices?: CatalogService[]',
+    'const servicesForCategoryCounts = categoryCountServices ?? services',
+    'const matchesMarketplaceFilters',
+    'const marketplaceCategoryCounts',
+    'const activeSelectedCategoryIds',
+    'const orderCategoryTags',
+    'orderedPlanningCategoryTags.map',
+    'orderedExploreCategoryTags.map',
+    'name="check"',
+    'eligible services.',
+    'exploreCategoryScroller: { marginBottom: 12 }',
+    'minHeight: 40',
+  ], 'counted, completed, horizontally-scrollable marketplace tags')
+})
+
 test('client home uses live eligible services, resumable drafts, and booking progress', () => {
   const app = read('src/App.tsx')
   const planning = read('src/lib/planning.ts')
