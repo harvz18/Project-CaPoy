@@ -541,30 +541,41 @@ test('budget allocation cards keep controls inside selected, expanded categories
   ], 'expandable budget allocation UI')
 })
 
-test('coordinator choice is available only with a positive Event Organizer allocation', () => {
+test('Step 1 coordinator preference replaces the redundant coordinator choice screen', () => {
   const app = read('src/App.tsx')
+  const creation = read('src/screens/04-EventCreation.tsx')
+  const planning = read('src/lib/planning.ts')
   const budgetScreen = read('src/screens/05-BudgetAllocation.tsx')
-  const choice = read('src/screens/05.1-CoordinatorChoice.tsx')
   const details = read('src/screens/06.1-CoordinatorDetails.tsx')
   const migration = read('database/68_conditional_event_coordinator_step.sql')
+  const phase4Migration = read('supabase/migrations/20261020001200_step1_coordinator_and_church_preferences.sql')
 
   mustContain(app, [
     "allocation.categoryKey === 'eventOrganizer' && allocation.amount > 0",
     'const planningServiceCategories',
-    'if (hasCoordinatorAllocation && coordinatorPreference',
-    "setScreen('coordinatorChoice')",
+    'const coordinatorPlanningEnabled = eventDetails.wantsCoordinator === true || Boolean(assignedCoordinator)',
+    'if (hasCoordinatorAllocation && eventDetails.wantsCoordinator === true && !assignedCoordinator)',
+    "openPlanningHub('forward', 'eventOrganizers')",
     'coordinatorBookingEnabled={hasEventOrganizerBudget}',
     'confirmDestructiveAction',
     'Remove coordinator booking?',
-  ], 'conditional coordinator flow')
+  ], 'Step 1 coordinator flow')
+  assert.doesNotMatch(app, /coordinatorChoice/, 'the retired coordinator choice route must not be reachable')
+  mustContain(creation, [
+    'WOULD YOU LIKE AN EVENT COORDINATOR?',
+    'typeof wantsCoordinator === \'boolean\'',
+    'Selecting Yes does not book or assign anyone.',
+  ], 'required Step 1 coordinator preference')
+  mustContain(planning, [
+    'wantsCoordinator?: boolean',
+    "target_preference: value.wantsCoordinator ? 'undecided' : 'skipped'",
+  ], 'coordinator preference persistence')
   mustContain(budgetScreen, [
+    'includeCoordinator = true',
+    "category.id !== 'eventOrganizer'",
     'onRemoveCommittedCoordinator',
     'REMOVE COORDINATOR FIRST',
   ], 'coordinator budget removal safeguard')
-  mustContain(choice, [
-    'enabled = true',
-    'if (!enabled) return null',
-  ], 'conditional coordinator choice screen')
   mustContain(details, [
     'coordinatorBookingEnabled = false',
     '&& coordinatorBookingEnabled',
@@ -575,6 +586,11 @@ test('coordinator choice is available only with a positive Event Organizer alloc
     "coalesce(item.allocated_amount, 0) > 0",
     'before update of coordinator_id, pending_coordinator_id on public.events',
   ], 'conditional coordinator database guard')
+  mustContain(phase4Migration, [
+    'add column if not exists wants_coordinator boolean',
+    'alter column is_church_wedding drop not null',
+    'alter column is_church_wedding drop default',
+  ], 'Step 1 preference migration')
 })
 
 test('planning categories, progression, and budget re-entry share one allocation-driven contract', () => {
@@ -589,7 +605,8 @@ test('planning categories, progression, and budget re-entry share one allocation
     'getNextUnselectedServicePlanningCategory',
   ], 'shared planning category priority')
   mustContain(app, [
-    'getActivePlanningCategories(budgetAllocations)',
+    'getActivePlanningCategories(planningBudgetAllocations)',
+    "budgetAllocations.filter((allocation) => allocation.categoryKey !== 'eventOrganizer')",
     'getNextUnselectedServicePlanningCategory(',
     'unallocatedPlanBudget',
     'unallocatedCategoryCount={unallocatedPlanningCategoryCount}',
@@ -961,6 +978,7 @@ test('checkout accepts provider-configured custom catering and notifies coordina
 
 test('Phase 2 saves church wedding preference without creating a church booking workflow', () => {
   const migration = read('supabase/migrations/20261017000700_church_wedding_event_preference.sql')
+  const phase4Migration = read('supabase/migrations/20261020001200_step1_coordinator_and_church_preferences.sql')
   const creation = read('src/screens/04-EventCreation.tsx')
   const planning = read('src/lib/planning.ts')
   const bookingDetails = read('src/screens/11.1-BookingDetails.tsx')
@@ -983,9 +1001,14 @@ test('Phase 2 saves church wedding preference without creating a church booking 
   ], 'church wedding creation UI')
   mustContain(planning, [
     'is_church_wedding',
-    "details.eventType === 'wedding' && details.isChurchWedding === true",
-    'isChurchWedding: event.is_church_wedding === true',
+    "payload.is_church_wedding = details.eventType === 'wedding'",
+    "typeof details.isChurchWedding === 'boolean'",
+    'event.is_church_wedding === false',
   ], 'church wedding draft persistence')
+  mustContain(phase4Migration, [
+    'alter column is_church_wedding drop not null',
+    'Null means a draft has not answered the Step 1 question yet.',
+  ], 'explicit unanswered church preference support')
   mustContain(bookingDetails, [
     'booking?.isChurchWedding',
     'WEDDING FORMAT',

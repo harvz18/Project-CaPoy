@@ -65,6 +65,7 @@ type EventDraftInput = {
   eventType: string
   guestCount: number
   isChurchWedding?: boolean
+  wantsCoordinator?: boolean
   time: string
   venueAddress?: string
   venueLatitude?: number
@@ -424,7 +425,7 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
   if (!client || !userId) return { selectedServices: [] }
 
   const eventSelection =
-    'id, coordinator_id, pending_coordinator_id, coordinator_assignment_status, coordinator_preference, coordinator_fee_amount, name, event_type, is_church_wedding, event_date, event_time, guest_count, total_budget, venue_status, venue, location, venue_latitude, venue_longitude, wedding_themes, planning_step, status, updated_at'
+    'id, coordinator_id, pending_coordinator_id, coordinator_assignment_status, coordinator_preference, coordinator_fee_amount, wants_coordinator, name, event_type, is_church_wedding, event_date, event_time, guest_count, total_budget, venue_status, venue, location, venue_latitude, venue_longitude, wedding_themes, planning_step, status, updated_at'
   const { data: selectedEvent } = activePlanningEventId
     ? await client
         .from('events')
@@ -645,7 +646,12 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
         ? (event.event_type as EventType)
         : 'wedding',
       guestCount: Number(event.guest_count ?? 0),
-      isChurchWedding: event.is_church_wedding === true,
+      isChurchWedding:
+        event.is_church_wedding === true
+          ? true
+          : event.is_church_wedding === false
+            ? false
+            : undefined,
       time: event.event_time ?? '',
       venueAddress: event.location ?? '',
       venueLatitude: asFiniteCoordinate(event.venue_latitude) ?? undefined,
@@ -654,6 +660,14 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
       venueStatus: ['secured', 'searching'].includes(event.venue_status)
         ? (event.venue_status as VenueStatus)
         : 'searching',
+      wantsCoordinator:
+        event.wants_coordinator === true
+          ? true
+          : event.wants_coordinator === false
+            ? false
+            : visibleCoordinatorId
+              ? true
+              : undefined,
       weddingThemes: normalizedWeddingThemes(event.wedding_themes),
     },
     draftSummary:
@@ -778,7 +792,13 @@ const toEventPayload = (
     payload.name = normalizedEventName(details.eventName)
     payload.event_type = details.eventType
     payload.guest_count = details.guestCount
-    payload.is_church_wedding = details.eventType === 'wedding' && details.isChurchWedding === true
+    payload.is_church_wedding = details.eventType === 'wedding'
+      && typeof details.isChurchWedding === 'boolean'
+      ? details.isChurchWedding
+      : null
+    payload.wants_coordinator = typeof details.wantsCoordinator === 'boolean'
+      ? details.wantsCoordinator
+      : null
     payload.venue = details.venueStatus === 'secured' ? details.venueName?.trim() || null : null
     payload.location = details.venueStatus === 'secured' ? details.venueAddress?.trim() || null : null
     payload.venue_latitude = details.venueStatus === 'secured'
@@ -1069,6 +1089,19 @@ export const saveEventDraft = async (
 
     if (!event) {
       return { ok: false, message: 'Supabase is not configured or no user is signed in.' }
+    }
+
+    const client = getClient()
+    if (!client) {
+      return { ok: false, message: 'Supabase is not configured or no user is signed in.' }
+    }
+
+    if (typeof value.wantsCoordinator === 'boolean') {
+      const { error: preferenceError } = await client.rpc('set_event_coordinator_preference', {
+        target_event_id: event.eventId,
+        target_preference: value.wantsCoordinator ? 'undecided' : 'skipped',
+      })
+      if (preferenceError) return { ok: false, message: preferenceError.message }
     }
 
     return { ok: true }

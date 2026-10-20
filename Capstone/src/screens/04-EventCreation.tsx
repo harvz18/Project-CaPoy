@@ -30,6 +30,7 @@ export interface EventCreationValue {
   eventType: EventType
   guestCount: number
   isChurchWedding?: boolean
+  wantsCoordinator?: boolean
   time: string
   venueAddress?: string
   venueLatitude?: number
@@ -238,8 +239,11 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
   const [selectedWeddingThemes, setSelectedWeddingThemes] = React.useState<string[]>(
     initialValue?.weddingThemes ?? []
   )
-  const [isChurchWedding, setIsChurchWedding] = React.useState(
-    initialValue?.isChurchWedding === true
+  const [isChurchWedding, setIsChurchWedding] = React.useState<boolean | undefined>(
+    initialValue?.isChurchWedding
+  )
+  const [wantsCoordinator, setWantsCoordinator] = React.useState<boolean | undefined>(
+    initialValue?.wantsCoordinator
   )
   const [themeLimitMessage, setThemeLimitMessage] = React.useState(false)
   const themeLimitTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -328,6 +332,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
     venueName: venueMap.name,
     guestCount,
     isChurchWedding,
+    wantsCoordinator,
     weddingThemes: selectedWeddingThemes,
   }), [
     date,
@@ -342,6 +347,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
     venueMap.longitude,
     venueMap.name,
     venueStatus,
+    wantsCoordinator,
   ])
 
   // Keep partially entered details in the shared planning state even when a
@@ -356,6 +362,8 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
       time &&
       guestCount > 0 &&
       !isPastDateTime(date, time) &&
+      (eventType !== 'wedding' || typeof isChurchWedding === 'boolean') &&
+      typeof wantsCoordinator === 'boolean' &&
       (venueStatus !== 'secured' || (venueMap.name.trim() && venueMap.address.trim()))
   )
 
@@ -503,8 +511,68 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                     )
                   })}
                 </View>
+              {typeof isChurchWedding !== 'boolean' ? (
+                <Text accessibilityRole="alert" style={styles.preferenceRequiredText}>
+                  Select Yes or No to continue.
+                </Text>
+              ) : null}
               </View>
             ) : null}
+
+            <View style={styles.coordinatorPreferenceSection}>
+              <Text style={styles.fieldLabel}>WOULD YOU LIKE AN EVENT COORDINATOR?</Text>
+              <Text style={styles.churchWeddingHelper}>
+                This adds Event Coordinator to your budget choices. Selecting Yes does not book or assign anyone.
+              </Text>
+              <View style={styles.churchWeddingChoices}>
+                {[
+                  {
+                    description: 'Include Event Coordinator in your budget and browse coordinators when you are ready.',
+                    label: 'Yes — I want a coordinator',
+                    value: true,
+                  },
+                  {
+                    description: 'Continue without coordinator planning. You can change this before booking services.',
+                    label: 'No — I will plan without one',
+                    value: false,
+                  },
+                ].map((option) => {
+                  const selected = wantsCoordinator === option.value
+                  return (
+                    <Pressable
+                      key={option.label}
+                      accessibilityLabel={option.label}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: selected }}
+                      onPress={() => setWantsCoordinator(option.value)}
+                      style={({ pressed }) => [
+                        styles.churchWeddingChoice,
+                        selected && styles.selectionCardActive,
+                        pressed && styles.cardPressed,
+                      ]}
+                    >
+                      <View style={[styles.churchWeddingIcon, selected && styles.churchWeddingIconSelected]}>
+                        <MaterialIcons
+                          color={selected ? palette.surface : palette.burgundy}
+                          name={option.value ? 'support-agent' : 'event-busy'}
+                          size={21}
+                        />
+                      </View>
+                      <View style={styles.churchWeddingCopy}>
+                        <Text style={styles.churchWeddingTitle}>{option.label}</Text>
+                        <Text style={styles.churchWeddingDescription}>{option.description}</Text>
+                      </View>
+                      {selected ? <SelectionCheck /> : null}
+                    </Pressable>
+                  )
+                })}
+              </View>
+              {typeof wantsCoordinator !== 'boolean' ? (
+                <Text accessibilityRole="alert" style={styles.preferenceRequiredText}>
+                  Select Yes or No to continue.
+                </Text>
+              ) : null}
+            </View>
 
             <View style={[styles.dateTimeGrid, isWide && styles.dateTimeGridWide]}>
               <PickerField
@@ -1946,6 +2014,7 @@ const styles = StyleSheet.create({
   themeChipTextSelected: { color: palette.surface },
   themeLimitMessage: { color: '#8A8A8A', fontSize: 12, lineHeight: 18 },
   churchWeddingSection: { gap: 12, marginTop: -20 },
+  coordinatorPreferenceSection: { gap: 12, marginTop: -8 },
   churchWeddingHelper: { color: palette.muted, fontSize: 13, lineHeight: 20, marginTop: -4 },
   churchWeddingChoices: { gap: 10 },
   churchWeddingChoice: {
@@ -1964,6 +2033,7 @@ const styles = StyleSheet.create({
   churchWeddingCopy: { minWidth: 0, flex: 1 },
   churchWeddingTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '700' },
   churchWeddingDescription: { color: palette.muted, fontSize: 11, lineHeight: 16, marginTop: 2 },
+  preferenceRequiredText: { color: '#BA1A1A', fontSize: 12, lineHeight: 18, fontWeight: '600' },
   guestSection: {
     alignItems: 'center',
     borderTopWidth: 1,

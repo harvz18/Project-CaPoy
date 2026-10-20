@@ -46,6 +46,7 @@ export interface BudgetAllocationValue {
 
 interface BudgetAllocationScreenProps {
   coordinatorCost?: number
+  includeCoordinator?: boolean
   initialAllocations?: CategoryBudgetAllocation[]
   initialBudget?: number
   initialPriorities?: BudgetPriority[]
@@ -119,7 +120,8 @@ const BUDGET_ALLOCATION_STEP = 500
 
 const buildAllocations = (
   initialAllocations: CategoryBudgetAllocation[],
-  coordinatorCost: number
+  coordinatorCost: number,
+  includeCoordinator: boolean
 ) => {
   const result = emptyAllocations()
 
@@ -128,7 +130,9 @@ const buildAllocations = (
       result[allocation.categoryKey] = sanitizeMoney(allocation.amount)
     }
   })
-  result.eventOrganizer = Math.max(result.eventOrganizer, sanitizeMoney(coordinatorCost))
+  result.eventOrganizer = includeCoordinator
+    ? Math.max(result.eventOrganizer, sanitizeMoney(coordinatorCost))
+    : 0
 
   return result
 }
@@ -350,6 +354,7 @@ const AllocationSlider: React.FC<AllocationSliderProps> = ({
 
 export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
   coordinatorCost = 0,
+  includeCoordinator = true,
   initialAllocations = [],
   initialBudget,
   initialPriorities = [],
@@ -369,7 +374,13 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
     initialBudgetValue > 0 ? String(Math.floor(initialBudgetValue)) : ''
   )
   const [allocations, setAllocations] = React.useState<AllocationMap>(() =>
-    buildAllocations(initialAllocations, coordinatorCost)
+    buildAllocations(initialAllocations, coordinatorCost, includeCoordinator)
+  )
+  const visibleCategoryOptions = React.useMemo(
+    () => includeCoordinator
+      ? categoryOptions
+      : categoryOptions.filter((category) => category.id !== 'eventOrganizer'),
+    [includeCoordinator]
   )
   const [allocationValidationMessages, setAllocationValidationMessages] = React.useState<
     Partial<Record<BudgetPriority, string>>
@@ -378,7 +389,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
   const [expandedCategories, setExpandedCategories] = React.useState<Set<BudgetPriority>>(
     () =>
       new Set(
-        categoryOptions
+        visibleCategoryOptions
           .filter((category) => {
             const initialAllocation = initialAllocations.find(
               (allocation) => allocation.categoryKey === category.id
@@ -396,7 +407,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
   const budget = hasBudgetInput && budgetDigits ? sanitizeMoney(Number(budgetDigits)) : 0
   const totalAllocated = Object.values(allocations).reduce((sum, amount) => sum + amount, 0)
   const remainingBudget = Math.max(budget - totalAllocated, 0)
-  const coordinatorMinimum = sanitizeMoney(coordinatorCost)
+  const coordinatorMinimum = includeCoordinator ? sanitizeMoney(coordinatorCost) : 0
   const budgetTooLow = coordinatorMinimum > budget
   const allocationExceeded = totalAllocated > budget
   const hasAllocationValidationErrors = Object.values(allocationValidationMessages).some(Boolean)
@@ -411,13 +422,13 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
   }, [coordinatorMinimum])
 
   React.useEffect(() => {
-    const priorities = categoryOptions
+    const priorities = visibleCategoryOptions
       .filter((category) => allocations[category.id] > 0)
       .sort((left, right) => allocations[right.id] - allocations[left.id])
       .slice(0, 3)
       .map((category) => category.id)
     onPrioritiesChange?.(priorities)
-  }, [allocations, onPrioritiesChange])
+  }, [allocations, onPrioritiesChange, visibleCategoryOptions])
 
   const handleBudgetChange = (value: string) => {
     const digits = value.replace(/\D/g, '').slice(0, 10)
@@ -550,7 +561,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
       return
     }
 
-    const savedAllocations = categoryOptions
+    const savedAllocations = visibleCategoryOptions
       .map((category) => ({
         amount: sanitizeMoney(allocations[category.id]),
         categoryKey: category.id,
@@ -717,7 +728,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
           ) : null}
 
           <View style={styles.allocationList}>
-            {categoryOptions.map((category) => {
+            {visibleCategoryOptions.map((category) => {
               const amount = allocations[category.id]
               const otherTotal = totalAllocated - amount
               const maximum = Math.max(budget - otherTotal, 0)
