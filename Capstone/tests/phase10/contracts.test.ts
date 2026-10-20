@@ -1252,6 +1252,60 @@ test('V9 Phase 6 removes only the redundant venue schedule field', () => {
   ], 'authoritative venue booking persistence')
 })
 
+test('V9 Phase 7 keeps historical packages while presenting coordinator-led profiles', () => {
+  const migration = read('supabase/migrations/20261021000100_coordinator_profile_focus.sql')
+  const catalog = read('src/lib/catalog.ts')
+  const coordinator = read('src/lib/coordinator.ts')
+  const profile = read('src/screens/23.2-CoordinatorServiceProfile.tsx')
+  const details = read('src/screens/06.1-CoordinatorDetails.tsx')
+  const workspace = read('src/screens/23-Coordinator.tsx')
+
+  mustContain(migration, [
+    'add column if not exists years_experience integer',
+    'event_types_handled text[]',
+    'skills text[]',
+    'capabilities text[]',
+    'certifications text[]',
+    'portfolio_summary text',
+    'service_inclusions text[]',
+    'availability_notes text',
+    'save_my_coordinator_service_profile_v9',
+    'list_bookable_event_coordinators_v9',
+    'without modifying package or booking history',
+  ], 'V9 coordinator profile migration')
+  mustContain(catalog, [
+    "supabase.rpc('list_bookable_event_coordinators_v9')",
+    'coordinatorYearsExperience',
+    'coordinatorServiceInclusions',
+  ], 'V9 coordinator catalog')
+  mustContain(coordinator, [
+    "supabase.rpc('save_my_coordinator_service_profile_v9'",
+    'eventTypesHandled',
+    'serviceInclusions',
+  ], 'V9 coordinator profile integration')
+  mustContain(profile, [
+    'Professional introduction',
+    'Years of experience',
+    'Event types handled',
+    'Coordination specialties',
+    'Certifications (optional)',
+    'Previous event experience or portfolio',
+    'Service inclusions',
+    'Availability notes',
+  ], 'V9 coordinator profile editor')
+  mustContain(details, [
+    'About the Coordinator',
+    'Experience',
+    'Skills and Specialties',
+    'Events Handled',
+    'Services and Inclusions',
+    'Pricing and Availability',
+    "'Select Coordinator'",
+  ], 'V9 client coordinator details')
+  assert.doesNotMatch(details, /Coordinator packages|Choose coordinator package|Book coordinator only/)
+  assert.doesNotMatch(workspace, /Manage coordinator packages|onOpenPackages/)
+})
+
 test('venue marketplace visibility uses a capacity-compatible starting total without replacing the final quote', () => {
   const venueMarketplace = read('supabase/migrations/20261019000400_venue_marketplace_budget_visibility.sql')
   const browse = read('src/screens/06-CategoryBrowse.tsx')

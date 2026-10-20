@@ -5,10 +5,7 @@ import {
   normalizeCommissionRate,
 } from './pricing'
 import {
-  getCateringCustomMenu,
-  getCateringPricingOptions,
   getVenueBookingOptions,
-  getVenueBookingRules,
   normalizeCategoryDetails,
   type CateringPricingOption,
   type CateringCustomMenu,
@@ -115,7 +112,15 @@ export interface CatalogService {
   coordinatorReviews?: CoordinatorReview[]
   coordinatorPackages?: CoordinatorPackage[]
   coordinatorAvailable?: boolean
+  coordinatorAvailabilityNotes?: string
+  coordinatorCapabilities?: string[]
+  coordinatorCertifications?: string[]
+  coordinatorEventTypesHandled?: string[]
+  coordinatorPortfolioSummary?: string
+  coordinatorServiceInclusions?: string[]
+  coordinatorSkills?: string[]
   coordinatorUnavailableReason?: string
+  coordinatorYearsExperience?: number
   coordinatorSpecializations?: string[]
   id: string
   categoryId: CatalogCategoryId
@@ -190,6 +195,9 @@ const textFrom = (value: unknown, fallback: string) =>
 
 const numberFrom = (value: unknown, fallback: number) =>
   typeof value === 'number' && Number.isFinite(value) ? value : fallback
+
+const textListFrom = (value: unknown) =>
+  Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0) : []
 
 const usableImageUrl = (value: unknown) => {
   const url = textFrom(value, '')
@@ -501,16 +509,10 @@ export const fetchAvailableCoordinators = async (): Promise<CatalogService[]> =>
   const [
     { data, error },
     { data: reviewData },
-    { data: packageData },
-    { data: packageVenueData },
-    { data: packageCateringMenuData },
     { data: configuredCommissionRate },
   ] = await Promise.all([
-    supabase.rpc('list_bookable_event_coordinators'),
+    supabase.rpc('list_bookable_event_coordinators_v9'),
     supabase.rpc('list_event_coordinator_review_data'),
-    supabase.rpc('list_bookable_coordinator_packages'),
-    supabase.rpc('list_phase9_package_venue_requirements'),
-    supabase.rpc('list_phase11_package_catering_menus'),
     supabase.rpc('get_public_commission_rate'),
   ])
   if (error || !Array.isArray(data)) return []
@@ -522,81 +524,6 @@ export const fetchAvailableCoordinators = async (): Promise<CatalogService[]> =>
       return [textFrom(row.coordinator_id, ''), row]
     })
   )
-  const packagesByCoordinator = new Map<string, CoordinatorPackage[]>()
-  const packageVenueDetails = new Map<string, ServiceCategoryDetails>()
-  const packageCateringMenus = new Map<string, CateringCustomMenu>()
-  for (const entry of Array.isArray(packageVenueData) ? packageVenueData : []) {
-    if (!entry || typeof entry !== 'object') continue
-    const row = entry as Record<string, unknown>
-    const key = `${textFrom(row.package_id, '')}:${textFrom(row.service_id, '')}`
-    if (key === ':') continue
-    packageVenueDetails.set(key, normalizeCategoryDetails('Venues & Estates', row.venue_details))
-  }
-  for (const entry of Array.isArray(packageCateringMenuData) ? packageCateringMenuData : []) {
-    if (!entry || typeof entry !== 'object') continue
-    const row = entry as Record<string, unknown>
-    const key = `${textFrom(row.package_id, '')}:${textFrom(row.service_id, '')}`
-    const menu = getCateringCustomMenu(row.menu_details)
-    if (key !== ':' && menu) packageCateringMenus.set(key, menu)
-  }
-  for (const entry of Array.isArray(packageData) ? packageData : []) {
-    const row = entry as Record<string, unknown>
-    const coordinatorId = textFrom(row.coordinator_id, '')
-    const packageId = textFrom(row.id, '')
-    if (!coordinatorId || !packageId) continue
-    const eventType = ['wedding', 'preWedding', 'postWedding'].includes(String(row.event_type))
-      ? row.event_type as CoordinatorPackage['eventType']
-      : 'wedding'
-    const items = Array.isArray(row.items)
-      ? row.items.flatMap((entry) => {
-          if (!entry || typeof entry !== 'object') return []
-          const item = entry as Record<string, unknown>
-          const serviceId = textFrom(item.service_id, '')
-          if (!serviceId) return []
-          const pricingUnit = ['event', 'person', 'hour', 'day'].includes(String(item.pricing_unit))
-            ? item.pricing_unit as CoordinatorPackageItem['pricingUnit']
-            : 'event'
-          const venueDetails = packageVenueDetails.get(`${packageId}:${serviceId}`)
-          const customCateringMenu = packageCateringMenus.get(`${packageId}:${serviceId}`)
-          return [{
-            cateringOptions: getCateringPricingOptions({
-              kind: 'catering',
-              pricingBasis: 'per_person',
-              pricingOptions: Array.isArray(item.catering_options) ? item.catering_options : [],
-              schemaVersion: 1,
-            }),
-            categoryName: textFrom(item.category_name, 'Service'),
-            customCateringMenu,
-            commissionRate: normalizeCommissionRate(item.commission_rate, DEFAULT_COMMISSION_RATE),
-            customerUnitPrice: numberFrom(item.customer_unit_price, 0),
-            estimatedAmount: numberFrom(item.estimated_amount, 0),
-            pricingUnit,
-            requiresCateringOption: item.requires_catering_option === true && !customCateringMenu,
-            requiresCateringMenu: Boolean(customCateringMenu),
-            providerId: textFrom(item.provider_id, ''),
-            providerName: textFrom(item.provider_name, 'Provider'),
-            providerPrice: numberFrom(item.provider_price, 0),
-            serviceId,
-            serviceName: textFrom(item.service_name, 'Service'),
-            venueOptions: venueDetails ? getVenueBookingOptions(venueDetails) : [],
-            venueRules: venueDetails ? getVenueBookingRules(venueDetails) : undefined,
-          }]
-        })
-      : []
-    const packages = packagesByCoordinator.get(coordinatorId) ?? []
-    packages.push({
-      description: textFrom(row.description, ''),
-      eventType,
-      id: packageId,
-      isAvailable: row.is_available === true,
-      items,
-      name: textFrom(row.name, 'Coordinator package'),
-      serviceSubtotal: numberFrom(row.service_subtotal, 0),
-      unavailableReason: textFrom(row.unavailable_reason, '') || undefined,
-    })
-    packagesByCoordinator.set(coordinatorId, packages)
-  }
-
   return data.flatMap((entry) => {
     if (!entry || typeof entry !== 'object') return []
 
@@ -629,11 +556,16 @@ export const fetchAvailableCoordinators = async (): Promise<CatalogService[]> =>
       categoryName: 'Event Organizer',
       commissionRate,
       coordinatorAvailable: row.is_available !== false,
+      coordinatorAvailabilityNotes: textFrom(row.availability_notes, ''),
+      coordinatorCapabilities: textListFrom(row.capabilities),
+      coordinatorCertifications: textListFrom(row.certifications),
+      coordinatorEventTypesHandled: textListFrom(row.event_types_handled),
+      coordinatorPortfolioSummary: textFrom(row.portfolio_summary, ''),
+      coordinatorServiceInclusions: textListFrom(row.service_inclusions),
+      coordinatorSkills: textListFrom(row.skills),
       coordinatorUnavailableReason: textFrom(row.unavailable_reason, ''),
-      coordinatorSpecializations: Array.isArray(row.specializations)
-        ? row.specializations.filter((item): item is string => typeof item === 'string')
-        : [],
-      coordinatorPackages: packagesByCoordinator.get(coordinatorUserId) ?? [],
+      coordinatorYearsExperience: numberFrom(row.years_experience, 0) || undefined,
+      coordinatorSpecializations: textListFrom(row.specializations),
       coordinatorUserId,
       coordinatorReviews: reviews,
       description: textFrom(
@@ -656,9 +588,7 @@ export const fetchAvailableCoordinators = async (): Promise<CatalogService[]> =>
         ? averageRating.toFixed(1)
         : 'New',
       reviewCount,
-      tags: ['EVENT ORGANIZER', 'COORDINATOR', ...(Array.isArray(row.specializations)
-        ? row.specializations.filter((item): item is string => typeof item === 'string')
-        : [])],
+      tags: ['EVENT ORGANIZER', 'COORDINATOR', ...textListFrom(row.specializations), ...textListFrom(row.skills)],
     }]
   })
 }

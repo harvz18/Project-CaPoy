@@ -176,11 +176,19 @@ export interface CoordinatorEvent {
 }
 
 export interface CoordinatorServiceProfile {
+  availabilityNotes: string
+  capabilities: string[]
+  certifications: string[]
   coordinationFee: number
   currency: string
   description: string
+  eventTypesHandled: string[]
   isAcceptingBookings: boolean
+  portfolioSummary: string
+  serviceInclusions: string[]
+  skills: string[]
   specializations: string[]
+  yearsExperience?: number
 }
 
 export interface CoordinatorManagedPackageItem {
@@ -1055,13 +1063,31 @@ export const fetchCoordinatorServiceProfile = async (): Promise<CoordinatorResul
 
   return {
     data: {
+      availabilityNotes: textFrom(row.availability_notes),
+      capabilities: Array.isArray(row.capabilities)
+        ? row.capabilities.filter((item): item is string => typeof item === 'string')
+        : [],
+      certifications: Array.isArray(row.certifications)
+        ? row.certifications.filter((item): item is string => typeof item === 'string')
+        : [],
       coordinationFee: numberFrom(row.coordination_fee),
       currency: textFrom(row.currency, 'PHP'),
       description: textFrom(row.description),
+      eventTypesHandled: Array.isArray(row.event_types_handled)
+        ? row.event_types_handled.filter((item): item is string => typeof item === 'string')
+        : [],
       isAcceptingBookings: row.is_accepting_bookings === true,
+      portfolioSummary: textFrom(row.portfolio_summary),
+      serviceInclusions: Array.isArray(row.service_inclusions)
+        ? row.service_inclusions.filter((item): item is string => typeof item === 'string')
+        : [],
+      skills: Array.isArray(row.skills)
+        ? row.skills.filter((item): item is string => typeof item === 'string')
+        : [],
       specializations: Array.isArray(row.specializations)
         ? row.specializations.filter((item): item is string => typeof item === 'string')
         : [],
+      yearsExperience: numberFrom(row.years_experience) || undefined,
     },
     ok: true,
   }
@@ -1074,11 +1100,19 @@ export const saveCoordinatorServiceProfile = async (
     return { message: unavailableMessage, ok: false }
   }
 
-  const { error } = await supabase.rpc('save_my_coordinator_service_profile', {
+  const { error } = await supabase.rpc('save_my_coordinator_service_profile_v9', {
+    target_availability_notes: profile.availabilityNotes,
+    target_capabilities: profile.capabilities,
+    target_certifications: profile.certifications,
     target_coordination_fee: profile.coordinationFee,
     target_description: profile.description,
+    target_event_types_handled: profile.eventTypesHandled,
     target_is_accepting_bookings: profile.isAcceptingBookings,
+    target_portfolio_summary: profile.portfolioSummary,
+    target_service_inclusions: profile.serviceInclusions,
+    target_skills: profile.skills,
     target_specializations: profile.specializations,
+    target_years_experience: profile.yearsExperience ?? 0,
   })
   if (error) return { message: error.message, ok: false }
   return { data: profile, ok: true }

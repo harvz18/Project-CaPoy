@@ -61,7 +61,6 @@ interface CoordinatorScreenProps {
   onSaveChurchArrangement?: (input: SaveChurchWeddingArrangementInput) => Promise<CoordinatorResult>
   onOpenNotifications?: () => void
   onOpenMessages?: () => void
-  onOpenPackages?: () => void
   onOpenProfile?: () => void
   onOpenServiceProfile?: () => void
   onRefresh?: () => void
@@ -1361,7 +1360,6 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
   onSaveChurchArrangement,
   onOpenMessages,
   onOpenNotifications,
-  onOpenPackages,
   onOpenProfile,
   onOpenServiceProfile,
   onRefresh,
@@ -1500,14 +1498,6 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
                   </Text>
                 </View>
               ) : null}
-            </Pressable>
-            <Pressable
-              accessibilityLabel="Manage coordinator packages"
-              accessibilityRole="button"
-              onPress={onOpenPackages}
-              style={({ pressed }) => [styles.iconButton, pressed && styles.pressedSurface]}
-            >
-              <MaterialIcons color={palette.primary} name="inventory-2" size={21} />
             </Pressable>
             <Pressable
               accessibilityLabel="Open coordinator service profile"
