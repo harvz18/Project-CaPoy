@@ -1231,6 +1231,27 @@ test('venue choices, hours, capacity, schedule, and immutable snapshots reach bo
   ], 'client venue UI')
 })
 
+test('V9 Phase 6 removes only the redundant venue schedule field', () => {
+  const details = read('src/screens/08-ServiceDetails.tsx')
+  const planning = read('src/lib/planning.ts')
+
+  mustContain(details, [
+    'eventDate',
+    'eventTime',
+    'Set the event date and start time before choosing a venue.',
+    'selectedVenueHours',
+    'RENTAL DURATION',
+    'Fixed per-event rate',
+    'venueSelections: isVenue ? selectedVenueSelections : undefined',
+  ], 'venue date, time, duration, and selection controls')
+  assert.doesNotMatch(details, /EVENT SCHEDULE/)
+  assert.doesNotMatch(details, /Venue duration is set on each selected hourly option/)
+  mustContain(planning, [
+    "client.rpc('save_my_venue_service_selection_v8'",
+    'target_option_selections: value.venueSelections',
+  ], 'authoritative venue booking persistence')
+})
+
 test('venue marketplace visibility uses a capacity-compatible starting total without replacing the final quote', () => {
   const venueMarketplace = read('supabase/migrations/20261019000400_venue_marketplace_budget_visibility.sql')
   const browse = read('src/screens/06-CategoryBrowse.tsx')

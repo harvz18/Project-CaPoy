@@ -1154,24 +1154,6 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                   )
                 })}
                 {venueSelectionIssue ? <Text style={styles.cateringMismatch}>{venueSelectionIssue}</Text> : null}
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>EVENT SCHEDULE</Text>
-                  <TextInput
-                    accessibilityLabel="Venue duration is set on each selected hourly option"
-                    editable={false}
-                    placeholder="Set each selected hourly option above"
-                    placeholderTextColor={palette.secondaryFixedDim}
-                    style={styles.notesInput}
-                    value=""
-                  />
-                  <Text style={styles.cateringOptionRange}>
-                    {venueRules.minimumBookingHours} hour minimum · {venueRules.durationIncrementHours} hour increments
-                    {venueRules.maximumBookingHours ? ` · ${venueRules.maximumBookingHours} hour maximum` : ''}
-                  </Text>
-                  <Text style={styles.cateringOptionRange}>
-                    Operating hours: {venueRules.openingTime || 'Not specified'}-{venueRules.closingTime || 'Not specified'} · Setup/ingress: {venueRules.setupAllowanceHours} hours{venueRules.setupAllowanceBillable ? ' (billable)' : ' (not billed)'}
-                  </Text>
-                </View>
                 {venueOptions.length === 0 ? (
                   <View style={styles.unavailableNotice}>
                     <MaterialCommunityIcons color={palette.secondary} name="alert-circle-outline" size={20} />
@@ -1795,7 +1777,6 @@ const styles = StyleSheet.create({
   cateringMismatch: { color: '#A12A35', fontSize: 11, lineHeight: 17, fontWeight: '700' },
   inputGrid: { gap: 24, marginBottom: 40 },
   inputGridWide: { flexDirection: 'row' },
-  inputGroup: { flex: 1, gap: 12 },
   inputLabel: { color: palette.secondary, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 1.2 },
   inputShell: {
     minHeight: 58,
@@ -1868,18 +1849,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.82)',
     paddingHorizontal: 18,
     paddingVertical: 8,
-  },
-  notesInput: {
-    minHeight: 104,
-    color: palette.text,
-    fontSize: 16,
-    lineHeight: 24,
-    borderWidth: 1,
-    borderColor: palette.surfaceVariant,
-    borderRadius: 12,
-    backgroundColor: palette.surfaceLow,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
   },
   reviewsSection: { paddingTop: 40, paddingBottom: 64 },
   liveReviewCard: { alignItems: 'center', borderWidth: 1, borderColor: palette.surfaceVariant, borderRadius: 16, backgroundColor: palette.surfaceLowest, padding: 28 },
