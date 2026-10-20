@@ -1,6 +1,7 @@
 import { Text } from '../components/AppText'
 import React from 'react'
 import {
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,6 +13,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { PlanningScreenHeader } from '../components/PlanningScreenHeader'
 import { formatPeso } from '../lib/catalog'
 import { calculatePaymentBreakdown } from '../lib/pricing'
+import type { SavedPlanReview } from '../lib/planning'
 
 export type PaymentType = 'deposit' | 'full'
 export type PaymentMethod = 'eWallet' | 'bankTransfer'
@@ -43,11 +45,15 @@ export interface PaymentValue {
 interface PaymentScreenProps {
   event?: PaymentEventDetails
   isProcessing?: boolean
+  isSavingPlan?: boolean
   items?: PaymentOrderItem[]
   onBack?: () => void
   onOpenCancellationPolicy?: () => void
   onOpenTerms?: () => void
   onPay?: (value: PaymentValue) => void
+  onReviewSavedPlan?: () => void
+  onSavePlan?: () => void
+  savedPlanReview?: SavedPlanReview
 }
 
 const defaultEvent: PaymentEventDetails = {
@@ -97,11 +103,15 @@ const formatCurrency = formatPeso
 export const PaymentScreen: React.FC<PaymentScreenProps> = ({
   event = defaultEvent,
   isProcessing = false,
+  isSavingPlan = false,
   items = defaultItems,
   onBack,
   onOpenCancellationPolicy,
   onOpenTerms,
   onPay,
+  onReviewSavedPlan,
+  onSavePlan,
+  savedPlanReview,
 }) => {
   const { width } = useWindowDimensions()
   const isWide = width >= 640
@@ -110,15 +120,27 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
   const [paymentMethod, setPaymentMethod] = React.useState<PaymentMethod>('eWallet')
   const [termsAccepted, setTermsAccepted] = React.useState(false)
   const [showTermsError, setShowTermsError] = React.useState(false)
+  const [isSavePlanConfirmationVisible, setIsSavePlanConfirmationVisible] = React.useState(false)
   const breakdown = calculatePaymentBreakdown(items)
   const commissionRates = Array.from(new Set(items.map((item) => item.commissionRate)))
   const feeLabel = commissionRates.length === 1
     ? `MULTIVENT Service Fee (${Math.round(commissionRates[0] * 100)}%)`
     : 'MULTIVENT Service Fee'
   const amountDue = breakdown.initialPayment
+  const needsSavedPlanReview = Boolean(
+    savedPlanReview?.hasPriceChanges || savedPlanReview?.hasUnavailableServices
+  )
+  const savedPlanDifference = savedPlanReview
+    ? Math.round((savedPlanReview.currentEstimatedTotal - savedPlanReview.savedEstimatedTotal) * 100) / 100
+    : 0
 
   const handlePay = () => {
     if (isProcessing) return
+
+    if (needsSavedPlanReview) {
+      onReviewSavedPlan?.()
+      return
+    }
 
     if (!termsAccepted) {
       setShowTermsError(true)
@@ -131,6 +153,12 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
       paymentType,
       termsAccepted,
     })
+  }
+
+  const confirmSavePlan = () => {
+    if (isSavingPlan) return
+    setIsSavePlanConfirmationVisible(false)
+    onSavePlan?.()
   }
 
   return (
@@ -154,6 +182,60 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
             <EventDetail label="TIME" value={event.time} />
             <EventDetail label="GUEST COUNT" value={`${event.guestCount} Guests`} />
           </View>
+
+          {savedPlanReview && (
+            <View
+              accessibilityRole="summary"
+              style={[
+                styles.savedPlanReviewCard,
+                needsSavedPlanReview && styles.savedPlanReviewCardAttention,
+              ]}
+            >
+              <MaterialCommunityIcons
+                color={needsSavedPlanReview ? palette.burgundy : '#2E7D57'}
+                name={needsSavedPlanReview ? 'alert-circle-outline' : 'check-circle-outline'}
+                size={23}
+              />
+              <View style={styles.savedPlanReviewCopy}>
+                <Text style={styles.savedPlanReviewTitle}>
+                  {savedPlanReview.hasUnavailableServices
+                    ? 'Service update needed'
+                    : savedPlanReview.hasPriceChanges
+                      ? 'Price Updated'
+                      : 'Saved plan rechecked'}
+                </Text>
+                <Text style={styles.savedPlanReviewText}>
+                  {savedPlanReview.hasUnavailableServices
+                    ? 'One or more saved services are no longer available. Review your selections before booking.'
+                    : savedPlanReview.hasPriceChanges
+                      ? `Your current estimate is ${savedPlanDifference > 0 ? `${formatCurrency(savedPlanDifference)} higher` : `${formatCurrency(Math.abs(savedPlanDifference))} lower`} than when you saved this plan.`
+                      : 'Current prices and availability match your saved estimate.'}
+                </Text>
+                {needsSavedPlanReview && savedPlanReview.items
+                  .filter((item) => !item.available || item.currentAmount === undefined || Math.abs(item.currentAmount - item.savedAmount) > 0.01)
+                  .map((item) => (
+                    <View key={item.serviceId} style={styles.savedPlanReviewItem}>
+                      <Text numberOfLines={1} style={styles.savedPlanReviewItemName}>{item.serviceName}</Text>
+                      <Text style={styles.savedPlanReviewItemDetail}>
+                        {!item.available
+                          ? 'Unavailable'
+                          : `${formatCurrency(item.savedAmount)} → ${formatCurrency(item.currentAmount ?? 0)}`}
+                      </Text>
+                    </View>
+                  ))}
+                {needsSavedPlanReview && (
+                  <Pressable
+                    accessibilityLabel="Review saved plan changes"
+                    accessibilityRole="button"
+                    onPress={onReviewSavedPlan}
+                    style={({ pressed }) => [styles.savedPlanReviewAction, pressed && styles.pressed]}
+                  >
+                    <Text style={styles.savedPlanReviewActionText}>Review Changes</Text>
+                  </Pressable>
+                )}
+              </View>
+            </View>
+          )}
 
           <View style={styles.summaryCard}>
             <Pressable
@@ -315,26 +397,80 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
               <Text style={styles.footerAmount}>{formatCurrency(amountDue)}</Text>
             </View>
           )}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ disabled: isProcessing }}
-            disabled={isProcessing}
-            onPress={handlePay}
-            style={({ pressed }) => [
-              styles.payButton,
-              isWide && styles.payButtonWide,
-              isProcessing && styles.payButtonDisabled,
-              pressed && styles.payButtonPressed,
-            ]}
-          >
-            <Text style={styles.payButtonText}>
-              {isProcessing
-                ? 'Finalizing booking...'
-                : `Pay 35% Downpayment · ${formatCurrency(amountDue)}`}
-            </Text>
-          </Pressable>
+          <View style={[styles.footerActions, isWide && styles.footerActionsWide]}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ disabled: isSavingPlan || isProcessing }}
+              disabled={isSavingPlan || isProcessing}
+              onPress={() => setIsSavePlanConfirmationVisible(true)}
+              style={({ pressed }) => [
+                styles.savePlanButton,
+                (isSavingPlan || isProcessing) && styles.savePlanButtonDisabled,
+                pressed && styles.savePlanButtonPressed,
+              ]}
+            >
+              <Text style={styles.savePlanButtonText}>
+                {isSavingPlan ? 'Saving plan...' : 'Save Plan for Later'}
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ disabled: isProcessing }}
+              disabled={isProcessing}
+              onPress={handlePay}
+              style={({ pressed }) => [
+                styles.payButton,
+                isProcessing && styles.payButtonDisabled,
+                pressed && styles.payButtonPressed,
+              ]}
+            >
+              <Text style={styles.payButtonText}>
+                {isProcessing
+                  ? 'Finalizing booking...'
+                  : needsSavedPlanReview
+                    ? 'Review Changes Before Payment'
+                    : `Pay 35% Downpayment · ${formatCurrency(amountDue)}`}
+              </Text>
+            </Pressable>
+          </View>
         </View>
       </View>
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setIsSavePlanConfirmationVisible(false)}
+        transparent
+        visible={isSavePlanConfirmationVisible}
+      >
+        <View style={styles.savePlanModalBackdrop}>
+          <View accessibilityViewIsModal style={styles.savePlanModalCard}>
+            <View style={styles.savePlanModalIcon}>
+              <MaterialCommunityIcons color={palette.burgundy} name="bookmark-outline" size={25} />
+            </View>
+            <Text style={styles.savePlanModalTitle}>Save Your Event Plan?</Text>
+            <Text style={styles.savePlanModalText}>
+              Your selected services and event details will be saved so you can return and book later. Service prices and availability may change before you complete your booking.
+            </Text>
+            <View style={styles.savePlanModalActions}>
+              <Pressable
+                accessibilityRole="button"
+                disabled={isSavingPlan}
+                onPress={() => setIsSavePlanConfirmationVisible(false)}
+                style={({ pressed }) => [styles.savePlanCancelButton, pressed && styles.pressed]}
+              >
+                <Text style={styles.savePlanCancelButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                disabled={isSavingPlan}
+                onPress={confirmSavePlan}
+                style={({ pressed }) => [styles.savePlanConfirmButton, pressed && styles.savePlanButtonPressed]}
+              >
+                <Text style={styles.savePlanConfirmButtonText}>Save Plan</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   )
 }
@@ -484,7 +620,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     paddingHorizontal: 20,
     paddingTop: 24,
-    paddingBottom: 152,
+    paddingBottom: 192,
   },
   section: { gap: 24, marginBottom: 72 },
   eventCard: {
@@ -496,6 +632,25 @@ const styles = StyleSheet.create({
     padding: 24,
     ...cardShadow,
   },
+  savedPlanReviewCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    borderWidth: 1,
+    borderColor: '#B7D9C6',
+    borderRadius: 12,
+    backgroundColor: '#F2FAF5',
+    padding: 16,
+  },
+  savedPlanReviewCardAttention: { borderColor: palette.outline, backgroundColor: '#FCF5F6' },
+  savedPlanReviewCopy: { flex: 1, minWidth: 0 },
+  savedPlanReviewTitle: { color: palette.text, fontSize: 16, lineHeight: 22, fontWeight: '700' },
+  savedPlanReviewText: { color: palette.muted, fontSize: 14, lineHeight: 20, marginTop: 3 },
+  savedPlanReviewItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, borderTopWidth: 1, borderTopColor: '#E7D7D9', paddingTop: 7, marginTop: 7 },
+  savedPlanReviewItemName: { flex: 1, color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '600' },
+  savedPlanReviewItemDetail: { color: palette.burgundy, fontSize: 12, lineHeight: 18, fontWeight: '700', textAlign: 'right' },
+  savedPlanReviewAction: { alignSelf: 'flex-start', paddingVertical: 8, marginTop: 6 },
+  savedPlanReviewActionText: { color: palette.burgundy, fontSize: 14, lineHeight: 20, fontWeight: '700' },
   eventDetail: { width: '50%', paddingRight: 12 },
   detailLabel: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 1.1, marginBottom: 4 },
   eventDetailValue: { color: palette.text, fontSize: 16, lineHeight: 24, fontWeight: '600' },
@@ -587,6 +742,8 @@ const styles = StyleSheet.create({
     elevation: 7,
   },
   footerContent: { width: '100%', maxWidth: 768, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 24 },
+  footerActions: { flex: 1, gap: 8 },
+  footerActionsWide: { flex: 0, width: 330 },
   footerLabel: { color: palette.muted, fontSize: 16, lineHeight: 22 },
   footerAmount: { color: palette.burgundy, fontSize: 24, lineHeight: 32, fontWeight: '700' },
   payButton: {
@@ -600,10 +757,53 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     ...cardShadow,
   },
-  payButtonWide: { flex: 0, width: 330 },
+  savePlanButton: {
+    minHeight: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: palette.burgundy,
+    borderRadius: 21,
+    backgroundColor: palette.surface,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+  },
+  savePlanButtonText: { color: palette.burgundy, fontSize: 14, lineHeight: 20, fontWeight: '700', textAlign: 'center' },
+  savePlanButtonDisabled: { opacity: 0.5 },
+  savePlanButtonPressed: { opacity: 0.86, transform: [{ scale: 0.98 }] },
   payButtonText: { color: palette.surface, fontSize: 18, lineHeight: 28, fontWeight: '700', textAlign: 'center' },
   payButtonDisabled: { opacity: 0.6 },
   payButtonPressed: { backgroundColor: '#7B2B3A', transform: [{ scale: 0.98 }] },
   cardPressed: { opacity: 0.88, transform: [{ scale: 0.99 }] },
   pressed: { opacity: 0.58 },
+  savePlanModalBackdrop: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(32, 17, 22, 0.54)',
+    padding: 24,
+  },
+  savePlanModalCard: {
+    width: '100%',
+    maxWidth: 420,
+    borderRadius: 18,
+    backgroundColor: palette.surface,
+    padding: 24,
+    ...cardShadow,
+  },
+  savePlanModalIcon: {
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 24,
+    backgroundColor: '#F4E7E9',
+  },
+  savePlanModalTitle: { color: palette.text, fontSize: 20, lineHeight: 28, fontWeight: '700', marginTop: 16 },
+  savePlanModalText: { color: palette.muted, fontSize: 15, lineHeight: 22, marginTop: 8 },
+  savePlanModalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 24 },
+  savePlanCancelButton: { minHeight: 42, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
+  savePlanCancelButtonText: { color: palette.burgundy, fontSize: 15, fontWeight: '700' },
+  savePlanConfirmButton: { minHeight: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 21, backgroundColor: palette.burgundy, paddingHorizontal: 18 },
+  savePlanConfirmButtonText: { color: palette.surface, fontSize: 15, fontWeight: '700' },
 })

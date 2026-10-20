@@ -35,13 +35,16 @@ import {
   activateBookingReplacement,
   calculateServiceQuote,
   ClientEventDraftSummary,
+  ClientSavedPlanSummary,
   createClientEventDraft,
   deleteClientEventDraft,
   fetchClientEventDrafts,
+  fetchClientSavedPlans,
   fetchClientPlanningState,
   removeCoordinatorFromEvent,
   removeServiceSelection,
   saveBudgetPlan,
+  saveBookingPlanForLater,
   saveEventFeedback,
   saveEventDraft,
   savePlanningPayment,
@@ -49,6 +52,8 @@ import {
   saveServiceSelection,
   setCategoryBudgetAllocation,
   resumeClientEventDraft,
+  resumeClientSavedPlan,
+  type SavedPlanReview,
 } from './lib/planning'
 import {
   getActivePlanningCategories,
@@ -652,6 +657,10 @@ export const App: React.FC = () => {
   const [maxPlanningStep, setMaxPlanningStep] = React.useState(1)
   const [clientEventDrafts, setClientEventDrafts] =
     React.useState<ClientEventDraftSummary[]>([])
+  const [clientSavedPlans, setClientSavedPlans] =
+    React.useState<ClientSavedPlanSummary[]>([])
+  const [savedPlanReview, setSavedPlanReview] = React.useState<SavedPlanReview>()
+  const [isSavingPlanForLater, setIsSavingPlanForLater] = React.useState(false)
   const [clientBookings, setClientBookings] = React.useState<BookingItem[]>([])
   const [merchantRequests, setMerchantRequests] = React.useState<MerchantBookingRequest[]>([])
   const [merchantServices, setMerchantServices] = React.useState<MerchantServiceListing[]>([])
@@ -1355,6 +1364,7 @@ export const App: React.FC = () => {
       planningState,
       categories,
       eventDrafts,
+      savedPlans,
     ] = await Promise.all([
       loadClientCatalogServices(),
       fetchClientBookings(),
@@ -1366,6 +1376,7 @@ export const App: React.FC = () => {
       fetchClientPlanningState(),
       fetchServiceCategories(),
       fetchClientEventDrafts(),
+      fetchClientSavedPlans(),
     ])
 
     setCatalogServices(services)
@@ -1401,6 +1412,7 @@ export const App: React.FC = () => {
     setCoordinatorPreferenceState(planningState.coordinatorPreference ?? 'undecided')
     setSelectedCoordinatorPackage(planningState.coordinatorPackage)
     setClientEventDrafts(eventDrafts)
+    setClientSavedPlans(savedPlans)
     setSelectedServices(planningState.selectedServices)
     setLastPayment(planningState.lastPayment)
     setMaxPlanningStep(planningState.maxPlanningStep ?? 1)
@@ -2473,6 +2485,7 @@ export const App: React.FC = () => {
     if (replacementBooking) {
       setToastMessage('Alternative selected. Confirm its schedule, then complete a separate payment request. The declined provider will not receive these funds.')
       await refreshLiveData()
+      await recheckSavedPlan()
       setScreen('instructionModule')
       return
     }
@@ -2481,6 +2494,7 @@ export const App: React.FC = () => {
       setChangingServiceSelection(undefined)
       setToastMessage('Selected service updated. Review the refreshed event plan before continuing.')
       await refreshLiveData()
+      await recheckSavedPlan()
       openPlanningHub(undefined, categoryNameToId(nextSelection.category))
       return
     }
@@ -2489,6 +2503,7 @@ export const App: React.FC = () => {
       ? 'Service added. Moving to your next allocated category.'
       : 'Service added. Your allocated service categories are ready to review.')
     await refreshLiveData()
+    await recheckSavedPlan()
     openPlanningHub(undefined, nextPlanningCategory ?? categoryNameToId(nextSelection.category))
   }
 
@@ -2556,6 +2571,7 @@ export const App: React.FC = () => {
       result.message ?? `${currentService.name} was selected. Their booking request will be sent after downpayment.`
     )
     await refreshLiveData()
+    await recheckSavedPlan()
     openPlanningHub(undefined, defaultPlanningCategory)
   }
 
@@ -2581,6 +2597,8 @@ export const App: React.FC = () => {
     setCoordinatorPreferenceState('undecided')
     setSelectedCoordinatorPackage(undefined)
     setToastMessage('Coordinator booking removed. You can choose another or continue without one.')
+    await refreshLiveData()
+    await recheckSavedPlan()
   }
 
   const handleRemoveSelection = async (service: SelectedSummaryService) => {
@@ -2604,6 +2622,7 @@ export const App: React.FC = () => {
     )
     setToastMessage(`${service.name} removed from your event plan.`)
     await refreshLiveData()
+    await recheckSavedPlan()
     setRemovingServiceId('')
   }
 
@@ -3095,6 +3114,7 @@ export const App: React.FC = () => {
     setCoordinatorPreferenceState('undecided')
     setSelectedCoordinatorPackage(undefined)
     setLastPayment(undefined)
+    setSavedPlanReview(undefined)
     setMaxPlanningStep(1)
     setServiceBrowseMode('planning')
     await refreshLiveData()
@@ -3110,6 +3130,7 @@ export const App: React.FC = () => {
     }
 
     eventDetailsDirtyRef.current = false
+    setSavedPlanReview(undefined)
     const planningState = await refreshLiveData()
     const nextStep = Math.max(1, planningState.maxPlanningStep ?? 1)
     setServiceBrowseMode('planning')
@@ -3144,6 +3165,62 @@ export const App: React.FC = () => {
     setScreen(nextStep >= 5 ? 'payment' : 'instructionModule')
   }
 
+  const resumeSavedPlan = async (savedPlanId: string) => {
+    const result = await resumeClientSavedPlan(savedPlanId)
+    if (!result.ok || !result.savedPlanReview) {
+      setToastMessage(result.message ?? 'Unable to resume this saved plan.')
+      return
+    }
+
+    eventDetailsDirtyRef.current = false
+    setSavedPlanReview(result.savedPlanReview)
+    await refreshLiveData()
+    setServiceBrowseMode('planning')
+    setScreen('payment')
+  }
+
+  const recheckSavedPlan = async () => {
+    if (!savedPlanReview?.eventId) return undefined
+    const result = await resumeClientSavedPlan(savedPlanReview.eventId)
+    if (result.ok && result.savedPlanReview) {
+      setSavedPlanReview(result.savedPlanReview)
+      return result.savedPlanReview
+    }
+    setToastMessage(result.message ?? 'Unable to recheck this saved plan.')
+    return undefined
+  }
+
+  const savePlanForLater = async () => {
+    if (isSavingPlanForLater) return
+    await runOnce('save-booking-plan-for-later', async () => {
+      setIsSavingPlanForLater(true)
+      try {
+        const result = await saveBookingPlanForLater()
+        if (!result.ok) {
+          setToastMessage(result.message ?? 'Unable to save this event plan.')
+          return
+        }
+
+        setSavedPlanReview(result.savedPlanReview)
+        await refreshLiveData()
+        setToastMessage('Event plan saved. No payment or provider booking request was created.')
+        setScreen('clientHome')
+      } finally {
+        setIsSavingPlanForLater(false)
+      }
+    })
+  }
+
+  const reviewSavedPlanChanges = () => {
+    const changedItem = savedPlanReview?.items.find((item) => (
+      !item.available
+      || item.currentAmount === undefined
+      || Math.abs(item.currentAmount - item.savedAmount) > 0.01
+    ))
+    const category = changedItem ? categoryNameToId(changedItem.category) : defaultPlanningCategory
+    openPlanningHub('forward', category)
+  }
+
   const deleteClientDraft = async (draftId: string) => {
     const result = await deleteClientEventDraft(draftId)
     if (!result.ok) {
@@ -3168,12 +3245,14 @@ export const App: React.FC = () => {
   const renderClientHome = () => (
     <ClientHomeScreen
       draftEvents={clientEventDrafts}
+      savedPlans={clientSavedPlans}
       bookingProgressEvents={clientBookingProgress}
       recommendations={homeRecommendations}
       userAvatarUrl={userAvatarUrl}
       userName={userName}
       selectedServiceCount={selectedServices.length}
       onOpenDraft={(draftId) => void resumeClientDraft(draftId)}
+      onOpenSavedPlan={(savedPlanId) => void resumeSavedPlan(savedPlanId)}
       onDeleteDraft={deleteClientDraft}
       onOpenBookingProgress={(booking) => {
         setSelectedBooking(booking)
@@ -4526,10 +4605,13 @@ export const App: React.FC = () => {
           <PaymentScreen
             event={paymentEvent}
             isProcessing={isFinalizingPayment}
+            isSavingPlan={isSavingPlanForLater}
             items={payableItems}
             onBack={() => setScreen('instructionModule')}
             onOpenCancellationPolicy={() => setScreen('payment')}
             onOpenTerms={() => setScreen('payment')}
+            onReviewSavedPlan={reviewSavedPlanChanges}
+            onSavePlan={() => void savePlanForLater()}
             onPay={(value) => {
               if (paymentSubmissionInFlight.current) return
 
@@ -4555,6 +4637,7 @@ export const App: React.FC = () => {
                   // block the receipt screen when an unrelated read fails.
                   setLastPayment(value)
                   setReplacementBooking(undefined)
+                  setSavedPlanReview(undefined)
                   setToastMessage(replacementBooking
                     ? 'Replacement payment recorded. The new provider has received a separate booking request.'
                     : 'Payment recorded. Booking requests were sent to your providers.')
@@ -4568,6 +4651,7 @@ export const App: React.FC = () => {
                 }
               })()
             }}
+            savedPlanReview={savedPlanReview}
           />
         )
       case 'confirmation':

@@ -12,9 +12,9 @@ import {
   View,
 } from 'react-native'
 import { ClientMainTab } from '../components/ClientBottomNavigation'
-import { formatServicePrice } from '../lib/catalog'
+import { formatPeso, formatServicePrice } from '../lib/catalog'
 import type { HomeServiceRecommendation } from '../lib/home-recommendations'
-import type { ClientEventDraftSummary } from '../lib/planning'
+import type { ClientEventDraftSummary, ClientSavedPlanSummary } from '../lib/planning'
 import type { BookingItem } from './11-BookingScreen'
 
 export type ClientHomeAction = 'newEvent' | 'vendors' | 'tasks'
@@ -32,6 +32,7 @@ export interface ClientBookingProgress {
 
 interface ClientHomeScreenProps {
   draftEvents?: ClientEventDraftSummary[]
+  savedPlans?: ClientSavedPlanSummary[]
   bookingProgressEvents?: ClientBookingProgress[]
   recommendations?: HomeServiceRecommendation[]
   selectedServiceCount?: number
@@ -41,6 +42,7 @@ interface ClientHomeScreenProps {
   onChangeSearch?: (value: string) => void
   onDeleteDraft?: (draftId: string) => Promise<boolean | void> | boolean | void
   onOpenDraft?: (draftId: string) => void
+  onOpenSavedPlan?: (savedPlanId: string) => void
   onOpenBookingProgress?: (booking: BookingItem) => void
   onStartNewEvent?: () => Promise<boolean | void> | boolean | void
   onOpenNotifications?: () => void
@@ -73,6 +75,16 @@ const getDaysLeft = (value: string, now = new Date()) => {
 
   if (Number.isNaN(eventDate.getTime())) return null
   return Math.ceil((eventDate.getTime() - today.getTime()) / 86_400_000)
+}
+
+const formatSavedAt = (value: string) => {
+  const savedAt = new Date(value)
+  if (Number.isNaN(savedAt.getTime())) return 'Recently saved'
+  return savedAt.toLocaleDateString('en-PH', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
 }
 
 export const getClientBookingProgress = (
@@ -128,10 +140,12 @@ export const getClientBookingProgress = (
 
 export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   draftEvents = [],
+  savedPlans = [],
   bookingProgressEvents = [],
   recommendations = [],
   onDeleteDraft,
   onOpenDraft,
+  onOpenSavedPlan,
   onOpenBookingProgress,
   onOpenNotifications,
   onOpenProfile,
@@ -148,11 +162,14 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   const [isDraftPromptVisible, setIsDraftPromptVisible] = React.useState(false)
   const [isStartingNewEvent, setIsStartingNewEvent] = React.useState(false)
   const [showAllDrafts, setShowAllDrafts] = React.useState(false)
+  const [showAllSavedPlans, setShowAllSavedPlans] = React.useState(false)
   const [showAllBookingProgress, setShowAllBookingProgress] = React.useState(false)
   const [draftPendingDeletion, setDraftPendingDeletion] = React.useState<ClientEventDraftSummary>()
   const [isDeletingDraft, setIsDeletingDraft] = React.useState(false)
   const visibleDrafts = showAllDrafts ? draftEvents : draftEvents.slice(0, 1)
+  const visibleSavedPlans = showAllSavedPlans ? savedPlans : savedPlans.slice(0, 1)
   const hasAdditionalDrafts = draftEvents.length > 1
+  const hasAdditionalSavedPlans = savedPlans.length > 1
   const visibleBookingProgress = showAllBookingProgress
     ? bookingProgressEvents
     : bookingProgressEvents.slice(0, 3)
@@ -372,6 +389,57 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
             </View>
           ) : null}
         </View>
+
+        {savedPlans.length > 0 && (
+          <View style={styles.referenceSection}>
+            <View style={styles.referenceSectionHeader}>
+              <View>
+                <Text style={styles.referenceSectionTitle}>SAVED PLANS</Text>
+                <Text style={styles.referenceSectionSubtitle}>Ready to review and book when you are</Text>
+              </View>
+              {hasAdditionalSavedPlans ? (
+                <Pressable
+                  accessibilityLabel={showAllSavedPlans ? 'Collapse saved plans' : 'Expand saved plans'}
+                  accessibilityRole="button"
+                  onPress={() => setShowAllSavedPlans((current) => !current)}
+                >
+                  <Text style={styles.exploreAll}>
+                    {showAllSavedPlans ? 'Show less' : `Show all (${savedPlans.length})`}
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
+            {visibleSavedPlans.map((savedPlan) => (
+              <Pressable
+                key={savedPlan.id}
+                accessibilityLabel={`Resume booking for saved plan ${savedPlan.name}`}
+                accessibilityRole="button"
+                onPress={() => onOpenSavedPlan?.(savedPlan.id)}
+                style={({ pressed }) => [styles.savedPlanCard, pressed && styles.referencePressed]}
+              >
+                <View style={styles.savedPlanHeading}>
+                  <View style={styles.savedPlanCopy}>
+                    <Text style={styles.savedPlanEyebrow}>SAVED FOR LATER</Text>
+                    <Text numberOfLines={1} style={styles.savedPlanName}>{savedPlan.name}</Text>
+                    <Text numberOfLines={1} style={styles.savedPlanDate}>
+                      {formatDraftDate(savedPlan.eventDate)} · Last saved {formatSavedAt(savedPlan.savedAt)}
+                    </Text>
+                  </View>
+                  <View style={styles.savedPlanEstimate}>
+                    <Text style={styles.savedPlanEstimateLabel}>ESTIMATE</Text>
+                    <Text style={styles.savedPlanEstimateValue}>{formatPeso(savedPlan.estimatedTotal)}</Text>
+                  </View>
+                </View>
+                <View style={styles.savedPlanFooter}>
+                  <Text style={styles.savedPlanServiceCount}>
+                    {savedPlan.selectedServiceCount} selected service{savedPlan.selectedServiceCount === 1 ? '' : 's'}
+                  </Text>
+                  <Text style={styles.savedPlanResume}>Resume Booking →</Text>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        )}
 
         <View style={styles.referenceSection}>
           <View style={styles.referenceSectionHeader}>
@@ -789,6 +857,29 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   draftCardGroup: { marginBottom: 10 },
+  savedPlanCard: {
+    borderWidth: 1,
+    borderColor: '#DCC4C9',
+    borderRadius: 9,
+    backgroundColor: '#FFFDFD',
+    padding: 12,
+    shadowColor: '#5B1B2C',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  savedPlanHeading: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
+  savedPlanCopy: { flex: 1, minWidth: 0 },
+  savedPlanEyebrow: { color: '#8A2944', fontSize: 10, lineHeight: 14, fontWeight: '700', letterSpacing: 0.7 },
+  savedPlanName: { color: '#241E1E', fontSize: 14, lineHeight: 19, fontWeight: '700', marginTop: 2 },
+  savedPlanDate: { color: '#7C7271', fontSize: 11, lineHeight: 16, marginTop: 2 },
+  savedPlanEstimate: { alignItems: 'flex-end' },
+  savedPlanEstimateLabel: { color: '#7C7271', fontSize: 9, lineHeight: 12, fontWeight: '700', letterSpacing: 0.5 },
+  savedPlanEstimateValue: { color: '#8A2944', fontSize: 13, lineHeight: 18, fontWeight: '700', marginTop: 1 },
+  savedPlanFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 12 },
+  savedPlanServiceCount: { flex: 1, color: '#7C7271', fontSize: 11, lineHeight: 16 },
+  savedPlanResume: { color: '#8A2944', fontSize: 12, lineHeight: 16, fontWeight: '700' },
   deleteDraftButton: {
     alignSelf: 'flex-end',
     flexDirection: 'row',

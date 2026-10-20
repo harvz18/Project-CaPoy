@@ -1344,6 +1344,72 @@ test('V9 Phase 8 completes allocated selections once and safely changes an unsub
   ], 'unsubmitted selection guard')
 })
 
+test('V9 Phase 9 saves complete unpaid plans and rechecks them before checkout', () => {
+  const migration = read('supabase/migrations/20261021000200_saved_booking_plans.sql')
+  const coordinatorSafety = read('supabase/migrations/20261021000300_saved_booking_plan_coordinator_safety.sql')
+  const reviewResolution = read('supabase/migrations/20261021000400_saved_booking_plan_review_resolution.sql')
+  const planning = read('src/lib/planning.ts')
+  const payment = read('src/screens/12-Payment.tsx')
+  const home = read('src/screens/03-ClientHome.tsx')
+  const app = read('src/App.tsx')
+
+  mustContain(migration, [
+    'saved_plan_at timestamptz',
+    'saved_plan_estimated_total numeric(12, 2)',
+    'saved_plan_selection_count integer',
+    'create or replace function public.review_my_saved_booking_plan',
+    'create or replace function public.save_my_booking_plan_for_later',
+    'calculate_catering_menu_quote',
+    'calculate_event_venue_quote_v8',
+    "selection.status = 'selected'",
+    'saved_plan_at = now()',
+    'grant execute on function public.review_my_saved_booking_plan(uuid) to authenticated',
+  ], 'V9 saved-plan persistence and review migration')
+  assert.doesNotMatch(
+    migration,
+    /insert\s+into\s+public\.(payments|bookings|notifications)/i,
+    'saving a plan must not create payment, booking, or provider-notification records'
+  )
+  mustContain(coordinatorSafety, [
+    'has_coordinator := coalesce(event_row.pending_coordinator_id, event_row.coordinator_id) is not null',
+    "coalesce(event_row.wants_coordinator, false)",
+    'saved_plan_selection_count',
+  ], 'V9 saved-plan legacy coordinator safety')
+  mustContain(reviewResolution, [
+    'rename to review_my_saved_booking_plan_v9_initial',
+    'has_unresolved_price_change',
+    "'{hasPriceChanges}'",
+    "item.value ->> 'currentAmount'",
+    "item.value ->> 'savedAmount'",
+  ], 'V9 saved-plan resolved-price safety')
+  mustContain(planning, [
+    'fetchClientSavedPlans',
+    ".is('saved_plan_at', null)",
+    "client.rpc('save_my_booking_plan_for_later'",
+    "client.rpc('review_my_saved_booking_plan'",
+    'savedPlanReviewFrom',
+  ], 'V9 client saved-plan data flow')
+  mustContain(payment, [
+    'Save Plan for Later',
+    'Save Your Event Plan?',
+    'Review Changes Before Payment',
+    'needsSavedPlanReview',
+    'Price Updated',
+  ], 'V9 payment saved-plan actions')
+  mustContain(home, [
+    'SAVED PLANS',
+    'Last saved',
+    'Resume Booking',
+    'savedPlans',
+  ], 'V9 saved-plan home shortcut')
+  mustContain(app, [
+    'savePlanForLater',
+    'resumeSavedPlan',
+    'reviewSavedPlanChanges',
+    'savedPlanReview={savedPlanReview}',
+  ], 'V9 saved-plan application orchestration')
+})
+
 test('venue marketplace visibility uses a capacity-compatible starting total without replacing the final quote', () => {
   const venueMarketplace = read('supabase/migrations/20261019000400_venue_marketplace_budget_visibility.sql')
   const browse = read('src/screens/06-CategoryBrowse.tsx')

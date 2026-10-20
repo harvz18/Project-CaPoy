@@ -49,6 +49,7 @@ type PlanningResult = {
   providerAmount?: number
   requiresConfirmation?: boolean
   replacedSelectionId?: string
+  savedPlanReview?: SavedPlanReview
   selectionId?: string
   status?: 'available' | 'conflict'
 }
@@ -156,6 +157,37 @@ export type ClientEventDraftSummary = {
   status: 'draft' | 'planning'
   totalSteps: number
   updatedAt: string
+}
+
+// A saved plan is intentionally kept on the same event and selection records
+// as an in-progress plan. The marker is metadata only: it never creates a
+// booking, payment, provider notification, or availability hold.
+export type ClientSavedPlanSummary = {
+  estimatedTotal: number
+  eventDate: string
+  id: string
+  name: string
+  savedAt: string
+  selectedServiceCount: number
+}
+
+export type SavedPlanReviewItem = {
+  available: boolean
+  category: string
+  currentAmount?: number
+  message?: string
+  savedAmount: number
+  serviceId: string
+  serviceName: string
+}
+
+export type SavedPlanReview = {
+  currentEstimatedTotal: number
+  eventId: string
+  hasPriceChanges: boolean
+  hasUnavailableServices: boolean
+  items: SavedPlanReviewItem[]
+  savedEstimatedTotal: number
 }
 
 let activePlanningEventId = ''
@@ -401,6 +433,7 @@ export const fetchClientEventDrafts = async (): Promise<ClientEventDraftSummary[
     .select('id, name, event_date, venue, location, status, total_budget, planning_step, updated_at, event_service_selections(status)')
     .eq('client_id', userId)
     .in('status', ['draft', 'planning'])
+    .is('saved_plan_at', null)
     .order('updated_at', { ascending: false })
 
   if (error || !Array.isArray(data)) return []
@@ -411,6 +444,138 @@ export const fetchClientEventDrafts = async (): Promise<ClientEventDraftSummary[
       : []
     return [getDraftStepSummary({ ...event, event_service_selections: selections })]
   })
+}
+
+export const fetchClientSavedPlans = async (): Promise<ClientSavedPlanSummary[]> => {
+  const client = getClient()
+  const userId = await getCurrentUserId()
+  if (!client || !userId) return []
+
+  const { data, error } = await client
+    .from('events')
+    .select(
+      'id, name, event_date, saved_plan_at, saved_plan_estimated_total, saved_plan_selection_count, event_service_selections(estimated_amount, status)'
+    )
+    .eq('client_id', userId)
+    .in('status', ['draft', 'planning'])
+    .not('saved_plan_at', 'is', null)
+    .order('saved_plan_at', { ascending: false })
+
+  if (error || !Array.isArray(data)) return []
+  return data.flatMap((event) => {
+    if (!event?.id || !event.saved_plan_at) return []
+    const selections = Array.isArray(event.event_service_selections)
+      ? event.event_service_selections
+      : []
+    const selectedServiceCount = Number(event.saved_plan_selection_count ?? selections.filter(
+      (selection) => selection.status === 'selected'
+    ).length)
+    const selectionEstimate = selections.reduce(
+      (total, selection) => total + Number(selection.estimated_amount ?? 0),
+      0
+    )
+
+    return [{
+      estimatedTotal: Math.max(0, Number(event.saved_plan_estimated_total ?? selectionEstimate)),
+      eventDate: String(event.event_date ?? ''),
+      id: String(event.id),
+      name: eventDisplayName(event.name),
+      savedAt: String(event.saved_plan_at),
+      selectedServiceCount: Math.max(0, selectedServiceCount),
+    }]
+  })
+}
+
+const savedPlanReviewFrom = (value: unknown): SavedPlanReview | undefined => {
+  if (!value || typeof value !== 'object') return undefined
+  const record = value as Record<string, unknown>
+  const items = Array.isArray(record.items)
+    ? record.items.flatMap((item): SavedPlanReviewItem[] => {
+        if (!item || typeof item !== 'object') return []
+        const row = item as Record<string, unknown>
+        const serviceId = typeof row.serviceId === 'string' ? row.serviceId : ''
+        if (!serviceId) return []
+        const currentAmount = Number(row.currentAmount)
+        return [{
+          available: row.available !== false,
+          category: typeof row.category === 'string' ? row.category : 'Service',
+          currentAmount: Number.isFinite(currentAmount) ? currentAmount : undefined,
+          message: typeof row.message === 'string' ? row.message : undefined,
+          savedAmount: Math.max(0, Number(row.savedAmount ?? 0)),
+          serviceId,
+          serviceName: typeof row.serviceName === 'string' ? row.serviceName : 'Selected service',
+        }]
+      })
+    : []
+  const eventId = typeof record.eventId === 'string' ? record.eventId : ''
+  if (!eventId) return undefined
+
+  return {
+    currentEstimatedTotal: Math.max(0, Number(record.currentEstimatedTotal ?? 0)),
+    eventId,
+    hasPriceChanges: record.hasPriceChanges === true,
+    hasUnavailableServices: record.hasUnavailableServices === true,
+    items,
+    savedEstimatedTotal: Math.max(0, Number(record.savedEstimatedTotal ?? 0)),
+  }
+}
+
+export const resumeClientSavedPlan = async (eventId: string): Promise<PlanningResult> => {
+  try {
+    const client = getClient()
+    const userId = await getCurrentUserId()
+    if (!client || !userId || !isUuid(eventId)) {
+      return { ok: false, message: 'This saved plan is no longer available.' }
+    }
+
+    const { data, error } = await client.rpc('review_my_saved_booking_plan', {
+      target_event_id: eventId,
+    })
+    if (error) {
+      return {
+        ok: false,
+        message: error.message.toLowerCase().includes('review_my_saved_booking_plan')
+          ? 'Saved plans need a database update. Apply the V9 Phase 9 migration, then try again.'
+          : error.message,
+      }
+    }
+
+    const savedPlanReview = savedPlanReviewFrom(data)
+    if (!savedPlanReview) {
+      return { ok: false, message: 'Unable to recheck this saved plan.' }
+    }
+    activePlanningEventId = eventId
+    return { ok: true, savedPlanReview }
+  } catch (error) {
+    return { ok: false, message: toMessage(error) }
+  }
+}
+
+export const saveBookingPlanForLater = async (): Promise<PlanningResult> => {
+  try {
+    const client = getClient()
+    const event = await ensureDraftEvent()
+    if (!client || !event) {
+      return { ok: false, message: 'Unable to load this event plan.' }
+    }
+
+    const { data, error } = await client.rpc('save_my_booking_plan_for_later', {
+      target_event_id: event.eventId,
+    })
+    if (error) {
+      return {
+        ok: false,
+        message: error.message.toLowerCase().includes('save_my_booking_plan_for_later')
+          ? 'Saved plans need a database update. Apply the V9 Phase 9 migration, then try again.'
+          : error.message,
+      }
+    }
+
+    const savedPlanReview = savedPlanReviewFrom(data)
+    return { ok: true, savedPlanReview }
+  } catch (error) {
+    return { ok: false, message: toMessage(error) }
+  }
 }
 
 const paymentMethodFrom = (value: unknown): 'bankTransfer' | 'eWallet' => {
@@ -442,6 +607,7 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
         .select(eventSelection)
         .eq('client_id', userId)
         .in('status', ['draft', 'planning'])
+        .is('saved_plan_at', null)
         .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle()
@@ -897,6 +1063,7 @@ const ensureDraftEvent = async (
         .select('id')
         .eq('client_id', userId)
         .in('status', ['draft', 'planning'])
+        .is('saved_plan_at', null)
         .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle()
@@ -965,6 +1132,7 @@ export const resumeClientEventDraft = async (eventId: string): Promise<PlanningR
       .eq('id', eventId)
       .eq('client_id', userId)
       .in('status', ['draft', 'planning'])
+      .is('saved_plan_at', null)
       .maybeSingle()
     if (error) return { ok: false, message: error.message }
     if (!data?.id) return { ok: false, message: 'This event draft can no longer be resumed.' }
@@ -994,6 +1162,7 @@ export const deleteClientEventDraft = async (eventId: string): Promise<PlanningR
       .eq('id', eventId)
       .eq('client_id', userId)
       .in('status', ['draft', 'planning'])
+      .is('saved_plan_at', null)
       .select('id')
       .maybeSingle()
 
@@ -1043,6 +1212,7 @@ export const closeCurrentEventDraft = async (): Promise<PlanningResult> => {
       .select('id, coordinator_id, pending_coordinator_id')
       .eq('client_id', userId)
       .in('status', ['draft', 'planning'])
+      .is('saved_plan_at', null)
       .order('updated_at', { ascending: false })
 
     if (loadError) {
