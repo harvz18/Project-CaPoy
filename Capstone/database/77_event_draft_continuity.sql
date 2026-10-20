@@ -4,41 +4,16 @@
 begin;
 
 alter table public.events
-  add column if not exists planning_step smallint,
+  add column if not exists planning_step smallint not null default 1,
   add column if not exists venue_latitude numeric(9, 6),
   add column if not exists venue_longitude numeric(9, 6),
   add column if not exists wedding_themes jsonb not null default '[]'::jsonb;
 
--- Preserve an accurate resume point for existing drafts before making the
--- field mandatory. New records begin on the basics screen.
-update public.events event
-set planning_step = case
-  when exists (
-    select 1
-    from public.payments payment
-    where payment.event_id = event.id
-      and payment.status in ('paid', 'verified')
-  ) then 5
-  when exists (
-    select 1
-    from public.event_schedule_checks schedule_check
-    where schedule_check.event_id = event.id
-      and schedule_check.checked_at is not null
-  ) then 4
-  when exists (
-    select 1
-    from public.event_service_selections selection
-    where selection.event_id = event.id
-      and coalesce(selection.status, '') not in ('declined', 'cancelled')
-  ) or coalesce(event.total_budget, 0) > 0 then 3
-  when event.event_date is not null then 2
-  else 1
-end
-where event.planning_step is null;
+-- Existing drafts retain their established inferred resume step from saved
+-- budget, selection, schedule, and payment data. Avoiding a historical update
+-- prevents unrelated legacy consistency triggers from touching old events.
 
 alter table public.events
-  alter column planning_step set default 1,
-  alter column planning_step set not null,
   drop constraint if exists events_planning_step_check,
   add constraint events_planning_step_check
     check (planning_step between 1 and 5),
