@@ -464,8 +464,8 @@ const confirmDestructiveAction = (title: string, message: string, actionLabel: s
   })
 }
 
-const confirmReplacement = (title: string, message: string) =>
-  confirmDestructiveAction(title, message, 'Replace')
+const confirmServiceChange = (message: string) =>
+  confirmDestructiveAction('Change Selected Service?', message, 'Confirm Change')
 
 const outcomeMessageForCompletionPayment = (
   type: ProviderCompletionPaymentValue['type'],
@@ -633,6 +633,8 @@ export const App: React.FC = () => {
     React.useState<ServiceReviewInsights>()
   const [serviceReviewInsightsLoading, setServiceReviewInsightsLoading] = React.useState(false)
   const [selectedServices, setSelectedServices] = React.useState<SelectedSummaryService[]>([])
+  const [changingServiceSelection, setChangingServiceSelection] = React.useState<SelectedSummaryService>()
+  const [selectionCompletionAcknowledged, setSelectionCompletionAcknowledged] = React.useState(false)
   const [assignedCoordinator, setAssignedCoordinator] =
     React.useState<AssignedCoordinatorSummary>()
   const [coordinatorAssignmentStatus, setCoordinatorAssignmentStatus] = React.useState<
@@ -1133,17 +1135,24 @@ export const App: React.FC = () => {
     totalBudget - allocatedBudgetTotal + selectedCategoryBudget
   )
   const selectedPlanningCategoryIds = React.useMemo(
-    () => new Set(selectedServices.map((service) => categoryNameToId(service.category))),
+    () => new Set(selectedServices
+      .filter((service) => !['cancelled', 'deleted', 'rejected', 'removed'].includes(service.status.trim().toLowerCase()))
+      .map((service) => categoryNameToId(service.category))),
     [selectedServices]
   )
   const activeServicePlanningCategories = React.useMemo(
     () => activePlanningCategories.filter((category) => category.categoryId !== 'eventOrganizers'),
     [activePlanningCategories]
   )
-  const planningSelectionsComplete = activeServicePlanningCategories.length > 0
-    && activeServicePlanningCategories.every((category) =>
-      selectedPlanningCategoryIds.has(category.categoryId)
-    )
+  const requiresCoordinatorSelection = eventDetails.wantsCoordinator === true && hasEventOrganizerBudget
+  const planningSelectionsComplete = (
+    activeServicePlanningCategories.length > 0 || requiresCoordinatorSelection
+  ) && activeServicePlanningCategories.every((category) =>
+    selectedPlanningCategoryIds.has(category.categoryId)
+  ) && (!requiresCoordinatorSelection || Boolean(assignedCoordinator))
+  React.useEffect(() => {
+    if (!planningSelectionsComplete) setSelectionCompletionAcknowledged(false)
+  }, [planningSelectionsComplete])
   const categoryBudgetLocked = selectedServices.some(
     (service) => service.category.toLowerCase() === catalogCategoryName(selectedCategory).toLowerCase()
   ) || (selectedCategory === 'eventOrganizers' && Boolean(assignedCoordinator))
@@ -2349,6 +2358,17 @@ export const App: React.FC = () => {
     )
   }, [clientBookings])
 
+  const handleChangeService = (service: SelectedSummaryService) => {
+    if (service.status.trim().toLowerCase() !== 'selected') {
+      setToastMessage('Only an unsubmitted service selection can be changed here.')
+      return
+    }
+    setChangingServiceSelection(service)
+    setServiceBrowseMode('planning')
+    setCurrentServiceId('')
+    openPlanningHub('forward', categoryNameToId(service.category))
+  }
+
   const handleAddSelection = async (value: Parameters<typeof saveServiceSelection>[0]) => {
     if (!supabase) {
       setToastMessage('Supabase is not configured. Check the app environment settings.')
@@ -2366,14 +2386,19 @@ export const App: React.FC = () => {
       return
     }
 
-    const existingCategorySelection = selectedServices.find((service) =>
+    const existingCategorySelection = changingServiceSelection ?? selectedServices.find((service) =>
       service.category.toLowerCase() === value.service.categoryName.toLowerCase()
         && service.id !== value.service.id
     )
-    if (existingCategorySelection) {
-      const confirmed = await confirmReplacement(
-        `Replace selected ${value.service.categoryName}?`,
-        `${existingCategorySelection.name} will be replaced by ${value.service.name}.`
+    if (existingCategorySelection && existingCategorySelection.id !== value.service.id) {
+      const difference = Math.round((value.estimatedTotal - existingCategorySelection.price) * 100) / 100
+      const priceDifference = difference === 0
+        ? 'No price difference'
+        : difference > 0
+          ? `${formatPeso(difference)} Higher`
+          : `${formatPeso(Math.abs(difference))} Lower`
+      const confirmed = await confirmServiceChange(
+        `Current Service:\n${existingCategorySelection.name}\n${formatPeso(existingCategorySelection.price)}\n\nNew Service:\n${value.service.name}\n${formatPeso(value.estimatedTotal)}\n\nPrice Difference:\n${priceDifference}`
       )
       if (!confirmed) return
     }
@@ -2449,6 +2474,14 @@ export const App: React.FC = () => {
       setToastMessage('Alternative selected. Confirm its schedule, then complete a separate payment request. The declined provider will not receive these funds.')
       await refreshLiveData()
       setScreen('instructionModule')
+      return
+    }
+
+    if (changingServiceSelection) {
+      setChangingServiceSelection(undefined)
+      setToastMessage('Selected service updated. Review the refreshed event plan before continuing.')
+      await refreshLiveData()
+      openPlanningHub(undefined, categoryNameToId(nextSelection.category))
       return
     }
 
@@ -4133,14 +4166,25 @@ export const App: React.FC = () => {
               serviceBrowseMode === 'planning' ? planningCatalogServices : catalogServices
             }
             categoryBudgets={planningCategoryBudgets}
-            categories={serviceBrowseMode === 'planning' ? planningServiceCategories : serviceCategories}
+            categories={serviceBrowseMode === 'planning'
+              ? changingServiceSelection
+                ? planningServiceCategories.filter((category) => (
+                    categoryNameToId(category.name) === categoryNameToId(changingServiceSelection.category)
+                  ))
+                : planningServiceCategories
+              : serviceCategories}
             categoryName={catalogCategoryName(selectedCategory)}
               eventGuestCount={eventDetails.guestCount}
             mode={serviceBrowseMode}
             services={(serviceBrowseMode === 'explore' ? catalogServices : visibleCatalogServices).filter(
-              (service) => !replacementBooking || (
-                service.categoryName.toLowerCase() === replacementBooking.category.toLowerCase()
-                && service.id !== replacementBooking.serviceId
+              (service) => (
+                (!replacementBooking || (
+                  service.categoryName.toLowerCase() === replacementBooking.category.toLowerCase()
+                  && service.id !== replacementBooking.serviceId
+                )) && (!changingServiceSelection || (
+                  service.categoryName.toLowerCase() === changingServiceSelection.category.toLowerCase()
+                  && service.id !== changingServiceSelection.id
+                ))
               )
             )}
             hasBudget={totalBudget > 0}
@@ -4158,6 +4202,13 @@ export const App: React.FC = () => {
             remainingBudget={unallocatedPlanBudget}
             unallocatedCategoryCount={unallocatedPlanningCategoryCount}
             planningSelectionsComplete={planningSelectionsComplete}
+            showSelectionCompletionModal={planningSelectionsComplete && !selectionCompletionAcknowledged}
+            changeServiceContext={changingServiceSelection ? {
+              category: changingServiceSelection.category,
+              currentAmount: changingServiceSelection.price,
+              serviceId: changingServiceSelection.id,
+              serviceName: changingServiceSelection.name,
+            } : undefined}
             replacementContext={replacementBooking ? {
               baselineAmount: replacementBooking.baselineAmount,
               currentProviderName: replacementBooking.providerName,
@@ -4165,6 +4216,7 @@ export const App: React.FC = () => {
             } : undefined}
             showBottomNavigation={false}
             onBack={() => {
+              if (changingServiceSelection) setChangingServiceSelection(undefined)
               if (serviceBrowseMode === 'planning') openBudgetAllocationFromServices()
               else setScreen('clientHome')
             }}
@@ -4208,6 +4260,8 @@ export const App: React.FC = () => {
             }}
             onRemoveCoordinator={() => void handleRemoveCoordinator()}
             onRemoveService={handleRemoveSelection}
+            onChangeService={handleChangeService}
+            onSelectionCompletionDismissed={() => setSelectionCompletionAcknowledged(true)}
             onSelectService={(serviceId) => {
               setToastMessage('')
               setCurrentServiceId(serviceId)

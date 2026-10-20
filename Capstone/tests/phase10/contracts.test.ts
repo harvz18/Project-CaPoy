@@ -1306,6 +1306,44 @@ test('V9 Phase 7 keeps historical packages while presenting coordinator-led prof
   assert.doesNotMatch(workspace, /Manage coordinator packages|onOpenPackages/)
 })
 
+test('V9 Phase 8 completes allocated selections once and safely changes an unsubmitted service', () => {
+  const app = read('src/App.tsx')
+  const browse = read('src/screens/06-CategoryBrowse.tsx')
+  const details = read('src/screens/08-ServiceDetails.tsx')
+  const planning = read('src/lib/planning.ts')
+
+  mustContain(app, [
+    'const requiresCoordinatorSelection = eventDetails.wantsCoordinator === true && hasEventOrganizerBudget',
+    '(!requiresCoordinatorSelection || Boolean(assignedCoordinator))',
+    'selectionCompletionAcknowledged',
+    'setSelectionCompletionAcknowledged(false)',
+    'setChangingServiceSelection(service)',
+    "'Change Selected Service?'",
+    'Current Service:',
+    'New Service:',
+    'Price Difference:',
+    'value.estimatedTotal',
+    'Confirm Change',
+  ], 'V9 selection completion and replacement orchestration')
+  mustContain(browse, [
+    'showSelectionCompletionModal',
+    "You're All Set!",
+    'Review Selected Services',
+    'revealSelectedServicesAfterCompletion',
+    'Change Service',
+    'changeServiceContext',
+  ], 'V9 marketplace completion and change-service UI')
+  mustContain(details, [
+    'authoritativeQuoteUnavailable',
+    'estimatedTotal,',
+    'onAddSelection',
+  ], 'authoritative configured service quote before replacement confirmation')
+  mustContain(planning, [
+    "current.status !== 'selected'",
+    'Only an unsubmitted service selection can be changed.',
+  ], 'unsubmitted selection guard')
+})
+
 test('venue marketplace visibility uses a capacity-compatible starting total without replacing the final quote', () => {
   const venueMarketplace = read('supabase/migrations/20261019000400_venue_marketplace_budget_visibility.sql')
   const browse = read('src/screens/06-CategoryBrowse.tsx')

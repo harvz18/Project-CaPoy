@@ -58,6 +58,13 @@ interface CategoryBrowseScreenProps {
   remainingBudget?: number
   unallocatedCategoryCount?: number
   planningSelectionsComplete?: boolean
+  showSelectionCompletionModal?: boolean
+  changeServiceContext?: {
+    category: string
+    currentAmount: number
+    serviceId: string
+    serviceName: string
+  }
   replacementContext?: {
     baselineAmount: number
     currentProviderName: string
@@ -69,11 +76,13 @@ interface CategoryBrowseScreenProps {
   onBack?: () => void
   onChangeSearch?: (value: string) => void
   onCategoryBudgetChange?: (amount: number) => Promise<boolean> | boolean
+  onChangeService?: (service: SelectedSummaryService) => void
   onContinueSelectedServices?: () => void
   onAddCategory?: () => void
   onAddService?: () => void
   onRemoveCoordinator?: () => void
   onRemoveService?: (service: SelectedSummaryService) => void
+  onSelectionCompletionDismissed?: () => void
   onSelectService?: (serviceId: string) => void
   onOpenSort?: () => void
   onConfirmReplacement?: (vendorId: string) => boolean | Promise<boolean>
@@ -155,6 +164,8 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   remainingBudget = 45000,
   unallocatedCategoryCount = 0,
   planningSelectionsComplete = false,
+  showSelectionCompletionModal = false,
+  changeServiceContext,
   replacementContext,
   showBottomNavigation = true,
   searchValue,
@@ -162,11 +173,13 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   onBack,
   onChangeSearch,
   onCategoryBudgetChange,
+  onChangeService,
   onContinueSelectedServices,
   onAddCategory,
   onAddService,
   onRemoveCoordinator,
   onRemoveService,
+  onSelectionCompletionDismissed,
   onSelectService,
   onOpenSort,
   onConfirmReplacement,
@@ -178,10 +191,13 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   const { width } = useWindowDimensions()
   const isWide = width >= 768
   const isExploreMode = mode === 'explore'
+  const isChangingService = Boolean(changeServiceContext)
   const hasSetBudget = hasBudget ?? remainingBudget > 0
   const hasPlanSelections = selectedServiceCount > 0
     || Boolean(assignedCoordinator)
     || coordinatorAssignmentStatus === 'awaiting_assignment'
+  const hasReviewableSelections = selectedServiceCount > 0 || Boolean(assignedCoordinator)
+  const selectedPlanItemCount = selectedServiceCount + (assignedCoordinator ? 1 : 0)
   const useHorizontalCards = width >= 640
   const [internalSearch, setInternalSearch] = React.useState('')
   const [selectedFilters, setSelectedFilters] = React.useState<Set<CategoryBrowseFilter>>(
@@ -664,6 +680,11 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     })
   }
 
+  const revealSelectedServicesAfterCompletion = () => {
+    onSelectionCompletionDismissed?.()
+    setIsSelectedServicesOpen(true)
+  }
+
   return (
     <View style={styles.screen}>
       {isExploreMode ? (
@@ -677,14 +698,14 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
       ) : (
         <PlanningScreenHeader
           currentStep={replacementContext ? 4 : 3}
-          label={replacementContext ? 'Replace Provider' : 'Choose Services'}
+          label={replacementContext ? 'Replace Provider' : isChangingService ? 'Change Service' : 'Choose Services'}
           nextAccessibilityLabel="Review selected services"
-          nextEnabled={!replacementContext && selectedServiceCount > 0}
+          nextEnabled={!replacementContext && !isChangingService && hasReviewableSelections}
           onBack={onBack}
           onNext={
-            replacementContext ? undefined : () => setIsSelectedServicesOpen(true)
+            replacementContext || isChangingService ? undefined : () => setIsSelectedServicesOpen(true)
           }
-          title={replacementContext ? 'Change Provider' : 'Choose Services'}
+          title={replacementContext ? 'Change Provider' : isChangingService ? 'Change Service' : 'Choose Services'}
         />
       )}
 
@@ -692,7 +713,8 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
         contentContainerStyle={[
           styles.content,
           !isExploreMode &&
-            !replacementContext &&
+          !replacementContext &&
+            !isChangingService &&
             hasPlanSelections &&
             styles.contentWithSelectedServicesAction,
           isWide ? styles.horizontalPaddingWide : styles.horizontalPaddingMobile,
@@ -707,6 +729,14 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
             <Text style={styles.replacementCopy}>
               Choose a replacement for {replacementContext.currentProviderName}. Your schedule
               will be checked again automatically.
+            </Text>
+          </View>
+        ) : changeServiceContext ? (
+          <View style={styles.replacementBanner}>
+            <Text style={styles.replacementEyebrow}>CHANGING SELECTED SERVICE</Text>
+            <Text style={styles.replacementTitle}>{changeServiceContext.serviceName}</Text>
+            <Text style={styles.replacementCopy}>
+              Your current selection of {formatCurrency(changeServiceContext.currentAmount)} stays in place while you compare alternatives.
             </Text>
           </View>
         ) : !isExploreMode ? (
@@ -726,7 +756,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
           </View>
         ) : null}
 
-        {!isExploreMode && !replacementContext && hasSetBudget && unallocatedCategoryCount > 0 ? (
+        {!isExploreMode && !replacementContext && !isChangingService && hasSetBudget && unallocatedCategoryCount > 0 ? (
           <View style={styles.unallocatedBudgetCard}>
             <View style={styles.unallocatedBudgetCopy}>
               <Text style={styles.unallocatedBudgetTitle}>
@@ -751,7 +781,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
           </View>
         ) : null}
 
-        {!isExploreMode && !replacementContext && planningSelectionsComplete ? (
+        {!isExploreMode && !replacementContext && !isChangingService && planningSelectionsComplete ? (
           <View style={styles.planningCompleteCard}>
             <Text style={styles.planningCompleteTitle}>Allocated categories complete</Text>
             <Text style={styles.planningCompleteText}>
@@ -1317,10 +1347,10 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
         </View>
       </Modal>
 
-      {!isExploreMode && !replacementContext && hasPlanSelections ? (
+      {!isExploreMode && !replacementContext && !isChangingService && hasPlanSelections ? (
         <View style={styles.selectedServicesBar}>
           <Pressable
-            accessibilityLabel={`Open event plan. ${selectedServiceCount} services selected`}
+            accessibilityLabel={`Open event plan. ${selectedPlanItemCount} selections`}
             accessibilityRole="button"
             onPress={() => setIsSelectedServicesOpen(true)}
             style={({ pressed }) => [
@@ -1335,11 +1365,48 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
               </Text>
             </View>
             <View style={styles.selectedServicesCount}>
-              <Text style={styles.selectedServicesCountText}>{selectedServiceCount}</Text>
+              <Text style={styles.selectedServicesCountText}>{selectedPlanItemCount}</Text>
             </View>
           </Pressable>
         </View>
       ) : null}
+
+      <Modal
+        animationType="fade"
+        onRequestClose={revealSelectedServicesAfterCompletion}
+        transparent
+        visible={!isExploreMode && !replacementContext && !isChangingService && showSelectionCompletionModal}
+      >
+        <View style={styles.completionOverlay}>
+          <View accessibilityViewIsModal style={styles.completionModalCard}>
+            <View style={styles.completionIcon}>
+              <MaterialCommunityIcons color={palette.onPrimary} name="check" size={27} />
+            </View>
+            <Text style={styles.completionModalTitle}>You're All Set!</Text>
+            <Text style={styles.completionModalCopy}>
+              You've selected services for every allocated category. Review your selections before continuing.
+            </Text>
+            <View style={styles.completionModalActions}>
+              <Pressable
+                accessibilityLabel="Review selected services"
+                accessibilityRole="button"
+                onPress={revealSelectedServicesAfterCompletion}
+                style={({ pressed }) => [styles.completionReviewButton, pressed && styles.pressed]}
+              >
+                <Text style={styles.completionReviewButtonText}>Review Selected Services</Text>
+              </Pressable>
+              <Pressable
+                accessibilityLabel="Continue to selected services"
+                accessibilityRole="button"
+                onPress={revealSelectedServicesAfterCompletion}
+                style={({ pressed }) => [styles.completionContinueButton, pressed && styles.pressed]}
+              >
+                <Text style={styles.completionContinueButtonText}>Continue</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         animationType="fade"
@@ -1486,28 +1553,44 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                     <Text style={styles.selectedServiceDetail}>{service.detail}</Text>
                   </View>
                   {service.status === 'Selected' ? (
-                    <Pressable
-                      accessibilityLabel={`Remove ${service.name} from selected services`}
-                      accessibilityRole="button"
-                      accessibilityState={{ disabled: removingServiceId === service.id }}
-                      disabled={removingServiceId === service.id}
-                      hitSlop={8}
-                      onPress={(event) => {
-                        event.stopPropagation()
-                        onRemoveService?.(service)
-                      }}
-                      style={({ pressed }) => [
-                        styles.reviewRemoveButton,
-                        removingServiceId === service.id && styles.reviewRemoveButtonDisabled,
-                        pressed && styles.pressed,
-                      ]}
-                    >
-                      <MaterialCommunityIcons
-                        color={palette.primaryContainer}
-                        name={removingServiceId === service.id ? 'progress-clock' : 'trash-can-outline'}
-                        size={18}
-                      />
-                    </Pressable>
+                    <View style={styles.reviewServiceActions}>
+                      <Pressable
+                        accessibilityLabel={`Change ${service.name}`}
+                        accessibilityRole="button"
+                        hitSlop={8}
+                        onPress={(event) => {
+                          event.stopPropagation()
+                          closeSelectedServices()
+                          onChangeService?.(service)
+                        }}
+                        style={({ pressed }) => [styles.reviewChangeButton, pressed && styles.pressed]}
+                      >
+                        <MaterialCommunityIcons color={palette.primaryContainer} name="swap-horizontal" size={17} />
+                        <Text style={styles.reviewChangeButtonText}>Change Service</Text>
+                      </Pressable>
+                      <Pressable
+                        accessibilityLabel={`Remove ${service.name} from selected services`}
+                        accessibilityRole="button"
+                        accessibilityState={{ disabled: removingServiceId === service.id }}
+                        disabled={removingServiceId === service.id}
+                        hitSlop={8}
+                        onPress={(event) => {
+                          event.stopPropagation()
+                          onRemoveService?.(service)
+                        }}
+                        style={({ pressed }) => [
+                          styles.reviewRemoveButton,
+                          removingServiceId === service.id && styles.reviewRemoveButtonDisabled,
+                          pressed && styles.pressed,
+                        ]}
+                      >
+                        <MaterialCommunityIcons
+                          color={palette.primaryContainer}
+                          name={removingServiceId === service.id ? 'progress-clock' : 'trash-can-outline'}
+                          size={18}
+                        />
+                      </Pressable>
+                    </View>
                   ) : null}
                   <Text style={styles.selectedServicePrice}>
                     {formatCurrency(service.price)}
@@ -1532,15 +1615,15 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
             <Pressable
               accessibilityLabel="Continue with selected services"
               accessibilityRole="button"
-              accessibilityState={{ disabled: selectedServices.length === 0 }}
-              disabled={selectedServices.length === 0}
+              accessibilityState={{ disabled: !hasReviewableSelections }}
+              disabled={!hasReviewableSelections}
               onPress={() => {
                 closeSelectedServices()
                 onContinueSelectedServices?.()
               }}
               style={({ pressed }) => [
                 styles.sheetContinueButton,
-                selectedServices.length === 0 && styles.sheetContinueButtonDisabled,
+                !hasReviewableSelections && styles.sheetContinueButtonDisabled,
                 pressed && styles.pressed,
               ]}
             >
@@ -1994,6 +2077,19 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: '#F8EDEF',
   },
+  reviewServiceActions: { alignItems: 'flex-end', gap: 8 },
+  reviewChangeButton: {
+    minHeight: 32,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderColor: palette.outlineVariant,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 9,
+  },
+  reviewChangeButtonText: { color: palette.primaryContainer, fontSize: 9, lineHeight: 13, fontWeight: '800' },
   reviewRemoveButtonDisabled: {
     opacity: 0.55,
   },
@@ -2042,6 +2138,52 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 1.1,
   },
+  completionOverlay: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(26, 28, 28, 0.46)',
+    padding: 24,
+  },
+  completionModalCard: {
+    width: '100%',
+    maxWidth: 420,
+    alignItems: 'center',
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    padding: 24,
+  },
+  completionIcon: {
+    width: 54,
+    height: 54,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 27,
+    backgroundColor: palette.primaryContainer,
+  },
+  completionModalTitle: { color: palette.text, fontSize: 23, lineHeight: 30, fontWeight: '800', marginTop: 15 },
+  completionModalCopy: { color: palette.secondary, fontSize: 13, lineHeight: 20, textAlign: 'center', marginTop: 7 },
+  completionModalActions: { width: '100%', gap: 9, marginTop: 22 },
+  completionReviewButton: {
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: palette.primaryContainer,
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+  },
+  completionReviewButtonText: { color: palette.primaryContainer, fontSize: 12, lineHeight: 16, fontWeight: '800' },
+  completionContinueButton: {
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 24,
+    backgroundColor: palette.primaryContainer,
+    paddingHorizontal: 16,
+  },
+  completionContinueButtonText: { color: palette.onPrimary, fontSize: 12, lineHeight: 16, fontWeight: '800' },
   budgetPill: {
     alignSelf: 'center',
     flexDirection: 'row',
