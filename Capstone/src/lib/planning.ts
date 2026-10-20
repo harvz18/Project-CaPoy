@@ -67,8 +67,11 @@ type EventDraftInput = {
   isChurchWedding?: boolean
   time: string
   venueAddress?: string
+  venueLatitude?: number
+  venueLongitude?: number
   venueName?: string
   venueStatus: string
+  weddingThemes?: string[]
 }
 
 type ServiceSelectionInput = {
@@ -210,7 +213,32 @@ export const calculateServiceQuote = async ({
   }
 }
 
-const defaultEventName = 'My Event Plan'
+// Earlier drafts used this as a persisted value. Treat it as legacy display data only;
+// a client who has not supplied a title should keep a genuinely blank event name.
+const legacyDefaultEventName = 'My Event Plan'
+const unnamedEventLabel = 'Untitled event'
+
+const normalizedEventName = (value: unknown) => {
+  const name = typeof value === 'string' ? value.trim() : ''
+  return name === legacyDefaultEventName ? '' : name
+}
+
+const eventDisplayName = (value: unknown) => normalizedEventName(value) || unnamedEventLabel
+
+const normalizedWeddingThemes = (value: unknown) =>
+  Array.isArray(value)
+    ? value
+        .filter((theme): theme is string => typeof theme === 'string')
+        .map((theme) => theme.trim())
+        .filter(Boolean)
+        .slice(0, 2)
+    : []
+
+const asFiniteCoordinate = (value: unknown) => {
+  if (value === null || value === undefined || value === '') return null
+  const coordinate = Number(value)
+  return Number.isFinite(coordinate) ? coordinate : null
+}
 
 const priorityLabels: Record<string, string> = {
   catering: 'Catering',
@@ -251,6 +279,14 @@ const toMessage = (error: unknown) => {
     message.toLowerCase().includes('bookings')
   ) {
     return 'Booking security policies need an update. Apply database/11_booking_rls_recursion_repair.sql, then try again.'
+  }
+
+  if (
+    ['planning_step', 'venue_latitude', 'venue_longitude', 'wedding_themes'].some((column) =>
+      message.toLowerCase().includes(column)
+    )
+  ) {
+    return 'Event draft continuity needs a database update. Apply database/77_event_draft_continuity.sql, then try again.'
   }
 
   return message || 'Unable to save planning data.'
@@ -318,17 +354,20 @@ const getDraftStepSummary = (event: {
   total_budget?: number | null
   updated_at?: string | null
   venue?: string | null
+  planning_step?: number | null
 }): ClientEventDraftSummary => {
   const activeSelections = (event.event_service_selections ?? []).filter(
     (selection) => !['declined', 'cancelled'].includes(String(selection.status))
   ).length
-  const completedSteps = activeSelections > 0
+  const inferredCompletedSteps = activeSelections > 0
     ? 3
     : Number(event.total_budget ?? 0) > 0
       ? 2
       : event.event_date
         ? 1
         : 0
+  const storedPlanningStep = Math.max(1, Math.min(5, Number(event.planning_step ?? 1) || 1))
+  const completedSteps = Math.max(inferredCompletedSteps, storedPlanningStep - 1)
   const nextStepLabels = [
     'Add event details',
     'Set your budget',
@@ -342,7 +381,7 @@ const getDraftStepSummary = (event: {
     eventDate: event.event_date ?? '',
     id: event.id,
     location: event.venue || event.location || '',
-    name: event.name || defaultEventName,
+    name: eventDisplayName(event.name),
     nextStep: nextStepLabels[completedSteps] ?? 'Continue planning',
     progressPercent: Math.round((completedSteps / 5) * 100),
     status: event.status === 'draft' ? 'draft' : 'planning',
@@ -358,7 +397,7 @@ export const fetchClientEventDrafts = async (): Promise<ClientEventDraftSummary[
 
   const { data, error } = await client
     .from('events')
-    .select('id, name, event_date, venue, location, status, total_budget, updated_at, event_service_selections(status)')
+    .select('id, name, event_date, venue, location, status, total_budget, planning_step, updated_at, event_service_selections(status)')
     .eq('client_id', userId)
     .in('status', ['draft', 'planning'])
     .order('updated_at', { ascending: false })
@@ -385,14 +424,14 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
   if (!client || !userId) return { selectedServices: [] }
 
   const eventSelection =
-    'id, coordinator_id, pending_coordinator_id, coordinator_assignment_status, coordinator_preference, coordinator_fee_amount, name, event_type, is_church_wedding, event_date, event_time, guest_count, total_budget, venue_status, venue, location, status, updated_at'
+    'id, coordinator_id, pending_coordinator_id, coordinator_assignment_status, coordinator_preference, coordinator_fee_amount, name, event_type, is_church_wedding, event_date, event_time, guest_count, total_budget, venue_status, venue, location, venue_latitude, venue_longitude, wedding_themes, planning_step, status, updated_at'
   const { data: selectedEvent } = activePlanningEventId
     ? await client
         .from('events')
         .select(eventSelection)
         .eq('id', activePlanningEventId)
         .eq('client_id', userId)
-        .neq('status', 'cancelled')
+        .in('status', ['draft', 'planning', 'booking'])
         .maybeSingle()
     : { data: null }
   const { data: latestEvent } = selectedEvent?.id
@@ -401,7 +440,7 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
         .from('events')
         .select(eventSelection)
         .eq('client_id', userId)
-        .neq('status', 'cancelled')
+        .in('status', ['draft', 'planning'])
         .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle()
@@ -518,7 +557,9 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
             : event.event_date
               ? 2
               : 1
-  const completedSteps = latestPayment ? 5 : Math.max(0, inferredMaxPlanningStep - 1)
+  const storedPlanningStep = Math.max(1, Math.min(5, Number(event.planning_step ?? 1) || 1))
+  const maxPlanningStep = Math.max(inferredMaxPlanningStep, storedPlanningStep)
+  const completedSteps = latestPayment ? 5 : Math.max(0, maxPlanningStep - 1)
   const nextStepLabels = [
     'Add event details',
     'Set your budget',
@@ -599,7 +640,7 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
       : undefined,
     event: {
       date: event.event_date ?? '',
-      eventName: event.name ?? defaultEventName,
+      eventName: normalizedEventName(event.name),
       eventType: ['wedding', 'preWedding', 'postWedding'].includes(event.event_type)
         ? (event.event_type as EventType)
         : 'wedding',
@@ -607,10 +648,13 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
       isChurchWedding: event.is_church_wedding === true,
       time: event.event_time ?? '',
       venueAddress: event.location ?? '',
+      venueLatitude: asFiniteCoordinate(event.venue_latitude) ?? undefined,
+      venueLongitude: asFiniteCoordinate(event.venue_longitude) ?? undefined,
       venueName: event.venue ?? '',
       venueStatus: ['secured', 'searching'].includes(event.venue_status)
         ? (event.venue_status as VenueStatus)
         : 'searching',
+      weddingThemes: normalizedWeddingThemes(event.wedding_themes),
     },
     draftSummary:
       event.status === 'draft' || event.status === 'planning'
@@ -619,7 +663,7 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
             eventDate: event.event_date ?? '',
             id: event.id,
             location: event.venue || event.location || '',
-            name: event.name || defaultEventName,
+            name: eventDisplayName(event.name),
             nextStep:
               completedSteps >= 5
                 ? 'Review your event plan'
@@ -638,7 +682,7 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
           termsAccepted: paymentMetadata.termsAccepted === true,
         }
       : undefined,
-    maxPlanningStep: inferredMaxPlanningStep,
+    maxPlanningStep,
     scheduleProviders: (savedScheduleResults ?? []).map((result) => {
       const selection = Array.isArray(result.event_service_selections)
         ? result.event_service_selections[0]
@@ -709,7 +753,11 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
   }
 }
 
-const toEventPayload = (budget?: number, details?: EventDraftInput) => {
+const toEventPayload = (
+  budget?: number,
+  details?: EventDraftInput,
+  planningStep?: number
+) => {
   const payload: Record<string, unknown> = {
     status: 'planning',
     updated_at: new Date().toISOString(),
@@ -719,20 +767,31 @@ const toEventPayload = (budget?: number, details?: EventDraftInput) => {
     payload.total_budget = budget
   }
 
+  if (planningStep !== undefined) {
+    payload.planning_step = Math.max(1, Math.min(5, Math.round(planningStep)))
+  }
+
   if (details) {
     const eventDate = parseDate(details.date)
     const eventTime = parseTime(details.time)
 
-    payload.name = details.eventName.trim() || defaultEventName
+    payload.name = normalizedEventName(details.eventName)
     payload.event_type = details.eventType
     payload.guest_count = details.guestCount
     payload.is_church_wedding = details.eventType === 'wedding' && details.isChurchWedding === true
     payload.venue = details.venueStatus === 'secured' ? details.venueName?.trim() || null : null
     payload.location = details.venueStatus === 'secured' ? details.venueAddress?.trim() || null : null
+    payload.venue_latitude = details.venueStatus === 'secured'
+      ? asFiniteCoordinate(details.venueLatitude)
+      : null
+    payload.venue_longitude = details.venueStatus === 'secured'
+      ? asFiniteCoordinate(details.venueLongitude)
+      : null
     payload.venue_status = details.venueStatus
-
-    if (eventDate) payload.event_date = eventDate
-    if (eventTime) payload.event_time = eventTime
+    payload.wedding_themes = normalizedWeddingThemes(details.weddingThemes)
+    // Explicitly clear removed dates/times instead of retaining stale values from an older draft.
+    payload.event_date = eventDate
+    payload.event_time = eventTime
   }
 
   return payload
@@ -742,7 +801,8 @@ const ensureDraftEvent = async (
   budget?: number,
   details?: EventDraftInput,
   createNew = false,
-  allowBookingEvent = false
+  allowBookingEvent = false,
+  planningStep?: number
 ) => {
   const client = getClient()
 
@@ -830,7 +890,7 @@ const ensureDraftEvent = async (
   if (existing?.id) {
     const { error: updateError } = await client
       .from('events')
-      .update(toEventPayload(budget, details))
+      .update(toEventPayload(budget, details, planningStep))
       .eq('id', existing.id)
 
     if (updateError) {
@@ -845,11 +905,11 @@ const ensureDraftEvent = async (
     .from('events')
     .insert({
       client_id: userId,
-      name: defaultEventName,
+      name: '',
       // Budgets are optional; every new plan starts from an explicit zero
       // rather than relying on a nullable database value.
       total_budget: budget ?? 0,
-      ...toEventPayload(budget, details),
+      ...toEventPayload(budget, details, planningStep ?? 1),
     })
     .select('id')
     .single()
@@ -1001,10 +1061,11 @@ export const closeCurrentEventDraft = async (): Promise<PlanningResult> => {
 }
 
 export const saveEventDraft = async (
-  value: EventDraftInput
+  value: EventDraftInput,
+  planningStep = 1
 ): Promise<PlanningResult> => {
   try {
-    const event = await ensureDraftEvent(undefined, value)
+    const event = await ensureDraftEvent(undefined, value, false, false, planningStep)
 
     if (!event) {
       return { ok: false, message: 'Supabase is not configured or no user is signed in.' }
@@ -1023,7 +1084,7 @@ export const saveBudgetPlan = async ({
 }: BudgetPlanInput): Promise<PlanningResult> => {
   try {
     const client = getClient()
-    const event = await ensureDraftEvent()
+    const event = await ensureDraftEvent(undefined, undefined, false, false, 3)
 
     if (!client || !event) {
       return { ok: false, message: 'Supabase is not configured or no user is signed in.' }

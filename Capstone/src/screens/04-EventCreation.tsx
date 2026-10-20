@@ -52,6 +52,7 @@ interface EventCreationScreenProps {
   onClose?: () => void
   onContinue?: (value: EventCreationValue) => void
   onSaveExit?: (value: EventCreationValue) => void
+  onValueChange?: (value: EventCreationValue) => void
 }
 
 const venueOptions = [
@@ -208,6 +209,8 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
   isProcessing = false,
   onClose,
   onContinue,
+  onSaveExit,
+  onValueChange,
 }) => {
   const { width } = useWindowDimensions()
   const isWide = width >= 768
@@ -313,7 +316,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
     onContinue?.(value)
   }
 
-  const value: EventCreationValue = {
+  const value = React.useMemo<EventCreationValue>(() => ({
     eventName,
     eventType,
     date,
@@ -326,7 +329,27 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
     guestCount,
     isChurchWedding,
     weddingThemes: selectedWeddingThemes,
-  }
+  }), [
+    date,
+    eventName,
+    eventType,
+    guestCount,
+    isChurchWedding,
+    selectedWeddingThemes,
+    time,
+    venueMap.address,
+    venueMap.latitude,
+    venueMap.longitude,
+    venueMap.name,
+    venueStatus,
+  ])
+
+  // Keep partially entered details in the shared planning state even when a
+  // client goes back to another step before explicitly saving the draft.
+  React.useEffect(() => {
+    onValueChange?.(value)
+  }, [onValueChange, value])
+
   const isStepComplete = Boolean(
     eventName.trim() &&
       date &&
@@ -688,6 +711,22 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
 
       <View style={styles.footer}>
         <View style={[styles.footerContent, isWide && styles.horizontalPaddingWide]}>
+          {onSaveExit ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ busy: isProcessing, disabled: isProcessing }}
+              disabled={isProcessing}
+              onPress={() => onSaveExit(value)}
+              style={({ pressed }) => [
+                styles.saveDraftButton,
+                isWide && styles.saveDraftButtonWide,
+                isProcessing && styles.saveDraftButtonDisabled,
+                pressed && styles.saveDraftButtonPressed,
+              ]}
+            >
+              <Text style={styles.saveDraftButtonText}>SAVE DRAFT</Text>
+            </Pressable>
+          ) : null}
           <Pressable
             accessibilityRole="button"
             accessibilityState={{ busy: isProcessing, disabled: !isStepComplete || isProcessing }}
@@ -1998,7 +2037,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
   },
-  footerContent: { width: '100%', maxWidth: 1200, alignSelf: 'center', alignItems: 'flex-end' },
+  footerContent: { width: '100%', maxWidth: 1200, alignSelf: 'center', alignItems: 'stretch', gap: 10 },
+  saveDraftButton: {
+    width: '100%',
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: palette.burgundy,
+    borderRadius: 24,
+    backgroundColor: palette.surface,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+  },
+  saveDraftButtonWide: { alignSelf: 'flex-end', width: 200 },
+  saveDraftButtonText: { color: palette.burgundy, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 1.1 },
+  saveDraftButtonDisabled: { opacity: 0.45 },
+  saveDraftButtonPressed: { backgroundColor: '#F8EDEF', transform: [{ scale: 0.98 }] },
   continueButton: {
     width: '100%',
     minHeight: 56,
@@ -2016,7 +2071,7 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 4,
   },
-  continueButtonWide: { width: 200 },
+  continueButtonWide: { alignSelf: 'flex-end', width: 200 },
   continueText: { color: palette.surface, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 1.2 },
   continueArrow: { color: palette.surface, fontSize: 18, lineHeight: 21 },
   continuePressed: { opacity: 0.9, transform: [{ scale: 0.98 }] },

@@ -393,6 +393,30 @@ const DEFAULT_EVENT: EventCreationValue = {
   venueStatus: 'searching',
 }
 
+const eventDetailsMatch = (first: EventCreationValue, second: EventCreationValue) => {
+  const firstThemes = first.weddingThemes ?? []
+  const secondThemes = second.weddingThemes ?? []
+
+  return first.date === second.date
+    && first.eventName === second.eventName
+    && first.eventType === second.eventType
+    && first.guestCount === second.guestCount
+    && first.isChurchWedding === second.isChurchWedding
+    && first.time === second.time
+    && first.venueAddress === second.venueAddress
+    && first.venueName === second.venueName
+    && first.venueStatus === second.venueStatus
+    && (
+      first.venueStatus !== 'secured'
+      || (
+        first.venueLatitude === second.venueLatitude
+        && first.venueLongitude === second.venueLongitude
+      )
+    )
+    && firstThemes.length === secondThemes.length
+    && firstThemes.every((theme, index) => theme === secondThemes[index])
+}
+
 const DEFAULT_SERVICE_INFORMATION: ServiceInformationValue = {
   category: 'Catering',
   categoryDetails: emptyCategoryDetails('Catering'),
@@ -680,6 +704,14 @@ export const App: React.FC = () => {
   )
   const [eventDetails, setEventDetails] =
     React.useState<EventCreationValue>(DEFAULT_EVENT)
+  const eventDetailsDirtyRef = React.useRef(false)
+  const handleEventDetailsChange = React.useCallback((value: EventCreationValue) => {
+    setEventDetails((current) => {
+      if (eventDetailsMatch(current, value)) return current
+      eventDetailsDirtyRef.current = true
+      return value
+    })
+  }, [])
   const [lastPayment, setLastPayment] = React.useState<PaymentValue>()
   const [merchantServiceInfo, setMerchantServiceInfo] =
     React.useState<ServiceInformationValue>(DEFAULT_SERVICE_INFORMATION)
@@ -1056,7 +1088,7 @@ export const App: React.FC = () => {
 
     openClientTab(tab === 'services' ? 'explore' : tab)
   }
-  const eventDisplayName = eventDetails.eventName.trim() || 'My Event Plan'
+  const eventDisplayName = eventDetails.eventName.trim() || 'Untitled event'
   const eventDisplayDate = eventDetails.date.trim() || 'Date to be confirmed'
   const eventDisplayTime = eventDetails.time.trim() || 'Time to be confirmed'
   const selectedEstimatedTotal = selectedServices.reduce(
@@ -1335,7 +1367,9 @@ export const App: React.FC = () => {
     setConversations(conversationRows)
     setNotifications(notificationRows)
     setServiceCategories(categories)
-    if (planningState.event) setEventDetails(planningState.event)
+    // A late network response must never replace partially edited basics with
+    // the older persisted draft while the client is still in the flow.
+    if (planningState.event && !eventDetailsDirtyRef.current) setEventDetails(planningState.event)
     if (planningState.totalBudget !== undefined) setTotalBudget(planningState.totalBudget)
     setBudgetAllocations(planningState.budgetAllocations ?? [])
     setBudgetPriorities(planningState.budgetPriorities ?? [])
@@ -2164,11 +2198,14 @@ export const App: React.FC = () => {
     await runOnce('save-event-details', async () => {
       setEventDetails(value)
 
-      const result = await saveEventDraft(value)
+      const nextPlanningStep = nextScreen === 'budgetAllocation' ? 2 : 1
+      const result = await saveEventDraft(value, Math.max(maxPlanningStep, nextPlanningStep))
       if (!result.ok) {
         setToastMessage(result.message ?? 'Unable to save your event details.')
         return
       }
+
+      eventDetailsDirtyRef.current = false
 
       if (nextScreen === 'budgetAllocation') {
         setMaxPlanningStep((current) => Math.min(4, Math.max(current, 2)))
@@ -3055,6 +3092,7 @@ export const App: React.FC = () => {
       return false
     }
 
+    eventDetailsDirtyRef.current = false
     setEventDetails({ ...DEFAULT_EVENT })
     setTotalBudget(DEFAULT_BUDGET)
     setBudgetPriorities([])
@@ -3080,6 +3118,7 @@ export const App: React.FC = () => {
       return
     }
 
+    eventDetailsDirtyRef.current = false
     const planningState = await refreshLiveData()
     const nextStep = Math.max(1, planningState.maxPlanningStep ?? 1)
     setServiceBrowseMode('planning')
@@ -3341,6 +3380,7 @@ export const App: React.FC = () => {
                   onClose={closeEventCreation}
                   onContinue={(value) => handleEventContinue(value, 'budgetAllocation')}
                   onSaveExit={(value) => handleEventContinue(value, 'clientHome')}
+                onValueChange={handleEventDetailsChange}
                 />
               </Animated.View>
             </View>
@@ -3359,6 +3399,7 @@ export const App: React.FC = () => {
               onClose={closeEventCreation}
               onContinue={(value) => handleEventContinue(value, 'budgetAllocation')}
               onSaveExit={(value) => handleEventContinue(value, 'clientHome')}
+              onValueChange={handleEventDetailsChange}
             />
           </Animated.View>
         )
