@@ -35,6 +35,7 @@ button { cursor: pointer; }
 a { color: inherit; text-decoration: none; }
 
 .brand { display: inline-flex; align-items: center; gap: 13px; color: white; }
+.brand__logo { display: block; width: 44px; height: 44px; flex: 0 0 auto; object-fit: contain; filter: drop-shadow(0 3px 8px rgba(36, 8, 16, .2)); }
 .brand__mark { display: grid; width: 40px; height: 40px; place-items: center; border: 1px solid rgba(255,255,255,.42); border-radius: 13px; background: rgba(255,255,255,.11); backdrop-filter: blur(10px); }
 .brand__copy { display: flex; flex-direction: column; gap: 3px; }
 .brand__copy strong { font-size: 16px; letter-spacing: 3.8px; }
@@ -138,6 +139,15 @@ a { color: inherit; text-decoration: none; }
 .panel > header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 21px 23px 16px; }
 .panel h2 { margin: 5px 0 0; color: #3b3335; font-family: Georgia, 'Times New Roman', serif; font-size: 20px; font-weight: 400; }
 .overview-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, .72fr); gap: 16px; }
+.overview-grid--single { grid-template-columns: minmax(0, 1fr); }
+.governance-home-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.governance-home-card { display: grid; min-height: 154px; grid-template-columns: 46px minmax(0, 1fr) 20px; align-items: start; gap: 14px; padding: 22px; border: 1px solid var(--line); border-radius: 15px; background: var(--surface); box-shadow: var(--shadow-sm); transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
+.governance-home-card:hover { border-color: #d8b8c1; box-shadow: 0 12px 28px rgba(67, 22, 35, .1); transform: translateY(-2px); }
+.governance-home-card > span { display: grid; width: 46px; height: 46px; place-items: center; color: var(--wine-600); border-radius: 13px; background: var(--wine-100); }
+.governance-home-card > span svg { width: 21px; height: 21px; }
+.governance-home-card h2 { margin: 1px 0 7px; color: var(--wine-800); font-size: 14px; }
+.governance-home-card p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+.governance-home-card > svg { align-self: center; color: var(--wine-600); }
 .analytics-overview-grid { grid-template-columns: minmax(0, 1.6fr) minmax(320px, .74fr); }
 .dashboard-error { display: flex; align-items: center; gap: 9px; padding: 12px 15px; color: var(--red); border: 1px solid #efd8dc; border-radius: 11px; background: var(--red-bg); font-size: 10px; }
 .dashboard-error span { color: #805c63; }
@@ -635,7 +645,7 @@ a { color: inherit; text-decoration: none; }
 @media (max-width: 1180px) {
   .stat-grid { grid-template-columns: repeat(2, 1fr); }
   .finance-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .overview-grid { grid-template-columns: 1fr; }
+  .overview-grid, .governance-home-grid { grid-template-columns: 1fr; }
   .analytics-ranking-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .health-panel { display: none; }
 }
@@ -791,28 +801,16 @@ body { background: var(--canvas); }
 }
 .sidebar__brand { min-height: 92px; padding: 0 14px; border-bottom: 1px solid rgba(255, 255, 255, .14); }
 .brand { gap: 11px; }
-.brand__mark {
+.brand__logo {
   width: 38px;
   height: 44px;
-  color: transparent;
-  border: 0;
-  border-radius: 0;
-  background: linear-gradient(137deg, #fff9e3 10%, #d9a28e 43%, #fff5d9 66%, #a76d65 100%);
-  box-shadow: 0 4px 12px rgba(21, 3, 8, .28);
-  font-family: Georgia, 'Times New Roman', serif;
-  font-size: 38px;
-  font-weight: 700;
-  letter-spacing: -9px;
-  line-height: 1;
-  text-indent: -5px;
-  -webkit-background-clip: text;
-  background-clip: text;
+  filter: drop-shadow(0 4px 12px rgba(21, 3, 8, .28));
 }
 .brand__copy { gap: 1px; }
 .brand__copy strong { color: #fff7ee; font-size: 15px; font-weight: 600; letter-spacing: 2.35px; }
 .brand__copy small { color: rgba(255, 239, 228, .7); font-size: 8px; letter-spacing: .32px; }
 .brand--compact { color: #fff; }
-.brand--compact .brand__mark { border: 0; background-color: transparent; }
+.brand--compact .brand__logo { filter: drop-shadow(0 4px 12px rgba(21, 3, 8, .28)); }
 .brand--compact .brand__copy strong { font-size: 15px; }
 .sidebar nav { padding-top: 20px; }
 .sidebar nav > p { margin: 0 11px 8px; color: rgba(255, 236, 228, .52); font-size: 8px; letter-spacing: 1.35px; }

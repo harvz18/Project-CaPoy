@@ -135,7 +135,7 @@ const queries: Record<LegacyTableSection, { table: string; select: string; order
 }
 
 export function OperationsScreen({ section }: { section: OperationSection }) {
-  const { can } = useStaff()
+  const { can, canAccessRoute, profile } = useStaff()
   const copy = pageCopy[section]
   const permissionBySection: Record<OperationSection, string> = {
     users: 'users.view', clients: 'users.view', providers: 'providers.view', services: 'services.view',
@@ -148,6 +148,10 @@ export function OperationsScreen({ section }: { section: OperationSection }) {
 
   const canViewReports = can('events.view') || can('providers.view') || can('revenue.view') || can('cashflow.view') || can('coordinators.view')
 
+  // Navigation is role-specific, but direct URLs must respect that same
+  // workspace boundary as well. Granular permissions continue to apply below.
+  if (!canAccessRoute(section)) return <RestrictedScreen />
+
   if (section === 'reports') {
     if (!canViewReports) return <RestrictedScreen />
     return <ReportsScreen />
@@ -157,7 +161,7 @@ export function OperationsScreen({ section }: { section: OperationSection }) {
   } else if (!can(permissionBySection[section])) return <RestrictedScreen />
 
   if (section === 'settings') return <SettingsScreen />
-  if (section === 'providers') return <ProvidersScreen />
+  if (section === 'providers') return <ProvidersScreen readOnly={profile.default_role === 'admin'} />
   if (section === 'services') return <ServicesScreen />
   if (section === 'audit') return <AuditLogScreen />
   if (section === 'bookings') return <BookingsManagementScreen />

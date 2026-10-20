@@ -127,7 +127,7 @@ const statusOptions: ReadonlyArray<readonly [string, string]> = [
   ['disabled', 'Declined'],
 ]
 
-export function ProvidersScreen() {
+export function ProvidersScreen({ readOnly = false }: { readOnly?: boolean }) {
   const { can } = useStaff()
   const [directory, setDirectory] = useState<ProviderDirectory | null>(null)
   const [categoryId, setCategoryId] = useState('all')
@@ -219,7 +219,7 @@ export function ProvidersScreen() {
   return (
     <div className="screen-stack provider-management-screen">
       <section className="page-heading page-heading--with-action">
-        <div><span className="eyebrow">MARKETPLACE</span><h1>Service Providers</h1><p>Review provider standing, category performance, services, and customer feedback.</p></div>
+        <div><span className="eyebrow">MARKETPLACE</span><h1>Service Providers</h1><p>{readOnly ? 'Review provider performance, services, and customer feedback.' : 'Review and manage provider standing, category performance, services, and customer feedback.'}</p></div>
         <div className="heading-actions"><button className="secondary-button" type="button" disabled={loading} onClick={() => void loadDirectory()}><MdiIcon path={mdiRefresh} />{loading ? 'Refreshing…' : 'Refresh'}</button></div>
       </section>
 
@@ -276,9 +276,9 @@ export function ProvidersScreen() {
         detail={selected}
         loading={detailLoading}
         error={detailError}
-        canApprove={can('providers.approve')}
-        canReject={can('providers.reject')}
-        canReview={can('providers.review')}
+        canApprove={!readOnly && can('providers.approve')}
+        canReject={!readOnly && can('providers.reject')}
+        canReview={!readOnly && can('providers.review')}
         onClose={() => { setSelected(null); setDetailError('') }}
         onApprove={() => void updateProviderStatus('verified')}
         onDecline={(reason) => void updateProviderStatus('disabled', reason)}

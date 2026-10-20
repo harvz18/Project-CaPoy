@@ -1,7 +1,16 @@
+import Image from 'next/image'
+
 export function Brand({ compact = false }: { compact?: boolean }) {
   return (
     <div className={`brand ${compact ? 'brand--compact' : ''}`} aria-label="MULTIVENT">
-      <span className="brand__mark" aria-hidden="true">M</span>
+      <Image
+        className="brand__logo"
+        src="/multivent-metallic-logo.png"
+        alt=""
+        width={48}
+        height={48}
+        priority={compact}
+      />
       <span className="brand__copy">
         <strong>MULTIVENT</strong>
         {!compact && <small>Events, thoughtfully managed</small>}

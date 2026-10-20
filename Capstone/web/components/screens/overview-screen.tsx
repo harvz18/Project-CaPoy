@@ -9,8 +9,11 @@ import {
   mdiChartDonutVariant,
   mdiChartLine,
   mdiCheckDecagramOutline,
+  mdiClipboardTextClockOutline,
+  mdiCogOutline,
   mdiRefresh,
   mdiShieldAccountOutline,
+  mdiShieldCrownOutline,
   mdiStorefrontCheckOutline,
   mdiStoreCheckOutline,
 } from '@mdi/js'
@@ -80,7 +83,8 @@ const emptyActions: ActionCounts = {
 }
 
 export function OverviewScreen() {
-  const { can } = useStaff()
+  const { can, canAccessRoute, profile } = useStaff()
+  const hasWorkspaceOverview = canAccessRoute('overview')
   const hasAnalytics = can('dashboard.analytics.view')
   const [dateRange, setDateRange] = useState<DateRange>('week')
   const [analytics, setAnalytics] = useState<DashboardAnalytics | null>(null)
@@ -93,6 +97,11 @@ export function OverviewScreen() {
   useEffect(() => {
     const supabase = getSupabase()
     let active = true
+
+    if (!hasWorkspaceOverview) {
+      setLoading(false)
+      return () => { active = false }
+    }
 
     async function loadDashboard() {
       await Promise.resolve()
@@ -179,7 +188,7 @@ export function OverviewScreen() {
 
     void loadDashboard()
     return () => { active = false }
-  }, [can, dateRange, hasAnalytics, refreshKey])
+  }, [can, dateRange, hasAnalytics, hasWorkspaceOverview, refreshKey])
 
   const stats = analytics ? [
     { label: 'Total service providers', value: analytics.kpis.providers.total.toLocaleString(), detail: `All-time · ${analytics.kpis.providers.verified.toLocaleString()} verified`, icon: mdiStorefrontCheckOutline, tone: 'wine' },
@@ -196,6 +205,10 @@ export function OverviewScreen() {
     + (can('providers.view') ? actions.negative_reviews : 0)
     + (can('support.view') ? actions.active_support_tickets : 0)
     + (can('coordinators.view') ? actions.unassigned_events : 0)
+
+  if (!hasWorkspaceOverview) return <GovernanceHomeScreen />
+
+  const isAdminWorkspace = profile.default_role === 'admin'
 
   return (
     <div className="screen-stack">
@@ -262,8 +275,8 @@ export function OverviewScreen() {
         </>
       )}
 
-      <section className="overview-grid">
-        <article className="panel action-panel">
+      <section className={isAdminWorkspace ? 'overview-grid overview-grid--single' : 'overview-grid'}>
+        {!isAdminWorkspace && <article className="panel action-panel">
           <header><div><span className="eyebrow">NEEDS ATTENTION</span><h2>Action center</h2></div><span className="count-bubble">{actionCount}</span></header>
           <div className="action-list">
             {can('providers.review') && <Link href="/dashboard/providers"><span className="action-list__icon"><MdiIcon path={mdiStorefrontCheckOutline} /></span><div><strong>Provider applications</strong><p>Review identity, terms, and business documents</p></div><b>{actions.pending_providers}</b><MdiIcon path={mdiArrowRight} /></Link>}
@@ -274,7 +287,7 @@ export function OverviewScreen() {
             {can('coordinators.view') && <Link href="/dashboard/coordinators"><span className="action-list__icon"><MdiIcon path={mdiShieldAccountOutline} /></span><div><strong>Coordinator assignments</strong><p>Events waiting for an available employee</p></div><b>{actions.unassigned_events}</b><MdiIcon path={mdiArrowRight} /></Link>}
             {actionCount === 0 && !loading && <div className="activity-empty">No operational items require attention.</div>}
           </div>
-        </article>
+        </article>}
 
         <article className="panel activity-panel compact-activity-panel">
           <header><div><span className="eyebrow">RECENT ACTIVITY</span><h2>Latest bookings</h2></div>{can('events.view') && <Link href="/dashboard/bookings">View all <MdiIcon path={mdiArrowRight} /></Link>}</header>
@@ -284,6 +297,28 @@ export function OverviewScreen() {
             </div>
           ) : <div className="activity-empty">Recent booking activity will appear here.</div>}
         </article>
+      </section>
+    </div>
+  )
+}
+
+function GovernanceHomeScreen() {
+  const items = [
+    { href: '/dashboard/users', icon: mdiAccountGroupOutline, title: 'User management', copy: 'Review user accounts, role assignments, and account standing.' },
+    { href: '/dashboard/permissions', icon: mdiShieldCrownOutline, title: 'Staff permissions', copy: 'Set staff roles and feature permissions for internal workspaces.' },
+    { href: '/dashboard/audit', icon: mdiClipboardTextClockOutline, title: 'Audit logs', copy: 'Trace privileged actions and system changes across the platform.' },
+    { href: '/dashboard/settings', icon: mdiCogOutline, title: 'System settings', copy: 'Manage controlled, platform-wide configuration.' },
+  ]
+
+  return (
+    <div className="screen-stack governance-home">
+      <section className="page-heading">
+        <div><span className="eyebrow">SUPERADMIN WORKSPACE</span><h1>Governance</h1><p>Manage the people, permissions, and platform controls entrusted to Superadmin.</p></div>
+      </section>
+      <section className="governance-home-grid">
+        {items.map((item) => <Link key={item.href} className="governance-home-card" href={item.href}>
+          <span><MdiIcon path={item.icon} /></span><div><h2>{item.title}</h2><p>{item.copy}</p></div><MdiIcon path={mdiArrowRight} />
+        </Link>)}
       </section>
     </div>
   )

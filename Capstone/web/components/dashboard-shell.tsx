@@ -25,12 +25,21 @@ import {
 import { Brand } from './brand'
 import { MdiIcon } from './icons'
 import { getSupabase } from '@/lib/supabase'
-import type { StaffProfile } from '@/lib/types'
+import type { SectionKey, StaffProfile, StaffRole } from '@/lib/types'
 
 type StaffContextValue = {
   can: (permission: string) => boolean
+  canAccessRoute: (route: SectionKey) => boolean
   permissions: string[]
   profile: StaffProfile
+}
+
+type NavigationItem = {
+  href: string
+  label: string
+  icon: string
+  permission: string | string[] | null
+  route: SectionKey
 }
 
 const StaffContext = createContext<StaffContextValue | null>(null)
@@ -41,29 +50,38 @@ export function useStaff() {
   return context
 }
 
-const baseNavigation = [
-  { href: '/dashboard', label: 'Dashboard', icon: mdiViewDashboardOutline, permission: null },
-  { href: '/dashboard/users', label: 'Users', icon: mdiAccountGroupOutline, permission: 'users.view' },
-  { href: '/dashboard/clients', label: 'Clients', icon: mdiAccountGroupOutline, permission: 'users.view' },
-  { href: '/dashboard/providers', label: 'Service providers', icon: mdiStorefrontOutline, permission: 'providers.view' },
-  { href: '/dashboard/services', label: 'Service applications', icon: mdiStoreCheckOutline, permission: 'services.view' },
-  { href: '/dashboard/bookings', label: 'Events & bookings', icon: mdiBookOpenPageVariantOutline, permission: 'events.view' },
-  { href: '/dashboard/coordinators', label: 'Coordinator bookings', icon: mdiShieldAccountOutline, permission: 'coordinators.view' },
-  { href: '/dashboard/support', label: 'Customer support', icon: mdiBellOutline, permission: 'support.view' },
-  { href: '/dashboard/payments', label: 'Payments', icon: mdiCreditCardOutline, permission: 'cashflow.view' },
-  { href: '/dashboard/financial', label: 'Financial overview', icon: mdiCashMultiple, permission: 'cashflow.view' },
-  { href: '/dashboard/reports', label: 'Reports', icon: mdiClipboardTextClockOutline, permission: ['events.view', 'providers.view', 'revenue.view', 'cashflow.view', 'coordinators.view'] },
-  { href: '/dashboard/revenue', label: 'Revenue', icon: mdiStarOutline, permission: 'revenue.view' },
-  { href: '/dashboard/cashflow', label: 'Cash flow', icon: mdiCreditCardOutline, permission: 'cashflow.view' },
-  { href: '/dashboard/remittances', label: 'Remittances', icon: mdiCashMultiple, permission: 'remittance.view' },
-  { href: '/dashboard/reviews', label: 'Reviews', icon: mdiStarOutline, permission: 'providers.view' },
+const baseNavigation: NavigationItem[] = [
+  { href: '/dashboard', label: 'Dashboard', icon: mdiViewDashboardOutline, permission: null, route: 'overview' },
+  { href: '/dashboard/users', label: 'Users', icon: mdiAccountGroupOutline, permission: 'users.view', route: 'users' },
+  { href: '/dashboard/clients', label: 'Clients', icon: mdiAccountGroupOutline, permission: 'users.view', route: 'clients' },
+  { href: '/dashboard/providers', label: 'Service providers', icon: mdiStorefrontOutline, permission: 'providers.view', route: 'providers' },
+  { href: '/dashboard/services', label: 'Service applications', icon: mdiStoreCheckOutline, permission: 'services.view', route: 'services' },
+  { href: '/dashboard/bookings', label: 'Events & bookings', icon: mdiBookOpenPageVariantOutline, permission: 'events.view', route: 'bookings' },
+  { href: '/dashboard/coordinators', label: 'Coordinator bookings', icon: mdiShieldAccountOutline, permission: 'coordinators.view', route: 'coordinators' },
+  { href: '/dashboard/support', label: 'Customer support', icon: mdiBellOutline, permission: 'support.view', route: 'support' },
+  { href: '/dashboard/payments', label: 'Payments', icon: mdiCreditCardOutline, permission: 'cashflow.view', route: 'payments' },
+  { href: '/dashboard/financial', label: 'Financial overview', icon: mdiCashMultiple, permission: 'cashflow.view', route: 'financial' },
+  { href: '/dashboard/reports', label: 'Reports', icon: mdiClipboardTextClockOutline, permission: ['events.view', 'providers.view', 'revenue.view', 'cashflow.view', 'coordinators.view'], route: 'reports' },
+  { href: '/dashboard/revenue', label: 'Revenue', icon: mdiStarOutline, permission: 'revenue.view', route: 'revenue' },
+  { href: '/dashboard/cashflow', label: 'Cash flow', icon: mdiCreditCardOutline, permission: 'cashflow.view', route: 'cashflow' },
+  { href: '/dashboard/remittances', label: 'Remittances', icon: mdiCashMultiple, permission: 'remittance.view', route: 'remittances' },
+  { href: '/dashboard/reviews', label: 'Reviews', icon: mdiStarOutline, permission: 'providers.view', route: 'reviews' },
 ]
 
-const governanceNavigation = [
-  { href: '/dashboard/permissions', label: 'Staff & permissions', icon: mdiShieldCrownOutline, permission: ['users.permissions.manage', 'users.create', 'coordinators.create'] },
-  { href: '/dashboard/audit', label: 'Audit log', icon: mdiClipboardTextClockOutline, permission: 'system.audit_logs' },
-  { href: '/dashboard/settings', label: 'System settings', icon: mdiCogOutline, permission: 'system.settings' },
+const governanceNavigation: NavigationItem[] = [
+  { href: '/dashboard/permissions', label: 'Staff & permissions', icon: mdiShieldCrownOutline, permission: ['users.permissions.manage', 'users.create', 'coordinators.create'], route: 'permissions' },
+  { href: '/dashboard/audit', label: 'Audit log', icon: mdiClipboardTextClockOutline, permission: 'system.audit_logs', route: 'audit' },
+  { href: '/dashboard/settings', label: 'System settings', icon: mdiCogOutline, permission: 'system.settings', route: 'settings' },
 ]
+
+const superadminRoutes = new Set<SectionKey>(['users', 'permissions', 'audit', 'settings'])
+const adminRoutes = new Set<SectionKey>(['overview', 'clients', 'providers', 'bookings', 'financial', 'reports', 'revenue', 'cashflow'])
+
+export function canAccessWorkspaceRoute(role: StaffRole, route: SectionKey) {
+  if (role === 'superadmin') return superadminRoutes.has(route)
+  if (role === 'admin') return adminRoutes.has(route)
+  return true
+}
 
 const legacyAdminPermissions = [
   'dashboard.view',
@@ -161,32 +179,33 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   const can = (permission: string) =>
     profile.default_role === 'superadmin' || permissions.includes(permission)
+  const canAccessRoute = (route: SectionKey) => canAccessWorkspaceRoute(profile.default_role, route)
   const canNavigate = (permission: string | string[] | null) => !permission
     || (Array.isArray(permission) ? permission.some(can) : can(permission))
-  const visibleBaseNavigation = baseNavigation.filter((item) => canNavigate(item.permission))
-  const visibleGovernanceNavigation = governanceNavigation.filter((item) => canNavigate(item.permission))
+  const visibleBaseNavigation = baseNavigation.filter((item) => canAccessRoute(item.route) && canNavigate(item.permission))
+  const visibleGovernanceNavigation = governanceNavigation.filter((item) => canAccessRoute(item.route) && canNavigate(item.permission))
   const activeNavigation = [...visibleBaseNavigation, ...visibleGovernanceNavigation]
     .find((item) => item.href === '/dashboard' ? pathname === item.href : pathname.startsWith(item.href))
   const roleLabel = ({
-    admin: 'Administrator',
+    admin: 'Admin',
     superadmin: 'Superadmin',
     assistant: 'Assistant',
     customer_service: 'Customer Service',
   } as const)[profile.default_role]
 
   return (
-    <StaffContext.Provider value={{ can, permissions, profile }}>
+    <StaffContext.Provider value={{ can, canAccessRoute, permissions, profile }}>
       <div className="dashboard-layout">
         <aside className={`sidebar ${mobileOpen ? 'sidebar--open' : ''}`}>
           <div className="sidebar__brand"><Brand compact /></div>
           <nav aria-label="Main navigation">
-            <p>WORKSPACE</p>
+            <p>{profile.default_role === 'superadmin' ? 'GOVERNANCE' : 'WORKSPACE'}</p>
             {visibleBaseNavigation.map((item) => (
               <NavLink key={item.href} {...item} pathname={pathname} onNavigate={() => setMobileOpen(false)} />
             ))}
             {visibleGovernanceNavigation.length > 0 && (
               <>
-                <p className="nav-group">GOVERNANCE</p>
+                {profile.default_role !== 'superadmin' && <p className="nav-group">GOVERNANCE</p>}
                 {visibleGovernanceNavigation.map((item) => (
                   <NavLink key={item.href} {...item} pathname={pathname} onNavigate={() => setMobileOpen(false)} />
                 ))}
@@ -206,7 +225,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <div className="dashboard-main">
           <header className="topbar">
             <button className="mobile-menu" onClick={() => setMobileOpen(true)} aria-label="Open menu"><MdiIcon path={mdiMenu} /></button>
-            <div className="topbar__page">{activeNavigation?.label || 'Admin workspace'}</div>
+            <div className="topbar__page">{activeNavigation?.label || (profile.default_role === 'superadmin' ? 'Governance workspace' : 'Admin workspace')}</div>
             <div className="topbar__actions">
               <div className="global-search" aria-label="Global search preview">
                 <MdiIcon path={mdiMagnify} size={0.84} />
