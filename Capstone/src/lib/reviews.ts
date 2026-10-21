@@ -36,6 +36,13 @@ export interface ServiceReviewSummaries {
   positive?: string
 }
 
+export interface RatingFeedbackInput {
+  comment?: string
+  createdAt?: string
+  id: string
+  rating: number
+}
+
 const emptyDistribution = (): ServiceReviewInsights['distribution'] => ({
   1: 0,
   2: 0,
@@ -126,6 +133,86 @@ const buildGroup = (
     reviews,
     summary: reviews.length ? summary : empty,
     themes,
+  }
+}
+
+const coordinatorTopicKeywords = (comment: string) => {
+  const normalized = comment.toLowerCase()
+  const topicMatchers: Array<{ keywords: string[]; theme: string }> = [
+    {
+      theme: 'communication',
+      keywords: ['communicat', 'contact', 'inform', 'message', 'reply', 'response', 'update', 'usap'],
+    },
+    {
+      theme: 'planning and organization',
+      keywords: ['coordinate', 'detail', 'handle', 'manage', 'organis', 'organize', 'plan', 'planning', 'maayos'],
+    },
+    {
+      theme: 'timeliness',
+      keywords: ['delay', 'late', 'on time', 'schedule', 'timely', 'time', 'oras'],
+    },
+    {
+      theme: 'professionalism',
+      keywords: ['accommodat', 'friendly', 'helpful', 'mabait', 'polite', 'professional', 'propesyonal'],
+    },
+    {
+      theme: 'problem solving',
+      keywords: ['adjust', 'concern', 'flexib', 'issue', 'problem', 'resolve', 'solution'],
+    },
+  ]
+
+  return topicMatchers
+    .filter(({ keywords }) => keywords.some((keyword) => normalized.includes(keyword)))
+    .map(({ theme }) => theme)
+}
+
+/**
+ * Coordinator reviews predate the service-review sentiment pipeline. They are
+ * still verified client feedback, so present them through the same summary UI
+ * without exposing the original comments by default. Ratings determine the
+ * positive/critical grouping and neutral theme matching keeps the summary
+ * concise until coordinator-review analysis is introduced server-side.
+ */
+export const summarizeRatingFeedback = (
+  ratings: RatingFeedbackInput[]
+): ServiceReviewInsights => {
+  const distribution = emptyDistribution()
+  let ratingTotal = 0
+  const analyzedReviews: ServiceReview[] = []
+
+  ratings.forEach((rating) => {
+    if (!Number.isInteger(rating.rating) || rating.rating < 1 || rating.rating > 5) return
+
+    distribution[rating.rating as 1 | 2 | 3 | 4 | 5] += 1
+    ratingTotal += rating.rating
+
+    const comment = rating.comment?.trim() ?? ''
+    if (!comment) return
+
+    const sentiment: ReviewSentiment = rating.rating >= 4 ? 'positive' : 'negative'
+    analyzedReviews.push({
+      comment,
+      createdAt: rating.createdAt ?? '',
+      id: rating.id,
+      rating: rating.rating,
+      sentiment,
+      sentimentScore: sentiment === 'positive' ? 1 : -1,
+      topicKeywords: coordinatorTopicKeywords(comment),
+    })
+  })
+
+  const positiveReviews = analyzedReviews.filter((review) => review.sentiment === 'positive')
+  const negativeReviews = analyzedReviews.filter((review) => review.sentiment === 'negative')
+  const totalRatings = Object.values(distribution).reduce((total, count) => total + count, 0)
+
+  return {
+    analyzedCommentCount: analyzedReviews.length,
+    averageRating: totalRatings ? ratingTotal / totalRatings : 0,
+    distribution,
+    negative: buildGroup('negative', negativeReviews),
+    pendingCommentCount: 0,
+    positive: buildGroup('positive', positiveReviews),
+    totalRatings,
   }
 }
 

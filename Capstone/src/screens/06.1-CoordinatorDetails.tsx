@@ -10,7 +10,9 @@ import {
   View,
 } from 'react-native'
 import { Text } from '../components/AppText'
+import { ReviewFeedbackSummary } from '../components/ReviewFeedbackSummary'
 import { formatPeso, type CatalogService } from '../lib/catalog'
+import { summarizeRatingFeedback } from '../lib/reviews'
 
 interface CoordinatorDetailsScreenProps {
   assigning?: boolean
@@ -47,10 +49,10 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
     && coordinatorBookingEnabled
     && Boolean(service?.coordinatorUserId)
   const isAvailable = service?.coordinatorAvailable !== false
-  const reviews = service?.coordinatorReviews ?? []
-  const averageRating = reviews.length
-    ? reviews.reduce((total, review) => total + review.rating, 0) / reviews.length
-    : 0
+  const reviewInsights = React.useMemo(
+    () => summarizeRatingFeedback(service?.coordinatorReviews ?? []),
+    [service?.coordinatorReviews]
+  )
   const specialties = service?.coordinatorSpecializations ?? []
   const skills = service?.coordinatorSkills ?? []
   const capabilities = service?.coordinatorCapabilities ?? []
@@ -176,24 +178,11 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
           <View style={styles.reviewsHeading}>
             <View><Text style={styles.reviewsEyebrow}>VERIFIED CLIENT FEEDBACK</Text><Text style={styles.reviewsTitle}>Reviews &amp; feedback</Text></View>
             <View style={styles.ratingSummary}>
-              <Text style={styles.ratingValue}>{reviews.length ? averageRating.toFixed(1) : 'New'}</Text>
-              <Text style={styles.ratingCount}>{reviews.length} {reviews.length === 1 ? 'review' : 'reviews'}</Text>
+              <Text style={styles.ratingValue}>{reviewInsights.totalRatings ? reviewInsights.averageRating.toFixed(1) : 'New'}</Text>
+              <Text style={styles.ratingCount}>{reviewInsights.totalRatings} {reviewInsights.totalRatings === 1 ? 'review' : 'reviews'}</Text>
             </View>
           </View>
-          {reviews.length ? <View style={styles.reviewList}>{reviews.map((review) => (
-            <View key={review.id} style={styles.reviewCard}>
-              <View style={styles.reviewHeader}>
-                <View><Text style={styles.reviewerName}>Verified client</Text><Text style={styles.reviewEvent}>{review.eventType}</Text></View>
-                <Text accessibilityLabel={`${review.rating} out of 5 stars`} style={styles.reviewStars}>{'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}</Text>
-              </View>
-              <Text style={review.comment ? styles.reviewComment : styles.reviewCommentMuted}>{review.comment || 'Rating submitted without a comment.'}</Text>
-              {review.createdAt ? <Text style={styles.reviewDate}>{new Date(review.createdAt).toLocaleDateString('en-PH', { day: 'numeric', month: 'short', year: 'numeric' })}</Text> : null}
-            </View>
-          ))}</View> : <View style={styles.emptyReviews}>
-            <MaterialCommunityIcons color={palette.muted} name="star-outline" size={27} />
-            <Text style={styles.emptyReviewsTitle}>No coordinator reviews yet</Text>
-            <Text style={styles.emptyReviewsCopy}>Ratings from clients appear here after coordinated events are completed.</Text>
-          </View>}
+          <ReviewFeedbackSummary insights={reviewInsights} isWide={isWide} showReviewComments={false} />
         </View>
       </ScrollView>
 
