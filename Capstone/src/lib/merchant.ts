@@ -141,6 +141,18 @@ export interface MerchantPayoutDashboardResult {
   ok: boolean
 }
 
+export interface MerchantEarningsOverview {
+  currency: string
+  periodEarnings: number
+  trend: Array<{ amount: number; label: string }>
+}
+
+export interface MerchantEarningsOverviewResult {
+  data?: MerchantEarningsOverview
+  message?: string
+  ok: boolean
+}
+
 export const emptyMerchantPayoutDashboard = (): MerchantPayoutDashboard => ({
   earningsTrend: [],
   paymentConfirmations: [],
@@ -2174,6 +2186,47 @@ export const fetchMerchantPayoutDashboard = async (
             : numberFrom(receivableWalletSummary.totalPaidOut),
         },
         transactions,
+      },
+    }
+  } catch (error) {
+    return { ok: false, message: toMessage(error, 'Unable to load provider earnings.') }
+  }
+}
+
+/**
+ * Compact provider-home projection. It deliberately uses the protected earnings
+ * RPC once, instead of loading the full payout wallet, confirmations, and
+ * transaction history that the detailed Earnings screen needs.
+ */
+export const fetchMerchantEarningsOverview = async (): Promise<MerchantEarningsOverviewResult> => {
+  try {
+    const context = await getMerchantContext()
+
+    if (!context) {
+      return { ok: false, message: notReady }
+    }
+
+    const { data, error } = await context.client.rpc('get_my_provider_earnings', {
+      target_period: '30d',
+    })
+
+    if (error) {
+      return { ok: false, message: error.message }
+    }
+
+    const payload = (data ?? {}) as Record<string, unknown>
+    const summary = (payload.summary ?? {}) as Record<string, unknown>
+    const trendRows = Array.isArray(payload.earningsTrend) ? payload.earningsTrend : []
+
+    return {
+      ok: true,
+      data: {
+        currency: textFrom(summary.currency, 'PHP'),
+        periodEarnings: numberFrom(summary.periodEarnings),
+        trend: trendRows.map((row) => {
+          const point = row as Record<string, unknown>
+          return { amount: numberFrom(point.amount), label: textFrom(point.label) }
+        }),
       },
     }
   } catch (error) {

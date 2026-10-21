@@ -76,12 +76,14 @@ import {
   emptyMerchantPayoutDashboard,
   fetchClientBookings,
   fetchMerchantBookingRequests,
+  fetchMerchantEarningsOverview,
   fetchMerchantPayoutDashboard,
   fetchMerchantServices,
   loadMerchantServiceDraft,
   loadMerchantServiceForEditing,
   loadCateringFoodTastingSlots,
   MerchantPackageListing,
+  type MerchantEarningsOverview,
   MerchantServiceListing,
   markMerchantNotificationRead,
   markMerchantNotificationsRead,
@@ -1014,10 +1016,13 @@ export const App: React.FC = () => {
   const [merchantPayoutDashboard, setMerchantPayoutDashboard] = React.useState(
     emptyMerchantPayoutDashboard()
   )
+  const [merchantHomeEarnings, setMerchantHomeEarnings] =
+    React.useState<MerchantEarningsOverview>()
   const [merchantPayoutPeriod, setMerchantPayoutPeriod] =
     React.useState<PayoutEarningsPeriod>('30d')
   const [merchantPayoutError, setMerchantPayoutError] = React.useState('')
   const [isMerchantPayoutLoading, setIsMerchantPayoutLoading] = React.useState(false)
+  const [isMerchantHomeEarningsLoading, setIsMerchantHomeEarningsLoading] = React.useState(false)
   const [isMerchantPayoutRefreshing, setIsMerchantPayoutRefreshing] = React.useState(false)
   const [isRequestingMerchantPayout, setIsRequestingMerchantPayout] = React.useState(false)
   const [isSavingMerchantPayoutAccount, setIsSavingMerchantPayoutAccount] = React.useState(false)
@@ -1884,6 +1889,11 @@ export const App: React.FC = () => {
     const result = await fetchMerchantPayoutDashboard(period)
     if (result.ok && result.data) {
       setMerchantPayoutDashboard(result.data)
+      setMerchantHomeEarnings({
+        currency: result.data.summary.currency,
+        periodEarnings: result.data.summary.periodEarnings,
+        trend: result.data.earningsTrend,
+      })
       setMerchantPayoutError('')
     } else {
       setMerchantPayoutError(result.message ?? 'Unable to load recorded earnings.')
@@ -1894,6 +1904,18 @@ export const App: React.FC = () => {
       setIsMerchantPayoutRefreshing(false)
     }
   }, [])
+
+  const loadMerchantHomeEarnings = React.useCallback(async () => {
+    setIsMerchantHomeEarningsLoading(true)
+    const result = await fetchMerchantEarningsOverview()
+    if (result.ok && result.data) setMerchantHomeEarnings(result.data)
+    setIsMerchantHomeEarningsLoading(false)
+  }, [])
+
+  React.useEffect(() => {
+    if (screen !== 'providerHome') return
+    void loadMerchantHomeEarnings()
+  }, [loadMerchantHomeEarnings, screen])
 
   React.useEffect(() => {
     if (screen !== 'providerPayouts') return
@@ -3883,7 +3905,9 @@ export const App: React.FC = () => {
         return (
           <MerchantHomeScreen
             businessName={userName}
+            earnings={merchantHomeEarnings}
             hasUnreadNotifications={notifications.some((notification) => !notification.isRead)}
+            isEarningsLoading={isMerchantHomeEarningsLoading}
             showBottomNavigation={false}
             scheduleItems={merchantRequests
               .filter((request) => request.status === 'confirmed')
@@ -3904,6 +3928,10 @@ export const App: React.FC = () => {
             onOpenNotifications={() => {
               setHomeReturnScreen('providerHome')
               setScreen('notifications')
+            }}
+            onOpenEarnings={() => {
+              setHomeReturnScreen('providerHome')
+              setScreen('providerPayouts')
             }}
             onSelectQuickAction={(action) => {
               setHomeReturnScreen('providerHome')

@@ -1,6 +1,8 @@
 import { Text } from '../components/AppText'
+import { MaterialIcons } from '@expo/vector-icons'
 import React from 'react'
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -28,13 +30,22 @@ export interface MerchantScheduleItem {
   urgent?: boolean
 }
 
+export interface MerchantHomeEarningsOverview {
+  currency: string
+  periodEarnings: number
+  trend: Array<{ amount: number; label: string }>
+}
+
 interface MerchantHomeScreenProps {
   businessName?: string
+  earnings?: MerchantHomeEarningsOverview
   hasUnreadNotifications?: boolean
+  isEarningsLoading?: boolean
   showBottomNavigation?: boolean
   scheduleItems?: MerchantScheduleItem[]
   stats?: MerchantHomeStats
   onOpenNotifications?: () => void
+  onOpenEarnings?: () => void
   onSelectQuickAction?: (action: MerchantHomeQuickAction) => void
   onSelectScheduleItem?: (item: MerchantScheduleItem) => void
   onSelectTab?: (tab: MerchantHomeTab) => void
@@ -53,6 +64,20 @@ type IconName =
   | 'plus'
   | 'profile'
   | 'services'
+
+const dashboardIconNames: Record<IconName, React.ComponentProps<typeof MaterialIcons>['name']> = {
+  bookings: 'event-available',
+  briefcase: 'business-center',
+  calendar: 'calendar-month',
+  clients: 'people-outline',
+  home: 'home',
+  invoices: 'receipt-long',
+  messages: 'chat',
+  notifications: 'notifications-none',
+  plus: 'add-circle-outline',
+  profile: 'person-outline',
+  services: 'storefront',
+}
 
 const defaultStats: MerchantHomeStats = {
   newRequests: 12,
@@ -87,154 +112,30 @@ const DashboardIcon: React.FC<{ color?: string; name: IconName; size?: number }>
   color = palette.secondary,
   name,
   size = 24,
-}) => {
-  const scale = size / 24
-  const canvasStyle = { height: size, width: size }
-
-  if (name === 'briefcase') {
-    return (
-      <View style={[styles.iconCanvas, canvasStyle]}>
-        <View
-          style={[
-            styles.briefcaseHandle,
-            { borderColor: color, transform: [{ scale }] },
-          ]}
-        />
-        <View
-          style={[
-            styles.briefcaseBody,
-            { borderColor: color, transform: [{ scale }] },
-          ]}
-        >
-          <View style={[styles.briefcaseBand, { backgroundColor: color }]} />
-        </View>
-      </View>
-    )
-  }
-
-  if (name === 'notifications') {
-    return (
-      <View style={[styles.iconCanvas, canvasStyle]}>
-        <View
-          style={[
-            styles.bellBody,
-            { borderColor: color, transform: [{ scale }] },
-          ]}
-        />
-        <View style={[styles.bellBase, { backgroundColor: color, transform: [{ scale }] }]} />
-      </View>
-    )
-  }
-
-  if (name === 'plus') {
-    return (
-      <View style={[styles.iconCanvas, canvasStyle]}>
-        <View style={[styles.plusCircle, { borderColor: color, transform: [{ scale }] }]}>
-          <View style={[styles.plusHorizontal, { backgroundColor: color }]} />
-          <View style={[styles.plusVertical, { backgroundColor: color }]} />
-        </View>
-      </View>
-    )
-  }
-
-  if (name === 'calendar' || name === 'bookings') {
-    return (
-      <View style={[styles.iconCanvas, canvasStyle]}>
-        <View
-          style={[
-            styles.calendarBody,
-            { borderColor: color, transform: [{ scale }] },
-          ]}
-        >
-          <View style={[styles.calendarRule, { backgroundColor: color }]} />
-          <View style={styles.calendarDots}>
-            <View style={[styles.calendarDot, { backgroundColor: color }]} />
-            <View style={[styles.calendarDot, { backgroundColor: color }]} />
-          </View>
-        </View>
-      </View>
-    )
-  }
-
-  if (name === 'clients') {
-    return (
-      <View style={[styles.iconCanvas, canvasStyle]}>
-        <View style={[styles.personHead, styles.personHeadLeft, { borderColor: color }]} />
-        <View style={[styles.personHead, styles.personHeadRight, { borderColor: color }]} />
-        <View style={[styles.peopleShoulders, { borderColor: color }]} />
-      </View>
-    )
-  }
-
-  if (name === 'invoices') {
-    return (
-      <View style={[styles.iconCanvas, canvasStyle]}>
-        <View style={[styles.invoiceBody, { borderColor: color, transform: [{ scale }] }]}>
-          <View style={[styles.invoiceLine, { backgroundColor: color }]} />
-          <View style={[styles.invoiceLine, styles.invoiceLineShort, { backgroundColor: color }]} />
-        </View>
-      </View>
-    )
-  }
-
-  if (name === 'home') {
-    return (
-      <View style={[styles.iconCanvas, canvasStyle]}>
-        <View style={[styles.homeRoof, { borderColor: color }]} />
-        <View style={[styles.homeBody, { borderColor: color }]} />
-      </View>
-    )
-  }
-
-  if (name === 'services') {
-    return (
-      <View style={[styles.iconCanvas, canvasStyle]}>
-        {[6, 12, 18].map((top, index) => (
-          <React.Fragment key={top}>
-            <View style={[styles.sliderLine, { backgroundColor: color, top }]} />
-            <View
-              style={[
-                styles.sliderKnob,
-                { borderColor: color, left: index === 1 ? 5 : 14, top: top - 3 },
-              ]}
-            />
-          </React.Fragment>
-        ))}
-      </View>
-    )
-  }
-
-  if (name === 'messages') {
-    return (
-      <View style={[styles.iconCanvas, canvasStyle]}>
-        <View style={[styles.messageBody, { borderColor: color }]}>
-          <View style={[styles.messageFoldLeft, { backgroundColor: color }]} />
-          <View style={[styles.messageFoldRight, { backgroundColor: color }]} />
-        </View>
-      </View>
-    )
-  }
-
-  return (
-    <View style={[styles.iconCanvas, canvasStyle]}>
-      <View style={[styles.profileHead, { borderColor: color }]} />
-      <View style={[styles.profileShoulders, { borderColor: color }]} />
-    </View>
-  )
-}
+}) => <MaterialIcons color={color} name={dashboardIconNames[name]} size={size} />
 
 const getBusinessName = (name: string) => {
   const trimmedName = name.trim()
   return trimmedName.length > 0 ? trimmedName : 'Floral Arts'
 }
 
+const formatCurrency = (amount: number, currency: string) =>
+  new Intl.NumberFormat('en-PH', {
+    currency,
+    maximumFractionDigits: 0,
+    style: 'currency',
+  }).format(amount)
+
 export const MerchantHomeScreen: React.FC<MerchantHomeScreenProps> = ({
   businessName = 'Floral Arts',
+  earnings,
   hasUnreadNotifications = true,
+  isEarningsLoading = false,
   showBottomNavigation = true,
   scheduleItems = defaultScheduleItems,
   stats = defaultStats,
   onOpenNotifications,
+  onOpenEarnings,
   onSelectQuickAction,
   onSelectScheduleItem,
   onSelectTab,
@@ -243,6 +144,8 @@ export const MerchantHomeScreen: React.FC<MerchantHomeScreenProps> = ({
   const { width } = useWindowDimensions()
   const isWide = width >= 768
   const displayName = getBusinessName(businessName)
+  const earningsTrend = earnings?.trend ?? []
+  const maximumEarnings = Math.max(...earningsTrend.map((point) => point.amount), 1)
   const statItems = [
     { label: 'New Requests', value: stats.newRequests, urgent: false },
     { label: 'Active Events', value: stats.activeEvents, urgent: false },
@@ -253,7 +156,7 @@ export const MerchantHomeScreen: React.FC<MerchantHomeScreenProps> = ({
     <View style={styles.screen}>
       <View style={styles.topAppBar}>
         <View style={[styles.topAppBarContent, isWide && styles.topAppBarContentWide]}>
-          <BrandIdentity markSize={34} />
+          <BrandIdentity markSize={32} variant="metallicWordmark" />
 
           <Pressable
             accessibilityLabel="Open notifications"
@@ -265,7 +168,7 @@ export const MerchantHomeScreen: React.FC<MerchantHomeScreenProps> = ({
               pressed && styles.iconButtonPressed,
             ]}
           >
-            <DashboardIcon name="notifications" />
+            <DashboardIcon color={palette.onPrimary} name="notifications" size={23} />
             {hasUnreadNotifications ? <View style={styles.notificationBadge} /> : null}
           </Pressable>
         </View>
@@ -294,6 +197,62 @@ export const MerchantHomeScreen: React.FC<MerchantHomeScreenProps> = ({
               </Text>
             </View>
           ))}
+        </View>
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Earnings Overview</Text>
+            <Pressable
+              accessibilityLabel="View detailed earnings"
+              accessibilityRole="button"
+              hitSlop={8}
+              onPress={onOpenEarnings}
+              style={({ pressed }) => pressed && styles.textButtonPressed}
+            >
+              <Text style={styles.viewAll}>View details</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.earningsCard}>
+            <View style={styles.earningsSummary}>
+              <View>
+                <Text style={styles.earningsLabel}>EARNINGS · LAST 30 DAYS</Text>
+                <Text style={styles.earningsValue}>
+                  {formatCurrency(earnings?.periodEarnings ?? 0, earnings?.currency ?? 'PHP')}
+                </Text>
+              </View>
+              <View style={styles.earningsIconWrap}>
+                <MaterialIcons color={palette.primaryContainer} name="account-balance-wallet" size={21} />
+              </View>
+            </View>
+
+            {isEarningsLoading && !earnings ? (
+              <View style={styles.earningsLoading}>
+                <ActivityIndicator color={palette.primaryContainer} size="small" />
+                <Text style={styles.earningsEmptyText}>Loading recorded earnings…</Text>
+              </View>
+            ) : earningsTrend.length ? (
+              <View style={styles.earningsChart}>
+                {earningsTrend.map((point, index) => {
+                  const height = Math.max((point.amount / maximumEarnings) * 100, 8)
+                  return (
+                    <View key={`${point.label}-${index}`} style={styles.earningsColumn}>
+                      <View style={styles.earningsTrack}>
+                        <View style={[styles.earningsBar, { height: `${height}%` }]} />
+                      </View>
+                      <Text numberOfLines={1} style={styles.earningsChartLabel}>
+                        {point.label}
+                      </Text>
+                    </View>
+                  )
+                })}
+              </View>
+            ) : (
+              <Text style={styles.earningsEmptyText}>
+                Completed booking earnings will appear here.
+              </Text>
+            )}
+          </View>
         </View>
 
         <View style={styles.section}>
@@ -337,7 +296,7 @@ export const MerchantHomeScreen: React.FC<MerchantHomeScreenProps> = ({
                       {item.time} {'\u2022'} {item.location}
                     </Text>
                   </View>
-                  <Text style={styles.chevron}>{'\u203A'}</Text>
+                  <MaterialIcons color={palette.outline} name="chevron-right" size={24} />
                 </Pressable>
               ))
             ) : (
@@ -390,6 +349,8 @@ const palette = {
   surfaceContainerHighest: '#E3E2E2',
   primary: '#4E061A',
   primaryContainer: '#6B1E2E',
+  onPrimary: '#FFFFFF',
+  accent: '#E8BF94',
   secondary: '#5D5F5F',
   text: '#1B1C1C',
   outline: '#877274',
@@ -406,8 +367,8 @@ const styles = StyleSheet.create({
     minHeight: 64,
     justifyContent: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: palette.border,
-    backgroundColor: palette.surface,
+    borderBottomColor: palette.primary,
+    backgroundColor: palette.primaryContainer,
   },
   topAppBarContent: {
     width: '100%',
@@ -428,7 +389,10 @@ const styles = StyleSheet.create({
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.34)',
     borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
   },
   notificationBadge: {
     position: 'absolute',
@@ -437,9 +401,9 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderWidth: 2,
-    borderColor: palette.surface,
+    borderColor: palette.primaryContainer,
     borderRadius: 5,
-    backgroundColor: palette.primaryContainer,
+    backgroundColor: palette.accent,
   },
   content: {
     width: '100%',
@@ -482,8 +446,8 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'space-between',
     borderWidth: 1,
-    borderColor: palette.surfaceContainerHighest,
-    borderRadius: 8,
+    borderColor: palette.border,
+    borderRadius: 12,
     padding: 16,
   },
   statLabel: {
@@ -504,6 +468,88 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: 32,
+  },
+  earningsCard: {
+    minHeight: 178,
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 12,
+    backgroundColor: '#FFFDFD',
+    padding: 16,
+  },
+  earningsSummary: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  earningsLabel: {
+    color: palette.secondary,
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: '700',
+    letterSpacing: 0.55,
+  },
+  earningsValue: {
+    color: palette.primary,
+    fontSize: 24,
+    lineHeight: 32,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  earningsIconWrap: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 18,
+    backgroundColor: '#F8EFF1',
+  },
+  earningsChart: {
+    height: 78,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 7,
+    marginTop: 12,
+  },
+  earningsColumn: {
+    minWidth: 0,
+    flex: 1,
+    alignItems: 'center',
+    gap: 5,
+  },
+  earningsTrack: {
+    width: '100%',
+    height: 54,
+    justifyContent: 'flex-end',
+    overflow: 'hidden',
+    borderRadius: 5,
+    backgroundColor: '#F1E6E8',
+  },
+  earningsBar: {
+    width: '100%',
+    minHeight: 4,
+    borderRadius: 5,
+    backgroundColor: palette.primaryContainer,
+  },
+  earningsChartLabel: {
+    width: '100%',
+    color: palette.secondary,
+    fontSize: 10,
+    lineHeight: 14,
+    textAlign: 'center',
+  },
+  earningsEmptyText: {
+    color: palette.secondary,
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 20,
+  },
+  earningsLoading: {
+    minHeight: 64,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   sectionHeader: {
     minHeight: 34,
@@ -571,12 +617,6 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     marginTop: 4,
   },
-  chevron: {
-    color: palette.outline,
-    fontSize: 30,
-    lineHeight: 32,
-    fontWeight: '300',
-  },
   emptySchedule: {
     alignItems: 'center',
     borderWidth: 1,
@@ -629,218 +669,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   iconButtonPressed: {
-    backgroundColor: palette.surfaceContainerLow,
-    opacity: 0.72,
+    backgroundColor: 'rgba(255, 255, 255, 0.16)',
+    opacity: 1,
   },
   textButtonPressed: {
     opacity: 0.55,
-  },
-  iconCanvas: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  briefcaseHandle: {
-    position: 'absolute',
-    top: 2,
-    width: 8,
-    height: 6,
-    borderWidth: 1.7,
-    borderBottomWidth: 0,
-    borderTopLeftRadius: 2,
-    borderTopRightRadius: 2,
-  },
-  briefcaseBody: {
-    position: 'absolute',
-    top: 7,
-    width: 20,
-    height: 15,
-    overflow: 'hidden',
-    borderWidth: 1.7,
-    borderRadius: 3,
-  },
-  briefcaseBand: {
-    position: 'absolute',
-    top: 5,
-    right: 0,
-    left: 0,
-    height: 1.5,
-  },
-  bellBody: {
-    position: 'absolute',
-    top: 3,
-    width: 16,
-    height: 16,
-    borderWidth: 1.8,
-    borderBottomWidth: 0,
-    borderTopLeftRadius: 9,
-    borderTopRightRadius: 9,
-    borderBottomLeftRadius: 3,
-    borderBottomRightRadius: 3,
-  },
-  bellBase: {
-    position: 'absolute',
-    bottom: 3,
-    width: 6,
-    height: 2,
-    borderRadius: 2,
-  },
-  plusCircle: {
-    width: 20,
-    height: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.8,
-    borderRadius: 10,
-  },
-  plusHorizontal: {
-    position: 'absolute',
-    width: 9,
-    height: 1.8,
-    borderRadius: 1,
-  },
-  plusVertical: {
-    position: 'absolute',
-    width: 1.8,
-    height: 9,
-    borderRadius: 1,
-  },
-  calendarBody: {
-    width: 19,
-    height: 18,
-    overflow: 'hidden',
-    borderWidth: 1.7,
-    borderRadius: 3,
-  },
-  calendarRule: {
-    width: '100%',
-    height: 1.5,
-    marginTop: 4,
-  },
-  calendarDots: {
-    flexDirection: 'row',
-    gap: 4,
-    marginTop: 4,
-    marginLeft: 4,
-  },
-  calendarDot: {
-    width: 3,
-    height: 3,
-    borderRadius: 1,
-  },
-  personHead: {
-    position: 'absolute',
-    top: 3,
-    width: 7,
-    height: 7,
-    borderWidth: 1.6,
-    borderRadius: 4,
-  },
-  personHeadLeft: {
-    left: 4,
-  },
-  personHeadRight: {
-    right: 4,
-  },
-  peopleShoulders: {
-    position: 'absolute',
-    bottom: 3,
-    width: 21,
-    height: 10,
-    borderWidth: 1.6,
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
-    borderBottomWidth: 0,
-  },
-  invoiceBody: {
-    width: 17,
-    height: 21,
-    justifyContent: 'center',
-    gap: 4,
-    borderWidth: 1.7,
-    borderRadius: 2,
-    paddingHorizontal: 3,
-  },
-  invoiceLine: {
-    width: '100%',
-    height: 1.5,
-    borderRadius: 1,
-  },
-  invoiceLineShort: {
-    width: '65%',
-  },
-  homeRoof: {
-    position: 'absolute',
-    top: 3,
-    width: 16,
-    height: 16,
-    borderTopWidth: 1.8,
-    borderLeftWidth: 1.8,
-    transform: [{ rotate: '45deg' }],
-  },
-  homeBody: {
-    position: 'absolute',
-    bottom: 2,
-    width: 15,
-    height: 12,
-    borderWidth: 1.8,
-    borderTopWidth: 0,
-    borderBottomLeftRadius: 2,
-    borderBottomRightRadius: 2,
-  },
-  sliderLine: {
-    position: 'absolute',
-    left: 3,
-    width: 18,
-    height: 1.6,
-    borderRadius: 1,
-  },
-  sliderKnob: {
-    position: 'absolute',
-    width: 7,
-    height: 7,
-    borderWidth: 1.5,
-    borderRadius: 4,
-    backgroundColor: palette.surface,
-  },
-  messageBody: {
-    width: 20,
-    height: 15,
-    overflow: 'hidden',
-    borderWidth: 1.7,
-    borderRadius: 3,
-  },
-  messageFoldLeft: {
-    position: 'absolute',
-    top: 4,
-    left: -1,
-    width: 13,
-    height: 1.5,
-    transform: [{ rotate: '32deg' }],
-  },
-  messageFoldRight: {
-    position: 'absolute',
-    top: 4,
-    right: -1,
-    width: 13,
-    height: 1.5,
-    transform: [{ rotate: '-32deg' }],
-  },
-  profileHead: {
-    position: 'absolute',
-    top: 2,
-    width: 9,
-    height: 9,
-    borderWidth: 1.7,
-    borderRadius: 5,
-  },
-  profileShoulders: {
-    position: 'absolute',
-    bottom: 1,
-    width: 20,
-    height: 10,
-    borderWidth: 1.7,
-    borderTopLeftRadius: 10,
-    borderTopRightRadius: 10,
-    borderBottomWidth: 0,
   },
 })
