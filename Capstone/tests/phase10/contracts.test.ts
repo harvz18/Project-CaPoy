@@ -708,6 +708,44 @@ test('V10 Phase 3 keeps Explore outside the event-planning navigator', () => {
   ], 'read-only service details outside an event')
 })
 
+test('V10 Phase 4 persists service-specific catering guest counts', () => {
+  const migration = read('supabase/migrations/20261021000700_catering_service_guest_count.sql')
+  const savedPlanMigration = read('supabase/migrations/20261021000800_catering_saved_plan_guest_count.sql')
+  const details = read('src/screens/08-ServiceDetails.tsx')
+  const planning = read('src/lib/planning.ts')
+
+  mustContain(migration, [
+    'calculate_catering_service_quote_v10',
+    'calculate_catering_menu_quote_v10',
+    'save_my_catering_service_selection_v10',
+    'target_guest_count integer',
+    "'guestCount', target_guest_count",
+    'attendee_count = (pricing ->> \'guestCount\')::integer',
+    'validate_my_phase9_selections',
+  ], 'service-specific catering quote, snapshot, and checkout validation')
+  mustContain(savedPlanMigration, [
+    'review_my_saved_booking_plan_v9_initial',
+    'selection.attendee_count',
+    'calculate_catering_menu_quote_v10',
+    'calculate_catering_service_quote_v10',
+  ], 'saved-plan catering guest-count validation')
+  mustContain(details, [
+    'NUMBER OF GUESTS',
+    'Decrease catering guest count',
+    'Increase catering guest count',
+    'Catering guest count',
+    'Service-specific count. Your event-wide guest count will not be changed.',
+    'cateringGuestCountIssue',
+    'Set a Valid Guest Count',
+  ], 'catering guest quantity controls')
+  mustContain(planning, [
+    'calculate_catering_menu_quote_v10',
+    'calculate_catering_service_quote_v10',
+    'save_my_catering_service_selection_v10',
+    'target_guest_count: cateringGuestCount',
+  ], 'client quote and selection calls')
+})
+
 test('client home uses live eligible services, resumable drafts, and booking progress', () => {
   const app = read('src/App.tsx')
   const planning = read('src/lib/planning.ts')

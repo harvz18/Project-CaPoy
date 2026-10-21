@@ -193,6 +193,7 @@ export type SavedPlanReview = {
 let activePlanningEventId = ''
 
 export const calculateServiceQuote = async ({
+  attendeeCount,
   menuItemIds,
   optionId,
   packageId,
@@ -200,6 +201,7 @@ export const calculateServiceQuote = async ({
   serviceId,
   venueSelections,
 }: {
+  attendeeCount?: number
   menuItemIds?: string[]
   optionId?: string
   packageId?: string
@@ -217,14 +219,31 @@ export const calculateServiceQuote = async ({
     // the package-aware quote endpoint even for a venue, because the venue
     // option endpoint only prices manually selected spaces and durations.
     const hasSelectedProviderPackage = Boolean(packageId && isUuid(packageId))
-    const rpcName = hasSelectedProviderPackage
+    const cateringGuestCount = typeof attendeeCount === 'number' ? attendeeCount : 0
+    const hasServiceSpecificCateringGuests = Number.isSafeInteger(cateringGuestCount) && cateringGuestCount > 0
+    const rpcName = hasServiceSpecificCateringGuests
+      ? menuItemIds !== undefined
+        ? 'calculate_catering_menu_quote_v10'
+        : 'calculate_catering_service_quote_v10'
+      : hasSelectedProviderPackage
       ? 'calculate_event_service_quote'
       : venueSelections !== undefined
       ? 'calculate_event_venue_quote_v8'
       : menuItemIds !== undefined ? 'calculate_catering_menu_quote' : 'calculate_event_service_quote'
     const { data, error } = await client.rpc(
       rpcName,
-      hasSelectedProviderPackage ? {
+      hasServiceSpecificCateringGuests ? menuItemIds !== undefined ? {
+        target_event_id: event.eventId,
+        target_guest_count: cateringGuestCount,
+        target_menu_item_ids: menuItemIds,
+        target_service_id: serviceId,
+      } : {
+        target_event_id: event.eventId,
+        target_guest_count: cateringGuestCount,
+        target_option_id: optionId ?? null,
+        target_package_id: packageId && isUuid(packageId) ? packageId : null,
+        target_service_id: serviceId,
+      } : hasSelectedProviderPackage ? {
         target_event_id: event.eventId,
         target_option_id: null,
         target_package_id: packageId,
@@ -1893,7 +1912,20 @@ export const saveServiceSelection = async (
       // Those endpoints correctly require manual configuration, which is not
       // part of a provider-created package.
       const hasSelectedProviderPackage = isUuid(packageId)
-      const selectionResult = hasSelectedProviderPackage
+      const isCateringSelection = value.service.categoryId === 'catering'
+      const selectionResult = isCateringSelection
+        ? await client.rpc('save_my_catering_service_selection_v10', {
+          replace_existing: true,
+          target_event_id: event.eventId,
+          target_guest_count: value.attendeeCount,
+          target_meal_type: value.mealType ?? null,
+          target_menu_item_ids: value.cateringMenuItemIds ?? null,
+          target_notes: selectionNotes,
+          target_option_id: value.cateringOption?.id ?? null,
+          target_package_id: hasSelectedProviderPackage ? packageId : null,
+          target_service_id: serviceId,
+        })
+        : hasSelectedProviderPackage
         ? await client.rpc('save_my_event_service_selection', {
           replace_existing: true,
           target_event_id: event.eventId,

@@ -4428,6 +4428,7 @@ export const App: React.FC = () => {
             hasBudget={hasConfiguredPlanningBudget}
             onAddSelection={handleAddSelection}
             onCalculateQuote={(value) => calculateServiceQuote({
+              attendeeCount: value.attendeeCount,
               menuItemIds: value.menuItemIds,
               optionId: value.optionId,
               packageId: value.packageId,

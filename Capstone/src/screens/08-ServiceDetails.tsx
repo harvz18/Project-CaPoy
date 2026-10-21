@@ -67,6 +67,7 @@ interface ServiceDetailsScreenProps {
   service?: CatalogService
   onAddSelection?: (value: ServiceSelectionValue) => Promise<void> | void
   onCalculateQuote?: (value: {
+    attendeeCount?: number
     menuItemIds?: string[]
     optionId?: string
     packageId?: string
@@ -153,6 +154,13 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   const [selectedCateringMenuItemIds, setSelectedCateringMenuItemIds] = React.useState<string[]>([])
   const [selectedCateringOptionId, setSelectedCateringOptionId] = React.useState('')
   const [selectedCateringOffering, setSelectedCateringOffering] = React.useState<CateringOffering>('preset')
+  const [cateringGuestCount, setCateringGuestCount] = React.useState(
+    Math.max(1, Math.floor(eventGuestCount || 1))
+  )
+  const [cateringGuestCountText, setCateringGuestCountText] = React.useState(
+    String(Math.max(1, Math.floor(eventGuestCount || 1)))
+  )
+  const [cateringGuestCountMessage, setCateringGuestCountMessage] = React.useState('')
   const [expandedCateringMenuSections, setExpandedCateringMenuSections] = React.useState<Set<string>>(new Set())
   const [selectedVenueHours, setSelectedVenueHours] = React.useState<Record<string, string>>({})
   const [expandedVenueOptions, setExpandedVenueOptions] = React.useState<Set<string>>(new Set())
@@ -167,6 +175,8 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   const [selectedPackageId, setSelectedPackageId] = React.useState(
     service?.packageId ?? ''
   )
+  const eventGuestCountRef = React.useRef(eventGuestCount)
+  eventGuestCountRef.current = eventGuestCount
   const serviceImages = React.useMemo(
     () =>
       (service?.galleryUrls?.length
@@ -187,6 +197,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   )
 
   React.useEffect(() => {
+    const initialGuestCount = Math.max(1, Math.floor(eventGuestCountRef.current || 1))
     setSelectedPackageId(service?.packageId ?? '')
     setMealType(service?.cateringServiceTypes?.[0])
     setSelectedCateringMenuItemIds(defaultCateringCustomMenuItemIds(
@@ -196,6 +207,11 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     setSelectedCateringOptionId(options.length === 1 ? options[0].id : '')
     const customMenu = getCateringCustomMenu(service?.categoryDetails)
     setSelectedCateringOffering(customMenu && options.length === 0 ? 'custom' : 'preset')
+    // Catering quantities are service-specific. Start with the event value,
+    // rather than silently changing the event-wide guest count.
+    setCateringGuestCount(initialGuestCount)
+    setCateringGuestCountText(String(initialGuestCount))
+    setCateringGuestCountMessage('')
     setExpandedCateringMenuSections(new Set())
     const venueOptions = getVenueBookingOptions(service?.categoryDetails)
     const venueRules = getVenueBookingRules(service?.categoryDetails)
@@ -235,6 +251,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
 
     const isCateringService = service.categoryId === 'catering'
     const isVenueService = service.categoryId === 'venues'
+    const quoteGuestCount = isCateringService ? cateringGuestCount : eventGuestCount
     const selectedProviderPackage = service.packages?.find((item) => item.id === selectedPackageId)
     const venueOptions = getVenueBookingOptions(service.categoryDetails)
     const selectedVenueSelections = venueOptions.flatMap((option) => {
@@ -256,7 +273,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
       const calculation = calculateCateringCustomMenuPrice(
         customMenu,
         selectedCateringMenuItemIds,
-        eventGuestCount
+        quoteGuestCount
       )
       if (!calculation.fitsGuestCount) return
     } else if (isCateringService && !useSelectedProviderPackage && !selectedCateringOptionId) return
@@ -272,6 +289,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     setQuoteLoading(true)
     const timer = setTimeout(() => {
       void onCalculateQuote({
+        attendeeCount: isCateringService ? quoteGuestCount : undefined,
         menuItemIds: useCustomCateringMenu ? selectedCateringMenuItemIds : undefined,
         optionId: isVenueService ? undefined
           : isCateringService && !useSelectedProviderPackage ? selectedCateringOptionId : undefined,
@@ -318,6 +336,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   }, [
     isExploreMode,
     onCalculateQuote,
+    cateringGuestCount,
     eventGuestCount,
     selectedCateringMenuItemIds,
     selectedCateringOffering,
@@ -342,10 +361,12 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     )
   }
 
-  const attendeeCount = Math.max(0, Math.floor(eventGuestCount || 0))
   const categoryFacts = summarizeCategoryDetails(service.categoryName, service.categoryDetails)
   const isCatering = service.categoryId === 'catering'
   const isVenue = service.categoryId === 'venues'
+  const attendeeCount = isCatering
+    ? cateringGuestCount
+    : Math.max(0, Math.floor(eventGuestCount || 0))
   const customCateringMenu = getCateringCustomMenu(service.categoryDetails)
   const cateringOptions = getCateringPricingOptions(service.categoryDetails, service.providerMinPrice)
   const selectedPackage = service.packages?.find((item) => item.id === selectedPackageId)
@@ -379,6 +400,28 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     : undefined
   const activeCateringOption = usesCustomCateringMenu ? selectedCustomCateringOption : selectedCateringOption
   const activeCateringCalculation = usesCustomCateringMenu ? customCateringCalculation : cateringCalculation
+  const cateringGuestMinimum = usesCustomCateringMenu && customCateringMenu
+    ? customCateringMenu.minimumGuests
+    : selectedCateringOption?.minimumGuests
+      ?? (cateringOptions.length
+        ? Math.min(...cateringOptions.map((option) => option.minimumGuests))
+        : customCateringMenu?.minimumGuests ?? 1)
+  const cateringGuestMaximum = usesCustomCateringMenu && customCateringMenu
+    ? customCateringMenu.maximumGuests
+    : selectedCateringOption?.maximumGuests
+      ?? (cateringOptions.length
+        ? Math.max(...cateringOptions.map((option) => option.maximumGuests))
+        : customCateringMenu?.maximumGuests)
+  const parsedCateringGuestCount = Number(cateringGuestCountText)
+  const cateringGuestCountIssue = !isCatering
+    ? ''
+    : !/^\d+$/.test(cateringGuestCountText) || !Number.isSafeInteger(parsedCateringGuestCount)
+      ? 'Enter a whole-number guest count.'
+      : parsedCateringGuestCount < cateringGuestMinimum
+        ? `This service needs at least ${cateringGuestMinimum} guests.`
+        : cateringGuestMaximum !== undefined && parsedCateringGuestCount > cateringGuestMaximum
+          ? `This service supports up to ${cateringGuestMaximum} guests.`
+          : cateringGuestCountMessage
   const budgetPerHead = activeCateringOption?.pricePerHead ?? 0
   const availableMealTypes = service.cateringServiceTypes ?? []
   const cateringSelectionUnavailable = isCatering && !usesSelectedProviderPackage && (
@@ -510,12 +553,50 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   const scheduleUnavailable = !isExploreMode
     && service.budgetRecommendation?.availabilityStatus === 'unavailable'
 
+  const setCateringGuests = (nextValue: number) => {
+    const next = Math.max(1, Math.floor(nextValue))
+    setCateringGuestCount(next)
+    setCateringGuestCountText(String(next))
+    setCateringGuestCountMessage('')
+  }
+
+  const commitCateringGuestCount = () => {
+    if (!/^\d+$/.test(cateringGuestCountText)) {
+      setCateringGuestCountMessage('Enter a whole-number guest count.')
+      return
+    }
+    const next = Number(cateringGuestCountText)
+    if (!Number.isSafeInteger(next) || next < cateringGuestMinimum) {
+      setCateringGuestCountMessage(`This service needs at least ${cateringGuestMinimum} guests.`)
+      return
+    }
+    if (cateringGuestMaximum !== undefined && next > cateringGuestMaximum) {
+      setCateringGuestCountMessage(`This service supports up to ${cateringGuestMaximum} guests.`)
+      return
+    }
+    setCateringGuests(next)
+  }
+
+  const adjustCateringGuestCount = (direction: -1 | 1) => {
+    const next = cateringGuestCount + direction
+    if (next < cateringGuestMinimum) {
+      setCateringGuestCountMessage(`This service needs at least ${cateringGuestMinimum} guests.`)
+      return
+    }
+    if (cateringGuestMaximum !== undefined && next > cateringGuestMaximum) {
+      setCateringGuestCountMessage(`This service supports up to ${cateringGuestMaximum} guests.`)
+      return
+    }
+    setCateringGuests(next)
+  }
+
   const handleAddSelection = async () => {
     if (
       !onAddSelection
       || isAddingSelection
       || cateringSelectionUnavailable
       || venueSelectionUnavailable
+      || Boolean(cateringGuestCountIssue)
       || authoritativeQuoteUnavailable
       || exceedsAvailableCategoryBudget
       || scheduleUnavailable
@@ -924,9 +1005,62 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
             {isCatering ? (
               <View style={styles.cateringOptionsSection}>
                 <View style={styles.guestCountCard}>
-                  <View>
-                    <Text style={styles.inputLabel}>EXPECTED / ANTICIPATED GUESTS</Text>
-                    <Text style={styles.guestCountValue}>{attendeeCount.toLocaleString('en-PH')} guests</Text>
+                  <View style={styles.guestCountCopy}>
+                    <Text style={styles.inputLabel}>NUMBER OF GUESTS</Text>
+                    <Text style={styles.guestCountHint}>
+                      Service-specific count. Your event-wide guest count will not be changed.
+                    </Text>
+                    <View style={styles.guestCountControl}>
+                      <Pressable
+                        accessibilityLabel="Decrease catering guest count"
+                        accessibilityRole="button"
+                        accessibilityState={{ disabled: attendeeCount <= cateringGuestMinimum }}
+                        disabled={attendeeCount <= cateringGuestMinimum}
+                        onPress={() => adjustCateringGuestCount(-1)}
+                        style={({ pressed }) => [
+                          styles.guestCountButton,
+                          attendeeCount <= cateringGuestMinimum && styles.guestCountButtonDisabled,
+                          pressed && styles.guestCountButtonPressed,
+                        ]}
+                      >
+                        <MaterialCommunityIcons color={palette.primary} name="minus" size={20} />
+                      </Pressable>
+                      <TextInput
+                        accessibilityLabel="Catering guest count"
+                        keyboardType="number-pad"
+                        maxLength={5}
+                        onBlur={commitCateringGuestCount}
+                        onChangeText={(value) => {
+                          const normalized = value.replace(/\D/g, '')
+                          setCateringGuestCountText(normalized)
+                          setCateringGuestCountMessage('')
+                          if (/^\d+$/.test(normalized)) setCateringGuestCount(Number(normalized))
+                        }}
+                        onSubmitEditing={commitCateringGuestCount}
+                        selectTextOnFocus
+                        style={styles.guestCountInput}
+                        value={cateringGuestCountText}
+                      />
+                      <Pressable
+                        accessibilityLabel="Increase catering guest count"
+                        accessibilityRole="button"
+                        accessibilityState={{ disabled: cateringGuestMaximum !== undefined && attendeeCount >= cateringGuestMaximum }}
+                        disabled={cateringGuestMaximum !== undefined && attendeeCount >= cateringGuestMaximum}
+                        onPress={() => adjustCateringGuestCount(1)}
+                        style={({ pressed }) => [
+                          styles.guestCountButton,
+                          cateringGuestMaximum !== undefined && attendeeCount >= cateringGuestMaximum && styles.guestCountButtonDisabled,
+                          pressed && styles.guestCountButtonPressed,
+                        ]}
+                      >
+                        <MaterialCommunityIcons color={palette.primary} name="plus" size={20} />
+                      </Pressable>
+                    </View>
+                    <Text style={styles.guestCountRange}>
+                      Provider limit: {cateringGuestMinimum.toLocaleString('en-PH')}
+                      {cateringGuestMaximum !== undefined ? `-${cateringGuestMaximum.toLocaleString('en-PH')}` : '+'} guests
+                    </Text>
+                    {cateringGuestCountIssue ? <Text style={styles.cateringMismatch}>{cateringGuestCountIssue}</Text> : null}
                   </View>
                   <MaterialCommunityIcons color={palette.primary} name="account-group-outline" size={28} />
                 </View>
@@ -1450,13 +1584,13 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                   : `Add to selection for ${formatPeso(estimatedTotal)} Philippine pesos`
               }
               accessibilityRole="button"
-              accessibilityState={{ disabled: isAddingSelection || cateringSelectionUnavailable || venueSelectionUnavailable || authoritativeQuoteUnavailable || exceedsAvailableCategoryBudget || scheduleUnavailable }}
-              disabled={isAddingSelection || cateringSelectionUnavailable || venueSelectionUnavailable || authoritativeQuoteUnavailable || exceedsAvailableCategoryBudget || scheduleUnavailable}
+              accessibilityState={{ disabled: isAddingSelection || cateringSelectionUnavailable || venueSelectionUnavailable || Boolean(cateringGuestCountIssue) || authoritativeQuoteUnavailable || exceedsAvailableCategoryBudget || scheduleUnavailable }}
+              disabled={isAddingSelection || cateringSelectionUnavailable || venueSelectionUnavailable || Boolean(cateringGuestCountIssue) || authoritativeQuoteUnavailable || exceedsAvailableCategoryBudget || scheduleUnavailable}
               onPress={handleAddSelection}
               style={({ pressed }) => [
                 styles.addButton,
                 isWide && styles.addButtonWide,
-                (isAddingSelection || cateringSelectionUnavailable || venueSelectionUnavailable || authoritativeQuoteUnavailable || exceedsAvailableCategoryBudget || scheduleUnavailable) && styles.addButtonDisabled,
+                (isAddingSelection || cateringSelectionUnavailable || venueSelectionUnavailable || Boolean(cateringGuestCountIssue) || authoritativeQuoteUnavailable || exceedsAvailableCategoryBudget || scheduleUnavailable) && styles.addButtonDisabled,
                 pressed && styles.addPressed,
               ]}
             >
@@ -1467,6 +1601,8 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                     ? 'Catering Options Unavailable'
                     : venueSelectionUnavailable
                       ? 'Venue Option or Duration Required'
+                      : cateringGuestCountIssue
+                        ? 'Set a Valid Guest Count'
                     : quoteLoading
                       ? 'Calculating Event Price...'
                       : quoteError
@@ -1797,7 +1933,15 @@ const styles = StyleSheet.create({
   },
   unavailableNoticeText: { minWidth: 0, flex: 1, color: palette.secondary, fontSize: 12, lineHeight: 18 },
   cateringOptionsSection: { gap: 12, marginBottom: 32 },
-  guestCountCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 14, backgroundColor: '#F8EFF1', padding: 16 },
+  guestCountCard: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14, borderRadius: 14, backgroundColor: '#F8EFF1', padding: 16 },
+  guestCountCopy: { minWidth: 0, flex: 1, gap: 6 },
+  guestCountHint: { color: palette.secondary, fontSize: 11, lineHeight: 16 },
+  guestCountControl: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 3 },
+  guestCountButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#D8B5BA', borderRadius: 19, backgroundColor: palette.surfaceLowest },
+  guestCountButtonDisabled: { opacity: 0.4 },
+  guestCountButtonPressed: { opacity: 0.72, transform: [{ scale: 0.94 }] },
+  guestCountInput: { width: 76, minHeight: 42, borderWidth: 1, borderColor: '#D8B5BA', borderRadius: 9, backgroundColor: palette.surfaceLowest, color: palette.primary, fontSize: 20, lineHeight: 26, fontWeight: '700', textAlign: 'center', paddingHorizontal: 8 },
+  guestCountRange: { color: palette.secondary, fontSize: 11, lineHeight: 16 },
   guestCountValue: { color: palette.primary, fontSize: 22, lineHeight: 29, fontWeight: '700', marginTop: 5 },
   cateringInstruction: { color: palette.secondary, fontSize: 13, lineHeight: 19 },
   cateringOptionCard: { gap: 10, borderWidth: 1, borderColor: palette.surfaceVariant, borderRadius: 14, backgroundColor: palette.surfaceLowest, padding: 16 },
