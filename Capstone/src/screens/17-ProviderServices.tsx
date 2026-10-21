@@ -10,11 +10,13 @@ import {
   View,
 } from 'react-native'
 import { MerchantBottomNavigation } from '../components/MerchantBottomNavigation'
+import { MerchantWorkspaceHeader } from '../components/MerchantWorkspaceHeader'
 import type { MerchantPackageListing, MerchantServiceListing } from '../lib/merchant'
 import type { MerchantHomeTab } from './16-MerchantHome'
 
 interface ProviderServicesScreenProps {
   hasDraft?: boolean
+  hasUnreadNotifications?: boolean
   initialCollection?: ListingCollection
   showBottomNavigation?: boolean
   deletingServiceId?: string
@@ -22,12 +24,11 @@ interface ProviderServicesScreenProps {
   services?: MerchantServiceListing[]
   onAddPackage?: () => void
   onAddService?: () => void
-  onBack?: () => void
   onContinueDraft?: () => void
   onDeleteService?: (service: MerchantServiceListing) => void
   onEditPackage?: (item: MerchantPackageListing) => void
   onEditService?: (service: MerchantServiceListing) => void
-  onOpenAccount?: () => void
+  onOpenNotifications?: () => void
   onSelectService?: (service: MerchantServiceListing) => void
   onSelectCollection?: (collection: ListingCollection) => void
   onSetAvailability?: (service: MerchantServiceListing, isAvailable: boolean) => void
@@ -59,6 +60,7 @@ const formatApprovalStatus = (status: string) => {
 
 export const ProviderServicesScreen: React.FC<ProviderServicesScreenProps> = ({
   hasDraft = false,
+  hasUnreadNotifications = false,
   initialCollection = 'services',
   showBottomNavigation = true,
   deletingServiceId = '',
@@ -66,12 +68,11 @@ export const ProviderServicesScreen: React.FC<ProviderServicesScreenProps> = ({
   services = [],
   onAddPackage,
   onAddService,
-  onBack,
   onContinueDraft,
   onDeleteService,
   onEditPackage,
   onEditService,
-  onOpenAccount,
+  onOpenNotifications,
   onSelectService,
   onSelectCollection,
   onSetAvailability,
@@ -118,27 +119,10 @@ export const ProviderServicesScreen: React.FC<ProviderServicesScreenProps> = ({
 
   return (
     <View style={styles.screen}>
-      <View style={styles.topAppBar}>
-        <View style={[styles.topAppBarContent, isWide && styles.widePadding]}>
-          <Pressable
-            accessibilityLabel="Go back"
-            accessibilityRole="button"
-            onPress={onBack}
-            style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
-          >
-            <Text style={styles.iconText}>{'<'}</Text>
-          </Pressable>
-          <Text style={styles.brand}>MULTIVENT</Text>
-          <Pressable
-            accessibilityLabel="Open account"
-            accessibilityRole="button"
-            onPress={onOpenAccount}
-            style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
-          >
-            <Text style={styles.accountIcon}>O</Text>
-          </Pressable>
-        </View>
-      </View>
+      <MerchantWorkspaceHeader
+        hasUnreadNotifications={hasUnreadNotifications}
+        onOpenNotifications={onOpenNotifications}
+      />
 
       <ScrollView
         contentContainerStyle={[

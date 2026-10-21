@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native'
 import { MerchantBottomNavigation } from '../components/MerchantBottomNavigation'
+import { MerchantWorkspaceHeader } from '../components/MerchantWorkspaceHeader'
 import type { MerchantHomeTab } from './16-MerchantHome'
 
 export type MerchantVerificationStatus = 'approved' | 'pending' | 'rejected'
@@ -49,7 +50,6 @@ interface MerchantProfileScreenProps {
   hasUnreadNotifications?: boolean
   isLoggingOut?: boolean
   showBottomNavigation?: boolean
-  onBack?: () => void
   onEditMedia?: (target: MerchantProfileMediaTarget) => void
   onEditProfile?: () => void
   onOpenNotifications?: () => void
@@ -125,20 +125,6 @@ const verificationLabels: Record<
   },
 }
 
-const BackIcon = () => (
-  <View style={styles.backIcon}>
-    <View style={styles.backIconHead} />
-    <View style={styles.backIconShaft} />
-  </View>
-)
-
-const BellIcon = () => (
-  <View style={styles.bellIcon}>
-    <View style={styles.bellBody} />
-    <View style={styles.bellBase} />
-  </View>
-)
-
 const getInitials = (name: string) =>
   name
     .trim()
@@ -151,7 +137,6 @@ export const MerchantProfileScreen: React.FC<MerchantProfileScreenProps> = ({
   hasUnreadNotifications = true,
   isLoggingOut = false,
   showBottomNavigation = true,
-  onBack,
   onEditMedia,
   onEditProfile,
   onOpenNotifications,
@@ -167,30 +152,10 @@ export const MerchantProfileScreen: React.FC<MerchantProfileScreenProps> = ({
 
   return (
     <View style={styles.screen}>
-      <View style={styles.topAppBar}>
-        <View style={[styles.topAppBarContent, isWide && styles.wideHorizontalPadding]}>
-          <Pressable
-            accessibilityLabel="Go back"
-            accessibilityRole="button"
-            hitSlop={8}
-            onPress={onBack}
-            style={({ pressed }) => [styles.iconButton, pressed && styles.iconButtonPressed]}
-          >
-            <BackIcon />
-          </Pressable>
-          <Text style={styles.brand}>MULTIVENT</Text>
-          <Pressable
-            accessibilityLabel="Open notifications"
-            accessibilityRole="button"
-            hitSlop={8}
-            onPress={onOpenNotifications}
-            style={({ pressed }) => [styles.iconButton, pressed && styles.iconButtonPressed]}
-          >
-            <BellIcon />
-            {hasUnreadNotifications ? <View style={styles.notificationBadge} /> : null}
-          </Pressable>
-        </View>
-      </View>
+      <MerchantWorkspaceHeader
+        hasUnreadNotifications={hasUnreadNotifications}
+        onOpenNotifications={onOpenNotifications}
+      />
 
       <ScrollView
         contentContainerStyle={[

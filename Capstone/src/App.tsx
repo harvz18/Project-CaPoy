@@ -3994,6 +3994,7 @@ export const App: React.FC = () => {
           <ProviderServicesScreen
             deletingServiceId={deletingMerchantServiceId}
             hasDraft={hasMerchantDraft}
+            hasUnreadNotifications={notifications.some((notification) => !notification.isRead)}
             initialCollection={providerListingsCollection}
             showBottomNavigation={false}
             services={merchantServices}
@@ -4007,12 +4008,11 @@ export const App: React.FC = () => {
               setProviderPackageReturnScreen('providerServices')
               setScreen('providerStandalonePackage')
             }}
-            onBack={() => setScreen('providerHome')}
             onContinueDraft={() => setScreen('providerServiceReview')}
             onDeleteService={(service) => void deleteMerchantService(service)}
             onEditPackage={editStandaloneMerchantPackage}
             onEditService={(service) => void editMerchantService(service)}
-            onOpenAccount={() => setScreen('providerProfile')}
+            onOpenNotifications={() => setScreen('providerNotifications')}
             onSelectCollection={setProviderListingsCollection}
             onSelectService={(service) => void editMerchantService(service)}
             onSetAvailability={(service, isAvailable) =>
@@ -4208,10 +4208,11 @@ export const App: React.FC = () => {
       case 'providerBookingRequests':
         return (
           <BookingRequestScreen
+            hasUnreadNotifications={notifications.some((notification) => !notification.isRead)}
             initialStatus={merchantRequestStatus}
             requests={merchantRequests}
             showBottomNavigation={false}
-            onBack={() => setScreen('providerHome')}
+            onOpenNotifications={() => setScreen('providerNotifications')}
             onSelectNavigationTab={(tab) => {
               if (tab === 'events') setScreen('providerHome')
               if (tab === 'bookings') setScreen('providerBookingRequests')
@@ -4312,6 +4313,7 @@ export const App: React.FC = () => {
       case 'providerProfile':
         return (
           <MerchantProfileScreen
+            hasUnreadNotifications={notifications.some((notification) => !notification.isRead)}
             isLoggingOut={isSigningOut}
             profile={{
               businessName: accountProfile?.businessName || userName,
@@ -4320,7 +4322,6 @@ export const App: React.FC = () => {
               description: accountProfile?.businessDescription || '',
               location: accountProfile?.businessLocation || '',
             }}
-            onBack={() => setScreen('providerHome')}
             onEditProfile={() => openAccountProfile('providerProfile')}
             onOpenNotifications={() => setScreen('providerNotifications')}
             onSelectAction={handleMerchantAction}

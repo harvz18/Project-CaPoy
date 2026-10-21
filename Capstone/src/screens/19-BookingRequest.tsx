@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native'
 import { MerchantBottomNavigation } from '../components/MerchantBottomNavigation'
+import { MerchantWorkspaceHeader } from '../components/MerchantWorkspaceHeader'
 import type { CateringFoodTasting } from '../lib/merchant'
 import type { VenueBookingConfiguration } from '../lib/venue-booking'
 import type { MerchantHomeTab } from './16-MerchantHome'
@@ -109,8 +110,9 @@ export interface MerchantBookingRequest {
 
 interface BookingRequestScreenProps {
   initialStatus?: BookingRequestStatus
+  hasUnreadNotifications?: boolean
   showBottomNavigation?: boolean
-  onBack?: () => void
+  onOpenNotifications?: () => void
   onSelectMerchantTab?: (tab: MerchantHomeTab) => void
   onSelectNavigationTab?: (tab: BookingRequestNavigationTab) => void
   onSelectRequest?: (request: MerchantBookingRequest) => void
@@ -131,13 +133,6 @@ const statusLabels: Record<BookingRequestStatus, string> = {
   completed: 'Completed',
   cancelled: 'Cancelled',
 }
-
-const BackIcon = () => (
-  <View style={styles.backIcon}>
-    <View style={styles.backIconHead} />
-    <View style={styles.backIconShaft} />
-  </View>
-)
 
 const formatPrice = (request: MerchantBookingRequest) =>
   new Intl.NumberFormat('en-PH', {
@@ -171,8 +166,9 @@ const completionIsAvailable = (value: string) => {
 
 export const BookingRequestScreen: React.FC<BookingRequestScreenProps> = ({
   initialStatus = 'new',
+  hasUnreadNotifications = false,
   showBottomNavigation = true,
-  onBack,
+  onOpenNotifications,
   onSelectMerchantTab,
   onSelectNavigationTab,
   onSelectRequest,
@@ -198,21 +194,10 @@ export const BookingRequestScreen: React.FC<BookingRequestScreenProps> = ({
 
   return (
     <View style={styles.screen}>
-      <View style={styles.topAppBar}>
-        <View style={[styles.topAppBarContent, isWide && styles.wideHorizontalPadding]}>
-          <Pressable
-            accessibilityLabel="Go back"
-            accessibilityRole="button"
-            hitSlop={8}
-            onPress={onBack}
-            style={({ pressed }) => [styles.backButton, pressed && styles.backButtonPressed]}
-          >
-            <BackIcon />
-          </Pressable>
-          <Text style={styles.brand}>MULTIVENT</Text>
-          <View style={styles.topBarSpacer} />
-        </View>
-      </View>
+      <MerchantWorkspaceHeader
+        hasUnreadNotifications={hasUnreadNotifications}
+        onOpenNotifications={onOpenNotifications}
+      />
 
       <ScrollView
         contentContainerStyle={[

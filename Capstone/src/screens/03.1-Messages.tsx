@@ -4,6 +4,7 @@ import {
   type CoordinatorMainTab,
 } from '../components/CoordinatorBottomNavigation'
 import { MerchantBottomNavigation } from '../components/MerchantBottomNavigation'
+import { MerchantWorkspaceHeader } from '../components/MerchantWorkspaceHeader'
 import React from 'react'
 import {
   Image,
@@ -348,12 +349,18 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
 
   return (
     <View style={styles.screen}>
-      <View style={[
-        styles.topAppBar,
-        usesEventGroups && styles.clientTopAppBar,
-      ]}>
-        <View style={[styles.topAppBarContent, isWide && styles.horizontalPaddingWide]}>
-          {usesEventGroups ? (
+      {navigationVariant === 'merchant' ? (
+        <MerchantWorkspaceHeader
+          hasUnreadNotifications={hasUnreadNotifications}
+          onOpenNotifications={onOpenNotifications}
+        />
+      ) : (
+        <View style={[
+          styles.topAppBar,
+          usesEventGroups && styles.clientTopAppBar,
+        ]}>
+          <View style={[styles.topAppBarContent, isWide && styles.horizontalPaddingWide]}>
+            {usesEventGroups ? (
             <>
               {navigationVariant === 'coordinator' ? (
                 <Pressable
@@ -414,9 +421,10 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                 {hasUnreadNotifications ? <View style={styles.notificationDot} /> : null}
               </Pressable>
             </>
-          )}
+            )}
+          </View>
         </View>
-      </View>
+      )}
 
       <ScrollView
         contentContainerStyle={[

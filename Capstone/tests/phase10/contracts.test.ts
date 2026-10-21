@@ -1999,6 +1999,48 @@ test('V10 Phase 6 keeps the mobile brand and navigation treatment consistent', (
   ], 'planning navigation header')
 })
 
+test('provider root tabs share the metallic-wordmark header and use global navigation', () => {
+  const app = read('src/App.tsx')
+  const header = read('src/components/MerchantWorkspaceHeader.tsx')
+  const services = read('src/screens/17-ProviderServices.tsx')
+  const bookings = read('src/screens/19-BookingRequest.tsx')
+  const messages = read('src/screens/03.1-Messages.tsx')
+  const profile = read('src/screens/22-MerchantProfile.tsx')
+
+  mustContain(header, [
+    'BrandIdentity markSize={32} variant="metallicWordmark"',
+    'name="notifications-none"',
+    "backgroundColor: palette.primaryContainer",
+    'accessibilityLabel="Open notifications"',
+  ], 'shared provider workspace header')
+  ;[services, bookings, profile].forEach((screen) => {
+    mustContain(screen, ['<MerchantWorkspaceHeader'], 'provider root-tab header')
+    assert.doesNotMatch(screen, /accessibilityLabel="Go back"/,
+      'provider root tabs must rely on the global bottom navigation instead of a duplicate back button')
+  })
+  mustContain(messages, [
+    "navigationVariant === 'merchant' ? (",
+    '<MerchantWorkspaceHeader',
+  ], 'provider messages header')
+
+  const providerServices = app.slice(
+    app.indexOf("case 'providerServices':"),
+    app.indexOf("case 'providerServiceReview':")
+  )
+  const providerBookings = app.slice(
+    app.indexOf("case 'providerBookingRequests':"),
+    app.indexOf("case 'providerBookingRequestDetails':")
+  )
+  const providerProfile = app.slice(
+    app.indexOf("case 'providerProfile':"),
+    app.indexOf("case 'accountProfile':")
+  )
+  ;[providerServices, providerBookings, providerProfile].forEach((rootTab) => {
+    assert.doesNotMatch(rootTab, /onBack=/,
+      'provider root-tab routes must not pass a redundant back handler')
+  })
+})
+
 test('in-progress client planning autosaves and returns to the last safe step', () => {
   const app = read('src/App.tsx')
   const eventCreation = read('src/screens/04-EventCreation.tsx')
