@@ -235,6 +235,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
 
     const isCateringService = service.categoryId === 'catering'
     const isVenueService = service.categoryId === 'venues'
+    const selectedProviderPackage = service.packages?.find((item) => item.id === selectedPackageId)
     const venueOptions = getVenueBookingOptions(service.categoryDetails)
     const selectedVenueSelections = venueOptions.flatMap((option) => {
       if (!Object.prototype.hasOwnProperty.call(selectedVenueHours, option.id)) return []
@@ -247,7 +248,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
       }]
     })
     const customMenu = getCateringCustomMenu(service.categoryDetails)
-    const useSelectedProviderPackage = Boolean(selectedPackageId)
+    const useSelectedProviderPackage = Boolean(selectedProviderPackage)
     const useCustomCateringMenu = isCateringService && !useSelectedProviderPackage && Boolean(customMenu)
       && (getCateringPricingOptions(service.categoryDetails, service.providerMinPrice).length === 0
         || selectedCateringOffering === 'custom')
@@ -259,7 +260,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
       )
       if (!calculation.fitsGuestCount) return
     } else if (isCateringService && !useSelectedProviderPackage && !selectedCateringOptionId) return
-    if (isVenueService && (
+    if (!useSelectedProviderPackage && isVenueService && (
       selectedVenueSelections.length === 0
       || selectedVenueSelections.some((selection) =>
         selection.bookedHours !== undefined
@@ -276,8 +277,12 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
           : isCateringService && !useSelectedProviderPackage ? selectedCateringOptionId : undefined,
         packageId: selectedPackageId || service.packageId,
         quantity: undefined,
-        service,
-        venueSelections: isVenueService ? selectedVenueSelections : undefined,
+        service: selectedProviderPackage?.serviceId
+          ? { ...service, bookingServiceId: selectedProviderPackage.serviceId }
+          : service,
+        venueSelections: !useSelectedProviderPackage && isVenueService
+          ? selectedVenueSelections
+          : undefined,
       }).then((result) => {
         if (cancelled) return
         const customerAmount = Number(result.calculatedAmount)
@@ -403,6 +408,11 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     option.maximumBookingHours ?? venueRules.maximumBookingHours
   const venueSelectionIssue = (() => {
     if (!isVenue) return ''
+    if (usesSelectedProviderPackage) {
+      return !eventDate || !eventTime
+        ? 'Set the event date and start time before choosing a venue package.'
+        : ''
+    }
     if (selectedVenueOptions.length === 0) return 'Choose at least one available venue option.'
     if (!eventDate || !eventTime) return 'Set the event date and start time before choosing a venue.'
     if (selectedVenueOptions.length > 1 && selectedVenueOptions.some((option) => !option.allowsCombination)) {
@@ -445,7 +455,8 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   const selectedProviderPrice = selectedPackage?.providerPrice ?? service.providerMinPrice
   const hasOptionLevelVenuePricing = selectedVenueOptions.length > 0
     && selectedVenueOptions.every((option) => Boolean(option.pricingUnit && option.baseRate && option.baseRate > 0))
-  const requiresQuote = (service.pricingModel === 'customQuote' || selectedPrice <= 0)
+  const requiresQuote = !usesSelectedProviderPackage
+    && (service.pricingModel === 'customQuote' || selectedPrice <= 0)
     && !(isVenue && hasOptionLevelVenuePricing)
   const locallyEstimatedVenueProviderTotal = selectedVenueOptions.reduce((total, option) => {
     if (option.pricingUnit && option.baseRate && option.baseRate > 0) {
@@ -461,7 +472,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
       : selectedProviderPrice)
   }, 0)
   const locallyEstimatedProviderTotal = usesSelectedProviderPackage
-    ? selectedProviderPrice
+    ? selectedProviderPrice * (selectedUnit === 'person' ? Math.max(attendeeCount, 1) : 1)
     : isCatering
     ? cateringCalculation?.providerSubtotal ?? 0
     : isVenue
@@ -515,8 +526,8 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     try {
       await onAddSelection({
         attendeeCount,
-        budgetPerHead: usesSelectedProviderPackage && attendeeCount > 0
-          ? selectedPrice / attendeeCount
+        budgetPerHead: usesSelectedProviderPackage && selectedUnit === 'person'
+          ? selectedPrice
           : budgetPerHead,
         cateringMenuItemIds: usesCustomCateringMenu ? selectedCateringMenuItemIds : undefined,
         cateringOption: usesSelectedProviderPackage ? undefined : activeCateringOption,
@@ -525,15 +536,16 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
         // Client dietary and special requests belong in the dedicated
         // Instruction Module, reached after service selection.
         notes: '',
-        venueBookedHours: isVenue ? primaryVenueHours : undefined,
-        venueOption: primaryVenueOption,
-        venueSelections: isVenue ? selectedVenueSelections : undefined,
+        venueBookedHours: !usesSelectedProviderPackage && isVenue ? primaryVenueHours : undefined,
+        venueOption: !usesSelectedProviderPackage && isVenue ? primaryVenueOption : undefined,
+        venueSelections: !usesSelectedProviderPackage && isVenue ? selectedVenueSelections : undefined,
         service: selectedPackage
           ? {
               ...service,
+              bookingServiceId: selectedPackage.serviceId || service.bookingServiceId,
               minPrice: selectedPackage.price,
               packageId: selectedPackage.id,
-              pricingUnit: 'event',
+              pricingUnit: selectedPackage.unit ?? service.pricingUnit ?? 'event',
               providerMinPrice: selectedPackage.providerPrice,
             }
           : isCatering && activeCateringOption
@@ -763,7 +775,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
               <View style={styles.packageList}>
                 {service.packages.map((item) => {
                   const isSelected = item.id === selectedPackageId
-                  const packageUnit = isCatering ? 'event' : item.unit
+                  const packageUnit = item.unit ?? service.pricingUnit ?? 'event'
 
                   return (
                     <Pressable
@@ -860,7 +872,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
               </View>
             ) : null}
 
-            {service.categoryId === 'catering' ? <View style={styles.mealTypeGrid}>
+            {service.categoryId === 'catering' && !usesSelectedProviderPackage ? <View style={styles.mealTypeGrid}>
               {mealTypes.map((meal) => {
                 const isSelected = meal.id === mealType
                 const isAvailable = availableMealTypes.includes(meal.id)
@@ -900,7 +912,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
               })}
             </View> : null}
 
-            {isCatering && availableMealTypes.length === 0 ? (
+            {isCatering && !usesSelectedProviderPackage && availableMealTypes.length === 0 ? (
               <View style={styles.unavailableNotice}>
                 <MaterialCommunityIcons color={palette.secondary} name="information-outline" size={20} />
                 <Text style={styles.unavailableNoticeText}>
@@ -921,8 +933,31 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                 {usesSelectedProviderPackage ? (
                   <View style={styles.cateringSummaryCard}>
                     <Text style={styles.cateringOptionName}>{selectedPackage?.name}</Text>
-                    <Text style={styles.cateringOptionRange}>Provider package · fixed total for the event</Text>
-                    <Text style={styles.cateringOptionUnit}>{formatPeso(selectedPackage?.price ?? 0)} total</Text>
+                    <Text style={styles.cateringOptionRange}>
+                      Provider package · {selectedUnit === 'person'
+                        ? 'priced per guest'
+                        : 'fixed total for the event'}
+                    </Text>
+                    <Text style={styles.cateringOptionUnit}>
+                      {formatPeso(selectedPackage?.price ?? 0)}
+                      {selectedUnit === 'person' ? ' / guest' : ' total'}
+                    </Text>
+                    {selectedUnit === 'person' ? (
+                      <Text style={styles.cateringOptionSubtotal}>
+                        {attendeeCount.toLocaleString('en-PH')} guests · {quoteLoading
+                          ? 'Calculating total...'
+                          : formatPeso(estimatedTotal)} total
+                      </Text>
+                    ) : null}
+                    {selectedPackage?.inclusions.length ? (
+                      <View style={styles.inclusionList}>
+                        {selectedPackage.inclusions.map((inclusion) => (
+                          <Text key={inclusion} style={styles.inclusionText}>
+                            {'\u2713'} {inclusion}
+                          </Text>
+                        ))}
+                      </View>
+                    ) : null}
                   </View>
                 ) : hasCustomCateringMenu && hasPresetCateringMenus ? (
                   <View style={styles.mealTypeGrid}>
@@ -1059,6 +1094,25 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                   </View>
                   <MaterialCommunityIcons color={palette.primary} name="office-building-marker-outline" size={28} />
                 </View>
+                {usesSelectedProviderPackage ? (
+                  <View style={styles.cateringSummaryCard}>
+                    <Text style={styles.cateringOptionName}>{selectedPackage?.name}</Text>
+                    <Text style={styles.cateringOptionRange}>Provider package · fixed total for the event</Text>
+                    <Text style={styles.cateringOptionUnit}>{formatPeso(selectedPackage?.price ?? 0)} total</Text>
+                    {selectedPackage?.inclusions.length ? (
+                      <View style={styles.inclusionList}>
+                        {selectedPackage.inclusions.map((inclusion) => (
+                          <Text key={inclusion} style={styles.inclusionText}>
+                            {'\u2713'} {inclusion}
+                          </Text>
+                        ))}
+                      </View>
+                    ) : null}
+                    <Text style={styles.cateringOptionRange}>
+                      Package terms replace individual venue options and duration. Event schedule and capacity are still validated before it is saved.
+                    </Text>
+                  </View>
+                ) : <>
                 <Text style={styles.cateringInstruction}>Choose available venue options. Select more than one only when every option allows combination.</Text>
                 {venueOptions.map((option) => {
                   const selected = Object.prototype.hasOwnProperty.call(selectedVenueHours, option.id)
@@ -1160,6 +1214,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                     <Text style={styles.unavailableNoticeText}>This provider must configure a venue space before the service can be selected.</Text>
                   </View>
                 ) : null}
+                </>}
               </View>
             ) : null}
 

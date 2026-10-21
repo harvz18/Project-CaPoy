@@ -650,7 +650,7 @@ const styles = StyleSheet.create({
   weekDay: {
     width: '14.285714%',
     color: palette.secondary,
-    fontSize: 11,
+    fontSize: 12,
     lineHeight: 16,
     fontWeight: '600',
     textAlign: 'center',
@@ -697,7 +697,7 @@ const styles = StyleSheet.create({
   },
   detailsEyebrow: {
     color: palette.secondary,
-    fontSize: 11,
+    fontSize: 12,
     lineHeight: 16,
     fontWeight: '600',
     letterSpacing: 0.8,
@@ -731,7 +731,7 @@ const styles = StyleSheet.create({
   statusChoiceCopy: { minWidth: 0, flex: 1 },
   statusChoiceLabel: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '600' },
   statusChoiceLabelSelected: { color: palette.primaryContainer },
-  statusChoiceDescription: { color: palette.secondary, fontSize: 11, lineHeight: 16, marginTop: 1 },
+  statusChoiceDescription: { color: palette.secondary, fontSize: 12, lineHeight: 16, marginTop: 1 },
   radio: {
     width: 18,
     height: 18,
@@ -768,7 +768,7 @@ const styles = StyleSheet.create({
   pastNoticeText: { color: palette.secondary, fontSize: 12, lineHeight: 18 },
   detailsTip: { borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 16, marginTop: 24 },
   detailsTipTitle: { color: palette.text, fontSize: 12, lineHeight: 17, fontWeight: '600' },
-  detailsTipText: { color: palette.secondary, fontSize: 11, lineHeight: 17, marginTop: 2 },
+  detailsTipText: { color: palette.secondary, fontSize: 12, lineHeight: 17, marginTop: 2 },
   footer: {
     zIndex: 30,
     width: '100%',

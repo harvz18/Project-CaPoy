@@ -155,6 +155,8 @@ export interface CatalogService {
     originalPrice?: number
     price: number
     providerPrice: number
+    pricingMode: 'composed' | 'legacy'
+    serviceId: string
     serviceNames: string[]
     unit?: 'event' | 'person' | 'hour' | 'day'
   }>
@@ -268,6 +270,10 @@ const getPackages = (value: unknown, commissionRate: number) => {
           : undefined,
         price: customerPriceFromProviderPrice(providerPrice, commissionRate),
         providerPrice,
+        pricingMode: record.pricing_mode === 'composed'
+          ? 'composed' as const
+          : 'legacy' as const,
+        serviceId: textFrom(record.service_id, ''),
         serviceNames,
         unit: ['event', 'person', 'hour', 'day'].includes(String(record.pricing_unit))
           ? (record.pricing_unit as 'event' | 'person' | 'hour' | 'day')
@@ -345,9 +351,9 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
   }
 
   const baseSelection =
-    'id, provider_id, category_id, name, description, base_price, location, cover_image_url, provider_profiles(id, user_id, business_name), service_categories(id, name), service_packages(id, name, description, price, inclusions, is_deleted), reviews(rating)'
+    'id, provider_id, category_id, name, description, base_price, location, cover_image_url, provider_profiles(id, user_id, business_name), service_categories(id, name), service_packages(id, service_id, name, description, price, inclusions, pricing_unit, pricing_mode, is_deleted), reviews(rating)'
   const detailedSelection =
-    'id, provider_id, category_id, name, description, base_price, location, cover_image_url, gallery_urls, pricing_model, pricing_unit, pricing_details, catering_service_types, category_details, provider_profiles(id, user_id, business_name), service_categories(id, name), service_packages(id, name, description, price, inclusions, pricing_unit, subtotal, discount_type, discount_value, discount_amount, is_deleted, service_package_items(position, services(name))), reviews(rating, analysis_status, sentiment_label)'
+    'id, provider_id, category_id, name, description, base_price, location, cover_image_url, gallery_urls, pricing_model, pricing_unit, pricing_details, catering_service_types, category_details, provider_profiles(id, user_id, business_name), service_categories(id, name), service_packages(id, service_id, name, description, price, inclusions, pricing_unit, pricing_mode, subtotal, discount_type, discount_value, discount_amount, is_deleted, service_package_items(position, services(name))), reviews(rating, analysis_status, sentiment_label)'
 
   const [detailedResult, commissionResult, includedPackageResult] = await Promise.all([
     supabase
@@ -360,7 +366,7 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
     supabase
       .from('service_package_items')
       .select(
-        'service_id, service_packages(id, name, description, price, inclusions, pricing_unit, subtotal, discount_type, discount_value, discount_amount, is_deleted, service_package_items(position, services(name)))'
+        'service_id, service_packages(id, service_id, name, description, price, inclusions, pricing_unit, pricing_mode, subtotal, discount_type, discount_value, discount_amount, is_deleted, service_package_items(position, services(name)))'
       )
       .limit(5000),
   ])

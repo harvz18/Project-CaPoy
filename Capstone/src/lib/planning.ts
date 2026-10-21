@@ -213,12 +213,24 @@ export const calculateServiceQuote = async ({
     if (!client || !event || !isUuid(serviceId)) {
       return { ok: false, message: 'Choose a published service to calculate its event price.' }
     }
-    const rpcName = venueSelections !== undefined
+    // A provider-created package is a complete configuration.  It must use
+    // the package-aware quote endpoint even for a venue, because the venue
+    // option endpoint only prices manually selected spaces and durations.
+    const hasSelectedProviderPackage = Boolean(packageId && isUuid(packageId))
+    const rpcName = hasSelectedProviderPackage
+      ? 'calculate_event_service_quote'
+      : venueSelections !== undefined
       ? 'calculate_event_venue_quote_v8'
       : menuItemIds !== undefined ? 'calculate_catering_menu_quote' : 'calculate_event_service_quote'
     const { data, error } = await client.rpc(
       rpcName,
-      venueSelections !== undefined ? {
+      hasSelectedProviderPackage ? {
+        target_event_id: event.eventId,
+        target_option_id: null,
+        target_package_id: packageId,
+        target_quantity: null,
+        target_service_id: serviceId,
+      } : venueSelections !== undefined ? {
         target_event_id: event.eventId,
         target_option_selections: venueSelections,
         target_service_id: serviceId,
@@ -1396,7 +1408,7 @@ export const savePlanningPayment = async (
         client
           .from('event_service_selections')
           .select(
-            'id, provider_id, service_id, package_id, estimated_amount, notes, service_name, status, selected_provider_snapshot, catering_option_id, catering_option_name, catering_option_snapshot, venue_option_id, venue_option_name, venue_option_snapshot, venue_options_snapshot, venue_booking_snapshot, venue_booked_hours, venue_setup_start_at, venue_start_at, venue_end_at, provider_profiles(user_id)'
+            'id, provider_id, service_id, package_id, package_snapshot, estimated_amount, notes, service_name, status, selected_provider_snapshot, catering_option_id, catering_option_name, catering_option_snapshot, venue_option_id, venue_option_name, venue_option_snapshot, venue_options_snapshot, venue_booking_snapshot, venue_booked_hours, venue_setup_start_at, venue_start_at, venue_end_at, provider_profiles(user_id)'
           )
           .eq('event_id', event.eventId)
           .eq('client_id', event.userId)
@@ -1493,6 +1505,7 @@ export const savePlanningPayment = async (
         event_id: event.eventId,
         financial_terms_version: 'phase5-v1',
         package_id: selection.package_id,
+        package_snapshot: selection.package_snapshot,
         provider_id: selection.provider_id,
         provider_amount: providerAmount,
         requested_date: eventRow.event_date,
@@ -1876,7 +1889,22 @@ export const saveServiceSelection = async (
           ? existingServiceSelection.dietary_notes
           : ''
       const selectionNotes = value.notes.trim() || savedNotes
-      const selectionResult = value.venueSelections !== undefined
+      // Do not send a package through a manual venue/menu save endpoint.
+      // Those endpoints correctly require manual configuration, which is not
+      // part of a provider-created package.
+      const hasSelectedProviderPackage = isUuid(packageId)
+      const selectionResult = hasSelectedProviderPackage
+        ? await client.rpc('save_my_event_service_selection', {
+          replace_existing: true,
+          target_event_id: event.eventId,
+          target_meal_type: value.mealType ?? null,
+          target_notes: selectionNotes,
+          target_option_id: null,
+          target_package_id: packageId,
+          target_quantity: null,
+          target_service_id: serviceId,
+        })
+        : value.venueSelections !== undefined
         ? await client.rpc('save_my_venue_service_selection_v8', {
           replace_existing: true,
           target_event_id: event.eventId,

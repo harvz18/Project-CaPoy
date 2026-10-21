@@ -7,6 +7,7 @@ import {
   getFirstServicePlanningCategory,
   getNextUnselectedServicePlanningCategory,
   getUnallocatedPlanningCategoryCount,
+  hasConfiguredCategoryBudgets,
   PLANNING_CATEGORY_PRIORITY,
 } from '../../src/lib/planning-categories.ts'
 
@@ -42,4 +43,12 @@ test('automatic progression skips completed categories and the dedicated coordin
 test('the reusable priority contains each supported planning category once', () => {
   assert.equal(new Set(PLANNING_CATEGORY_PRIORITY.map((category) => category.categoryId)).size, 8)
   assert.equal(getUnallocatedPlanningCategoryCount(allocations), 4)
+})
+
+test('an empty or zero-value allocation set is no-budget planning, not a zero-peso category cap', () => {
+  assert.equal(hasConfiguredCategoryBudgets([]), false)
+  assert.equal(hasConfiguredCategoryBudgets([
+    { amount: 0, categoryKey: 'catering', label: 'Catering' },
+  ]), false)
+  assert.equal(hasConfiguredCategoryBudgets(allocations), true)
 })

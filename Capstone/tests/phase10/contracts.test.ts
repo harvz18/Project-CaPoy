@@ -104,22 +104,34 @@ test('catering prices remain guest-based and validate provider option ranges', (
   ], 'client catering UI')
 })
 
-test('provider-created catering packages remain fixed event totals', () => {
-  const migration = read('supabase/migrations/20261017000400_catering_provider_package_fixed_total.sql')
+test('provider-created packages honor their configured unit and retain an immutable booking snapshot', () => {
+  const migration = read('supabase/migrations/20261021000500_package_booking_configuration.sql')
   const details = read('src/screens/08-ServiceDetails.tsx')
+  const planning = read('src/lib/planning.ts')
 
   mustContain(migration, [
-    'rename to calculate_event_service_quote_standard',
-    "category_key is distinct from 'catering'",
-    "'provider_package_fixed_total'",
-    'A selected provider catering package is always a fixed event total',
-    'provider_amount := round(coalesce(package_row.package_price, 0), 2);',
-  ], 'provider catering package fixed-total migration')
+    'rename to calculate_event_service_quote_v10_prepackage',
+    "if package_unit = 'person' then",
+    'provider_amount := round(provider_unit_price * event_row.guest_count, 2);',
+    "package_pricing_model := 'fixed_event';",
+    "'packageSnapshot', package_snapshot",
+    'capture_v10_service_package_snapshot_trigger',
+    'enforce_v10_package_booking_terms_trigger',
+    'new.package_snapshot := selection_row.package_snapshot;',
+    'if new.package_id is not null then',
+  ], 'provider package quote and snapshot migration')
   mustContain(details, [
     'usesSelectedProviderPackage',
     'Provider package · fixed total for the event',
-    "pricingUnit: 'event'",
+    "selectedUnit === 'person'",
+    "pricingUnit: selectedPackage.unit ?? service.pricingUnit ?? 'event'",
+    'Package terms replace individual venue options and duration.',
   ], 'client provider-package selection')
+  mustContain(planning, [
+    'const hasSelectedProviderPackage = Boolean(packageId && isUuid(packageId))',
+    'const hasSelectedProviderPackage = isUuid(packageId)',
+    'package_snapshot: selection.package_snapshot',
+  ], 'package quote, save, and checkout integration')
 })
 
 test('Provider 1 customizable catering demo remains client-selectable and starting-at priced', () => {
@@ -213,7 +225,7 @@ test('V8 Phase 2 prices selected venue options together and preserves their book
   ], 'V8 Phase 2 venue pricing migration')
   mustContain(details, [
     'selectedVenueHours',
-    'venueSelections: isVenue ? selectedVenueSelections : undefined',
+    'venueSelections: !usesSelectedProviderPackage && isVenue ? selectedVenueSelections : undefined',
     'RENTAL DURATION',
     'Increase ${option.name} duration',
     'VIEW RENTAL DETAILS',
@@ -645,6 +657,55 @@ test('V9 Phase 5 category tags count eligible services and mark active selection
     'exploreCategoryScroller: { marginBottom: 12 }',
     'minHeight: 40',
   ], 'counted, completed, horizontally-scrollable marketplace tags')
+})
+
+test('V10 Phase 1 keeps the marketplace usable without allocations and normalizes category tag IDs', () => {
+  const app = read('src/App.tsx')
+  const browse = read('src/screens/06-CategoryBrowse.tsx')
+  const categories = read('src/lib/planning-categories.ts')
+
+  mustContain(categories, [
+    'hasConfiguredCategoryBudgets',
+    'means the client chose the no-budget marketplace',
+  ], 'explicit no-budget detection')
+  mustContain(app, [
+    'const hasConfiguredPlanningBudget',
+    'const planningCategoryIds',
+    'PLANNING_CATEGORY_PRIORITY',
+    'const planningMarketplaceCategoryIds',
+    'hasBudget={hasConfiguredPlanningBudget}',
+  ], 'budget-free marketplace inputs')
+  mustContain(browse, [
+    'const marketplaceCategoryId',
+    'categoryNameToId(option.name)',
+    'const categoryId = marketplaceCategoryId(option)',
+    'marketplaceCategoryCounts.get(categoryId)',
+  ], 'canonical category count and completion IDs')
+})
+
+test('V10 Phase 3 keeps Explore outside the event-planning navigator', () => {
+  const app = read('src/App.tsx')
+  const browse = read('src/screens/06-CategoryBrowse.tsx')
+  const details = read('src/screens/08-ServiceDetails.tsx')
+
+  mustContain(app, [
+    "const isPlanningNavigationContext = serviceBrowseMode === 'planning'",
+    'const planningSwipeStep = !isPlanningNavigationContext',
+    '<PlanningSwipeContainer',
+    'isPlanningNavigationContext ? (',
+    '<PlanningStepNavigationProvider',
+    "setServiceBrowseMode('explore')",
+  ], 'Explore navigation isolation')
+  mustContain(browse, [
+    "const isExploreMode = mode === 'explore'",
+    'EXPLORE SERVICES',
+    'onSelectVendor?.(vendor.id)',
+  ], 'standalone Explore browsing')
+  mustContain(details, [
+    "const isExploreMode = mode === 'explore'",
+    'disabled={isExploreMode}',
+    '{!isExploreMode ? (',
+  ], 'read-only service details outside an event')
 })
 
 test('client home uses live eligible services, resumable drafts, and booking progress', () => {
@@ -1242,7 +1303,7 @@ test('V9 Phase 6 removes only the redundant venue schedule field', () => {
     'selectedVenueHours',
     'RENTAL DURATION',
     'Fixed per-event rate',
-    'venueSelections: isVenue ? selectedVenueSelections : undefined',
+    'venueSelections: !usesSelectedProviderPackage && isVenue ? selectedVenueSelections : undefined',
   ], 'venue date, time, duration, and selection controls')
   assert.doesNotMatch(details, /EVENT SCHEDULE/)
   assert.doesNotMatch(details, /Venue duration is set on each selected hourly option/)

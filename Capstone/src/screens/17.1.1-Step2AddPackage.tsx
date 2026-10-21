@@ -869,7 +869,7 @@ const styles = StyleSheet.create({
   providerTotalLabel: { color: palette.text, fontSize: 15, lineHeight: 21, fontWeight: '700' },
   providerTotal: { color: palette.primaryContainer, fontSize: 20, lineHeight: 26, fontWeight: '800' },
   clientTotal: { color: palette.primaryContainer, fontSize: 15, lineHeight: 21, fontWeight: '700' },
-  commissionNote: { color: palette.secondary, fontSize: 11, lineHeight: 16 },
+  commissionNote: { color: palette.secondary, fontSize: 12, lineHeight: 16 },
   textArea: { minHeight: 104 },
   inclusionsSection: {
     gap: 12,

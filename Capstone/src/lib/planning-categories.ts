@@ -27,6 +27,16 @@ export const hasPositiveCategoryAllocation = (
   categoryKey: BudgetPriority
 ) => allocations.some((allocation) => allocation.categoryKey === categoryKey && allocation.amount > 0)
 
+/**
+ * A budget is considered configured only when the client has actually assigned
+ * a positive amount to at least one category. An empty allocation list (or
+ * legacy zero-value rows) means the client chose the no-budget marketplace,
+ * not a zero-peso cap for every service.
+ */
+export const hasConfiguredCategoryBudgets = (
+  allocations: ReadonlyArray<CategoryBudgetAllocation>
+) => allocations.some((allocation) => Number.isFinite(allocation.amount) && allocation.amount > 0)
+
 export const getActivePlanningCategories = (
   allocations: ReadonlyArray<CategoryBudgetAllocation>
 ) => PLANNING_CATEGORY_PRIORITY.filter((category) =>

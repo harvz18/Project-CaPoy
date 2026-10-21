@@ -690,7 +690,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 2,
   },
-  coverBadgeText: { color: palette.onPrimary, fontSize: 10, lineHeight: 14 },
+  coverBadgeText: { color: palette.onPrimary, fontSize: 12, lineHeight: 16 },
   removePhotoButton: {
     position: 'absolute',
     top: 4,

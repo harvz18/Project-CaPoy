@@ -452,7 +452,7 @@ const styles = StyleSheet.create({
   clientName: { minWidth: 0, flexShrink: 1, color: palette.text, fontSize: 16, lineHeight: 22, fontWeight: '600' },
   price: { color: palette.primaryContainer, fontSize: 16, lineHeight: 22, fontWeight: '700' },
   requestMeta: { color: palette.secondary, fontSize: 12, lineHeight: 17, marginTop: 4 },
-  serviceNames: { color: palette.secondary, fontSize: 11, lineHeight: 16, marginTop: 2 },
+  serviceNames: { color: palette.secondary, fontSize: 12, lineHeight: 16, marginTop: 2 },
   requestActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   requestActionsCompact: { alignSelf: 'flex-end' },
   declineButton: {

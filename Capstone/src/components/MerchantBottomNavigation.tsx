@@ -157,8 +157,8 @@ const styles = StyleSheet.create({
   },
   navLabel: {
     color: palette.secondary,
-    fontSize: 9,
-    lineHeight: 12,
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: '700',
     opacity: 0.8,
   },

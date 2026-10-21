@@ -141,6 +141,12 @@ const parseBudgetInput = (value: string): number | undefined => {
   return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed * 100) / 100) : undefined
 }
 
+// Database category options retain their UUID for provider-management work,
+// while marketplace services use the canonical client category IDs. Always
+// derive the latter from the option name when comparing tags to services.
+const marketplaceCategoryId = (option: ServiceCategoryOption) =>
+  option.id === 'all' ? 'all' : categoryNameToId(option.name)
+
 export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   categoryCountServices,
   categoryBudgets = {},
@@ -406,19 +412,23 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   }
 
   const categoryOptionsForCounts = isExploreMode ? exploreCategories : categories
-  const marketplaceCategoryCounts = new Map(categoryOptionsForCounts.map((option) => [
-    option.id,
-    servicesForCategoryCounts.filter((vendor) => (
-      (option.id === 'all' || vendor.categoryId === option.id)
-      && matchesMarketplaceFilters(vendor, true)
-    )).length,
-  ]))
+  const marketplaceCategoryCounts = new Map(categoryOptionsForCounts.map((option) => {
+    const categoryId = marketplaceCategoryId(option)
+    return [
+      categoryId,
+      servicesForCategoryCounts.filter((vendor) => (
+        (categoryId === 'all' || vendor.categoryId === categoryId)
+        && matchesMarketplaceFilters(vendor, true)
+      )).length,
+    ]
+  }))
 
   const orderCategoryTags = (options: ServiceCategoryOption[], activeOptionId?: string) => {
     const activeOption = options.find((option) => option.id === activeOptionId)
     const remainingOptions = options.filter((option) => option.id !== activeOptionId)
     const selectedOptions = remainingOptions.filter((option) => (
-      option.id !== 'all' && activeSelectedCategoryIds.has(option.id as CatalogCategoryId)
+      marketplaceCategoryId(option) !== 'all'
+      && activeSelectedCategoryIds.has(marketplaceCategoryId(option) as CatalogCategoryId)
     ))
     const otherOptions = remainingOptions.filter((option) => !selectedOptions.includes(option))
 
@@ -471,7 +481,9 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   const activeExploreCategoryId = exploreCategories.find(
     (option) => option.name === selectedExploreCategory
   )?.id
-  const activePlanningCategoryId = categories.find((option) => option.name === categoryName)?.id
+  const activePlanningCategoryId = categories.find(
+    (option) => categoryNameToId(option.name) === categoryNameToId(categoryName)
+  )?.id
   const orderedExploreCategoryTags = orderCategoryTags(exploreCategories, activeExploreCategoryId)
   const orderedPlanningCategoryTags = orderCategoryTags(categories, activePlanningCategoryId)
   const hasCategoryRecommendationBudget = !isExploreMode && visibleVendors.some(
@@ -900,9 +912,10 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
           >
             {orderedExploreCategoryTags.map((option) => {
               const isSelected = selectedExploreCategory === option.name
-              const isCompleted = option.id !== 'all'
-                && activeSelectedCategoryIds.has(option.id as CatalogCategoryId)
-              const serviceCount = marketplaceCategoryCounts.get(option.id) ?? 0
+              const categoryId = marketplaceCategoryId(option)
+              const isCompleted = categoryId !== 'all'
+                && activeSelectedCategoryIds.has(categoryId as CatalogCategoryId)
+              const serviceCount = marketplaceCategoryCounts.get(categoryId) ?? 0
 
               return (
                 <Pressable
@@ -947,9 +960,10 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
             style={styles.exploreCategoryScroller}
           >
             {orderedPlanningCategoryTags.map((option) => {
-              const isSelected = option.name === categoryName
-              const isCompleted = activeSelectedCategoryIds.has(option.id as CatalogCategoryId)
-              const serviceCount = marketplaceCategoryCounts.get(option.id) ?? 0
+              const categoryId = marketplaceCategoryId(option)
+              const isSelected = categoryId === categoryNameToId(categoryName)
+              const isCompleted = activeSelectedCategoryIds.has(categoryId as CatalogCategoryId)
+              const serviceCount = marketplaceCategoryCounts.get(categoryId) ?? 0
 
               return (
                 <Pressable

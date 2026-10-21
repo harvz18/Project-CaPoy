@@ -557,7 +557,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.background,
   },
   overviewCopy: { minWidth: 0, flex: 1 },
-  overviewLabel: { color: palette.secondary, fontSize: 11, lineHeight: 15, letterSpacing: 0.7, marginBottom: 3 },
+  overviewLabel: { color: palette.secondary, fontSize: 12, lineHeight: 16, letterSpacing: 0.7, marginBottom: 3 },
   overviewValue: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '600' },
   overviewDetail: { color: palette.secondary, fontSize: 12, lineHeight: 17, marginTop: 2 },
   venueCard: {
@@ -629,7 +629,7 @@ const styles = StyleSheet.create({
   price: { color: palette.primaryContainer, fontSize: 18, lineHeight: 24, fontWeight: '600' },
   priceCaption: { color: palette.secondary, fontSize: 12, lineHeight: 16, marginTop: 3 },
   inclusionSection: { padding: 16 },
-  inclusionHeading: { color: palette.secondary, fontSize: 11, lineHeight: 15, letterSpacing: 0.7, marginBottom: 12 },
+  inclusionHeading: { color: palette.secondary, fontSize: 12, lineHeight: 16, letterSpacing: 0.7, marginBottom: 12 },
   inclusionList: { gap: 12 },
   inclusionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   inclusionCheck: {
@@ -641,7 +641,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: palette.primarySoft,
   },
-  inclusionCheckText: { color: palette.primaryContainer, fontSize: 11, lineHeight: 14, fontWeight: '700' },
+  inclusionCheckText: { color: palette.primaryContainer, fontSize: 12, lineHeight: 16, fontWeight: '700' },
   inclusionText: { minWidth: 0, flex: 1, color: palette.text, fontSize: 14, lineHeight: 20 },
   messageCard: {
     position: 'relative',
@@ -686,12 +686,12 @@ const styles = StyleSheet.create({
   },
   instructionIconText: { color: palette.white, fontSize: 18, lineHeight: 22, fontWeight: '800' },
   instructionHeadingCopy: { minWidth: 0, flex: 1 },
-  instructionEyebrow: { color: '#6E4B0D', fontSize: 10, lineHeight: 14, fontWeight: '800', letterSpacing: 0.8 },
+  instructionEyebrow: { color: '#6E4B0D', fontSize: 12, lineHeight: 16, fontWeight: '800', letterSpacing: 0.8 },
   instructionTitle: { color: palette.text, fontSize: 15, lineHeight: 21, fontWeight: '700' },
   instructionItem: { borderTopWidth: 1, borderTopColor: '#ECD39F', paddingTop: 11 },
   instructionItemTitle: { color: '#5B3D08', fontSize: 14, lineHeight: 20, fontWeight: '700' },
   instructionBody: { color: palette.text, fontSize: 14, lineHeight: 21, marginTop: 3 },
-  instructionTagText: { color: '#60420B', fontSize: 11, lineHeight: 16, fontWeight: '700', marginTop: 6 },
+  instructionTagText: { color: '#60420B', fontSize: 12, lineHeight: 16, fontWeight: '700', marginTop: 6 },
   footer: {
     zIndex: 40,
     width: '100%',

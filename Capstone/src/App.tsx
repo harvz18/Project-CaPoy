@@ -61,6 +61,8 @@ import {
   getFirstServicePlanningCategory,
   getNextUnselectedServicePlanningCategory,
   getUnallocatedPlanningCategoryCount,
+  hasConfiguredCategoryBudgets,
+  PLANNING_CATEGORY_PRIORITY,
 } from './lib/planning-categories'
 import { rankHomeRecommendations } from './lib/home-recommendations'
 import {
@@ -692,13 +694,16 @@ export const App: React.FC = () => {
   const hasEventOrganizerBudget = coordinatorPlanningEnabled && planningBudgetAllocations.some(
     (allocation) => allocation.categoryKey === 'eventOrganizer' && allocation.amount > 0
   )
+  // A total event budget without category allocations is intentionally a
+  // no-budget marketplace. Only actual positive category allocations enable
+  // budget filtering and the allocation-driven category list.
+  const hasConfiguredPlanningBudget = React.useMemo(
+    () => hasConfiguredCategoryBudgets(planningBudgetAllocations),
+    [planningBudgetAllocations]
+  )
   const activePlanningCategories = React.useMemo(
     () => getActivePlanningCategories(planningBudgetAllocations),
     [planningBudgetAllocations]
-  )
-  const activePlanningCategoryIds = React.useMemo(
-    () => new Set(activePlanningCategories.map((category) => category.categoryId)),
-    [activePlanningCategories]
   )
   const firstPlanningCategory = React.useMemo(
     () => getFirstPlanningCategory(planningBudgetAllocations),
@@ -708,19 +713,33 @@ export const App: React.FC = () => {
     () => getFirstServicePlanningCategory(planningBudgetAllocations),
     [planningBudgetAllocations]
   )
-  const defaultPlanningCategory = firstServicePlanningCategory
-    ?? firstPlanningCategory
-    ?? 'catering'
+  const planningCategoryIds = React.useMemo(() => {
+    if (hasConfiguredPlanningBudget) {
+      return activePlanningCategories.map((category) => category.categoryId)
+    }
+
+    return PLANNING_CATEGORY_PRIORITY
+      .filter((category) => coordinatorPlanningEnabled || category.categoryId !== 'eventOrganizers')
+      .map((category) => category.categoryId)
+  }, [activePlanningCategories, coordinatorPlanningEnabled, hasConfiguredPlanningBudget])
   const planningServiceCategories = React.useMemo(() => {
     const categoriesById = new Map(
       serviceCategories.map((category) => [categoryNameToId(category.name), category])
     )
 
-    return activePlanningCategories.map((priorityCategory) =>
-      categoriesById.get(priorityCategory.categoryId)
-        ?? fallbackServiceCategories.find((category) => category.id === priorityCategory.categoryId)
+    return planningCategoryIds.map((categoryId) =>
+      categoriesById.get(categoryId)
+        ?? fallbackServiceCategories.find((category) => category.id === categoryId)
     ).filter((category): category is ServiceCategoryOption => Boolean(category))
-  }, [activePlanningCategories, serviceCategories])
+  }, [planningCategoryIds, serviceCategories])
+  const planningMarketplaceCategoryIds = React.useMemo(
+    () => new Set(planningServiceCategories.map((category) => categoryNameToId(category.name))),
+    [planningServiceCategories]
+  )
+  const defaultPlanningCategory = firstServicePlanningCategory
+    ?? firstPlanningCategory
+    ?? planningCategoryIds[0]
+    ?? 'catering'
   const planningCategoryBudgets = React.useMemo<Partial<Record<CatalogCategoryId, number>>>(() => (
     Object.fromEntries(activePlanningCategories.map((category) => [
       category.categoryId,
@@ -730,8 +749,8 @@ export const App: React.FC = () => {
     ]))
   ), [activePlanningCategories, planningBudgetAllocations])
   const planningCatalogServices = React.useMemo(
-    () => catalogServices.filter((service) => activePlanningCategoryIds.has(service.categoryId)),
-    [activePlanningCategoryIds, catalogServices]
+    () => catalogServices.filter((service) => planningMarketplaceCategoryIds.has(service.categoryId)),
+    [catalogServices, planningMarketplaceCategoryIds]
   )
   const unallocatedPlanningCategoryCount = React.useMemo(
     () => getUnallocatedPlanningCategoryCount(planningBudgetAllocations),
@@ -863,7 +882,7 @@ export const App: React.FC = () => {
     setServiceBrowseMode('planning')
     setSelectedCategory((current) => {
       if (preferredCategory) return preferredCategory
-      if (activePlanningCategoryIds.has(current)) return current
+      if (planningMarketplaceCategoryIds.has(current)) return current
       return defaultPlanningCategory
     })
     const hasDirection = direction === 'forward' || direction === 'back'
@@ -877,7 +896,7 @@ export const App: React.FC = () => {
         useNativeDriver: true,
       }).start()
     }
-  }, [activePlanningCategoryIds, categoryBrowseEntrance, defaultPlanningCategory, setScreen, width])
+  }, [categoryBrowseEntrance, defaultPlanningCategory, planningMarketplaceCategoryIds, setScreen, width])
   const openSelectedPlan = openPlanningHub
   const openEventCreation = () => {
     eventCreationEntrance.setValue(width)
@@ -1178,12 +1197,12 @@ export const App: React.FC = () => {
 
   React.useEffect(() => {
     if (screen !== 'categoryBrowse' || serviceBrowseMode !== 'planning') return
-    if (activePlanningCategoryIds.has(selectedCategory)) return
+    if (planningMarketplaceCategoryIds.has(selectedCategory)) return
 
     setSelectedCategory(defaultPlanningCategory)
   }, [
-    activePlanningCategoryIds,
     defaultPlanningCategory,
+    planningMarketplaceCategoryIds,
     screen,
     selectedCategory,
     serviceBrowseMode,
@@ -4217,8 +4236,10 @@ export const App: React.FC = () => {
               onOpenMenu={openSelectedPlan}
               onOpenProfile={() => openAccountProfile('budgetTracker')}
               onSelectCategory={(category) => {
-                if (!activePlanningCategoryIds.has(category)) {
-                  setToastMessage('Allocate a positive budget to this category before browsing services.')
+                if (!planningMarketplaceCategoryIds.has(category)) {
+                  setToastMessage(hasConfiguredPlanningBudget
+                    ? 'Allocate a positive budget to this category before browsing services.'
+                    : 'This service category is not available for your event preferences.')
                   openBudgetAllocationFromServices()
                   return
                 }
@@ -4266,7 +4287,7 @@ export const App: React.FC = () => {
                 ))
               )
             )}
-            hasBudget={totalBudget > 0}
+            hasBudget={hasConfiguredPlanningBudget}
             selectedServiceCount={selectedServices.length}
             selectedServices={selectedServices}
             assignedCoordinator={assignedCoordinator}
@@ -4404,7 +4425,7 @@ export const App: React.FC = () => {
             eventTime={eventDetails.time}
             mode={serviceBrowseMode}
             service={currentService}
-            hasBudget={totalBudget > 0}
+            hasBudget={hasConfiguredPlanningBudget}
             onAddSelection={handleAddSelection}
             onCalculateQuote={(value) => calculateServiceQuote({
               menuItemIds: value.menuItemIds,
@@ -4836,8 +4857,13 @@ export const App: React.FC = () => {
     )
   }
 
-  const planningSwipeStep =
-    screen === 'eventCreation'
+  // Explore is a standalone marketplace. It can use the same browse and
+  // service-detail screens as an event plan, but it must never inherit the
+  // event wizard's step context or horizontal swipe responder.
+  const isPlanningNavigationContext = serviceBrowseMode === 'planning'
+  const planningSwipeStep = !isPlanningNavigationContext
+    ? 0
+    : screen === 'eventCreation'
       ? 1
       : screen === 'budgetAllocation'
         ? 2
@@ -4876,12 +4902,14 @@ export const App: React.FC = () => {
           isLocked={isScreenTransitioning}
           progress={screenTransitionProgress}
         >
-          <PlanningStepNavigationProvider
-            maxReachableStep={maxPlanningStep}
-            onStepPress={handlePlanningStepPress}
-          >
-            {screenWithPlanningSwipe}
-          </PlanningStepNavigationProvider>
+            {isPlanningNavigationContext ? (
+              <PlanningStepNavigationProvider
+                maxReachableStep={maxPlanningStep}
+                onStepPress={handlePlanningStepPress}
+              >
+                {screenWithPlanningSwipe}
+              </PlanningStepNavigationProvider>
+            ) : screenWithPlanningSwipe}
         </ScreenMotionFrame>
 
         <NonBlockingActivityBar visible={hasVisibleActivity} />

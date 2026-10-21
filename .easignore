@@ -1,0 +1,27 @@
+# EAS archives this Git repository from its root even though the Expo app is
+# inside Capstone. Keep only source needed by the mobile build.
+/.git
+/MULTIVENT_REVISION.md
+
+/Capstone/node_modules
+/Capstone/.expo
+/Capstone/dist
+/Capstone/builds
+/Capstone/.temp
+/Capstone/web
+/Capstone/database
+/Capstone/supabase
+/Capstone/docs
+/Capstone/tests
+/Capstone/scripts
+
+/Capstone/.env
+/Capstone/.env.*
+/Capstone/*.log
+/Capstone/.cloudflared.*
+/Capstone/fcm-service-account*.json
+/Capstone/firebase-service-account*.json
+/Capstone/*-firebase-adminsdk-*.json
+/Capstone/MULTIVENT_Mobile_UI_UX_Design_Guide.md
+
+!/Capstone/.env.example

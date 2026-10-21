@@ -871,7 +871,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   collectionCountActive: { backgroundColor: '#F1E1E4' },
-  collectionCountText: { color: palette.muted, fontSize: 11, fontWeight: '700' },
+  collectionCountText: { color: palette.muted, fontSize: 12, fontWeight: '700' },
   collectionCountTextActive: { color: palette.primary },
   draftBanner: {
     minHeight: 74,
@@ -985,9 +985,9 @@ const styles = StyleSheet.create({
   statusApproved: { backgroundColor: '#EAF6EE' },
   statusText: {
     color: palette.muted,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
-    lineHeight: 15,
+    lineHeight: 16,
   },
   statusApprovedText: { color: '#176339' },
   visibilityPill: {
@@ -1002,7 +1002,7 @@ const styles = StyleSheet.create({
   visibilityLive: { backgroundColor: '#E8F5EC' },
   visibilityDot: { backgroundColor: '#9A6A72', borderRadius: 3, height: 6, width: 6 },
   visibilityDotLive: { backgroundColor: '#24814C' },
-  visibilityText: { color: '#7D4F57', fontSize: 11, fontWeight: '700', lineHeight: 15 },
+  visibilityText: { color: '#7D4F57', fontSize: 12, fontWeight: '700', lineHeight: 16 },
   visibilityTextLive: { color: '#176339' },
   serviceDescription: {
     color: palette.muted,
@@ -1095,8 +1095,8 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     marginTop: 7,
   },
-  deletedPillText: { color: '#8E3444', fontSize: 10, fontWeight: '800', lineHeight: 14 },
-  deletedDate: { color: palette.muted, fontSize: 11, lineHeight: 16, marginTop: 10 },
+  deletedPillText: { color: '#8E3444', fontSize: 12, fontWeight: '800', lineHeight: 16 },
+  deletedDate: { color: palette.muted, fontSize: 12, lineHeight: 16, marginTop: 10 },
   packageList: { gap: 12 },
   packageCard: {
     borderWidth: 1,
@@ -1114,10 +1114,10 @@ const styles = StyleSheet.create({
   packageHeadingCopy: { minWidth: 0, flex: 1 },
   packageEyebrow: {
     color: palette.primary,
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '800',
     letterSpacing: 0.7,
-    lineHeight: 14,
+    lineHeight: 16,
   },
   packageName: { color: palette.text, fontSize: 18, fontWeight: '700', lineHeight: 24, marginTop: 3 },
   packageDescription: { color: palette.muted, fontSize: 13, lineHeight: 19, marginTop: 8 },
@@ -1130,10 +1130,10 @@ const styles = StyleSheet.create({
   },
   packageServicesLabel: {
     color: palette.muted,
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '800',
     letterSpacing: 0.6,
-    lineHeight: 13,
+    lineHeight: 16,
   },
   packageServicesText: { color: palette.text, fontSize: 13, fontWeight: '600', lineHeight: 19, marginTop: 2 },
   packageFooter: {
@@ -1155,7 +1155,7 @@ const styles = StyleSheet.create({
     textDecorationLine: 'line-through',
   },
   packageDiscountText: { color: '#176339', fontSize: 12, fontWeight: '700', lineHeight: 17 },
-  packageHostText: { color: palette.muted, fontSize: 11, lineHeight: 16, marginTop: 2 },
+  packageHostText: { color: palette.muted, fontSize: 12, lineHeight: 16, marginTop: 2 },
   managePackageButton: {
     minHeight: 38,
     justifyContent: 'center',
