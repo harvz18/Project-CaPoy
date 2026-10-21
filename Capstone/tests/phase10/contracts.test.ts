@@ -553,6 +553,19 @@ test('budget allocation cards keep controls inside selected, expanded categories
   ], 'expandable budget allocation UI')
 })
 
+test('focused total-budget input stays within its allocation card', () => {
+  const budgetScreen = read('src/screens/05-BudgetAllocation.tsx')
+
+  mustContain(budgetScreen, [
+    "alignSelf: 'stretch'",
+    "width: '100%'",
+    'minWidth: 0',
+    'borderWidth: 2',
+    'budgetInputCardFocused: { borderColor: palette.primaryContainer }',
+    'flexShrink: 1',
+  ], 'contained total-budget focus treatment')
+})
+
 test('Step 1 coordinator preference replaces the redundant coordinator choice screen', () => {
   const app = read('src/App.tsx')
   const creation = read('src/screens/04-EventCreation.tsx')

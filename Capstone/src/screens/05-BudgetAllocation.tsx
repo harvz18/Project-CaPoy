@@ -926,13 +926,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   budgetInputCard: {
-    borderWidth: 1,
+    alignSelf: 'stretch',
+    width: '100%',
+    maxWidth: '100%',
+    minWidth: 0,
+    // Reserve the focus-border space so focusing the field cannot expand this
+    // card beyond the scroll content on narrow web and mobile layouts.
+    borderWidth: 2,
     borderColor: palette.outline,
     borderRadius: 16,
     backgroundColor: palette.white,
     padding: 20,
   },
-  budgetInputCardFocused: { borderWidth: 2, borderColor: palette.primaryContainer },
+  budgetInputCardFocused: { borderColor: palette.primaryContainer },
   fieldLabel: {
     color: palette.secondary,
     fontSize: 11,
@@ -940,7 +946,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 1.1,
   },
-  totalBudgetRow: { minHeight: 64, flexDirection: 'row', alignItems: 'center' },
+  totalBudgetRow: { minWidth: 0, minHeight: 64, flexDirection: 'row', alignItems: 'center' },
   totalCurrency: {
     color: palette.primaryContainer,
     fontSize: 30,
@@ -949,6 +955,8 @@ const styles = StyleSheet.create({
   },
   budgetInput: {
     flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
     color: palette.primaryContainer,
     fontSize: 34,
     lineHeight: 42,
