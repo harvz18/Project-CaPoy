@@ -203,7 +203,6 @@ import {
   InstructionModuleService,
 } from './screens/10-InstructionModule'
 import { PlanningStepNavigationProvider } from './components/PlanningStepIndicator'
-import { PlanningSwipeContainer } from './components/PlanningSwipeContainer'
 import { BookingItem, BookingScreen } from './screens/11-BookingScreen'
 import { BookingDetailsScreen } from './screens/11.1-BookingDetails'
 import {
@@ -4858,41 +4857,12 @@ export const App: React.FC = () => {
     )
   }
 
-  // Explore is a standalone marketplace. It can use the same browse and
-  // service-detail screens as an event plan, but it must never inherit the
-  // event wizard's step context or horizontal swipe responder.
+  // Explore is a standalone marketplace. The event wizard deliberately uses
+  // explicit header controls and progress segments instead of horizontal
+  // gestures, so a horizontal interaction inside any screen cannot skip a
+  // validation step or change the current plan route.
   const isPlanningNavigationContext = serviceBrowseMode === 'planning'
-  const planningSwipeStep = !isPlanningNavigationContext
-    ? 0
-    : screen === 'eventCreation'
-      ? 1
-      : screen === 'budgetAllocation'
-        ? 2
-        : screen === 'categoryBrowse'
-          ? 3
-          : screen === 'instructionModule'
-            ? 4
-            : screen === 'payment'
-              ? 5
-              : 0
   const renderedScreen = renderScreen()
-  const screenWithPlanningSwipe = planningSwipeStep > 0 ? (
-    <PlanningSwipeContainer
-      currentStep={planningSwipeStep}
-      onSwipeLeft={
-        planningSwipeStep < maxPlanningStep
-          ? () => handlePlanningStepPress(planningSwipeStep + 1)
-          : undefined
-      }
-      onSwipeRight={
-        planningSwipeStep > 1
-          ? () => handlePlanningStepPress(planningSwipeStep - 1)
-          : undefined
-      }
-    >
-      {renderedScreen}
-    </PlanningSwipeContainer>
-  ) : renderedScreen
 
   return (
     <SafeAreaProvider>
@@ -4908,9 +4878,9 @@ export const App: React.FC = () => {
                 maxReachableStep={maxPlanningStep}
                 onStepPress={handlePlanningStepPress}
               >
-                {screenWithPlanningSwipe}
+                {renderedScreen}
               </PlanningStepNavigationProvider>
-            ) : screenWithPlanningSwipe}
+            ) : renderedScreen}
         </ScreenMotionFrame>
 
         <NonBlockingActivityBar visible={hasVisibleActivity} />

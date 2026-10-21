@@ -1,4 +1,5 @@
 import React from 'react'
+import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native'
 import { Text } from './AppText'
 import { PlanningStepIndicator } from './PlanningStepIndicator'
@@ -9,7 +10,7 @@ interface PlanningScreenHeaderProps {
   nextAccessibilityLabel?: string
   nextEnabled?: boolean
   onBack?: () => void
-  onNext?: () => void
+  onNext?: () => void | Promise<void>
   showBackButton?: boolean
   title: string
 }
@@ -17,26 +18,46 @@ interface PlanningScreenHeaderProps {
 export const PlanningScreenHeader: React.FC<PlanningScreenHeaderProps> = ({
   currentStep,
   label,
+  nextAccessibilityLabel = 'Continue to the next planning step',
+  nextEnabled,
   onBack,
-  showBackButton = false,
+  onNext,
+  showBackButton,
   title,
 }) => {
   const { width } = useWindowDimensions()
   const isWide = width >= 768
+  const canGoBack = (showBackButton ?? Boolean(onBack)) && Boolean(onBack)
+  const canGoForward = Boolean(onNext) && nextEnabled !== false
+  const nextPressLockedRef = React.useRef(false)
+
+  const handleNext = () => {
+    if (!onNext || !canGoForward || nextPressLockedRef.current) return
+
+    nextPressLockedRef.current = true
+    void Promise.resolve(onNext()).finally(() => {
+      // Most step actions either move to the next screen or expose their
+      // validation feedback synchronously. A short release prevents accidental
+      // double-taps without leaving non-navigation actions permanently locked.
+      setTimeout(() => {
+        nextPressLockedRef.current = false
+      }, 250)
+    })
+  }
 
   return (
     <>
       <View style={styles.appBar}>
         <View style={[styles.appBarContent, isWide && styles.appBarContentWide]}>
-          {showBackButton ? (
+          {canGoBack ? (
             <Pressable
-              accessibilityLabel="Go back to homepage"
+              accessibilityLabel="Go to the previous planning step"
               accessibilityRole="button"
               hitSlop={8}
               onPress={onBack}
               style={({ pressed }) => [styles.navigationButton, pressed && styles.pressed]}
             >
-              <Text style={styles.navigationIcon}>{'<'}</Text>
+              <MaterialCommunityIcons color="#FFFFFF" name="chevron-left" size={28} />
             </Pressable>
           ) : (
             <View style={styles.navigationButton} />
@@ -44,7 +65,21 @@ export const PlanningScreenHeader: React.FC<PlanningScreenHeaderProps> = ({
 
           <Text numberOfLines={1} style={styles.title}>{title.toUpperCase()}</Text>
 
-          <View style={styles.navigationButton} />
+          <Pressable
+            accessibilityLabel={nextAccessibilityLabel}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: !canGoForward }}
+            disabled={!canGoForward}
+            hitSlop={8}
+            onPress={handleNext}
+            style={({ pressed }) => [
+              styles.navigationButton,
+              !canGoForward && styles.navigationButtonDisabled,
+              pressed && canGoForward && styles.pressed,
+            ]}
+          >
+            <MaterialCommunityIcons color="#FFFFFF" name="chevron-right" size={28} />
+          </Pressable>
         </View>
       </View>
 
@@ -81,13 +116,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 20,
   },
-  navigationIcon: {
-    color: '#FFFFFF',
-    fontSize: 25,
-    lineHeight: 29,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
+  navigationButtonDisabled: { opacity: 0.32 },
   title: {
     minWidth: 0,
     flex: 1,

@@ -690,12 +690,11 @@ test('V10 Phase 3 keeps Explore outside the event-planning navigator', () => {
 
   mustContain(app, [
     "const isPlanningNavigationContext = serviceBrowseMode === 'planning'",
-    'const planningSwipeStep = !isPlanningNavigationContext',
-    '<PlanningSwipeContainer',
     'isPlanningNavigationContext ? (',
     '<PlanningStepNavigationProvider',
     "setServiceBrowseMode('explore')",
   ], 'Explore navigation isolation')
+  assert.doesNotMatch(app, /PlanningSwipeContainer/, 'event routing must not attach a horizontal swipe responder')
   mustContain(browse, [
     "const isExploreMode = mode === 'explore'",
     'EXPLORE SERVICES',
@@ -706,6 +705,32 @@ test('V10 Phase 3 keeps Explore outside the event-planning navigator', () => {
     'disabled={isExploreMode}',
     '{!isExploreMode ? (',
   ], 'read-only service details outside an event')
+})
+
+test('V10 Phase 5 uses explicit wizard controls and live local budget feedback', () => {
+  const app = read('src/App.tsx')
+  const header = read('src/components/PlanningScreenHeader.tsx')
+  const browse = read('src/screens/06-CategoryBrowse.tsx')
+
+  assert.doesNotMatch(app, /PlanningSwipeContainer/, 'planning steps must not be changed by swiping')
+  mustContain(header, [
+    'canGoBack',
+    'canGoForward',
+    'Go to the previous planning step',
+    'Continue to the next planning step',
+    'name="chevron-left"',
+    'name="chevron-right"',
+    'nextPressLockedRef',
+  ], 'explicit header navigation controls')
+  mustContain(browse, [
+    'const CategoryBudgetSlider = React.memo',
+    'Keep drag feedback local to the control.',
+    'setDraftBudget(normalized)',
+    'onPanResponderMove',
+    'void commitCategoryBudgetRef.current(amount)',
+    'await saveCategoryBudget(amount)',
+    'CATEGORY_BUDGET_STEP = 500',
+  ], 'live, deferred category budget slider')
 })
 
 test('V10 Phase 4 persists service-specific catering guest counts', () => {

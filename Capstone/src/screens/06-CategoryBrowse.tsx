@@ -5,7 +5,6 @@ import { BlurView } from 'expo-blur'
 import {
   Animated,
   Image,
-  LayoutChangeEvent,
   Modal,
   PanResponder,
   Pressable,
@@ -147,6 +146,261 @@ const parseBudgetInput = (value: string): number | undefined => {
 const marketplaceCategoryId = (option: ServiceCategoryOption) =>
   option.id === 'all' ? 'all' : categoryNameToId(option.name)
 
+interface CategoryBudgetSliderProps {
+  categoryBudget: number
+  categoryBudgetLocked: boolean
+  categoryBudgetMaximum: number
+  categoryName: string
+  onCommit?: (amount: number) => Promise<boolean> | boolean
+  remainingBudget: number
+}
+
+// Keep drag feedback local to the control. This lets the amount, thumb, and
+// accessibility value repaint as the client moves the slider without making
+// the marketplace list, filters, or service cards rerender for every pixel.
+const CategoryBudgetSlider = React.memo<CategoryBudgetSliderProps>(({
+  categoryBudget,
+  categoryBudgetLocked,
+  categoryBudgetMaximum,
+  categoryName,
+  onCommit,
+  remainingBudget,
+}) => {
+  const [budgetTrackWidth, setBudgetTrackWidth] = React.useState(1)
+  const [draftCategoryBudget, setDraftCategoryBudget] = React.useState(categoryBudget)
+  const [categoryBudgetText, setCategoryBudgetText] = React.useState(() => formatBudgetInput(categoryBudget))
+  const [isCategoryBudgetInputFocused, setIsCategoryBudgetInputFocused] = React.useState(false)
+  const [categoryBudgetInputMessage, setCategoryBudgetInputMessage] = React.useState('')
+  const [isSavingCategoryBudget, setIsSavingCategoryBudget] = React.useState(false)
+  const isSavingCategoryBudgetRef = React.useRef(false)
+  const isBudgetDraggingRef = React.useRef(false)
+  const previousCategoryBudgetRef = React.useRef(categoryBudget)
+  const draftCategoryBudgetRef = React.useRef(draftCategoryBudget)
+  const canAdjustBudgetRef = React.useRef(false)
+  const budgetDragStartRef = React.useRef(0)
+
+  React.useEffect(() => {
+    if (
+      !isBudgetDraggingRef.current
+      && !isCategoryBudgetInputFocused
+      && previousCategoryBudgetRef.current !== categoryBudget
+    ) {
+      draftCategoryBudgetRef.current = categoryBudget
+      setDraftCategoryBudget(categoryBudget)
+      setCategoryBudgetText(formatBudgetInput(categoryBudget))
+    }
+    previousCategoryBudgetRef.current = categoryBudget
+  }, [categoryBudget, isCategoryBudgetInputFocused])
+
+  const normalizeCategoryBudget = React.useCallback((amount: number) => {
+    const maximum = Math.max(0, categoryBudgetMaximum)
+    const steppedMaximum = Math.floor(maximum / CATEGORY_BUDGET_STEP) * CATEGORY_BUDGET_STEP
+    return Math.max(
+      0,
+      Math.min(
+        Math.round(Math.max(0, amount) / CATEGORY_BUDGET_STEP) * CATEGORY_BUDGET_STEP,
+        steppedMaximum
+      )
+    )
+  }, [categoryBudgetMaximum])
+
+  const setDraftBudget = React.useCallback((amount: number) => {
+    if (draftCategoryBudgetRef.current === amount) return
+    draftCategoryBudgetRef.current = amount
+    setDraftCategoryBudget(amount)
+  }, [])
+
+  const saveCategoryBudget = React.useCallback(async (amount: number) => {
+    if (categoryBudgetLocked || isSavingCategoryBudgetRef.current) return
+
+    setDraftBudget(amount)
+    isSavingCategoryBudgetRef.current = true
+    setIsSavingCategoryBudget(true)
+    try {
+      const saved = await onCommit?.(amount)
+      if (saved === false) {
+        draftCategoryBudgetRef.current = categoryBudget
+        setDraftCategoryBudget(categoryBudget)
+        setCategoryBudgetText(formatBudgetInput(categoryBudget))
+      }
+    } finally {
+      isSavingCategoryBudgetRef.current = false
+      setIsSavingCategoryBudget(false)
+    }
+  }, [categoryBudget, categoryBudgetLocked, onCommit, setDraftBudget])
+
+  const commitCategoryBudget = React.useCallback(async (amount: number) => {
+    await saveCategoryBudget(normalizeCategoryBudget(amount))
+  }, [normalizeCategoryBudget, saveCategoryBudget])
+
+  const commitExactCategoryBudget = async () => {
+    const amount = parseBudgetInput(categoryBudgetText)
+    const maximum = Math.max(0, categoryBudgetMaximum)
+
+    if (amount === undefined) {
+      setCategoryBudgetInputMessage('Enter a valid budget amount.')
+      return false
+    }
+    if (amount > maximum) {
+      setCategoryBudgetInputMessage(`Only ${formatCurrency(maximum)} is available for this category.`)
+      return false
+    }
+
+    setCategoryBudgetInputMessage('')
+    setCategoryBudgetText(formatBudgetInput(amount))
+    await saveCategoryBudget(amount)
+    return true
+  }
+
+  const updateDraftBudgetFromPosition = React.useCallback((position: number) => {
+    if (categoryBudgetLocked || budgetTrackWidth <= 1 || categoryBudgetMaximum < CATEGORY_BUDGET_STEP) {
+      return draftCategoryBudgetRef.current
+    }
+    const ratio = Math.max(0, Math.min(position / budgetTrackWidth, 1))
+    const normalized = normalizeCategoryBudget(ratio * categoryBudgetMaximum)
+    setDraftBudget(normalized)
+    return normalized
+  }, [budgetTrackWidth, categoryBudgetLocked, categoryBudgetMaximum, normalizeCategoryBudget, setDraftBudget])
+
+  const updateDraftBudgetFromPositionRef = React.useRef(updateDraftBudgetFromPosition)
+  const commitCategoryBudgetRef = React.useRef(commitCategoryBudget)
+  canAdjustBudgetRef.current = !categoryBudgetLocked
+    && !isSavingCategoryBudget
+    && categoryBudgetMaximum >= CATEGORY_BUDGET_STEP
+  updateDraftBudgetFromPositionRef.current = updateDraftBudgetFromPosition
+  commitCategoryBudgetRef.current = commitCategoryBudget
+
+  const categoryBudgetPanResponder = React.useMemo(
+    () => PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) =>
+        canAdjustBudgetRef.current
+        && Math.abs(gestureState.dx) >= 2
+        && Math.abs(gestureState.dx) >= Math.abs(gestureState.dy),
+      onPanResponderGrant: (event) => {
+        isBudgetDraggingRef.current = true
+        budgetDragStartRef.current = event.nativeEvent.locationX
+        updateDraftBudgetFromPositionRef.current(budgetDragStartRef.current)
+      },
+      onPanResponderMove: (_, gestureState) => {
+        updateDraftBudgetFromPositionRef.current(budgetDragStartRef.current + gestureState.dx)
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        const amount = updateDraftBudgetFromPositionRef.current(
+          budgetDragStartRef.current + gestureState.dx
+        )
+        isBudgetDraggingRef.current = false
+        void commitCategoryBudgetRef.current(amount)
+      },
+      onPanResponderTerminate: () => {
+        isBudgetDraggingRef.current = false
+        void commitCategoryBudgetRef.current(draftCategoryBudgetRef.current)
+      },
+      onPanResponderTerminationRequest: () => false,
+      onShouldBlockNativeResponder: () => true,
+      onStartShouldSetPanResponder: () => canAdjustBudgetRef.current,
+    }),
+    []
+  )
+
+  const budgetPercent = categoryBudgetMaximum > 0
+    ? Math.min(draftCategoryBudget / categoryBudgetMaximum, 1) * 100
+    : 0
+
+  return (
+    <View style={styles.categoryBudgetCard}>
+      <View style={styles.categoryBudgetHeading}>
+        <View>
+          <Text style={styles.categoryBudgetEyebrow}>{categoryName.toUpperCase()} BUDGET</Text>
+          {categoryBudgetLocked ? (
+            <Text style={styles.categoryBudgetAmount}>{formatCurrency(draftCategoryBudget)}</Text>
+          ) : (
+            <>
+              <View
+                style={[
+                  styles.categoryBudgetInputShell,
+                  isCategoryBudgetInputFocused && styles.categoryBudgetInputShellFocused,
+                  categoryBudgetInputMessage && styles.categoryBudgetInputShellError,
+                ]}
+              >
+                <Text style={styles.categoryBudgetInputCurrency}>₱</Text>
+                <TextInput
+                  accessibilityLabel={`${categoryName} budget amount`}
+                  accessibilityHint="Enter an exact peso amount, or use the slider and 500-peso controls."
+                  editable={!isSavingCategoryBudget}
+                  inputMode="decimal"
+                  keyboardType="decimal-pad"
+                  onBlur={() => {
+                    setIsCategoryBudgetInputFocused(false)
+                    void commitExactCategoryBudget()
+                  }}
+                  onChangeText={(value) => {
+                    setCategoryBudgetText(normalizeBudgetInput(value))
+                    if (categoryBudgetInputMessage) setCategoryBudgetInputMessage('')
+                  }}
+                  onFocus={() => {
+                    setIsCategoryBudgetInputFocused(true)
+                    setCategoryBudgetText(String(Math.max(0, draftCategoryBudget)))
+                  }}
+                  onSubmitEditing={() => void commitExactCategoryBudget()}
+                  selectTextOnFocus
+                  style={styles.categoryBudgetInput}
+                  value={categoryBudgetText}
+                />
+              </View>
+              {categoryBudgetInputMessage ? (
+                <Text style={styles.categoryBudgetInputError}>{categoryBudgetInputMessage}</Text>
+              ) : null}
+            </>
+          )}
+        </View>
+        <Text style={categoryBudgetLocked ? styles.categoryBudgetLocked : styles.categoryBudgetEditable}>
+          {categoryBudgetLocked ? 'Locked to selection' : isSavingCategoryBudget ? 'Saving...' : 'Adjustable'}
+        </Text>
+      </View>
+      <View
+        accessible
+        accessibilityActions={[
+          { name: 'increment', label: `Increase ${categoryName} budget` },
+          { name: 'decrement', label: `Decrease ${categoryName} budget` },
+        ]}
+        accessibilityLabel={`${categoryName} budget ${formatCurrency(draftCategoryBudget)} pesos`}
+        accessibilityRole="adjustable"
+        accessibilityState={{ disabled: categoryBudgetLocked || isSavingCategoryBudget }}
+        accessibilityValue={{
+          max: Math.max(0, categoryBudgetMaximum),
+          min: 0,
+          now: draftCategoryBudget,
+        }}
+        onAccessibilityAction={(event) => {
+          if (event.nativeEvent.actionName === 'increment') {
+            void commitCategoryBudget(draftCategoryBudget + CATEGORY_BUDGET_STEP)
+          }
+          if (event.nativeEvent.actionName === 'decrement') {
+            void commitCategoryBudget(draftCategoryBudget - CATEGORY_BUDGET_STEP)
+          }
+        }}
+        onLayout={(event) => setBudgetTrackWidth(Math.max(event.nativeEvent.layout.width, 1))}
+        style={styles.categoryBudgetTrackTouch}
+        {...categoryBudgetPanResponder.panHandlers}
+      >
+        <View style={styles.categoryBudgetTrack}>
+          <View style={[styles.categoryBudgetFill, { width: `${budgetPercent}%` }]} />
+          <View style={[styles.categoryBudgetThumb, { left: `${budgetPercent}%` }]} />
+        </View>
+      </View>
+      <View style={styles.categoryBudgetFooter}>
+        <Text style={styles.categoryBudgetHint}>Remaining overall budget: {formatCurrency(remainingBudget)}</Text>
+        {!categoryBudgetLocked ? (
+          <View style={styles.categoryBudgetButtons}>
+            <Pressable disabled={isSavingCategoryBudget} onPress={() => void commitCategoryBudget(draftCategoryBudget - CATEGORY_BUDGET_STEP)} style={styles.categoryBudgetStep}><Text style={styles.categoryBudgetStepText}>-500</Text></Pressable>
+            <Pressable disabled={isSavingCategoryBudget} onPress={() => void commitCategoryBudget(draftCategoryBudget + CATEGORY_BUDGET_STEP)} style={styles.categoryBudgetStep}><Text style={styles.categoryBudgetStepText}>+500</Text></Pressable>
+          </View>
+        ) : null}
+      </View>
+    </View>
+  )
+})
+
 export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   categoryCountServices,
   categoryBudgets = {},
@@ -211,13 +465,6 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   )
   const [sortMode, setSortMode] = React.useState<CategoryBrowseSort>('recommended')
   const [isSortOpen, setIsSortOpen] = React.useState(false)
-  const [budgetTrackWidth, setBudgetTrackWidth] = React.useState(1)
-  const [draftCategoryBudget, setDraftCategoryBudget] = React.useState(categoryBudget)
-  const [categoryBudgetText, setCategoryBudgetText] = React.useState(() => formatBudgetInput(categoryBudget))
-  const [isCategoryBudgetInputFocused, setIsCategoryBudgetInputFocused] = React.useState(false)
-  const [categoryBudgetInputMessage, setCategoryBudgetInputMessage] = React.useState('')
-  const [isSavingCategoryBudget, setIsSavingCategoryBudget] = React.useState(false)
-  const isSavingCategoryBudgetRef = React.useRef(false)
   const [selectedExploreCategory, setSelectedExploreCategory] = React.useState('All')
   const [pendingReplacement, setPendingReplacement] = React.useState<CatalogService>()
   const [isReplacing, setIsReplacing] = React.useState(false)
@@ -246,19 +493,6 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     if (assignedCoordinator) categoryIds.add('eventOrganizers')
     return categoryIds
   }, [assignedCoordinator, selectedServices])
-  const isBudgetDraggingRef = React.useRef(false)
-  const previousCategoryBudgetRef = React.useRef(categoryBudget)
-  React.useEffect(() => {
-    if (
-      !isBudgetDraggingRef.current
-      && !isCategoryBudgetInputFocused
-      && previousCategoryBudgetRef.current !== categoryBudget
-    ) {
-      setDraftCategoryBudget(categoryBudget)
-      setCategoryBudgetText(formatBudgetInput(categoryBudget))
-    }
-    previousCategoryBudgetRef.current = categoryBudget
-  }, [categoryBudget, isCategoryBudgetInputFocused])
   React.useEffect(() => setSelectedFilters(new Set()), [categoryName])
 
   const categoryFilters = React.useMemo(() => {
@@ -537,123 +771,6 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
 
   const activeSortLabel = sortOptions.find((option) => option.id === sortMode)?.label ?? sortLabel
 
-  const normalizeCategoryBudget = React.useCallback((amount: number) => {
-    const maximum = Math.max(0, categoryBudgetMaximum)
-    const steppedMaximum = Math.floor(maximum / CATEGORY_BUDGET_STEP) * CATEGORY_BUDGET_STEP
-    return Math.max(
-      0,
-      Math.min(
-        Math.round(Math.max(0, amount) / CATEGORY_BUDGET_STEP) * CATEGORY_BUDGET_STEP,
-        steppedMaximum
-      )
-    )
-  }, [categoryBudgetMaximum])
-
-  const saveCategoryBudget = async (amount: number) => {
-    if (categoryBudgetLocked || isSavingCategoryBudgetRef.current) return
-    setDraftCategoryBudget(amount)
-    isSavingCategoryBudgetRef.current = true
-    setIsSavingCategoryBudget(true)
-    try {
-      const saved = await onCategoryBudgetChange?.(amount)
-      if (saved === false) {
-        setDraftCategoryBudget(categoryBudget)
-        setCategoryBudgetText(formatBudgetInput(categoryBudget))
-      }
-    } finally {
-      isSavingCategoryBudgetRef.current = false
-      setIsSavingCategoryBudget(false)
-    }
-  }
-
-  const commitCategoryBudget = async (amount: number) => {
-    await saveCategoryBudget(normalizeCategoryBudget(amount))
-  }
-
-  const commitExactCategoryBudget = async () => {
-    const amount = parseBudgetInput(categoryBudgetText)
-    const maximum = Math.max(0, categoryBudgetMaximum)
-
-    if (amount === undefined) {
-      setCategoryBudgetInputMessage('Enter a valid budget amount.')
-      return false
-    }
-    if (amount > maximum) {
-      setCategoryBudgetInputMessage(`Only ${formatCurrency(maximum)} is available for this category.`)
-      return false
-    }
-
-    setCategoryBudgetInputMessage('')
-    setCategoryBudgetText(formatBudgetInput(amount))
-    await saveCategoryBudget(amount)
-    return true
-  }
-
-  const updateDraftBudgetFromPosition = React.useCallback((position: number) => {
-    if (categoryBudgetLocked || budgetTrackWidth <= 1 || categoryBudgetMaximum < CATEGORY_BUDGET_STEP) {
-      return draftCategoryBudget
-    }
-    const ratio = Math.max(0, Math.min(position / budgetTrackWidth, 1))
-    const normalized = normalizeCategoryBudget(ratio * categoryBudgetMaximum)
-    setDraftCategoryBudget(normalized)
-    return normalized
-  }, [budgetTrackWidth, categoryBudgetLocked, categoryBudgetMaximum, draftCategoryBudget, normalizeCategoryBudget])
-
-  // Keep the responder stable for the whole gesture. Recreating it while the
-  // thumb moves interrupts React Native's responder chain after the first
-  // update, which makes the control look tappable but not draggable.
-  const canAdjustBudgetRef = React.useRef(false)
-  const budgetDragStartRef = React.useRef(0)
-  const draftCategoryBudgetRef = React.useRef(draftCategoryBudget)
-  const updateDraftBudgetFromPositionRef = React.useRef(updateDraftBudgetFromPosition)
-  const commitCategoryBudgetRef = React.useRef(commitCategoryBudget)
-  canAdjustBudgetRef.current = !categoryBudgetLocked
-    && !isSavingCategoryBudget
-    && categoryBudgetMaximum >= CATEGORY_BUDGET_STEP
-  draftCategoryBudgetRef.current = draftCategoryBudget
-  updateDraftBudgetFromPositionRef.current = updateDraftBudgetFromPosition
-  commitCategoryBudgetRef.current = commitCategoryBudget
-
-  const categoryBudgetPanResponder = React.useMemo(
-    () => PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gestureState) =>
-        canAdjustBudgetRef.current
-        && Math.abs(gestureState.dx) >= 2
-        && Math.abs(gestureState.dx) >= Math.abs(gestureState.dy),
-      onPanResponderGrant: (event) => {
-        isBudgetDraggingRef.current = true
-        budgetDragStartRef.current = event.nativeEvent.locationX
-        draftCategoryBudgetRef.current = updateDraftBudgetFromPositionRef.current(
-          budgetDragStartRef.current
-        )
-      },
-      onPanResponderMove: (_, gestureState) => {
-        draftCategoryBudgetRef.current = updateDraftBudgetFromPositionRef.current(
-          budgetDragStartRef.current + gestureState.dx
-        )
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        draftCategoryBudgetRef.current = updateDraftBudgetFromPositionRef.current(
-          budgetDragStartRef.current + gestureState.dx
-        )
-        isBudgetDraggingRef.current = false
-        void commitCategoryBudgetRef.current(draftCategoryBudgetRef.current)
-      },
-      onPanResponderTerminate: () => {
-        isBudgetDraggingRef.current = false
-        void commitCategoryBudgetRef.current(draftCategoryBudgetRef.current)
-      },
-      onPanResponderTerminationRequest: () => false,
-      onShouldBlockNativeResponder: () => true,
-      onStartShouldSetPanResponder: () => canAdjustBudgetRef.current,
-    }),
-    []
-  )
-
-  const handleBudgetTrackLayout = (event: LayoutChangeEvent) => {
-    setBudgetTrackWidth(Math.max(event.nativeEvent.layout.width, 1))
-  }
-
   React.useEffect(() => {
     if (!isSelectedServicesOpen) return
 
@@ -810,97 +927,15 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
         </View>
 
         {!isExploreMode && !replacementContext && hasSetBudget ? (
-          <View style={styles.categoryBudgetCard}>
-            <View style={styles.categoryBudgetHeading}>
-              <View>
-                <Text style={styles.categoryBudgetEyebrow}>{categoryName.toUpperCase()} BUDGET</Text>
-                {categoryBudgetLocked ? (
-                  <Text style={styles.categoryBudgetAmount}>{formatCurrency(draftCategoryBudget)}</Text>
-                ) : (
-                  <>
-                    <View
-                      style={[
-                        styles.categoryBudgetInputShell,
-                        isCategoryBudgetInputFocused && styles.categoryBudgetInputShellFocused,
-                        categoryBudgetInputMessage && styles.categoryBudgetInputShellError,
-                      ]}
-                    >
-                      <Text style={styles.categoryBudgetInputCurrency}>₱</Text>
-                      <TextInput
-                        accessibilityLabel={`${categoryName} budget amount`}
-                        accessibilityHint="Enter an exact peso amount, or use the slider and 500-peso controls."
-                        editable={!isSavingCategoryBudget}
-                        inputMode="decimal"
-                        keyboardType="decimal-pad"
-                        onBlur={() => {
-                          setIsCategoryBudgetInputFocused(false)
-                          void commitExactCategoryBudget()
-                        }}
-                        onChangeText={(value) => {
-                          setCategoryBudgetText(normalizeBudgetInput(value))
-                          if (categoryBudgetInputMessage) setCategoryBudgetInputMessage('')
-                        }}
-                        onFocus={() => {
-                          setIsCategoryBudgetInputFocused(true)
-                          setCategoryBudgetText(String(Math.max(0, draftCategoryBudget)))
-                        }}
-                        onSubmitEditing={() => void commitExactCategoryBudget()}
-                        selectTextOnFocus
-                        style={styles.categoryBudgetInput}
-                        value={categoryBudgetText}
-                      />
-                    </View>
-                    {categoryBudgetInputMessage ? (
-                      <Text style={styles.categoryBudgetInputError}>{categoryBudgetInputMessage}</Text>
-                    ) : null}
-                  </>
-                )}
-              </View>
-              <Text style={categoryBudgetLocked ? styles.categoryBudgetLocked : styles.categoryBudgetEditable}>
-                {categoryBudgetLocked ? 'Locked to selection' : isSavingCategoryBudget ? 'Saving...' : 'Adjustable'}
-              </Text>
-            </View>
-            <View
-              accessible
-              accessibilityActions={[
-                { name: 'increment', label: `Increase ${categoryName} budget` },
-                { name: 'decrement', label: `Decrease ${categoryName} budget` },
-              ]}
-              accessibilityLabel={`${categoryName} budget ${formatCurrency(draftCategoryBudget)} pesos`}
-              accessibilityRole="adjustable"
-              accessibilityState={{ disabled: categoryBudgetLocked || isSavingCategoryBudget }}
-              accessibilityValue={{
-                max: Math.max(0, categoryBudgetMaximum),
-                min: 0,
-                now: draftCategoryBudget,
-              }}
-              onAccessibilityAction={(event) => {
-                if (event.nativeEvent.actionName === 'increment') {
-                  void commitCategoryBudget(draftCategoryBudget + CATEGORY_BUDGET_STEP)
-                }
-                if (event.nativeEvent.actionName === 'decrement') {
-                  void commitCategoryBudget(draftCategoryBudget - CATEGORY_BUDGET_STEP)
-                }
-              }}
-              onLayout={handleBudgetTrackLayout}
-              style={styles.categoryBudgetTrackTouch}
-              {...categoryBudgetPanResponder.panHandlers}
-            >
-              <View style={styles.categoryBudgetTrack}>
-                <View style={[styles.categoryBudgetFill, { width: `${categoryBudgetMaximum > 0 ? Math.min(draftCategoryBudget / categoryBudgetMaximum, 1) * 100 : 0}%` }]} />
-                <View style={[styles.categoryBudgetThumb, { left: `${categoryBudgetMaximum > 0 ? Math.min(draftCategoryBudget / categoryBudgetMaximum, 1) * 100 : 0}%` }]} />
-              </View>
-            </View>
-            <View style={styles.categoryBudgetFooter}>
-              <Text style={styles.categoryBudgetHint}>Remaining overall budget: {formatCurrency(remainingBudget)}</Text>
-              {!categoryBudgetLocked ? (
-                <View style={styles.categoryBudgetButtons}>
-                  <Pressable disabled={isSavingCategoryBudget} onPress={() => void commitCategoryBudget(draftCategoryBudget - CATEGORY_BUDGET_STEP)} style={styles.categoryBudgetStep}><Text style={styles.categoryBudgetStepText}>-500</Text></Pressable>
-                  <Pressable disabled={isSavingCategoryBudget} onPress={() => void commitCategoryBudget(draftCategoryBudget + CATEGORY_BUDGET_STEP)} style={styles.categoryBudgetStep}><Text style={styles.categoryBudgetStepText}>+500</Text></Pressable>
-                </View>
-              ) : null}
-            </View>
-          </View>
+          <CategoryBudgetSlider
+            key={categoryName}
+            categoryBudget={categoryBudget}
+            categoryBudgetLocked={categoryBudgetLocked}
+            categoryBudgetMaximum={categoryBudgetMaximum}
+            categoryName={categoryName}
+            onCommit={onCategoryBudgetChange}
+            remainingBudget={remainingBudget}
+          />
         ) : null}
 
         {isExploreMode ? (
