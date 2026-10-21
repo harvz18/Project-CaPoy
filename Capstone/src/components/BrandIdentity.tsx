@@ -2,6 +2,7 @@ import React from 'react'
 import { Image, StyleProp, StyleSheet, View, ViewStyle } from 'react-native'
 
 import { Text } from './AppText'
+import { colors } from '../theme/tokens'
 
 type BrandIdentityProps = {
   inverse?: boolean
@@ -36,13 +37,13 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   name: {
-    color: '#6B1E2E',
+    color: colors.primary,
     fontFamily: 'Inter_700Bold',
     fontSize: 17,
     letterSpacing: 2.2,
     lineHeight: 22,
   },
   nameInverse: {
-    color: '#FFF7F2',
+    color: colors.textInverse,
   },
 })

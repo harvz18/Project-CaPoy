@@ -94,7 +94,7 @@ export const ClientBottomNavigation: React.FC<ClientBottomNavigationProps> = ({
               accessibilityRole="tab"
               accessibilityState={{ selected: isActive }}
               onPress={() => onSelectTab?.(tab.id)}
-              style={styles.navItem}
+              style={({ pressed }) => [styles.navItem, pressed && styles.navItemPressed]}
             >
             <View style={styles.navIconContainer}>
               {tab.id === 'home' ? (
@@ -192,6 +192,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  navItemPressed: {
+    opacity: 0.58,
+  },
   navIconContainer: {
     width: 40,
     height: 26,
@@ -211,8 +214,8 @@ const styles = StyleSheet.create({
   },
   navLabel: {
     color: palette.secondary,
-    fontSize: 9,
-    lineHeight: 12,
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: '700',
     opacity: 0.8,
   },

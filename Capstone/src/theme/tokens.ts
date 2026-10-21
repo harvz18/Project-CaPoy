@@ -6,14 +6,14 @@
 export const colors = {
   // Foundation
   background: '#FFFFFF',
-  backgroundSecondary: '#F8F8F8',
-  surface: '#FAFAFA',
+  backgroundSecondary: '#F8EFF1',
+  surface: '#FFF7F2',
   surfaceElevated: '#FFFFFF',
 
   // Primary (Burgundy)
-  primary: '#8B3A3A', // Burgundy
-  primaryDark: '#6B2D2D',
-  primaryLight: '#A85555',
+  primary: '#6B1E2E', // MULTIVENT burgundy
+  primaryDark: '#4E061A',
+  primaryLight: '#A34E5D',
 
   // Accents
   accent: '#D4A574', // Soft gold
@@ -26,14 +26,14 @@ export const colors = {
   info: '#2196F3',
 
   // Text
-  textPrimary: '#212121',
-  textSecondary: '#757575',
-  textMuted: '#BDBDBD',
+  textPrimary: '#1A1C1C',
+  textSecondary: '#5E5E5E',
+  textMuted: '#85797B',
   textInverse: '#FFFFFF',
 
   // Borders & Dividers
-  border: '#E0E0E0',
-  divider: '#F0F0F0',
+  border: '#E4D8DA',
+  divider: '#EFE4E6',
 
   // Neutral greys
   grey50: '#FAFAFA',

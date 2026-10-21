@@ -1917,3 +1917,56 @@ test('coordinator messages remain in the coordinator workspace and use the coord
     "{ id: 'account', icon: 'person', label: 'Account' }",
   ], 'coordinator bottom navigation design')
 })
+
+test('V10 Phase 6 keeps the mobile brand and navigation treatment consistent', () => {
+  const tokens = read('src/theme/tokens.ts')
+  const brandIdentity = read('src/components/BrandIdentity.tsx')
+  const clientNavigation = read('src/components/ClientBottomNavigation.tsx')
+  const merchantNavigation = read('src/components/MerchantBottomNavigation.tsx')
+  const coordinatorNavigation = read('src/components/CoordinatorBottomNavigation.tsx')
+  const profile = read('src/screens/24-AccountProfile.tsx')
+  const planningHeader = read('src/components/PlanningScreenHeader.tsx')
+
+  mustContain(tokens, [
+    "primary: '#6B1E2E'",
+    "primaryDark: '#4E061A'",
+    "backgroundSecondary: '#F8EFF1'",
+    "surface: '#FFF7F2'",
+    "border: '#E4D8DA'",
+  ], 'MULTIVENT design tokens')
+  mustContain(brandIdentity, [
+    "require('../../assets/multivent-icon.png')",
+    'color: colors.primary',
+    'color: colors.textInverse',
+    'MULTIVENT',
+  ], 'shared MULTIVENT identity')
+  mustContain(clientNavigation, [
+    'size={21}',
+    'fontSize: 12',
+    'lineHeight: 16',
+    'pressed && styles.navItemPressed',
+  ], 'client bottom navigation')
+  ;[merchantNavigation, coordinatorNavigation].forEach((navigation) => {
+    mustContain(navigation, [
+      'size={21}',
+      'fontSize: 12',
+      'lineHeight: 16',
+      'pressed && styles.navItemPressed',
+    ], 'provider and coordinator bottom navigation')
+  })
+  mustContain(profile, [
+    'BrandIdentity markSize={22}',
+    'name="arrow-back"',
+    'hitSlop={8}',
+    'accessibilityRole="button"',
+    'height: 40',
+    'width: 40',
+  ], 'account profile header')
+  mustContain(planningHeader, [
+    'name="chevron-left"',
+    'name="chevron-right"',
+    'hitSlop={8}',
+    'width: 40',
+    'height: 40',
+  ], 'planning navigation header')
+})

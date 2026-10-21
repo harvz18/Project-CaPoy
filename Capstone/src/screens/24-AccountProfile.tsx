@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native'
 import { Text } from '../components/AppText'
+import { BrandIdentity } from '../components/BrandIdentity'
 import type { EditableAccountProfile } from '../lib/profile'
 import { colors } from '../theme/tokens'
 
@@ -85,11 +86,17 @@ export const AccountProfileScreen: React.FC<AccountProfileScreenProps> = ({
       style={styles.screen}
     >
       <View style={styles.header}>
-        <Pressable accessibilityLabel="Go back" onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backGlyph}>{'\u2039'}</Text>
+        <Pressable
+          accessibilityLabel="Go back"
+          accessibilityRole="button"
+          hitSlop={8}
+          onPress={onBack}
+          style={({ pressed }) => [styles.backButton, pressed && styles.backButtonPressed]}
+        >
+          <MaterialIcons color={colors.primaryDark} name="arrow-back" size={22} />
         </Pressable>
         <View style={styles.headerCopy}>
-          <Text style={styles.brand}>MULTIVENT</Text>
+          <BrandIdentity markSize={22} style={styles.brandIdentity} />
           <Text style={styles.title}>{isProvider ? 'Business profile' : 'My account'}</Text>
         </View>
         <View style={styles.headerSpacer} />
@@ -222,8 +229,8 @@ const styles = StyleSheet.create({
   avatarImage: { borderRadius: 43, height: '100%', width: '100%' },
   avatarText: { color: colors.primaryDark, fontFamily: 'Inter_700Bold', fontSize: 25 },
   backButton: { alignItems: 'center', borderColor: colors.border, borderRadius: 10, borderWidth: 1, height: 40, justifyContent: 'center', width: 40 },
-  backGlyph: { color: colors.primaryDark, fontFamily: 'Inter_400Regular', fontSize: 34, lineHeight: 36, marginTop: -3 },
-  brand: { color: colors.primary, fontFamily: 'Inter_700Bold', fontSize: 11, letterSpacing: 1.5 },
+  backButtonPressed: { backgroundColor: colors.backgroundSecondary, opacity: 0.72 },
+  brandIdentity: { marginBottom: 2 },
   card: { alignSelf: 'center', backgroundColor: colors.surfaceElevated, borderColor: colors.border, borderRadius: 18, borderWidth: 1, maxWidth: 680, padding: 20, width: '100%' },
   cameraBadge: { alignItems: 'center', backgroundColor: colors.primary, borderColor: colors.surfaceElevated, borderRadius: 17, borderWidth: 3, bottom: -1, height: 34, justifyContent: 'center', position: 'absolute', right: -3, width: 34 },
   content: { paddingBottom: 56, paddingHorizontal: 18, paddingTop: 28 },
