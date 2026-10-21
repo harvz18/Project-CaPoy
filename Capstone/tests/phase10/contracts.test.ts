@@ -2143,6 +2143,37 @@ test('V11 Phase 2 evaluates the 14-day payout window only on the secured backend
     'eligibility processing must not initiate a payout transfer')
 })
 
+test('provider acceptance can record a held receivable without releasing it', () => {
+  const acceptanceHold = read(
+    'supabase/migrations/20261022000500_authorize_acceptance_receivable_hold.sql'
+  )
+  const providerStart = acceptanceHold.indexOf(
+    'create or replace function public.hold_phase11_provider_receivable('
+  )
+  const coordinatorStart = acceptanceHold.indexOf(
+    'create or replace function public.hold_phase11_coordinator_receivable('
+  )
+  const providerHold = acceptanceHold.slice(providerStart, coordinatorStart)
+  const coordinatorHold = acceptanceHold.slice(coordinatorStart)
+
+  assert.ok(providerStart >= 0 && coordinatorStart > providerStart,
+    'the acceptance-hold migration must retain both secured receivable helpers')
+  mustContain(providerHold, [
+    "perform set_config('app.phase11_receivable_release_authorized', 'true', true)",
+    "set provider_funds_status = 'held_receivable'",
+    'and ledger.provider_net_amount = 0',
+  ], 'provider acceptance hold')
+  mustContain(coordinatorHold, [
+    "perform set_config('app.phase11_receivable_release_authorized', 'true', true)",
+    "set provider_funds_status = 'held_receivable'",
+    'and ledger.provider_net_amount = 0',
+  ], 'coordinator acceptance hold')
+  assert.doesNotMatch(acceptanceHold, /provider_funds_status\s*=\s*'available_for_payout'/,
+    'acceptance may record a hold but must never make it withdrawable')
+  assert.doesNotMatch(acceptanceHold, /amount_released\s*=/,
+    'acceptance may not release any amount')
+})
+
 test('V11 Phase 3 presents receivables separately from withdrawable funds', () => {
   const walletSource = read('database/81_receivable_wallet_views.sql')
   const deployMigration = read(
