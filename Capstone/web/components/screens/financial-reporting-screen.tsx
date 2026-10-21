@@ -105,6 +105,7 @@ export function FinancialOverviewScreen() {
   const [customStart, setCustomStart] = useState('')
   const [customEnd, setCustomEnd] = useState('')
   const [data, setData] = useState<Row>({})
+  const [reconciliation, setReconciliation] = useState<Row>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const range = useMemo(() => reportRange(filter, customStart, customEnd), [customEnd, customStart, filter])
@@ -113,12 +114,20 @@ export function FinancialOverviewScreen() {
     const supabase = getSupabase()
     if (!supabase) { setError('Supabase is not configured.'); setLoading(false); return }
     setLoading(true); setError('')
-    const { data: result, error: requestError } = await supabase.rpc('get_admin_financial_overview', {
-      range_start: range.start,
-      range_end: range.end,
-    })
-    if (requestError) setError(requestError.message)
-    else setData(asRow(result))
+    const [overviewResult, reconciliationResult] = await Promise.all([
+      supabase.rpc('get_admin_financial_overview', {
+        range_start: range.start,
+        range_end: range.end,
+      }),
+      supabase.rpc('get_admin_phase11_receivables_reconciliation'),
+    ])
+    if (overviewResult.error) setError(overviewResult.error.message)
+    else {
+      setData(asRow(overviewResult.data))
+      // Keep the established financial report usable if a deployment reaches
+      // the web client before the additive Phase 5 migration is applied.
+      setReconciliation(reconciliationResult.error ? {} : asRow(reconciliationResult.data))
+    }
     setLoading(false)
   }, [range.end, range.start])
 
@@ -132,6 +141,8 @@ export function FinancialOverviewScreen() {
   const paymentStatuses = asRows(data.payment_statuses)
   const paymentRows = asRows(data.latest_payments)
   const payoutRows = asRows(data.payout_requests)
+  const reconciliationSummary = asRow(reconciliation.summary)
+  const reconciliationItems = asRows(reconciliation.items)
 
   return <div className="screen-stack financial-screen">
     <SectionHeading
@@ -155,6 +166,19 @@ export function FinancialOverviewScreen() {
         <Metric label="Provider allocations released" value={formatMoney(number(summary.provider_allocations_released))} detail="Recorded platform releases" icon={mdiCashCheck} />
         <Metric label="Tracked direct balance due" value={formatMoney(number(summary.tracked_direct_balance_due))} detail={`${number(summary.tracked_direct_balance_count)} booking${number(summary.tracked_direct_balance_count) === 1 ? '' : 's'} with a recorded outstanding balance`} icon={mdiChartLine} />
       </section>
+      {Object.keys(reconciliation).length > 0 && <section className="panel finance-panel finance-reconciliation-panel">
+        <header><div><span className="eyebrow">RECEIVABLES CONTROL</span><h2>Held funds and reconciliation</h2><p>Current custody is separated from payout requests and actual completed payouts. Refund/hold exposure is a protected review amount, not a completed client refund.</p></div></header>
+        <div className="finance-metric-grid finance-reconciliation-metrics">
+          <Metric label="Held allocations" value={formatMoney(number(reconciliationSummary.heldAllocations))} detail="Provider and coordinator receivables still held" icon={mdiCashCheck} />
+          <Metric label="Available after reservations" value={formatMoney(number(reconciliationSummary.availableAllocations))} detail="Validated allocations not reserved by payout requests" icon={mdiCashMultiple} tone="green" />
+          <Metric label="Pending payout requests" value={formatMoney(number(reconciliationSummary.pendingPayoutRequests))} detail={`${number(reconciliationSummary.pendingPayoutCount)} requested or processing`} icon={mdiCashMultiple} />
+          <Metric label="Completed payout requests" value={formatMoney(number(reconciliationSummary.completedPayoutRequests))} detail={`${number(reconciliationSummary.completedPayoutCount)} recorded as paid`} icon={mdiCashCheck} tone="green" />
+          <Metric label="Refund / hold exposure" value={formatMoney(number(reconciliationSummary.refundHoldExposure))} detail="Protected while cancellation or refund policy review is unresolved" icon={mdiCashCheck} />
+          <Metric label="Needs reconciliation" value={formatMoney(number(reconciliationSummary.reconciliationRequiredAmount))} detail={`${number(reconciliationSummary.reconciliationRequiredCount)} ledger allocation${number(reconciliationSummary.reconciliationRequiredCount) === 1 ? '' : 's'} flagged for review`} icon={mdiChartLine} />
+        </div>
+        <p className="finance-reconciliation-note">Ledger liability: {formatMoney(number(reconciliationSummary.remainingLedgerLiability))}. Recorded refunds: {formatMoney(number(reconciliationSummary.recordedRefunds))}. Historic unmapped payout requests: {number(reconciliationSummary.historicUnmappedPayoutCount)} ({formatMoney(number(reconciliationSummary.historicUnmappedPayoutAmount))}).</p>
+        {reconciliationItems.length > 0 && <div className="finance-table-wrap"><table className="finance-table"><thead><tr><th>Type</th><th>Recipient / event</th><th>Event date</th><th>Amount</th><th>State</th><th>Review reason</th></tr></thead><tbody>{reconciliationItems.map((item) => <tr key={`${text(item.itemType)}-${text(item.id)}`}><td>{titleCase(text(item.itemType, 'record'))}</td><td><strong>{text(item.recipientName)}</strong><small>{text(item.eventName, 'No linked event')}</small></td><td>{item.eventDate ? formatDate(String(item.eventDate)) : '—'}</td><td><strong>{formatMoney(number(item.amount))}</strong></td><td><StatusBadge value={text(item.financialState)} /></td><td>{text(item.reason)}</td></tr>)}</tbody></table></div>}
+      </section>}
       <section className="finance-disclosure-grid">
         <article className="panel finance-panel">
           <header><div><span className="eyebrow">PAYMENT SUMMARY</span><h2>Ledger status</h2><p>Amounts show platform-recorded booking payments for the selected period.</p></div></header>

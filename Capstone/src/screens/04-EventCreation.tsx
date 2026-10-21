@@ -52,7 +52,6 @@ interface EventCreationScreenProps {
   isProcessing?: boolean
   onClose?: () => void
   onContinue?: (value: EventCreationValue) => void
-  onSaveExit?: (value: EventCreationValue) => void
   onValueChange?: (value: EventCreationValue) => void
 }
 
@@ -210,7 +209,6 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
   isProcessing = false,
   onClose,
   onContinue,
-  onSaveExit,
   onValueChange,
 }) => {
   const { width } = useWindowDimensions()
@@ -779,22 +777,6 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
 
       <View style={styles.footer}>
         <View style={[styles.footerContent, isWide && styles.horizontalPaddingWide]}>
-          {onSaveExit ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ busy: isProcessing, disabled: isProcessing }}
-              disabled={isProcessing}
-              onPress={() => onSaveExit(value)}
-              style={({ pressed }) => [
-                styles.saveDraftButton,
-                isWide && styles.saveDraftButtonWide,
-                isProcessing && styles.saveDraftButtonDisabled,
-                pressed && styles.saveDraftButtonPressed,
-              ]}
-            >
-              <Text style={styles.saveDraftButtonText}>SAVE DRAFT</Text>
-            </Pressable>
-          ) : null}
           <Pressable
             accessibilityRole="button"
             accessibilityState={{ busy: isProcessing, disabled: !isStepComplete || isProcessing }}
@@ -2108,22 +2090,6 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   footerContent: { width: '100%', maxWidth: 1200, alignSelf: 'center', alignItems: 'stretch', gap: 10 },
-  saveDraftButton: {
-    width: '100%',
-    minHeight: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: palette.burgundy,
-    borderRadius: 24,
-    backgroundColor: palette.surface,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-  },
-  saveDraftButtonWide: { alignSelf: 'flex-end', width: 200 },
-  saveDraftButtonText: { color: palette.burgundy, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 1.1 },
-  saveDraftButtonDisabled: { opacity: 0.45 },
-  saveDraftButtonPressed: { backgroundColor: '#F8EDEF', transform: [{ scale: 0.98 }] },
   continueButton: {
     width: '100%',
     minHeight: 56,

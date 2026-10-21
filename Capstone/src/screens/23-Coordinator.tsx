@@ -31,6 +31,7 @@ import type {
   CoordinatorEvent,
   CoordinatorInvitation,
   CoordinatorResult,
+  CoordinatorWallet,
   ChurchArrangementStatus,
   ChurchConfirmationMethod,
   ConfirmChurchWeddingArrangementInput,
@@ -85,7 +86,19 @@ export interface ChurchArrangementDraft {
   preferredChurch: string
 }
 
-const emptyDashboard: CoordinatorDashboard = { events: [], invitations: [], tasks: [] }
+const emptyDashboard: CoordinatorDashboard = {
+  events: [],
+  invitations: [],
+  tasks: [],
+  wallet: {
+    availableBalance: 0,
+    currency: 'PHP',
+    pendingPayouts: 0,
+    receivables: 0,
+    rows: [],
+    totalPaidOut: 0,
+  },
+}
 
 const startOfDay = (value: Date) => {
   const date = new Date(value)
@@ -190,6 +203,67 @@ const CoordinatorFinancialSummary: React.FC<{
     </Text>
     {financial.paymentConfirmed ? (
       <Text style={styles.financialBalanceStatus}>{financial.balanceStatus}</Text>
+    ) : null}
+  </View>
+)
+
+const CoordinatorWalletSummary: React.FC<{ wallet: CoordinatorWallet }> = ({ wallet }) => (
+  <View style={styles.walletCard}>
+    <View style={styles.walletHeader}>
+      <View>
+        <Text style={styles.walletEyebrow}>COORDINATOR WALLET</Text>
+        <Text style={styles.walletTitle}>Receivables and payouts</Text>
+      </View>
+      <MaterialIcons color={palette.primaryContainer} name="account-balance-wallet" size={22} />
+    </View>
+    <View style={styles.walletGrid}>
+      <View style={styles.walletItem}>
+        <Text style={styles.walletLabel}>RECEIVABLES (HELD)</Text>
+        <Text style={styles.walletValue}>{pesoLabel(wallet.receivables)}</Text>
+      </View>
+      <View style={styles.walletItem}>
+        <Text style={styles.walletLabel}>AVAILABLE BALANCE</Text>
+        <Text style={styles.walletValue}>{pesoLabel(wallet.availableBalance)}</Text>
+      </View>
+      <View style={styles.walletItem}>
+        <Text style={styles.walletLabel}>PENDING PAYOUTS</Text>
+        <Text style={styles.walletValue}>{pesoLabel(wallet.pendingPayouts)}</Text>
+      </View>
+      <View style={styles.walletItem}>
+        <Text style={styles.walletLabel}>TOTAL PAID OUT</Text>
+        <Text style={styles.walletValue}>{pesoLabel(wallet.totalPaidOut)}</Text>
+      </View>
+    </View>
+    <Text style={styles.walletExplanation}>
+      Held allocations are managed by MULTIVENT and are expected to become eligible 14 days before
+      the event, provided the booking remains valid. This workspace does not submit payout requests.
+    </Text>
+    {wallet.rows.length ? (
+      <View style={styles.walletReceivableList}>
+        {wallet.rows.map((row, index) => (
+          <View
+            key={row.id}
+            style={[styles.walletReceivableRow, index < wallet.rows.length - 1 && styles.walletReceivableRowBorder]}
+          >
+            <View style={styles.walletReceivableCopy}>
+              <Text numberOfLines={1} style={styles.walletReceivableEvent}>{row.eventName}</Text>
+              <Text numberOfLines={1} style={styles.walletReceivableService}>{row.serviceName}</Text>
+              <Text style={styles.walletReceivableMeta}>Event: {dateLabel(row.eventDate)}</Text>
+              <Text style={styles.walletReceivableMeta}>
+                {row.isReconciliationRequired
+                  ? 'Eligibility requires a review.'
+                  : `Expected eligibility: ${dateLabel(row.payoutEligibleOn, 'To be determined')}`}
+              </Text>
+            </View>
+            <View style={styles.walletReceivableAmountColumn}>
+              <Text style={styles.walletReceivableAmount}>{pesoLabel(row.allocationAmount)}</Text>
+              <Text numberOfLines={1} style={styles.walletReceivableStatus}>
+                {statusLabel(row.fundsStatus)}
+              </Text>
+            </View>
+          </View>
+        ))}
+      </View>
     ) : null}
   </View>
 )
@@ -1793,6 +1867,8 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
               </View>
             </View>
 
+            <CoordinatorWalletSummary wallet={dashboard.wallet} />
+
             <View style={[styles.overviewGrid, isWide && styles.overviewGridWide]}>
               <View style={styles.overviewColumn}>
                 <View style={styles.sectionHeader}>
@@ -2058,6 +2134,25 @@ const styles = StyleSheet.create({
   statValue: { color: palette.text, fontSize: 18, lineHeight: 24, fontWeight: '600' },
   statValueAttention: { color: palette.danger },
   statLabel: { minHeight: 32, color: palette.secondary, fontSize: 12, lineHeight: 16, marginBottom: 8 },
+  walletCard: { gap: 12, borderWidth: 1, borderColor: '#D9C4C8', borderRadius: 12, backgroundColor: palette.surface, marginBottom: 26, padding: 14 },
+  walletHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
+  walletEyebrow: { color: palette.primaryContainer, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 0.8 },
+  walletTitle: { color: palette.text, fontSize: 16, lineHeight: 22, fontWeight: '700', marginTop: 2 },
+  walletGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  walletItem: { minWidth: '47%', flexGrow: 1, borderRadius: 8, backgroundColor: palette.surfaceLow, padding: 9 },
+  walletLabel: { color: palette.secondary, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 0.35 },
+  walletValue: { color: palette.primaryContainer, fontSize: 13, lineHeight: 18, fontWeight: '700', marginTop: 3 },
+  walletExplanation: { color: palette.secondary, fontSize: 12, lineHeight: 17 },
+  walletReceivableList: { borderTopWidth: 1, borderTopColor: palette.border },
+  walletReceivableRow: { minHeight: 84, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 },
+  walletReceivableRowBorder: { borderBottomWidth: 1, borderBottomColor: palette.border },
+  walletReceivableCopy: { minWidth: 0, flex: 1 },
+  walletReceivableEvent: { color: palette.text, fontSize: 12, lineHeight: 16, fontWeight: '700' },
+  walletReceivableService: { color: palette.secondary, fontSize: 12, lineHeight: 16, marginTop: 1 },
+  walletReceivableMeta: { color: palette.muted, fontSize: 12, lineHeight: 16, marginTop: 2 },
+  walletReceivableAmountColumn: { maxWidth: '42%', alignItems: 'flex-end' },
+  walletReceivableAmount: { color: palette.text, fontSize: 12, lineHeight: 16, fontWeight: '700' },
+  walletReceivableStatus: { maxWidth: 126, color: palette.primaryContainer, fontSize: 12, lineHeight: 16, fontWeight: '700', marginTop: 3, textAlign: 'right' },
   overviewGrid: { gap: 26 },
   overviewGridWide: { alignItems: 'stretch' },
   overviewColumn: { minWidth: 0, width: '100%' },

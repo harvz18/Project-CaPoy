@@ -54,6 +54,7 @@ interface BudgetAllocationScreenProps {
   onBack?: () => void
   onBudgetChange?: (budget: number) => void
   onContinue?: (value: BudgetAllocationValue) => void
+  onDraftChange?: (value: BudgetAllocationValue) => void
   onPrioritiesChange?: (priorities: BudgetPriority[]) => void
   onRemoveCommittedCoordinator?: () => void
   onSkip?: () => void
@@ -152,6 +153,7 @@ interface AllocationSliderProps {
   coordinatorMinimum: number
   label: string
   locked: boolean
+  availableAmount: number
   maxAmount: number
   minimumAmount: number
   onChange: (amount: number) => void
@@ -165,6 +167,7 @@ const AllocationSlider: React.FC<AllocationSliderProps> = ({
   coordinatorMinimum,
   label,
   locked,
+  availableAmount,
   maxAmount,
   minimumAmount,
   onChange,
@@ -346,7 +349,7 @@ const AllocationSlider: React.FC<AllocationSliderProps> = ({
 
       <View style={styles.sliderRange}>
         <Text style={styles.rangeText}>₱0</Text>
-        <Text style={styles.rangeText}>Available: {formatMoney(maxAmount)}</Text>
+        <Text style={styles.rangeText}>Available: {formatMoney(availableAmount)}</Text>
       </View>
     </View>
   )
@@ -362,6 +365,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
   onBack,
   onBudgetChange,
   onContinue,
+  onDraftChange,
   onPrioritiesChange,
   onRemoveCommittedCoordinator,
   onSkip,
@@ -555,13 +559,8 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
     [animateCategoryLayout, coordinatorMinimum, lockedCategories, onRemoveCommittedCoordinator]
   )
 
-  const handleContinue = () => {
-    if (hasAllocationValidationErrors) {
-      setCategoryNotice('Correct the highlighted category budget before continuing.')
-      return
-    }
-
-    const savedAllocations = visibleCategoryOptions
+  const draftValue = React.useMemo<BudgetAllocationValue>(() => {
+    const draftAllocations = visibleCategoryOptions
       .map((category) => ({
         amount: sanitizeMoney(allocations[category.id]),
         categoryKey: category.id,
@@ -569,12 +568,25 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
         locked: lockedCategories.has(category.id),
       }))
       .filter((allocation) => allocation.amount > 0)
-    const priorities = [...savedAllocations]
+    const priorities = [...draftAllocations]
       .sort((left, right) => right.amount - left.amount)
       .slice(0, 3)
       .map((allocation) => allocation.categoryKey)
 
-    onContinue?.({ allocations: savedAllocations, budget, priorities })
+    return { allocations: draftAllocations, budget, priorities }
+  }, [allocations, budget, lockedCategories, visibleCategoryOptions])
+
+  React.useEffect(() => {
+    onDraftChange?.(draftValue)
+  }, [draftValue, onDraftChange])
+
+  const handleContinue = () => {
+    if (hasAllocationValidationErrors) {
+      setCategoryNotice('Correct the highlighted category budget before continuing.')
+      return
+    }
+
+    onContinue?.(draftValue)
   }
 
   const removeBudget = () => {
@@ -801,6 +813,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
                         coordinatorMinimum={minimum}
                         label={category.label}
                         locked={locked}
+                        availableAmount={remainingBudget}
                         maxAmount={maximum}
                         minimumAmount={sliderMinimum}
                         onChange={(nextAmount) => handleAllocationChange(category.id, nextAmount)}
@@ -963,6 +976,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     paddingHorizontal: 8,
     paddingVertical: 8,
+    outlineWidth: 0,
   },
   removeBudgetButton: {
     width: 38,
@@ -1138,6 +1152,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'right',
     paddingVertical: 8,
+    outlineWidth: 0,
   },
   amountInputError: { marginTop: 6, color: palette.error, fontSize: 11, lineHeight: 16 },
   sliderTouchArea: { justifyContent: 'center', height: 38, marginTop: 10 },

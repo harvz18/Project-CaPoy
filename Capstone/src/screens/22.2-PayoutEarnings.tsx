@@ -44,8 +44,23 @@ export interface PayoutEarningsSummary {
   lifetimeEarnings: number
   nextPayoutDate?: string
   pendingBalance: number
+  pendingPayouts: number
   periodEarnings: number
   remainingReceivable: number
+  totalPaidOut: number
+}
+
+export interface ProviderReceivable {
+  allocationAmount: number
+  bookingReference?: string
+  eventDate?: string
+  eventId: string
+  eventName: string
+  fundsStatus: string
+  id: string
+  isReconciliationRequired: boolean
+  payoutEligibleOn?: string
+  serviceName: string
 }
 
 export interface ProviderPaymentConfirmation {
@@ -100,6 +115,7 @@ interface PayoutEarningsScreenProps {
   onSelectTransaction?: (transaction: PayoutTransaction) => void
   paymentConfirmations?: ProviderPaymentConfirmation[]
   payoutAccount?: PayoutAccount | null
+  receivables?: ProviderReceivable[]
   summary?: Partial<PayoutEarningsSummary>
   transactions?: PayoutTransaction[]
 }
@@ -110,8 +126,10 @@ const defaultSummary: PayoutEarningsSummary = {
   heldBalance: 0,
   lifetimeEarnings: 0,
   pendingBalance: 0,
+  pendingPayouts: 0,
   periodEarnings: 0,
   remainingReceivable: 0,
+  totalPaidOut: 0,
 }
 
 const periodOptions: Array<{ id: PayoutEarningsPeriod; label: string }> = [
@@ -173,6 +191,7 @@ export const PayoutEarningsScreen: React.FC<PayoutEarningsScreenProps> = ({
   onSelectTransaction,
   paymentConfirmations = [],
   payoutAccount = null,
+  receivables = [],
   summary,
   transactions = [],
 }) => {
@@ -262,7 +281,9 @@ export const PayoutEarningsScreen: React.FC<PayoutEarningsScreenProps> = ({
             </View>
           </View>
           <Text style={styles.balanceCaption}>
-            Cleared earnings can be transferred to your confirmed payout account.
+            {value.availableBalance > 0
+              ? 'Only released funds can be transferred to your confirmed payout account.'
+              : 'No funds are currently available to request. Held receivables are not included in this balance.'}
           </Text>
           <Pressable
             accessibilityRole="button"
@@ -282,21 +303,26 @@ export const PayoutEarningsScreen: React.FC<PayoutEarningsScreenProps> = ({
           </Pressable>
         </View>
 
-        <View style={[styles.statGrid, isCompact && styles.statGridCompact]}>
-          <SummaryCard
-            accent="positive"
-            label="EARNED THIS PERIOD"
-            value={formatCurrency(value.periodEarnings, value.currency)}
-          />
+        <View style={[styles.walletSummaryGrid, isCompact && styles.walletSummaryGridCompact]}>
           <SummaryCard
             accent="pending"
-            label="PENDING CLEARANCE"
-            value={formatCurrency(value.pendingBalance, value.currency)}
+            label="RECEIVABLES (HELD)"
+            value={formatCurrency(value.heldBalance, value.currency)}
+          />
+          <SummaryCard
+            accent="positive"
+            label="AVAILABLE BALANCE"
+            value={formatCurrency(value.availableBalance, value.currency)}
           />
           <SummaryCard
             accent="neutral"
-            label="LIFETIME EARNINGS"
-            value={formatCurrency(value.lifetimeEarnings, value.currency)}
+            label="PENDING PAYOUTS"
+            value={formatCurrency(value.pendingPayouts, value.currency)}
+          />
+          <SummaryCard
+            accent="neutral"
+            label="TOTAL PAID OUT"
+            value={formatCurrency(value.totalPaidOut, value.currency)}
           />
         </View>
 
@@ -367,6 +393,8 @@ export const PayoutEarningsScreen: React.FC<PayoutEarningsScreenProps> = ({
                 </View>
               )}
             </View>
+
+            <ReceivablesCard currency={value.currency} receivables={receivables} />
 
             <View style={[styles.card, styles.confirmationSection]}>
               <View style={styles.transactionHeader}>
@@ -663,6 +691,77 @@ const SummaryCard = ({
   </View>
 )
 
+const ReceivablesCard = ({
+  currency,
+  receivables,
+}: {
+  currency: string
+  receivables: ProviderReceivable[]
+}) => (
+  <View style={[styles.card, styles.receivablesSection]}>
+    <View style={styles.transactionHeader}>
+      <View style={styles.confirmationHeaderCopy}>
+        <Text style={styles.sectionTitle}>Receivables</Text>
+        <Text style={styles.sectionSubtitle}>
+          Held allocations are separate from funds you can withdraw.
+        </Text>
+      </View>
+      <View style={styles.transactionCountBadge}>
+        <Text style={styles.transactionCount}>{receivables.length}</Text>
+      </View>
+    </View>
+    <View style={styles.receivablesNotice}>
+      <Text style={styles.receivablesNoticeText}>
+        Your allocation is currently held by MULTIVENT and is expected to become eligible for
+        payout 14 days before the event, provided the booking remains valid.
+      </Text>
+    </View>
+    {receivables.length ? (
+      <View style={styles.receivablesList}>
+        {receivables.map((receivable, index) => (
+          <View
+            key={receivable.id}
+            style={[styles.receivableRow, index < receivables.length - 1 && styles.receivableRowBorder]}
+          >
+            <View style={styles.receivableCopy}>
+              <Text numberOfLines={1} style={styles.receivableEvent}>{receivable.eventName}</Text>
+              <Text numberOfLines={1} style={styles.receivableService}>{receivable.serviceName}</Text>
+              <Text style={styles.receivableMeta}>
+                {receivable.bookingReference ? `${receivable.bookingReference} · ` : ''}
+                Event: {receivable.eventDate ? formatDate(receivable.eventDate) : 'Date to be confirmed'}
+              </Text>
+              <Text style={styles.receivableMeta}>
+                {receivable.isReconciliationRequired
+                  ? 'Eligibility requires a review.'
+                  : receivable.payoutEligibleOn
+                    ? `Expected eligibility: ${formatDate(receivable.payoutEligibleOn)}`
+                    : 'Eligibility date will appear after payment is recorded.'}
+              </Text>
+            </View>
+            <View style={styles.receivableAmountColumn}>
+              <Text style={styles.receivableAmount}>
+                {formatCurrency(receivable.allocationAmount, currency)}
+              </Text>
+              <View style={styles.fundsBadge}>
+                <Text numberOfLines={1} style={styles.fundsBadgeText}>
+                  {receivable.fundsStatus.toUpperCase()}
+                </Text>
+              </View>
+            </View>
+          </View>
+        ))}
+      </View>
+    ) : (
+      <View style={styles.emptyTransactions}>
+        <Text style={styles.emptyTitle}>No held receivables</Text>
+        <Text style={styles.emptyText}>
+          Future booked allocations will appear here while they are held by MULTIVENT.
+        </Text>
+      </View>
+    )}
+  </View>
+)
+
 const PaymentConfirmationCard = ({
   confirmation,
   currency,
@@ -905,9 +1004,9 @@ const PayoutNotice = () => (
     <View style={styles.infoCopy}>
       <Text style={styles.infoTitle}>About payout timing</Text>
       <Text style={styles.infoText}>
-        Your eligible initial share becomes available after the client payment is confirmed and you
-        accept the booking. Remaining service balances follow the final-payment workflow. Bank
-        processing may take 1–3 business days.
+        Funds are held by MULTIVENT until the release date. Eligible funds are available from
+        14 days before the event when the booking remains valid; bank processing may take 1–3
+        business days after you request payout.
       </Text>
     </View>
   </View>
@@ -1122,11 +1221,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   payoutButtonArrow: { color: palette.primary, fontSize: 18, lineHeight: 20 },
-  statGrid: { flexDirection: 'row', gap: 10, marginBottom: 14 },
-  statGridCompact: { flexDirection: 'column' },
+  walletSummaryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 14 },
+  walletSummaryGridCompact: { flexDirection: 'column' },
   summaryCard: {
     minWidth: 0,
     flex: 1,
+    flexBasis: '46%',
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: palette.border,
@@ -1159,6 +1259,25 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   confirmationSection: { marginBottom: 14 },
+  receivablesSection: { marginBottom: 14 },
+  receivablesNotice: {
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: palette.primarySoft,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  receivablesNoticeText: { color: palette.secondary, fontSize: 12, lineHeight: 17 },
+  receivablesList: { paddingHorizontal: 16 },
+  receivableRow: { minHeight: 94, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12 },
+  receivableRowBorder: { borderBottomWidth: 1, borderBottomColor: palette.border },
+  receivableCopy: { minWidth: 0, flex: 1 },
+  receivableEvent: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '700' },
+  receivableService: { color: palette.secondary, fontSize: 12, lineHeight: 16, marginTop: 1 },
+  receivableMeta: { color: palette.muted, fontSize: 12, lineHeight: 16, marginTop: 2 },
+  receivableAmountColumn: { maxWidth: '44%', alignItems: 'flex-end', gap: 5 },
+  receivableAmount: { color: palette.text, fontSize: 12, lineHeight: 16, fontWeight: '700' },
   confirmationHeaderCopy: { minWidth: 0, flex: 1 },
   confirmationTotals: {
     flexDirection: 'row',

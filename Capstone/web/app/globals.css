@@ -1204,6 +1204,8 @@ body { background: var(--canvas); }
 .finance-panel > header, .report-output > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 13px; padding: 16px 17px 13px; border-bottom: 1px solid #eee8e7; }
 .finance-panel header h2, .report-output header h2 { margin: 4px 0 0; color: #45383b; font-size: 14px; }
 .finance-panel header p, .report-output header p { max-width: 670px; margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.finance-reconciliation-metrics { padding: 14px 16px 4px; }
+.finance-reconciliation-note { margin: 5px 17px 15px; color: var(--soft); font-size: 12px; line-height: 1.55; }
 .finance-status-list { display: grid; padding: 3px 16px 12px; }
 .finance-status-list > div { display: grid; grid-template-columns: minmax(85px, .8fr) minmax(95px, 1fr) auto; align-items: center; gap: 9px; min-height: 42px; border-bottom: 1px solid #f0eceb; }
 .finance-status-list > div:last-child { border-bottom: 0; }

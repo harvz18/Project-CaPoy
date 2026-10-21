@@ -44,7 +44,9 @@ export interface InstructionModuleValue {
 
 interface InstructionModuleScreenProps {
   onBack?: () => void
+  onDraftChange?: (value: InstructionModuleValue) => void
   onSaveContinue?: (value: InstructionModuleValue) => Promise<void> | void
+  initialValue?: InstructionModuleValue
   services?: InstructionModuleService[]
 }
 
@@ -68,6 +70,27 @@ const emptyDraft = (): InstructionDraft => ({
   specialMenuRequests: '',
 })
 
+const draftsForServices = (
+  services: InstructionModuleService[],
+  initialValue?: InstructionModuleValue
+) => Object.fromEntries(services.map((service) => {
+  const saved = initialValue?.requests.find((request) => (
+    request.serviceKey === service.id || request.serviceId === service.serviceId
+  ))
+
+  return [
+    service.id,
+    {
+      dietaryRestrictions: saved?.dietaryRestrictions ?? '',
+      mustHaveShots: saved?.mustHaveShots ?? '',
+      notes: saved?.notes ?? '',
+      selectedTags: saved?.selectedTags ?? [],
+      setupRequirements: saved?.setupRequirements ?? '',
+      specialMenuRequests: saved?.specialMenuRequests ?? '',
+    } satisfies InstructionDraft,
+  ]
+}))
+
 const instructionKind = (category: string) => {
   const normalized = category.toLowerCase()
   if (normalized.includes('cater')) return 'catering'
@@ -87,7 +110,9 @@ const generalRequestCopy = (category: string): [string, string] => {
 }
 
 export const InstructionModuleScreen: React.FC<InstructionModuleScreenProps> = ({
+  initialValue,
   onBack,
+  onDraftChange,
   onSaveContinue,
   services = [],
 }) => {
@@ -95,22 +120,23 @@ export const InstructionModuleScreen: React.FC<InstructionModuleScreenProps> = (
     services[0]?.id ? [services[0].id] : []
   )
   const [drafts, setDrafts] = React.useState<Record<string, InstructionDraft>>(() =>
-    Object.fromEntries(services.map((service) => [service.id, emptyDraft()]))
+    draftsForServices(services, initialValue)
   )
   const [isSaving, setIsSaving] = React.useState(false)
 
   React.useEffect(() => {
     setDrafts((current) => {
       const next = { ...current }
+      const initialDrafts = draftsForServices(services, initialValue)
       services.forEach((service) => {
-        if (!next[service.id]) next[service.id] = emptyDraft()
+        if (!next[service.id]) next[service.id] = initialDrafts[service.id] ?? emptyDraft()
       })
       return next
     })
     setExpandedProviders((current) =>
       current.length > 0 || !services[0]?.id ? current : [services[0].id]
     )
-  }, [services])
+  }, [initialValue, services])
 
   const toggleProvider = (provider: string) => {
     setExpandedProviders((current) =>
@@ -136,23 +162,29 @@ export const InstructionModuleScreen: React.FC<InstructionModuleScreenProps> = (
     })
   }
 
+  const value = React.useMemo<InstructionModuleValue>(() => ({
+    requests: services.map((service) => ({
+      category: service.category,
+      ...(drafts[service.id] ?? emptyDraft()),
+      coordinatorId: service.coordinatorId,
+      providerId: service.providerId,
+      serviceId: service.serviceId,
+      serviceKey: service.id,
+      serviceName: service.name,
+    })),
+  }), [drafts, services])
+
+  React.useEffect(() => {
+    onDraftChange?.(value)
+  }, [onDraftChange, value])
+
   const handleSave = async () => {
     if (isSaving || !onSaveContinue) return
 
     setIsSaving(true)
 
     try {
-      await onSaveContinue({
-        requests: services.map((service) => ({
-          category: service.category,
-          ...(drafts[service.id] ?? emptyDraft()),
-          coordinatorId: service.coordinatorId,
-          providerId: service.providerId,
-          serviceId: service.serviceId,
-          serviceKey: service.id,
-          serviceName: service.name,
-        })),
-      })
+      await onSaveContinue(value)
     } finally {
       setIsSaving(false)
     }

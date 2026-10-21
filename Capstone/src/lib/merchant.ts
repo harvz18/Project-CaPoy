@@ -28,6 +28,7 @@ import type {
   PayoutEarningsSummary,
   PayoutTransaction,
   ProviderPaymentConfirmation,
+  ProviderReceivable,
   ServicePackageValue,
   ServiceListingReviewValue,
   ServicePricingUnit,
@@ -129,6 +130,7 @@ export interface MerchantPayoutDashboard {
   earningsTrend: Array<{ amount: number; label: string }>
   paymentConfirmations: ProviderPaymentConfirmation[]
   payoutAccount: PayoutAccount | null
+  receivables: ProviderReceivable[]
   summary: PayoutEarningsSummary
   transactions: PayoutTransaction[]
 }
@@ -143,14 +145,17 @@ export const emptyMerchantPayoutDashboard = (): MerchantPayoutDashboard => ({
   earningsTrend: [],
   paymentConfirmations: [],
   payoutAccount: null,
+  receivables: [],
   summary: {
     availableBalance: 0,
     currency: 'PHP',
     heldBalance: 0,
     lifetimeEarnings: 0,
     pendingBalance: 0,
+    pendingPayouts: 0,
     periodEarnings: 0,
     remainingReceivable: 0,
+    totalPaidOut: 0,
   },
   transactions: [],
 })
@@ -924,7 +929,7 @@ export const cancelClientEventBookings = async (
 
     return {
       ok: true,
-      message: 'The event was cancelled. Its providers and coordinator were notified and released.',
+      message: 'The event was cancelled. Providers and the coordinator were notified; affected allocations remain protected while any refund policy review is resolved.',
     }
   } catch (error) {
     return { ok: false, message: toMessage(error, 'Unable to cancel this booking.') }
@@ -2013,9 +2018,10 @@ export const fetchMerchantPayoutDashboard = async (
       return { ok: false, message: notReady }
     }
 
-    const [earningsResult, confirmationsResult] = await Promise.all([
+    const [earningsResult, confirmationsResult, receivableWalletResult] = await Promise.all([
       context.client.rpc('get_my_provider_earnings', { target_period: period }),
       context.client.rpc('get_my_provider_payment_confirmations'),
+      context.client.rpc('get_my_provider_receivable_wallet'),
     ])
 
     if (earningsResult.error || confirmationsResult.error) {
@@ -2030,6 +2036,16 @@ export const fetchMerchantPayoutDashboard = async (
     const confirmationSummary = (confirmationsPayload.summary ?? {}) as Record<string, unknown>
     const confirmationRows = Array.isArray(confirmationsPayload.items)
       ? confirmationsPayload.items
+      : []
+    if (receivableWalletResult.error) {
+      console.warn('Unable to load provider receivable wallet:', receivableWalletResult.error.message)
+    }
+    const receivableWalletPayload = receivableWalletResult.error
+      ? {}
+      : (receivableWalletResult.data ?? {}) as Record<string, unknown>
+    const receivableWalletSummary = (receivableWalletPayload.summary ?? {}) as Record<string, unknown>
+    const receivableRows = Array.isArray(receivableWalletPayload.receivables)
+      ? receivableWalletPayload.receivables
       : []
     const summaryRow = (payload.summary ?? {}) as Record<string, unknown>
     const accountRow = payload.payoutAccount as Record<string, unknown> | null | undefined
@@ -2107,6 +2123,24 @@ export const fetchMerchantPayoutDashboard = async (
         serviceName: textFrom(record.serviceName, 'Service'),
       } satisfies ProviderPaymentConfirmation
     })
+    const receivables = receivableRows.flatMap((row) => {
+      const record = row as Record<string, unknown>
+      const id = textFrom(record.id)
+      if (!id) return []
+
+      return [{
+        allocationAmount: numberFrom(record.allocationAmount),
+        bookingReference: textFrom(record.bookingReference) || undefined,
+        eventDate: textFrom(record.eventDate) || undefined,
+        eventId: textFrom(record.eventId),
+        eventName: textFrom(record.eventName, 'Event'),
+        fundsStatus: textFrom(record.fundsStatus, 'Held by MULTIVENT'),
+        id,
+        isReconciliationRequired: record.isReconciliationRequired === true,
+        payoutEligibleOn: textFrom(record.payoutEligibleOn) || undefined,
+        serviceName: textFrom(record.serviceName, 'Service'),
+      } satisfies ProviderReceivable]
+    })
 
     return {
       ok: true,
@@ -2117,14 +2151,27 @@ export const fetchMerchantPayoutDashboard = async (
         }),
         paymentConfirmations,
         payoutAccount,
+        receivables,
         summary: {
-          availableBalance: numberFrom(summaryRow.availableBalance),
-          currency: textFrom(summaryRow.currency, 'PHP'),
-          heldBalance: numberFrom(confirmationSummary.heldBalance),
+          availableBalance: receivableWalletResult.error
+            ? numberFrom(summaryRow.availableBalance)
+            : numberFrom(receivableWalletSummary.availableBalance),
+          currency: receivableWalletResult.error
+            ? textFrom(summaryRow.currency, 'PHP')
+            : textFrom(receivableWalletSummary.currency, textFrom(summaryRow.currency, 'PHP')),
+          heldBalance: receivableWalletResult.error
+            ? numberFrom(confirmationSummary.heldBalance)
+            : numberFrom(receivableWalletSummary.receivables),
           lifetimeEarnings: numberFrom(summaryRow.lifetimeEarnings),
           pendingBalance: numberFrom(summaryRow.pendingBalance),
+          pendingPayouts: receivableWalletResult.error
+            ? 0
+            : numberFrom(receivableWalletSummary.pendingPayouts),
           periodEarnings: numberFrom(summaryRow.periodEarnings),
           remainingReceivable: numberFrom(confirmationSummary.remainingReceivable),
+          totalPaidOut: receivableWalletResult.error
+            ? 0
+            : numberFrom(receivableWalletSummary.totalPaidOut),
         },
         transactions,
       },

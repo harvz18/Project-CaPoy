@@ -657,16 +657,32 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     ]
   }))
 
-  const orderCategoryTags = (options: ServiceCategoryOption[], activeOptionId?: string) => {
+  const orderCategoryTags = (
+    options: ServiceCategoryOption[],
+    activeOptionId?: string,
+    keepAllFirst = false
+  ) => {
     const activeOption = options.find((option) => option.id === activeOptionId)
-    const remainingOptions = options.filter((option) => option.id !== activeOptionId)
+    if (!activeOption) return options
+
+    const allOption = keepAllFirst
+      ? options.find((option) => marketplaceCategoryId(option) === 'all')
+      : undefined
+    const remainingOptions = options.filter((option) => (
+      option.id !== activeOptionId && option !== allOption
+    ))
     const selectedOptions = remainingOptions.filter((option) => (
       marketplaceCategoryId(option) !== 'all'
       && activeSelectedCategoryIds.has(marketplaceCategoryId(option) as CatalogCategoryId)
     ))
     const otherOptions = remainingOptions.filter((option) => !selectedOptions.includes(option))
 
-    return activeOption ? [activeOption, ...selectedOptions, ...otherOptions] : options
+    return [
+      ...(allOption ? [allOption] : []),
+      ...(activeOption !== allOption ? [activeOption] : []),
+      ...selectedOptions,
+      ...otherOptions,
+    ]
   }
 
   const visibleVendors = services.filter((vendor) => matchesMarketplaceFilters(vendor)).sort((left, right) => {
@@ -718,7 +734,11 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   const activePlanningCategoryId = categories.find(
     (option) => categoryNameToId(option.name) === categoryNameToId(categoryName)
   )?.id
-  const orderedExploreCategoryTags = orderCategoryTags(exploreCategories, activeExploreCategoryId)
+  const orderedExploreCategoryTags = orderCategoryTags(
+    exploreCategories,
+    activeExploreCategoryId,
+    true
+  )
   const orderedPlanningCategoryTags = orderCategoryTags(categories, activePlanningCategoryId)
   const hasCategoryRecommendationBudget = !isExploreMode && visibleVendors.some(
     (vendor) => (vendor.budgetRecommendation?.categoryBudget ?? 0) > 0

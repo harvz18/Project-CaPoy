@@ -109,6 +109,7 @@ export type {
   PayoutTransactionStatus,
   PayoutTransactionType,
   ProviderPaymentConfirmation,
+  ProviderReceivable,
 } from './22.2-PayoutEarnings'
 export { TransactionDetailsScreen } from './22.3-TransactionDetails'
 export type {

@@ -1,6 +1,7 @@
 import React from 'react'
 import type { RealtimeChannel } from '@supabase/supabase-js'
-import { ActivityIndicator, Alert, Animated, BackHandler, Easing, Image, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
+import { ActivityIndicator, Alert, Animated, AppState, BackHandler, Easing, Image, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
 import * as ImagePicker from 'expo-image-picker'
@@ -53,6 +54,7 @@ import {
   setCategoryBudgetAllocation,
   resumeClientEventDraft,
   resumeClientSavedPlan,
+  type ClientPlanningState,
   type SavedPlanReview,
 } from './lib/planning'
 import {
@@ -201,6 +203,7 @@ import { RoleHomePlaceholderScreen } from './screens/RoleHomePlaceholder'
 import {
   InstructionModuleScreen,
   InstructionModuleService,
+  type InstructionModuleValue,
 } from './screens/10-InstructionModule'
 import { PlanningStepNavigationProvider } from './components/PlanningStepIndicator'
 import { BookingItem, BookingScreen } from './screens/11-BookingScreen'
@@ -356,6 +359,42 @@ const appRootScreens = new Set<AppScreen>([
   'superadminHome',
 ])
 
+type ClientPlanningResumeScreen =
+  | 'budgetAllocation'
+  | 'categoryBrowse'
+  | 'coordinatorDetails'
+  | 'eventCreation'
+  | 'instructionModule'
+  | 'payment'
+  | 'serviceDetails'
+
+type ClientPlanningResumeState = {
+  budgetDraft?: BudgetAllocationValue
+  currentServiceId?: string
+  eventId?: string
+  eventDetails?: EventCreationValue
+  instructionDraft?: InstructionModuleValue
+  savedPlanId?: string
+  screen: ClientPlanningResumeScreen
+  selectedCategory?: CatalogCategoryId
+  version: 1
+}
+
+type ClientPlanningResumeUpdate = Partial<Omit<ClientPlanningResumeState, 'version'>>
+
+const clientPlanningResumeScreens = new Set<ClientPlanningResumeScreen>([
+  'budgetAllocation',
+  'categoryBrowse',
+  'coordinatorDetails',
+  'eventCreation',
+  'instructionModule',
+  'payment',
+  'serviceDetails',
+])
+
+const clientPlanningResumeStorageKey = (userId: string) =>
+  `multivent:client-planning-resume:v1:${userId}`
+
 const fallbackBackScreen = (currentScreen: AppScreen): AppScreen => {
   if (currentScreen.startsWith('provider')) return 'providerHome'
   if (currentScreen.startsWith('coordinator')) return 'coordinatorHome'
@@ -500,8 +539,17 @@ export const App: React.FC = () => {
   const screenTransitionProgress = React.useRef(new Animated.Value(1)).current
   const screenRef = React.useRef<AppScreen>('onboarding')
   const screenHistoryRef = React.useRef<AppScreen[]>(['onboarding'])
+  const previousScreenRef = React.useRef<AppScreen>('onboarding')
   const navigationLockedRef = React.useRef(false)
   const screenTransitionAnimation = React.useRef<Animated.CompositeAnimation | null>(null)
+  const clientPlanningResumeRef = React.useRef<Partial<ClientPlanningResumeState>>({})
+  const clientPlanningResumeWriteRef = React.useRef(Promise.resolve())
+  const eventAutosaveChainRef = React.useRef(Promise.resolve())
+  const eventAutosaveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingEventAutosaveRef = React.useRef<EventCreationValue | undefined>(undefined)
+  const budgetAutosaveChainRef = React.useRef(Promise.resolve())
+  const budgetAutosaveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingBudgetAutosaveRef = React.useRef<BudgetAllocationValue | undefined>(undefined)
 
   const transitionToScreen = React.useCallback((nextScreen: AppScreen) => {
     const currentScreen = screenRef.current
@@ -672,6 +720,8 @@ export const App: React.FC = () => {
   >([])
   const [eventDetails, setEventDetails] =
     React.useState<EventCreationValue>(DEFAULT_EVENT)
+  const [instructionDraft, setInstructionDraft] =
+    React.useState<InstructionModuleValue>()
   const eventDetailsDirtyRef = React.useRef(false)
   const handleEventDetailsChange = React.useCallback((value: EventCreationValue) => {
     setEventDetails((current) => {
@@ -680,6 +730,201 @@ export const App: React.FC = () => {
       return value
     })
   }, [])
+
+  const persistClientPlanningResume = React.useCallback((update: ClientPlanningResumeUpdate) => {
+    if (!authenticatedUserId) return
+
+    const screenToResume = update.screen ?? clientPlanningResumeRef.current.screen
+    if (!screenToResume) return
+
+    const next: ClientPlanningResumeState = {
+      ...clientPlanningResumeRef.current,
+      ...update,
+      screen: screenToResume,
+      version: 1,
+    }
+    clientPlanningResumeRef.current = next
+    const serialized = JSON.stringify(next)
+    const storageKey = clientPlanningResumeStorageKey(authenticatedUserId)
+
+    clientPlanningResumeWriteRef.current = clientPlanningResumeWriteRef.current
+      .catch(() => undefined)
+      .then(() => AsyncStorage.setItem(storageKey, serialized))
+      .catch(() => undefined)
+  }, [authenticatedUserId])
+
+  const clearClientPlanningResume = React.useCallback(() => {
+    const userId = authenticatedUserId
+    clientPlanningResumeRef.current = {}
+    if (!userId) return
+
+    const storageKey = clientPlanningResumeStorageKey(userId)
+    clientPlanningResumeWriteRef.current = clientPlanningResumeWriteRef.current
+      .catch(() => undefined)
+      .then(() => AsyncStorage.removeItem(storageKey))
+      .catch(() => undefined)
+  }, [authenticatedUserId])
+
+  const enqueueEventAutosave = React.useCallback((value: EventCreationValue) => {
+    eventAutosaveChainRef.current = eventAutosaveChainRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        await saveEventDraft(value, Math.max(1, maxPlanningStep))
+      })
+    return eventAutosaveChainRef.current
+  }, [maxPlanningStep])
+
+  const queueEventAutosave = React.useCallback((value: EventCreationValue) => {
+    pendingEventAutosaveRef.current = value
+    if (eventAutosaveTimerRef.current) clearTimeout(eventAutosaveTimerRef.current)
+    eventAutosaveTimerRef.current = setTimeout(() => {
+      eventAutosaveTimerRef.current = null
+      const pending = pendingEventAutosaveRef.current
+      pendingEventAutosaveRef.current = undefined
+      if (pending) void enqueueEventAutosave(pending)
+    }, 500)
+  }, [enqueueEventAutosave])
+
+  const flushEventAutosave = React.useCallback(async () => {
+    if (eventAutosaveTimerRef.current) {
+      clearTimeout(eventAutosaveTimerRef.current)
+      eventAutosaveTimerRef.current = null
+    }
+
+    const pending = pendingEventAutosaveRef.current
+    pendingEventAutosaveRef.current = undefined
+    if (pending) await enqueueEventAutosave(pending)
+    else await eventAutosaveChainRef.current.catch(() => undefined)
+  }, [enqueueEventAutosave])
+
+  const enqueueBudgetAutosave = React.useCallback((value: BudgetAllocationValue) => {
+    budgetAutosaveChainRef.current = budgetAutosaveChainRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        await saveBudgetPlan(value, 2)
+      })
+    return budgetAutosaveChainRef.current
+  }, [])
+
+  const queueBudgetAutosave = React.useCallback((value: BudgetAllocationValue) => {
+    persistClientPlanningResume({ budgetDraft: value })
+    pendingBudgetAutosaveRef.current = value
+    if (budgetAutosaveTimerRef.current) clearTimeout(budgetAutosaveTimerRef.current)
+    budgetAutosaveTimerRef.current = setTimeout(() => {
+      budgetAutosaveTimerRef.current = null
+      const pending = pendingBudgetAutosaveRef.current
+      pendingBudgetAutosaveRef.current = undefined
+      if (pending) void enqueueBudgetAutosave(pending)
+    }, 500)
+  }, [enqueueBudgetAutosave, persistClientPlanningResume])
+
+  const flushBudgetAutosave = React.useCallback(async () => {
+    if (budgetAutosaveTimerRef.current) {
+      clearTimeout(budgetAutosaveTimerRef.current)
+      budgetAutosaveTimerRef.current = null
+    }
+
+    const pending = pendingBudgetAutosaveRef.current
+    pendingBudgetAutosaveRef.current = undefined
+    if (pending) await enqueueBudgetAutosave(pending)
+    else await budgetAutosaveChainRef.current.catch(() => undefined)
+  }, [enqueueBudgetAutosave])
+
+  const handleInstructionDraftChange = React.useCallback((value: InstructionModuleValue) => {
+    setInstructionDraft(value)
+    persistClientPlanningResume({ instructionDraft: value })
+  }, [persistClientPlanningResume])
+
+  React.useEffect(() => {
+    const isPlanningScreen = clientPlanningResumeScreens.has(
+      screen as ClientPlanningResumeScreen
+    ) && (
+      !['categoryBrowse', 'coordinatorDetails', 'serviceDetails'].includes(screen)
+      || serviceBrowseMode === 'planning'
+    )
+    if (!isPlanningScreen) return
+
+    persistClientPlanningResume({
+      currentServiceId,
+      screen: screen as ClientPlanningResumeScreen,
+      selectedCategory,
+    })
+  }, [currentServiceId, persistClientPlanningResume, screen, selectedCategory, serviceBrowseMode])
+
+  React.useEffect(() => {
+    if (screen !== 'eventCreation') return
+
+    persistClientPlanningResume({ eventDetails, screen: 'eventCreation' })
+    if (eventDetailsDirtyRef.current) queueEventAutosave(eventDetails)
+  }, [eventDetails, persistClientPlanningResume, queueEventAutosave, screen])
+
+  React.useEffect(() => {
+    const previousScreen = previousScreenRef.current
+    previousScreenRef.current = screen
+
+    // Leaving a planning step is an explicit signal to save immediately,
+    // rather than waiting for the normal short debounce window.
+    if (previousScreen === 'eventCreation' && screen !== 'eventCreation') {
+      void flushEventAutosave()
+    }
+    if (previousScreen === 'budgetAllocation' && screen !== 'budgetAllocation') {
+      void flushBudgetAutosave()
+    }
+  }, [flushBudgetAutosave, flushEventAutosave, screen])
+
+  React.useEffect(() => () => {
+    if (eventAutosaveTimerRef.current) clearTimeout(eventAutosaveTimerRef.current)
+    if (budgetAutosaveTimerRef.current) clearTimeout(budgetAutosaveTimerRef.current)
+  }, [])
+
+  React.useEffect(() => {
+    const persistBeforeDeactivation = () => {
+      const isPlanningScreen = clientPlanningResumeScreens.has(
+        screenRef.current as ClientPlanningResumeScreen
+      ) && (
+        !['categoryBrowse', 'coordinatorDetails', 'serviceDetails'].includes(screenRef.current)
+        || serviceBrowseMode === 'planning'
+      )
+      if (isPlanningScreen) {
+        persistClientPlanningResume({
+          currentServiceId,
+          eventDetails,
+          instructionDraft,
+          screen: screenRef.current as ClientPlanningResumeScreen,
+          selectedCategory,
+        })
+      }
+      void flushEventAutosave()
+      void flushBudgetAutosave()
+    }
+
+    const appStateSubscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'inactive' || nextState === 'background') persistBeforeDeactivation()
+    })
+    if (Platform.OS !== 'web' || typeof document === 'undefined') {
+      return () => appStateSubscription.remove()
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') persistBeforeDeactivation()
+    }
+    window.addEventListener('pagehide', persistBeforeDeactivation)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      appStateSubscription.remove()
+      window.removeEventListener('pagehide', persistBeforeDeactivation)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [
+    currentServiceId,
+    eventDetails,
+    flushBudgetAutosave,
+    flushEventAutosave,
+    instructionDraft,
+    persistClientPlanningResume,
+    selectedCategory,
+    serviceBrowseMode,
+  ])
   const [coordinatorBudgetCost, setCoordinatorBudgetCost] = React.useState(0)
   // A previously assigned coordinator remains visible even if the client later
   // changes their preference, so no confirmed booking is hidden or removed.
@@ -1023,6 +1268,7 @@ export const App: React.FC = () => {
     if (isSigningOut) return
 
     setIsSigningOut(true)
+    clearClientPlanningResume()
     await revokeCurrentDevicePushToken()
     const result = supabase ? await supabase.auth.signOut() : undefined
     if (result?.error) {
@@ -1370,6 +1616,42 @@ export const App: React.FC = () => {
     }
   }, [])
 
+  const hydrateClientPlanningState = React.useCallback((
+    planningState: ClientPlanningState,
+    services: CatalogService[]
+  ) => {
+    // A late network response must never replace partially edited basics with
+    // the older persisted draft while the client is still in the flow.
+    // A route-to-home refresh can race with a just-restored local draft.
+    // Keep the client's latest captured inputs when that happens.
+    const localResume = clientPlanningResumeRef.current
+    if (localResume.eventDetails) {
+      setEventDetails(localResume.eventDetails)
+    } else if (planningState.event && !eventDetailsDirtyRef.current) {
+      setEventDetails(planningState.event)
+    }
+    if (localResume.budgetDraft) {
+      setTotalBudget(localResume.budgetDraft.budget)
+      setBudgetAllocations(localResume.budgetDraft.allocations)
+      setBudgetPriorities(localResume.budgetDraft.priorities)
+    } else {
+      if (planningState.totalBudget !== undefined) setTotalBudget(planningState.totalBudget)
+      setBudgetAllocations(planningState.budgetAllocations ?? [])
+      setBudgetPriorities(planningState.budgetPriorities ?? [])
+    }
+    setCoordinatorBudgetCost(planningState.coordinatorBudgetCost ?? 0)
+    setAssignedCoordinator(planningState.assignedCoordinator)
+    setCoordinatorAssignmentStatus(planningState.coordinatorAssignmentStatus)
+    setCoordinatorPreferenceState(planningState.coordinatorPreference ?? 'undecided')
+    setSelectedCoordinatorPackage(planningState.coordinatorPackage)
+    setSelectedServices(planningState.selectedServices)
+    setLastPayment(planningState.lastPayment)
+    setMaxPlanningStep(planningState.maxPlanningStep ?? 1)
+    setCurrentServiceId((current) =>
+      services.some((service) => service.id === current) ? current : services[0]?.id ?? ''
+    )
+  }, [])
+
   const refreshLiveData = React.useCallback(async () => {
     const [
       services,
@@ -1418,32 +1700,16 @@ export const App: React.FC = () => {
     setConversations(conversationRows)
     setNotifications(notificationRows)
     setServiceCategories(categories)
-    // A late network response must never replace partially edited basics with
-    // the older persisted draft while the client is still in the flow.
-    if (planningState.event && !eventDetailsDirtyRef.current) setEventDetails(planningState.event)
-    if (planningState.totalBudget !== undefined) setTotalBudget(planningState.totalBudget)
-    setBudgetAllocations(planningState.budgetAllocations ?? [])
-    setBudgetPriorities(planningState.budgetPriorities ?? [])
-    setCoordinatorBudgetCost(planningState.coordinatorBudgetCost ?? 0)
-    setAssignedCoordinator(planningState.assignedCoordinator)
-    setCoordinatorAssignmentStatus(planningState.coordinatorAssignmentStatus)
-    setCoordinatorPreferenceState(planningState.coordinatorPreference ?? 'undecided')
-    setSelectedCoordinatorPackage(planningState.coordinatorPackage)
+    hydrateClientPlanningState(planningState, services)
     setClientEventDrafts(eventDrafts)
     setClientSavedPlans(savedPlans)
-    setSelectedServices(planningState.selectedServices)
-    setLastPayment(planningState.lastPayment)
-    setMaxPlanningStep(planningState.maxPlanningStep ?? 1)
-    setCurrentServiceId((current) =>
-      services.some((service) => service.id === current) ? current : services[0]?.id ?? ''
-    )
 
     setHasMerchantDraft(Boolean(draft))
     if (draft?.information) setMerchantServiceInfo(draft.information)
     if (draft?.pricing) setMerchantServicePricing(draft.pricing)
     setMerchantPackages([])
     return planningState
-  }, [])
+  }, [hydrateClientPlanningState])
 
   const refreshClientBookings = React.useCallback(async () => {
     const bookings = await fetchClientBookings()
@@ -1455,6 +1721,91 @@ export const App: React.FC = () => {
       ) ?? current
     })
   }, [])
+
+  const restoreClientPlanningResume = React.useCallback(async (
+    userId: string,
+    planningState: ClientPlanningState
+  ) => {
+    try {
+      const serialized = await AsyncStorage.getItem(clientPlanningResumeStorageKey(userId))
+      if (!serialized) return false
+
+      const parsed: unknown = JSON.parse(serialized)
+      if (
+        !parsed
+        || typeof parsed !== 'object'
+        || (parsed as { version?: unknown }).version !== 1
+        || !clientPlanningResumeScreens.has((parsed as { screen?: ClientPlanningResumeScreen }).screen as ClientPlanningResumeScreen)
+      ) {
+        return false
+      }
+
+      const resume = parsed as ClientPlanningResumeState
+      if (
+        resume.eventId
+        && !resume.savedPlanId
+        && planningState.draftSummary?.id
+        && planningState.draftSummary.id !== resume.eventId
+      ) {
+        clearClientPlanningResume()
+        return false
+      }
+
+      clientPlanningResumeRef.current = resume
+      if (resume.eventDetails) {
+        eventDetailsDirtyRef.current = true
+        setEventDetails(resume.eventDetails)
+      }
+      if (resume.budgetDraft) {
+        setBudgetAllocations(resume.budgetDraft.allocations)
+        setBudgetPriorities(resume.budgetDraft.priorities)
+        setTotalBudget(resume.budgetDraft.budget)
+      }
+      if (resume.instructionDraft) setInstructionDraft(resume.instructionDraft)
+      if (resume.selectedCategory) setSelectedCategory(resume.selectedCategory)
+      if (resume.currentServiceId) setCurrentServiceId(resume.currentServiceId)
+      setServiceBrowseMode('planning')
+
+      let restoredPlanningState = planningState
+      if (resume.savedPlanId && resume.screen === 'payment') {
+        const savedPlanResult = await resumeClientSavedPlan(resume.savedPlanId)
+        if (savedPlanResult.ok && savedPlanResult.savedPlanReview) {
+          setSavedPlanReview(savedPlanResult.savedPlanReview)
+          restoredPlanningState = await refreshLiveData()
+        }
+      }
+
+      let resumeScreen = resume.screen
+      if (
+        (resumeScreen === 'serviceDetails' || resumeScreen === 'coordinatorDetails')
+        && !resume.currentServiceId
+      ) {
+        resumeScreen = 'categoryBrowse'
+      }
+      if (
+        (resumeScreen === 'instructionModule' || resumeScreen === 'payment')
+        && restoredPlanningState.selectedServices.length === 0
+        && !restoredPlanningState.assignedCoordinator
+      ) {
+        resumeScreen = 'categoryBrowse'
+      }
+
+      // Authentication may have just started the Home-screen transition. Retry
+      // briefly after it completes so restoring a draft cannot be ignored by
+      // the navigation lock that prevents double taps elsewhere in the app.
+      const showResumeScreen = (attempt = 0) => {
+        if (navigationLockedRef.current && attempt < 8) {
+          setTimeout(() => showResumeScreen(attempt + 1), 50)
+          return
+        }
+        transitionToScreen(resumeScreen)
+      }
+      showResumeScreen()
+      return true
+    } catch {
+      return false
+    }
+  }, [clearClientPlanningResume, refreshLiveData, transitionToScreen])
 
   React.useEffect(() => {
     if (screen === 'clientHome') void refreshLiveData()
@@ -1618,6 +1969,7 @@ export const App: React.FC = () => {
           tasks: current.tasks.map((item) =>
             item.id === task.id ? { ...item, status: nextStatus } : item
           ),
+          wallet: current.wallet,
         }))
         setToastMessage(nextStatus === 'completed' ? 'Task marked complete.' : 'Task reopened.')
       } else {
@@ -1827,7 +2179,7 @@ export const App: React.FC = () => {
   const loadProfileAndRoute = React.useCallback(
     async (userId: string, metadata: UserMetadata = {}) => {
       if (!supabase) {
-        return
+        return undefined
       }
 
       const { data } = await supabase
@@ -1844,7 +2196,7 @@ export const App: React.FC = () => {
         )
         await supabase.auth.signOut()
         setScreen('login')
-        return
+        return undefined
       }
 
       const profileName = data?.full_name?.trim()
@@ -1864,6 +2216,7 @@ export const App: React.FC = () => {
       }
 
       routeForRole(resolvedRole)
+      return resolvedRole
     },
     [routeForRole, setScreen]
   )
@@ -1886,11 +2239,16 @@ export const App: React.FC = () => {
         }
 
         setAuthenticatedUserId(data.session.user.id)
-        await loadProfileAndRoute(data.session.user.id, {
+        const resolvedRole = await loadProfileAndRoute(data.session.user.id, {
           ...data.session.user.user_metadata,
           email: data.session.user.email,
         })
-        if (isMounted) void refreshLiveData()
+        if (!isMounted) return
+
+        const planningState = await refreshLiveData()
+        if (isMounted && resolvedRole === 'client') {
+          await restoreClientPlanningResume(data.session.user.id, planningState)
+        }
       })
       .catch(() => {
         if (isMounted) setAuthenticatedUserId('')
@@ -1931,11 +2289,16 @@ export const App: React.FC = () => {
       setIsAuthRestoring(false)
 
       if (event === 'SIGNED_IN') {
-        loadProfileAndRoute(session.user.id, {
-          ...session.user.user_metadata,
-          email: session.user.email,
-        })
-        void refreshLiveData()
+        void (async () => {
+          const resolvedRole = await loadProfileAndRoute(session.user.id, {
+            ...session.user.user_metadata,
+            email: session.user.email,
+          })
+          const planningState = await refreshLiveData()
+          if (resolvedRole === 'client') {
+            await restoreClientPlanningResume(session.user.id, planningState)
+          }
+        })()
       }
     })
 
@@ -1943,7 +2306,7 @@ export const App: React.FC = () => {
       isMounted = false
       subscription.unsubscribe()
     }
-  }, [loadProfileAndRoute, refreshLiveData, setScreen])
+  }, [loadProfileAndRoute, refreshLiveData, restoreClientPlanningResume, setScreen])
 
   const openNotificationDestination = React.useCallback(
     (resourceType?: string, resourceId?: string) => {
@@ -2191,6 +2554,7 @@ export const App: React.FC = () => {
   }
 
   const handleBudgetContinue = async (value: BudgetAllocationValue) => {
+    await flushBudgetAutosave()
     await runOnce('save-budget-plan', async () => {
       const result = await saveBudgetPlan(value)
 
@@ -2222,6 +2586,7 @@ export const App: React.FC = () => {
   }
 
   const handleEventContinue = async (value: EventCreationValue, nextScreen: AppScreen) => {
+    await flushEventAutosave()
     await runOnce('save-event-details', async () => {
       if (value.wantsCoordinator === false && assignedCoordinator) {
         const confirmed = await confirmDestructiveAction(
@@ -3114,6 +3479,7 @@ export const App: React.FC = () => {
   }
 
   const startNewClientEvent = async () => {
+    clearClientPlanningResume()
     const result = await createClientEventDraft()
     if (!result.ok) {
       setToastMessage(result.message ?? 'Unable to start a new event right now.')
@@ -3135,8 +3501,13 @@ export const App: React.FC = () => {
     setSavedPlanReview(undefined)
     setMaxPlanningStep(1)
     setServiceBrowseMode('planning')
-    await refreshLiveData()
+    persistClientPlanningResume({
+      eventDetails: { ...DEFAULT_EVENT },
+      eventId: result.eventId,
+      screen: 'eventCreation',
+    })
     openEventCreation()
+    void refreshLiveData().catch(() => undefined)
     return true
   }
 
@@ -3147,18 +3518,27 @@ export const App: React.FC = () => {
       return
     }
 
+    clearClientPlanningResume()
     eventDetailsDirtyRef.current = false
     setSavedPlanReview(undefined)
-    const planningState = await refreshLiveData()
+    const planningState = await fetchClientPlanningState()
+    hydrateClientPlanningState(planningState, catalogServices)
+    persistClientPlanningResume({
+      eventDetails: planningState.event,
+      eventId: draftId,
+      screen: 'eventCreation',
+    })
     const nextStep = Math.max(1, planningState.maxPlanningStep ?? 1)
     setServiceBrowseMode('planning')
 
     if (nextStep === 1) {
       openEventCreation()
+      void refreshLiveData().catch(() => undefined)
       return
     }
     if (nextStep === 2) {
       setScreen('budgetAllocation')
+      void refreshLiveData().catch(() => undefined)
       return
     }
     if (nextStep === 3) {
@@ -3178,9 +3558,11 @@ export const App: React.FC = () => {
           ?? getFirstPlanningCategory(resumableAllocations)
         ?? 'catering'
       openPlanningHub('forward', initialCategory)
+      void refreshLiveData().catch(() => undefined)
       return
     }
     setScreen(nextStep >= 5 ? 'payment' : 'instructionModule')
+    void refreshLiveData().catch(() => undefined)
   }
 
   const resumeSavedPlan = async (savedPlanId: string) => {
@@ -3190,10 +3572,16 @@ export const App: React.FC = () => {
       return
     }
 
+    clearClientPlanningResume()
     eventDetailsDirtyRef.current = false
     setSavedPlanReview(result.savedPlanReview)
     await refreshLiveData()
     setServiceBrowseMode('planning')
+    persistClientPlanningResume({
+      eventId: savedPlanId,
+      savedPlanId,
+      screen: 'payment',
+    })
     setScreen('payment')
   }
 
@@ -3221,6 +3609,7 @@ export const App: React.FC = () => {
 
         setSavedPlanReview(result.savedPlanReview)
         await refreshLiveData()
+        clearClientPlanningResume()
         setToastMessage('Event plan saved. No payment or provider booking request was created.')
         setScreen('clientHome')
       } finally {
@@ -3247,6 +3636,7 @@ export const App: React.FC = () => {
     }
 
     setClientEventDrafts((current) => current.filter((draft) => draft.id !== draftId))
+    if (clientPlanningResumeRef.current.eventId === draftId) clearClientPlanningResume()
     setToastMessage('Event draft deleted.')
     return true
   }
@@ -3467,8 +3857,7 @@ export const App: React.FC = () => {
                   isProcessing={activeGuardedActionCount > 0}
                   onClose={closeEventCreation}
                   onContinue={(value) => handleEventContinue(value, 'budgetAllocation')}
-                  onSaveExit={(value) => handleEventContinue(value, 'clientHome')}
-                onValueChange={handleEventDetailsChange}
+                  onValueChange={handleEventDetailsChange}
                 />
               </Animated.View>
             </View>
@@ -3486,7 +3875,6 @@ export const App: React.FC = () => {
               isProcessing={activeGuardedActionCount > 0}
               onClose={closeEventCreation}
               onContinue={(value) => handleEventContinue(value, 'budgetAllocation')}
-              onSaveExit={(value) => handleEventContinue(value, 'clientHome')}
               onValueChange={handleEventDetailsChange}
             />
           </Animated.View>
@@ -3963,6 +4351,7 @@ export const App: React.FC = () => {
             }}
             paymentConfirmations={merchantPayoutDashboard.paymentConfirmations}
             payoutAccount={merchantPayoutDashboard.payoutAccount}
+            receivables={merchantPayoutDashboard.receivables}
             summary={merchantPayoutDashboard.summary}
             transactions={merchantPayoutDashboard.transactions}
           />
@@ -4212,6 +4601,7 @@ export const App: React.FC = () => {
               isProcessing={activeGuardedActionCount > 0}
               onBack={openEventCreationFromBudget}
               onContinue={handleBudgetContinue}
+              onDraftChange={queueBudgetAutosave}
               onRemoveCommittedCoordinator={
                 assignedCoordinator ? () => void handleRemoveCoordinator() : undefined
               }
@@ -4444,7 +4834,9 @@ export const App: React.FC = () => {
       case 'instructionModule':
         return (
           <InstructionModuleScreen
+            initialValue={instructionDraft}
             onBack={() => openPlanningHub('back')}
+            onDraftChange={handleInstructionDraftChange}
             services={instructionServices}
             onSaveContinue={async (value) => {
               if (!supabase) {
@@ -4471,6 +4863,8 @@ export const App: React.FC = () => {
                 return
               }
 
+              setInstructionDraft(undefined)
+              persistClientPlanningResume({ instructionDraft: undefined })
               setMaxPlanningStep((current) => Math.max(current, 5))
               setScreen(selectedServices.length > 0 ? 'payment' : 'categoryBrowse')
             }}
@@ -4659,6 +5053,7 @@ export const App: React.FC = () => {
                   setLastPayment(value)
                   setReplacementBooking(undefined)
                   setSavedPlanReview(undefined)
+                  clearClientPlanningResume()
                   setToastMessage(replacementBooking
                     ? 'Replacement payment recorded. The new provider has received a separate booking request.'
                     : 'Payment recorded. Booking requests were sent to your providers.')

@@ -553,7 +553,7 @@ test('budget allocation cards keep controls inside selected, expanded categories
   ], 'expandable budget allocation UI')
 })
 
-test('focused total-budget input stays within its allocation card', () => {
+test('budget inputs have a contained focus treatment and live available amount', () => {
   const budgetScreen = read('src/screens/05-BudgetAllocation.tsx')
 
   mustContain(budgetScreen, [
@@ -563,7 +563,12 @@ test('focused total-budget input stays within its allocation card', () => {
     'borderWidth: 2',
     'budgetInputCardFocused: { borderColor: palette.primaryContainer }',
     'flexShrink: 1',
-  ], 'contained total-budget focus treatment')
+    'outlineWidth: 0',
+    'amountInputShellFocused: { borderWidth: 2, borderColor: palette.primaryContainer }',
+    'availableAmount: number',
+    'Available: {formatMoney(availableAmount)}',
+    'availableAmount={remainingBudget}',
+  ], 'contained focus treatment and live allocation availability')
 })
 
 test('Step 1 coordinator preference replaces the redundant coordinator choice screen', () => {
@@ -663,6 +668,12 @@ test('V9 Phase 5 category tags count eligible services and mark active selection
     'const marketplaceCategoryCounts',
     'const activeSelectedCategoryIds',
     'const orderCategoryTags',
+    'keepAllFirst = false',
+    "marketplaceCategoryId(option) === 'all'",
+    '...(allOption ? [allOption] : [])',
+    'const orderedExploreCategoryTags = orderCategoryTags(',
+    'exploreCategories,',
+    'activeExploreCategoryId,',
     'orderedPlanningCategoryTags.map',
     'orderedExploreCategoryTags.map',
     'name="check"',
@@ -1794,6 +1805,9 @@ test('checkout advances after a recorded payment and retries do not duplicate it
   const checkoutStart = planning.indexOf('export const savePlanningPayment')
   const checkoutEnd = planning.indexOf('export const assignCoordinatorToEvent')
   const checkout = planning.slice(checkoutStart, checkoutEnd)
+  const paymentScreenStart = app.indexOf("case 'payment':")
+  const confirmationScreenStart = app.indexOf("case 'confirmation':")
+  const paymentScreen = app.slice(paymentScreenStart, confirmationScreenStart)
 
   mustContain(app, [
     'paymentSubmissionInFlight',
@@ -1801,7 +1815,8 @@ test('checkout advances after a recorded payment and retries do not duplicate it
     'void refreshLiveData().catch(() => undefined)',
   ], 'checkout success transition')
   assert.ok(
-    app.indexOf("setScreen('confirmation')") < app.indexOf('void refreshLiveData().catch(() => undefined)'),
+    paymentScreen.indexOf("setScreen('confirmation')")
+      < paymentScreen.indexOf('void refreshLiveData().catch(() => undefined)'),
     'The receipt must not wait for the non-critical workspace refresh.'
   )
   mustContain(planning, [
@@ -1982,4 +1997,278 @@ test('V10 Phase 6 keeps the mobile brand and navigation treatment consistent', (
     'width: 40',
     'height: 40',
   ], 'planning navigation header')
+})
+
+test('in-progress client planning autosaves and returns to the last safe step', () => {
+  const app = read('src/App.tsx')
+  const eventCreation = read('src/screens/04-EventCreation.tsx')
+  const budget = read('src/screens/05-BudgetAllocation.tsx')
+  const instructions = read('src/screens/10-InstructionModule.tsx')
+  const planning = read('src/lib/planning.ts')
+
+  mustContain(app, [
+    "import AsyncStorage from '@react-native-async-storage/async-storage'",
+    'clientPlanningResumeStorageKey',
+    'AppState.addEventListener',
+    "window.addEventListener('pagehide', persistBeforeDeactivation)",
+    'saveEventDraft(value, Math.max(1, maxPlanningStep))',
+    'saveBudgetPlan(value, 2)',
+    "previousScreen === 'eventCreation' && screen !== 'eventCreation'",
+    "previousScreen === 'budgetAllocation' && screen !== 'budgetAllocation'",
+    'restoreClientPlanningResume',
+    'transitionToScreen(resumeScreen)',
+    'onDraftChange={queueBudgetAutosave}',
+    'initialValue={instructionDraft}',
+    'onDraftChange={handleInstructionDraftChange}',
+    'clearClientPlanningResume()',
+  ], 'client planning autosave and resume flow')
+  assert.doesNotMatch(eventCreation, /SAVE DRAFT/,
+    'event creation must not require a separate manual draft action')
+  mustContain(eventCreation, ['onValueChange?: (value: EventCreationValue) => void'],
+    'event basics autosave input contract')
+  mustContain(budget, ['onDraftChange?: (value: BudgetAllocationValue) => void', 'const draftValue'],
+    'budget draft autosave contract')
+  mustContain(instructions, [
+    'initialValue?: InstructionModuleValue',
+    'onDraftChange?: (value: InstructionModuleValue) => void',
+    'draftsForServices',
+  ], 'instruction draft resume contract')
+  mustContain(planning, ['planningStep = 3', 'ensureDraftEvent(undefined, undefined, false, false, planningStep)'],
+    'budget autosave planning-step contract')
+})
+
+test('new events and resumed drafts do not wait for a whole-workspace refresh', () => {
+  const app = read('src/App.tsx')
+  const createStart = app.indexOf('const startNewClientEvent = async () =>')
+  const resumeStart = app.indexOf('const resumeClientDraft = async (draftId: string) =>')
+  const savedPlanStart = app.indexOf('const resumeSavedPlan = async (savedPlanId: string) =>')
+  const createFlow = app.slice(createStart, resumeStart)
+  const resumeFlow = app.slice(resumeStart, savedPlanStart)
+
+  mustContain(app, ['const hydrateClientPlanningState = React.useCallback'],
+    'shared client-plan state hydration')
+  mustContain(createFlow, [
+    'const result = await createClientEventDraft()',
+    'openEventCreation()',
+    'void refreshLiveData().catch(() => undefined)',
+  ], 'new-event foreground and background work')
+  assert.ok(
+    createFlow.indexOf('openEventCreation()') < createFlow.indexOf('void refreshLiveData().catch(() => undefined)'),
+    'The event form must appear before its nonessential workspace refresh.'
+  )
+  assert.doesNotMatch(createFlow, /await refreshLiveData\(\)/,
+    'New-event navigation must not wait for a whole-workspace refresh.')
+  mustContain(resumeFlow, [
+    'const planningState = await fetchClientPlanningState()',
+    'hydrateClientPlanningState(planningState, catalogServices)',
+    'void refreshLiveData().catch(() => undefined)',
+  ], 'draft-resume foreground and background work')
+  assert.doesNotMatch(resumeFlow, /await refreshLiveData\(\)/,
+    'Draft navigation must not wait for a whole-workspace refresh.')
+})
+
+test('V11 Phase 1 keeps paid initial allocations as non-withdrawable receivables', () => {
+  const foundation = read('database/79_held_receivables_foundation.sql')
+  const deployMigration = read(
+    'supabase/migrations/20261021000900_held_receivables_foundation.sql'
+  )
+  const pricing = read('src/lib/pricing.ts')
+
+  assert.equal(
+    deployMigration,
+    foundation,
+    'the tracked Supabase migration must exactly match the reviewed database source'
+  )
+  mustContain(foundation, [
+    "'held_receivable'",
+    "'eligible_for_release'",
+    "'available_for_payout'",
+    'receivable_accepted_at',
+    'payout_eligible_on',
+    'receivable_reconciliation_required',
+    'create or replace function public.hold_phase11_provider_receivable(',
+    'create or replace function public.hold_phase11_coordinator_receivable(',
+    'create or replace function public.respond_to_provider_booking(',
+    'create or replace function public.respond_event_coordinator_assignment(',
+    'create or replace function public.get_my_coordinator_booking_details()',
+    'held receivable; it is not withdrawable yet.',
+    'create or replace function public.get_my_provider_payment_confirmations()',
+    "then 'Held Receivable'",
+    "'release_condition', '14_day_payout_window'",
+    "'initial_share_credited', 0",
+    'create or replace function public.request_my_provider_payout(requested_amount numeric)',
+    "'legacy', 'initial_share_credited', 'available_for_payout'",
+    'Held receivable amounts cannot be released or altered before payout eligibility.',
+    'phase11_reconciliation_required',
+  ], 'V11 held-receivables foundation')
+  mustContain(pricing, [
+    'DEFAULT_COMMISSION_RATE = 0.05',
+    'DEFAULT_INITIAL_PAYMENT_RATE = 0.35',
+    'DEFAULT_PROVIDER_INITIAL_RATE = 0.3',
+  ], 'V11 must preserve the canonical payment policy')
+})
+
+test('V11 Phase 2 evaluates the 14-day payout window only on the secured backend', () => {
+  const release = read('database/80_payout_eligibility_release.sql')
+  const deployMigration = read(
+    'supabase/migrations/20261022000100_payout_eligibility_release.sql'
+  )
+
+  assert.equal(
+    deployMigration,
+    release,
+    'the tracked Phase 2 migration must exactly match the reviewed database source'
+  )
+  mustContain(release, [
+    "event_row.event_date - 14",
+    'public.phase11_event_local_date(event_row.timezone)',
+    'create or replace function public.phase11_receivable_is_release_eligible(',
+    "payment.status in ('paid', 'verified')",
+    "booking.status::text in ('confirmed', 'completed')",
+    "event_row.coordinator_assignment_status = 'accepted'",
+    "'refund_pending'",
+    "'chargeback_status'",
+    'create or replace function public.process_phase11_payout_eligibility(',
+    'for update skip locked',
+    "provider_funds_status = 'available_for_payout'",
+    "'external_payout_released', false",
+    'create extension if not exists pg_cron;',
+    "'multivent-phase11-payout-eligibility'",
+    'after update of event_date, timezone, status on public.events',
+    'after update of status on public.bookings',
+    'payout_request_reconciliation_required',
+    "ledger.provider_funds_status <> 'available_for_payout'",
+  ], 'V11 Phase 2 eligibility and payout safeguards')
+  assert.doesNotMatch(release, /insert into\s+public\.provider_payout_requests[\s\S]{0,160}process_phase11/i,
+    'eligibility processing must not initiate a payout transfer')
+})
+
+test('V11 Phase 3 presents receivables separately from withdrawable funds', () => {
+  const walletSource = read('database/81_receivable_wallet_views.sql')
+  const deployMigration = read(
+    'supabase/migrations/20261022000200_receivable_wallet_views.sql'
+  )
+  const payouts = read('src/screens/22.2-PayoutEarnings.tsx')
+  const merchant = read('src/lib/merchant.ts')
+  const coordinator = read('src/lib/coordinator.ts')
+  const coordinatorScreen = read('src/screens/23-Coordinator.tsx')
+
+  assert.equal(
+    deployMigration,
+    walletSource,
+    'the tracked Phase 3 migration must exactly match the reviewed database source'
+  )
+  mustContain(walletSource, [
+    'create or replace function public.get_my_provider_receivable_wallet()',
+    'create or replace function public.get_my_coordinator_receivable_wallet()',
+    "'receivables'",
+    "'availableBalance'",
+    "'pendingPayouts'",
+    "'totalPaidOut'",
+    "'Held Receivable'",
+    'receivable_reconciliation_required',
+  ], 'V11 Phase 3 read-only wallet projections')
+  mustContain(payouts, [
+    'RECEIVABLES (HELD)',
+    'AVAILABLE BALANCE',
+    'PENDING PAYOUTS',
+    'TOTAL PAID OUT',
+    'No funds are currently available to request.',
+    'Your allocation is currently held by MULTIVENT',
+    'Expected eligibility:',
+    'onRequestPayout?.(value.availableBalance)',
+  ], 'provider receivable wallet presentation')
+  mustContain(merchant, [
+    "get_my_provider_receivable_wallet",
+    'receivableWalletResult.error',
+    'pendingPayouts:',
+    'totalPaidOut:',
+  ], 'provider receivable wallet data mapping')
+  mustContain(coordinator, [
+    "get_my_coordinator_receivable_wallet",
+    'CoordinatorWallet',
+    'receivableWalletError',
+  ], 'coordinator receivable wallet data mapping')
+  mustContain(coordinatorScreen, [
+    'CoordinatorWalletSummary',
+    'This workspace does not submit payout requests.',
+    'RECEIVABLES (HELD)',
+    'TOTAL PAID OUT',
+  ], 'read-only coordinator wallet presentation')
+})
+
+test('V11 Phase 4 locks only cancelled or rejected allocations without inventing a refund amount', () => {
+  const cancellationProtection = read('database/82_cancellation_refund_hold_protection.sql')
+  const deployMigration = read(
+    'supabase/migrations/20261022000300_cancellation_refund_hold_protection.sql'
+  )
+  const merchant = read('src/lib/merchant.ts')
+
+  assert.equal(
+    deployMigration,
+    cancellationProtection,
+    'the tracked Phase 4 migration must exactly match the reviewed database source'
+  )
+  mustContain(cancellationProtection, [
+    'create or replace function public.phase11_has_refund_or_financial_hold',
+    "'policy_review_required'",
+    "'manual_reconciliation_required'",
+    'create or replace function public.phase11_flag_rejected_receivable_refund_review()',
+    'create or replace function public.phase11_hold_cancelled_event_receivables()',
+    'where ledger.event_id = new.id',
+    "'event_cancelled'",
+    'and not public.phase11_has_refund_or_financial_hold(ledger.metadata)',
+    'create or replace function public.request_my_provider_payout(requested_amount numeric)',
+    'provider_funds_status in (',
+    "'available_for_payout'",
+    'get_my_provider_receivable_wallet()',
+    'get_my_coordinator_receivable_wallet()',
+    'never invents',
+  ], 'V11 Phase 4 cancellation/refund holds')
+  assert.doesNotMatch(cancellationProtection, /update\s+public\.payments\s+set\s+status\s*=\s*'refunded'/i,
+    'cancellation protection must not claim a refund was completed without verified refund processing')
+  mustContain(merchant, [
+    'affected allocations remain protected while any refund policy review is resolved.',
+  ], 'client cancellation outcome copy')
+})
+
+test('V11 Phase 5 maps payout requests to authoritative allocations and exposes read-only reconciliation', () => {
+  const payoutSecurity = read('database/83_payout_security_and_financial_reconciliation.sql')
+  const deployMigration = read(
+    'supabase/migrations/20261022000400_payout_security_and_financial_reconciliation.sql'
+  )
+  const financialReporting = read('web/components/screens/financial-reporting-screen.tsx')
+
+  assert.equal(
+    deployMigration,
+    payoutSecurity,
+    'the tracked Phase 5 migration must exactly match the reviewed database source'
+  )
+  mustContain(payoutSecurity, [
+    'create table if not exists public.provider_payout_request_allocations',
+    'allocation_reservations_required boolean not null default false',
+    'revoke insert, update, delete on table public.provider_payout_requests from authenticated;',
+    'create or replace function public.phase11_provider_allocation_available_amount(',
+    "current_setting('app.phase11_payout_request_authorized', true)",
+    'create constraint trigger phase11_require_payout_request_allocations_trigger',
+    'deferrable initially deferred',
+    'create or replace function public.request_my_provider_payout(requested_amount numeric)',
+    'for update of provider',
+    'for update of ledger',
+    'insert into public.provider_payout_request_allocations',
+    'The payout request exceeds the available balance.',
+    'rename to get_my_provider_earnings_phase11_legacy',
+    'create or replace function public.get_admin_phase11_receivables_reconciliation()',
+    "'refundHoldExposure'",
+    "'historicUnmappedPayoutCount'",
+    'historic payout request has no allocation-level ledger mapping',
+  ], 'V11 Phase 5 payout security and reconciliation')
+  assert.doesNotMatch(payoutSecurity, /grant\s+insert\s+on\s+table\s+public\.provider_payout_requests\s+to\s+authenticated/i,
+    'providers must not retain a direct table-insert payout path')
+  mustContain(financialReporting, [
+    "get_admin_phase11_receivables_reconciliation",
+    'Held funds and reconciliation',
+    'Refund / hold exposure',
+    'Historic unmapped payout requests',
+  ], 'authorized web-admin reconciliation visibility')
 })

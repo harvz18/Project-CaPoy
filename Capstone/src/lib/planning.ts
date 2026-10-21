@@ -1315,10 +1315,10 @@ export const saveBudgetPlan = async ({
   allocations,
   budget,
   priorities,
-}: BudgetPlanInput): Promise<PlanningResult> => {
+}: BudgetPlanInput, planningStep = 3): Promise<PlanningResult> => {
   try {
     const client = getClient()
-    const event = await ensureDraftEvent(undefined, undefined, false, false, 3)
+    const event = await ensureDraftEvent(undefined, undefined, false, false, planningStep)
 
     if (!client || !event) {
       return { ok: false, message: 'Supabase is not configured or no user is signed in.' }

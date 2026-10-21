@@ -235,6 +235,28 @@ export interface CoordinatorDashboard {
   events: CoordinatorEvent[]
   invitations: CoordinatorInvitation[]
   tasks: CoordinatorTask[]
+  wallet: CoordinatorWallet
+}
+
+export interface CoordinatorReceivable {
+  allocationAmount: number
+  eventDate?: string
+  eventId: string
+  eventName: string
+  fundsStatus: string
+  id: string
+  isReconciliationRequired: boolean
+  payoutEligibleOn?: string
+  serviceName: string
+}
+
+export interface CoordinatorWallet {
+  availableBalance: number
+  currency: string
+  pendingPayouts: number
+  receivables: number
+  rows: CoordinatorReceivable[]
+  totalPaidOut: number
 }
 
 export interface CoordinatorRemittanceItem {
@@ -284,6 +306,14 @@ export const emptyCoordinatorDashboard = (): CoordinatorDashboard => ({
   events: [],
   invitations: [],
   tasks: [],
+  wallet: {
+    availableBalance: 0,
+    currency: 'PHP',
+    pendingPayouts: 0,
+    receivables: 0,
+    rows: [],
+    totalPaidOut: 0,
+  },
 })
 
 export const emptyCoordinatorRemittanceDetails = (): CoordinatorRemittanceDetails => ({
@@ -481,6 +511,7 @@ const parseDashboard = (value: unknown): CoordinatorDashboard => {
         title,
       }]
     }),
+    wallet: emptyCoordinatorDashboard().wallet,
   }
 }
 
@@ -594,6 +625,7 @@ export const fetchCoordinatorDashboard = async (): Promise<CoordinatorResult<Coo
     { data: bookingStatusData, error: bookingStatusError },
     { data: churchWeddingData, error: churchWeddingError },
     { data: churchArrangementData, error: churchArrangementError },
+    { data: receivableWalletData, error: receivableWalletError },
   ] =
     await Promise.all([
       supabase.rpc('get_coordinator_dashboard'),
@@ -604,6 +636,7 @@ export const fetchCoordinatorDashboard = async (): Promise<CoordinatorResult<Coo
       supabase.rpc('get_my_coordinator_booking_statuses'),
       supabase.rpc('get_my_church_wedding_event_flags'),
       supabase.rpc('get_my_church_wedding_arrangements_v7'),
+      supabase.rpc('get_my_coordinator_receivable_wallet'),
     ])
   if (error) {
     return { data: emptyCoordinatorDashboard(), message: error.message, ok: false }
@@ -634,6 +667,36 @@ export const fetchCoordinatorDashboard = async (): Promise<CoordinatorResult<Coo
   }
   if (churchArrangementError) {
     console.warn('Unable to load church wedding arrangements:', churchArrangementError.message)
+  }
+  if (receivableWalletError) {
+    console.warn('Unable to load coordinator receivable wallet:', receivableWalletError.message)
+  }
+  const receivableWalletPayload = receivableWalletError ? {} : recordFrom(receivableWalletData)
+  const receivableWalletSummary = recordFrom(receivableWalletPayload.summary)
+  const coordinatorWallet: CoordinatorWallet = {
+    availableBalance: numberFrom(receivableWalletSummary.availableBalance),
+    currency: textFrom(receivableWalletSummary.currency, 'PHP'),
+    pendingPayouts: numberFrom(receivableWalletSummary.pendingPayouts),
+    receivables: numberFrom(receivableWalletSummary.receivables),
+    rows: (Array.isArray(receivableWalletPayload.receivables)
+      ? receivableWalletPayload.receivables
+      : []).flatMap((entry) => {
+      const row = recordFrom(entry)
+      const id = textFrom(row.id)
+      if (!id) return []
+      return [{
+        allocationAmount: numberFrom(row.allocationAmount),
+        eventDate: optionalText(row.eventDate),
+        eventId: textFrom(row.eventId),
+        eventName: textFrom(row.eventName, 'Event'),
+        fundsStatus: textFrom(row.fundsStatus, 'Held by MULTIVENT'),
+        id,
+        isReconciliationRequired: row.isReconciliationRequired === true,
+        payoutEligibleOn: optionalText(row.payoutEligibleOn),
+        serviceName: textFrom(row.serviceName, 'Coordinator booking'),
+      } satisfies CoordinatorReceivable]
+    }),
+    totalPaidOut: numberFrom(receivableWalletSummary.totalPaidOut),
   }
   const churchWeddingEventIds = new Set(
     (Array.isArray(churchWeddingData) ? churchWeddingData : [])
@@ -785,6 +848,7 @@ export const fetchCoordinatorDashboard = async (): Promise<CoordinatorResult<Coo
   return {
     data: {
       ...dashboard,
+      wallet: coordinatorWallet,
       invitations: dashboard.invitations.map((invitation) => {
         const context = assignmentContexts.get(invitation.eventId)
         const requestServices = context?.services.map((service) => ({
