@@ -2301,8 +2301,66 @@ test('V11 Phase 4 locks only cancelled or rejected allocations without inventing
   assert.doesNotMatch(cancellationProtection, /update\s+public\.payments\s+set\s+status\s*=\s*'refunded'/i,
     'cancellation protection must not claim a refund was completed without verified refund processing')
   mustContain(merchant, [
-    'affected allocations remain protected while any refund policy review is resolved.',
+    'Eligible initial-payment refunds are added automatically to your MULTIVENT Wallet',
   ], 'client cancellation outcome copy')
+})
+
+test('V11 wallet refunds apply the confirmed cancellation policy without rewriting payments', () => {
+  const walletRefunds = read('database/84_client_refund_wallet.sql')
+  const deployMigration = read(
+    'supabase/migrations/20261022000600_client_refund_wallet.sql'
+  )
+  const clientWallet = read('src/lib/client-wallet.ts')
+  const walletScreen = read('src/screens/24.1-ClientWallet.tsx')
+  const account = read('src/screens/24-AccountProfile.tsx')
+  const app = read('src/App.tsx')
+
+  assert.equal(
+    deployMigration,
+    walletRefunds,
+    'the deployed refund-wallet migration must exactly match the reviewed database source'
+  )
+  mustContain(walletRefunds, [
+    'create table if not exists public.client_wallet_transactions',
+    "transaction_type in ('refund_credit')",
+    'client_wallet_refund_credit_ledger_uidx',
+    'create or replace function public.credit_phase11_client_wallet_refund(',
+    "refund_reason not in ('client_cancellation', 'recipient_declined')",
+    "event_row.event_date <= local_today + 14",
+    "'recipient_declined'",
+    "'refund_requires_reconciliation'",
+    "'wallet_credited'",
+    'create or replace function public.phase11_credit_cancelled_event_wallet_refunds()',
+    'create or replace function public.phase11_credit_declined_recipient_wallet_refund()',
+    'create or replace function public.get_my_client_wallet()',
+    'revoke all on function public.credit_phase11_client_wallet_refund(uuid, text) from public;',
+    'grant execute on function public.get_my_client_wallet() to authenticated;',
+  ], 'V11 automatic client-wallet refund contract')
+  assert.doesNotMatch(walletRefunds, /update\s+public\.payments\s+set\s+status\s*=\s*'refunded'/i,
+    'a wallet credit must preserve the original recognized payment record')
+  assert.doesNotMatch(walletRefunds, /grant\s+execute\s+on\s+function\s+public\.credit_phase11_client_wallet_refund/i,
+    'clients must not be able to invoke the refund-credit routine directly')
+  mustContain(clientWallet, [
+    "supabase.rpc('get_my_client_wallet')",
+    "type: 'refund_credit'",
+    "status: 'available'",
+  ], 'client wallet data boundary')
+  mustContain(walletScreen, [
+    'AVAILABLE WALLET BALANCE',
+    'Refund activity',
+    'No external transfer is created from this screen.',
+    'Eligible refunds will appear here automatically',
+  ], 'client wallet presentation')
+  mustContain(account, [
+    'onOpenWallet?: () => void',
+    'MULTIVENT Wallet',
+    'View refund credits and available balance',
+  ], 'client account wallet entry point')
+  mustContain(app, [
+    "| 'clientWallet'",
+    'fetchClientWallet',
+    '<ClientWalletScreen',
+  ], 'client wallet navigation')
 })
 
 test('V11 Phase 5 maps payout requests to authoritative allocations and exposes read-only reconciliation', () => {

@@ -86,6 +86,7 @@ export type {
 } from './21-ReviewPerformance'
 export { MerchantProfileScreen } from './22-MerchantProfile'
 export { AccountProfileScreen } from './24-AccountProfile'
+export { ClientWalletScreen } from './24.1-ClientWallet'
 export type {
   MerchantProfileAction,
   MerchantProfileMediaTarget,

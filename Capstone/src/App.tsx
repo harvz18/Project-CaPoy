@@ -148,6 +148,7 @@ import { MerchantBookingDetailScreen } from './screens/20-BookingDetail'
 import { ReviewPerformanceScreen } from './screens/21-ReviewPerformance'
 import { MerchantProfileAction, MerchantProfileScreen } from './screens/22-MerchantProfile'
 import { AccountProfileScreen } from './screens/24-AccountProfile'
+import { ClientWalletScreen } from './screens/24.1-ClientWallet'
 import { SupportScreen } from './screens/25-Support'
 import { OperatingHoursScreen } from './screens/22.1-OperatingHours'
 import {
@@ -265,6 +266,11 @@ import {
   saveEditableAccountProfile,
   uploadEditableAccountPhoto,
 } from './lib/profile'
+import {
+  ClientWallet,
+  emptyClientWallet,
+  fetchClientWallet,
+} from './lib/client-wallet'
 
 type AppScreen =
   | 'onboarding'
@@ -300,6 +306,7 @@ type AppScreen =
   | 'providerChangePassword'
   | 'providerNotifications'
   | 'accountProfile'
+  | 'clientWallet'
   | 'support'
   | 'coordinatorHome'
   | 'coordinatorEventDetails'
@@ -1083,6 +1090,10 @@ export const App: React.FC = () => {
   const [isSigningOut, setIsSigningOut] = React.useState(false)
   const [isUploadingProfilePhoto, setIsUploadingProfilePhoto] = React.useState(false)
   const [profileReturnScreen, setProfileReturnScreen] = React.useState<AppScreen>('clientHome')
+  const [clientWallet, setClientWallet] = React.useState<ClientWallet>(emptyClientWallet())
+  const [clientWalletError, setClientWalletError] = React.useState('')
+  const [isClientWalletLoading, setIsClientWalletLoading] = React.useState(false)
+  const [isClientWalletRefreshing, setIsClientWalletRefreshing] = React.useState(false)
 
   const runOnce = React.useCallback(async <T,>(
     actionKey: string,
@@ -1233,6 +1244,22 @@ export const App: React.FC = () => {
     setAccountProfile(result.profile)
     setUserAvatarUrl(result.profile.avatarUrl)
     return result.profile
+  }, [])
+
+  const loadClientWallet = React.useCallback(async (refreshing = false) => {
+    if (refreshing) setIsClientWalletRefreshing(true)
+    else setIsClientWalletLoading(true)
+
+    const result = await fetchClientWallet()
+    if (result.ok && result.data) {
+      setClientWallet(result.data)
+      setClientWalletError('')
+    } else {
+      setClientWalletError(result.message ?? 'Unable to load your wallet.')
+    }
+
+    setIsClientWalletLoading(false)
+    setIsClientWalletRefreshing(false)
   }, [])
 
   const openAccountProfile = (returnScreen: AppScreen = 'clientHome') => {
@@ -1916,6 +1943,11 @@ export const App: React.FC = () => {
     if (screen !== 'providerHome') return
     void loadMerchantHomeEarnings()
   }, [loadMerchantHomeEarnings, screen])
+
+  React.useEffect(() => {
+    if (screen !== 'clientWallet') return
+    void loadClientWallet()
+  }, [loadClientWallet, screen])
 
   React.useEffect(() => {
     if (screen !== 'providerPayouts') return
@@ -4341,9 +4373,21 @@ export const App: React.FC = () => {
             onBack={() => setScreen(profileReturnScreen)}
             onChoosePhoto={chooseAccountProfilePhoto}
             onOpenSupport={() => setScreen('support')}
+            onOpenWallet={() => setScreen('clientWallet')}
             onSave={(value) => void saveAccountProfile(value)}
             onSignOut={() => void handleSignOut()}
             profile={accountProfile}
+          />
+        )
+      case 'clientWallet':
+        return (
+          <ClientWalletScreen
+            error={clientWalletError}
+            isLoading={isClientWalletLoading}
+            isRefreshing={isClientWalletRefreshing}
+            onBack={() => setScreen('accountProfile')}
+            onRefresh={() => void loadClientWallet(true)}
+            wallet={clientWallet}
           />
         )
       case 'support':

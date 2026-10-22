@@ -1304,7 +1304,7 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                 <View style={[styles.changeNotice, styles.cancelNotice]}>
                   <MaterialIcons color={palette.error} name="warning-amber" size={19} />
                   <Text style={styles.changeNoticeText}>
-                    Existing payments are preserved. Any refund must follow the provider's cancellation policy.
+                    More than 14 days before the event, the full initial payment is credited to your MULTIVENT Wallet. Cancellations at 14 days or sooner are non-refundable.
                   </Text>
                 </View>
               </View>

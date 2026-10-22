@@ -941,7 +941,7 @@ export const cancelClientEventBookings = async (
 
     return {
       ok: true,
-      message: 'The event was cancelled. Providers and the coordinator were notified; affected allocations remain protected while any refund policy review is resolved.',
+      message: 'The event was cancelled. Eligible initial-payment refunds are added automatically to your MULTIVENT Wallet; cancellations at 14 days or sooner remain non-refundable.',
     }
   } catch (error) {
     return { ok: false, message: toMessage(error, 'Unable to cancel this booking.') }

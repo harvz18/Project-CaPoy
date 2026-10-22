@@ -25,6 +25,7 @@ type AccountProfileScreenProps = {
   onBack: () => void
   onChoosePhoto?: () => Promise<string | undefined>
   onOpenSupport?: () => void
+  onOpenWallet?: () => void
   onSave: (value: EditableAccountProfile) => void
   onSignOut?: () => void
   profile?: EditableAccountProfile
@@ -52,6 +53,7 @@ export const AccountProfileScreen: React.FC<AccountProfileScreenProps> = ({
   onBack,
   onChoosePhoto,
   onOpenSupport,
+  onOpenWallet,
   onSave,
   onSignOut,
   profile,
@@ -63,6 +65,7 @@ export const AccountProfileScreen: React.FC<AccountProfileScreenProps> = ({
   }, [profile])
 
   const isProvider = value.role === 'service_provider'
+  const isClient = value.role === 'client'
   const initials = (isProvider ? value.businessName : value.fullName)
     .split(/\s+/)
     .filter(Boolean)
@@ -168,6 +171,23 @@ export const AccountProfileScreen: React.FC<AccountProfileScreenProps> = ({
             >
               {isSaving ? <ActivityIndicator color={colors.textInverse} /> : <Text style={styles.saveText}>Save changes</Text>}
             </Pressable>
+            {isClient && onOpenWallet ? (
+              <Pressable
+                accessibilityLabel="Open MULTIVENT Wallet"
+                accessibilityRole="button"
+                onPress={onOpenWallet}
+                style={({ pressed }) => [styles.walletButton, pressed && styles.walletButtonPressed]}
+              >
+                <View style={styles.walletIcon}>
+                  <MaterialIcons color={colors.primaryDark} name="account-balance-wallet" size={19} />
+                </View>
+                <View style={styles.walletCopy}>
+                  <Text style={styles.walletTitle}>MULTIVENT Wallet</Text>
+                  <Text style={styles.walletSubtitle}>View refund credits and available balance</Text>
+                </View>
+                <MaterialIcons color={colors.primary} name="chevron-right" size={22} />
+              </Pressable>
+            ) : null}
             {onOpenSupport ? (
               <Pressable accessibilityRole="button" onPress={onOpenSupport} style={styles.supportButton}>
                 <Text style={styles.supportText}>Contact MULTIVENT Support</Text>
@@ -263,4 +283,10 @@ const styles = StyleSheet.create({
   sectionTitle: { color: colors.primaryDark, fontFamily: 'Inter_700Bold', fontSize: 16, marginBottom: 16 },
   textarea: { minHeight: 112, textAlignVertical: 'top' },
   title: { color: colors.textPrimary, fontFamily: 'Inter_600SemiBold', fontSize: 16, marginTop: 2 },
+  walletButton: { alignItems: 'center', backgroundColor: '#FFF8F9', borderColor: '#E8C9CE', borderRadius: 11, borderWidth: 1, flexDirection: 'row', gap: 11, marginTop: 10, minHeight: 64, paddingHorizontal: 13 },
+  walletButtonPressed: { backgroundColor: '#F4E4E7', opacity: 0.82 },
+  walletCopy: { flex: 1, minWidth: 0 },
+  walletIcon: { alignItems: 'center', backgroundColor: '#F4E4E7', borderRadius: 18, height: 36, justifyContent: 'center', width: 36 },
+  walletSubtitle: { color: colors.textSecondary, fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 2 },
+  walletTitle: { color: colors.primaryDark, fontFamily: 'Inter_700Bold', fontSize: 14 },
 })
