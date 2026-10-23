@@ -20,8 +20,11 @@ import type { ClientHomeTab } from './03-ClientHome'
 import type { MerchantHomeTab } from './16-MerchantHome'
 import type { BookingItem } from './11-BookingScreen'
 import type { CoordinatorEvent } from '../lib/coordinator'
+import { NotificationScreen } from './22.5-Notification'
+import type { MerchantNotification } from './22.5-Notification'
 
 export type ClientConversationFilter = 'all' | 'unread' | 'bookings'
+export type ClientInboxTab = 'messages' | 'notifications'
 
 export interface ClientConversation {
   avatarUrl?: string
@@ -53,9 +56,13 @@ interface MessagesScreenProps {
   clientBookings?: BookingItem[]
   coordinatorEvents?: CoordinatorEvent[]
   hasUnreadNotifications?: boolean
+  initialInboxTab?: ClientInboxTab
   initialFilter?: ClientConversationFilter
+  notifications?: MerchantNotification[]
   showBottomNavigation?: boolean
+  onMarkAllNotificationsRead?: (notificationIds: string[]) => void
   onMarkRead?: (conversation: ClientConversation) => void
+  onMarkNotificationRead?: (notification: MerchantNotification) => void
   onBack?: () => void
   onNewMessage?: () => void
   onOpenNotifications?: () => void
@@ -64,8 +71,10 @@ interface MessagesScreenProps {
   onSelectCoordinatorTab?: (tab: CoordinatorMainTab) => void
   onSearchChange?: (value: string) => void
   onSelectConversation?: (conversation: ClientConversation) => void
+  onSelectNotification?: (notification: MerchantNotification) => void
   navigationVariant?: 'client' | 'coordinator' | 'merchant'
   onSelectTab?: (tab: ClientHomeTab | MerchantHomeTab) => void
+  onScrollDirectionChange?: (direction: 'down' | 'up') => void
   searchValue?: string
   userAvatarUrl?: string
   userName?: string
@@ -148,11 +157,15 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
   clientBookings = [],
   coordinatorEvents = [],
   hasUnreadNotifications = false,
+  initialInboxTab = 'messages',
   initialFilter = 'all',
   navigationVariant = 'client',
+  notifications = [],
   showBottomNavigation = true,
   onBack,
+  onMarkAllNotificationsRead,
   onMarkRead,
+  onMarkNotificationRead,
   onNewMessage,
   onOpenNotifications,
   onOpenProfile,
@@ -160,7 +173,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
   onSelectCoordinatorTab,
   onSearchChange,
   onSelectConversation,
+  onSelectNotification,
   onSelectTab,
+  onScrollDirectionChange,
   searchValue,
   userAvatarUrl,
   userName = 'Planner',
@@ -168,8 +183,11 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
   const { width } = useWindowDimensions()
   const isWide = width >= 760
   const isCompact = width < 390
+  const isClientInbox = navigationVariant === 'client'
+  const [inboxTab, setInboxTab] = React.useState<ClientInboxTab>(initialInboxTab)
   const [filter, setFilter] = React.useState<ClientConversationFilter>(initialFilter)
   const [internalSearch, setInternalSearch] = React.useState('')
+  const lastScrollY = React.useRef(0)
   const [selectedEventId, setSelectedEventId] = React.useState<string>()
   const [readIds, setReadIds] = React.useState(
     () => new Set(conversations.filter((item) => item.unreadCount === 0).map((item) => item.id))
@@ -184,6 +202,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
       return next
     })
   }, [conversations])
+  React.useEffect(() => {
+    if (isClientInbox) setInboxTab(initialInboxTab)
+  }, [initialInboxTab, isClientInbox])
   const query = searchValue ?? internalSearch
   const normalizedQuery = query.trim().toLowerCase()
   // Every role works from event-scoped conversations. Providers may have
@@ -193,6 +214,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
   const unreadCount = conversations.reduce(
     (count, conversation) => count + (readIds.has(conversation.id) ? 0 : conversation.unreadCount),
     0
+  )
+  const hasUnreadInboxNotifications = notifications.some(
+    (notification) => notification.category !== 'message' && !notification.isRead
   )
   const eventGroups = React.useMemo(() => {
     const groups = new Map<string, EventConversationGroup>()
@@ -362,9 +386,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
           <View style={[styles.topAppBarContent, isWide && styles.horizontalPaddingWide]}>
             {usesEventGroups ? (
             <>
-              {navigationVariant === 'coordinator' ? (
+              {navigationVariant === 'coordinator' || navigationVariant === 'client' ? (
                 <Pressable
-                  accessibilityLabel="Back to coordinator workspace"
+                  accessibilityLabel={navigationVariant === 'client' ? 'Back to home' : 'Back to coordinator workspace'}
                   accessibilityRole="button"
                   hitSlop={8}
                   onPress={onBack}
@@ -373,7 +397,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                   <Text style={styles.coordinatorBackIcon}>{'\u2039'}</Text>
                 </Pressable>
               ) : <View style={styles.clientHeaderButton} />}
-              <Text style={styles.clientHeaderTitle}>MESSAGES</Text>
+              <Text style={styles.clientHeaderTitle}>
+                {navigationVariant === 'client' ? 'INBOX' : 'MESSAGES'}
+              </Text>
               {navigationVariant === 'coordinator' ? (
                 <Pressable
                   accessibilityLabel="Open notifications"
@@ -426,45 +452,97 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
         </View>
       )}
 
+      {isClientInbox ? (
+        <View style={[styles.inboxTabs, isWide && styles.inboxTabsWide]}>
+          {(['messages', 'notifications'] as ClientInboxTab[]).map((tab) => {
+            const selected = inboxTab === tab
+            const hasUnread = tab === 'messages'
+              ? unreadCount > 0
+              : hasUnreadInboxNotifications
+            return (
+              <Pressable
+                key={tab}
+                accessibilityRole="tab"
+                accessibilityState={{ selected }}
+                onPress={() => setInboxTab(tab)}
+                style={({ pressed }) => [styles.inboxTab, pressed && styles.inboxTabPressed]}
+              >
+                <View style={styles.inboxTabLabelRow}>
+                  <Text style={[styles.inboxTabLabel, selected && styles.inboxTabLabelSelected]}>
+                    {tab === 'messages' ? 'Messages' : 'Notifications'}
+                  </Text>
+                  {hasUnread ? <View style={styles.inboxTabUnreadDot} /> : null}
+                </View>
+                {selected ? <View style={styles.inboxTabIndicator} /> : null}
+              </Pressable>
+            )
+          })}
+        </View>
+      ) : null}
+
+      {isClientInbox && inboxTab === 'notifications' ? (
+        <NotificationScreen
+          embedded
+          notifications={notifications}
+          onMarkAllRead={onMarkAllNotificationsRead}
+          onMarkRead={onMarkNotificationRead}
+          onScrollDirectionChange={onScrollDirectionChange}
+          onSelectNotification={(notification) => {
+            if (notification.category === 'message') setInboxTab('messages')
+            onSelectNotification?.(notification)
+          }}
+          variant="client"
+        />
+      ) : (
       <ScrollView
         contentContainerStyle={[
           styles.content,
           isWide ? styles.contentWide : styles.contentMobile,
         ]}
         keyboardShouldPersistTaps="handled"
+        onScroll={(event) => {
+          const scrollY = Math.max(0, event.nativeEvent.contentOffset.y)
+          const delta = scrollY - lastScrollY.current
+          if (Math.abs(delta) < 8) return
+          lastScrollY.current = scrollY
+          onScrollDirectionChange?.(delta > 0 ? 'down' : 'up')
+        }}
+        scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.headingRow}>
-          <View style={styles.headingCopy}>
-            <View style={styles.titleRow}>
-              <Text style={styles.title}>Messages</Text>
-              {unreadCount ? (
-                <View style={styles.unreadBadge}>
-                  <Text style={styles.unreadBadgeText}>{unreadCount}</Text>
-                </View>
-              ) : null}
+        {!isClientInbox ? (
+          <View style={styles.headingRow}>
+            <View style={styles.headingCopy}>
+              <View style={styles.titleRow}>
+                <Text style={styles.title}>Messages</Text>
+                {unreadCount ? (
+                  <View style={styles.unreadBadge}>
+                    <Text style={styles.unreadBadgeText}>{unreadCount}</Text>
+                  </View>
+                ) : null}
+              </View>
+              <Text style={styles.subtitle}>
+                {usesEventGroups
+                  ? selectedEvent
+                    ? 'Direct conversations for this event.'
+                    : navigationVariant === 'coordinator'
+                      ? 'Choose an event to message its client or confirmed providers.'
+                      : 'Choose an event to see its booked service conversations.'
+                  : 'Only people connected through a booking can message here.'}
+              </Text>
             </View>
-            <Text style={styles.subtitle}>
-              {usesEventGroups
-                ? selectedEvent
-                  ? 'Direct conversations for this event.'
-                  : navigationVariant === 'coordinator'
-                    ? 'Choose an event to message its client or confirmed providers.'
-                    : 'Choose an event to see its booked service conversations.'
-                : 'Only people connected through a booking can message here.'}
-            </Text>
+            {navigationVariant === 'merchant' ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={onNewMessage}
+                style={({ pressed }) => [styles.newMessageButton, pressed && styles.primaryPressed]}
+              >
+                <Text style={styles.newMessagePlus}>+</Text>
+                <Text style={styles.newMessageText}>{isCompact ? 'New' : 'New message'}</Text>
+              </Pressable>
+            ) : null}
           </View>
-          {navigationVariant === 'merchant' ? (
-            <Pressable
-              accessibilityRole="button"
-              onPress={onNewMessage}
-              style={({ pressed }) => [styles.newMessageButton, pressed && styles.primaryPressed]}
-            >
-              <Text style={styles.newMessagePlus}>+</Text>
-              <Text style={styles.newMessageText}>{isCompact ? 'New' : 'New message'}</Text>
-            </Pressable>
-          ) : null}
-        </View>
+        ) : null}
 
         {usesEventGroups && selectedEvent ? (
           <Pressable
@@ -600,6 +678,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
           />
         )}
       </ScrollView>
+      )}
 
       {navigationVariant === 'coordinator' && showBottomNavigation && !isWide ? (
         <CoordinatorBottomNavigation
@@ -764,6 +843,15 @@ const styles = StyleSheet.create({
   clientTopAppBar: { borderBottomColor: palette.primary, backgroundColor: palette.primaryContainer },
   topAppBarContent: { width: '100%', maxWidth: 1200, minHeight: 64, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 8 },
   horizontalPaddingWide: { paddingHorizontal: 64 },
+  inboxTabs: { width: '100%', flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: palette.border, backgroundColor: palette.white, paddingHorizontal: 20 },
+  inboxTabsWide: { paddingHorizontal: 64 },
+  inboxTab: { minHeight: 48, flex: 1, alignItems: 'center', justifyContent: 'center' },
+  inboxTabPressed: { opacity: 0.62 },
+  inboxTabLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  inboxTabLabel: { color: palette.secondary, fontSize: 12, lineHeight: 16, fontWeight: '700' },
+  inboxTabLabelSelected: { color: palette.primaryContainer },
+  inboxTabUnreadDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#B3261E' },
+  inboxTabIndicator: { position: 'absolute', right: 18, bottom: 0, left: 18, height: 3, borderRadius: 2, backgroundColor: palette.primaryContainer },
   clientHeaderButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },
   clientHeaderTitle: { color: palette.white, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 1.2, textAlign: 'center' },
   coordinatorBackIcon: { color: palette.white, fontSize: 32, lineHeight: 34, fontWeight: '300' },

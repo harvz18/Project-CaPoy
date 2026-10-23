@@ -110,7 +110,8 @@ import type { CoordinatorMainTab } from './components/CoordinatorBottomNavigatio
 import { MerchantBottomNavigation } from './components/MerchantBottomNavigation'
 import { NonBlockingActivityBar, ScreenMotionFrame } from './components/MotionFeedback'
 import { ClientHomeScreen, ClientHomeTab, getClientBookingProgress } from './screens/03-ClientHome'
-import { ClientConversation, MessagesScreen } from './screens/03.1-Messages'
+import { ClientPlansScreen } from './screens/03.3-ClientPlans'
+import { ClientConversation, ClientInboxTab, MessagesScreen } from './screens/03.1-Messages'
 import { ChatMessage, ChatThreadScreen } from './screens/03.2-ChatThread'
 import { MerchantHomeScreen, MerchantHomeTab } from './screens/16-MerchantHome'
 import {
@@ -271,6 +272,11 @@ import {
   emptyClientWallet,
   fetchClientWallet,
 } from './lib/client-wallet'
+import {
+  ClientHomeAppearance,
+  loadClientHomeAppearance,
+  saveClientHomeAppearance,
+} from './lib/client-home-appearance'
 
 type AppScreen =
   | 'onboarding'
@@ -284,6 +290,7 @@ type AppScreen =
   | 'pendingApproval'
   | 'rejectedApplication'
   | 'clientHome'
+  | 'clientPlans'
   | 'eventCreation'
   | 'providerHome'
   | 'providerDraftChoice'
@@ -644,6 +651,15 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('popstate', handleBrowserBack)
   }, [goBackInApp])
   const [isClientNavigationVisible, setIsClientNavigationVisible] = React.useState(true)
+  const clientNavigationInteractionLockRef = React.useRef(0)
+  const keepClientNavigationVisibleForToggle = React.useCallback(() => {
+    clientNavigationInteractionLockRef.current = Date.now() + 320
+    setIsClientNavigationVisible(true)
+  }, [])
+  const handleClientNavigationScrollDirection = React.useCallback((direction: 'down' | 'up') => {
+    if (Date.now() < clientNavigationInteractionLockRef.current) return
+    setIsClientNavigationVisible(direction === 'up')
+  }, [])
   const roleSelectionEntrance = React.useRef(new Animated.Value(0)).current
   const signupEntrance = React.useRef(new Animated.Value(0)).current
   const eventCreationEntrance = React.useRef(new Animated.Value(0)).current
@@ -1090,6 +1106,10 @@ export const App: React.FC = () => {
   const [isSigningOut, setIsSigningOut] = React.useState(false)
   const [isUploadingProfilePhoto, setIsUploadingProfilePhoto] = React.useState(false)
   const [profileReturnScreen, setProfileReturnScreen] = React.useState<AppScreen>('clientHome')
+  const [clientHomeAppearance, setClientHomeAppearance] = React.useState<ClientHomeAppearance>('classic')
+  const clientHomeAppearanceRevisionRef = React.useRef(0)
+  const [supportReturnScreen, setSupportReturnScreen] = React.useState<AppScreen>('accountProfile')
+  const [clientWalletReturnScreen, setClientWalletReturnScreen] = React.useState<AppScreen>('accountProfile')
   const [clientWallet, setClientWallet] = React.useState<ClientWallet>(emptyClientWallet())
   const [clientWalletError, setClientWalletError] = React.useState('')
   const [isClientWalletLoading, setIsClientWalletLoading] = React.useState(false)
@@ -1114,6 +1134,34 @@ export const App: React.FC = () => {
   React.useEffect(() => {
     setIsClientNavigationVisible(true)
   }, [screen])
+
+  React.useEffect(() => {
+    let active = true
+    const revision = clientHomeAppearanceRevisionRef.current
+
+    if (!authenticatedUserId) {
+      setClientHomeAppearance('classic')
+      return () => {
+        active = false
+      }
+    }
+
+    void loadClientHomeAppearance(authenticatedUserId).then((appearance) => {
+      if (active && clientHomeAppearanceRevisionRef.current === revision) {
+        setClientHomeAppearance(appearance)
+      }
+    })
+
+    return () => {
+      active = false
+    }
+  }, [authenticatedUserId])
+
+  const changeClientHomeAppearance = React.useCallback((appearance: ClientHomeAppearance) => {
+    clientHomeAppearanceRevisionRef.current += 1
+    setClientHomeAppearance(appearance)
+    void saveClientHomeAppearance(authenticatedUserId, appearance)
+  }, [authenticatedUserId])
 
   const openRoleSelectionFromOnboarding = () => {
     roleSelectionEntrance.setValue(width)
@@ -1743,6 +1791,16 @@ export const App: React.FC = () => {
     return planningState
   }, [hydrateClientPlanningState])
 
+  React.useEffect(() => {
+    if (!authenticatedUserId) return undefined
+
+    const appStateSubscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') void refreshLiveData()
+    })
+
+    return () => appStateSubscription.remove()
+  }, [authenticatedUserId, refreshLiveData])
+
   const refreshClientBookings = React.useCallback(async () => {
     const bookings = await fetchClientBookings()
     setClientBookings(bookings)
@@ -2319,6 +2377,8 @@ export const App: React.FC = () => {
           setAuthenticatedUserId('')
           setIsAuthRestoring(false)
           setUserName('Planner')
+          setConversations([])
+          setNotifications([])
           setHomeReturnScreen('clientHome')
           setMessageWorkspace('client')
           setAccountProfile(undefined)
@@ -2398,6 +2458,9 @@ export const App: React.FC = () => {
         else setScreen(homeReturnScreen === 'providerHome' ? 'providerBookingRequests' : 'bookings')
         return
       }
+      if (!screenRef.current.startsWith('coordinator') && homeReturnScreen !== 'providerHome') {
+        setMessageWorkspace('client')
+      }
       setScreen(
         screenRef.current.startsWith('coordinator')
           ? 'coordinatorNotifications'
@@ -2442,7 +2505,7 @@ export const App: React.FC = () => {
   }, [authenticatedUserId])
 
   React.useEffect(() => {
-    if (Platform.OS === 'web') return undefined
+    if (Platform.OS === 'web' || !supportsRemotePushNotifications) return undefined
 
     const receivedSubscription = Notifications.addNotificationReceivedListener(() => {
       void refreshLiveData()
@@ -2552,9 +2615,10 @@ export const App: React.FC = () => {
 
   React.useEffect(() => {
     void setApplicationBadgeFromUnreadCount(
-      notifications.filter((notification) => !notification.isRead).length
+      conversations.reduce((total, conversation) => total + conversation.unreadCount, 0)
+      + notifications.filter((notification) => !notification.isRead).length
     )
-  }, [notifications])
+  }, [conversations, notifications])
 
   const handleAuthenticatedUser = React.useCallback(async () => {
     if (!supabase) {
@@ -3706,28 +3770,31 @@ export const App: React.FC = () => {
 
   const renderClientHome = () => (
     <ClientHomeScreen
+      appearance={clientHomeAppearance}
       draftEvents={clientEventDrafts}
-      savedPlans={clientSavedPlans}
       bookingProgressEvents={clientBookingProgress}
       recommendations={homeRecommendations}
       userAvatarUrl={userAvatarUrl}
       userName={userName}
       selectedServiceCount={selectedServices.length}
       onOpenDraft={(draftId) => void resumeClientDraft(draftId)}
-      onOpenSavedPlan={(savedPlanId) => void resumeSavedPlan(savedPlanId)}
-      onDeleteDraft={deleteClientDraft}
       onOpenBookingProgress={(booking) => {
         setSelectedBooking(booking)
         setScreen('bookingDetails')
       }}
       onStartNewEvent={startNewClientEvent}
       onOpenProfile={() => openAccountProfile('clientHome')}
-      onOpenNotifications={() => {
-        setHomeReturnScreen('clientHome')
-        setScreen('notifications')
+      onOpenSupport={() => {
+        setSupportReturnScreen('clientHome')
+        setScreen('support')
       }}
+      onOpenWallet={() => {
+        setClientWalletReturnScreen('clientHome')
+        setScreen('clientWallet')
+      }}
+      onOpenSavedPlans={() => setScreen('clientPlans')}
       onScrollDirectionChange={(direction) => {
-        setIsClientNavigationVisible(direction === 'up')
+        handleClientNavigationScrollDirection(direction)
       }}
       onSeeAllVenues={() => openClientTab('explore')}
       onSelectRecommendation={(serviceId) => {
@@ -3740,6 +3807,102 @@ export const App: React.FC = () => {
         }
       }}
       onSelectTab={openClientTab}
+    />
+  )
+
+  const renderClientPlans = () => (
+    <ClientPlansScreen
+      draftEvents={clientEventDrafts}
+      savedPlans={clientSavedPlans}
+      onBack={() => setScreen('clientHome')}
+      onDeleteDraft={deleteClientDraft}
+      onOpenDraft={(draftId) => void resumeClientDraft(draftId)}
+      onOpenSavedPlan={(savedPlanId) => void resumeSavedPlan(savedPlanId)}
+      onScrollDirectionChange={handleClientNavigationScrollDirection}
+      onStartNewEvent={startNewClientEvent}
+    />
+  )
+
+  const openClientInboxNotification = (notification: MerchantNotification) => {
+    if (notification.category === 'message') {
+      setMessageWorkspace('client')
+      setScreen('messages')
+      return
+    }
+    if (notification.category === 'payment') {
+      setScreen('eventLedger')
+      return
+    }
+    if (notification.category === 'review' || notification.category === 'booking') {
+      setScreen('bookings')
+    }
+  }
+
+  const renderMessagesWorkspace = (initialInboxTab: ClientInboxTab = 'messages') => (
+    <MessagesScreen
+      clientBookings={messageWorkspace === 'client' ? clientBookings : []}
+      coordinatorEvents={messageWorkspace === 'coordinator' ? coordinatorDashboard.events : []}
+      conversations={conversations}
+      hasUnreadNotifications={notifications.some((notification) => !notification.isRead)}
+      initialInboxTab={messageWorkspace === 'client' ? initialInboxTab : 'messages'}
+      navigationVariant={messageWorkspace}
+      notifications={messageWorkspace === 'client' ? notifications : []}
+      showBottomNavigation={messageWorkspace === 'coordinator'}
+      onBack={messageWorkspace === 'coordinator'
+        ? () => setScreen('coordinatorHome')
+        : messageWorkspace === 'client'
+          ? () => setScreen('clientHome')
+          : undefined}
+      onMarkAllNotificationsRead={messageWorkspace === 'client' ? (ids) => {
+        const readIds = new Set(ids)
+        setNotifications((current) => current.map((notification) => (
+          readIds.has(notification.id) ? { ...notification, isRead: true } : notification
+        )))
+        void markMerchantNotificationsRead(ids).then(() => refreshLiveData())
+      } : undefined}
+      onMarkRead={(conversation) => {
+        setConversations((current) =>
+          current.map((item) =>
+            item.id === conversation.id ? { ...item, unreadCount: 0 } : item
+          )
+        )
+        void markConversationRead(conversation.id)
+      }}
+      onMarkNotificationRead={messageWorkspace === 'client' ? (notification) => {
+        setNotifications((current) => current.map((item) => (
+          item.id === notification.id ? { ...item, isRead: true } : item
+        )))
+        void markMerchantNotificationRead(notification).then(() => refreshLiveData())
+      } : undefined}
+      onOpenNotifications={() => setScreen(
+        messageWorkspace === 'coordinator' ? 'coordinatorNotifications' : 'notifications'
+      )}
+      onOpenProfile={() =>
+        messageWorkspace === 'merchant'
+          ? openProviderProfile()
+          : openAccountProfile('messages')
+      }
+      onOpenEventCoordinatorForEvent={(eventId) =>
+        void openEventCoordinatorConversationFor(eventId, 'messages')
+      }
+      onSelectCoordinatorTab={openCoordinatorTab}
+      onSelectConversation={(conversation) =>
+        void openExistingConversation(conversation, 'messages')
+      }
+      onSelectNotification={messageWorkspace === 'client' ? openClientInboxNotification : undefined}
+      onNewMessage={messageWorkspace === 'merchant' ? () => {
+        setServiceBrowseMode('explore')
+        setToastMessage('Choose a service to start a provider conversation.')
+        setScreen('categoryBrowse')
+      } : undefined}
+      onSelectTab={messageWorkspace === 'coordinator' ? undefined : openMessageTab}
+      onScrollDirectionChange={
+        messageWorkspace === 'client' && homeReturnScreen === 'clientHome'
+          ? handleClientNavigationScrollDirection
+          : undefined
+      }
+      userName={userName}
+      userAvatarUrl={userAvatarUrl}
     />
   )
 
@@ -3879,6 +4042,8 @@ export const App: React.FC = () => {
         )
       case 'clientHome':
         return renderClientHome()
+      case 'clientPlans':
+        return renderClientPlans()
       case 'eventLedger':
         return (
           <EventLedgerScreen
@@ -4366,15 +4531,24 @@ export const App: React.FC = () => {
         return (
           <AccountProfileScreen
             error={accountProfileError}
+            homeAppearance={clientHomeAppearance}
             isLoading={isLoadingAccountProfile}
             isSaving={isSavingAccountProfile}
             isSigningOut={isSigningOut}
             isUploadingPhoto={isUploadingProfilePhoto}
             onBack={() => setScreen(profileReturnScreen)}
             onChoosePhoto={chooseAccountProfilePhoto}
-            onOpenSupport={() => setScreen('support')}
-            onOpenWallet={() => setScreen('clientWallet')}
+            onHomeAppearanceChange={changeClientHomeAppearance}
+            onOpenSupport={() => {
+              setSupportReturnScreen('accountProfile')
+              setScreen('support')
+            }}
             onSave={(value) => void saveAccountProfile(value)}
+            onScrollDirectionChange={
+              ['clientHome', 'budgetTracker', 'bookings', 'messages'].includes(profileReturnScreen)
+                ? handleClientNavigationScrollDirection
+                : undefined
+            }
             onSignOut={() => void handleSignOut()}
             profile={accountProfile}
           />
@@ -4385,13 +4559,13 @@ export const App: React.FC = () => {
             error={clientWalletError}
             isLoading={isClientWalletLoading}
             isRefreshing={isClientWalletRefreshing}
-            onBack={() => setScreen('accountProfile')}
+            onBack={() => setScreen(clientWalletReturnScreen)}
             onRefresh={() => void loadClientWallet(true)}
             wallet={clientWallet}
           />
         )
       case 'support':
-        return <SupportScreen onBack={() => setScreen('accountProfile')} />
+        return <SupportScreen onBack={() => setScreen(supportReturnScreen)} />
       case 'providerOperatingHours':
         return (
           <OperatingHoursScreen
@@ -4434,7 +4608,10 @@ export const App: React.FC = () => {
           <TransactionDetailsScreen
             transaction={selectedPayoutTransaction}
             onBack={() => setScreen('providerPayouts')}
-            onContactSupport={() => setScreen('support')}
+            onContactSupport={() => {
+              setSupportReturnScreen('providerTransactionDetails')
+              setScreen('support')
+            }}
             onOpenRelatedRecord={() => setScreen('providerBookingRequests')}
           />
         )
@@ -4777,6 +4954,9 @@ export const App: React.FC = () => {
               serviceName: replacementBooking.serviceName,
             } : undefined}
             showBottomNavigation={false}
+            onScrollDirectionChange={serviceBrowseMode === 'explore'
+              ? handleClientNavigationScrollDirection
+              : undefined}
             onBack={() => {
               if (changingServiceSelection) setChangingServiceSelection(undefined)
               if (serviceBrowseMode === 'planning') openBudgetAllocationFromServices()
@@ -4944,48 +5124,7 @@ export const App: React.FC = () => {
           />
         )
       case 'messages':
-        return (
-          <MessagesScreen
-            clientBookings={messageWorkspace === 'client' ? clientBookings : []}
-            coordinatorEvents={messageWorkspace === 'coordinator' ? coordinatorDashboard.events : []}
-            conversations={conversations}
-            hasUnreadNotifications={notifications.some((notification) => !notification.isRead)}
-            navigationVariant={messageWorkspace}
-            showBottomNavigation={messageWorkspace === 'coordinator'}
-            onBack={messageWorkspace === 'coordinator' ? () => setScreen('coordinatorHome') : undefined}
-            onMarkRead={(conversation) => {
-              setConversations((current) =>
-                current.map((item) =>
-                  item.id === conversation.id ? { ...item, unreadCount: 0 } : item
-                )
-              )
-              void markConversationRead(conversation.id)
-            }}
-            onOpenNotifications={() => setScreen(
-              messageWorkspace === 'coordinator' ? 'coordinatorNotifications' : 'notifications'
-            )}
-            onOpenProfile={() =>
-              messageWorkspace === 'merchant'
-                ? openProviderProfile()
-                : openAccountProfile('messages')
-            }
-            onOpenEventCoordinatorForEvent={(eventId) =>
-              void openEventCoordinatorConversationFor(eventId, 'messages')
-            }
-            onSelectCoordinatorTab={openCoordinatorTab}
-            onSelectConversation={(conversation) =>
-              void openExistingConversation(conversation, 'messages')
-            }
-            onNewMessage={messageWorkspace === 'merchant' ? () => {
-              setServiceBrowseMode('explore')
-              setToastMessage('Choose a service to start a provider conversation.')
-              setScreen('categoryBrowse')
-            } : undefined}
-            onSelectTab={messageWorkspace === 'coordinator' ? undefined : openMessageTab}
-            userName={userName}
-            userAvatarUrl={userAvatarUrl}
-          />
-        )
+        return renderMessagesWorkspace()
       case 'chatThread':
         return (
           <ChatThreadScreen
@@ -5045,6 +5184,7 @@ export const App: React.FC = () => {
           />
         )
       case 'notifications':
+        if (homeReturnScreen === 'clientHome') return renderMessagesWorkspace('notifications')
         return (
           <NotificationScreen
             notifications={notifications}
@@ -5169,11 +5309,10 @@ export const App: React.FC = () => {
         return (
           <BookingScreen
             bookings={bookingItems}
-            eventName={eventDisplayName}
             showBottomNavigation={false}
             onOpenMenu={() => setScreen('clientHome')}
             onOpenProfile={() => openAccountProfile('bookings')}
-            onSelectEvent={openPlanningHub}
+            onScrollDirectionChange={handleClientNavigationScrollDirection}
             onSelectBooking={(booking) => {
               setSelectedBooking(booking)
               setScreen('bookingDetails')
@@ -5246,16 +5385,30 @@ export const App: React.FC = () => {
 
   const isHome =
     screen === 'clientHome' || screen === 'providerHome' || screen === 'providerServices'
+  const hasUnreadClientInbox =
+    conversations.some((conversation) => conversation.unreadCount > 0)
+    || notifications.some((notification) => !notification.isRead)
   const clientMainTab: ClientHomeTab | null =
     screen === 'clientHome'
       ? 'home'
+      : screen === 'clientPlans'
+        ? 'home'
       : screen === 'categoryBrowse' && serviceBrowseMode === 'explore'
         ? 'explore'
         : screen === 'bookings'
           ? 'bookings'
           : screen === 'messages' && messageWorkspace === 'client' && homeReturnScreen === 'clientHome'
             ? 'messages'
-          : null
+            : screen === 'notifications' && homeReturnScreen === 'clientHome'
+              ? 'messages'
+          : screen === 'accountProfile' && (
+            profileReturnScreen === 'clientHome'
+            || profileReturnScreen === 'budgetTracker'
+            || profileReturnScreen === 'bookings'
+            || profileReturnScreen === 'messages'
+          )
+            ? 'profile'
+            : null
 
   const providerMainTab: MerchantHomeTab | null =
     screen === 'providerHome'
@@ -5335,7 +5488,10 @@ export const App: React.FC = () => {
   return (
     <SafeAreaProvider>
       <StatusBar style={screen === 'clientHome' ? 'light' : 'dark'} />
-      <SafeAreaView style={[styles.container, isHome && styles.homeContainer]}>
+      <SafeAreaView
+        edges={['top', 'right', 'bottom', 'left']}
+        style={[styles.container, isHome && styles.homeContainer]}
+      >
         <ScreenMotionFrame
           disabled={screensWithOwnEntrance.has(screen)}
           isLocked={isScreenTransitioning}
@@ -5363,8 +5519,10 @@ export const App: React.FC = () => {
         {width < 768 && clientMainTab ? (
           <ClientBottomNavigation
             activeTab={clientMainTab}
+            hasUnreadInbox={hasUnreadClientInbox}
             isVisible={isClientNavigationVisible}
             onSelectTab={openClientTab}
+            onToggleNavigation={keepClientNavigationVisibleForToggle}
           />
         ) : null}
         {width < 768 && providerMainTab ? (

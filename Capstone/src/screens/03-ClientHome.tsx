@@ -1,6 +1,7 @@
 import { Text } from '../components/AppText'
 import React from 'react'
 import { MaterialIcons } from '@expo/vector-icons'
+import { LinearGradient } from 'expo-linear-gradient'
 import {
   Image,
   Modal,
@@ -12,9 +13,13 @@ import {
   View,
 } from 'react-native'
 import { ClientMainTab } from '../components/ClientBottomNavigation'
-import { formatPeso, formatServicePrice } from '../lib/catalog'
+import { BrandIdentity } from '../components/BrandIdentity'
+import { formatServicePrice } from '../lib/catalog'
+import type { ClientHomeAppearance } from '../lib/client-home-appearance'
 import type { HomeServiceRecommendation } from '../lib/home-recommendations'
-import type { ClientEventDraftSummary, ClientSavedPlanSummary } from '../lib/planning'
+import type { ClientEventDraftSummary } from '../lib/planning'
+import { colors } from '../theme/tokens'
+import { ModernHomeScreen } from './03.0-ModernHome'
 import type { BookingItem } from './11-BookingScreen'
 
 export type ClientHomeAction = 'newEvent' | 'vendors' | 'tasks'
@@ -30,9 +35,9 @@ export interface ClientBookingProgress {
   totalActiveServiceCount: number
 }
 
-interface ClientHomeScreenProps {
+export interface ClientHomeScreenProps {
+  appearance?: ClientHomeAppearance
   draftEvents?: ClientEventDraftSummary[]
-  savedPlans?: ClientSavedPlanSummary[]
   bookingProgressEvents?: ClientBookingProgress[]
   recommendations?: HomeServiceRecommendation[]
   selectedServiceCount?: number
@@ -40,18 +45,27 @@ interface ClientHomeScreenProps {
   userName?: string
   searchValue?: string
   onChangeSearch?: (value: string) => void
-  onDeleteDraft?: (draftId: string) => Promise<boolean | void> | boolean | void
   onOpenDraft?: (draftId: string) => void
-  onOpenSavedPlan?: (savedPlanId: string) => void
+  onOpenSavedPlans?: () => void
   onOpenBookingProgress?: (booking: BookingItem) => void
+  onOpenWallet?: () => void
   onStartNewEvent?: () => Promise<boolean | void> | boolean | void
-  onOpenNotifications?: () => void
   onOpenProfile?: () => void
+  onOpenSupport?: () => void
   onScrollDirectionChange?: (direction: 'down' | 'up') => void
   onSeeAllVenues?: () => void
   onSelectRecommendation?: (serviceId: string) => void
   onSelectTab?: (tab: ClientHomeTab) => void
 }
+
+const QUICK_ACCESS_ITEMS = [
+  { id: 'bookings', label: 'Bookings', image: require('../../images/Bookings.png'), iconScale: 1 },
+  { id: 'savedPlans', label: 'Saved Plans', image: require('../../images/Plans.png'), iconScale: 1.5 },
+  { id: 'favourites', label: 'Favourites', image: require('../../images/Favourites.png'), iconScale: 1.48 },
+  { id: 'wallet', label: 'Wallet', image: require('../../images/Wallet.png'), iconScale: 1.45 },
+] as const
+
+type QuickAccessId = (typeof QUICK_ACCESS_ITEMS)[number]['id']
 
 const formatDraftDate = (value: string) => {
   if (!value) return 'Date not set'
@@ -75,16 +89,6 @@ const getDaysLeft = (value: string, now = new Date()) => {
 
   if (Number.isNaN(eventDate.getTime())) return null
   return Math.ceil((eventDate.getTime() - today.getTime()) / 86_400_000)
-}
-
-const formatSavedAt = (value: string) => {
-  const savedAt = new Date(value)
-  if (Number.isNaN(savedAt.getTime())) return 'Recently saved'
-  return savedAt.toLocaleDateString('en-PH', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  })
 }
 
 export const getClientBookingProgress = (
@@ -139,19 +143,20 @@ export const getClientBookingProgress = (
 })
 
 export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
+  appearance = 'classic',
   draftEvents = [],
-  savedPlans = [],
   bookingProgressEvents = [],
   recommendations = [],
-  onDeleteDraft,
   onOpenDraft,
-  onOpenSavedPlan,
+  onOpenSavedPlans,
   onOpenBookingProgress,
-  onOpenNotifications,
   onOpenProfile,
+  onOpenSupport,
+  onOpenWallet,
   onScrollDirectionChange,
   onSeeAllVenues,
   onSelectRecommendation,
+  onSelectTab,
   onStartNewEvent,
   userAvatarUrl,
   userName,
@@ -161,24 +166,15 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   const lastScrollY = React.useRef(0)
   const [isDraftPromptVisible, setIsDraftPromptVisible] = React.useState(false)
   const [isStartingNewEvent, setIsStartingNewEvent] = React.useState(false)
-  const [showAllDrafts, setShowAllDrafts] = React.useState(false)
-  const [showAllSavedPlans, setShowAllSavedPlans] = React.useState(false)
   const [showAllBookingProgress, setShowAllBookingProgress] = React.useState(false)
-  const [draftPendingDeletion, setDraftPendingDeletion] = React.useState<ClientEventDraftSummary>()
-  const [isDeletingDraft, setIsDeletingDraft] = React.useState(false)
-  const visibleDrafts = showAllDrafts ? draftEvents : draftEvents.slice(0, 1)
-  const visibleSavedPlans = showAllSavedPlans ? savedPlans : savedPlans.slice(0, 1)
-  const hasAdditionalDrafts = draftEvents.length > 1
-  const hasAdditionalSavedPlans = savedPlans.length > 1
   const visibleBookingProgress = showAllBookingProgress
     ? bookingProgressEvents
     : bookingProgressEvents.slice(0, 3)
   const hasAdditionalBookingProgress = bookingProgressEvents.length > 3
-  const draftEvent = visibleDrafts[0]
+  const draftEvent = draftEvents[0]
   const onOpenActiveEvent = () => {
     if (draftEvent) onOpenDraft?.(draftEvent.id)
   }
-  const daysLeft = draftEvent ? getDaysLeft(draftEvent.eventDate) : null
 
   const handleCreateEventPress = () => {
     if (draftEvents.length > 0) {
@@ -197,12 +193,55 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
     if (started !== false) setIsDraftPromptVisible(false)
   }
 
-  const handleDeleteDraft = async () => {
-    if (!draftPendingDeletion || isDeletingDraft) return
-    setIsDeletingDraft(true)
-    const deleted = await onDeleteDraft?.(draftPendingDeletion.id)
-    setIsDeletingDraft(false)
-    if (deleted !== false) setDraftPendingDeletion(undefined)
+  const handleQuickAccess = (itemId: QuickAccessId) => {
+    if (itemId === 'bookings') {
+      onSelectTab?.('bookings')
+      return
+    }
+
+    if (itemId === 'savedPlans') {
+      onOpenSavedPlans?.()
+      return
+    }
+
+    if (itemId === 'favourites') {
+      onSelectTab?.('explore')
+      return
+    }
+
+    onOpenWallet?.()
+  }
+
+  if (appearance === 'modern') {
+    return (
+      <>
+        <ModernHomeScreen
+          bookingProgressEvents={bookingProgressEvents}
+          hasAdditionalBookingProgress={hasAdditionalBookingProgress}
+          isDraftPromptVisible={isDraftPromptVisible}
+          isStartingNewEvent={isStartingNewEvent}
+          onCreateEvent={handleCreateEventPress}
+          onDismissDraftPrompt={() => setIsDraftPromptVisible(false)}
+          onOpenBookingProgress={onOpenBookingProgress}
+          onOpenProfile={onOpenProfile}
+          onOpenSupport={onOpenSupport}
+          onQuickAccess={handleQuickAccess}
+          onResumeDraft={() => {
+            setIsDraftPromptVisible(false)
+            onOpenActiveEvent()
+          }}
+          onScrollDirectionChange={onScrollDirectionChange}
+          onSeeAllVenues={onSeeAllVenues}
+          onSelectRecommendation={onSelectRecommendation}
+          onStartNewEvent={() => void handleStartNewEvent()}
+          onToggleBookingProgress={() => setShowAllBookingProgress((current) => !current)}
+          recommendations={recommendations}
+          showAllBookingProgress={showAllBookingProgress}
+          userAvatarUrl={userAvatarUrl}
+          userName={userName}
+        />
+      </>
+    )
   }
 
   return (
@@ -224,227 +263,102 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
         }}
         scrollEventThrottle={16}
       >
-        <View style={styles.referenceHeader}>
-          <Pressable
-            accessibilityLabel="Open profile"
-            accessibilityRole="button"
-            onPress={onOpenProfile}
-            style={({ pressed }) => [styles.referenceHeaderIdentity, pressed && styles.referencePressed]}
-          >
-            <View style={styles.referenceAvatar}>
-              {userAvatarUrl ? (
-                <Image
-                  accessibilityLabel={`${userName || 'User'} profile photo`}
-                  resizeMode="cover"
-                  source={{ uri: userAvatarUrl }}
-                  style={styles.referenceAvatarImage}
-                />
-              ) : (
-                <MaterialIcons name="account-circle" size={34} color="#8A2944" />
-              )}
-            </View>
-            <View>
-              <View style={styles.referenceNameRow}>
-                <Text style={styles.referenceName}>{userName || 'Maria Santos'}</Text>
-              </View>
-              <Text style={styles.referenceGreeting}>Event's Location</Text>
-            </View>
-          </Pressable>
-          <View style={styles.referenceHeaderActions}>
+        <View style={[styles.referenceTopSurface, isWide && styles.referenceTopSurfaceWide]}>
+          <View style={styles.referenceHeader}>
             <Pressable
-              accessibilityLabel="Open notifications"
+              accessibilityLabel="Open profile"
               accessibilityRole="button"
-              onPress={onOpenNotifications}
-              style={({ pressed }) => [styles.referenceHeaderAction, pressed && styles.referencePressed]}
+              onPress={onOpenProfile}
+              style={({ pressed }) => [styles.referenceHeaderControl, pressed && styles.referenceHeaderControlPressed]}
             >
-              <MaterialIcons name="notifications-none" size={19} color={palette.primary} />
+              <LinearGradient
+                colors={['#FFFDF8', '#A79D9A', '#F7F4EE', '#827875', '#E8E2DD']}
+                end={{ x: 0.9, y: 1 }}
+                locations={[0, 0.24, 0.46, 0.72, 1]}
+                start={{ x: 0.1, y: 0 }}
+                style={styles.referenceAvatarRim}
+              >
+                <View style={styles.referenceAvatar}>
+                  {userAvatarUrl ? (
+                    <Image
+                      accessibilityLabel={`${userName || 'User'} profile photo`}
+                      resizeMode="cover"
+                      source={{ uri: userAvatarUrl }}
+                      style={styles.referenceAvatarImage}
+                    />
+                  ) : (
+                    <MaterialIcons name="account-circle" size={34} color="#8A2944" />
+                  )}
+                </View>
+              </LinearGradient>
+            </Pressable>
+            <View style={styles.referenceHeaderWordmark}>
+              <View style={styles.referenceWordmarkDepth}>
+                <BrandIdentity
+                  markSize={30}
+                  showName={false}
+                  style={styles.referenceWordmarkShadow}
+                  variant="metallicWordmark"
+                />
+                <BrandIdentity markSize={30} showName={false} variant="metallicWordmark" />
+              </View>
+            </View>
+            <Pressable
+              accessibilityLabel="Contact MULTIVENT Support"
+              accessibilityRole="button"
+              onPress={onOpenSupport}
+              style={({ pressed }) => [styles.referenceHeaderControl, pressed && styles.referenceHeaderControlPressed]}
+            >
+              <MaterialIcons color="#FFFFFF" name="support-agent" size={24} />
             </Pressable>
           </View>
-        </View>
-        <View style={styles.referenceHero}>
-          <Text style={styles.heroTitle}>LET'S PLAN{`\n`}YOUR BIG DAY!</Text>
-          <Text style={styles.heroDescription}>
-            Deploy planning tools, manage budget & vendors{`\n`}in one workspace.
-          </Text>
-          <View style={styles.heroFooter}>
-            
-            <Pressable
-              accessibilityLabel="Begin setup"
-              accessibilityRole="button"
-              onPress={handleCreateEventPress}
-              style={({ pressed }) => [styles.heroButton, pressed && styles.referencePressed]}
-            >
-              <Text style={styles.heroButtonText}>Create Event</Text>
-              <Text style={styles.heroButtonArrow}>+</Text>
-            </Pressable>
+          <View style={styles.referenceHero}>
+            <Text style={styles.heroTitle}>LET'S PLAN{`\n`}YOUR BIG DAY!</Text>
+            <Text style={styles.heroDescription}>
+              Deploy planning tools, manage budget & vendors{`\n`}in one workspace.
+            </Text>
+            <View style={styles.heroFooter}>
+              <Pressable
+                accessibilityLabel="Begin setup"
+                accessibilityRole="button"
+                onPress={handleCreateEventPress}
+                style={({ pressed }) => [styles.heroButton, pressed && styles.referencePressed]}
+              >
+                <Text style={styles.heroButtonText}>Create Event</Text>
+                <Text style={styles.heroButtonArrow}>+</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
 
-        <View style={styles.referenceSection}>
-          <View style={styles.referenceSectionHeader}>
-            <View>
-              <Text style={styles.referenceSectionTitle}>CONTINUE PLANNING</Text>
-              <Text style={styles.referenceSectionSubtitle}>Your most recently updated event drafts</Text>
-            </View>
-            {hasAdditionalDrafts ? (
+        <View style={[styles.referenceSection, styles.quickAccessSection]}>
+          <View style={styles.quickAccessRow}>
+            {QUICK_ACCESS_ITEMS.map((item) => (
               <Pressable
-                accessibilityLabel={showAllDrafts ? 'Collapse event drafts' : 'Expand event drafts'}
+                key={item.id}
+                accessibilityLabel={`Open ${item.label}`}
                 accessibilityRole="button"
-                onPress={() => setShowAllDrafts((current) => !current)}
-              >
-                <Text style={styles.exploreAll}>{showAllDrafts ? 'Collapse Drafts' : 'Expand Drafts'}</Text>
-              </Pressable>
-            ) : null}
-          </View>
-          {draftEvent ? (
-            <View style={styles.draftCardGroup}>
-              <Pressable
-                accessibilityLabel={`Continue planning ${draftEvent.name}`}
-                accessibilityRole="button"
-                onPress={onOpenActiveEvent}
+                onPress={() => handleQuickAccess(item.id)}
                 style={({ pressed }) => [
-                  styles.activeEventCard,
-                  styles.draftEventCard,
-                  pressed && styles.referencePressed,
+                  styles.quickAccessItem,
+                  pressed && styles.quickAccessItemPressed,
                 ]}
               >
-              <View style={styles.activeEventHeader}>
-                <View style={styles.activeEventHeading}>
-                  <Text style={styles.activeEventEyebrow}>• DRAFT IN PROGRESS</Text>
-                  <Text numberOfLines={1} style={styles.activeEventTitle}>{draftEvent.name}</Text>
-                  <View style={styles.activeEventMetaRow}>
-                    <MaterialIcons name="location-on" size={14} color="#7C7271" />
-                    <Text numberOfLines={1} style={styles.activeEventMeta}>
-                      {draftEvent.location || 'Venue not set'} · {formatDraftDate(draftEvent.eventDate)}
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.daysBadge}>
-                  <Text style={styles.daysValue}>{daysLeft ?? '—'}</Text>
-                  <Text style={styles.daysLabel}>{daysLeft === 1 ? 'DAY LEFT' : 'DAYS LEFT'}</Text>
-                </View>
-              </View>
-              <View style={styles.milestoneRow}>
-                <Text style={styles.milestoneLabel}>Planning progress</Text>
-                <Text style={styles.milestoneValue}>
-                  {draftEvent.progressPercent}%{' '}
-                  <Text style={styles.milestoneMuted}>
-                    ({draftEvent.completedSteps} of {draftEvent.totalSteps} steps)
-                  </Text>
-                </Text>
-              </View>
-              <View style={styles.milestoneTrack}>
-                <View style={[styles.milestoneFill, { width: `${draftEvent.progressPercent}%` }]} />
-              </View>
-              <View style={styles.nextTaskRow}>
-                <Text numberOfLines={1} style={styles.nextTask}>Next: {draftEvent.nextStep}</Text>
-                <Text style={styles.nextTaskLink}>Continue <Text style={styles.nextTaskArrow}>→</Text></Text>
-              </View>
-              </Pressable>
-              <Pressable
-                accessibilityLabel={`Delete draft ${draftEvent.name}`}
-                accessibilityRole="button"
-                onPress={() => setDraftPendingDeletion(draftEvent)}
-                style={({ pressed }) => [styles.deleteDraftButton, pressed && styles.referencePressed]}
-              >
-                <MaterialIcons color="#8A2944" name="delete-outline" size={17} />
-                <Text style={styles.deleteDraftButtonText}>Delete Draft</Text>
-              </Pressable>
-            </View>
-          ) : null}
-          {visibleDrafts.slice(1).map((draft) => (
-            <View key={draft.id} style={styles.compactDraftGroup}>
-              <Pressable
-              key={draft.id}
-              accessibilityLabel={`Resume planning ${draft.name}`}
-              accessibilityRole="button"
-              onPress={() => onOpenDraft?.(draft.id)}
-              style={({ pressed }) => [styles.compactDraftCard, pressed && styles.referencePressed]}
-            >
-              <View style={styles.compactDraftCopy}>
-                <Text numberOfLines={1} style={styles.compactDraftName}>{draft.name}</Text>
-                <Text numberOfLines={1} style={styles.compactDraftMeta}>
-                  {formatDraftDate(draft.eventDate)} · Next: {draft.nextStep}
-                </Text>
-              </View>
-              <Text style={styles.compactDraftAction}>Resume →</Text>
-              </Pressable>
-              <Pressable
-                accessibilityLabel={`Delete draft ${draft.name}`}
-                accessibilityRole="button"
-                onPress={() => setDraftPendingDeletion(draft)}
-                style={({ pressed }) => [styles.compactDraftDeleteButton, pressed && styles.referencePressed]}
-              >
-                <MaterialIcons color="#8A2944" name="delete-outline" size={18} />
-              </Pressable>
-            </View>
-          ))}
-          {!draftEvent ? (
-            <View style={styles.emptyDraftState}>
-              <MaterialIcons name="event-note" size={24} color="#8A2944" />
-              <View style={styles.emptyDraftCopy}>
-                <Text style={styles.emptyDraftTitle}>No saved drafts yet</Text>
-                <Text style={styles.emptyDraftText}>Create an event to begin planning your celebration.</Text>
-              </View>
-            </View>
-          ) : null}
-        </View>
-
-        {savedPlans.length > 0 && (
-          <View style={styles.referenceSection}>
-            <View style={styles.referenceSectionHeader}>
-              <View>
-                <Text style={styles.referenceSectionTitle}>SAVED PLANS</Text>
-                <Text style={styles.referenceSectionSubtitle}>Ready to review and book when you are</Text>
-              </View>
-              {hasAdditionalSavedPlans ? (
-                <Pressable
-                  accessibilityLabel={showAllSavedPlans ? 'Collapse saved plans' : 'Expand saved plans'}
-                  accessibilityRole="button"
-                  onPress={() => setShowAllSavedPlans((current) => !current)}
-                >
-                  <Text style={styles.exploreAll}>
-                    {showAllSavedPlans ? 'Show less' : `Show all (${savedPlans.length})`}
-                  </Text>
-                </Pressable>
-              ) : null}
-            </View>
-            {visibleSavedPlans.map((savedPlan) => (
-              <Pressable
-                key={savedPlan.id}
-                accessibilityLabel={`Resume booking for saved plan ${savedPlan.name}`}
-                accessibilityRole="button"
-                onPress={() => onOpenSavedPlan?.(savedPlan.id)}
-                style={({ pressed }) => [styles.savedPlanCard, pressed && styles.referencePressed]}
-              >
-                <View style={styles.savedPlanHeading}>
-                  <View style={styles.savedPlanCopy}>
-                    <Text style={styles.savedPlanEyebrow}>SAVED FOR LATER</Text>
-                    <Text numberOfLines={1} style={styles.savedPlanName}>{savedPlan.name}</Text>
-                    <Text numberOfLines={1} style={styles.savedPlanDate}>
-                      {formatDraftDate(savedPlan.eventDate)} · Last saved {formatSavedAt(savedPlan.savedAt)}
-                    </Text>
-                  </View>
-                  <View style={styles.savedPlanEstimate}>
-                    <Text style={styles.savedPlanEstimateLabel}>ESTIMATE</Text>
-                    <Text style={styles.savedPlanEstimateValue}>{formatPeso(savedPlan.estimatedTotal)}</Text>
-                  </View>
-                </View>
-                <View style={styles.savedPlanFooter}>
-                  <Text style={styles.savedPlanServiceCount}>
-                    {savedPlan.selectedServiceCount} selected service{savedPlan.selectedServiceCount === 1 ? '' : 's'}
-                  </Text>
-                  <Text style={styles.savedPlanResume}>Resume Booking →</Text>
-                </View>
+                <Image
+                  resizeMode="contain"
+                  source={item.image}
+                  style={[styles.quickAccessIcon, { transform: [{ scale: item.iconScale }] }]}
+                />
+                <Text numberOfLines={1} style={styles.quickAccessLabel}>{item.label}</Text>
               </Pressable>
             ))}
           </View>
-        )}
+        </View>
 
         <View style={styles.referenceSection}>
           <View style={styles.referenceSectionHeader}>
             <View>
-              <Text style={styles.referenceSectionTitle}>YOUR EVENT BOOKINGS</Text>
+              <Text style={styles.referenceSectionTitle}>UPCOMING EVENTS</Text>
               <Text style={styles.referenceSectionSubtitle}>Active provider confirmation progress</Text>
             </View>
             {hasAdditionalBookingProgress ? (
@@ -556,7 +470,6 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
             ) : null}
           </ScrollView>
         </View>
-
       </ScrollView>
 
       <Modal
@@ -605,43 +518,6 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
         </View>
       </Modal>
 
-      <Modal
-        animationType="fade"
-        onRequestClose={() => !isDeletingDraft && setDraftPendingDeletion(undefined)}
-        transparent
-        visible={Boolean(draftPendingDeletion)}
-      >
-        <View style={styles.draftPromptBackdrop}>
-          <View accessibilityViewIsModal style={styles.draftPromptCard}>
-            <View style={styles.draftPromptIcon}>
-              <MaterialIcons name="delete-outline" size={25} color={palette.primary} />
-            </View>
-            <Text style={styles.draftPromptTitle}>Delete this draft?</Text>
-            <Text style={styles.draftPromptCopy}>
-              {draftPendingDeletion?.name || 'This event'} will be removed from your drafts. Bookings are never deleted from this action.
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              disabled={isDeletingDraft}
-              onPress={() => void handleDeleteDraft()}
-              style={({ pressed }) => [styles.draftPromptPrimary, pressed && styles.referencePressed]}
-            >
-              <Text style={styles.draftPromptPrimaryText}>
-                {isDeletingDraft ? 'Deleting…' : 'Delete Draft'}
-              </Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              disabled={isDeletingDraft}
-              onPress={() => setDraftPendingDeletion(undefined)}
-              style={styles.draftPromptCancel}
-            >
-              <Text style={styles.draftPromptCancelText}>Keep Draft</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
-
     </View>
   )
 }
@@ -670,38 +546,78 @@ const styles = StyleSheet.create({
     maxWidth: 760,
     alignSelf: 'center',
     paddingHorizontal: 14,
-    paddingTop: 8,
+    paddingTop: 0,
     paddingBottom: 96,
   },
   referenceContentWide: {
     paddingHorizontal: 28,
   },
+  referenceTopSurface: {
+    marginHorizontal: -14,
+    paddingHorizontal: 14,
+    paddingBottom: 0,
+    backgroundColor: '#701B30',
+  },
+  referenceTopSurfaceWide: {
+    marginHorizontal: -28,
+    paddingHorizontal: 28,
+  },
   referenceHeader: {
-    minHeight: 56,
+    minHeight: 76,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  referenceHeaderIdentity: {
-    minWidth: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
+    marginBottom: 12,
   },
   referenceAvatar: {
-    width: 38,
-    height: 38,
+    width: '100%',
+    height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#E4D9D5',
-    borderRadius: 19,
+    borderWidth: 0,
+    borderRadius: 20,
     backgroundColor: '#F8EDEF',
   },
-  referenceAvatarImage: { width: '100%', height: '100%', borderRadius: 19 },
+  referenceAvatarImage: { width: '100%', height: '100%', borderRadius: 20 },
+  referenceAvatarRim: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 2,
+    borderRadius: 22,
+    shadowColor: '#3A0814',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.28,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  referenceHeaderControl: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+  },
+  referenceHeaderControlPressed: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    opacity: 0.82,
+  },
+  referenceHeaderWordmark: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  referenceWordmarkDepth: {
+    position: 'relative',
+  },
+  referenceWordmarkShadow: {
+    left: 0,
+    opacity: 0.38,
+    position: 'absolute',
+    top: 1,
+    transform: [{ scaleX: 1.014 }],
+  },
   referenceNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -764,15 +680,10 @@ const styles = StyleSheet.create({
   referenceHero: {
     minHeight: 158,
     overflow: 'hidden',
-    marginBottom: 18,
     padding: 16,
-    borderRadius: 10,
-    backgroundColor: '#701B30',
-    shadowColor: '#4E061A',
-    shadowOffset: { width: 0, height: 7 },
-    shadowOpacity: 0.18,
-    shadowRadius: 9,
-    elevation: 4,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    backgroundColor: colors.primaryLight,
   },
   heroTopRow: {
     flexDirection: 'row',
@@ -840,6 +751,37 @@ const styles = StyleSheet.create({
   },
   referenceSection: {
     marginBottom: 18,
+  },
+  quickAccessSection: {
+    marginTop: 16,
+    marginBottom: 20,
+  },
+  quickAccessRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  quickAccessItem: {
+    width: '22%',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingVertical: 4,
+  },
+  quickAccessItemPressed: {
+    opacity: 0.84,
+    transform: [{ scale: 0.96 }],
+  },
+  quickAccessIcon: {
+    width: 76,
+    height: 64,
+  },
+  quickAccessLabel: {
+    color: '#4A3B3C',
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '700',
+    marginTop: 6,
+    textAlign: 'center',
   },
   activeEventCard: {
     padding: 12,

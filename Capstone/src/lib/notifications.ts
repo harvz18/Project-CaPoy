@@ -32,7 +32,10 @@ export const isRunningInExpoGo =
 export const supportsRemotePushNotifications =
   !(Platform.OS === 'android' && isRunningInExpoGo)
 
-if (Platform.OS !== 'web') {
+// This app's notification handler is for remote booking and account updates.
+// Do not initialize that native runtime inside Android Expo Go, where the
+// remote-notification module is deliberately unavailable from SDK 53 onward.
+if (Platform.OS !== 'web' && supportsRemotePushNotifications) {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldPlaySound: true,
@@ -155,7 +158,7 @@ export const readNotificationRouteData = (
 }
 
 export const setApplicationBadgeFromUnreadCount = async (unreadCount: number) => {
-  if (Platform.OS === 'web') return
+  if (Platform.OS === 'web' || !supportsRemotePushNotifications) return
   try {
     await Notifications.setBadgeCountAsync(Math.max(0, unreadCount))
   } catch {

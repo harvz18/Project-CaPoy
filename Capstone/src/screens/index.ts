@@ -1,4 +1,5 @@
 export { ClientHomeScreen } from './03-ClientHome'
+export { ClientPlansScreen } from './03.3-ClientPlans'
 export type {
   ClientHomeAction,
   ClientHomeRecommendation,

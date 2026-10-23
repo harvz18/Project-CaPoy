@@ -1,189 +1,300 @@
 import { Text } from './AppText'
 import React from 'react'
-import { Animated, Easing, Pressable, StyleSheet,  View } from 'react-native'
+import {
+  AccessibilityInfo,
+  Animated,
+  Easing,
+  Image,
+  Pressable,
+  StyleSheet,
+  View,
+} from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
+import { LinearGradient } from 'expo-linear-gradient'
 
+// `bookings` remains a first-class route in App.tsx. It is intentionally not
+// an action in the V12 floating navigation; clients can still reach it from
+// the existing booking and receipt flows until the home shortcut is added.
 export type ClientMainTab = 'home' | 'explore' | 'bookings' | 'messages' | 'profile'
 
 interface ClientBottomNavigationProps {
   activeTab: ClientMainTab
+  hasUnreadInbox?: boolean
   isVisible?: boolean
   onSelectTab?: (tab: ClientMainTab) => void
+  onToggleNavigation?: () => void
 }
 
 const tabs = [
-  { id: 'home' as const, icon: 'H', label: 'Home' },
-  { id: 'explore' as const, icon: 'E', label: 'Explore' },
-  { id: 'bookings' as const, icon: 'B', label: 'Bookings' },
-  { id: 'messages' as const, icon: 'M', label: 'Messages' },
-  { id: 'profile' as const, icon: 'P', label: 'Account' },
+  { id: 'home' as const, icon: 'home' as const, label: 'Home' },
+  { id: 'explore' as const, icon: 'explore' as const, label: 'Explore' },
+  { id: 'messages' as const, icon: 'inbox' as const, label: 'Inbox' },
+  { id: 'profile' as const, icon: 'person' as const, label: 'Account' },
 ]
+
+const animationDuration = 240
 
 export const ClientBottomNavigation: React.FC<ClientBottomNavigationProps> = ({
   activeTab,
+  hasUnreadInbox = false,
   isVisible = true,
   onSelectTab,
+  onToggleNavigation,
 }) => {
-  const activeIndex = tabs.findIndex((tab) => tab.id === activeTab)
-  const activeIndicatorX = React.useRef(new Animated.Value(0)).current
+  const [isExpanded, setIsExpanded] = React.useState(false)
+  const [reducedMotion, setReducedMotion] = React.useState(false)
+  const expansion = React.useRef(new Animated.Value(0)).current
   const navigationTranslateY = React.useRef(new Animated.Value(0)).current
-  const hasInitializedIndicator = React.useRef(false)
-  const [navContentWidth, setNavContentWidth] = React.useState(0)
-
-  const getIndicatorX = (width: number, index: number) => {
-    const slotWidth = width / tabs.length
-    const indicatorWidth = 64
-
-    return index * slotWidth + (slotWidth - indicatorWidth) / 2
-  }
+  const logoPressScale = React.useRef(new Animated.Value(1)).current
+  const isToggleInFlight = React.useRef(false)
 
   React.useEffect(() => {
-    if (navContentWidth === 0) {
-      return
-    }
+    let isMounted = true
+    void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
+      if (isMounted) setReducedMotion(enabled)
+    })
 
-    activeIndicatorX.stopAnimation()
-    Animated.timing(activeIndicatorX, {
-      toValue: getIndicatorX(navContentWidth, activeIndex),
-      duration: 300,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start()
-  }, [activeIndex, activeIndicatorX, navContentWidth])
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReducedMotion)
+    return () => {
+      isMounted = false
+      subscription.remove()
+    }
+  }, [])
 
   React.useEffect(() => {
     Animated.timing(navigationTranslateY, {
-      toValue: isVisible ? 0 : 96,
-      duration: 220,
+      toValue: isVisible ? 0 : 116,
+      duration: reducedMotion ? 0 : 220,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start()
-  }, [isVisible, navigationTranslateY])
+  }, [isVisible, navigationTranslateY, reducedMotion])
+
+  React.useEffect(() => {
+    expansion.stopAnimation()
+    Animated.timing(expansion, {
+      toValue: isExpanded ? 1 : 0,
+      duration: reducedMotion ? 0 : animationDuration,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) isToggleInFlight.current = false
+    })
+
+    return () => expansion.stopAnimation()
+  }, [expansion, isExpanded, reducedMotion])
+
+  const toggleNavigation = () => {
+    if (isToggleInFlight.current) return
+    isToggleInFlight.current = true
+    // The M control owns the pill animation. If a scroll visibility animation
+    // is still settling, anchor the navigation at the M before expanding or
+    // collapsing so the pill cannot slide down as part of this interaction.
+    navigationTranslateY.stopAnimation()
+    navigationTranslateY.setValue(0)
+    onToggleNavigation?.()
+    setIsExpanded((current) => !current)
+  }
+
+  const handleLogoPressIn = () => {
+    if (reducedMotion) return
+    logoPressScale.stopAnimation()
+    Animated.timing(logoPressScale, {
+      toValue: 0.95,
+      duration: 60,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start()
+  }
+
+  const handleLogoPressOut = () => {
+    if (reducedMotion) {
+      logoPressScale.setValue(1)
+      return
+    }
+
+    logoPressScale.stopAnimation()
+    // Always complete a brief down-and-up cycle on release. This keeps the
+    // press feedback visible even when the user taps the M control quickly.
+    Animated.sequence([
+      Animated.timing(logoPressScale, {
+        toValue: 0.94,
+        duration: 65,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.spring(logoPressScale, {
+        toValue: 1,
+        speed: 16,
+        bounciness: 5,
+        useNativeDriver: true,
+      }),
+    ]).start()
+  }
+
+  const selectTab = (tab: (typeof tabs)[number]['id']) => {
+    if (!isExpanded || isToggleInFlight.current) return
+    onSelectTab?.(tab)
+  }
+
+  const barScaleX = expansion.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.02, 1],
+  })
+  const renderTab = (tab: (typeof tabs)[number]) => {
+    const isActive = tab.id === activeTab
+    return (
+      <Pressable
+        key={tab.id}
+        accessibilityLabel={`Open ${tab.label}${tab.id === 'messages' && hasUnreadInbox ? ', with unread updates' : ''}`}
+        accessibilityRole="tab"
+        accessibilityState={{ selected: isActive }}
+        onPress={() => selectTab(tab.id)}
+        style={({ pressed }) => [styles.navItem, pressed && styles.navItemPressed]}
+      >
+        <View style={[styles.navIconContainer, isActive && styles.navIconContainerActive]}>
+          <MaterialIcons
+            color={palette.iconMuted}
+            name={tab.icon}
+            size={21}
+          />
+          {tab.id === 'messages' && hasUnreadInbox ? <View style={styles.inboxUnreadDot} /> : null}
+        </View>
+        <Text numberOfLines={1} style={[styles.navLabel, isActive && styles.navLabelActive]}>
+          {tab.label}
+        </Text>
+      </Pressable>
+    )
+  }
 
   return (
     <Animated.View
+      pointerEvents={isVisible ? 'auto' : 'none'}
       style={[styles.bottomNavigation, { transform: [{ translateY: navigationTranslateY }] }]}
     >
-      <View
-        onLayout={(event) => {
-          const width = event.nativeEvent.layout.width
+      <LinearGradient
+        colors={[
+          'rgba(255, 252, 253, 0)',
+          'rgba(236, 208, 217, 0.76)',
+          'rgba(224, 185, 198, 0.98)',
+        ]}
+        locations={[0, 0.55, 1]}
+        pointerEvents="none"
+        style={styles.navigationFade}
+      />
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.navigationSurface,
+          {
+            transform: [{ scaleX: barScaleX }],
+          },
+        ]}
+      />
 
-          setNavContentWidth(width)
-          if (!hasInitializedIndicator.current) {
-            activeIndicatorX.setValue(getIndicatorX(width, activeIndex))
-            hasInitializedIndicator.current = true
-          }
-        }}
-        style={styles.bottomNavigationContent}
+      <Animated.View
+        pointerEvents={isExpanded ? 'auto' : 'none'}
+        style={[
+          styles.navigationActions,
+          {
+            transform: [{ scaleX: barScaleX }],
+          },
+        ]}
       >
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.activeIndicator,
-            { opacity: navContentWidth === 0 ? 0 : 1 },
-            { transform: [{ translateX: activeIndicatorX }] },
-          ]}
-        />
-        {tabs.map((tab) => {
-          const isActive = tab.id === activeTab
+        <View style={styles.actionSide}>{tabs.slice(0, 2).map(renderTab)}</View>
+        <View style={styles.logoGap} />
+        <View style={styles.actionSide}>{tabs.slice(2).map(renderTab)}</View>
+      </Animated.View>
 
-          return (
-            <Pressable
-              key={tab.id}
-              accessibilityLabel={`Open ${tab.label}`}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: isActive }}
-              onPress={() => onSelectTab?.(tab.id)}
-              style={({ pressed }) => [styles.navItem, pressed && styles.navItemPressed]}
-            >
-            <View style={styles.navIconContainer}>
-              {tab.id === 'home' ? (
-                <MaterialIcons
-                  color={isActive ? palette.primary : palette.secondary}
-                  name="home"
-                  size={21}
-                />
-              ) : tab.id === 'explore' ? (
-                <MaterialIcons
-                  color={isActive ? palette.primary : palette.secondary}
-                  name="explore"
-                  size={21}
-                />
-              ) : tab.id === 'bookings' ? (
-                <MaterialIcons
-                  color={isActive ? palette.primary : palette.secondary}
-                  name="event-available"
-                  size={21}
-                />
-              ) : tab.id === 'messages' ? (
-                <MaterialIcons
-                  color={isActive ? palette.primary : palette.secondary}
-                  name="chat"
-                  size={21}
-                />
-              ) : (
-                <MaterialIcons
-                  color={isActive ? palette.primary : palette.secondary}
-                  name="person"
-                  size={21}
-                />
-              )}
+      <View pointerEvents="none" style={styles.logoGlow} />
+      <Animated.View style={[styles.logoButton, { transform: [{ scale: logoPressScale }] }]}>
+        <Pressable
+          accessibilityHint={isExpanded ? 'Collapses client navigation' : 'Expands client navigation'}
+          accessibilityLabel={isExpanded ? 'Collapse navigation' : 'Expand navigation'}
+          accessibilityRole="button"
+          onPress={toggleNavigation}
+          onPressIn={handleLogoPressIn}
+          onPressOut={handleLogoPressOut}
+          style={styles.logoPressTarget}
+        >
+          <LinearGradient
+            colors={['#FFFDF8', '#A79D9A', '#F7F4EE', '#827875', '#E8E2DD']}
+            end={{ x: 0.9, y: 1 }}
+            locations={[0, 0.24, 0.46, 0.72, 1]}
+            pointerEvents="none"
+            start={{ x: 0.1, y: 0 }}
+            style={styles.logoRim}
+          >
+            <View style={styles.logoMask}>
+              <Image
+                accessibilityIgnoresInvertColors
+                resizeMode="cover"
+                source={require('../../assets/Metallic LOGO.png')}
+                style={styles.logo}
+              />
             </View>
-            <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>
-              {tab.label}
-            </Text>
-            </Pressable>
-          )
-        })}
-      </View>
+          </LinearGradient>
+        </Pressable>
+      </Animated.View>
     </Animated.View>
   )
 }
 
 const palette = {
-  background: '#F9F9F9',
-  outlineVariant: '#DAC0C2',
-  primary: '#4E061A',
-  primaryContainer: '#6B1E2E',
-  secondary: '#5E5E5E',
+  burgundy: '#6B1E2E',
+  burgundyDark: '#4E061A',
+  iconMuted: '#625D5D',
   white: '#FFFFFF',
 } as const
 
 const styles = StyleSheet.create({
   bottomNavigation: {
     position: 'absolute',
-    right: 20,
-    bottom: 20,
-    left: 20,
+    right: 16,
+    bottom: 8,
+    left: 16,
     zIndex: 50,
-    height: 60,
+    height: 82,
+    alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'visible',
+  },
+  navigationFade: {
+    position: 'absolute',
+    top: -82,
+    right: -16,
+    left: -16,
+    height: 172,
+  },
+  navigationSurface: {
+    position: 'absolute',
+    top: 13,
+    right: 0,
+    bottom: 13,
+    left: 0,
     borderRadius: 28,
     backgroundColor: palette.white,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.28,
-    shadowRadius: 14,
-    elevation: 10,
+    shadowColor: '#25141A',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 9,
   },
-  bottomNavigationContent: {
+  navigationActions: {
+    position: 'absolute',
+    top: 13,
     width: '100%',
-    maxWidth: 600,
-    alignSelf: 'center',
-    height: 52,
+    height: 56,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-start',
-    paddingHorizontal: 0,
   },
-  activeIndicator: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: 0,
-    width: 64,
-    borderRadius: 28,
-    backgroundColor: 'rgba(226, 226, 226, 0.6)',
+  actionSide: {
+    flex: 1,
+    height: '100%',
+    flexDirection: 'row',
+  },
+  logoGap: {
+    width: 84,
   },
   navItem: {
     minWidth: 0,
@@ -193,37 +304,94 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   navItemPressed: {
-    opacity: 0.58,
+    opacity: 0.66,
+    transform: [{ scale: 0.96 }],
   },
   navIconContainer: {
-    width: 40,
+    position: 'relative',
+    width: 32,
     height: 26,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 13,
-    marginBottom: 2,
+    marginBottom: 1,
   },
-  navIcon: {
-    color: palette.secondary,
-    fontSize: 16,
-    lineHeight: 22,
-    fontWeight: '800',
+  navIconContainerActive: {
+    backgroundColor: 'rgba(107, 30, 46, 0.1)',
   },
-  navIconActive: {
-    color: palette.primary,
+  inboxUnreadDot: {
+    position: 'absolute',
+    top: 0,
+    right: 2,
+    width: 8,
+    height: 8,
+    borderWidth: 1.5,
+    borderColor: palette.white,
+    borderRadius: 4,
+    backgroundColor: '#C93643',
   },
   navLabel: {
-    color: palette.secondary,
+    maxWidth: '100%',
+    color: palette.iconMuted,
     fontSize: 12,
     lineHeight: 16,
     fontWeight: '700',
-    opacity: 0.8,
+    opacity: 0.84,
   },
   navLabelActive: {
-    color: palette.primary,
+    color: palette.iconMuted,
+    fontWeight: '800',
     opacity: 1,
   },
-  pressed: {
-    opacity: 0.6,
+  logoButton: {
+    position: 'absolute',
+    top: 0,
+    width: 82,
+    height: 82,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 41,
+    backgroundColor: palette.burgundyDark,
+    shadowColor: '#3A0814',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.42,
+    shadowRadius: 16,
+    elevation: 18,
+  },
+  logoPressTarget: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 41,
+  },
+  logoRim: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 2,
+    borderRadius: 41,
+  },
+  logoMask: {
+    width: 78,
+    height: 78,
+    borderRadius: 39,
+    overflow: 'hidden',
+  },
+  logoGlow: {
+    position: 'absolute',
+    width: 94,
+    height: 94,
+    borderRadius: 47,
+    backgroundColor: 'rgba(107, 30, 46, 0.11)',
+    shadowColor: '#6B1E2E',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.22,
+    shadowRadius: 12,
+  },
+  logo: {
+    width: '100%',
+    height: '100%',
   },
 })

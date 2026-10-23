@@ -468,13 +468,33 @@ export const fetchClientEventDrafts = async (): Promise<ClientEventDraftSummary[
     .order('updated_at', { ascending: false })
 
   if (error || !Array.isArray(data)) return []
-  return data.flatMap((event) => {
+  const drafts = data.flatMap((event) => {
     if (!event?.id) return []
     const selections = Array.isArray(event.event_service_selections)
       ? event.event_service_selections
       : []
     return [getDraftStepSummary({ ...event, event_service_selections: selections })]
   })
+
+  const [latestDraft, ...supersededDrafts] = drafts
+  if (supersededDrafts.length) {
+    // A client can continue the one unfinished plan that is most recently
+    // updated. Older unsaved plans are intentionally retired, while saved
+    // plans and booking records remain untouched.
+    const { error: retireError } = await client
+      .from('events')
+      .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+      .eq('client_id', userId)
+      .in('id', supersededDrafts.map((draft) => draft.id))
+      .in('status', ['draft', 'planning'])
+      .is('saved_plan_at', null)
+
+    if (!retireError && supersededDrafts.some((draft) => draft.id === activePlanningEventId)) {
+      activePlanningEventId = latestDraft?.id ?? ''
+    }
+  }
+
+  return latestDraft ? [latestDraft] : []
 }
 
 export const fetchClientSavedPlans = async (): Promise<ClientSavedPlanSummary[]> => {
@@ -1143,7 +1163,23 @@ const ensureDraftEvent = async (
 export const createClientEventDraft = async (): Promise<PlanningResult & { eventId?: string }> => {
   try {
     const event = await ensureDraftEvent(undefined, undefined, true)
-    return event ? { eventId: event.eventId, ok: true } : { ok: false }
+    if (!event) return { ok: false }
+
+    // Starting over replaces the previous unfinished plan. This happens only
+    // after the new draft is safely created, so a failed insert never removes
+    // the plan the client was already working on.
+    const client = getClient()
+    if (client) {
+      await client
+        .from('events')
+        .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+        .eq('client_id', event.userId)
+        .neq('id', event.eventId)
+        .in('status', ['draft', 'planning'])
+        .is('saved_plan_at', null)
+    }
+
+    return { eventId: event.eventId, ok: true }
   } catch (error) {
     return { ok: false, message: toMessage(error) }
   }

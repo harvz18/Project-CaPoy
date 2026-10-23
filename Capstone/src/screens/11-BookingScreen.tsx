@@ -95,17 +95,16 @@ export interface BookingItem {
 
 interface BookingScreenProps {
   bookings?: BookingItem[]
-  eventName?: string
   showBottomNavigation?: boolean
   onOpenMenu?: () => void
   onOpenProfile?: () => void
   onSelectBooking?: (booking: BookingItem) => void
-  onSelectEvent?: () => void
   onSelectTab?: (tab: BookingTab) => void
+  onScrollDirectionChange?: (direction: 'down' | 'up') => void
 }
 
 const filterOptions = [
-  { id: 'all' as const, label: 'ALL EVENTS' },
+  { id: 'all' as const, label: 'ALL' },
   { id: 'requested' as const, label: 'REQUESTED' },
   { id: 'confirmed' as const, label: 'CONFIRMED' },
   { id: 'completed' as const, label: 'COMPLETED' },
@@ -120,33 +119,61 @@ const categoryIcons: Record<string, string> = {
 
 export const BookingScreen: React.FC<BookingScreenProps> = ({
   bookings = [],
-  eventName = 'Sarah & James Wedding',
   showBottomNavigation = true,
+  onOpenMenu,
   onSelectBooking,
-  onSelectEvent,
   onSelectTab,
+  onScrollDirectionChange,
 }) => {
   const { width } = useWindowDimensions()
   const isWide = width >= 768
   const [activeFilter, setActiveFilter] = React.useState<BookingStatus>('all')
+  const lastScrollY = React.useRef(0)
   const visibleBookings = activeFilter === 'all'
     ? bookings
     : bookings.filter((booking) => booking.status === activeFilter)
-  const filters = filterOptions.map((filter) => ({
-    ...filter,
-    count:
-      filter.id === 'all'
-        ? bookings.length
-        : bookings.filter((booking) => booking.status === filter.id).length,
-  }))
+  const filters = filterOptions
 
   return (
     <View style={styles.screen}>
       <View style={styles.topAppBar}>
         <View style={[styles.topAppBarContent, isWide && styles.wideHorizontalPadding]}>
-          <View style={styles.headerButton} />
+          <Pressable
+            accessibilityLabel="Back to home"
+            accessibilityRole="button"
+            hitSlop={8}
+            onPress={onOpenMenu}
+            style={({ pressed }) => [styles.headerButton, pressed && styles.headerButtonPressed]}
+          >
+            <Text style={styles.backIcon}>{'\u2039'}</Text>
+          </Pressable>
           <Text style={styles.headerTitle}>MY BOOKINGS</Text>
           <View style={styles.headerButton} />
+        </View>
+      </View>
+
+      <View style={styles.filterTabs}>
+        <View style={[styles.filterTabsContent, isWide && styles.wideHorizontalPadding]}>
+          {filters.map((filter) => {
+            const active = activeFilter === filter.id
+            return (
+              <Pressable
+                key={filter.id}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: active }}
+                onPress={() => setActiveFilter(filter.id)}
+                style={({ pressed }) => [
+                  styles.filterTab,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text numberOfLines={1} style={[styles.filterText, active && styles.filterTextActive]}>
+                  {filter.label}
+                </Text>
+                {active ? <View style={styles.filterTabIndicator} /> : null}
+              </Pressable>
+            )
+          })}
         </View>
       </View>
 
@@ -155,61 +182,17 @@ export const BookingScreen: React.FC<BookingScreenProps> = ({
           styles.scrollContent,
           isWide && styles.scrollContentWide,
         ]}
+        onScroll={(event) => {
+          const scrollY = Math.max(0, event.nativeEvent.contentOffset.y)
+          const delta = scrollY - lastScrollY.current
+          if (Math.abs(delta) < 8) return
+          lastScrollY.current = scrollY
+          onScrollDirectionChange?.(delta > 0 ? 'down' : 'up')
+        }}
+        scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
       >
         <View style={[styles.mainContent, isWide && styles.wideHorizontalPadding]}>
-          <View style={[styles.intro, isWide && styles.introWide]}>
-            <View style={styles.introCopy}>
-              <Text style={styles.pageTitle}>My Bookings</Text>
-              <Text style={styles.pageDescription}>Track each event and all provider requests</Text>
-            </View>
-
-            <Pressable
-              accessibilityLabel={`Select event. Current event: ${eventName}`}
-              accessibilityRole="button"
-              onPress={onSelectEvent}
-              style={({ pressed }) => [
-                styles.eventSelector,
-                isWide && styles.eventSelectorWide,
-                pressed && styles.selectorPressed,
-              ]}
-            >
-              <Text style={styles.eventIcon}>{'\u2726'}</Text>
-              <Text numberOfLines={1} style={styles.eventName}>
-                {eventName}
-              </Text>
-              <Text style={styles.dropdownIcon}>{'\u2304'}</Text>
-            </Pressable>
-          </View>
-
-          <ScrollView
-            contentContainerStyle={styles.filterTabs}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.filterScroll}
-          >
-            {filters.map((filter) => {
-              const active = activeFilter === filter.id
-              return (
-                <Pressable
-                  key={filter.id}
-                  accessibilityRole="tab"
-                  accessibilityState={{ selected: active }}
-                  onPress={() => setActiveFilter(filter.id)}
-                  style={({ pressed }) => [
-                    styles.filterTab,
-                    active && styles.filterTabActive,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <Text style={[styles.filterText, active && styles.filterTextActive]}>
-                    {filter.label} ({filter.count})
-                  </Text>
-                </Pressable>
-              )
-            })}
-          </ScrollView>
-
           <View style={styles.bookingList}>
             {visibleBookings.length > 0 ? (
               visibleBookings.map((booking, index) => (
@@ -349,6 +332,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 20,
   },
+  headerButtonPressed: { backgroundColor: 'rgba(255,255,255,0.14)', opacity: 0.82 },
+  backIcon: { color: '#FFFFFF', fontSize: 28, lineHeight: 30, fontWeight: '300' },
   headerTitle: {
     color: '#FFFFFF',
     fontSize: 12,
@@ -364,45 +349,19 @@ const styles = StyleSheet.create({
     maxWidth: 1200,
     alignSelf: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 24,
+    paddingVertical: 16,
   },
-  intro: { gap: 16, marginBottom: 32 },
-  introWide: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-  },
-  introCopy: { flexShrink: 1 },
-  pageTitle: { color: palette.burgundyDark, fontSize: 24, lineHeight: 32, fontWeight: '600' },
-  pageDescription: { color: palette.muted, fontSize: 16, lineHeight: 26, marginTop: 4 },
-  eventSelector: {
-    width: '100%',
-    minHeight: 50,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 8,
-    backgroundColor: palette.surface,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  eventSelectorWide: { width: 256 },
-  selectorPressed: { borderColor: palette.burgundy },
-  eventIcon: { color: palette.muted, fontSize: 20, lineHeight: 22 },
-  eventName: { flex: 1, color: palette.text, fontSize: 16, lineHeight: 24 },
-  dropdownIcon: { color: palette.muted, fontSize: 22, lineHeight: 24 },
-  filterScroll: { width: '100%', borderBottomWidth: 1, borderBottomColor: palette.border },
-  filterTabs: { gap: 24 },
-  filterTab: { borderBottomWidth: 2, borderBottomColor: 'transparent', padding: 4, paddingBottom: 12 },
-  filterTabActive: { borderBottomColor: palette.burgundy },
+  filterTabs: { zIndex: 30, borderBottomWidth: 1, borderBottomColor: palette.border, backgroundColor: palette.surface },
+  filterTabsContent: { width: '100%', maxWidth: 1200, minHeight: 48, alignSelf: 'center', flexDirection: 'row', paddingHorizontal: 8 },
+  filterTab: { minWidth: 0, minHeight: 48, flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2 },
+  filterTabIndicator: { position: 'absolute', right: 3, bottom: 0, left: 3, height: 3, borderRadius: 2, backgroundColor: palette.burgundy },
   filterText: {
     color: palette.muted,
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 9,
+    lineHeight: 13,
     fontWeight: '700',
-    letterSpacing: 1.1,
+    letterSpacing: 0.2,
+    textAlign: 'center',
   },
   filterTextActive: { color: palette.burgundy },
   bookingList: {
@@ -411,7 +370,7 @@ const styles = StyleSheet.create({
     borderColor: palette.border,
     borderRadius: 12,
     backgroundColor: palette.surface,
-    marginTop: 24,
+    marginTop: 0,
   },
   bookingRow: {
     minHeight: 96,

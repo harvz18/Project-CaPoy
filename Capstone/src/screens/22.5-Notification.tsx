@@ -39,6 +39,7 @@ export interface MerchantNotificationPreferences {
 }
 
 interface NotificationScreenProps {
+  embedded?: boolean
   initialFilter?: MerchantNotificationFilter
   initialPreferences?: Partial<MerchantNotificationPreferences>
   notifications?: MerchantNotification[]
@@ -47,8 +48,9 @@ interface NotificationScreenProps {
   onMarkAllRead?: (notificationIds: string[]) => void
   onMarkRead?: (notification: MerchantNotification) => void
   onPreferencesChange?: (preferences: MerchantNotificationPreferences) => void
+  onScrollDirectionChange?: (direction: 'down' | 'up') => void
   onSelectNotification?: (notification: MerchantNotification) => void
-  variant?: 'coordinator' | 'merchant'
+  variant?: 'client' | 'coordinator' | 'merchant'
 }
 
 const defaultNotifications: MerchantNotification[] = [
@@ -216,6 +218,7 @@ const BellIcon = () => (
 )
 
 export const NotificationScreen: React.FC<NotificationScreenProps> = ({
+  embedded = false,
   initialFilter = 'all',
   initialPreferences,
   notifications = defaultNotifications,
@@ -224,6 +227,7 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({
   onMarkAllRead,
   onMarkRead,
   onPreferencesChange,
+  onScrollDirectionChange,
   onSelectNotification,
   variant = 'merchant',
 }) => {
@@ -237,11 +241,30 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({
     ...defaultPreferences,
     ...initialPreferences,
   })
+  const lastScrollY = React.useRef(0)
+  const isClient = variant === 'client'
   const isCoordinator = variant === 'coordinator'
 
-  const unreadNotifications = notifications.filter((item) => !readIds.has(item.id))
+  React.useEffect(() => {
+    setReadIds((current) => {
+      const next = new Set(current)
+      notifications.forEach((notification) => {
+        if (notification.isRead) next.add(notification.id)
+        else next.delete(notification.id)
+      })
+      return next
+    })
+  }, [notifications])
+
+  // Client messages belong in the dedicated Messages tab. They are still persisted
+  // and delivered through the existing push-notification path; this only prevents
+  // the same alert from being repeated in the client Notifications feed.
+  const feedNotifications = isClient
+    ? notifications.filter((notification) => notification.category !== 'message')
+    : notifications
+  const unreadNotifications = feedNotifications.filter((item) => !readIds.has(item.id))
   const visibleNotifications =
-    filter === 'unread' ? unreadNotifications : notifications
+    filter === 'unread' ? unreadNotifications : feedNotifications
   const groupedNotifications = visibleNotifications.reduce<
     Array<{ items: MerchantNotification[]; label: string }>
   >((groups, notification) => {
@@ -281,10 +304,16 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({
 
   return (
     <View style={styles.screen}>
-      <View style={styles.topAppBar}>
+      {!embedded ? <View style={styles.topAppBar}>
         <View style={[styles.topAppBarContent, isWide && styles.wideHorizontalPadding]}>
           <Pressable
-            accessibilityLabel={isCoordinator ? 'Back to coordinator workspace' : 'Back to merchant profile'}
+            accessibilityLabel={
+              isCoordinator
+                ? 'Back to coordinator workspace'
+                : isClient
+                  ? 'Back to Inbox'
+                  : 'Back to merchant profile'
+            }
             accessibilityRole="button"
             hitSlop={8}
             onPress={onBack}
@@ -310,65 +339,97 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({
             <Text style={styles.headerActionText}>Read all</Text>
           </Pressable>
         </View>
-      </View>
+      </View> : null}
 
       <ScrollView
         contentContainerStyle={[
           styles.content,
           isWide ? styles.contentWide : styles.contentMobile,
+          embedded && styles.embeddedContent,
         ]}
+        keyboardShouldPersistTaps="handled"
+        onScroll={(event) => {
+          const scrollY = Math.max(0, event.nativeEvent.contentOffset.y)
+          const delta = scrollY - lastScrollY.current
+          if (Math.abs(delta) < 8) return
+          lastScrollY.current = scrollY
+          onScrollDirectionChange?.(delta > 0 ? 'down' : 'up')
+        }}
+        scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.intro}>
-          <View style={styles.introIcon}>
-            <BellIcon />
-            {unreadNotifications.length ? <View style={styles.unreadDot} /> : null}
-          </View>
-          <View style={styles.introCopy}>
-            <Text style={styles.title}>Stay up to date</Text>
-            <Text style={styles.subtitle}>
-              {isCoordinator
-                ? 'Assigned-event changes, task reminders, and client updates appear here.'
-                : 'Booking requests, client messages, payments, and account activity appear here.'}
-            </Text>
-          </View>
-          {unreadNotifications.length ? (
-            <View style={styles.unreadBadge}>
-              <Text style={styles.unreadBadgeText}>
-                {unreadNotifications.length} UNREAD
+        {!embedded ? (
+          <View style={styles.intro}>
+            <View style={styles.introIcon}>
+              <BellIcon />
+              {unreadNotifications.length ? <View style={styles.unreadDot} /> : null}
+            </View>
+            <View style={styles.introCopy}>
+              <Text style={styles.title}>Stay up to date</Text>
+              <Text style={styles.subtitle}>
+                {isCoordinator
+                  ? 'Assigned-event changes, task reminders, and client updates appear here.'
+                  : isClient
+                    ? 'Booking, payment, coordinator, and service updates appear here.'
+                    : 'Booking requests, client messages, payments, and account activity appear here.'}
               </Text>
             </View>
-          ) : null}
-        </View>
+            {unreadNotifications.length ? (
+              <View style={styles.unreadBadge}>
+                <Text style={styles.unreadBadgeText}>
+                  {unreadNotifications.length} UNREAD
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
 
         <View style={[styles.dashboard, isWide && !isCoordinator && styles.dashboardWide]}>
           <View style={[styles.feedColumn, isWide && !isCoordinator && styles.feedColumnWide]}>
-            <View style={styles.filterBar}>
-              {(['all', 'unread'] as MerchantNotificationFilter[]).map((option) => {
-                const selected = filter === option
-                return (
-                  <Pressable
-                    key={option}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                    onPress={() => selectFilter(option)}
-                    style={({ pressed }) => [
-                      styles.filterButton,
-                      selected && styles.filterButtonSelected,
-                      pressed && styles.filterButtonPressed,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.filterButtonText,
-                        selected && styles.filterButtonTextSelected,
+            <View style={styles.filterRow}>
+              <View style={styles.filterBar}>
+                {(['all', 'unread'] as MerchantNotificationFilter[]).map((option) => {
+                  const selected = filter === option
+                  return (
+                    <Pressable
+                      key={option}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                      onPress={() => selectFilter(option)}
+                      style={({ pressed }) => [
+                        styles.filterButton,
+                        selected && styles.filterButtonSelected,
+                        pressed && styles.filterButtonPressed,
                       ]}
                     >
-                      {option === 'all' ? `All (${notifications.length})` : `Unread (${unreadNotifications.length})`}
-                    </Text>
-                  </Pressable>
-                )
-              })}
+                      <Text
+                        style={[
+                          styles.filterButtonText,
+                          selected && styles.filterButtonTextSelected,
+                        ]}
+                      >
+                      {option === 'all' ? `All (${feedNotifications.length})` : `Unread (${unreadNotifications.length})`}
+                      </Text>
+                    </Pressable>
+                  )
+                })}
+              </View>
+              {embedded ? (
+                <Pressable
+                  accessibilityLabel="Mark all notifications as read"
+                  accessibilityRole="button"
+                  disabled={!unreadNotifications.length}
+                  hitSlop={8}
+                  onPress={markAllRead}
+                  style={({ pressed }) => [
+                    styles.embeddedReadAll,
+                    !unreadNotifications.length && styles.headerActionDisabled,
+                    pressed && styles.pressedSurface,
+                  ]}
+                >
+                  <Text style={styles.embeddedReadAllText}>Read all</Text>
+                </Pressable>
+              ) : null}
             </View>
 
             {groupedNotifications.length ? (
@@ -403,13 +464,15 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({
                     ? 'There are no unread notifications right now.'
                     : isCoordinator
                       ? 'New coordinator activity will appear here.'
-                      : 'New merchant activity will appear here.'}
+                      : isClient
+                        ? 'New client updates will appear here.'
+                        : 'New merchant activity will appear here.'}
                 </Text>
               </View>
             )}
           </View>
 
-          {!isCoordinator ? <View style={[styles.preferenceCard, isWide && styles.preferenceCardWide]}>
+          {!isCoordinator && !isClient && !embedded ? <View style={[styles.preferenceCard, isWide && styles.preferenceCardWide]}>
             <View style={styles.preferenceHeader}>
               <Text style={styles.sectionTitle}>Notification preferences</Text>
               <Text style={styles.sectionSubtitle}>Choose which updates you receive</Text>
@@ -571,6 +634,9 @@ const styles = StyleSheet.create({
   content: { width: '100%', maxWidth: 940, alignSelf: 'center' },
   contentMobile: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 48 },
   contentWide: { paddingHorizontal: 32, paddingTop: 30, paddingBottom: 56 },
+  embeddedContent: { paddingTop: 16, paddingBottom: 132 },
+  embeddedReadAll: { minHeight: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18, backgroundColor: palette.primarySoft, paddingHorizontal: 11 },
+  embeddedReadAllText: { color: palette.primaryContainer, fontSize: 12, lineHeight: 16, fontWeight: '700' },
   intro: { flexDirection: 'row', alignItems: 'center', gap: 13, marginBottom: 20 },
   introIcon: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 23, backgroundColor: palette.primarySoft },
   bellIcon: { width: 20, height: 22, alignItems: 'center' },
@@ -586,6 +652,7 @@ const styles = StyleSheet.create({
   dashboardWide: { flexDirection: 'row', alignItems: 'flex-start' },
   feedColumn: { gap: 15 },
   feedColumnWide: { minWidth: 0, flex: 1 },
+  filterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   filterBar: { flexDirection: 'row', gap: 6, alignSelf: 'flex-start', borderRadius: 9, backgroundColor: palette.surfaceContainerLow, padding: 4 },
   filterButton: { minWidth: 92, alignItems: 'center', borderRadius: 6, paddingHorizontal: 12, paddingVertical: 7 },
   filterButtonSelected: { backgroundColor: palette.white },

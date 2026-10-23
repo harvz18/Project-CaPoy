@@ -89,6 +89,7 @@ interface CategoryBrowseScreenProps {
   onSelectCategory?: (category: ServiceCategoryOption) => void
   onSelectTab?: (tab: CategoryBrowseTab) => void
   onSelectVendor?: (vendor: CategoryBrowseVendor) => void
+  onScrollDirectionChange?: (direction: 'down' | 'up') => void
 }
 
 const filters = [
@@ -447,6 +448,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   onSelectCategory,
   onSelectTab,
   onSelectVendor,
+  onScrollDirectionChange,
 }) => {
   const { width } = useWindowDimensions()
   const isWide = width >= 768
@@ -468,6 +470,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   const [selectedExploreCategory, setSelectedExploreCategory] = React.useState('All')
   const [pendingReplacement, setPendingReplacement] = React.useState<CatalogService>()
   const [isReplacing, setIsReplacing] = React.useState(false)
+  const lastScrollY = React.useRef(0)
   const [isSelectedServicesOpen, setIsSelectedServicesOpen] = React.useState(false)
   const selectedServicesSheetOffset = React.useRef(new Animated.Value(480)).current
   const query = searchValue ?? internalSearch
@@ -839,7 +842,15 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
       {isExploreMode ? (
         <View style={styles.topAppBar}>
           <View style={[styles.topAppBarContent, isWide && styles.horizontalPaddingWide]}>
-            <View style={styles.headerButton} />
+            <Pressable
+              accessibilityLabel="Back to home"
+              accessibilityRole="button"
+              hitSlop={8}
+              onPress={onBack}
+              style={({ pressed }) => [styles.headerButton, pressed && styles.headerButtonPressed]}
+            >
+              <Text style={styles.backIcon}>{'\u2039'}</Text>
+            </Pressable>
             <Text style={styles.headerTitle}>EXPLORE SERVICES</Text>
             <View style={styles.headerButton} />
           </View>
@@ -869,6 +880,14 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
           isWide ? styles.horizontalPaddingWide : styles.horizontalPaddingMobile,
         ]}
         keyboardShouldPersistTaps="handled"
+        onScroll={(event) => {
+          const scrollY = Math.max(0, event.nativeEvent.contentOffset.y)
+          const delta = scrollY - lastScrollY.current
+          if (Math.abs(delta) < 8) return
+          lastScrollY.current = scrollY
+          onScrollDirectionChange?.(delta > 0 ? 'down' : 'up')
+        }}
+        scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
       >
         {replacementContext ? (
@@ -1819,6 +1838,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 20,
+  },
+  headerButtonPressed: {
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    opacity: 0.82,
   },
   backIcon: {
     color: '#FFFFFF',

@@ -365,9 +365,10 @@ test('V8 Phase 5 removes only the redundant service-detail dietary input', () =>
   ], 'client read-only historical note')
 })
 
-test('client home can safely remove drafts and collapses bookings to the next three events', () => {
+test('client plans can safely remove drafts while home collapses bookings to the next three events', () => {
   const planning = read('src/lib/planning.ts')
   const home = read('src/screens/03-ClientHome.tsx')
+  const plans = read('src/screens/03.3-ClientPlans.tsx')
   const app = read('src/App.tsx')
 
   mustContain(planning, [
@@ -380,13 +381,15 @@ test('client home can safely remove drafts and collapses bookings to the next th
     'bookingProgressEvents.slice(0, 3)',
     'showAllBookingProgress',
     'Show all (${bookingProgressEvents.length})',
-    'Delete Draft',
+  ], 'client home booking controls')
+  mustContain(plans, [
+    'Delete draft',
     'draftPendingDeletion',
-  ], 'client home draft and booking controls')
+  ], 'client plans draft deletion controls')
   mustContain(app, [
     'deleteClientEventDraft',
     'onDeleteDraft={deleteClientDraft}',
-  ], 'client-home draft deletion integration')
+  ], 'client plans draft deletion integration')
 })
 
 test('item-priced catering menus use provider prices, validate selections, and snapshot bookings', () => {
@@ -799,6 +802,7 @@ test('client home uses live eligible services, resumable drafts, and booking pro
   const app = read('src/App.tsx')
   const planning = read('src/lib/planning.ts')
   const home = read('src/screens/03-ClientHome.tsx')
+  const plans = read('src/screens/03.3-ClientPlans.tsx')
   const recommendations = read('src/lib/home-recommendations.ts')
 
   mustContain(app, [
@@ -813,20 +817,27 @@ test('client home uses live eligible services, resumable drafts, and booking pro
     "event_service_selections(status)",
     ".in('status', ['draft', 'planning'])",
     "order('updated_at', { ascending: false })",
+    'const [latestDraft, ...supersededDrafts] = drafts',
+    ".is('saved_plan_at', null)",
+    '.neq(\'id\', event.eventId)',
     'activePlanningEventId',
   ], 'draft persistence integration')
   mustContain(home, [
-    'draftEvents = []',
     'recommendations = []',
-    'draftEvents.slice(0, 1)',
-    'Expand Drafts',
     'getClientBookingProgress',
-    'YOUR EVENT BOOKINGS',
+    'UPCOMING EVENTS',
     'onOpenBookingProgress',
     'formatServicePrice(recommendation.service)',
     'recommendation.service.reviewCount',
-    'No saved drafts yet',
   ], 'client home live UI')
+  mustContain(plans, [
+    'draftEvents = []',
+    'const latestDraft = draftEvents[0]',
+    'latestDraft ? 1 : 0',
+    'DRAFTS',
+    'No drafts yet',
+    'onOpenDraft',
+  ], 'client plans live UI')
   mustContain(recommendations, [
     "service.kind !== 'coordinator'",
     'service.isMock !== true',
@@ -1498,7 +1509,7 @@ test('V9 Phase 9 saves complete unpaid plans and rechecks them before checkout',
   const reviewResolution = read('supabase/migrations/20261021000400_saved_booking_plan_review_resolution.sql')
   const planning = read('src/lib/planning.ts')
   const payment = read('src/screens/12-Payment.tsx')
-  const home = read('src/screens/03-ClientHome.tsx')
+  const plans = read('src/screens/03.3-ClientPlans.tsx')
   const app = read('src/App.tsx')
 
   mustContain(migration, [
@@ -1544,12 +1555,12 @@ test('V9 Phase 9 saves complete unpaid plans and rechecks them before checkout',
     'needsSavedPlanReview',
     'Price Updated',
   ], 'V9 payment saved-plan actions')
-  mustContain(home, [
+  mustContain(plans, [
     'SAVED PLANS',
     'Last saved',
-    'Resume Booking',
+    'Resume booking',
     'savedPlans',
-  ], 'V9 saved-plan home shortcut')
+  ], 'V9 saved-plan client screen')
   mustContain(app, [
     'savePlanForLater',
     'resumeSavedPlan',
@@ -1773,11 +1784,14 @@ test('mobile sessions persist and push alerts keep business details inside Supab
     'Notifications.getExpoPushTokenAsync({ projectId })',
     "supabase.rpc('register_my_push_token'",
     "supabase.rpc('revoke_my_push_token'",
+    "if (Platform.OS !== 'web' && supportsRemotePushNotifications)",
+    "if (Platform.OS === 'web' || !supportsRemotePushNotifications) return",
   ], 'native push registration')
   mustContain(app, [
     'supabase.auth.getSession()',
     'Notifications.addNotificationReceivedListener',
     'Notifications.addNotificationResponseReceivedListener',
+    "if (Platform.OS === 'web' || !supportsRemotePushNotifications) return undefined",
     "table: 'notifications'",
   ], 'session restoration and live notification integration')
 })
@@ -1932,7 +1946,10 @@ test('coordinator messages remain in the coordinator workspace and use the coord
     "setMessageWorkspace('coordinator')",
     "screen === 'messages' && messageWorkspace === 'client'",
     "screen === 'messages' && messageWorkspace === 'merchant'",
-    "onBack={messageWorkspace === 'coordinator' ? () => setScreen('coordinatorHome') : undefined}",
+    "onBack={messageWorkspace === 'coordinator'",
+    "? () => setScreen('coordinatorHome')",
+    "messageWorkspace === 'client'",
+    "? () => setScreen('clientHome')",
     'onSelectCoordinatorTab={openCoordinatorTab}',
   ], 'coordinator message routing')
   mustContain(messages, [
@@ -1983,8 +2000,9 @@ test('V10 Phase 6 keeps the mobile brand and navigation treatment consistent', (
     ], 'provider and coordinator bottom navigation')
   })
   mustContain(profile, [
-    'BrandIdentity markSize={22}',
+    'BrandIdentity markSize={28} showName={false} variant="metallicWordmark"',
     'name="arrow-back"',
+    "backgroundColor: '#6B1E2E'",
     'hitSlop={8}',
     'accessibilityRole="button"',
     'height: 40',
@@ -2312,7 +2330,7 @@ test('V11 wallet refunds apply the confirmed cancellation policy without rewriti
   )
   const clientWallet = read('src/lib/client-wallet.ts')
   const walletScreen = read('src/screens/24.1-ClientWallet.tsx')
-  const account = read('src/screens/24-AccountProfile.tsx')
+  const home = read('src/screens/03-ClientHome.tsx')
   const app = read('src/App.tsx')
 
   assert.equal(
@@ -2351,11 +2369,11 @@ test('V11 wallet refunds apply the confirmed cancellation policy without rewriti
     'No external transfer is created from this screen.',
     'Eligible refunds will appear here automatically',
   ], 'client wallet presentation')
-  mustContain(account, [
+  mustContain(home, [
     'onOpenWallet?: () => void',
-    'MULTIVENT Wallet',
-    'View refund credits and available balance',
-  ], 'client account wallet entry point')
+    "{ id: 'wallet', label: 'Wallet'",
+    'onOpenWallet?.()',
+  ], 'client home wallet entry point')
   mustContain(app, [
     "| 'clientWallet'",
     'fetchClientWallet',
@@ -2402,4 +2420,186 @@ test('V11 Phase 5 maps payout requests to authoritative allocations and exposes 
     'Refund / hold exposure',
     'Historic unmapped payout requests',
   ], 'authorized web-admin reconciliation visibility')
+})
+
+test('V12 Phase 1 keeps client navigation floating, expandable, and booking-route safe', () => {
+  const navigation = read('src/components/ClientBottomNavigation.tsx')
+  const app = read('src/App.tsx')
+
+  mustContain(navigation, [
+    "export type ClientMainTab = 'home' | 'explore' | 'bookings' | 'messages' | 'profile'",
+    "{ id: 'home' as const, icon: 'home' as const, label: 'Home' }",
+    "{ id: 'explore' as const, icon: 'explore' as const, label: 'Explore' }",
+    "{ id: 'messages' as const, icon: 'inbox' as const, label: 'Inbox' }",
+    "{ id: 'profile' as const, icon: 'person' as const, label: 'Account' }",
+    "AccessibilityInfo.isReduceMotionEnabled()",
+    "AccessibilityInfo.addEventListener('reduceMotionChanged', setReducedMotion)",
+    'const [isExpanded, setIsExpanded] = React.useState(false)',
+    'duration: reducedMotion ? 0 : animationDuration',
+    'onToggleNavigation?.()',
+    'navigationTranslateY.setValue(0)',
+    'outputRange: [0.02, 1]',
+    "require('../../assets/Metallic LOGO.png')",
+    "accessibilityLabel={isExpanded ? 'Collapse navigation' : 'Expand navigation'}",
+    'pressed && styles.navItemPressed',
+    'backgroundColor: palette.white',
+    "iconMuted: '#625D5D'",
+    'width: 82',
+    "overflow: 'hidden'",
+    'styles.logoGlow',
+    "backgroundColor: 'rgba(107, 30, 46, 0.11)'",
+    "import { LinearGradient } from 'expo-linear-gradient'",
+    'styles.navigationFade',
+    "'rgba(224, 185, 198, 0.98)'",
+  ], 'V12 Phase 1 client navigation')
+  assert.doesNotMatch(navigation, /id: 'bookings' as const/,
+    'Bookings must not remain an expandable navigation action')
+  assert.doesNotMatch(navigation, /navigationBackdrop/,
+    'The expanded white navigation bar must not add a translucent background extension')
+  mustContain(app, [
+    "if (tab === 'bookings') setScreen('bookings')",
+    "screen === 'bookings'",
+    '<ClientBottomNavigation',
+    "edges={['top', 'right', 'bottom', 'left']}",
+    "profileReturnScreen === 'clientHome'",
+    'handleClientNavigationScrollDirection',
+    'onToggleNavigation={keepClientNavigationVisibleForToggle}',
+  ], 'booking route preservation')
+  const selectTab = navigation.slice(
+    navigation.indexOf('const selectTab'),
+    navigation.indexOf('const barScaleX')
+  )
+  assert.doesNotMatch(selectTab, /setIsExpanded\(false\)/,
+    'Only the central M control may collapse the expanded navigation')
+  assert.doesNotMatch(navigation, /actionTranslateY/,
+    'Pill expansion must not add a vertical translation separate from scroll visibility')
+  assert.doesNotMatch(navigation, /opacity:\s*expansion/,
+    'The pill must expand and collapse from the M control without fading out')
+
+  const scrollingClientScreens = [
+    read('src/screens/06-CategoryBrowse.tsx'),
+    read('src/screens/11-BookingScreen.tsx'),
+    read('src/screens/03.1-Messages.tsx'),
+    read('src/screens/24-AccountProfile.tsx'),
+  ]
+  scrollingClientScreens.forEach((source) => {
+    mustContain(source, [
+      "onScrollDirectionChange?: (direction: 'down' | 'up') => void",
+      'scrollEventThrottle={16}',
+      "onScrollDirectionChange?.(delta > 0 ? 'down' : 'up')",
+    ], 'client navigation scroll direction wiring')
+  })
+})
+
+test('V12 Phase 2 unifies client messages and notifications without duplicating either data source', () => {
+  const navigation = read('src/components/ClientBottomNavigation.tsx')
+  const messages = read('src/screens/03.1-Messages.tsx')
+  const notifications = read('src/screens/22.5-Notification.tsx')
+  const home = read('src/screens/03-ClientHome.tsx')
+  const app = read('src/App.tsx')
+
+  mustContain(navigation, [
+    "{ id: 'messages' as const, icon: 'inbox' as const, label: 'Inbox' }",
+    'hasUnreadInbox?: boolean',
+    "tab.id === 'messages' && hasUnreadInbox",
+    'styles.inboxUnreadDot',
+  ], 'V12 Phase 2 Inbox navigation')
+  mustContain(messages, [
+    "export type ClientInboxTab = 'messages' | 'notifications'",
+    'initialInboxTab?: ClientInboxTab',
+    "{navigationVariant === 'client' ? 'INBOX' : 'MESSAGES'}",
+    "(['messages', 'notifications'] as ClientInboxTab[]).map",
+    '<NotificationScreen',
+    'embedded',
+    'variant="client"',
+    "notification.category !== 'message'",
+    "if (notification.category === 'message') setInboxTab('messages')",
+  ], 'V12 Phase 2 Inbox tabs')
+  mustContain(notifications, [
+    'embedded?: boolean',
+    "variant?: 'client' | 'coordinator' | 'merchant'",
+    'embedded && styles.embeddedContent',
+    "notifications.filter((notification) => notification.category !== 'message')",
+    'onScrollDirectionChange?:',
+    'notifications.forEach((notification)',
+  ], 'V12 Phase 2 embedded notification feed')
+  assert.doesNotMatch(home, /accessibilityLabel="Open notifications"/,
+    'Client home must not retain an independent notification shortcut')
+  mustContain(app, [
+    'const hasUnreadClientInbox',
+    'hasUnreadInbox={hasUnreadClientInbox}',
+    "renderMessagesWorkspace('notifications')",
+    "screen === 'notifications' && homeReturnScreen === 'clientHome'",
+    "setMessageWorkspace('client')",
+    "if (nextState === 'active') void refreshLiveData()",
+  ], 'V12 Phase 2 Inbox routing and unread refresh')
+})
+
+test('client home uses a unified MULTIVENT top surface and routes its headset control to support', () => {
+  const home = read('src/screens/03-ClientHome.tsx')
+  const app = read('src/App.tsx')
+
+  mustContain(home, [
+    "import { LinearGradient } from 'expo-linear-gradient'",
+    "import { BrandIdentity } from '../components/BrandIdentity'",
+    "backgroundColor: '#701B30'",
+    'backgroundColor: colors.primaryLight',
+    'referenceTopSurface',
+    'BrandIdentity markSize={30} showName={false} variant="metallicWordmark"',
+    'accessibilityLabel="Contact MULTIVENT Support"',
+    'name="support-agent"',
+    'referenceAvatarRim',
+    'referenceWordmarkDepth',
+    'referenceHeaderWordmark',
+  ], 'client home branded support header')
+  mustContain(app, [
+    "setSupportReturnScreen('clientHome')",
+    "setScreen('support')",
+    '<SupportScreen onBack={() => setScreen(supportReturnScreen)} />',
+  ], 'client home support return route')
+})
+
+test('client home appearance keeps Classic as the default while Modern reuses the same client data and actions', () => {
+  const app = read('src/App.tsx')
+  const account = read('src/screens/24-AccountProfile.tsx')
+  const home = read('src/screens/03-ClientHome.tsx')
+  const modernHome = read('src/screens/03.0-ModernHome.tsx')
+  const appearance = read('src/lib/client-home-appearance.ts')
+
+  mustContain(home, [
+    "appearance = 'classic'",
+    "appearance === 'modern'",
+    '<ModernHomeScreen',
+    'styles.referenceTopSurface',
+    'bookingProgressEvents={bookingProgressEvents}',
+    'onQuickAccess={handleQuickAccess}',
+  ], 'dual home controller')
+  mustContain(modernHome, [
+    'bookingProgressEvents?: ClientBookingProgress[]',
+    'recommendations?: HomeServiceRecommendation[]',
+    'onOpenBookingProgress?: (booking: BookingItem) => void',
+    'onQuickAccess: (itemId: QuickAccessId) => void',
+    'onSelectRecommendation?: (serviceId: string) => void',
+    'QUICK_ACCESS_ITEMS',
+  ], 'modern home shared presentation')
+  mustContain(account, [
+    'Home Screen Appearance',
+    'Choose your preferred home screen design.',
+    'Classic UI',
+    'Modern UI',
+    'onHomeAppearanceChange?: (appearance: ClientHomeAppearance) => void',
+  ], 'client appearance preference')
+  mustContain(appearance, [
+    "export type ClientHomeAppearance = 'classic' | 'modern'",
+    'AsyncStorage.getItem',
+    'AsyncStorage.setItem',
+    "value === 'modern' ? 'modern' : 'classic'",
+  ], 'client appearance persistence')
+  mustContain(app, [
+    'loadClientHomeAppearance(authenticatedUserId)',
+    'saveClientHomeAppearance(authenticatedUserId, appearance)',
+    'clientHomeAppearanceRevisionRef',
+    'appearance={clientHomeAppearance}',
+    'onHomeAppearanceChange={changeClientHomeAppearance}',
+  ], 'appearance routing without a data reload')
 })
