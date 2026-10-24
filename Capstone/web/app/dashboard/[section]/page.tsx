@@ -3,8 +3,8 @@ import { OperationsScreen } from '@/components/screens/operations-screen'
 import type { SectionKey } from '@/lib/types'
 
 const sections: SectionKey[] = [
-  'users', 'clients', 'providers', 'services', 'bookings', 'payments', 'reviews',
-  'financial', 'reports', 'revenue', 'cashflow', 'remittances', 'coordinators', 'support',
+  'users', 'clients', 'providers', 'categories', 'services', 'bookings', 'payments', 'reviews',
+  'financial', 'reports', 'revenue', 'cashflow', 'insights', 'remittances', 'coordinators', 'support',
   'permissions', 'audit', 'settings',
 ]
 

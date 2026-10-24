@@ -4,6 +4,7 @@ export type StaffProfile = {
   id: string
   full_name: string | null
   email: string | null
+  avatar_url?: string | null
   default_role: StaffRole
   account_status: string
 }
@@ -13,6 +14,7 @@ export type SectionKey =
   | 'users'
   | 'clients'
   | 'providers'
+  | 'categories'
   | 'services'
   | 'bookings'
   | 'payments'
@@ -20,6 +22,7 @@ export type SectionKey =
   | 'reports'
   | 'revenue'
   | 'cashflow'
+  | 'insights'
   | 'remittances'
   | 'coordinators'
   | 'support'

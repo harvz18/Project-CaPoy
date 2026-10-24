@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import {
   mdiAccountGroupOutline,
   mdiAccountTieOutline,
@@ -118,8 +119,9 @@ const coordinatorStatuses: ReadonlyArray<readonly [string, string]> = [
 ]
 
 export function BookingsManagementScreen() {
+  const searchParams = useSearchParams()
   const [directory, setDirectory] = useState<BookingDirectory | null>(null)
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(() => searchParams.get('search') || '')
   const [categoryId, setCategoryId] = useState('all')
   const [providerId, setProviderId] = useState('all')
   const [status, setStatus] = useState('all')
@@ -195,8 +197,9 @@ export function BookingsManagementScreen() {
 }
 
 export function ClientsManagementScreen() {
+  const searchParams = useSearchParams()
   const [directory, setDirectory] = useState<ClientDirectory | null>(null)
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(() => searchParams.get('search') || '')
   const [status, setStatus] = useState('all')
   const [sort, setSort] = useState('newest')
   const [page, setPage] = useState(1)

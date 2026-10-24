@@ -24,12 +24,15 @@ import { ServicesScreen } from './services-screen'
 import { AuditLogScreen } from './audit-log-screen'
 import { BusinessOperationsScreen } from './business-operations-screen'
 import { ProvidersScreen } from './providers-screen'
+import { ReviewsManagementScreen } from './reviews-management-screen'
+import { CategoryPerformanceScreen } from './category-performance-screen'
+import { InsightsScreen } from './insights-screen'
 import { BookingsManagementScreen, ClientsManagementScreen, CoordinatorsManagementScreen } from './operations-management-screens'
 import { FinancialOverviewScreen, ReportsScreen } from './financial-reporting-screen'
 
 type OperationSection = Exclude<SectionKey, 'overview'>
 type BusinessSection = 'revenue' | 'cashflow' | 'remittances' | 'coordinators' | 'support' | 'permissions'
-type LegacyTableSection = Exclude<OperationSection, 'settings' | 'services' | 'audit' | BusinessSection | 'clients' | 'financial' | 'reports'>
+type LegacyTableSection = Exclude<OperationSection, 'settings' | 'categories' | 'insights' | 'services' | 'audit' | BusinessSection | 'clients' | 'financial' | 'reports'>
 type Row = Record<string, unknown>
 type ConfirmationAction = { id: string; action: string; currentStatus: string; name: string; kind: 'user' | 'provider'; reason: string }
 
@@ -71,6 +74,7 @@ const pageCopy: Record<OperationSection, { eyebrow: string; title: string; descr
   users: { eyebrow: 'COMMUNITY', title: 'User management', description: 'View accounts, access roles, and account standing.' },
   clients: { eyebrow: 'COMMUNITY', title: 'Clients', description: 'Review client activity and account standing.' },
   providers: { eyebrow: 'MARKETPLACE', title: 'Provider approvals', description: 'Review and manage service provider applications.' },
+  categories: { eyebrow: 'MARKETPLACE', title: 'Categories', description: 'Review category configuration and service performance.' },
   services: { eyebrow: 'MARKETPLACE', title: 'Service approvals', description: 'Review provider listings before they become visible to clients.' },
   bookings: { eyebrow: 'OPERATIONS', title: 'Bookings', description: 'Monitor booking activity and lifecycle status.' },
   payments: { eyebrow: 'FINANCE', title: 'Payments', description: 'Track platform transactions and payment verification.' },
@@ -79,6 +83,7 @@ const pageCopy: Record<OperationSection, { eyebrow: string; title: string; descr
   reviews: { eyebrow: 'TRUST & SAFETY', title: 'Reviews', description: 'Monitor feedback and keep the marketplace trustworthy.' },
   revenue: { eyebrow: 'FINANCE', title: 'Revenue', description: 'Track MULTIVENT commission earnings and provider net amounts.' },
   cashflow: { eyebrow: 'FINANCE', title: 'Cash flow', description: 'Follow money entering and leaving MULTIVENT operations.' },
+  insights: { eyebrow: 'ANALYTICS', title: 'Insights', description: 'Review explainable marketplace decision support.' },
   remittances: { eyebrow: 'OFFICE OPERATIONS', title: 'Cash remittances', description: 'Record and verify coordinator cash handoffs.' },
   coordinators: { eyebrow: 'MARKETPLACE', title: 'Coordinator bookings', description: 'View client-selected coordinator requests and provider availability.' },
   support: { eyebrow: 'CUSTOMER SERVICE', title: 'Support tickets', description: 'Handle platform, account, booking, and payment concerns.' },
@@ -138,10 +143,10 @@ export function OperationsScreen({ section }: { section: OperationSection }) {
   const { can, canAccessRoute, profile } = useStaff()
   const copy = pageCopy[section]
   const permissionBySection: Record<OperationSection, string> = {
-    users: 'users.view', clients: 'users.view', providers: 'providers.view', services: 'services.view',
+    users: 'users.view', clients: 'users.view', providers: 'providers.view', categories: 'providers.view', services: 'services.view',
     bookings: 'events.view', payments: 'cashflow.view', reviews: 'providers.view',
     financial: 'cashflow.view', reports: 'events.view',
-    revenue: 'revenue.view', cashflow: 'cashflow.view', remittances: 'remittance.view',
+    revenue: 'revenue.view', cashflow: 'cashflow.view', insights: 'dashboard.analytics.view', remittances: 'remittance.view',
     coordinators: 'coordinators.view', support: 'support.view',
     permissions: 'users.permissions.manage', audit: 'system.audit_logs', settings: 'system.settings',
   }
@@ -161,7 +166,10 @@ export function OperationsScreen({ section }: { section: OperationSection }) {
   } else if (!can(permissionBySection[section])) return <RestrictedScreen />
 
   if (section === 'settings') return <SettingsScreen />
+  if (section === 'categories') return <CategoryPerformanceScreen />
+  if (section === 'insights') return <InsightsScreen />
   if (section === 'providers') return <ProvidersScreen readOnly={profile.default_role === 'admin'} />
+  if (section === 'reviews') return <ReviewsManagementScreen />
   if (section === 'services') return <ServicesScreen />
   if (section === 'audit') return <AuditLogScreen />
   if (section === 'bookings') return <BookingsManagementScreen />

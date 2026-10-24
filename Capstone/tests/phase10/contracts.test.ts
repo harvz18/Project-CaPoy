@@ -1746,9 +1746,10 @@ test('optional zero budgets and explainable DSS marketplace signals stay connect
   ], 'client DSS controls and badges')
 })
 
-test('mobile sessions persist and push alerts keep business details inside Supabase', () => {
+test('mobile sessions persist and push alerts deliver the matching stored notification', () => {
   const migration = read(migrations[10])
   const hardening = read(migrations[11])
+  const exactPushMigration = read('supabase/migrations/20261024000100_exact_notification_push_payload.sql')
   const supabaseClient = read('src/lib/supabase.ts')
   const notifications = read('src/lib/notifications.ts')
   const app = read('src/App.tsx')
@@ -1775,11 +1776,15 @@ test('mobile sessions persist and push alerts keep business details inside Supab
     'grant execute on function public.register_my_push_token(text, text, text, text)',
     'grant execute on function public.revoke_my_push_token(text)',
   ], 'mobile push API least-privilege hardening')
-  assert.doesNotMatch(
-    migration,
-    /'title',\s*new\.title|'body',\s*new\.body|'resourceId'|'resourceType'/,
-    'the external push transport must not receive notification business details'
-  )
+  mustContain(exactPushMigration, [
+    'create or replace function public.dispatch_mobile_push_notification()',
+    "'title', coalesce(nullif(btrim(new.title), ''), 'MULTIVENT')",
+    "'body', coalesce(nullif(btrim(new.body), ''), 'You have a new notification.')",
+    "'notificationId', new.id::text",
+    "'resourceId', new.resource_id::text",
+    "'resourceType', new.resource_type",
+    "'channelId', 'multivent-updates'",
+  ], 'exact mobile push delivery')
   mustContain(notifications, [
     'Notifications.getExpoPushTokenAsync({ projectId })',
     "supabase.rpc('register_my_push_token'",

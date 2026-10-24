@@ -16,7 +16,7 @@ import {
 import { MdiIcon } from '@/components/icons'
 import { EmptyState, formatDate, formatMoney, InlineError, SegmentedFilter, StatusBadge, TableSkeleton } from '@/components/ui'
 import { getSupabase } from '@/lib/supabase'
-import { useStaff } from '@/components/dashboard-shell'
+import { useDashboardControls, useStaff } from '@/components/dashboard-shell'
 
 type ServicePackage = {
   discount_amount: number | null
@@ -78,6 +78,7 @@ const serviceSelection = `
 
 export function ServicesScreen() {
   const { can } = useStaff()
+  const { liveDataVersion } = useDashboardControls()
   const [services, setServices] = useState<Service[]>([])
   const [selected, setSelected] = useState<Service | null>(null)
   const [selectedPackage, setSelectedPackage] = useState<ServicePackage | null>(null)
@@ -109,17 +110,9 @@ export function ServicesScreen() {
   }, [])
 
   useEffect(() => {
-    const supabase = getSupabase()
-    if (!supabase) return
-    let active = true
-    void supabase.from('services').select(serviceSelection).neq('status', 'deleted').order('updated_at', { ascending: false }).limit(150).then(({ data, error: queryError }) => {
-      if (!active) return
-      if (queryError) setError(queryError.message)
-      else setServices((data || []) as unknown as Service[])
-      setLoading(false)
-    })
-    return () => { active = false }
-  }, [])
+    const timer = window.setTimeout(() => { void loadServices() }, 0)
+    return () => window.clearTimeout(timer)
+  }, [liveDataVersion, loadServices])
 
   const visibleServices = useMemo(() => {
     const needle = search.trim().toLowerCase()

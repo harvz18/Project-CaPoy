@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import {
   mdiArrowRight,
   mdiCheck,
@@ -15,7 +16,7 @@ import {
 } from '@mdi/js'
 import { MdiIcon } from '@/components/icons'
 import { EmptyState, formatDate, formatMoney, InlineError, SegmentedFilter, StatusBadge, TableSkeleton } from '@/components/ui'
-import { useStaff } from '@/components/dashboard-shell'
+import { useDashboardControls, useStaff } from '@/components/dashboard-shell'
 import { getSupabase } from '@/lib/supabase'
 
 type Category = { id: string; name: string }
@@ -129,11 +130,13 @@ const statusOptions: ReadonlyArray<readonly [string, string]> = [
 
 export function ProvidersScreen({ readOnly = false }: { readOnly?: boolean }) {
   const { can } = useStaff()
+  const { liveDataVersion } = useDashboardControls()
+  const searchParams = useSearchParams()
   const [directory, setDirectory] = useState<ProviderDirectory | null>(null)
-  const [categoryId, setCategoryId] = useState('all')
+  const [categoryId, setCategoryId] = useState(() => searchParams.get('category') || 'all')
   const [status, setStatus] = useState('all')
   const [sort, setSort] = useState('performance')
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(() => searchParams.get('search') || '')
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -141,6 +144,7 @@ export function ProvidersScreen({ readOnly = false }: { readOnly?: boolean }) {
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState('')
   const [notice, setNotice] = useState('')
+  const [openedProviderId, setOpenedProviderId] = useState('')
 
   const loadDirectory = useCallback(async () => {
     const supabase = getSupabase()
@@ -172,7 +176,7 @@ export function ProvidersScreen({ readOnly = false }: { readOnly?: boolean }) {
   useEffect(() => {
     const timer = window.setTimeout(() => { void loadDirectory() }, 0)
     return () => window.clearTimeout(timer)
-  }, [loadDirectory])
+  }, [liveDataVersion, loadDirectory])
 
   const totalPages = Math.max(1, Math.ceil((directory?.total || 0) / (directory?.page_size || 10)))
   const selectedCategory = directory?.categories.find((category) => category.id === categoryId)?.name || 'All categories'
@@ -184,7 +188,7 @@ export function ProvidersScreen({ readOnly = false }: { readOnly?: boolean }) {
     setPage(1)
   }
 
-  async function openProvider(providerId: string) {
+  const openProvider = useCallback(async (providerId: string) => {
     const supabase = getSupabase()
     if (!supabase) return
     setDetailLoading(true)
@@ -195,7 +199,17 @@ export function ProvidersScreen({ readOnly = false }: { readOnly?: boolean }) {
     else if (!isProviderDetail(data)) setDetailError('Provider detail returned an unexpected response.')
     else setSelected(data)
     setDetailLoading(false)
-  }
+  }, [])
+
+  useEffect(() => {
+    const providerId = searchParams.get('provider')
+    if (!providerId || providerId === openedProviderId) return
+    const timer = window.setTimeout(() => {
+      setOpenedProviderId(providerId)
+      void openProvider(providerId)
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [openProvider, openedProviderId, searchParams])
 
   async function updateProviderStatus(nextStatus: 'verified' | 'disabled', reason = '') {
     if (!selected) return

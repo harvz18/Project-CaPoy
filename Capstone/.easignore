@@ -12,6 +12,9 @@
 .env
 .env.*
 
+# Server-only FCM credentials must never be part of an EAS source upload.
+fcm-service-account.json
+
 # Separate deployments and backend source are not part of the native binary
 /web
 /database

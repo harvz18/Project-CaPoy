@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { mdiCashCheck, mdiCashMultiple, mdiChartLine, mdiDownloadOutline, mdiRefresh } from '@mdi/js'
 import { MdiIcon } from '@/components/icons'
-import { useStaff } from '@/components/dashboard-shell'
+import { useDashboardControls, useStaff } from '@/components/dashboard-shell'
 import { EmptyState, formatDate, formatMoney, InlineError, SegmentedFilter, StatusBadge, TableSkeleton } from '@/components/ui'
 import { getSupabase } from '@/lib/supabase'
 
@@ -101,6 +101,7 @@ function SectionHeading({ eyebrow, title, copy, onRefresh }: { eyebrow: string; 
 }
 
 export function FinancialOverviewScreen() {
+  const { liveDataVersion } = useDashboardControls()
   const [filter, setFilter] = useState<DateFilter>('month')
   const [customStart, setCustomStart] = useState('')
   const [customEnd, setCustomEnd] = useState('')
@@ -134,7 +135,7 @@ export function FinancialOverviewScreen() {
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0)
     return () => window.clearTimeout(timer)
-  }, [load])
+  }, [liveDataVersion, load])
 
   const summary = asRow(data.summary)
   const paymentModel = asRow(data.payment_model)
@@ -210,6 +211,7 @@ type ReportDefinition = { kind: string; label: string; description: string; allo
 
 export function ReportsScreen() {
   const { can } = useStaff()
+  const { liveDataVersion } = useDashboardControls()
   const definitions = useMemo<ReportDefinition[]>(() => [
     { kind: 'bookings', label: 'Bookings', description: 'Booking requests and values', allowed: can('events.view') },
     { kind: 'provider_performance', label: 'Provider performance', description: 'Provider booking performance', allowed: can('providers.view') },
@@ -248,7 +250,7 @@ export function ReportsScreen() {
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0)
     return () => window.clearTimeout(timer)
-  }, [load])
+  }, [liveDataVersion, load])
 
   const columns = Array.isArray(data.columns) ? data.columns.map((column) => String(column)) : []
   const rows = asRows(data.rows)
