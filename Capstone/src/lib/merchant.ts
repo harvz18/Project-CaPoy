@@ -1326,7 +1326,7 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
   const { data, error } = await client
     .from('bookings')
     .select(
-      'id, event_id, provider_id, service_id, amount, provider_amount, status, requested_date, requested_time, client_notes, venue_option_snapshot, venue_options_snapshot, venue_booking_snapshot, created_at, updated_at, events(id, coordinator_id, pending_coordinator_id, coordinator_assignment_status, wants_coordinator, name, event_type, is_church_wedding, event_date, event_time, guest_count, venue, location, status), services(name, cover_image_url, category_details, service_categories(name)), provider_profiles(business_name), payments(status, amount, service_subtotal, provider_initial_allocation, paid_at, created_at, metadata)'
+      'id, event_id, provider_id, service_id, amount, provider_amount, status, requested_date, requested_time, client_notes, venue_option_snapshot, venue_options_snapshot, venue_booking_snapshot, created_at, updated_at, events(id, coordinator_id, pending_coordinator_id, coordinator_assignment_status, coordinator_fee_amount, wants_coordinator, name, event_type, is_church_wedding, event_date, event_time, guest_count, venue, location, status), services(name, cover_image_url, category_details, service_categories(name)), provider_profiles(business_name), payments(status, amount, service_subtotal, provider_initial_allocation, paid_at, created_at, metadata)'
     )
     .eq('client_id', userId)
     .neq('status', 'payment_required')
@@ -1340,8 +1340,10 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
   const eventIds = Array.from(new Set(data.map((row) => textFrom(row.event_id)).filter(Boolean)))
   const coordinatorIds = Array.from(new Set(data.flatMap((row) => {
     const event = nested((row as unknown as Record<string, unknown>).events) as Record<string, unknown> | undefined
-    const coordinatorId = textFrom(event?.coordinator_id)
-    return coordinatorId ? [coordinatorId] : []
+    return [
+      textFrom(event?.coordinator_id),
+      textFrom(event?.pending_coordinator_id),
+    ].filter(Boolean)
   })))
   const [reviewResult, coordinatorResult, coordinatorReviewResult, externalPaymentSummaries, foodTastingResult, replacementResult, churchArrangementResult] =
     await Promise.all([
@@ -1527,20 +1529,23 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
     }
 
     const eventName = textFrom(event?.name, 'Event booking')
-    const coordinatorId = textFrom(event?.coordinator_id)
-    const coordinator = coordinatorProfilesById.get(coordinatorId)
+    const acceptedCoordinatorId = textFrom(event?.coordinator_id)
+    const pendingCoordinatorId = textFrom(event?.pending_coordinator_id)
+    const assignedCoordinatorId = acceptedCoordinatorId || pendingCoordinatorId
+    const coordinator = coordinatorProfilesById.get(assignedCoordinatorId)
     grouped.set(eventId, {
       amount: serviceItem.amount,
       category: textFrom(event?.event_type, 'Event'),
       createdAt: textFrom(record.created_at),
       coordinatorAvatarUrl: textFrom(coordinator?.avatar_url) || undefined,
       coordinatorAssignmentStatus: textFrom(event?.coordinator_assignment_status) || undefined,
+      coordinatorFeeAmount: numberFrom(event?.coordinator_fee_amount),
       coordinatorRequired: event?.wants_coordinator === true
         || Boolean(textFrom(event?.coordinator_id) || textFrom(event?.pending_coordinator_id)),
-      coordinatorName: coordinatorId
+      coordinatorName: assignedCoordinatorId
         ? textFrom(coordinator?.full_name, 'Event Coordinator')
         : undefined,
-      coordinatorUserId: coordinatorId || undefined,
+      coordinatorUserId: acceptedCoordinatorId || undefined,
       date: toIsoDate(event?.event_date ?? record.requested_date),
       eventId,
       hasFeedback: false,
@@ -1584,6 +1589,7 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
             ? 'cancelled'
           : statuses.length > 0 &&
               statuses.every((status) => status === 'confirmed' || status === 'completed')
+              && (!booking.coordinatorRequired || booking.coordinatorAssignmentStatus === 'accepted')
             ? 'confirmed'
             : 'requested',
     }

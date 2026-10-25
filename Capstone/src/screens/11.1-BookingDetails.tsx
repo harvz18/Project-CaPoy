@@ -221,6 +221,15 @@ const formatChurchArrangementStatus = (status?: string) => ({
   proposed: 'Church proposed',
 }[status ?? 'not_started'] ?? 'Not started')
 
+const getCoordinatorTrackerStatus = (status?: string) => {
+  if (status === 'accepted') return { kind: 'confirmed' as const, label: 'CONFIRMED' }
+  if (status === 'declined' || status === 'cancelled') {
+    return { kind: 'declined' as const, label: status.toUpperCase() }
+  }
+  if (status === 'awaiting_assignment') return { kind: 'requested' as const, label: 'ASSIGNING' }
+  return { kind: 'requested' as const, label: 'REQUESTED' }
+}
+
 export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
   booking,
   details,
@@ -258,6 +267,13 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
   const coordinatorRequired = paymentQuote?.acceptance.coordinatorRequired ?? Boolean(booking?.coordinatorRequired)
   const coordinatorAccepted = paymentQuote?.acceptance.coordinatorAccepted
     ?? (!coordinatorRequired || booking?.coordinatorAssignmentStatus === 'accepted')
+  const coordinatorTrackerStatus = getCoordinatorTrackerStatus(booking?.coordinatorAssignmentStatus)
+  const hasCoordinatorTracker = Boolean(booking?.coordinatorRequired)
+  const canMessageEventCoordinator = Boolean(
+    booking?.eventId
+      && booking?.coordinatorAssignmentStatus === 'accepted'
+      && onMessageCoordinatorForEvent
+  )
   const paymentReady = Boolean(
     paymentQuote?.paymentEligible
       && ['not_initiated', 'payment_failed_or_cancelled'].includes(paymentQuote.paymentState)
@@ -761,7 +777,7 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
           </View>
         ) : null}
 
-        {bookedServices.length > 0 ? (
+        {bookedServices.length > 0 || hasCoordinatorTracker ? (
           <View style={styles.servicesSection}>
             <Text style={styles.cardTitle}>Booked Services</Text>
             {bookedServices.map((service) => {
@@ -967,15 +983,74 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                 </View>
               )
             })}
+            {hasCoordinatorTracker ? (
+              <View style={styles.serviceCard}>
+                {booking?.coordinatorAvatarUrl ? (
+                  <Image
+                    accessibilityLabel={`${booking.coordinatorName ?? 'Event Coordinator'} profile photo`}
+                    resizeMode="cover"
+                    source={{ uri: booking.coordinatorAvatarUrl }}
+                    style={styles.serviceImage}
+                  />
+                ) : (
+                  <View style={[styles.serviceImage, styles.coordinatorServiceImage]}>
+                    <MaterialIcons color={palette.burgundy} name="event-available" size={27} />
+                  </View>
+                )}
+                <View style={styles.serviceCopy}>
+                  <View style={styles.serviceHeading}>
+                    <Text numberOfLines={2} style={styles.serviceName}>Event Coordination</Text>
+                    <View
+                      style={[
+                        styles.serviceStatus,
+                        coordinatorTrackerStatus.kind === 'confirmed' && styles.serviceStatusConfirmed,
+                        coordinatorTrackerStatus.kind === 'declined' && styles.serviceStatusDeclined,
+                      ]}
+                    >
+                      <Text style={styles.serviceStatusText}>{coordinatorTrackerStatus.label}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.serviceProviderRow}>
+                    <Text style={styles.serviceProvider}>
+                      {booking?.coordinatorName ?? 'Event coordinator'}
+                    </Text>
+                    {canMessageEventCoordinator ? (
+                      <Pressable
+                        accessibilityLabel={`Message ${booking?.coordinatorName ?? 'event coordinator'}`}
+                        accessibilityRole="button"
+                        onPress={() => {
+                          const eventId = booking?.eventId
+                          if (eventId) onMessageCoordinatorForEvent?.(eventId)
+                        }}
+                        style={({ pressed }) => [
+                          styles.serviceMessageButton,
+                          pressed && styles.serviceMessageButtonPressed,
+                        ]}
+                      >
+                        <MaterialIcons color={palette.burgundy} name="chat-bubble-outline" size={18} />
+                      </Pressable>
+                    ) : null}
+                  </View>
+                  <Text style={styles.serviceMeta}>
+                    {booking?.coordinatorFeeAmount && booking.coordinatorFeeAmount > 0
+                      ? `Event coordination · ${formatPeso(booking.coordinatorFeeAmount)}`
+                      : 'Event coordination'}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
           </View>
         ) : null}
 
         <View style={styles.confirmationCard}>
           <View style={styles.confirmationHeading}>
             <View>
-              <Text style={styles.cardTitle}>Provider Confirmations</Text>
+              <Text style={styles.cardTitle}>Provider Confirmations & Coordinator</Text>
               <Text style={styles.confirmationSubtitle}>
                 Payment opens only when every required booking is accepted.
+              </Text>
+              <Text style={styles.confirmationSubtitle}>
+                This includes your selected event coordinator.
               </Text>
             </View>
             <MaterialIcons
@@ -1024,7 +1099,7 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
             <>
               <View style={styles.paymentReadyNotice}>
                 <MaterialIcons color="#145133" name="check-circle" size={18} />
-                <Text style={styles.paymentReadyText}>All providers confirmed — payment is ready.</Text>
+                <Text style={styles.paymentReadyText}>All required bookings confirmed — payment is ready.</Text>
               </View>
               <Pressable
                 accessibilityLabel="Pay now to reserve this booking"
@@ -1736,6 +1811,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: palette.card,
   },
+  coordinatorServiceImage: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#F7ECEF' },
   serviceCopy: { flex: 1, minWidth: 0 },
   serviceHeading: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   serviceName: { flex: 1, color: palette.text, fontSize: 15, lineHeight: 21, fontWeight: '700' },

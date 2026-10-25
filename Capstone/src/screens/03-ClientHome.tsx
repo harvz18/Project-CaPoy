@@ -28,10 +28,13 @@ export type ClientHomeRecommendation = HomeServiceRecommendation
 
 export interface ClientBookingProgress {
   booking: BookingItem
+  confirmedBookingRecipientCount: number
   confirmedServiceCount: number
+  coordinatorIncluded: boolean
   daysRemaining?: number
   progressPercent: number
   statusLabel: string
+  totalBookingRecipientCount: number
   totalActiveServiceCount: number
 }
 
@@ -105,22 +108,37 @@ export const getClientBookingProgress = (
     (service) => ['confirmed', 'completed'].includes(service.status)
   ).length
   const totalActiveServiceCount = activeServices.length
-  const progressPercent = Math.round((confirmedServiceCount / totalActiveServiceCount) * 100)
+  const coordinatorIncluded = Boolean(booking.coordinatorRequired)
+  const coordinatorAccepted = booking.coordinatorAssignmentStatus === 'accepted'
+  const confirmedBookingRecipientCount = confirmedServiceCount + (coordinatorIncluded && coordinatorAccepted ? 1 : 0)
+  const totalBookingRecipientCount = totalActiveServiceCount + (coordinatorIncluded ? 1 : 0)
+  const progressPercent = Math.round((confirmedBookingRecipientCount / totalBookingRecipientCount) * 100)
   const daysRemaining = getDaysLeft(booking.date, now)
+  const outstandingProviderCount = totalActiveServiceCount - confirmedServiceCount
+  const coordinatorOutstanding = coordinatorIncluded && !coordinatorAccepted
   const statusLabel = daysRemaining === 0
     ? 'Event is today'
     : daysRemaining !== null && daysRemaining < 0
       ? booking.status === 'completed' ? 'Completed' : 'Event date has passed'
-      : confirmedServiceCount === totalActiveServiceCount
-        ? 'All active providers confirmed'
-        : `${totalActiveServiceCount - confirmedServiceCount} provider${totalActiveServiceCount - confirmedServiceCount === 1 ? '' : 's'} awaiting confirmation`
+      : confirmedBookingRecipientCount === totalBookingRecipientCount
+        ? 'All required bookings confirmed'
+        : outstandingProviderCount > 0 && coordinatorOutstanding
+          ? `${outstandingProviderCount} provider${outstandingProviderCount === 1 ? '' : 's'} and coordinator awaiting confirmation`
+          : coordinatorOutstanding
+            ? booking.coordinatorName
+              ? 'Coordinator awaiting confirmation'
+              : 'Coordinator assignment pending'
+            : `${outstandingProviderCount} provider${outstandingProviderCount === 1 ? '' : 's'} awaiting confirmation`
 
   return [{
     booking,
+    confirmedBookingRecipientCount,
     confirmedServiceCount,
+    coordinatorIncluded,
     daysRemaining: daysRemaining === null ? undefined : daysRemaining,
     progressPercent,
     statusLabel,
+    totalBookingRecipientCount,
     totalActiveServiceCount,
   }]
 }).sort((left, right) => {
@@ -359,7 +377,7 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
           <View style={styles.referenceSectionHeader}>
             <View>
               <Text style={styles.referenceSectionTitle}>UPCOMING EVENTS</Text>
-              <Text style={styles.referenceSectionSubtitle}>Active provider confirmation progress</Text>
+              <Text style={styles.referenceSectionSubtitle}>Active booking confirmation progress</Text>
             </View>
             {hasAdditionalBookingProgress ? (
               <Pressable
@@ -407,7 +425,7 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
               <View style={styles.bookingProgressMetrics}>
                 <Text style={styles.bookingProgressStatus}>{progress.statusLabel}</Text>
                 <Text style={styles.bookingProgressCount}>
-                  {progress.confirmedServiceCount} of {progress.totalActiveServiceCount} providers confirmed
+                  {progress.confirmedBookingRecipientCount} of {progress.totalBookingRecipientCount} booking recipients confirmed
                 </Text>
               </View>
               <View style={styles.bookingProgressTrack}>
@@ -420,7 +438,7 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
               <MaterialIcons name="event-available" size={24} color="#8A2944" />
               <View style={styles.emptyDraftCopy}>
                 <Text style={styles.emptyDraftTitle}>No active bookings yet</Text>
-                <Text style={styles.emptyDraftText}>Provider confirmations for your active events will appear here.</Text>
+                <Text style={styles.emptyDraftText}>Provider and coordinator confirmations for your active events will appear here.</Text>
               </View>
             </View>
           )}

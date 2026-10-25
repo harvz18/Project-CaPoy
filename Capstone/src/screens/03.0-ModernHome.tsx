@@ -209,7 +209,7 @@ export const ModernHomeScreen: React.FC<ModernHomeScreenProps> = ({
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleCopy}>
               <Text style={styles.sectionTitle}>UPCOMING EVENTS</Text>
-              <Text style={styles.sectionSubtitle}>Active provider confirmation progress</Text>
+              <Text style={styles.sectionSubtitle}>Active booking confirmation progress</Text>
             </View>
             {hasAdditionalBookingProgress ? (
               <Pressable
@@ -255,7 +255,7 @@ export const ModernHomeScreen: React.FC<ModernHomeScreenProps> = ({
                     <View style={styles.bookingStatusRow}>
                       <Text numberOfLines={1} style={styles.bookingStatus}>{progress.statusLabel}</Text>
                       <Text style={styles.bookingCount}>
-                        {progress.confirmedServiceCount} of {progress.totalActiveServiceCount} providers confirmed
+                        {progress.confirmedBookingRecipientCount} of {progress.totalBookingRecipientCount} booking recipients confirmed
                       </Text>
                     </View>
                     <View style={styles.progressTrack}>
@@ -275,7 +275,7 @@ export const ModernHomeScreen: React.FC<ModernHomeScreenProps> = ({
               <MaterialIcons color="#8A2944" name="event-available" size={25} />
               <View style={styles.emptyCopy}>
                 <Text style={styles.emptyTitle}>No active bookings yet</Text>
-                <Text style={styles.emptyText}>Provider confirmations for your active events will appear here.</Text>
+                <Text style={styles.emptyText}>Provider and coordinator confirmations for your active events will appear here.</Text>
               </View>
             </View>
           )}
