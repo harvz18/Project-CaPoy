@@ -46,9 +46,11 @@ export interface ServiceSelectionValue {
   estimatedTotal: number
   foodTastingMenuItemIds?: string[]
   foodTastingPreference?: boolean
+  combinedCateringServiceId?: string
   mealType?: MealType
   notes: string
   service: CatalogService
+  venueCateringPackageId?: string
   venueBookedHours?: number
   venueOption?: VenueBookingOption
   venueSelections?: VenueOptionSelection[]
@@ -287,7 +289,9 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   ])
 
   React.useEffect(() => {
-    if (isExploreMode || initialFoodTastingPreference === false || !service || !onLoadFoodTastingDraft) return
+    const isCombinedPackage = service?.categoryId === 'venues'
+      && service.packages?.some((item) => item.id === selectedPackageId && item.isVenueCatering)
+    if (isExploreMode || isCombinedPackage || initialFoodTastingPreference === false || !service || !onLoadFoodTastingDraft) return
     const serviceId = service.bookingServiceId ?? service.id
     const key = `${serviceId}:${service.packageId ?? ''}`
     if (!serviceId || loadedFoodTastingDraftKeyRef.current === key) return
@@ -310,11 +314,14 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     return () => {
       cancelled = true
     }
-  }, [initialFoodTastingPreference, isExploreMode, onLoadFoodTastingDraft, service])
+  }, [initialFoodTastingPreference, isExploreMode, onLoadFoodTastingDraft, selectedPackageId, service])
 
   React.useEffect(() => {
+    const isCombinedPackage = service?.categoryId === 'venues'
+      && service.packages?.some((item) => item.id === selectedPackageId && item.isVenueCatering)
     if (
       isExploreMode
+      || isCombinedPackage
       || foodTastingPreference !== true
       || !foodTastingDraftTouchedRef.current
       || !onSaveFoodTastingDraft
@@ -354,6 +361,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     foodTastingPreference,
     isExploreMode,
     onSaveFoodTastingDraft,
+    selectedPackageId,
     selectedTastingMenuItemIds,
     service,
   ])
@@ -485,18 +493,24 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   }
 
   const categoryFacts = summarizeCategoryDetails(service.categoryName, service.categoryDetails)
-  const isCatering = service.categoryId === 'catering'
   const isVenue = service.categoryId === 'venues'
+  const selectedPackage = service.packages?.find((item) => item.id === selectedPackageId)
+  const isVenueCateringPackage = Boolean(
+    isVenue && selectedPackage?.isVenueCatering && selectedPackage.cateringDetails && selectedPackage.cateringServiceId
+  )
+  const isCatering = service.categoryId === 'catering' || isVenueCateringPackage
+  const cateringConfigurationDetails = isVenueCateringPackage
+    ? selectedPackage?.cateringDetails
+    : service.categoryDetails
   const attendeeCount = isCatering
     ? cateringGuestCount
     : Math.max(0, Math.floor(eventGuestCount || 0))
-  const customCateringMenu = getCateringCustomMenu(service.categoryDetails)
-  const cateringOptions = getCateringPricingOptions(service.categoryDetails, service.providerMinPrice)
-  const selectedPackage = service.packages?.find((item) => item.id === selectedPackageId)
+  const customCateringMenu = getCateringCustomMenu(cateringConfigurationDetails)
+  const cateringOptions = getCateringPricingOptions(cateringConfigurationDetails, service.providerMinPrice)
   const usesSelectedProviderPackage = Boolean(selectedPackage)
   const hasCustomCateringMenu = isCatering && Boolean(customCateringMenu)
   const hasPresetCateringMenus = isCatering && cateringOptions.length > 0
-  const usesCustomCateringMenu = !usesSelectedProviderPackage && hasCustomCateringMenu
+  const usesCustomCateringMenu = (!usesSelectedProviderPackage || isVenueCateringPackage) && hasCustomCateringMenu
     && (!hasPresetCateringMenus || selectedCateringOffering === 'custom')
   const selectedCateringOption = cateringOptions.find((option) => option.id === selectedCateringOptionId)
   const customCateringCalculation = customCateringMenu
@@ -546,8 +560,8 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
           ? `This service supports up to ${cateringGuestMaximum} guests.`
           : cateringGuestCountMessage
   const budgetPerHead = activeCateringOption?.pricePerHead ?? 0
-  const providerCateringFormats = Array.isArray(service.categoryDetails?.cateringTypes)
-    ? service.categoryDetails.cateringTypes
+  const providerCateringFormats = Array.isArray(cateringConfigurationDetails?.cateringTypes)
+    ? cateringConfigurationDetails.cateringTypes
       .filter((format): format is string => typeof format === 'string' && format.trim().length > 0)
       .map((format) => format.trim())
     : []
@@ -556,8 +570,8 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   const cateringFormats = providerCateringFormats.length > 0
     ? Array.from(new Set(providerCateringFormats))
     : (service.cateringServiceTypes ?? []).map((format) => cateringFormatLabels[format])
-  const cateringTastingSettings = getCateringTastingSettings(service.categoryDetails)
-  const cateringTastingMenu = getCateringTastingMenu(service.categoryDetails)
+  const cateringTastingSettings = getCateringTastingSettings(cateringConfigurationDetails)
+  const cateringTastingMenu = getCateringTastingMenu(cateringConfigurationDetails)
   const foodTastingAvailable = Boolean(cateringTastingSettings && cateringTastingMenu)
   const foodTastingUnavailableReason = !cateringTastingSettings
     ? 'This caterer has not enabled food tasting appointments. You can still choose your menu directly.'
@@ -583,7 +597,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     && foodTastingPreference === true
     && Boolean(foodTastingSelectionIssue)
   const isFoodTastingFlow = isCatering && foodTastingPreference === true
-  const cateringSelectionUnavailable = isCatering && !usesSelectedProviderPackage && (
+  const cateringSelectionUnavailable = isCatering && (!usesSelectedProviderPackage || isVenueCateringPackage) && (
     !activeCateringOption || !activeCateringCalculation?.fitsGuestCount
   )
   const venueOptions = getVenueBookingOptions(service.categoryDetails)
@@ -785,8 +799,10 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
           estimatedTotal: 0,
           foodTastingMenuItemIds: selectedTastingMenuItemIds,
           foodTastingPreference: true,
+          combinedCateringServiceId: isVenueCateringPackage ? selectedPackage?.cateringServiceId : undefined,
           notes: '',
           service,
+          venueCateringPackageId: isVenueCateringPackage ? selectedPackage?.id : undefined,
         })
       } finally {
         setIsAddingSelection(false)
@@ -816,7 +832,8 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
           ? selectedPrice
           : budgetPerHead,
         cateringMenuItemIds: usesCustomCateringMenu ? selectedCateringMenuItemIds : undefined,
-        cateringOption: usesSelectedProviderPackage ? undefined : activeCateringOption,
+        cateringOption: usesSelectedProviderPackage && !isVenueCateringPackage ? undefined : activeCateringOption,
+        combinedCateringServiceId: isVenueCateringPackage ? selectedPackage?.cateringServiceId : undefined,
         estimatedTotal,
         foodTastingPreference: isCatering ? foodTastingPreference : undefined,
         // Catering formats are provider capabilities, not client booking choices.
@@ -824,6 +841,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
         // Client dietary and special requests belong in the dedicated
         // Instruction Module, reached after service selection.
         notes: '',
+        venueCateringPackageId: isVenueCateringPackage ? selectedPackage?.id : undefined,
         venueBookedHours: !usesSelectedProviderPackage && isVenue ? primaryVenueHours : undefined,
         venueOption: !usesSelectedProviderPackage && isVenue ? primaryVenueOption : undefined,
         venueSelections: !usesSelectedProviderPackage && isVenue ? selectedVenueSelections : undefined,
@@ -1152,6 +1170,14 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                       {item.description ? (
                         <Text style={styles.packageDescription}>{item.description}</Text>
                       ) : null}
+                      {item.isVenueCatering ? (
+                        <View style={styles.venueCateringPackageBadge}>
+                          <MaterialCommunityIcons color={palette.primary} name="silverware-fork-knife" size={16} />
+                          <Text style={styles.venueCateringPackageBadgeText}>
+                            Venue + Catering included · configure your menu below
+                          </Text>
+                        </View>
+                      ) : null}
                       {item.serviceNames.length ? (
                         <View style={styles.packageServices}>
                           <Text style={styles.packageServicesLabel}>SERVICES IN THIS PACKAGE</Text>
@@ -1420,7 +1446,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                     {foodTastingDraftMessage ? <Text style={styles.foodTastingDraftMessage}>{foodTastingDraftMessage}</Text> : null}
                   </>
                 ) : foodTastingPreference === false ? <>
-                {usesSelectedProviderPackage ? (
+                {usesSelectedProviderPackage && !isVenueCateringPackage ? (
                   <View style={styles.cateringSummaryCard}>
                     <Text style={styles.cateringOptionName}>{selectedPackage?.name}</Text>
                     <Text style={styles.cateringOptionRange}>
@@ -2235,6 +2261,8 @@ const styles = StyleSheet.create({
   packageName: { minWidth: 0, flex: 1, color: palette.text, fontSize: 18, lineHeight: 24, fontWeight: '700' },
   packagePrice: { color: palette.primary, fontSize: 15, lineHeight: 21, fontWeight: '700', textAlign: 'right' },
   packageDescription: { color: palette.secondary, fontSize: 14, lineHeight: 22, marginTop: 10 },
+  venueCateringPackageBadge: { alignItems: 'center', flexDirection: 'row', gap: 6, marginTop: 8 },
+  venueCateringPackageBadgeText: { color: palette.primary, fontSize: 12, fontWeight: '700' },
   packagePriceGroup: { alignItems: 'flex-end' },
   packageOriginalPrice: {
     color: palette.secondaryFixedDim,

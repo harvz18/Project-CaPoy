@@ -32,6 +32,11 @@ interface BookingDetailsScreenProps {
   onCancelBooking?: (reason: string) => Promise<BookingChangeActionResult>
   onChooseFinalCateringMenu?: (service: NonNullable<BookingItem['services']>[number]) => Promise<void> | void
   onConfirmFoodTastingAttendance?: (bookingId: string) => Promise<BookingChangeActionResult>
+  onRespondToFoodTastingFinalMenu?: (value: {
+    acceptMenu: boolean
+    bookingId: string
+    correctionNote?: string
+  }) => Promise<BookingChangeActionResult>
   onFindAlternativeServices?: (service: NonNullable<BookingItem['services']>[number]) => void
   onMessageCoordinatorForEvent?: (eventId: string) => void
   onMessageProviderForBooking?: (bookingId: string) => void
@@ -249,6 +254,7 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
   onCancelBooking,
   onChooseFinalCateringMenu,
   onConfirmFoodTastingAttendance,
+  onRespondToFoodTastingFinalMenu,
   onFindAlternativeServices,
   onMessageCoordinatorForEvent,
   onMessageProviderForBooking,
@@ -320,6 +326,11 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
   const [tastingError, setTastingError] = React.useState('')
   const [isLoadingTastingSlots, setIsLoadingTastingSlots] = React.useState(false)
   const [isSavingTasting, setIsSavingTasting] = React.useState(false)
+  const [finalMenuServiceId, setFinalMenuServiceId] = React.useState('')
+  const [finalMenuResponseMode, setFinalMenuResponseMode] = React.useState<'confirm' | 'correction'>()
+  const [finalMenuCorrectionNote, setFinalMenuCorrectionNote] = React.useState('')
+  const [finalMenuResponseError, setFinalMenuResponseError] = React.useState('')
+  const [isSavingFinalMenuResponse, setIsSavingFinalMenuResponse] = React.useState(false)
   const [dismissedTastingPrompts, setDismissedTastingPrompts] = React.useState<Set<string>>(new Set())
   const [churchResponseMode, setChurchResponseMode] = React.useState<'approve' | 'decline'>()
   const [churchDeclineReason, setChurchDeclineReason] = React.useState('')
@@ -382,6 +393,10 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
     setTastingScheduleMode('initial')
     setTastingUsesV15(false)
     setTastingError('')
+    setFinalMenuServiceId('')
+    setFinalMenuResponseMode(undefined)
+    setFinalMenuCorrectionNote('')
+    setFinalMenuResponseError('')
     setDismissedTastingPrompts(new Set())
     setChurchResponseMode(undefined)
     setChurchDeclineReason('')
@@ -458,6 +473,42 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
     setTastingError('')
     setTastingUsesV15(false)
     setTastingScheduleMode('initial')
+  }
+
+  const openFinalMenuResponse = (bookingId: string, mode: 'confirm' | 'correction') => {
+    setFinalMenuServiceId(bookingId)
+    setFinalMenuResponseMode(mode)
+    setFinalMenuCorrectionNote('')
+    setFinalMenuResponseError('')
+  }
+
+  const closeFinalMenuResponse = () => {
+    if (isSavingFinalMenuResponse) return
+    setFinalMenuServiceId('')
+    setFinalMenuResponseMode(undefined)
+    setFinalMenuResponseError('')
+  }
+
+  const submitFinalMenuResponse = async () => {
+    if (!finalMenuServiceId || !finalMenuResponseMode || !onRespondToFoodTastingFinalMenu || isSavingFinalMenuResponse) return
+    const acceptMenu = finalMenuResponseMode === 'confirm'
+    if (!acceptMenu && !finalMenuCorrectionNote.trim()) {
+      setFinalMenuResponseError('Please describe the correction you need.')
+      return
+    }
+    setIsSavingFinalMenuResponse(true)
+    setFinalMenuResponseError('')
+    const result = await onRespondToFoodTastingFinalMenu({
+      acceptMenu,
+      bookingId: finalMenuServiceId,
+      correctionNote: acceptMenu ? undefined : finalMenuCorrectionNote,
+    })
+    setIsSavingFinalMenuResponse(false)
+    if (!result.ok) {
+      setFinalMenuResponseError(result.message ?? 'Unable to update the final menu.')
+      return
+    }
+    closeFinalMenuResponse()
   }
 
   const openTastingSchedule = async (
@@ -901,6 +952,11 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                   <Text style={styles.serviceMeta}>
                     {service.category} · {formatPeso(service.amount)}
                   </Text>
+                  {service.isVenueCateringPackage ? (
+                    <Text style={styles.combinedPackageMeta}>
+                      Venue + Catering package · Catering is included in this one booking.
+                    </Text>
+                  ) : null}
                   {service.venueBooking ? (
                     <VenueBookingSummary audience="client" configuration={service.venueBooking} />
                   ) : null}
@@ -971,7 +1027,7 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                       </View>
                     </View>
                   ) : null}
-                  {(service.foodTasting || service.foodTastingWorkflow || (
+                  {(service.finalCateringMenu || service.foodTasting || service.foodTastingWorkflow || (
                     service.foodTastingEnabled
                     && service.status === 'confirmed'
                     && !dismissedTastingPrompts.has(service.bookingId)
@@ -994,7 +1050,15 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                                 ? 'Food Tasting Request'
                                 : service.foodTastingWorkflow?.status === 'scheduling_required'
                                   ? 'Food Tasting Schedule Required'
-                                  : 'Catering Booking Confirmed'}
+                                  : service.foodTastingWorkflow?.status === 'client_confirmation_required'
+                                    ? 'Final Menu Ready for Review'
+                                    : service.foodTastingWorkflow?.status === 'final_menu_pending'
+                                      ? 'Awaiting Final Menu'
+                                      : service.foodTastingWorkflow?.status === 'finalized'
+                                        ? 'Final Menu Confirmed'
+                                  : service.isVenueCateringPackage
+                                    ? 'Venue + Catering Package'
+                                    : 'Catering Booking Confirmed'}
                           </Text>
                           <Text style={styles.tastingText}>
                             {service.foodTastingWorkflow?.status === 'cancelled'
@@ -1006,10 +1070,71 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                                 ? 'Your preliminary tasting menu was sent to the caterer. Waiting for their acceptance.'
                                 : service.foodTastingWorkflow?.status === 'scheduling_required'
                                   ? `Your request was accepted. Choose a schedule by ${formatTastingDate(service.foodTastingWorkflow.schedulingWindowEndDate ?? '')}.`
-                              : 'Your catering provider has accepted your booking. Food tasting is optional.'}
+                                  : service.foodTastingWorkflow?.status === 'client_confirmation_required'
+                                    ? 'Your caterer submitted the agreed final menu. Review it before payment can continue.'
+                                    : service.foodTastingWorkflow?.status === 'final_menu_pending'
+                                      ? 'Your caterer is preparing an updated final menu.'
+                                      : service.foodTastingWorkflow?.status === 'finalized'
+                                        ? 'Your final catering menu is confirmed. Payment will unlock after all event requirements are met.'
+                              : service.isVenueCateringPackage
+                                ? 'Your venue package includes catering. Its menu and food tasting progress are shown here without a separate catering booking.'
+                                : 'Your catering provider has accepted your booking. Food tasting is optional.'}
                           </Text>
                         </View>
                       </View>
+                      {service.foodTastingWorkflow?.finalMenu?.length ? (
+                        <View style={styles.tastingMenuConfirmation}>
+                          <Text style={styles.tastingSelectionTitle}>Final menu proposed by your caterer</Text>
+                          {service.foodTastingWorkflow.finalMenu.map((course) => (
+                            <Text key={course.name} style={styles.tastingSelectionText}>
+                              {course.name}: {course.selectedItemNames.join(', ')}
+                            </Text>
+                          ))}
+                          {service.foodTastingWorkflow.finalMenuCustomerAmount != null ? (
+                            <Text style={styles.tastingSelectionText}>
+                              Final catering total: {new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', maximumFractionDigits: 0 }).format(service.foodTastingWorkflow.finalMenuCustomerAmount)}
+                            </Text>
+                          ) : null}
+                          {service.foodTastingWorkflow.status === 'client_confirmation_required' ? (
+                            <View style={styles.tastingActions}>
+                              <Pressable
+                                accessibilityLabel="Request final catering menu correction"
+                                disabled={!onRespondToFoodTastingFinalMenu}
+                                onPress={() => openFinalMenuResponse(service.bookingId, 'correction')}
+                                style={({ pressed }) => [styles.tastingSecondaryButton, pressed && styles.pressed]}
+                              >
+                                <Text style={styles.tastingSecondaryText}>Request Correction</Text>
+                              </Pressable>
+                              <Pressable
+                                accessibilityLabel="Confirm final catering menu"
+                                disabled={!onRespondToFoodTastingFinalMenu}
+                                onPress={() => openFinalMenuResponse(service.bookingId, 'confirm')}
+                                style={({ pressed }) => [styles.tastingPrimaryButton, pressed && styles.pressed]}
+                              >
+                                <Text style={styles.tastingPrimaryText}>Confirm Final Menu</Text>
+                              </Pressable>
+                            </View>
+                          ) : service.foodTastingWorkflow.status === 'finalized' ? (
+                            <Text style={styles.tastingText}>You confirmed this final menu.</Text>
+                          ) : null}
+                        </View>
+                      ) : null}
+                      {service.finalCateringMenu?.courses.length && !service.foodTastingWorkflow?.finalMenu?.length ? (
+                        <View style={styles.tastingMenuConfirmation}>
+                          <Text style={styles.tastingSelectionTitle}>
+                            {service.finalCateringMenu.source === 'food_tasting'
+                              ? 'Confirmed final catering menu'
+                              : service.finalCateringMenu.source === 'venue_catering_package'
+                                ? 'Venue + Catering package menu'
+                              : 'Selected catering menu'}
+                          </Text>
+                          {service.finalCateringMenu.courses.map((course) => (
+                            <Text key={course.name} style={styles.tastingSelectionText}>
+                              {course.name}: {course.selectedItemNames.join(', ')}
+                            </Text>
+                          ))}
+                        </View>
+                      ) : null}
                       {service.foodTasting ? (
                         <>
                           <Text style={styles.tastingLocation}>
@@ -1326,6 +1451,55 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
           ) : null}
         </View>
       </ScrollView>
+
+      <Modal
+        animationType="fade"
+        onRequestClose={closeFinalMenuResponse}
+        transparent
+        visible={Boolean(finalMenuResponseMode)}
+      >
+        <View style={styles.changeBackdrop}>
+          <View accessibilityViewIsModal style={styles.changeCard}>
+            <View style={styles.changeHeader}>
+              <View style={styles.changeHeaderCopy}>
+                <Text style={styles.changeTitle}>
+                  {finalMenuResponseMode === 'confirm' ? 'Confirm Final Menu?' : 'Request Menu Correction'}
+                </Text>
+                <Text style={styles.changeSubtitle}>
+                  {finalMenuResponseMode === 'confirm'
+                    ? 'This confirms the agreed catering menu and allows payment eligibility to be checked again.'
+                    : 'Tell your caterer what differs from the menu you agreed after tasting.'}
+                </Text>
+              </View>
+            </View>
+            {finalMenuResponseMode === 'correction' ? (
+              <TextInput
+                accessibilityLabel="Final menu correction request"
+                editable={!isSavingFinalMenuResponse}
+                maxLength={600}
+                multiline
+                onChangeText={setFinalMenuCorrectionNote}
+                placeholder="Describe the needed correction"
+                placeholderTextColor="#9A9291"
+                style={[styles.changeInput, styles.reasonInput]}
+                textAlignVertical="top"
+                value={finalMenuCorrectionNote}
+              />
+            ) : null}
+            {finalMenuResponseError ? <Text style={styles.changeError}>{finalMenuResponseError}</Text> : null}
+            <View style={styles.changeActions}>
+              <Pressable disabled={isSavingFinalMenuResponse} onPress={closeFinalMenuResponse} style={({ pressed }) => [styles.changeBackButton, pressed && styles.pressed]}>
+                <Text style={styles.changeBackText}>Cancel</Text>
+              </Pressable>
+              <Pressable disabled={isSavingFinalMenuResponse || !onRespondToFoodTastingFinalMenu} onPress={() => void submitFinalMenuResponse()} style={({ pressed }) => [styles.changeSubmit, pressed && styles.pressed, isSavingFinalMenuResponse && styles.paymentActionButtonDisabled]}>
+                <Text style={styles.paymentActionButtonText}>
+                  {isSavingFinalMenuResponse ? 'Saving...' : finalMenuResponseMode === 'confirm' ? 'Confirm Menu' : 'Send Request'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         animationType="fade"
@@ -2011,6 +2185,7 @@ const styles = StyleSheet.create({
   },
   serviceMessageButtonPressed: { opacity: 0.82, transform: [{ scale: 0.96 }] },
   serviceMeta: { color: palette.burgundy, fontSize: 13, lineHeight: 19, fontWeight: '600', marginTop: 3 },
+  combinedPackageMeta: { color: palette.muted, fontSize: 12, lineHeight: 17, fontWeight: '600', marginTop: 3 },
   servicePaymentSummary: { gap: 5, borderTopWidth: 1, borderTopColor: palette.border, marginTop: 10, paddingTop: 9 },
   servicePaymentRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
   servicePaymentLabel: { flex: 1, color: palette.muted, fontSize: 9, lineHeight: 13, fontWeight: '700', letterSpacing: 0.25 },

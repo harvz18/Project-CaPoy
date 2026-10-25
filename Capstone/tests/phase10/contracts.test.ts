@@ -3206,3 +3206,95 @@ test('V15 Phase 4 enforces attendance, one reschedule, and an explicit direct-me
     'requestForService(request, service)',
   ], 'V15 Phase 4 provider follow-up through existing messaging')
 })
+
+test('V15 Phase 6 keeps direct and tasting final menus in one booking-safe structure', () => {
+  const migration = read('supabase/migrations/20261026000200_v15_direct_menu_integration.sql')
+  const clientBookings = read('src/lib/merchant.ts')
+  const bookingDetails = read('src/screens/11.1-BookingDetails.tsx')
+
+  mustContain(migration, [
+    'final_menu_snapshot',
+    'v15_direct_catering_final_menu_snapshot',
+    "'source', 'direct_selection'",
+    "'source', 'food_tasting'",
+    'sync_v15_direct_catering_final_menu_snapshot',
+    'sync_v15_confirmed_tasting_final_menu_snapshot',
+    'does not alter\n-- payments, provider acceptance, historical booking values, or payout logic',
+  ], 'V15 Phase 6 canonical final-menu snapshots')
+  mustContain(clientBookings, [
+    'final_menu_snapshot',
+    'const finalCateringMenu = finalCateringMenuFrom(record.final_menu_snapshot)',
+    'finalCateringMenu,',
+  ], 'V15 Phase 6 booking projection')
+  mustContain(bookingDetails, [
+    'Selected catering menu',
+    'Final Menu Ready for Review',
+    'Final Menu Confirmed',
+  ], 'V15 Phase 6 client booking visibility and progress states')
+})
+
+test('V15 Phase 7 keeps Venue + Catering packages inclusive and single-booking', () => {
+  const packageMigration = read('supabase/migrations/20261026000300_v15_venue_catering_packages.sql')
+  const selectionMigration = read('supabase/migrations/20261026000400_v15_venue_catering_selection.sql')
+  const planning = read('src/lib/planning.ts')
+  const serviceDetails = read('src/screens/08-ServiceDetails.tsx')
+
+  mustContain(packageMigration, [
+    'venue_catering_package_details',
+    'provider_save_v15_venue_catering_package',
+    "'inclusive_fixed'",
+    'one booking and one payable obligation',
+  ], 'V15 Phase 7 provider package ownership and inclusive price policy')
+  mustContain(selectionMigration, [
+    'save_my_v15_venue_catering_package_selection',
+    'submit_my_v15_venue_catering_food_tasting_request',
+    'one venue-hosted selection and one provider request',
+    'sync_v15_combined_package_final_menu_price',
+  ], 'V15 Phase 7 single booking and fixed package price enforcement')
+  mustContain(planning, [
+    "'save_my_v15_venue_catering_package_selection'",
+    "'submit_my_v15_venue_catering_food_tasting_request'",
+  ], 'V15 Phase 7 client selection routing')
+  mustContain(serviceDetails, [
+    'Venue + Catering included',
+    'isVenueCateringPackage',
+    'combinedCateringServiceId',
+  ], 'V15 Phase 7 venue-screen embedded catering configuration')
+})
+
+test('V15 Phase 8 makes inclusive catering visible without creating a standalone booking', () => {
+  const app = read('src/App.tsx')
+  const planning = read('src/lib/planning.ts')
+  const marketplace = read('src/screens/06-CategoryBrowse.tsx')
+  const bookings = read('src/screens/11.1-BookingDetails.tsx')
+  const bookingProjection = read('src/lib/merchant.ts')
+
+  mustContain(planning, [
+    'package_snapshot',
+    'includesCatering',
+    'packageSnapshot.venueCateringPackage === true',
+  ], 'V15 Phase 8 package-awareness projection')
+  mustContain(app, [
+    'venueCateringPackageSelection',
+    "ids.add('catering')",
+    'venueCateringPackageAllocatedBudget',
+    'includesCatering: Boolean(value.venueCateringPackageId)',
+  ], 'V15 Phase 8 progress and budget accounting')
+  mustContain(marketplace, [
+    'Catering Already Included',
+    'CONTINUE BROWSING',
+    'REVIEW VENUE PACKAGE',
+    'Included in Venue Package',
+    'counted once:',
+    'Over by',
+    'if (isExploreMode || !cateringIncludedInVenuePackage || !isCateringCategory)',
+  ], 'V15 Phase 8 marketplace warning and one-time total')
+  mustContain(bookingProjection, [
+    "source === 'venue_catering_package'",
+    'isVenueCateringPackage',
+  ], 'V15 Phase 8 combined booking projection')
+  mustContain(bookings, [
+    'Venue + Catering package · Catering is included in this one booking.',
+    'Venue + Catering package menu',
+  ], 'V15 Phase 8 combined booking progress')
+})

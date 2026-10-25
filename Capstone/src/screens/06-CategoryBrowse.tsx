@@ -52,6 +52,12 @@ interface CategoryBrowseScreenProps {
   categoryBudget?: number
   categoryBudgetLocked?: boolean
   categoryBudgetMaximum?: number
+  cateringIncludedInVenuePackage?: boolean
+  venueCateringPackage?: {
+    allocatedBudget: number
+    name: string
+    price: number
+  }
   totalEstimatedCost?: number
   removingServiceId?: string
   remainingBudget?: number
@@ -87,6 +93,7 @@ interface CategoryBrowseScreenProps {
   onConfirmReplacement?: (vendorId: string) => boolean | Promise<boolean>
   onSelectFilter?: (filter: CategoryBrowseFilter) => void
   onSelectCategory?: (category: ServiceCategoryOption) => void
+  onReviewVenuePackage?: () => void
   onSelectTab?: (tab: CategoryBrowseTab) => void
   onSelectVendor?: (vendor: CategoryBrowseVendor) => void
   onScrollDirectionChange?: (direction: 'down' | 'up') => void
@@ -420,6 +427,8 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   categoryBudget = 0,
   categoryBudgetLocked = false,
   categoryBudgetMaximum = budget,
+  cateringIncludedInVenuePackage = false,
+  venueCateringPackage,
   totalEstimatedCost = 0,
   removingServiceId = '',
   remainingBudget = 45000,
@@ -446,6 +455,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   onConfirmReplacement,
   onSelectFilter,
   onSelectCategory,
+  onReviewVenuePackage,
   onSelectTab,
   onSelectVendor,
   onScrollDirectionChange,
@@ -469,6 +479,8 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   const [isSortOpen, setIsSortOpen] = React.useState(false)
   const [selectedExploreCategory, setSelectedExploreCategory] = React.useState('All')
   const [pendingReplacement, setPendingReplacement] = React.useState<CatalogService>()
+  const [cateringWarningAction, setCateringWarningAction] = React.useState<(() => void)>()
+  const cateringWarningShownForCategoryRef = React.useRef(false)
   const [isReplacing, setIsReplacing] = React.useState(false)
   const lastScrollY = React.useRef(0)
   const [isSelectedServicesOpen, setIsSelectedServicesOpen] = React.useState(false)
@@ -496,7 +508,30 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     if (assignedCoordinator) categoryIds.add('eventOrganizers')
     return categoryIds
   }, [assignedCoordinator, selectedServices])
+  const requestCateringBrowse = React.useCallback((isCatering: boolean, action: () => void) => {
+    if (!isCatering || !cateringIncludedInVenuePackage) {
+      action()
+      return
+    }
+    cateringWarningShownForCategoryRef.current = true
+    setCateringWarningAction(() => action)
+  }, [cateringIncludedInVenuePackage])
   React.useEffect(() => setSelectedFilters(new Set()), [categoryName])
+  React.useEffect(() => {
+    const isCateringCategory = categoryNameToId(categoryName) === 'catering'
+    // Explore opens on "All Services" while App retains the last planning
+    // category. Only a direct entry into the planning Catering category should
+    // open the notice automatically; Explore still warns on an actual catering
+    // category or provider tap through requestCateringBrowse.
+    if (isExploreMode || !cateringIncludedInVenuePackage || !isCateringCategory) {
+      cateringWarningShownForCategoryRef.current = false
+      return
+    }
+    if (cateringWarningShownForCategoryRef.current) return
+
+    cateringWarningShownForCategoryRef.current = true
+    setCateringWarningAction(() => () => undefined)
+  }, [cateringIncludedInVenuePackage, categoryName, isExploreMode])
 
   const categoryFilters = React.useMemo(() => {
     const options: Array<{ id: string; label: string }> = [
@@ -989,6 +1024,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
               const categoryId = marketplaceCategoryId(option)
               const isCompleted = categoryId !== 'all'
                 && activeSelectedCategoryIds.has(categoryId as CatalogCategoryId)
+              const isIncludedInVenuePackage = categoryId === 'catering' && cateringIncludedInVenuePackage
               const serviceCount = marketplaceCategoryCounts.get(categoryId) ?? 0
 
               return (
@@ -996,10 +1032,12 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                   key={option.id}
                   accessibilityLabel={isCompleted
                     ? `Show ${option.name} services. A service is selected for this category.`
+                    : isIncludedInVenuePackage
+                      ? `Show ${option.name} services. Included in Venue Package; no standalone caterer is selected.`
                     : `Show ${option.name} services. ${serviceCount} eligible services.`}
                   accessibilityRole="button"
                   accessibilityState={{ selected: isSelected }}
-                  onPress={() => setSelectedExploreCategory(option.name)}
+                  onPress={() => requestCateringBrowse(categoryId === 'catering', () => setSelectedExploreCategory(option.name))}
                   style={({ pressed }) => [
                     styles.categoryTag,
                     isSelected && styles.categoryTagSelected,
@@ -1013,15 +1051,22 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                         name="check"
                         size={15}
                       />
+                    ) : isIncludedInVenuePackage ? (
+                      <MaterialCommunityIcons
+                        color={isSelected ? palette.onPrimary : palette.primaryContainer}
+                        name="package-variant-closed"
+                        size={14}
+                      />
                     ) : (
                       <Text style={[styles.categoryTagCount, isSelected && styles.categoryTagCountSelected]}>
                         {serviceCount}
                       </Text>
                     )}
                   </View>
-                  <Text numberOfLines={1} style={[styles.categoryTagLabel, isSelected && styles.categoryTagLabelSelected]}>
-                    {option.name}
-                  </Text>
+                  <View>
+                    <Text numberOfLines={1} style={[styles.categoryTagLabel, isSelected && styles.categoryTagLabelSelected]}>{option.name}</Text>
+                    {isIncludedInVenuePackage ? <Text style={[styles.categoryTagIncluded, isSelected && styles.categoryTagIncludedSelected]}>Included in Venue Package</Text> : null}
+                  </View>
                 </Pressable>
               )
             })}
@@ -1037,6 +1082,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
               const categoryId = marketplaceCategoryId(option)
               const isSelected = categoryId === categoryNameToId(categoryName)
               const isCompleted = activeSelectedCategoryIds.has(categoryId as CatalogCategoryId)
+              const isIncludedInVenuePackage = categoryId === 'catering' && cateringIncludedInVenuePackage
               const serviceCount = marketplaceCategoryCounts.get(categoryId) ?? 0
 
               return (
@@ -1044,10 +1090,12 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                   key={option.id}
                   accessibilityLabel={isCompleted
                     ? `Browse ${option.name}. A service is selected for this category.`
+                    : isIncludedInVenuePackage
+                      ? `Browse ${option.name}. Included in Venue Package; no standalone caterer is selected.`
                     : `Browse ${option.name}. ${serviceCount} eligible services.`}
                   accessibilityRole="button"
                   accessibilityState={{ selected: isSelected }}
-                  onPress={() => onSelectCategory?.(option)}
+                  onPress={() => requestCateringBrowse(categoryId === 'catering', () => onSelectCategory?.(option))}
                   style={({ pressed }) => [
                     styles.categoryTag,
                     isSelected && styles.categoryTagSelected,
@@ -1061,15 +1109,22 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                         name="check"
                         size={15}
                       />
+                    ) : isIncludedInVenuePackage ? (
+                      <MaterialCommunityIcons
+                        color={isSelected ? palette.onPrimary : palette.primaryContainer}
+                        name="package-variant-closed"
+                        size={14}
+                      />
                     ) : (
                       <Text style={[styles.categoryTagCount, isSelected && styles.categoryTagCountSelected]}>
                         {serviceCount}
                       </Text>
                     )}
                   </View>
-                  <Text numberOfLines={1} style={[styles.categoryTagLabel, isSelected && styles.categoryTagLabelSelected]}>
-                    {option.name}
-                  </Text>
+                  <View>
+                    <Text numberOfLines={1} style={[styles.categoryTagLabel, isSelected && styles.categoryTagLabelSelected]}>{option.name}</Text>
+                    {isIncludedInVenuePackage ? <Text style={[styles.categoryTagIncluded, isSelected && styles.categoryTagIncludedSelected]}>Included in Venue Package</Text> : null}
+                  </View>
                 </Pressable>
               )
             })}
@@ -1156,7 +1211,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
               accessibilityRole="button"
               accessibilityState={{ disabled: isScheduleUnavailable(vendor) }}
               disabled={isScheduleUnavailable(vendor)}
-              onPress={() => onSelectVendor?.(vendor.id)}
+              onPress={() => requestCateringBrowse(vendor.categoryId === 'catering', () => onSelectVendor?.(vendor.id))}
               style={({ pressed }) => [
                 styles.vendorCard,
                 useHorizontalCards && styles.vendorCardHorizontal,
@@ -1568,6 +1623,24 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                     <Text style={styles.reviewActualCostText}>Pay actual service costs</Text>
                   </View>
                 )}
+                {venueCateringPackage ? (() => {
+                  const overage = Math.max(0, venueCateringPackage.price - venueCateringPackage.allocatedBudget)
+                  return (
+                    <View style={styles.combinedPackageBudgetNotice}>
+                      <Text style={styles.combinedPackageBudgetTitle}>VENUE + CATERING PACKAGE</Text>
+                      <Text style={styles.combinedPackageBudgetText}>
+                        {venueCateringPackage.name} is counted once: {formatCurrency(venueCateringPackage.price)}.
+                      </Text>
+                      {venueCateringPackage.allocatedBudget > 0 ? (
+                        <Text style={overage > 0 ? styles.combinedPackageBudgetOverage : styles.combinedPackageBudgetText}>
+                          Venue + Catering allocations: {formatCurrency(venueCateringPackage.allocatedBudget)}{overage > 0 ? ` · Over by ${formatCurrency(overage)}` : ' · Within those allocations'}
+                        </Text>
+                      ) : (
+                        <Text style={styles.combinedPackageBudgetText}>Your Venue and Catering allocations remain separate and unchanged.</Text>
+                      )}
+                    </View>
+                  )
+                })() : null}
               </View>
 
               {assignedCoordinator ? (
@@ -1719,6 +1792,50 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
               <MaterialIcons color={palette.onPrimary} name="arrow-forward" size={18} />
             </Pressable>
           </Animated.View>
+        </View>
+      </Modal>
+
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setCateringWarningAction(undefined)}
+        transparent
+        visible={Boolean(cateringWarningAction)}
+      >
+        <View style={styles.confirmationOverlay}>
+          <View accessibilityViewIsModal style={styles.confirmationCard}>
+            <View style={styles.confirmationIcon}>
+              <MaterialCommunityIcons color={palette.primaryContainer} name="silverware-fork-knife" size={25} />
+            </View>
+            <Text style={styles.confirmationTitle}>Catering Already Included</Text>
+            <Text style={styles.confirmationCopy}>
+              Your selected venue package already includes catering. You can still book another catering service, but this will be an additional booking and may increase your total event cost.
+            </Text>
+            <View style={styles.confirmationActions}>
+              <Pressable
+                accessibilityLabel="Review Venue Package"
+                accessibilityRole="button"
+                onPress={() => {
+                  setCateringWarningAction(undefined)
+                  onReviewVenuePackage?.()
+                }}
+                style={({ pressed }) => [styles.confirmationCancel, pressed && styles.pressed]}
+              >
+                <Text style={styles.confirmationCancelText}>REVIEW VENUE PACKAGE</Text>
+              </Pressable>
+              <Pressable
+                accessibilityLabel="Continue Browsing catering services"
+                accessibilityRole="button"
+                onPress={() => {
+                  const action = cateringWarningAction
+                  setCateringWarningAction(undefined)
+                  action?.()
+                }}
+                style={({ pressed }) => [styles.confirmationConfirm, pressed && styles.pressed]}
+              >
+                <Text style={styles.confirmationConfirmText}>CONTINUE BROWSING</Text>
+              </Pressable>
+            </View>
+          </View>
         </View>
       </Modal>
 
@@ -2063,6 +2180,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
+  combinedPackageBudgetNotice: {
+    gap: 4,
+    borderTopWidth: 1,
+    borderTopColor: palette.outlineVariant,
+    marginTop: 12,
+    paddingTop: 12,
+  },
+  combinedPackageBudgetTitle: { color: palette.primaryContainer, fontSize: 10, lineHeight: 14, fontWeight: '800', letterSpacing: 1 },
+  combinedPackageBudgetText: { color: palette.secondary, fontSize: 12, lineHeight: 17 },
+  combinedPackageBudgetOverage: { color: palette.error, fontSize: 12, lineHeight: 17, fontWeight: '800' },
   reviewCoordinatorCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2551,6 +2678,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
   categoryTagLabelSelected: { color: palette.onPrimary },
+  categoryTagIncluded: { color: palette.primaryContainer, fontSize: 9, lineHeight: 12, fontWeight: '800' },
+  categoryTagIncludedSelected: { color: palette.onPrimary },
   filterLabel: {
     color: palette.secondary,
     fontSize: 12,

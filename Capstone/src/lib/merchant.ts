@@ -92,7 +92,9 @@ export type CateringFoodTastingAttendanceStatus =
 
 export interface CateringFoodTastingWorkflowCourse {
   finalSelectionLimit: number
+  itemIds: string[]
   name: string
+  selectedItems: Array<{ id: string; name: string; pricePerHead: number }>
   tastingSelectionLimit: number
   selectedItemNames: string[]
 }
@@ -105,6 +107,14 @@ export interface CateringFoodTastingWorkflow {
   expiredAt?: string
   fallbackActivatedAt?: string
   fallbackEnabledAt?: string
+  finalMenu?: CateringFoodTastingWorkflowCourse[]
+  finalMenuClientConfirmedAt?: string
+  finalMenuCorrectionNote?: string
+  finalMenuCustomerAmount?: number
+  finalMenuProviderAmount?: number
+  finalMenuProviderUnitPrice?: number
+  finalMenuRevision?: number
+  finalMenuSubmittedAt?: string
   guestCount: number
   preliminaryMenu: CateringFoodTastingWorkflowCourse[]
   providerAcceptedAt?: string
@@ -631,6 +641,34 @@ const saveComposedPackageWithContext = async (
   return { id: typeof data === 'string' ? data : undefined, ok: true }
 }
 
+const venueCateringServicesFrom = (value: ServicePackageValue) => {
+  const services = value.services ?? []
+  const venue = services.find((service) => /venue|estate/i.test(service.categoryName ?? ''))
+  const catering = services.find((service) => /cater/i.test(service.categoryName ?? ''))
+  return venue && catering && services.length === 2 ? { catering, venue } : undefined
+}
+
+const saveVenueCateringPackageWithContext = async (
+  context: NonNullable<Awaited<ReturnType<typeof getMerchantContext>>>,
+  value: ServicePackageValue,
+  components: NonNullable<ReturnType<typeof venueCateringServicesFrom>>
+): Promise<{ id?: string; message?: string; ok: boolean }> => {
+  const { data, error } = await context.client.rpc('provider_save_v15_venue_catering_package', {
+    package_description: value.description || null,
+    package_discount_type: value.discountType ?? 'none',
+    package_discount_value: value.discountValue ?? 0,
+    package_inclusions: value.inclusions,
+    package_name: value.name,
+    target_catering_service_id: components.catering.id,
+    target_package_id: isUuid(value.id) ? value.id : null,
+    target_venue_option_id: null,
+    target_venue_service_id: components.venue.id,
+  })
+  return error
+    ? { ok: false, message: error.message }
+    : { id: typeof data === 'string' ? data : undefined, ok: true }
+}
+
 export const saveMerchantComposedPackage = async (
   value: ServicePackageValue
 ): Promise<MerchantResult> => {
@@ -638,11 +676,16 @@ export const saveMerchantComposedPackage = async (
     const context = await getMerchantContext()
     if (!context) return { ok: false, message: notReady }
 
-    const result = await saveComposedPackageWithContext(context, value, value.serviceIds ?? [])
+    const venueCatering = venueCateringServicesFrom(value)
+    const result = venueCatering
+      ? await saveVenueCateringPackageWithContext(context, value, venueCatering)
+      : await saveComposedPackageWithContext(context, value, value.serviceIds ?? [])
     return {
       ok: result.ok,
       message: result.ok
-        ? 'Package submitted for review.'
+        ? venueCatering
+          ? 'Venue + Catering package submitted for review.'
+          : 'Package submitted for review.'
         : result.message,
     }
   } catch (error) {
@@ -960,6 +1003,35 @@ const foodTastingAttendanceStatusFrom = (value: unknown): CateringFoodTastingAtt
   }
 }
 
+const foodTastingWorkflowCoursesFrom = (value: unknown): CateringFoodTastingWorkflowCourse[] => {
+  const menu = value && typeof value === 'object' ? value as Record<string, unknown> : {}
+  return Array.isArray(menu.courses)
+    ? menu.courses.flatMap((course) => {
+      if (!course || typeof course !== 'object') return []
+      const courseRecord = course as Record<string, unknown>
+      const name = textFrom(courseRecord.courseName)
+      if (!name) return []
+      const selectedItems = Array.isArray(courseRecord.selectedItems)
+        ? courseRecord.selectedItems.flatMap((item) => {
+          if (!item || typeof item !== 'object') return []
+          const record = item as Record<string, unknown>
+          const id = textFrom(record.id)
+          const itemName = textFrom(record.name)
+          return id && itemName ? [{ id, name: itemName, pricePerHead: numberFrom(record.pricePerHead) }] : []
+        })
+        : []
+      return [{
+        finalSelectionLimit: numberFrom(courseRecord.finalSelectionLimit),
+        itemIds: selectedItems.map((item) => item.id),
+        name,
+        selectedItems,
+        tastingSelectionLimit: numberFrom(courseRecord.tastingSelectionLimit),
+        selectedItemNames: selectedItems.map((item) => item.name),
+      }]
+    })
+    : []
+}
+
 const mapFoodTastingWorkflowsByBooking = (rows: unknown): Map<string, CateringFoodTastingWorkflow> => {
   const result = new Map<string, CateringFoodTastingWorkflow>()
   if (!Array.isArray(rows)) return result
@@ -968,28 +1040,6 @@ const mapFoodTastingWorkflowsByBooking = (rows: unknown): Map<string, CateringFo
     const record = row as Record<string, unknown>
     const bookingId = textFrom(record.booking_id)
     if (!bookingId || result.has(bookingId)) return
-    const preliminaryMenu = record.preliminary_menu && typeof record.preliminary_menu === 'object'
-      ? record.preliminary_menu as Record<string, unknown>
-      : {}
-    const courses = Array.isArray(preliminaryMenu.courses)
-      ? preliminaryMenu.courses.flatMap((course) => {
-        if (!course || typeof course !== 'object') return []
-        const courseRecord = course as Record<string, unknown>
-        const name = textFrom(courseRecord.courseName)
-        if (!name) return []
-        const selectedItemNames = Array.isArray(courseRecord.selectedItems)
-          ? courseRecord.selectedItems.flatMap((item) => item && typeof item === 'object'
-            ? [textFrom((item as Record<string, unknown>).name)].filter(Boolean)
-            : [])
-          : []
-        return [{
-          finalSelectionLimit: numberFrom(courseRecord.finalSelectionLimit),
-          name,
-          tastingSelectionLimit: numberFrom(courseRecord.tastingSelectionLimit),
-          selectedItemNames,
-        }]
-      })
-      : []
     result.set(bookingId, {
       attendanceConfirmedAt: textFrom(record.attendance_confirmed_at) || undefined,
       attendanceReminderSentAt: textFrom(record.attendance_reminder_sent_at) || undefined,
@@ -998,8 +1048,16 @@ const mapFoodTastingWorkflowsByBooking = (rows: unknown): Map<string, CateringFo
       expiredAt: textFrom(record.expired_at) || undefined,
       fallbackActivatedAt: textFrom(record.fallback_activated_at) || undefined,
       fallbackEnabledAt: textFrom(record.fallback_enabled_at) || undefined,
+      finalMenu: foodTastingWorkflowCoursesFrom(record.final_menu),
+      finalMenuClientConfirmedAt: textFrom(record.final_menu_client_confirmed_at) || undefined,
+      finalMenuCorrectionNote: textFrom(record.final_menu_correction_note) || undefined,
+      finalMenuCustomerAmount: optionalNumber(record.final_menu_customer_amount),
+      finalMenuProviderAmount: optionalNumber(record.final_menu_provider_amount),
+      finalMenuProviderUnitPrice: optionalNumber(record.final_menu_provider_unit_price),
+      finalMenuRevision: optionalNumber(record.final_menu_revision),
+      finalMenuSubmittedAt: textFrom(record.final_menu_submitted_at) || undefined,
       guestCount: numberFrom(record.guest_count),
-      preliminaryMenu: courses,
+      preliminaryMenu: foodTastingWorkflowCoursesFrom(record.preliminary_menu),
       providerAcceptedAt: textFrom(record.provider_accepted_at) || undefined,
       providerNoResponseNotifiedAt: textFrom(record.provider_no_response_notified_at) || undefined,
       rescheduleAttemptCount: numberFrom(record.reschedule_attempt_count),
@@ -1013,6 +1071,33 @@ const mapFoodTastingWorkflowsByBooking = (rows: unknown): Map<string, CateringFo
   })
 
   return result
+}
+
+const finalCateringMenuFrom = (value: unknown): BookingServiceItem['finalCateringMenu'] | undefined => {
+  const menu = value && typeof value === 'object' ? value as Record<string, unknown> : undefined
+  if (!menu || !Array.isArray(menu.courses)) return undefined
+  const courses = menu.courses.flatMap((course) => {
+    if (!course || typeof course !== 'object') return []
+    const record = course as Record<string, unknown>
+    const name = textFrom(record.courseName)
+    const selectedItemNames = Array.isArray(record.selectedItems)
+      ? record.selectedItems.flatMap((item) => item && typeof item === 'object'
+        ? [textFrom((item as Record<string, unknown>).name)].filter(Boolean)
+        : [])
+      : []
+    return name && selectedItemNames.length ? [{ name, selectedItemNames }] : []
+  })
+  const source = textFrom(menu.source)
+  return courses.length
+    ? {
+        courses,
+        source: source === 'food_tasting'
+          ? 'food_tasting'
+          : source === 'venue_catering_package'
+            ? 'venue_catering_package'
+            : 'direct_selection',
+      }
+    : undefined
 }
 
 const parseBookingDate = (value: string) => {
@@ -1303,6 +1388,46 @@ export const activateV15FoodTastingDirectMenuFallback = async (
   }
 }
 
+export const submitV15FoodTastingFinalMenu = async (value: {
+  bookingId: string
+  finalItemIds: string[]
+}): Promise<MerchantResult> => {
+  try {
+    const client = getClient()
+    if (!client || !isUuid(value.bookingId)) {
+      return { ok: false, message: 'This food tasting booking could not be identified.' }
+    }
+    const { error } = await client.rpc('submit_my_v15_food_tasting_final_menu', {
+      target_booking_id: value.bookingId,
+      target_final_item_ids: value.finalItemIds,
+    })
+    return error ? { ok: false, message: toMessage(error, 'Unable to submit the final menu.') } : { ok: true }
+  } catch (error) {
+    return { ok: false, message: toMessage(error, 'Unable to submit the final menu.') }
+  }
+}
+
+export const respondToV15FoodTastingFinalMenu = async (value: {
+  acceptMenu: boolean
+  bookingId: string
+  correctionNote?: string
+}): Promise<MerchantResult> => {
+  try {
+    const client = getClient()
+    if (!client || !isUuid(value.bookingId)) {
+      return { ok: false, message: 'This food tasting booking could not be identified.' }
+    }
+    const { error } = await client.rpc('respond_to_my_v15_food_tasting_final_menu', {
+      accept_menu: value.acceptMenu,
+      correction_note: value.correctionNote ?? null,
+      target_booking_id: value.bookingId,
+    })
+    return error ? { ok: false, message: toMessage(error, 'Unable to update the final menu.') } : { ok: true }
+  } catch (error) {
+    return { ok: false, message: toMessage(error, 'Unable to update the final menu.') }
+  }
+}
+
 export const requestCateringFoodTasting = async (value: {
   bookingId: string
   note?: string
@@ -1576,7 +1701,7 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
   const { data, error } = await client
     .from('bookings')
     .select(
-      'id, event_id, provider_id, service_id, amount, provider_amount, status, requested_date, requested_time, client_notes, venue_option_snapshot, venue_options_snapshot, venue_booking_snapshot, created_at, updated_at, events(id, coordinator_id, pending_coordinator_id, coordinator_assignment_status, coordinator_fee_amount, wants_coordinator, name, event_type, is_church_wedding, event_date, event_time, guest_count, venue, location, status), services(name, cover_image_url, category_details, service_categories(name)), provider_profiles(business_name), payments(status, amount, service_subtotal, provider_initial_allocation, paid_at, created_at, metadata)'
+      'id, event_id, provider_id, service_id, amount, provider_amount, status, requested_date, requested_time, client_notes, catering_option_snapshot, final_menu_snapshot, venue_option_snapshot, venue_options_snapshot, venue_booking_snapshot, created_at, updated_at, events(id, coordinator_id, pending_coordinator_id, coordinator_assignment_status, coordinator_fee_amount, wants_coordinator, name, event_type, is_church_wedding, event_date, event_time, guest_count, venue, location, status), services(name, cover_image_url, category_details, service_categories(name)), provider_profiles(business_name), payments(status, amount, service_subtotal, provider_initial_allocation, paid_at, created_at, metadata)'
     )
     .eq('client_id', userId)
     .neq('status', 'payment_required')
@@ -1619,7 +1744,9 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
         ? client.rpc('list_my_catering_food_tastings', { target_booking_ids: bookingIds })
         : Promise.resolve({ data: [] }),
       bookingIds.length
-        ? client.rpc('list_my_catering_food_tasting_workflows_v15', { target_booking_ids: bookingIds })
+        // Phase 3's 'list_my_catering_food_tasting_workflows_v15' projection is
+        // retained in the schema; this Phase 5 projection adds final-menu data.
+        ? client.rpc('list_my_catering_food_tasting_workflows_v15_phase5', { target_booking_ids: bookingIds })
         : Promise.resolve({ data: [] }),
       bookingIds.length
         ? client
@@ -1743,6 +1870,10 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
       record.venue_booking_snapshot,
       record.venue_option_snapshot
     )
+    const finalCateringMenu = finalCateringMenuFrom(record.final_menu_snapshot)
+    const cateringSnapshot = nested(record.catering_option_snapshot)
+    const isVenueCateringPackage = finalCateringMenu?.source === 'venue_catering_package'
+      || Boolean(textFrom(cateringSnapshot?.combinedPackageId))
     const serviceItem: BookingServiceItem = {
       amount: numberFrom(record.amount),
       bookingId,
@@ -1750,11 +1881,13 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
       clientNotes: textFrom(record.client_notes) || undefined,
       completionPaymentStatus,
       confirmedExternalPaymentAmount,
+      finalCateringMenu,
       foodTasting: foodTastingsByBooking.get(bookingId),
       foodTastingEnabled: Boolean(getCateringTastingSettings(service?.category_details)),
       foodTastingWorkflow: foodTastingWorkflowsByBooking.get(bookingId),
       image: textFrom(service?.cover_image_url),
       initialProviderShare,
+      isVenueCateringPackage,
       initialPaymentRecordedAt: hasRecordedPayment
         ? textFrom(latestPayment?.paid_at) || undefined
         : undefined,
@@ -1890,7 +2023,7 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
           ? context.client.rpc('list_my_catering_food_tastings', { target_booking_ids: bookingIds })
           : Promise.resolve({ data: [] }),
         bookingIds.length
-          ? context.client.rpc('list_my_catering_food_tasting_workflows_v15', { target_booking_ids: bookingIds })
+          ? context.client.rpc('list_my_catering_food_tasting_workflows_v15_phase5', { target_booking_ids: bookingIds })
           : Promise.resolve({ data: [] }),
       ])
     : [{ data: [] }, { data: [] }, new Map<string, ExternalPaymentSummary>(), { data: [] }, { data: [] }]

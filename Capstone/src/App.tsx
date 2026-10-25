@@ -101,6 +101,7 @@ import {
   requestCateringFoodTasting,
   respondToCateringFoodTasting,
   respondToCateringFoodTastingProposal,
+  respondToV15FoodTastingFinalMenu,
   respondToChurchWeddingProposal,
   rescheduleClientEventBookings,
   rescheduleV15FoodTasting,
@@ -114,6 +115,7 @@ import {
   saveNotificationPreferences,
   saveOperatingHours,
   setMerchantServiceAvailability,
+  submitV15FoodTastingFinalMenu,
 } from './lib/merchant'
 import { colors } from './theme/tokens'
 import { ClientBottomNavigation } from './components/ClientBottomNavigation'
@@ -1517,6 +1519,13 @@ export const App: React.FC = () => {
   const selectedCategoryBudget = planningBudgetAllocations.find(
     (allocation) => allocation.categoryKey === selectedBudgetKey
   )?.amount ?? 0
+  const venueCateringPackageSelection = selectedServices.find((service) => (
+    service.includesCatering
+    && !['cancelled', 'deleted', 'rejected', 'removed'].includes(service.status.trim().toLowerCase())
+  ))
+  const venueCateringPackageAllocatedBudget = planningBudgetAllocations
+    .filter((allocation) => allocation.categoryKey === 'venue' || allocation.categoryKey === 'catering')
+    .reduce((sum, allocation) => sum + allocation.amount, 0)
   const allocatedBudgetTotal = planningBudgetAllocations.reduce(
     (sum, allocation) => sum + allocation.amount, 0
   )
@@ -1525,12 +1534,18 @@ export const App: React.FC = () => {
     selectedCategoryBudget,
     totalBudget - allocatedBudgetTotal + selectedCategoryBudget
   )
-  const selectedPlanningCategoryIds = React.useMemo(
-    () => new Set(selectedServices
+  const selectedPlanningCategoryIds = React.useMemo(() => {
+    const ids = new Set(selectedServices
       .filter((service) => !['cancelled', 'deleted', 'rejected', 'removed'].includes(service.status.trim().toLowerCase()))
-      .map((service) => categoryNameToId(service.category))),
-    [selectedServices]
-  )
+      .map((service) => categoryNameToId(service.category)))
+    // This package is a single venue booking. Mark Catering as fulfilled only
+    // for planning progress; do not add a standalone catering selection.
+    if (selectedServices.some((service) => service.includesCatering
+      && !['cancelled', 'deleted', 'rejected', 'removed'].includes(service.status.trim().toLowerCase()))) {
+      ids.add('catering')
+    }
+    return ids
+  }, [selectedServices])
   const activeServicePlanningCategories = React.useMemo(
     () => activePlanningCategories.filter((category) => category.categoryId !== 'eventOrganizers'),
     [activePlanningCategories]
@@ -3043,6 +3058,7 @@ export const App: React.FC = () => {
         : value.attendeeCount > 0 ? `${value.attendeeCount} Guests` : value.service.detail,
       imageLabel: value.service.imageLabel,
       imageUrl: value.service.imageUrl,
+      includesCatering: Boolean(value.venueCateringPackageId),
       name: value.service.name,
       price: calculatedAmount,
       pricePending: foodTastingPricePending,
@@ -3062,7 +3078,10 @@ export const App: React.FC = () => {
     })()
     const nextPlanningCategory = getNextUnselectedServicePlanningCategory(
       planningBudgetAllocations,
-      new Set(nextSelectedServices.map((service) => categoryNameToId(service.category)))
+      new Set([
+        ...nextSelectedServices.map((service) => categoryNameToId(service.category)),
+        ...(nextSelectedServices.some((service) => service.includesCatering) ? ['catering' as const] : []),
+      ])
     )
 
     setSelectedServices(nextSelectedServices)
@@ -3716,6 +3735,33 @@ export const App: React.FC = () => {
       : value.action === 'reject'
         ? 'Food tasting request declined. The client was notified.'
         : 'Alternative food tasting schedule sent to the client.'
+    setToastMessage(message)
+    return { ok: true, message }
+  }
+
+  const handleProviderFoodTastingFinalMenu = async (value: {
+    bookingId: string
+    finalItemIds: string[]
+  }) => {
+    const result = await submitV15FoodTastingFinalMenu(value)
+    if (!result.ok) return result
+    await refreshLiveData()
+    const message = 'Final menu sent to the client for confirmation.'
+    setToastMessage(message)
+    return { ok: true, message }
+  }
+
+  const handleClientFoodTastingFinalMenuResponse = async (value: {
+    acceptMenu: boolean
+    bookingId: string
+    correctionNote?: string
+  }) => {
+    const result = await respondToV15FoodTastingFinalMenu(value)
+    if (!result.ok) return result
+    await refreshLiveData()
+    const message = value.acceptMenu
+      ? 'Final menu confirmed. Your event payment eligibility has been updated.'
+      : 'Your correction request was sent to the caterer.'
     setToastMessage(message)
     return { ok: true, message }
   }
@@ -4747,6 +4793,7 @@ export const App: React.FC = () => {
             }
             onCompletionPayment={handleBookingCompletionPayment}
             onFoodTastingResponse={handleProviderFoodTastingResponse}
+            onSubmitFoodTastingFinalMenu={handleProviderFoodTastingFinalMenu}
           />
         )
       case 'providerBookingDecline':
@@ -5224,6 +5271,12 @@ export const App: React.FC = () => {
             categoryBudget={selectedCategoryBudget}
             categoryBudgetLocked={categoryBudgetLocked}
             categoryBudgetMaximum={categoryBudgetMaximum}
+            cateringIncludedInVenuePackage={Boolean(venueCateringPackageSelection)}
+            venueCateringPackage={venueCateringPackageSelection ? {
+              allocatedBudget: venueCateringPackageAllocatedBudget,
+              name: venueCateringPackageSelection.name,
+              price: venueCateringPackageSelection.price,
+            } : undefined}
             totalEstimatedCost={selectedEstimatedTotal}
             removingServiceId={removingServiceId}
             remainingBudget={unallocatedPlanBudget}
@@ -5306,6 +5359,13 @@ export const App: React.FC = () => {
             }}
             onSelectCategory={(category) => {
               setSelectedCategory(categoryNameToId(category.name))
+            }}
+            onReviewVenuePackage={() => {
+              if (!venueCateringPackageSelection) return
+              setServiceBrowseMode('planning')
+              setCurrentServiceId(venueCateringPackageSelection.id)
+              setSelectedCategory('venues')
+              setScreen('serviceDetails')
             }}
             onSelectVendor={(vendorId) => {
               setToastMessage('')
@@ -5608,6 +5668,7 @@ export const App: React.FC = () => {
             onStartPayment={() => void openBookingPayment()}
             onChooseFinalCateringMenu={(service) => void handleChooseFinalCateringMenu(service)}
             onConfirmFoodTastingAttendance={handleClientFoodTastingAttendance}
+            onRespondToFoodTastingFinalMenu={handleClientFoodTastingFinalMenuResponse}
             onRequestFoodTasting={handleClientFoodTastingRequest}
             onRescheduleBooking={handleClientBookingReschedule}
             onRescheduleFoodTasting={handleClientFoodTastingReschedule}

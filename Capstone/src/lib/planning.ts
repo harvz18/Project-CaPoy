@@ -151,10 +151,12 @@ type ServiceSelectionInput = {
   estimatedTotal: number
   foodTastingMenuItemIds?: string[]
   foodTastingPreference?: boolean
+  combinedCateringServiceId?: string
   mealType?: string
   notes: string
   replacementBookingId?: string
   service: CatalogService
+  venueCateringPackageId?: string
   venueBookedHours?: number
   venueOption?: VenueBookingOption
   venueSelections?: VenueOptionSelection[]
@@ -222,6 +224,7 @@ export type ClientPlanningState = {
     id: string
     imageLabel: string
     imageUrl: string
+    includesCatering?: boolean
     name: string
     price: number
     providerPrice: number
@@ -811,7 +814,7 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
     client
       .from('event_service_selections')
       .select(
-        'id, service_id, service_name, category_name, estimated_amount, attendee_count, catering_option_name, catering_option_snapshot, venue_option_name, venue_booked_hours, status, updated_at, selected_provider_snapshot, services(cover_image_url)'
+        'id, service_id, service_name, category_name, estimated_amount, attendee_count, catering_option_name, catering_option_snapshot, venue_option_name, venue_booked_hours, status, updated_at, selected_provider_snapshot, package_snapshot, services(cover_image_url)'
       )
       .eq('event_id', event.id)
       .not('status', 'in', '(declined,cancelled)')
@@ -1049,6 +1052,11 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
         typeof selection.selected_provider_snapshot === 'object'
           ? (selection.selected_provider_snapshot as Record<string, unknown>)
           : {}
+      const packageSnapshot =
+        selection.package_snapshot && typeof selection.package_snapshot === 'object'
+          ? selection.package_snapshot as Record<string, unknown>
+          : {}
+      const includesCatering = packageSnapshot.venueCateringPackage === true
       const service = Array.isArray(selection.services)
         ? selection.services[0]
         : selection.services
@@ -1084,6 +1092,7 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
             : selection.service_id || selection.id,
         imageLabel: name,
         imageUrl: service?.cover_image_url || '',
+        includesCatering,
         name,
         price: Number(selection.estimated_amount ?? 0),
         pricePending,
@@ -2294,6 +2303,31 @@ export const saveServiceSelection = async (
     const providerId = value.service.bookingProviderId ?? value.service.providerId
     const serviceId = value.service.bookingServiceId ?? value.service.id
     const packageId = value.service.bookingPackageId ?? value.service.packageId
+    if (isUuid(value.venueCateringPackageId)) {
+      const { data, error } = value.foodTastingPreference === true
+        ? await client.rpc('submit_my_v15_venue_catering_food_tasting_request', {
+          target_event_id: event.eventId,
+          target_guest_count: value.attendeeCount,
+          target_menu_item_ids: value.foodTastingMenuItemIds ?? [],
+          target_package_id: value.venueCateringPackageId,
+        })
+        : await client.rpc('save_my_v15_venue_catering_package_selection', {
+          target_event_id: event.eventId,
+          target_guest_count: value.attendeeCount,
+          target_menu_item_ids: value.cateringMenuItemIds ?? null,
+          target_option_id: value.cateringOption?.id ?? null,
+          target_package_id: value.venueCateringPackageId,
+        })
+      if (error) return { ok: false, message: error.message }
+      const result = data && typeof data === 'object' ? data as Record<string, unknown> : {}
+      return {
+        bookingId: typeof result.bookingId === 'string' ? result.bookingId : undefined,
+        calculatedAmount: Number(result.customerAmount ?? value.estimatedTotal),
+        ok: true,
+        providerAmount: Number(result.providerAmount ?? value.service.providerMinPrice),
+        selectionId: typeof result.selectionId === 'string' ? result.selectionId : undefined,
+      }
+    }
     if (isUuid(serviceId)) {
       // V15 tasting requests deliberately have no final menu or payable price.
       // This dedicated request path validates the server-owned preliminary menu

@@ -26,8 +26,13 @@ export interface BookingServiceItem {
   foodTasting?: CateringFoodTasting
   foodTastingEnabled?: boolean
   foodTastingWorkflow?: CateringFoodTastingWorkflow
+  finalCateringMenu?: {
+    courses: Array<{ name: string; selectedItemNames: string[] }>
+    source?: 'direct_selection' | 'food_tasting' | 'venue_catering_package'
+  }
   image: string
   initialProviderShare?: number
+  isVenueCateringPackage?: boolean
   initialPaymentRecordedAt?: string
   paymentStatus: string
   providerId: string

@@ -25,6 +25,8 @@ export interface SelectedSummaryService {
   id: string
   imageLabel: string
   imageUrl: string
+  /** A Venue + Catering package is one venue selection, not a second caterer. */
+  includesCatering?: boolean
   name: string
   price: number
   pricePending?: boolean

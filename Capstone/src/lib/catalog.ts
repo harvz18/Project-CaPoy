@@ -156,6 +156,9 @@ export interface CatalogService {
     price: number
     providerPrice: number
     pricingMode: 'composed' | 'legacy'
+    cateringDetails?: ServiceCategoryDetails
+    cateringServiceId?: string
+    isVenueCatering?: boolean
     serviceId: string
     serviceNames: string[]
     unit?: 'event' | 'person' | 'hour' | 'day'
@@ -226,6 +229,11 @@ const getNestedId = (value: unknown, fallback = '') => {
   return textFrom((source as Record<string, unknown>).id, fallback ?? '')
 }
 
+const nestedRecord = (value: unknown): Record<string, unknown> | undefined => {
+  const source = Array.isArray(value) ? value[0] : value
+  return source && typeof source === 'object' ? source as Record<string, unknown> : undefined
+}
+
 const getPackages = (value: unknown, commissionRate: number) => {
   if (!Array.isArray(value)) return []
 
@@ -246,6 +254,15 @@ const getPackages = (value: unknown, commissionRate: number) => {
       const serviceName = getNestedText(packageItem.services, 'name', '')
       return serviceName ? [serviceName] : []
     })
+    const cateringComponent = packageItems.find((packageItem) => {
+      const packageService = nestedRecord(packageItem.services)
+      return /cater/i.test(getNestedText(packageService?.service_categories, 'name', ''))
+    })
+    const cateringService = cateringComponent ? nestedRecord(cateringComponent.services) : undefined
+    const combinedDetails = Array.isArray(record.venue_catering_package_details)
+      ? record.venue_catering_package_details[0]
+      : record.venue_catering_package_details
+    const isVenueCatering = Boolean(combinedDetails && typeof combinedDetails === 'object')
     const discountType = ['none', 'percentage', 'fixed'].includes(String(record.discount_type))
       ? record.discount_type as 'none' | 'percentage' | 'fixed'
       : 'none'
@@ -273,6 +290,11 @@ const getPackages = (value: unknown, commissionRate: number) => {
         pricingMode: record.pricing_mode === 'composed'
           ? 'composed' as const
           : 'legacy' as const,
+        cateringDetails: cateringService
+          ? normalizeCategoryDetails('Catering', cateringService.category_details)
+          : undefined,
+        cateringServiceId: cateringService ? textFrom(cateringService.id, '') || undefined : undefined,
+        isVenueCatering,
         serviceId: textFrom(record.service_id, ''),
         serviceNames,
         unit: ['event', 'person', 'hour', 'day'].includes(String(record.pricing_unit))
@@ -353,7 +375,7 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
   const baseSelection =
     'id, provider_id, category_id, name, description, base_price, location, cover_image_url, provider_profiles(id, user_id, business_name), service_categories(id, name), service_packages(id, service_id, name, description, price, inclusions, pricing_unit, pricing_mode, is_deleted), reviews(rating)'
   const detailedSelection =
-    'id, provider_id, category_id, name, description, base_price, location, cover_image_url, gallery_urls, pricing_model, pricing_unit, pricing_details, catering_service_types, category_details, provider_profiles(id, user_id, business_name), service_categories(id, name), service_packages(id, service_id, name, description, price, inclusions, pricing_unit, pricing_mode, subtotal, discount_type, discount_value, discount_amount, is_deleted, service_package_items(position, services(name))), reviews(rating, analysis_status, sentiment_label)'
+    'id, provider_id, category_id, name, description, base_price, location, cover_image_url, gallery_urls, pricing_model, pricing_unit, pricing_details, catering_service_types, category_details, provider_profiles(id, user_id, business_name), service_categories(id, name), service_packages(id, service_id, name, description, price, inclusions, pricing_unit, pricing_mode, subtotal, discount_type, discount_value, discount_amount, is_deleted, venue_catering_package_details(venue_service_id, catering_service_id, venue_option_id), service_package_items(position, services(id, name, category_details, service_categories(name)))), reviews(rating, analysis_status, sentiment_label)'
 
   const [detailedResult, commissionResult, includedPackageResult] = await Promise.all([
     supabase
@@ -366,7 +388,7 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
     supabase
       .from('service_package_items')
       .select(
-        'service_id, service_packages(id, service_id, name, description, price, inclusions, pricing_unit, pricing_mode, subtotal, discount_type, discount_value, discount_amount, is_deleted, service_package_items(position, services(name)))'
+        'service_id, service_packages(id, service_id, name, description, price, inclusions, pricing_unit, pricing_mode, subtotal, discount_type, discount_value, discount_amount, is_deleted, venue_catering_package_details(venue_service_id, catering_service_id, venue_option_id), service_package_items(position, services(id, name, category_details, service_categories(name))))'
       )
       .limit(5000),
   ])
