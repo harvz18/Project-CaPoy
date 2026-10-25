@@ -10,7 +10,7 @@ import {
 } from 'react-native'
 import { MerchantBottomNavigation } from '../components/MerchantBottomNavigation'
 import { MerchantWorkspaceHeader } from '../components/MerchantWorkspaceHeader'
-import type { CateringFoodTasting } from '../lib/merchant'
+import type { CateringFoodTasting, CateringFoodTastingWorkflow } from '../lib/merchant'
 import type { VenueBookingConfiguration } from '../lib/venue-booking'
 import type { MerchantHomeTab } from './16-MerchantHome'
 
@@ -36,6 +36,7 @@ export interface MerchantBookedService {
   confirmedExternalPaymentAmount?: number
   foodTasting?: CateringFoodTasting
   foodTastingEnabled?: boolean
+  foodTastingWorkflow?: CateringFoodTastingWorkflow
   dietaryNotes?: string
   downpaymentAmount?: number
   id: string
@@ -73,6 +74,7 @@ export interface MerchantBookingRequest {
   confirmedExternalPaymentAmount?: number
   foodTasting?: CateringFoodTasting
   foodTastingEnabled?: boolean
+  foodTastingWorkflow?: CateringFoodTastingWorkflow
   dietaryNotes?: string
   downpaymentAmount?: number
   clientName: string

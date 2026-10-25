@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native'
 import { ClientBottomNavigation, ClientMainTab } from '../components/ClientBottomNavigation'
-import type { CateringFoodTasting } from '../lib/merchant'
+import type { CateringFoodTasting, CateringFoodTastingWorkflow } from '../lib/merchant'
 import type { VenueBookingConfiguration } from '../lib/venue-booking'
 
 export type BookingStatus = 'all' | 'confirmed' | 'requested' | 'completed' | 'cancelled'
@@ -25,6 +25,7 @@ export interface BookingServiceItem {
   confirmedExternalPaymentAmount?: number
   foodTasting?: CateringFoodTasting
   foodTastingEnabled?: boolean
+  foodTastingWorkflow?: CateringFoodTastingWorkflow
   image: string
   initialProviderShare?: number
   initialPaymentRecordedAt?: string

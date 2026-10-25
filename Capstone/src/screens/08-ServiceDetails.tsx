@@ -24,6 +24,8 @@ import {
   defaultCateringCustomMenuItemIds,
   getCateringCustomMenu,
   getCateringPricingOptions,
+  getCateringTastingMenu,
+  getCateringTastingSettings,
   getVenueBookingOptions,
   getVenueBookingRules,
   summarizeCategoryDetails,
@@ -42,6 +44,8 @@ export interface ServiceSelectionValue {
   cateringMenuItemIds?: string[]
   cateringOption?: CateringPricingOption
   estimatedTotal: number
+  foodTastingMenuItemIds?: string[]
+  foodTastingPreference?: boolean
   mealType?: MealType
   notes: string
   service: CatalogService
@@ -63,6 +67,7 @@ interface ServiceDetailsScreenProps {
   eventDate?: string
   eventTime?: string
   hasBudget?: boolean
+  initialFoodTastingPreference?: boolean
   mode?: 'explore' | 'planning'
   service?: CatalogService
   onAddSelection?: (value: ServiceSelectionValue) => Promise<void> | void
@@ -76,16 +81,38 @@ interface ServiceDetailsScreenProps {
     venueSelections?: VenueOptionSelection[]
   }) => Promise<ServiceQuotePreview>
   onBack?: () => void
+  onLoadFoodTastingDraft?: (service: CatalogService) => Promise<{
+    draft?: {
+      attendeeCount: number
+      isComplete: boolean
+      menuItemIds: string[]
+      revision: number
+      updatedAt?: string
+    }
+    message?: string
+    ok: boolean
+  }>
   onReadAllReviews?: () => void
   reviewInsights?: ServiceReviewInsights
   reviewInsightsLoading?: boolean
+  onSaveFoodTastingDraft?: (value: {
+    attendeeCount: number
+    menuItemIds: string[]
+    revision: number
+    service: CatalogService
+  }) => Promise<{
+    isComplete?: boolean
+    message?: string
+    ok: boolean
+    stale?: boolean
+  }>
 }
 
-const mealTypes = [
-  { id: 'plated' as const, icon: 'silverware-fork-knife' as const, label: 'Plated' },
-  { id: 'buffet' as const, icon: 'food-variant' as const, label: 'Buffet' },
-  { id: 'packed' as const, icon: 'food-takeout-box-outline' as const, label: 'Packed' },
-] as const
+const cateringFormatLabels: Record<CateringServiceType, string> = {
+  buffet: 'Buffet Service',
+  packed: 'Packed Meals',
+  plated: 'Plated Dining',
+}
 
 const ratingDistribution = [
   { rating: 5, percent: '85%' as const },
@@ -134,14 +161,17 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   eventDate = '',
   eventTime = '',
   hasBudget,
+  initialFoodTastingPreference,
   mode = 'planning',
   service,
   onAddSelection,
   onCalculateQuote,
   onBack,
+  onLoadFoodTastingDraft,
   onReadAllReviews,
   reviewInsights,
   reviewInsightsLoading = false,
+  onSaveFoodTastingDraft,
 }) => {
   const { width, height } = useWindowDimensions()
   const isWide = width >= 768
@@ -150,7 +180,13 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   const heroWidth = Math.min(width, 1200)
   const heroHeight = Math.max(280, Math.min(460, height * 0.42))
   const [heroIndex, setHeroIndex] = React.useState(0)
-  const [mealType, setMealType] = React.useState<MealType>()
+  const [foodTastingPreference, setFoodTastingPreference] = React.useState<boolean>()
+  const [selectedTastingMenuItemIds, setSelectedTastingMenuItemIds] = React.useState<string[]>([])
+  const [expandedTastingMenuSections, setExpandedTastingMenuSections] = React.useState<Set<string>>(
+    () => new Set()
+  )
+  const [foodTastingDraftMessage, setFoodTastingDraftMessage] = React.useState('')
+  const [foodTastingDraftError, setFoodTastingDraftError] = React.useState('')
   const [selectedCateringMenuItemIds, setSelectedCateringMenuItemIds] = React.useState<string[]>([])
   const [selectedCateringOptionId, setSelectedCateringOptionId] = React.useState('')
   const [selectedCateringOffering, setSelectedCateringOffering] = React.useState<CateringOffering>('preset')
@@ -176,6 +212,10 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     service?.packageId ?? ''
   )
   const eventGuestCountRef = React.useRef(eventGuestCount)
+  const foodTastingDraftRevisionRef = React.useRef(0)
+  const foodTastingDraftTouchedRef = React.useRef(false)
+  const loadedFoodTastingDraftKeyRef = React.useRef('')
+  const savedFoodTastingDraftFingerprintRef = React.useRef('')
   eventGuestCountRef.current = eventGuestCount
   const serviceImages = React.useMemo(
     () =>
@@ -199,7 +239,15 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   React.useEffect(() => {
     const initialGuestCount = Math.max(1, Math.floor(eventGuestCountRef.current || 1))
     setSelectedPackageId(service?.packageId ?? '')
-    setMealType(service?.cateringServiceTypes?.[0])
+    setFoodTastingPreference(initialFoodTastingPreference)
+    setSelectedTastingMenuItemIds([])
+    setExpandedTastingMenuSections(new Set())
+    setFoodTastingDraftMessage('')
+    setFoodTastingDraftError('')
+    foodTastingDraftRevisionRef.current = 0
+    foodTastingDraftTouchedRef.current = false
+    loadedFoodTastingDraftKeyRef.current = ''
+    savedFoodTastingDraftFingerprintRef.current = ''
     setSelectedCateringMenuItemIds(defaultCateringCustomMenuItemIds(
       getCateringCustomMenu(service?.categoryDetails)
     ))
@@ -233,8 +281,81 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     service?.cateringServiceTypes,
     service?.categoryDetails,
     service?.id,
+    initialFoodTastingPreference,
     service?.packageId,
     service?.providerMinPrice,
+  ])
+
+  React.useEffect(() => {
+    if (isExploreMode || initialFoodTastingPreference === false || !service || !onLoadFoodTastingDraft) return
+    const serviceId = service.bookingServiceId ?? service.id
+    const key = `${serviceId}:${service.packageId ?? ''}`
+    if (!serviceId || loadedFoodTastingDraftKeyRef.current === key) return
+
+    loadedFoodTastingDraftKeyRef.current = key
+    let cancelled = false
+    void onLoadFoodTastingDraft(service).then((result) => {
+      if (cancelled || !result.ok || !result.draft) return
+      setFoodTastingPreference(true)
+      setSelectedTastingMenuItemIds(result.draft.menuItemIds)
+      setCateringGuestCount(result.draft.attendeeCount)
+      setCateringGuestCountText(String(result.draft.attendeeCount))
+      foodTastingDraftRevisionRef.current = result.draft.revision
+      savedFoodTastingDraftFingerprintRef.current = `${serviceId}:${result.draft.attendeeCount}:${result.draft.menuItemIds.slice().sort().join('|')}`
+      setFoodTastingDraftMessage(result.draft.isComplete
+        ? 'Your preliminary tasting menu is saved.'
+        : 'Your preliminary tasting menu draft is restored.')
+    }).catch(() => undefined)
+
+    return () => {
+      cancelled = true
+    }
+  }, [initialFoodTastingPreference, isExploreMode, onLoadFoodTastingDraft, service])
+
+  React.useEffect(() => {
+    if (
+      isExploreMode
+      || foodTastingPreference !== true
+      || !foodTastingDraftTouchedRef.current
+      || !onSaveFoodTastingDraft
+      || !service
+    ) return
+
+    const serviceId = service.bookingServiceId ?? service.id
+    const fingerprint = `${serviceId}:${cateringGuestCount}:${selectedTastingMenuItemIds.slice().sort().join('|')}`
+    if (savedFoodTastingDraftFingerprintRef.current === fingerprint) return
+    savedFoodTastingDraftFingerprintRef.current = fingerprint
+
+    const revision = foodTastingDraftRevisionRef.current + 1
+    foodTastingDraftRevisionRef.current = revision
+    setFoodTastingDraftError('')
+    void onSaveFoodTastingDraft({
+      attendeeCount: cateringGuestCount,
+      menuItemIds: selectedTastingMenuItemIds,
+      revision,
+      service,
+    }).then((result) => {
+      if (!result.ok) {
+        savedFoodTastingDraftFingerprintRef.current = ''
+        setFoodTastingDraftError(result.message ?? 'Your food tasting draft could not be saved.')
+        return
+      }
+      if (!result.stale) {
+        setFoodTastingDraftMessage(result.isComplete
+          ? 'Your preliminary tasting menu is saved.'
+          : 'Draft saved. Complete every course before submitting the tasting request.')
+      }
+    }).catch(() => {
+      savedFoodTastingDraftFingerprintRef.current = ''
+      setFoodTastingDraftError('Your food tasting draft could not be saved.')
+    })
+  }, [
+    cateringGuestCount,
+    foodTastingPreference,
+    isExploreMode,
+    onSaveFoodTastingDraft,
+    selectedTastingMenuItemIds,
+    service,
   ])
 
   React.useEffect(() => {
@@ -251,6 +372,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
 
     const isCateringService = service.categoryId === 'catering'
     const isVenueService = service.categoryId === 'venues'
+    if (isCateringService && foodTastingPreference === true) return
     const quoteGuestCount = isCateringService ? cateringGuestCount : eventGuestCount
     const selectedProviderPackage = service.packages?.find((item) => item.id === selectedPackageId)
     const venueOptions = getVenueBookingOptions(service.categoryDetails)
@@ -344,6 +466,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     selectedPackageId,
     selectedVenueHours,
     service,
+    foodTastingPreference,
   ])
 
   if (!service) {
@@ -423,7 +546,43 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
           ? `This service supports up to ${cateringGuestMaximum} guests.`
           : cateringGuestCountMessage
   const budgetPerHead = activeCateringOption?.pricePerHead ?? 0
-  const availableMealTypes = service.cateringServiceTypes ?? []
+  const providerCateringFormats = Array.isArray(service.categoryDetails?.cateringTypes)
+    ? service.categoryDetails.cateringTypes
+      .filter((format): format is string => typeof format === 'string' && format.trim().length > 0)
+      .map((format) => format.trim())
+    : []
+  // Newer listings retain every provider-configured format in category details;
+  // legacy listings fall back to their established pricing-format catalogue.
+  const cateringFormats = providerCateringFormats.length > 0
+    ? Array.from(new Set(providerCateringFormats))
+    : (service.cateringServiceTypes ?? []).map((format) => cateringFormatLabels[format])
+  const cateringTastingSettings = getCateringTastingSettings(service.categoryDetails)
+  const cateringTastingMenu = getCateringTastingMenu(service.categoryDetails)
+  const foodTastingAvailable = Boolean(cateringTastingSettings && cateringTastingMenu)
+  const foodTastingUnavailableReason = !cateringTastingSettings
+    ? 'This caterer has not enabled food tasting appointments. You can still choose your menu directly.'
+    : !cateringTastingMenu
+      ? 'This caterer needs to configure course-level tasting limits before food tasting can be requested. You can still choose your menu directly.'
+      : ''
+  const foodTastingPreferenceRequired = isCatering && foodTastingPreference === undefined
+  const selectedTastingMenuItemIdSet = new Set(selectedTastingMenuItemIds)
+  const foodTastingSelectionIssue = (() => {
+    if (!isCatering || foodTastingPreference !== true) return ''
+    if (!cateringTastingMenu) return 'This food tasting menu is not available yet.'
+    for (const section of cateringTastingMenu.sections) {
+      const selectedCount = section.items.filter((item) =>
+        item.isActive && selectedTastingMenuItemIdSet.has(item.id)
+      ).length
+      if (selectedCount !== section.tastingSelectionLimit) {
+        return `${section.name}: select exactly ${section.tastingSelectionLimit} dish${section.tastingSelectionLimit === 1 ? '' : 'es'} to taste.`
+      }
+    }
+    return ''
+  })()
+  const foodTastingMenuSelectionPending = isCatering
+    && foodTastingPreference === true
+    && Boolean(foodTastingSelectionIssue)
+  const isFoodTastingFlow = isCatering && foodTastingPreference === true
   const cateringSelectionUnavailable = isCatering && !usesSelectedProviderPackage && (
     !activeCateringOption || !activeCateringCalculation?.fitsGuestCount
   )
@@ -537,7 +696,8 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   )
   const authoritativeQuoteUnavailable = requiresAuthoritativeQuote
     && (quoteLoading || Boolean(quoteError) || !authoritativeQuote)
-  const exceedsAvailableCategoryBudget = hasSetBudget
+  const exceedsAvailableCategoryBudget = !isFoodTastingFlow
+    && hasSetBudget
     && estimatedTotal > availableCategoryBudget
   const categoryBudgetOverage = exceedsAvailableCategoryBudget
     ? Math.max(0, estimatedTotal - availableCategoryBudget)
@@ -552,9 +712,26 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
       : formatPeso(estimatedTotal)
   const scheduleUnavailable = !isExploreMode
     && service.budgetRecommendation?.availabilityStatus === 'unavailable'
+  const standardSelectionDisabled = isAddingSelection
+    || cateringSelectionUnavailable
+    || venueSelectionUnavailable
+    || Boolean(cateringGuestCountIssue)
+    || foodTastingPreferenceRequired
+    || foodTastingMenuSelectionPending
+    || authoritativeQuoteUnavailable
+    || exceedsAvailableCategoryBudget
+    || scheduleUnavailable
+  const foodTastingRequestDisabled = isAddingSelection
+    || Boolean(cateringGuestCountIssue)
+    || Boolean(foodTastingSelectionIssue)
+    || !onAddSelection
+  const currentActionDisabled = isFoodTastingFlow
+    ? foodTastingRequestDisabled
+    : standardSelectionDisabled
 
   const setCateringGuests = (nextValue: number) => {
     const next = Math.max(1, Math.floor(nextValue))
+    if (foodTastingPreference === true) foodTastingDraftTouchedRef.current = true
     setCateringGuestCount(next)
     setCateringGuestCountText(String(next))
     setCateringGuestCountMessage('')
@@ -591,12 +768,40 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   }
 
   const handleAddSelection = async () => {
+    if (isFoodTastingFlow) {
+      if (
+        !onAddSelection
+        || isAddingSelection
+        || Boolean(foodTastingSelectionIssue)
+        || Boolean(cateringGuestCountIssue)
+      ) return
+
+      setIsAddingSelection(true)
+      setFoodTastingDraftError('')
+      try {
+        await onAddSelection({
+          attendeeCount: cateringGuestCount,
+          budgetPerHead: 0,
+          estimatedTotal: 0,
+          foodTastingMenuItemIds: selectedTastingMenuItemIds,
+          foodTastingPreference: true,
+          notes: '',
+          service,
+        })
+      } finally {
+        setIsAddingSelection(false)
+      }
+      return
+    }
+
     if (
       !onAddSelection
       || isAddingSelection
       || cateringSelectionUnavailable
       || venueSelectionUnavailable
       || Boolean(cateringGuestCountIssue)
+      || foodTastingPreferenceRequired
+      || foodTastingMenuSelectionPending
       || authoritativeQuoteUnavailable
       || exceedsAvailableCategoryBudget
       || scheduleUnavailable
@@ -613,7 +818,9 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
         cateringMenuItemIds: usesCustomCateringMenu ? selectedCateringMenuItemIds : undefined,
         cateringOption: usesSelectedProviderPackage ? undefined : activeCateringOption,
         estimatedTotal,
-        mealType,
+        foodTastingPreference: isCatering ? foodTastingPreference : undefined,
+        // Catering formats are provider capabilities, not client booking choices.
+        mealType: undefined,
         // Client dietary and special requests belong in the dedicated
         // Instruction Module, reached after service selection.
         notes: '',
@@ -641,6 +848,33 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     } finally {
       setIsAddingSelection(false)
     }
+  }
+
+  const chooseFoodTastingPreference = (next: boolean) => {
+    setFoodTastingPreference(next)
+    setFoodTastingDraftError('')
+    if (next) {
+      foodTastingDraftTouchedRef.current = true
+      setFoodTastingDraftMessage('Saving your preliminary tasting menu as you choose dishes.')
+    } else {
+      setFoodTastingDraftMessage('')
+    }
+  }
+
+  const toggleTastingMenuItem = (sectionId: string, itemId: string) => {
+    const section = cateringTastingMenu?.sections.find((item) => item.id === sectionId)
+    if (!section) return
+    const selected = selectedTastingMenuItemIdSet.has(itemId)
+    const selectedCount = section.items.filter((item) =>
+      item.isActive && selectedTastingMenuItemIdSet.has(item.id)
+    ).length
+    if (!selected && selectedCount >= section.tastingSelectionLimit) return
+
+    foodTastingDraftTouchedRef.current = true
+    setSelectedTastingMenuItemIds((current) => selected
+      ? current.filter((id) => id !== itemId)
+      : [...current, itemId]
+    )
   }
 
   const canAddVenueOption = (candidate: VenueBookingOption) => {
@@ -817,6 +1051,19 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
           ) : null}
           <View style={styles.descriptionSection}>
             <Text style={styles.description}>{service.description}</Text>
+            {isCatering && cateringFormats.length > 0 ? (
+              <View style={styles.cateringFormatsSection}>
+                <Text style={styles.cateringFormatsLabel}>CATERING SERVICES OFFERED</Text>
+                <View style={styles.cateringFormatsList}>
+                  {cateringFormats.map((format) => (
+                    <View key={format} style={styles.cateringFormatChip}>
+                      <MaterialCommunityIcons color={palette.primary} name="check-circle-outline" size={15} />
+                      <Text style={styles.cateringFormatText}>{format}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ) : null}
             <View style={styles.serviceFacts}>
               <View style={styles.serviceFactRow}>
                 <Text style={styles.serviceFactLabel}>SERVICE PROVIDER</Text>
@@ -953,55 +1200,6 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
               </View>
             ) : null}
 
-            {service.categoryId === 'catering' && !usesSelectedProviderPackage ? <View style={styles.mealTypeGrid}>
-              {mealTypes.map((meal) => {
-                const isSelected = meal.id === mealType
-                const isAvailable = availableMealTypes.includes(meal.id)
-
-                return (
-                  <Pressable
-                    key={meal.id}
-                    accessibilityLabel={`${meal.label} meal type${isAvailable ? '' : ', not offered by this provider'}`}
-                    accessibilityRole="radio"
-                    accessibilityState={{ checked: isSelected, disabled: !isAvailable }}
-                    disabled={!isAvailable}
-                    onPress={() => setMealType(meal.id)}
-                    style={({ pressed }) => [
-                      styles.mealCard,
-                      isSelected && styles.mealCardSelected,
-                      !isAvailable && styles.mealCardDisabled,
-                      pressed && styles.mealCardPressed,
-                    ]}
-                  >
-                    <MaterialCommunityIcons
-                      color={
-                        !isAvailable
-                          ? palette.secondaryFixedDim
-                          : isSelected
-                            ? palette.primary
-                            : palette.secondary
-                      }
-                      name={meal.icon}
-                      size={30}
-                    />
-                    <Text style={[styles.mealLabel, isSelected && styles.mealSelectedContent]}>
-                      {meal.label}
-                    </Text>
-                    {!isAvailable ? <Text style={styles.unavailableLabel}>Not offered</Text> : null}
-                  </Pressable>
-                )
-              })}
-            </View> : null}
-
-            {isCatering && !usesSelectedProviderPackage && availableMealTypes.length === 0 ? (
-              <View style={styles.unavailableNotice}>
-                <MaterialCommunityIcons color={palette.secondary} name="information-outline" size={20} />
-                <Text style={styles.unavailableNoticeText}>
-                  This provider has not configured a catering style yet. The service cannot be selected until the listing is updated.
-                </Text>
-              </View>
-            ) : null}
-
             {isCatering ? (
               <View style={styles.cateringOptionsSection}>
                 <View style={styles.guestCountCard}>
@@ -1034,7 +1232,10 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                           const normalized = value.replace(/\D/g, '')
                           setCateringGuestCountText(normalized)
                           setCateringGuestCountMessage('')
-                          if (/^\d+$/.test(normalized)) setCateringGuestCount(Number(normalized))
+                          if (/^\d+$/.test(normalized)) {
+                            if (foodTastingPreference === true) foodTastingDraftTouchedRef.current = true
+                            setCateringGuestCount(Number(normalized))
+                          }
                         }}
                         onSubmitEditing={commitCateringGuestCount}
                         selectTextOnFocus
@@ -1064,6 +1265,161 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                   </View>
                   <MaterialCommunityIcons color={palette.primary} name="account-group-outline" size={28} />
                 </View>
+                <View style={styles.foodTastingPreferenceCard}>
+                  <View style={styles.foodTastingPreferenceHeading}>
+                    <MaterialCommunityIcons color={palette.primary} name="silverware-fork-knife" size={22} />
+                    <View style={styles.foodTastingPreferenceCopy}>
+                      <Text style={styles.cateringOptionName}>Would you like to have a food tasting?</Text>
+                      <Text style={styles.cateringInstruction}>
+                        Choose how you would like to finalize your catering menu before continuing.
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.foodTastingPreferenceOptions}>
+                    <Pressable
+                      accessibilityLabel="Yes, I would like a food tasting"
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: foodTastingPreference === true, disabled: !foodTastingAvailable }}
+                      disabled={!foodTastingAvailable}
+                      onPress={() => chooseFoodTastingPreference(true)}
+                      style={({ pressed }) => [
+                        styles.foodTastingPreferenceOption,
+                        foodTastingPreference === true && styles.foodTastingPreferenceOptionSelected,
+                        !foodTastingAvailable && styles.foodTastingPreferenceOptionDisabled,
+                        pressed && styles.mealCardPressed,
+                      ]}
+                    >
+                      <MaterialCommunityIcons
+                        color={foodTastingPreference === true ? palette.primary : palette.secondary}
+                        name={foodTastingPreference === true ? 'radiobox-marked' : 'radiobox-blank'}
+                        size={21}
+                      />
+                      <View style={styles.foodTastingPreferenceOptionCopy}>
+                        <Text style={styles.foodTastingPreferenceOptionTitle}>Yes, I&apos;d like a food tasting.</Text>
+                        <Text style={styles.foodTastingPreferenceOptionText}>Choose preliminary dishes, then finalize your menu after tasting.</Text>
+                      </View>
+                    </Pressable>
+                    <Pressable
+                      accessibilityLabel="No, I will choose my menu directly"
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: foodTastingPreference === false }}
+                      onPress={() => chooseFoodTastingPreference(false)}
+                      style={({ pressed }) => [
+                        styles.foodTastingPreferenceOption,
+                        foodTastingPreference === false && styles.foodTastingPreferenceOptionSelected,
+                        pressed && styles.mealCardPressed,
+                      ]}
+                    >
+                      <MaterialCommunityIcons
+                        color={foodTastingPreference === false ? palette.primary : palette.secondary}
+                        name={foodTastingPreference === false ? 'radiobox-marked' : 'radiobox-blank'}
+                        size={21}
+                      />
+                      <View style={styles.foodTastingPreferenceOptionCopy}>
+                        <Text style={styles.foodTastingPreferenceOptionTitle}>No, I&apos;ll choose my menu directly.</Text>
+                        <Text style={styles.foodTastingPreferenceOptionText}>Select a preset package or customize your menu now.</Text>
+                      </View>
+                    </Pressable>
+                  </View>
+                  {!foodTastingAvailable ? (
+                    <Text style={styles.foodTastingUnavailableCopy}>
+                      {foodTastingUnavailableReason}
+                    </Text>
+                  ) : null}
+                </View>
+                {foodTastingPreference === true ? (
+                  <>
+                    <View style={styles.foodTastingPhaseNotice}>
+                      <MaterialCommunityIcons color={palette.primary} name="silverware-fork-knife" size={20} />
+                      <View style={styles.foodTastingPreferenceCopy}>
+                        <Text style={styles.foodTastingPhaseNoticeTitle}>Proposed Food Tasting Menu</Text>
+                        <Text style={styles.foodTastingPhaseNoticeText}>
+                          Choose the dishes you would like to taste. These are preliminary choices; your final event menu and price will be confirmed after tasting.
+                        </Text>
+                      </View>
+                    </View>
+                    {cateringTastingMenu?.sections.map((section) => {
+                      const expanded = expandedTastingMenuSections.has(section.id)
+                      const selectedCount = section.items.filter((item) =>
+                        item.isActive && selectedTastingMenuItemIdSet.has(item.id)
+                      ).length
+                      return (
+                        <View key={section.id} style={styles.foodTastingCourseCard}>
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityState={{ expanded }}
+                            onPress={() => setExpandedTastingMenuSections((current) => {
+                              const next = new Set(current)
+                              if (next.has(section.id)) next.delete(section.id)
+                              else next.add(section.id)
+                              return next
+                            })}
+                            style={styles.cateringOptionHeading}
+                          >
+                            <View style={styles.foodTastingCourseCopy}>
+                              <Text style={styles.cateringOptionName}>{section.name}</Text>
+                              <Text style={styles.cateringOptionRange}>
+                                Select {section.tastingSelectionLimit} dish{section.tastingSelectionLimit === 1 ? '' : 'es'} to taste
+                              </Text>
+                              <Text style={styles.foodTastingFinalLimit}>
+                                Final menu: {section.finalSelectionLimit} dish{section.finalSelectionLimit === 1 ? '' : 'es'} after tasting
+                              </Text>
+                            </View>
+                            <View style={styles.foodTastingCourseCount}>
+                              <Text style={[styles.foodTastingCourseCountText, selectedCount === section.tastingSelectionLimit && styles.foodTastingCourseCountComplete]}>
+                                {selectedCount} / {section.tastingSelectionLimit}
+                              </Text>
+                              <MaterialCommunityIcons color={palette.primary} name={expanded ? 'chevron-up' : 'chevron-down'} size={24} />
+                            </View>
+                          </Pressable>
+                          {expanded ? section.items.map((item) => {
+                            const selected = selectedTastingMenuItemIdSet.has(item.id)
+                            const disabled = !item.isActive || (!selected && selectedCount >= section.tastingSelectionLimit)
+                            return (
+                              <Pressable
+                                key={item.id}
+                                accessibilityRole="checkbox"
+                                accessibilityState={{ checked: selected, disabled }}
+                                disabled={disabled}
+                                onPress={() => toggleTastingMenuItem(section.id, item.id)}
+                                style={[
+                                  styles.cateringMenuItemChoice,
+                                  selected && styles.cateringMenuItemChoiceSelected,
+                                  disabled && !selected && styles.cateringOptionCardDisabled,
+                                ]}
+                              >
+                                <MaterialCommunityIcons color={selected ? palette.primary : palette.secondary} name={selected ? 'checkbox-marked' : 'checkbox-blank-outline'} size={22} />
+                                <View style={styles.menuItemChoiceCopy}>
+                                  <Text style={styles.cateringMenuName}>{item.name}</Text>
+                                  {item.description ? <Text style={styles.cateringMenuItems}>{item.description}</Text> : null}
+                                  {!item.isActive ? <Text style={styles.cateringMismatch}>Unavailable</Text> : null}
+                                </View>
+                                <Text style={styles.cateringOptionUnit}>{formatPeso(customerPriceFromProviderPrice(item.pricePerHead, service.commissionRate))}/guest</Text>
+                              </Pressable>
+                            )
+                          }) : null}
+                        </View>
+                      )
+                    })}
+                    <View style={styles.foodTastingPricingNotice}>
+                      <MaterialCommunityIcons color={palette.secondary} name="information-outline" size={20} />
+                      <View style={styles.foodTastingPreferenceCopy}>
+                        <Text style={styles.foodTastingPricingTitle}>Final catering price pending</Text>
+                        <Text style={styles.foodTastingPricingText}>
+                          Final catering price will be confirmed after food tasting and menu finalization.
+                        </Text>
+                        {service.minPrice > 0 ? (
+                          <Text style={styles.foodTastingReferencePrice}>
+                            Current listing reference: {formatServicePrice(service)}
+                          </Text>
+                        ) : null}
+                      </View>
+                    </View>
+                    {foodTastingSelectionIssue ? <Text style={styles.cateringMismatch}>{foodTastingSelectionIssue}</Text> : null}
+                    {foodTastingDraftError ? <Text style={styles.cateringMismatch}>{foodTastingDraftError}</Text> : null}
+                    {foodTastingDraftMessage ? <Text style={styles.foodTastingDraftMessage}>{foodTastingDraftMessage}</Text> : null}
+                  </>
+                ) : foodTastingPreference === false ? <>
                 {usesSelectedProviderPackage ? (
                   <View style={styles.cateringSummaryCard}>
                     <Text style={styles.cateringOptionName}>{selectedPackage?.name}</Text>
@@ -1213,6 +1569,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                   </View>
                 ) : null}
                 </>}
+                </> : null}
               </View>
             ) : null}
 
@@ -1566,9 +1923,9 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
           <View style={styles.bottomActionContent}>
             {isWide ? (
               <View>
-                <Text style={styles.estimatedLabel}>ESTIMATED TOTAL</Text>
-                <Text style={styles.estimatedValue}>{estimatedDisplay}</Text>
-                {quoteError ? <Text style={styles.quoteError}>{quoteError}</Text> : null}
+                <Text style={styles.estimatedLabel}>{isFoodTastingFlow ? 'PRELIMINARY MENU' : 'ESTIMATED TOTAL'}</Text>
+                <Text style={styles.estimatedValue}>{isFoodTastingFlow ? 'Final price pending' : estimatedDisplay}</Text>
+                {!isFoodTastingFlow && quoteError ? <Text style={styles.quoteError}>{quoteError}</Text> : null}
                 {exceedsAvailableCategoryBudget ? (
                   <Text style={styles.quoteError}>
                     {formatPeso(categoryBudgetOverage)} over the available category budget. Adjust the selection or budget before continuing.
@@ -1579,23 +1936,31 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
 
             <Pressable
               accessibilityLabel={
-                requiresQuote
+                isFoodTastingFlow
+                  ? 'Submit food tasting request'
+                  : requiresQuote
                   ? 'Add custom quote service to selection'
                   : `Add to selection for ${formatPeso(estimatedTotal)} Philippine pesos`
               }
               accessibilityRole="button"
-              accessibilityState={{ disabled: isAddingSelection || cateringSelectionUnavailable || venueSelectionUnavailable || Boolean(cateringGuestCountIssue) || authoritativeQuoteUnavailable || exceedsAvailableCategoryBudget || scheduleUnavailable }}
-              disabled={isAddingSelection || cateringSelectionUnavailable || venueSelectionUnavailable || Boolean(cateringGuestCountIssue) || authoritativeQuoteUnavailable || exceedsAvailableCategoryBudget || scheduleUnavailable}
+              accessibilityState={{ disabled: currentActionDisabled }}
+              disabled={currentActionDisabled}
               onPress={handleAddSelection}
               style={({ pressed }) => [
                 styles.addButton,
                 isWide && styles.addButtonWide,
-                (isAddingSelection || cateringSelectionUnavailable || venueSelectionUnavailable || Boolean(cateringGuestCountIssue) || authoritativeQuoteUnavailable || exceedsAvailableCategoryBudget || scheduleUnavailable) && styles.addButtonDisabled,
+                currentActionDisabled && styles.addButtonDisabled,
                 pressed && styles.addPressed,
               ]}
             >
               <Text style={styles.addButtonText}>
-                {isAddingSelection
+                {isFoodTastingFlow
+                  ? isAddingSelection
+                    ? 'Submitting Tasting Request...'
+                    : foodTastingSelectionIssue
+                      ? 'Complete Every Tasting Course'
+                      : 'Submit Food Tasting Request'
+                  : isAddingSelection
                   ? 'Adding...'
                   : cateringSelectionUnavailable
                     ? 'Catering Options Unavailable'
@@ -1603,6 +1968,10 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                       ? 'Venue Option or Duration Required'
                       : cateringGuestCountIssue
                         ? 'Set a Valid Guest Count'
+                    : foodTastingPreferenceRequired
+                      ? 'Choose Food Tasting Preference'
+                      : foodTastingMenuSelectionPending
+                        ? 'Food Tasting Menu Required'
                     : quoteLoading
                       ? 'Calculating Event Price...'
                       : quoteError
@@ -1615,7 +1984,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
               </Text>
               {!isWide ? <Text style={styles.addDivider}>|</Text> : null}
               {!isWide ? (
-                <Text style={styles.addPrice}>{estimatedDisplay}</Text>
+                <Text style={styles.addPrice}>{isFoodTastingFlow ? 'Final price pending' : estimatedDisplay}</Text>
               ) : null}
             </Pressable>
           </View>
@@ -1826,6 +2195,11 @@ const styles = StyleSheet.create({
   },
   descriptionSection: { borderBottomWidth: 1, borderBottomColor: palette.surfaceVariant, paddingBottom: 32 },
   description: { maxWidth: 680, color: palette.secondary, fontSize: 18, lineHeight: 30 },
+  cateringFormatsSection: { gap: 10, marginTop: 20 },
+  cateringFormatsLabel: { color: palette.secondary, fontSize: 11, lineHeight: 15, fontWeight: '700', letterSpacing: 1 },
+  cateringFormatsList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  cateringFormatChip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 16, backgroundColor: '#F8EFF1', paddingHorizontal: 10, paddingVertical: 7 },
+  cateringFormatText: { color: palette.text, fontSize: 12, lineHeight: 17, fontWeight: '600' },
   serviceFacts: {
     overflow: 'hidden',
     borderWidth: 1,
@@ -1933,6 +2307,31 @@ const styles = StyleSheet.create({
   },
   unavailableNoticeText: { minWidth: 0, flex: 1, color: palette.secondary, fontSize: 12, lineHeight: 18 },
   cateringOptionsSection: { gap: 12, marginBottom: 32 },
+  foodTastingPreferenceCard: { gap: 14, borderWidth: 1, borderColor: '#E6C4C8', borderRadius: 14, backgroundColor: '#FCF5F6', padding: 16 },
+  foodTastingPreferenceHeading: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  foodTastingPreferenceCopy: { minWidth: 0, flex: 1, gap: 4 },
+  foodTastingPreferenceOptions: { gap: 10 },
+  foodTastingPreferenceOption: { minHeight: 68, flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderWidth: 1, borderColor: '#E7D8DA', borderRadius: 10, backgroundColor: palette.surfaceLowest, padding: 12 },
+  foodTastingPreferenceOptionSelected: { borderWidth: 2, borderColor: palette.primary, backgroundColor: '#FFF9FA' },
+  foodTastingPreferenceOptionDisabled: { backgroundColor: palette.surfaceLow, opacity: 0.64 },
+  foodTastingPreferenceOptionCopy: { minWidth: 0, flex: 1, gap: 2 },
+  foodTastingPreferenceOptionTitle: { color: palette.text, fontSize: 13, lineHeight: 19, fontWeight: '700' },
+  foodTastingPreferenceOptionText: { color: palette.secondary, fontSize: 11, lineHeight: 16 },
+  foodTastingUnavailableCopy: { color: palette.secondary, fontSize: 11, lineHeight: 16 },
+  foodTastingPhaseNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderWidth: 1, borderColor: '#E6C4C8', borderRadius: 12, backgroundColor: '#F8EFF1', padding: 14 },
+  foodTastingPhaseNoticeTitle: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: '800' },
+  foodTastingPhaseNoticeText: { color: palette.secondary, fontSize: 12, lineHeight: 18 },
+  foodTastingCourseCard: { gap: 10, borderWidth: 1, borderColor: '#E6C4C8', borderRadius: 14, backgroundColor: palette.surfaceLowest, padding: 15 },
+  foodTastingCourseCopy: { minWidth: 0, flex: 1 },
+  foodTastingCourseCount: { alignItems: 'flex-end', gap: 3 },
+  foodTastingCourseCountText: { color: palette.secondary, fontSize: 13, lineHeight: 18, fontWeight: '700' },
+  foodTastingCourseCountComplete: { color: palette.primary },
+  foodTastingFinalLimit: { color: palette.secondary, fontSize: 11, lineHeight: 16, marginTop: 3 },
+  foodTastingPricingNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderRadius: 12, backgroundColor: palette.surfaceLow, padding: 14 },
+  foodTastingPricingTitle: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '800' },
+  foodTastingPricingText: { color: palette.secondary, fontSize: 12, lineHeight: 18 },
+  foodTastingReferencePrice: { color: palette.primary, fontSize: 12, lineHeight: 18, fontWeight: '700', marginTop: 2 },
+  foodTastingDraftMessage: { color: palette.primary, fontSize: 12, lineHeight: 18, fontWeight: '600' },
   guestCountCard: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14, borderRadius: 14, backgroundColor: '#F8EFF1', padding: 16 },
   guestCountCopy: { minWidth: 0, flex: 1, gap: 6 },
   guestCountHint: { color: palette.secondary, fontSize: 11, lineHeight: 16 },

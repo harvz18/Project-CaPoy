@@ -1681,7 +1681,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                     </View>
                   ) : null}
                   <Text style={styles.selectedServicePrice}>
-                    {formatCurrency(service.price)}
+                    {service.pricePending ? 'Final price pending' : formatCurrency(service.price)}
                   </Text>
                 </Pressable>
               ))}

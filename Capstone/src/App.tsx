@@ -45,7 +45,9 @@ import {
   fetchPaymentSettlementContextV14,
   removeCoordinatorFromEvent,
   removeServiceSelection,
+  loadCateringTastingDraft,
   saveBudgetPlan,
+  saveCateringTastingDraft,
   saveBookingPlanForLater,
   saveEventFeedback,
   saveEventDraft,
@@ -79,6 +81,8 @@ import {
   deleteMerchantPackageListing,
   deleteMerchantServiceListing,
   emptyMerchantPayoutDashboard,
+  activateV15FoodTastingDirectMenuFallback,
+  confirmV15FoodTastingAttendance,
   fetchClientBookings,
   fetchMerchantBookingRequests,
   fetchMerchantEarningsOverview,
@@ -87,6 +91,7 @@ import {
   loadMerchantServiceDraft,
   loadMerchantServiceForEditing,
   loadCateringFoodTastingSlots,
+  loadV15CateringFoodTastingRescheduleSlots,
   MerchantPackageListing,
   type MerchantEarningsOverview,
   MerchantServiceListing,
@@ -98,6 +103,7 @@ import {
   respondToCateringFoodTastingProposal,
   respondToChurchWeddingProposal,
   rescheduleClientEventBookings,
+  rescheduleV15FoodTasting,
   saveAvailabilityCalendar,
   saveBookingDecision,
   saveMerchantServiceDraft,
@@ -728,6 +734,7 @@ export const App: React.FC = () => {
     serviceId?: string
   }>()
   const [currentServiceId, setCurrentServiceId] = React.useState('')
+  const [directCateringFallbackServiceId, setDirectCateringFallbackServiceId] = React.useState('')
   const [serviceReviewInsights, setServiceReviewInsights] =
     React.useState<ServiceReviewInsights>()
   const [serviceReviewInsightsLoading, setServiceReviewInsightsLoading] = React.useState(false)
@@ -2945,6 +2952,13 @@ export const App: React.FC = () => {
     openPlanningHub('forward', categoryNameToId(service.category))
   }
 
+  const handleLoadCateringTastingDraft = (service: CatalogService) =>
+    loadCateringTastingDraft(service)
+
+  const handleSaveCateringTastingDraft = (
+    value: Parameters<typeof saveCateringTastingDraft>[0]
+  ) => saveCateringTastingDraft(value)
+
   const handleAddSelection = async (value: Parameters<typeof saveServiceSelection>[0]) => {
     if (!supabase) {
       setToastMessage('Supabase is not configured. Check the app environment settings.')
@@ -3003,11 +3017,16 @@ export const App: React.FC = () => {
       return
     }
 
+    if (directCateringFallbackServiceId === value.service.id) {
+      setDirectCateringFallbackServiceId('')
+    }
+
     const fallbackProviderPrice = value.service.pricingUnit === 'person' && value.attendeeCount > 0
       ? value.service.providerMinPrice * value.attendeeCount
       : value.service.providerMinPrice
     const providerPrice = result.providerAmount ?? fallbackProviderPrice
     const calculatedAmount = result.calculatedAmount ?? value.estimatedTotal
+    const foodTastingPricePending = value.foodTastingPreference === true
     const nextSelection: SelectedSummaryService = {
       id: value.service.id,
       category: value.service.categoryName.toUpperCase(),
@@ -3015,7 +3034,9 @@ export const App: React.FC = () => {
         Math.max(0, calculatedAmount - providerPrice) * 100
       ) / 100,
       commissionRate: value.service.commissionRate,
-      detail: value.venueOption
+      detail: foodTastingPricePending
+        ? `${value.attendeeCount} Guests - Food tasting request sent`
+        : value.venueOption
         ? `${value.venueOption.name} · ${value.venueBookedHours} hours`
         : value.cateringOption
         ? `${value.cateringOption.name} · ${value.attendeeCount} Guests`
@@ -3024,8 +3045,9 @@ export const App: React.FC = () => {
       imageUrl: value.service.imageUrl,
       name: value.service.name,
       price: calculatedAmount,
+      pricePending: foodTastingPricePending,
       providerPrice,
-      status: 'Selected',
+      status: foodTastingPricePending ? 'Requested' : 'Selected',
     }
 
     const nextSelectedServices = (() => {
@@ -3063,9 +3085,11 @@ export const App: React.FC = () => {
       return
     }
 
-    setToastMessage(nextPlanningCategory
-      ? 'Service added. Moving to your next allocated category.'
-      : 'Service added. Your allocated service categories are ready to review.')
+    setToastMessage(foodTastingPricePending
+      ? 'Food tasting request sent. The caterer can now review your preliminary menu and event details.'
+      : nextPlanningCategory
+        ? 'Service added. Moving to your next allocated category.'
+        : 'Service added. Your allocated service categories are ready to review.')
     await refreshLiveData()
     await recheckSavedPlan()
     openPlanningHub(undefined, nextPlanningCategory ?? categoryNameToId(nextSelection.category))
@@ -3567,14 +3591,72 @@ export const App: React.FC = () => {
     note?: string
     scheduledDate: string
     startTime: string
+    useV15?: boolean
   }) => {
     const result = await requestCateringFoodTasting(value)
     if (!result.ok) return result
 
     await refreshLiveData()
-    const message = 'Food tasting request sent to the catering provider.'
+    const message = result.foodTastingScheduled
+      ? 'Food tasting schedule confirmed. Your caterer was notified.'
+      : 'Food tasting request sent to the catering provider.'
     setToastMessage(message)
     return { ok: true, message }
+  }
+
+  const handleClientFoodTastingAttendance = async (bookingId: string) => {
+    const result = await confirmV15FoodTastingAttendance(bookingId)
+    if (!result.ok) return result
+
+    await refreshLiveData()
+    const message = result.foodTastingAttendanceConfirmed
+      ? 'Attendance confirmed. Your caterer was notified.'
+      : 'Food tasting attendance is already confirmed.'
+    setToastMessage(message)
+    return { ok: true, message }
+  }
+
+  const handleClientFoodTastingReschedule = async (value: {
+    bookingId: string
+    note?: string
+    scheduledDate: string
+    startTime: string
+  }) => {
+    const result = await rescheduleV15FoodTasting(value)
+    if (!result.ok) return result
+
+    await refreshLiveData()
+    const message = result.foodTastingRescheduled
+      ? 'Food tasting rescheduled. Your caterer was notified.'
+      : 'Food tasting schedule updated.'
+    setToastMessage(message)
+    return { ok: true, message }
+  }
+
+  const handleChooseFinalCateringMenu = async (
+    service: NonNullable<BookingItem['services']>[number]
+  ) => {
+    const result = await activateV15FoodTastingDirectMenuFallback(service.bookingId)
+    if (!result.ok) {
+      setToastMessage(result.message ?? 'Unable to open final menu selection.')
+      return
+    }
+
+    const targetServiceId = result.foodTastingFallbackServiceId || service.serviceId
+    const targetService = catalogServices.find((candidate) => candidate.id === targetServiceId)
+    if (!targetService) {
+      setToastMessage('The direct catering menu is no longer available. Refresh and try again.')
+      void refreshLiveData()
+      return
+    }
+
+    await refreshLiveData()
+    setDirectCateringFallbackServiceId(targetService.id)
+    setServiceBrowseMode('planning')
+    setSelectedCategory('catering')
+    setCurrentServiceId(targetService.id)
+    setToastMessage('Choose your final catering menu to replace the expired food tasting request.')
+    setScreen('serviceDetails')
   }
 
   const handleClientFoodTastingProposal = async (tastingId: string, acceptProposal: boolean) => {
@@ -5274,7 +5356,12 @@ export const App: React.FC = () => {
             mode={serviceBrowseMode}
             service={currentService}
             hasBudget={hasConfiguredPlanningBudget}
+            initialFoodTastingPreference={
+              directCateringFallbackServiceId === currentService?.id ? false : undefined
+            }
             onAddSelection={handleAddSelection}
+            onLoadFoodTastingDraft={handleLoadCateringTastingDraft}
+            onSaveFoodTastingDraft={handleSaveCateringTastingDraft}
             onCalculateQuote={(value) => calculateServiceQuote({
               attendeeCount: value.attendeeCount,
               menuItemIds: value.menuItemIds,
@@ -5517,9 +5604,13 @@ export const App: React.FC = () => {
             }
             onRespondChurchProposal={handleClientChurchProposalResponse}
             onLoadFoodTastingSlots={loadCateringFoodTastingSlots}
+            onLoadFoodTastingRescheduleSlots={loadV15CateringFoodTastingRescheduleSlots}
             onStartPayment={() => void openBookingPayment()}
+            onChooseFinalCateringMenu={(service) => void handleChooseFinalCateringMenu(service)}
+            onConfirmFoodTastingAttendance={handleClientFoodTastingAttendance}
             onRequestFoodTasting={handleClientFoodTastingRequest}
             onRescheduleBooking={handleClientBookingReschedule}
+            onRescheduleFoodTasting={handleClientFoodTastingReschedule}
             onRespondToFoodTastingProposal={handleClientFoodTastingProposal}
             onSubmitReview={
               selectedBooking?.status === 'completed' && !selectedBooking.hasFeedback

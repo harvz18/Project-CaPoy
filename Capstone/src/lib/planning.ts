@@ -149,6 +149,8 @@ type ServiceSelectionInput = {
   cateringMenuItemIds?: string[]
   cateringOption?: CateringPricingOption
   estimatedTotal: number
+  foodTastingMenuItemIds?: string[]
+  foodTastingPreference?: boolean
   mealType?: string
   notes: string
   replacementBookingId?: string
@@ -156,6 +158,21 @@ type ServiceSelectionInput = {
   venueBookedHours?: number
   venueOption?: VenueBookingOption
   venueSelections?: VenueOptionSelection[]
+}
+
+export type CateringTastingDraft = {
+  attendeeCount: number
+  isComplete: boolean
+  menuItemIds: string[]
+  revision: number
+  updatedAt?: string
+}
+
+type CateringTastingDraftInput = {
+  attendeeCount: number
+  menuItemIds: string[]
+  revision: number
+  service: CatalogService
 }
 
 export type ClientPlanningState = {
@@ -1040,6 +1057,7 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
         && typeof selection.catering_option_snapshot === 'object'
         ? selection.catering_option_snapshot as Record<string, unknown>
         : {}
+      const pricePending = cateringSnapshot.finalPricePending === true
       const selectedFoodNames = Array.isArray(cateringSnapshot.selectedItems)
         ? cateringSnapshot.selectedItems.flatMap((item) => item && typeof item === 'object'
           && typeof (item as Record<string, unknown>).name === 'string'
@@ -1051,7 +1069,9 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
         category: selection.category_name || 'SERVICE',
         commissionAmount: Number(snapshot.commissionAmount ?? 0),
         commissionRate: Number(snapshot.commissionRate ?? 0),
-        detail: selection.venue_option_name
+        detail: pricePending
+          ? `${selection.attendee_count ?? 0} Guests - Food tasting request sent`
+          : selection.venue_option_name
           ? `${selection.venue_option_name} · ${selection.venue_booked_hours ?? 0} hours`
           : selection.catering_option_name
           ? `${selection.catering_option_name}${selectedFoodNames.length ? `: ${selectedFoodNames.slice(0, 2).join(', ')}${selectedFoodNames.length > 2 ? '…' : ''}` : ''} · ${selection.attendee_count ?? 0} Guests`
@@ -1066,6 +1086,7 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
         imageUrl: service?.cover_image_url || '',
         name,
         price: Number(selection.estimated_amount ?? 0),
+        pricePending,
         providerPrice: Number(snapshot.providerAmount ?? selection.estimated_amount ?? 0),
         status:
           selection.status === 'confirmed'
@@ -1255,6 +1276,87 @@ const ensureDraftEvent = async (
 
   activePlanningEventId = created.id as string
   return { eventId: created.id as string, userId }
+}
+
+export const loadCateringTastingDraft = async (
+  service: CatalogService
+): Promise<{ draft?: CateringTastingDraft; message?: string; ok: boolean }> => {
+  try {
+    const client = getClient()
+    const event = await ensureDraftEvent()
+    const serviceId = service.bookingServiceId ?? service.id
+    if (!client || !event || !isUuid(serviceId)) {
+      return { ok: false, message: 'Unable to load your food tasting menu.' }
+    }
+
+    const { data, error } = await client.rpc('load_my_catering_tasting_draft_v15', {
+      target_event_id: event.eventId,
+      target_service_id: serviceId,
+    })
+    if (error) {
+      return {
+        ok: false,
+        message: error.message.toLowerCase().includes('load_my_catering_tasting_draft_v15')
+          ? 'The V15 food-tasting migration is not installed yet. Apply database/96_v15_food_tasting_preliminary_menu.sql.'
+          : error.message,
+      }
+    }
+    if (!data || typeof data !== 'object') return { ok: true }
+
+    const record = data as Record<string, unknown>
+    const menuItemIds = Array.isArray(record.selectedItemIds)
+      ? record.selectedItemIds.filter((item): item is string => typeof item === 'string' && item.length > 0)
+      : []
+    return {
+      draft: {
+        attendeeCount: Math.max(1, Math.floor(Number(record.guestCount) || 1)),
+        isComplete: record.isComplete === true,
+        menuItemIds: Array.from(new Set(menuItemIds)),
+        revision: Math.max(0, Math.floor(Number(record.revision) || 0)),
+        updatedAt: typeof record.updatedAt === 'string' ? record.updatedAt : undefined,
+      },
+      ok: true,
+    }
+  } catch (error) {
+    return { ok: false, message: toMessage(error) }
+  }
+}
+
+export const saveCateringTastingDraft = async (
+  value: CateringTastingDraftInput
+): Promise<{ isComplete?: boolean; message?: string; ok: boolean; stale?: boolean }> => {
+  try {
+    const client = getClient()
+    const event = await ensureDraftEvent()
+    const serviceId = value.service.bookingServiceId ?? value.service.id
+    if (!client || !event || !isUuid(serviceId)) {
+      return { ok: false, message: 'Unable to save your food tasting menu.' }
+    }
+
+    const { data, error } = await client.rpc('save_my_catering_tasting_draft_v15', {
+      target_event_id: event.eventId,
+      target_guest_count: Math.max(1, Math.floor(value.attendeeCount)),
+      target_menu_item_ids: Array.from(new Set(value.menuItemIds.filter(Boolean))),
+      target_revision: Math.max(0, Math.floor(value.revision)),
+      target_service_id: serviceId,
+    })
+    if (error) {
+      return {
+        ok: false,
+        message: error.message.toLowerCase().includes('save_my_catering_tasting_draft_v15')
+          ? 'The V15 food-tasting migration is not installed yet. Apply database/96_v15_food_tasting_preliminary_menu.sql.'
+          : error.message,
+      }
+    }
+    const result = data && typeof data === 'object' ? data as Record<string, unknown> : {}
+    return {
+      isComplete: result.isComplete === true,
+      ok: true,
+      stale: result.stale === true,
+    }
+  } catch (error) {
+    return { ok: false, message: toMessage(error) }
+  }
 }
 
 export const createClientEventDraft = async (): Promise<PlanningResult & { eventId?: string }> => {
@@ -2193,6 +2295,34 @@ export const saveServiceSelection = async (
     const serviceId = value.service.bookingServiceId ?? value.service.id
     const packageId = value.service.bookingPackageId ?? value.service.packageId
     if (isUuid(serviceId)) {
+      // V15 tasting requests deliberately have no final menu or payable price.
+      // This dedicated request path validates the server-owned preliminary menu
+      // and leaves the established direct catering flow unchanged.
+      if (value.service.categoryId === 'catering' && value.foodTastingPreference === true) {
+        const { data, error } = await client.rpc('submit_my_catering_food_tasting_request_v15', {
+          target_event_id: event.eventId,
+          target_guest_count: value.attendeeCount,
+          target_menu_item_ids: value.foodTastingMenuItemIds ?? [],
+          target_service_id: serviceId,
+        })
+        if (error) {
+          return {
+            ok: false,
+            message: error.message.toLowerCase().includes('submit_my_catering_food_tasting_request_v15')
+              ? 'Food tasting scheduling is not installed yet. Apply database/97_v15_food_tasting_acceptance_scheduling.sql.'
+              : error.message,
+          }
+        }
+        const result = data && typeof data === 'object' ? data as Record<string, unknown> : {}
+        return {
+          bookingId: typeof result.bookingId === 'string' ? result.bookingId : undefined,
+          calculatedAmount: 0,
+          ok: true,
+          providerAmount: 0,
+          selectionId: typeof result.selectionId === 'string' ? result.selectionId : undefined,
+        }
+      }
+
       // The Phase 5 service screen no longer collects dietary notes. Retain a
       // note previously saved for this same selection instead of erasing it
       // when the client revisits or updates the service configuration.
@@ -2221,9 +2351,10 @@ export const saveServiceSelection = async (
       const hasSelectedProviderPackage = isUuid(packageId)
       const isCateringSelection = value.service.categoryId === 'catering'
       const selectionResult = isCateringSelection
-        ? await client.rpc('save_my_catering_service_selection_v10', {
+        ? await client.rpc('save_my_catering_service_selection_v15', {
           replace_existing: true,
           target_event_id: event.eventId,
+          target_food_tasting_preference: value.foodTastingPreference ?? null,
           target_guest_count: value.attendeeCount,
           target_meal_type: value.mealType ?? null,
           target_menu_item_ids: value.cateringMenuItemIds ?? null,
@@ -2274,7 +2405,9 @@ export const saveServiceSelection = async (
       if (error) {
         return {
           ok: false,
-          message: error.message.toLowerCase().includes('save_my_venue_service_selection_v8')
+          message: error.message.toLowerCase().includes('save_my_catering_service_selection_v15')
+            ? 'The V15 catering-preference migration is not installed yet. Apply database/95_v15_catering_preference.sql.'
+            : error.message.toLowerCase().includes('save_my_venue_service_selection_v8')
             ? 'Venue option pricing is not installed yet. Apply the V8 Phase 2 database migration.'
             : error.message.toLowerCase().includes('save_my_event_service_selection')
               ? 'Phase 9 service selection is not installed yet. Apply database/60_service_selection_revision.sql.'

@@ -45,17 +45,30 @@ export type CateringCustomMenuItem = {
 }
 
 export type CateringCustomMenuSection = {
+  // These are intentionally separate from direct-menu limits. A tasting can
+  // sample more dishes than will be served at the event.
+  finalSelectionLimit?: number
   id: string
   items: CateringCustomMenuItem[]
   maximumSelections?: number
   minimumSelections: number
   name: string
+  tastingSelectionLimit?: number
 }
 
 export type CateringCustomMenu = {
   maximumGuests: number
   minimumGuests: number
   sections: CateringCustomMenuSection[]
+}
+
+export type CateringTastingMenuSection = CateringCustomMenuSection & {
+  finalSelectionLimit: number
+  tastingSelectionLimit: number
+}
+
+export type CateringTastingMenu = Omit<CateringCustomMenu, 'sections'> & {
+  sections: CateringTastingMenuSection[]
 }
 
 // Food tastings are opt-in per catering listing. Slots are provider-entered
@@ -335,8 +348,14 @@ export const getCateringCustomMenu = (value: unknown): CateringCustomMenu | unde
     maximumSelections: number(section.maximumSelections) > 0
       ? Math.floor(number(section.maximumSelections))
       : undefined,
+    finalSelectionLimit: number(section.finalSelectionLimit) > 0
+      ? Math.floor(number(section.finalSelectionLimit))
+      : undefined,
     minimumSelections: Math.max(0, Math.floor(number(section.minimumSelections))),
     name: text(section.name),
+    tastingSelectionLimit: number(section.tastingSelectionLimit) > 0
+      ? Math.floor(number(section.tastingSelectionLimit))
+      : undefined,
   })).filter((section) => section.name && section.items.length > 0)
 
   if (sections.length === 0) return undefined
@@ -347,6 +366,27 @@ export const getCateringCustomMenu = (value: unknown): CateringCustomMenu | unde
     minimumGuests,
     sections,
   }
+}
+
+// A tasting menu is available only when every course has explicit rules. This
+// deliberately avoids treating a direct-menu price as the final event price.
+export const getCateringTastingMenu = (value: unknown): CateringTastingMenu | undefined => {
+  const menu = getCateringCustomMenu(value)
+  if (!menu) return undefined
+
+  const sections = menu.sections.flatMap((section) => {
+    const tastingSelectionLimit = section.tastingSelectionLimit
+    const finalSelectionLimit = section.finalSelectionLimit
+    const activeItemCount = section.items.filter((item) => item.isActive).length
+    if (!tastingSelectionLimit || !finalSelectionLimit
+      || finalSelectionLimit > tastingSelectionLimit
+      || tastingSelectionLimit > activeItemCount) return []
+    return [{ ...section, finalSelectionLimit, tastingSelectionLimit }]
+  })
+
+  return sections.length === menu.sections.length
+    ? { ...menu, sections }
+    : undefined
 }
 
 export const getCateringTastingSettings = (
@@ -604,6 +644,28 @@ export const validateCategoryDetails = (
     })
     const tasting = asObject(details.tastingSettings)
     if (tasting.enabled === true) {
+      if (!hasCustomMenu) {
+        errors.push('Food tasting requires an item-priced menu with course-level dish selections.')
+      }
+      rawCustomSections.forEach((section, sectionIndex) => {
+        const label = `Food tasting course ${sectionIndex + 1}`
+        const tastingSelectionLimit = number(section.tastingSelectionLimit)
+        const finalSelectionLimit = number(section.finalSelectionLimit)
+        const activeItemCount = (Array.isArray(section.items) ? section.items : [])
+          .map(asObject)
+          .filter((item) => item.isActive !== false)
+          .length
+        if (tastingSelectionLimit <= 0) {
+          errors.push(`${label} needs a tasting selection limit.`)
+        } else if (tastingSelectionLimit > activeItemCount) {
+          errors.push(`${label} tasting selections cannot exceed available food items.`)
+        }
+        if (finalSelectionLimit <= 0) {
+          errors.push(`${label} needs a final menu selection limit.`)
+        } else if (tastingSelectionLimit > 0 && finalSelectionLimit > tastingSelectionLimit) {
+          errors.push(`${label} final menu selections cannot exceed tasting selections.`)
+        }
+      })
       const tastingSlots = list(tasting.tastingTimeSlots)
       if (tastingSlots.length === 0) errors.push('Add at least one food tasting start time.')
       if (tastingSlots.some((slot) => !/^([01]\d|2[0-3]):[0-5]\d$/.test(slot))) {

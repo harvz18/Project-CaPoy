@@ -123,6 +123,7 @@ const servicesFor = (request: MerchantBookingRequest): MerchantBookedService[] =
         budgetPerHead: request.budgetPerHead,
         cateringMenuItems: request.cateringMenuItems,
         cateringOptionName: request.cateringOptionName,
+        foodTastingWorkflow: request.foodTastingWorkflow,
         clientNotes: request.clientNotes,
         dietaryNotes: request.dietaryNotes,
         downpaymentAmount: request.downpaymentAmount,
@@ -161,6 +162,7 @@ const requestForService = (
   cateringOptionName: service.cateringOptionName,
   foodTasting: service.foodTasting,
   foodTastingEnabled: service.foodTastingEnabled,
+  foodTastingWorkflow: service.foodTastingWorkflow,
   clientNotes: service.clientNotes,
   dietaryNotes: service.dietaryNotes,
   downpaymentAmount: service.downpaymentAmount,
@@ -422,6 +424,9 @@ export const BookingRequestDetailsScreen: React.FC<BookingRequestDetailsScreenPr
             const isProcessing = Boolean(processingBookingId) || Boolean(completingBookingId)
             const isNew = service.status === 'new'
             const isConfirmed = service.status === 'confirmed'
+            const foodTastingPricePending = Boolean(
+              service.foodTastingWorkflow && service.foodTastingWorkflow.status !== 'finalized'
+            )
 
             return (
               <View key={service.id} style={styles.serviceCard}>
@@ -439,7 +444,9 @@ export const BookingRequestDetailsScreen: React.FC<BookingRequestDetailsScreenPr
                     ) : null}
                   </View>
                   <View style={styles.serviceAside}>
-                    <Text style={styles.servicePrice}>{formatPrice(service.amount)}</Text>
+                    <Text style={styles.servicePrice}>
+                      {foodTastingPricePending ? 'Final price pending' : formatPrice(service.amount)}
+                    </Text>
                     <View
                       style={[
                         styles.statusBadge,
@@ -582,6 +589,65 @@ export const BookingRequestDetailsScreen: React.FC<BookingRequestDetailsScreenPr
                   </View>
                 ) : null}
 
+                {service.foodTastingWorkflow ? (
+                  <View style={styles.foodTastingCard}>
+                    <View style={styles.foodTastingHeading}>
+                      <View style={styles.foodTastingIcon}>
+                        <MaterialIcons color={palette.primaryContainer} name="restaurant-menu" size={18} />
+                      </View>
+                      <View style={styles.foodTastingCopy}>
+                        <Text style={styles.foodTastingTitle}>Preliminary Food Tasting Menu</Text>
+                        <Text style={styles.foodTastingText}>
+                          {service.foodTastingWorkflow.status === 'awaiting_provider_acceptance'
+                            ? 'Accept this request to let the client choose an available tasting schedule within seven days.'
+                            : service.foodTastingWorkflow.status === 'scheduling_required'
+                              ? 'The client has seven calendar days from your acceptance to choose an available schedule.'
+                              : 'The preliminary tasting menu remains available for finalization after the appointment.'}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.foodTastingText}>
+                      {service.foodTastingWorkflow.guestCount} guest{service.foodTastingWorkflow.guestCount === 1 ? '' : 's'}
+                    </Text>
+                    {service.foodTastingWorkflow.attendanceStatus === 'confirmed' ? (
+                      <Text style={styles.foodTastingText}>
+                        Client attendance is confirmed for the scheduled food tasting.
+                      </Text>
+                    ) : service.foodTastingWorkflow.attendanceStatus === 'confirmation_required' ? (
+                      <Text style={styles.foodTastingText}>
+                        The client has been asked to confirm attendance for the scheduled food tasting.
+                      </Text>
+                    ) : service.foodTastingWorkflow.attendanceStatus === 'no_response' ? (
+                      <>
+                        <Text style={styles.foodTastingText}>
+                          Client Has Not Confirmed Attendance. Message the client for clarification.
+                        </Text>
+                        <View style={styles.actionRow}>
+                          <Pressable
+                            accessibilityLabel={`Message ${request.clientName} about food tasting attendance`}
+                            disabled={!onMessageClient}
+                            onPress={() => onMessageClient?.(requestForService(request, service))}
+                            style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}
+                          >
+                            <Text style={styles.primaryButtonText}>Message Client</Text>
+                          </Pressable>
+                        </View>
+                      </>
+                    ) : null}
+                    {service.foodTastingWorkflow.rescheduleAttemptCount > 0 ? (
+                      <Text style={styles.foodTastingText}>Client reschedule attempts used: 1 of 1.</Text>
+                    ) : null}
+                    {service.foodTastingWorkflow.preliminaryMenu.map((course) => (
+                      <View key={`${service.id}-${course.name}`} style={styles.foodTastingCourse}>
+                        <Text style={styles.foodTastingCourseTitle}>
+                          {course.name} - taste {course.tastingSelectionLimit}, finalize {course.finalSelectionLimit}
+                        </Text>
+                        <Text style={styles.foodTastingText}>{course.selectedItemNames.join(', ')}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+
                 {service.foodTasting ? (
                   <View style={styles.foodTastingCard}>
                     <View style={styles.foodTastingHeading}>
@@ -601,7 +667,7 @@ export const BookingRequestDetailsScreen: React.FC<BookingRequestDetailsScreenPr
                     {service.foodTasting.clientNote ? (
                       <Text style={styles.foodTastingText}>Client note: {service.foodTasting.clientNote}</Text>
                     ) : null}
-                    {service.foodTasting.status === 'requested' ? (
+                    {service.foodTasting.status === 'requested' && !service.foodTastingWorkflow ? (
                       <View style={styles.actionRow}>
                         <Pressable
                           accessibilityLabel={`Decline food tasting for ${service.serviceName}`}
@@ -1101,6 +1167,8 @@ const styles = StyleSheet.create({
   foodTastingCopy: { minWidth: 0, flex: 1 },
   foodTastingTitle: { color: palette.text, fontSize: 12, lineHeight: 17, fontWeight: '700' },
   foodTastingText: { color: palette.secondary, fontSize: 12, lineHeight: 16 },
+  foodTastingCourse: { gap: 3, borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 8 },
+  foodTastingCourseTitle: { color: palette.text, fontSize: 12, lineHeight: 16, fontWeight: '700' },
   foodTastingLocation: { color: palette.text, fontSize: 12, lineHeight: 16, fontWeight: '600' },
   noteCard: { borderLeftWidth: 3, borderLeftColor: palette.primaryContainer, borderRadius: 8, backgroundColor: palette.primarySoft, padding: 12, marginTop: 13 },
   noteHeading: { flexDirection: 'row', alignItems: 'center', gap: 6 },
