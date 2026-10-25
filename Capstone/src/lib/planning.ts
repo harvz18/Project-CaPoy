@@ -54,6 +54,73 @@ type PlanningResult = {
   status?: 'available' | 'conflict'
 }
 
+export interface EventPaymentQuoteItem {
+  commissionAmount: number
+  commissionRate: number
+  description: string
+  id: string
+  name: string
+  price: number
+  providerPrice: number
+}
+
+export interface EventPaymentQuote {
+  acceptance: {
+    acceptedProviderCount: number
+    coordinatorAccepted: boolean
+    coordinatorRequired: boolean
+    providerCount: number
+  }
+  breakdown: {
+    clientTotal: number
+    initialPayment: number
+    platformFee: number
+    providerBalance: number
+    providerInitialAllocation: number
+    serviceSubtotal: number
+  }
+  eventId: string
+  eventName: string
+  items: EventPaymentQuoteItem[]
+  paymentEligible: boolean
+  paymentState: 'not_initiated' | 'payment_initiated' | 'paid_or_verified' | 'payment_failed_or_cancelled'
+  paymentStatus?: string
+  paymentType?: 'deposit' | 'full'
+  reason?: string
+}
+
+export type EventPaymentQuoteResult = {
+  initiated?: boolean
+  message?: string
+  ok: boolean
+  paymentQuote?: EventPaymentQuote
+}
+
+export type V14PaymentSettlementContext = {
+  eWalletCheckout: {
+    configured: boolean
+    enabled: boolean
+    instructions: string
+    provider?: string
+  }
+  environment: 'prototype' | 'sandbox' | 'live'
+  manualBankTransfer: {
+    accountName?: string
+    accountNumber?: string
+    bankName?: string
+    configured: boolean
+    enabled: boolean
+    instructions: string
+  }
+  merchantLabel: string
+}
+
+export type V14PaymentSettlementContextResult = {
+  context?: V14PaymentSettlementContext
+  message?: string
+  ok: boolean
+}
+
 type BudgetPlanInput = {
   allocations: CategoryBudgetAllocation[]
   budget: number
@@ -624,6 +691,36 @@ export const saveBookingPlanForLater = async (): Promise<PlanningResult> => {
 
     const savedPlanReview = savedPlanReviewFrom(data)
     return { ok: true, savedPlanReview }
+  } catch (error) {
+    return { ok: false, message: toMessage(error) }
+  }
+}
+
+export const submitPlanningBookingRequests = async (): Promise<PlanningResult> => {
+  try {
+    const client = getClient()
+    const event = await ensureDraftEvent()
+    if (!client || !event) {
+      return { ok: false, message: 'Unable to load this event plan.' }
+    }
+
+    const { data, error } = await client.rpc('submit_my_event_booking_requests_v14', {
+      target_event_id: event.eventId,
+    })
+    if (error) {
+      return {
+        ok: false,
+        message: error.message.toLowerCase().includes('submit_my_event_booking_requests_v14')
+          ? 'Booking requests need the V14 Phase 2 database update. Apply the V14 booking-request migration, then try again.'
+          : error.message,
+      }
+    }
+
+    const result = data && typeof data === 'object' ? data as Record<string, unknown> : {}
+    return {
+      bookingId: typeof result.booking_id === 'string' ? result.booking_id : undefined,
+      ok: true,
+    }
   } catch (error) {
     return { ok: false, message: toMessage(error) }
   }
@@ -1406,6 +1503,180 @@ export const setCategoryBudgetAllocation = async (
             : error.message,
         }
       : { ok: true }
+  } catch (error) {
+    return { ok: false, message: toMessage(error) }
+  }
+}
+
+const numberFromPaymentQuote = (value: unknown) => {
+  const numeric = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(numeric) ? numeric : 0
+}
+
+const textFromPaymentQuote = (value: unknown) =>
+  typeof value === 'string' ? value : ''
+
+const parseEventPaymentQuote = (value: unknown): EventPaymentQuote | undefined => {
+  if (!value || typeof value !== 'object') return undefined
+  const record = value as Record<string, unknown>
+  const breakdown = record.breakdown && typeof record.breakdown === 'object'
+    ? record.breakdown as Record<string, unknown>
+    : {}
+  const acceptance = record.acceptance && typeof record.acceptance === 'object'
+    ? record.acceptance as Record<string, unknown>
+    : {}
+  const items = Array.isArray(record.items)
+    ? record.items.flatMap((item) => {
+        if (!item || typeof item !== 'object') return []
+        const row = item as Record<string, unknown>
+        const id = textFromPaymentQuote(row.id)
+        if (!id) return []
+        return [{
+          commissionAmount: numberFromPaymentQuote(row.commissionAmount),
+          commissionRate: numberFromPaymentQuote(row.commissionRate),
+          description: textFromPaymentQuote(row.description) || 'Booked service',
+          id,
+          name: textFromPaymentQuote(row.name) || 'Booked service',
+          price: numberFromPaymentQuote(row.price),
+          providerPrice: numberFromPaymentQuote(row.providerPrice),
+        }]
+      })
+    : []
+  const paymentState = textFromPaymentQuote(record.paymentState)
+
+  return {
+    acceptance: {
+      acceptedProviderCount: numberFromPaymentQuote(acceptance.accepted_provider_count),
+      coordinatorAccepted: acceptance.coordinator_accepted === true,
+      coordinatorRequired: acceptance.coordinator_required === true,
+      providerCount: numberFromPaymentQuote(acceptance.provider_count),
+    },
+    breakdown: {
+      clientTotal: numberFromPaymentQuote(breakdown.clientTotal),
+      initialPayment: numberFromPaymentQuote(breakdown.initialPayment),
+      platformFee: numberFromPaymentQuote(breakdown.platformFee),
+      providerBalance: numberFromPaymentQuote(breakdown.providerBalance),
+      providerInitialAllocation: numberFromPaymentQuote(breakdown.providerInitialAllocation),
+      serviceSubtotal: numberFromPaymentQuote(breakdown.serviceSubtotal),
+    },
+    eventId: textFromPaymentQuote(record.eventId),
+    eventName: textFromPaymentQuote(record.eventName),
+    items,
+    paymentEligible: record.paymentEligible === true,
+    paymentState: [
+      'not_initiated',
+      'payment_initiated',
+      'paid_or_verified',
+      'payment_failed_or_cancelled',
+    ].includes(paymentState)
+      ? paymentState as EventPaymentQuote['paymentState']
+      : 'not_initiated',
+    paymentStatus: textFromPaymentQuote(record.paymentStatus) || undefined,
+    paymentType: record.paymentType === 'full' ? 'full' : record.paymentType === 'deposit' ? 'deposit' : undefined,
+    reason: textFromPaymentQuote(record.reason) || undefined,
+  }
+}
+
+const recordFromPaymentContext = (value: unknown): Record<string, unknown> =>
+  value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {}
+
+const parsePaymentSettlementContextV14 = (value: unknown): V14PaymentSettlementContext => {
+  const record = recordFromPaymentContext(value)
+  const bank = recordFromPaymentContext(record.manualBankTransfer)
+  const wallet = recordFromPaymentContext(record.eWalletCheckout)
+  const environment = textFromPaymentQuote(record.environment)
+  return {
+    eWalletCheckout: {
+      configured: wallet.configured === true,
+      enabled: wallet.enabled !== false,
+      instructions: textFromPaymentQuote(wallet.instructions),
+      provider: textFromPaymentQuote(wallet.provider) || undefined,
+    },
+    environment: environment === 'live' || environment === 'sandbox' ? environment : 'prototype',
+    manualBankTransfer: {
+      accountName: textFromPaymentQuote(bank.accountName) || undefined,
+      accountNumber: textFromPaymentQuote(bank.accountNumber) || undefined,
+      bankName: textFromPaymentQuote(bank.bankName) || undefined,
+      configured: bank.configured === true,
+      enabled: bank.enabled !== false,
+      instructions: textFromPaymentQuote(bank.instructions),
+    },
+    merchantLabel: textFromPaymentQuote(record.merchantLabel) || 'MULTIVENT designated settlement',
+  }
+}
+
+export const fetchPaymentSettlementContextV14 = async (): Promise<V14PaymentSettlementContextResult> => {
+  try {
+    const client = getClient()
+    if (!client) return { ok: false, message: 'Connect Supabase to load payment instructions.' }
+
+    const { data, error } = await client.rpc('get_v14_payment_settlement_context')
+    if (error) return { ok: false, message: error.message }
+    return { context: parsePaymentSettlementContextV14(data), ok: true }
+  } catch (error) {
+    return { ok: false, message: toMessage(error) }
+  }
+}
+
+export const fetchMyEventPaymentQuoteV14 = async (
+  eventId: string
+): Promise<EventPaymentQuoteResult> => {
+  try {
+    const client = getClient()
+    if (!client || !isUuid(eventId)) {
+      return { ok: false, message: 'This booking is no longer available for payment.' }
+    }
+
+    const { data, error } = await client.rpc('get_my_event_payment_quote_v14', {
+      target_event_id: eventId,
+    })
+    if (error) return { ok: false, message: error.message }
+
+    const paymentQuote = parseEventPaymentQuote(data)
+    if (!paymentQuote) {
+      return { ok: false, message: 'Unable to load the current booking payment details.' }
+    }
+
+    return { ok: true, paymentQuote }
+  } catch (error) {
+    return { ok: false, message: toMessage(error) }
+  }
+}
+
+export const initiateMyEventPaymentV14 = async (value: {
+  eventId: string
+  method: 'bankTransfer' | 'eWallet'
+  paymentType: 'deposit' | 'full'
+  termsAccepted: boolean
+}): Promise<EventPaymentQuoteResult> => {
+  try {
+    const client = getClient()
+    if (!client || !isUuid(value.eventId)) {
+      return { ok: false, message: 'This booking is no longer available for payment.' }
+    }
+
+    const { data, error } = await client.rpc('initiate_my_event_payment_v14', {
+      selected_payment_method: value.method,
+      selected_payment_type: value.paymentType,
+      target_event_id: value.eventId,
+      terms_accepted: value.termsAccepted,
+    })
+    if (error) return { ok: false, message: error.message }
+
+    const record = data && typeof data === 'object' ? data as Record<string, unknown> : {}
+    const paymentQuote = parseEventPaymentQuote(record)
+    if (!paymentQuote) {
+      return { ok: false, message: 'Payment initiation did not return its booking details.' }
+    }
+
+    return {
+      initiated: record.initiated === true,
+      message: textFromPaymentQuote(record.message) || undefined,
+      ok: true,
+      paymentQuote,
+    }
   } catch (error) {
     return { ok: false, message: toMessage(error) }
   }

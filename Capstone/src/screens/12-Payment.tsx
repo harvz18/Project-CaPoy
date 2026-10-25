@@ -13,7 +13,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { PlanningScreenHeader } from '../components/PlanningScreenHeader'
 import { formatPeso } from '../lib/catalog'
 import { calculatePaymentBreakdown } from '../lib/pricing'
-import type { SavedPlanReview } from '../lib/planning'
+import type { PaymentBreakdown } from '../lib/pricing'
+import type { SavedPlanReview, V14PaymentSettlementContext } from '../lib/planning'
 
 export type PaymentType = 'deposit' | 'full'
 export type PaymentMethod = 'eWallet' | 'bankTransfer'
@@ -47,6 +48,12 @@ interface PaymentScreenProps {
   isProcessing?: boolean
   isSavingPlan?: boolean
   items?: PaymentOrderItem[]
+  mode?: 'booking' | 'planning'
+  paymentBreakdown?: Pick<
+    PaymentBreakdown,
+    'clientTotal' | 'initialPayment' | 'platformFee' | 'providerBalance' | 'providerInitialAllocation' | 'serviceSubtotal'
+  >
+  paymentSettlementContext?: V14PaymentSettlementContext
   onBack?: () => void
   onOpenCancellationPolicy?: () => void
   onOpenTerms?: () => void
@@ -105,6 +112,9 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
   isProcessing = false,
   isSavingPlan = false,
   items = defaultItems,
+  mode = 'planning',
+  paymentBreakdown,
+  paymentSettlementContext,
   onBack,
   onOpenCancellationPolicy,
   onOpenTerms,
@@ -116,17 +126,37 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
   const { width } = useWindowDimensions()
   const isWide = width >= 640
   const [summaryExpanded, setSummaryExpanded] = React.useState(true)
-  const paymentType: PaymentType = 'deposit'
+  const [paymentType, setPaymentType] = React.useState<PaymentType>('deposit')
   const [paymentMethod, setPaymentMethod] = React.useState<PaymentMethod>('eWallet')
   const [termsAccepted, setTermsAccepted] = React.useState(false)
   const [showTermsError, setShowTermsError] = React.useState(false)
   const [isSavePlanConfirmationVisible, setIsSavePlanConfirmationVisible] = React.useState(false)
-  const breakdown = calculatePaymentBreakdown(items)
+  React.useEffect(() => {
+    if (!paymentSettlementContext) return
+    if (paymentMethod === 'eWallet' && !paymentSettlementContext.eWalletCheckout.enabled
+      && paymentSettlementContext.manualBankTransfer.enabled) {
+      setPaymentMethod('bankTransfer')
+    }
+    if (paymentMethod === 'bankTransfer' && !paymentSettlementContext.manualBankTransfer.enabled
+      && paymentSettlementContext.eWalletCheckout.enabled) {
+      setPaymentMethod('eWallet')
+    }
+  }, [paymentMethod, paymentSettlementContext])
+  // Booking Details supplies the server-authoritative snapshot so a cent-level
+  // difference between per-provider rounding and an aggregate preview cannot
+  // change what the client sees at payment time.
+  const breakdown = paymentBreakdown ?? calculatePaymentBreakdown(items)
   const commissionRates = Array.from(new Set(items.map((item) => item.commissionRate)))
   const feeLabel = commissionRates.length === 1
     ? `MULTIVENT Service Fee (${Math.round(commissionRates[0] * 100)}%)`
     : 'MULTIVENT Service Fee'
-  const amountDue = breakdown.initialPayment
+  const amountDue = paymentType === 'full' ? breakdown.clientTotal : breakdown.initialPayment
+  const isFullPayment = paymentType === 'full'
+  const selectedSettlement = paymentMethod === 'bankTransfer'
+    ? paymentSettlementContext?.manualBankTransfer
+    : paymentSettlementContext?.eWalletCheckout
+  const selectedMethodEnabled = selectedSettlement?.enabled !== false
+  const canSavePlan = mode === 'planning' && Boolean(onSavePlan)
   const needsSavedPlanReview = Boolean(
     savedPlanReview?.hasPriceChanges || savedPlanReview?.hasUnavailableServices
   )
@@ -135,7 +165,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
     : 0
 
   const handlePay = () => {
-    if (isProcessing) return
+    if (isProcessing || !selectedMethodEnabled) return
 
     if (needsSavedPlanReview) {
       onReviewSavedPlan?.()
@@ -166,9 +196,9 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
       <PlanningScreenHeader
         currentStep={5}
         label="Payment"
-        nextAccessibilityLabel="Payment is the final step"
+        nextAccessibilityLabel="Payment is the final booking step"
         onBack={onBack}
-        title="Payment"
+        title={mode === 'booking' ? 'Reserve Booking' : 'Payment'}
       />
 
       <ScrollView
@@ -277,18 +307,17 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
               description="Includes each provider's 30% required downpayment and MULTIVENT's 5% service fee. The remaining 70% is paid directly to each provider."
               detail="35% of provider service subtotal"
               label="Pay Required Downpayment"
-              onPress={() => undefined}
+              onPress={() => setPaymentType('deposit')}
               price={formatCurrency(breakdown.initialPayment)}
-              selected
+              selected={paymentType === 'deposit'}
             />
             <PaymentTypeCard
-              description="The complete service amount will be distributed to each provider after confirmation. MULTIVENT's included 5% service fee is credited to the platform."
-              detail="Coming later"
-              disabled
+              description="Pay the complete booked-service amount now. Funds are not reserved or released until payment is successfully verified."
+              detail="Full booked-service amount"
               label="Pay in Full"
-              onPress={() => undefined}
+              onPress={() => setPaymentType('full')}
               price={formatCurrency(breakdown.clientTotal)}
-              selected={false}
+              selected={paymentType === 'full'}
             />
           </View>
         </View>
@@ -299,8 +328,8 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
           <BreakdownRow label="Client Total" value={formatCurrency(breakdown.clientTotal)} />
           <BreakdownRow
             muted
-            label="Provider Downpayments (30%, held until acceptance)"
-            value={formatCurrency(breakdown.providerInitialAllocation)}
+            label={isFullPayment ? 'Provider service amount (held after verification)' : 'Provider Downpayments (30%, held after verification)'}
+            value={formatCurrency(isFullPayment ? breakdown.serviceSubtotal : breakdown.providerInitialAllocation)}
           />
           <BreakdownRow
             muted
@@ -310,12 +339,14 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
           <View style={styles.breakdownDivider} />
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>
-              Downpayment Due Now (35%)
+              {isFullPayment ? 'Full Payment Due Now' : 'Downpayment Due Now (35%)'}
             </Text>
             <Text style={styles.totalValue}>{formatCurrency(amountDue)}</Text>
           </View>
           <Text style={styles.balanceText}>
-            Remaining 70% paid directly to providers: {formatCurrency(breakdown.providerBalance)}
+            {isFullPayment
+              ? 'No remaining client balance after successful verification.'
+              : `Remaining 70% paid directly to providers: ${formatCurrency(breakdown.providerBalance)}`}
           </Text>
         </View>
 
@@ -324,15 +355,22 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
           <View style={styles.methodList}>
             {paymentMethods.map((method) => {
               const selected = paymentMethod === method.id
+              const methodEnabled = paymentSettlementContext
+                ? method.id === 'bankTransfer'
+                  ? paymentSettlementContext.manualBankTransfer.enabled
+                  : paymentSettlementContext.eWalletCheckout.enabled
+                : true
               return (
                 <Pressable
                   key={method.id}
                   accessibilityRole="radio"
                   accessibilityState={{ checked: selected }}
+                  disabled={!methodEnabled}
                   onPress={() => setPaymentMethod(method.id)}
                   style={({ pressed }) => [
                     styles.methodCard,
                     selected && styles.selectableCardActive,
+                    !methodEnabled && styles.methodCardDisabled,
                     pressed && styles.cardPressed,
                   ]}
                 >
@@ -351,6 +389,12 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
               )
             })}
           </View>
+          {mode === 'booking' && paymentSettlementContext ? (
+            <SettlementInstructions
+              context={paymentSettlementContext}
+              method={paymentMethod}
+            />
+          ) : null}
         </View>
 
         <View style={styles.termsSection}>
@@ -379,7 +423,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
             <Text onPress={onOpenTerms} style={styles.termsLink}>
               Terms of Service
             </Text>
-            . I understand that deposits are non-refundable.
+            . I understand that funds are reserved only after payment is successfully verified.
           </Text>
         </View>
         {showTermsError && (
@@ -393,43 +437,49 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
         <View style={styles.footerContent}>
           {isWide && (
             <View>
-              <Text style={styles.footerLabel}>Total Due Now</Text>
+              <Text style={styles.footerLabel}>{isFullPayment ? 'Full Payment Due' : 'Total Due Now'}</Text>
               <Text style={styles.footerAmount}>{formatCurrency(amountDue)}</Text>
             </View>
           )}
           <View style={[styles.footerActions, isWide && styles.footerActionsWide]}>
+            {canSavePlan ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ disabled: isSavingPlan || isProcessing }}
+                disabled={isSavingPlan || isProcessing}
+                onPress={() => setIsSavePlanConfirmationVisible(true)}
+                style={({ pressed }) => [
+                  styles.savePlanButton,
+                  (isSavingPlan || isProcessing) && styles.savePlanButtonDisabled,
+                  pressed && styles.savePlanButtonPressed,
+                ]}
+              >
+                <Text style={styles.savePlanButtonText}>
+                  {isSavingPlan ? 'Saving plan...' : 'Save Plan for Later'}
+                </Text>
+              </Pressable>
+            ) : null}
             <Pressable
               accessibilityRole="button"
-              accessibilityState={{ disabled: isSavingPlan || isProcessing }}
-              disabled={isSavingPlan || isProcessing}
-              onPress={() => setIsSavePlanConfirmationVisible(true)}
-              style={({ pressed }) => [
-                styles.savePlanButton,
-                (isSavingPlan || isProcessing) && styles.savePlanButtonDisabled,
-                pressed && styles.savePlanButtonPressed,
-              ]}
-            >
-              <Text style={styles.savePlanButtonText}>
-                {isSavingPlan ? 'Saving plan...' : 'Save Plan for Later'}
-              </Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ disabled: isProcessing }}
-              disabled={isProcessing}
+              accessibilityState={{ disabled: isProcessing || !selectedMethodEnabled }}
+              disabled={isProcessing || !selectedMethodEnabled}
               onPress={handlePay}
               style={({ pressed }) => [
                 styles.payButton,
-                isProcessing && styles.payButtonDisabled,
+                (isProcessing || !selectedMethodEnabled) && styles.payButtonDisabled,
                 pressed && styles.payButtonPressed,
               ]}
             >
               <Text style={styles.payButtonText}>
                 {isProcessing
-                  ? 'Finalizing booking...'
-                  : needsSavedPlanReview
+                  ? 'Starting payment...'
+                  : !selectedMethodEnabled
+                    ? 'Payment method unavailable'
+                    : needsSavedPlanReview
                     ? 'Review Changes Before Payment'
-                    : `Pay 35% Downpayment · ${formatCurrency(amountDue)}`}
+                    : isFullPayment
+                      ? `Pay in Full · ${formatCurrency(amountDue)}`
+                      : `Pay 35% Downpayment · ${formatCurrency(amountDue)}`}
               </Text>
             </Pressable>
           </View>
@@ -439,7 +489,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
         animationType="fade"
         onRequestClose={() => setIsSavePlanConfirmationVisible(false)}
         transparent
-        visible={isSavePlanConfirmationVisible}
+        visible={canSavePlan && isSavePlanConfirmationVisible}
       >
         <View style={styles.savePlanModalBackdrop}>
           <View accessibilityViewIsModal style={styles.savePlanModalCard}>
@@ -553,6 +603,43 @@ const BreakdownRow: React.FC<BreakdownRowProps> = ({ label, muted = false, value
     <Text style={[styles.breakdownText, muted && styles.breakdownTextMuted]}>{value}</Text>
   </View>
 )
+
+const SettlementInstructions = ({
+  context,
+  method,
+}: {
+  context: V14PaymentSettlementContext
+  method: PaymentMethod
+}) => {
+  const isBankTransfer = method === 'bankTransfer'
+  const methodContext = isBankTransfer ? context.manualBankTransfer : context.eWalletCheckout
+  const environmentLabel = context.environment === 'live'
+    ? 'Live settlement'
+    : context.environment === 'sandbox'
+      ? 'Sandbox settlement'
+      : 'Prototype settlement'
+
+  return (
+    <View style={styles.settlementCard}>
+      <View style={styles.settlementHeading}>
+        <MaterialCommunityIcons color={palette.burgundy} name="shield-check-outline" size={20} />
+        <Text style={styles.settlementTitle}>{environmentLabel}</Text>
+      </View>
+      <Text style={styles.settlementCopy}>{methodContext.instructions}</Text>
+      {isBankTransfer && context.manualBankTransfer.configured ? (
+        <View style={styles.bankDetails}>
+          <Text style={styles.bankDetailLabel}>{context.merchantLabel}</Text>
+          <Text style={styles.bankDetailValue}>{context.manualBankTransfer.bankName}</Text>
+          <Text style={styles.bankDetailValue}>{context.manualBankTransfer.accountName}</Text>
+          <Text style={styles.bankDetailValue}>{context.manualBankTransfer.accountNumber}</Text>
+        </View>
+      ) : null}
+      <Text style={styles.settlementNote}>
+        Payment remains pending until MULTIVENT receives authoritative bank or processor confirmation. A screenshot or client-entered reference is not verification.
+      </Text>
+    </View>
+  )
+}
 
 const palette = {
   background: '#F9F9F9',
@@ -701,6 +788,7 @@ const styles = StyleSheet.create({
   totalValue: { color: palette.burgundy, fontSize: 24, lineHeight: 32, fontWeight: '600', textAlign: 'right' },
   balanceText: { color: palette.muted, fontSize: 14, lineHeight: 21, textAlign: 'right', marginTop: 8 },
   methodList: { gap: 16 },
+  methodCardDisabled: { opacity: 0.48 },
   methodCard: {
     minHeight: 76,
     flexDirection: 'row',
@@ -718,6 +806,14 @@ const styles = StyleSheet.create({
   methodCopy: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 16 },
   methodIconCircle: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: '#F3E8EA' },
   methodLabel: { color: palette.text, fontSize: 16, lineHeight: 24 },
+  settlementCard: { backgroundColor: '#FCF5F6', borderColor: '#E8D0D4', borderRadius: 12, borderWidth: 1, marginTop: 16, padding: 16 },
+  settlementHeading: { alignItems: 'center', flexDirection: 'row', gap: 8 },
+  settlementTitle: { color: palette.burgundy, fontSize: 14, fontWeight: '700', lineHeight: 20 },
+  settlementCopy: { color: palette.muted, fontSize: 13, lineHeight: 19, marginTop: 8 },
+  settlementNote: { color: palette.muted, fontSize: 12, lineHeight: 18, marginTop: 10 },
+  bankDetails: { backgroundColor: palette.surface, borderColor: '#E8D0D4', borderRadius: 8, borderWidth: 1, marginTop: 12, padding: 11 },
+  bankDetailLabel: { color: palette.burgundy, fontSize: 12, fontWeight: '700', lineHeight: 17, marginBottom: 3 },
+  bankDetailValue: { color: palette.text, fontSize: 13, lineHeight: 19 },
   termsSection: { flexDirection: 'row', alignItems: 'flex-start', gap: 16 },
   checkbox: { width: 24, height: 24, flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.muted, borderRadius: 5, backgroundColor: palette.surface, marginTop: 2 },
   checkboxChecked: { borderColor: palette.burgundy, backgroundColor: palette.burgundy },

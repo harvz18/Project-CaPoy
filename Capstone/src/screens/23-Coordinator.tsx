@@ -1207,7 +1207,7 @@ const InvitationCard: React.FC<{
   onRespond?: (invitation: CoordinatorInvitation, accepted: boolean) => void
 }> = ({ busy, invitation, onRespond }) => {
   const [expanded, setExpanded] = React.useState(false)
-  const cannotAccept = busy || !invitation.financial.canAccept
+  const cannotAccept = busy
 
   return (
   <View style={styles.invitationCard}>
@@ -1234,9 +1234,7 @@ const InvitationCard: React.FC<{
       </Text>
     </View>
     <Text style={styles.invitationNotice}>
-      {invitation.financial.canAccept
-        ? 'Review the request below, then accept to add the event to your coordinator workspace.'
-        : 'You can review or decline this request now. Acceptance unlocks as soon as the client downpayment is confirmed.'}
+      Review the request below, then accept to add the event to your coordinator workspace. The client can pay only after every required provider and coordinator has accepted.
     </Text>
     {invitation.isChurchWedding ? (
       <Text style={styles.churchWeddingNotice}>Church wedding — church coordination will be required after acceptance.</Text>
@@ -1248,7 +1246,7 @@ const InvitationCard: React.FC<{
       style={({ pressed }) => [styles.invitationDisclosure, pressed && styles.pressedSurface]}
     >
       <Text style={styles.invitationDisclosureText}>
-        {expanded ? 'Hide client request' : 'View client request and payment'}
+        {expanded ? 'Hide client request' : 'View client request and pricing'}
       </Text>
       <MaterialIcons
         color={palette.primaryContainer}

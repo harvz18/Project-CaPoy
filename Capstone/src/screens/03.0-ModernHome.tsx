@@ -22,7 +22,7 @@ const QUICK_ACCESS_ITEMS = [
   { id: 'bookings', label: 'Bookings', image: require('../../images/Bookings.png'), iconScale: 1 },
   { id: 'savedPlans', label: 'Saved Plans', image: require('../../images/Plans.png'), iconScale: 1.5 },
   { id: 'favourites', label: 'Favourites', image: require('../../images/Favourites.png'), iconScale: 1.48 },
-  { id: 'wallet', label: 'Wallet', image: require('../../images/Wallet.png'), iconScale: 1.45 },
+  { id: 'refunds', label: 'Refunds', image: require('../../images/Wallet.png'), iconScale: 1.45 },
 ] as const
 
 type QuickAccessId = (typeof QUICK_ACCESS_ITEMS)[number]['id']

@@ -50,6 +50,7 @@ export interface BookingItem {
   coordinatorName?: string
   coordinatorUserId?: string
   coordinatorAssignmentStatus?: string
+  coordinatorRequired?: boolean
   churchArrangement?: {
     activeProposalId?: string
     arrangementStatus: string
@@ -84,6 +85,7 @@ export interface BookingItem {
   location?: string
   name: string
   paymentStatus?: string
+  paymentState?: 'not_initiated' | 'payment_initiated' | 'paid_or_verified' | 'payment_failed_or_cancelled'
   rawStatus?: string
   requestedTime?: string
   status: Exclude<BookingStatus, 'all'>

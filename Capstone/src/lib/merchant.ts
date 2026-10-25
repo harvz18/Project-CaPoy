@@ -941,7 +941,7 @@ export const cancelClientEventBookings = async (
 
     return {
       ok: true,
-      message: 'The event was cancelled. Eligible initial-payment refunds are added automatically to your MULTIVENT Wallet; cancellations at 14 days or sooner remain non-refundable.',
+      message: 'The event was cancelled. Eligible initial-payment refunds are recorded automatically for external bank or e-wallet disbursement; cancellations at 14 days or sooner remain non-refundable.',
     }
   } catch (error) {
     return { ok: false, message: toMessage(error, 'Unable to cancel this booking.') }
@@ -1326,11 +1326,10 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
   const { data, error } = await client
     .from('bookings')
     .select(
-      'id, event_id, provider_id, service_id, amount, provider_amount, status, requested_date, requested_time, client_notes, venue_option_snapshot, venue_options_snapshot, venue_booking_snapshot, created_at, updated_at, events(id, coordinator_id, coordinator_assignment_status, name, event_type, is_church_wedding, event_date, event_time, guest_count, venue, location, status), services(name, cover_image_url, category_details, service_categories(name)), provider_profiles(business_name), payments!inner(status, amount, service_subtotal, provider_initial_allocation, paid_at, metadata)'
+      'id, event_id, provider_id, service_id, amount, provider_amount, status, requested_date, requested_time, client_notes, venue_option_snapshot, venue_options_snapshot, venue_booking_snapshot, created_at, updated_at, events(id, coordinator_id, pending_coordinator_id, coordinator_assignment_status, wants_coordinator, name, event_type, is_church_wedding, event_date, event_time, guest_count, venue, location, status), services(name, cover_image_url, category_details, service_categories(name)), provider_profiles(business_name), payments(status, amount, service_subtotal, provider_initial_allocation, paid_at, created_at, metadata)'
     )
     .eq('client_id', userId)
     .neq('status', 'payment_required')
-    .in('payments.status', ['paid', 'verified'])
     .order('updated_at', { ascending: false })
 
   if (error || !data) return []
@@ -1433,16 +1432,44 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
     const payments = Array.isArray(record.payments)
       ? (record.payments as Array<Record<string, unknown>>)
       : []
-    const latestPayment = payments.at(-1)
+    const latestPayment = [...payments].sort(
+      (first, second) => textFrom(first.created_at).localeCompare(textFrom(second.created_at))
+    ).at(-1)
+    const paymentStatusValue = textFrom(latestPayment?.status)
+    const paymentStatusLabel = paymentStatusValue === 'verified'
+      ? 'Payment verified'
+      : paymentStatusValue === 'paid'
+        ? 'Payment recorded'
+        : paymentStatusValue === 'processing'
+          ? 'Payment processing'
+          : paymentStatusValue === 'pending'
+            ? 'Payment initiated — awaiting verification'
+            : paymentStatusValue === 'failed'
+              ? 'Payment failed — try again'
+              : paymentStatusValue === 'cancelled'
+                ? 'Payment cancelled'
+                : 'Awaiting provider confirmations'
+    const paymentState = paymentStatusValue === 'verified' || paymentStatusValue === 'paid'
+      ? 'paid_or_verified' as const
+      : paymentStatusValue === 'processing' || paymentStatusValue === 'pending'
+        ? 'payment_initiated' as const
+        : paymentStatusValue === 'failed' || paymentStatusValue === 'cancelled'
+          ? 'payment_failed_or_cancelled' as const
+          : 'not_initiated' as const
+    const hasRecordedPayment = paymentStatusValue === 'verified' || paymentStatusValue === 'paid'
     const serviceName = textFrom(service?.name, textFrom(provider?.business_name, 'Service'))
     const eventId = textFrom(record.event_id, textFrom(event?.id, textFrom(record.id)))
     const rawStatus = textFrom(record.status)
     const bookingId = textFrom(record.id)
-    const serviceAmount = numberFrom(
-      latestPayment?.service_subtotal,
-      numberFrom(record.provider_amount, numberFrom(record.amount))
-    )
-    const initialProviderShare = numberFrom(latestPayment?.provider_initial_allocation)
+    const serviceAmount = hasRecordedPayment
+      ? numberFrom(
+          latestPayment?.service_subtotal,
+          numberFrom(record.provider_amount, numberFrom(record.amount))
+        )
+      : numberFrom(record.provider_amount, numberFrom(record.amount))
+    const initialProviderShare = hasRecordedPayment
+      ? numberFrom(latestPayment?.provider_initial_allocation)
+      : 0
     const externalPayment = externalPaymentSummaries.get(bookingId)
     const confirmedExternalPaymentAmount = externalPayment?.confirmedExternalPaymentAmount ?? 0
     const remainingServiceBalance = Math.max(
@@ -1471,8 +1498,10 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
       foodTastingEnabled: Boolean(getCateringTastingSettings(service?.category_details)),
       image: textFrom(service?.cover_image_url),
       initialProviderShare,
-      initialPaymentRecordedAt: textFrom(latestPayment?.paid_at) || undefined,
-      paymentStatus: textFrom(latestPayment?.status, 'pending'),
+      initialPaymentRecordedAt: hasRecordedPayment
+        ? textFrom(latestPayment?.paid_at) || undefined
+        : undefined,
+      paymentStatus: paymentStatusLabel,
       providerId: textFrom(record.provider_id),
       providerName: textFrom(provider?.business_name, 'Service provider'),
       rawStatus,
@@ -1500,18 +1529,14 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
     const eventName = textFrom(event?.name, 'Event booking')
     const coordinatorId = textFrom(event?.coordinator_id)
     const coordinator = coordinatorProfilesById.get(coordinatorId)
-    const metadata =
-      latestPayment?.metadata && typeof latestPayment.metadata === 'object'
-        ? (latestPayment.metadata as Record<string, unknown>)
-        : {}
-    const paymentType = metadata.paymentType === 'full' ? 'Paid in full' : 'Deposit paid'
-
     grouped.set(eventId, {
       amount: serviceItem.amount,
       category: textFrom(event?.event_type, 'Event'),
       createdAt: textFrom(record.created_at),
       coordinatorAvatarUrl: textFrom(coordinator?.avatar_url) || undefined,
       coordinatorAssignmentStatus: textFrom(event?.coordinator_assignment_status) || undefined,
+      coordinatorRequired: event?.wants_coordinator === true
+        || Boolean(textFrom(event?.coordinator_id) || textFrom(event?.pending_coordinator_id)),
       coordinatorName: coordinatorId
         ? textFrom(coordinator?.full_name, 'Event Coordinator')
         : undefined,
@@ -1528,7 +1553,10 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
       churchArrangement: churchArrangementsByEvent.get(eventId),
       location: textFrom(event?.location),
       name: eventName,
-      paymentStatus: latestPayment ? paymentType : 'Pending',
+      paymentState,
+      paymentStatus: latestPayment
+        ? paymentStatusLabel
+        : 'Awaiting provider confirmations',
       rawStatus: textFrom(event?.status),
       requestedTime: textFrom(event?.event_time, textFrom(record.requested_time)),
       services: [serviceItem],
@@ -1570,11 +1598,10 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
   const { data, error } = await context.client
     .from('bookings')
     .select(
-      'id, event_id, service_id, amount, provider_amount, status, requested_date, requested_time, client_notes, catering_option_name, catering_option_snapshot, venue_option_name, venue_option_snapshot, venue_options_snapshot, venue_booking_snapshot, venue_booked_hours, venue_setup_start_at, venue_start_at, venue_end_at, created_at, profiles(full_name, email), events(name, event_type, event_date, event_time, guest_count, venue, location), services(name, description, category_details, service_categories(name)), service_packages(name, description, inclusions), payments!inner(status, amount, service_subtotal, platform_fee_amount, provider_initial_allocation, paid_at, verified_at, created_at, metadata)'
+      'id, event_id, service_id, amount, provider_amount, status, requested_date, requested_time, client_notes, catering_option_name, catering_option_snapshot, venue_option_name, venue_option_snapshot, venue_options_snapshot, venue_booking_snapshot, venue_booked_hours, venue_setup_start_at, venue_start_at, venue_end_at, created_at, profiles(full_name, email), events(name, event_type, event_date, event_time, guest_count, venue, location), services(name, description, category_details, service_categories(name)), service_packages(name, description, inclusions), payments(status, amount, service_subtotal, platform_fee_amount, provider_initial_allocation, paid_at, verified_at, created_at, metadata)'
     )
     .eq('provider_id', context.providerId)
     .neq('status', 'payment_required')
-    .in('payments.status', ['paid', 'verified'])
     .order('updated_at', { ascending: false })
 
   if (error || !data) return []
@@ -1709,13 +1736,15 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
       packageName: textFrom(servicePackage?.name, textFrom(service?.name, 'Service request')),
       completionPaymentStatus,
       confirmedExternalPaymentAmount,
-      paymentStatus: remainingServiceBalance <= 0
-        ? 'Fully paid / ready to complete'
-        : confirmedExternalPaymentAmount > 0
-          ? 'Remaining payment partially confirmed'
-          : metadataText(paymentMetadata, 'paymentType', 'full') === 'deposit'
-            ? 'Awaiting remaining payment'
-            : 'Full payment confirmed',
+      paymentStatus: !payment
+        ? 'No client payment yet — accept this request to help unlock payment.'
+        : remainingServiceBalance <= 0
+          ? 'Fully paid / ready to complete'
+          : confirmedExternalPaymentAmount > 0
+            ? 'Remaining payment partially confirmed'
+            : metadataText(paymentMetadata, 'paymentType', 'full') === 'deposit'
+              ? 'Awaiting remaining payment'
+              : 'Full payment confirmed',
       platformFeePaid: numberFrom(payment?.platform_fee_amount),
       initialProviderShare,
       remainingServiceBalance,

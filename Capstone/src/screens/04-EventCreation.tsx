@@ -304,6 +304,17 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
     setDateTimeError('')
   }
 
+  const handleCoordinatorPreferenceChange = (nextPreference: boolean) => {
+    setWantsCoordinator(nextPreference)
+
+    // Church-arrangement details apply only while coordinator planning is
+    // requested. An explicit "No" clears that dependent answer; merely
+    // hiding this question never interprets it as a "No".
+    if (!nextPreference) {
+      setIsChurchWedding(undefined)
+    }
+  }
+
   const handleContinue = () => {
     if (date && isPastDateTime(date, time)) {
       setDateTimeError('Choose a date and time later than the current local time.')
@@ -354,13 +365,15 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
     onValueChange?.(value)
   }, [onValueChange, value])
 
+  const shouldAskChurchQuestion = eventType === 'wedding' && wantsCoordinator === true
+
   const isStepComplete = Boolean(
     eventName.trim() &&
       date &&
       time &&
       guestCount > 0 &&
       !isPastDateTime(date, time) &&
-      (eventType !== 'wedding' || typeof isChurchWedding === 'boolean') &&
+      (!shouldAskChurchQuestion || typeof isChurchWedding === 'boolean') &&
       typeof wantsCoordinator === 'boolean' &&
       (venueStatus !== 'secured' || (venueMap.name.trim() && venueMap.address.trim()))
   )
@@ -460,7 +473,62 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
               )}
             </View>
 
-            {eventType === 'wedding' ? (
+            <View style={styles.coordinatorPreferenceSection}>
+              <Text style={styles.fieldLabel}>WOULD YOU LIKE AN EVENT COORDINATOR?</Text>
+              <Text style={styles.churchWeddingHelper}>
+                This adds Event Coordinator to your budget choices. Selecting Yes does not book or assign anyone.
+              </Text>
+              <View style={styles.churchWeddingChoices}>
+                {[
+                  {
+                    description: 'Include Event Coordinator in your budget and browse coordinators when you are ready.',
+                    label: 'Yes — I want a coordinator',
+                    value: true,
+                  },
+                  {
+                    description: 'Continue without coordinator planning. You can change this before booking services.',
+                    label: 'No — I will plan without one',
+                    value: false,
+                  },
+                ].map((option) => {
+                  const selected = wantsCoordinator === option.value
+                  return (
+                    <Pressable
+                      key={option.label}
+                      accessibilityLabel={option.label}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: selected }}
+                      onPress={() => handleCoordinatorPreferenceChange(option.value)}
+                      style={({ pressed }) => [
+                        styles.churchWeddingChoice,
+                        selected && styles.selectionCardActive,
+                        pressed && styles.cardPressed,
+                      ]}
+                    >
+                      <View style={[styles.churchWeddingIcon, selected && styles.churchWeddingIconSelected]}>
+                        <MaterialIcons
+                          color={selected ? palette.surface : palette.burgundy}
+                          name={option.value ? 'support-agent' : 'event-busy'}
+                          size={21}
+                        />
+                      </View>
+                      <View style={styles.churchWeddingCopy}>
+                        <Text style={styles.churchWeddingTitle}>{option.label}</Text>
+                        <Text style={styles.churchWeddingDescription}>{option.description}</Text>
+                      </View>
+                      {selected ? <SelectionCheck /> : null}
+                    </Pressable>
+                  )
+                })}
+              </View>
+              {typeof wantsCoordinator !== 'boolean' ? (
+                <Text accessibilityRole="alert" style={styles.preferenceRequiredText}>
+                  Select Yes or No to continue.
+                </Text>
+              ) : null}
+            </View>
+
+            {shouldAskChurchQuestion ? (
               <View style={styles.churchWeddingSection}>
                 <Text style={styles.fieldLabel}>IS THIS A CHURCH WEDDING?</Text>
                 <Text style={styles.churchWeddingHelper}>
@@ -509,68 +577,13 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                     )
                   })}
                 </View>
-              {typeof isChurchWedding !== 'boolean' ? (
-                <Text accessibilityRole="alert" style={styles.preferenceRequiredText}>
-                  Select Yes or No to continue.
-                </Text>
-              ) : null}
+                {typeof isChurchWedding !== 'boolean' ? (
+                  <Text accessibilityRole="alert" style={styles.preferenceRequiredText}>
+                    Select Yes or No to continue.
+                  </Text>
+                ) : null}
               </View>
             ) : null}
-
-            <View style={styles.coordinatorPreferenceSection}>
-              <Text style={styles.fieldLabel}>WOULD YOU LIKE AN EVENT COORDINATOR?</Text>
-              <Text style={styles.churchWeddingHelper}>
-                This adds Event Coordinator to your budget choices. Selecting Yes does not book or assign anyone.
-              </Text>
-              <View style={styles.churchWeddingChoices}>
-                {[
-                  {
-                    description: 'Include Event Coordinator in your budget and browse coordinators when you are ready.',
-                    label: 'Yes — I want a coordinator',
-                    value: true,
-                  },
-                  {
-                    description: 'Continue without coordinator planning. You can change this before booking services.',
-                    label: 'No — I will plan without one',
-                    value: false,
-                  },
-                ].map((option) => {
-                  const selected = wantsCoordinator === option.value
-                  return (
-                    <Pressable
-                      key={option.label}
-                      accessibilityLabel={option.label}
-                      accessibilityRole="radio"
-                      accessibilityState={{ checked: selected }}
-                      onPress={() => setWantsCoordinator(option.value)}
-                      style={({ pressed }) => [
-                        styles.churchWeddingChoice,
-                        selected && styles.selectionCardActive,
-                        pressed && styles.cardPressed,
-                      ]}
-                    >
-                      <View style={[styles.churchWeddingIcon, selected && styles.churchWeddingIconSelected]}>
-                        <MaterialIcons
-                          color={selected ? palette.surface : palette.burgundy}
-                          name={option.value ? 'support-agent' : 'event-busy'}
-                          size={21}
-                        />
-                      </View>
-                      <View style={styles.churchWeddingCopy}>
-                        <Text style={styles.churchWeddingTitle}>{option.label}</Text>
-                        <Text style={styles.churchWeddingDescription}>{option.description}</Text>
-                      </View>
-                      {selected ? <SelectionCheck /> : null}
-                    </Pressable>
-                  )
-                })}
-              </View>
-              {typeof wantsCoordinator !== 'boolean' ? (
-                <Text accessibilityRole="alert" style={styles.preferenceRequiredText}>
-                  Select Yes or No to continue.
-                </Text>
-              ) : null}
-            </View>
 
             <View style={[styles.dateTimeGrid, isWide && styles.dateTimeGridWide]}>
               <PickerField

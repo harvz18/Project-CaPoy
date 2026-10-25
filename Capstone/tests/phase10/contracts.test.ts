@@ -1644,13 +1644,16 @@ test('payment, held funds, individual decisions, balances, and payouts remain se
   ], 'client payment integration')
   mustContain(paymentScreen, [
     '35% of provider service subtotal',
-    'Provider Downpayments (30%, held until acceptance)',
+    'Provider Downpayments (30%, held after verification)',
     'Remaining 70% paid directly to providers',
     'Pay 35% Downpayment',
     'Pay in Full',
-    'Coming later',
+    "setPaymentType('full')",
+    "mode?: 'booking' | 'planning'",
     'disabled={disabled}',
-  ], 'current downpayment and future full-payment client UI')
+  ], 'current downpayment and full-payment client UI')
+  assert.doesNotMatch(paymentScreen, /Coming later/,
+    'the V14 booking payment flow must not leave the full-payment option disabled')
   assert.doesNotMatch(serviceDetailsScreen, /Includes .*MULTIVENT service fee/)
   mustContain(merchantEarnings, [
     'Tap an event to view its payment breakdown',
@@ -1689,7 +1692,7 @@ test('coordinators can inspect requests and both provider roles see commission-f
     'selectedServices',
   ], 'coordinator request integration')
   mustContain(coordinatorScreen, [
-    'View client request and payment',
+    'View client request and pricing',
     'REMAINING COORDINATOR BALANCE',
     "commission. The remaining balance above is based only on your coordination fee.",
   ], 'coordinator request UI')
@@ -1816,7 +1819,7 @@ test('hardware and browser Back stay inside the application navigation history',
   ], 'cross-platform in-app Back navigation')
 })
 
-test('checkout advances after a recorded payment and retries do not duplicate it', () => {
+test('legacy payment submission remains idempotent while V14 Step 5 submits booking requests', () => {
   const app = read('src/App.tsx')
   const planning = read('src/lib/planning.ts')
   const migration = read('supabase/migrations/20261018000400_payment_checkout_idempotency.sql')
@@ -1827,17 +1830,22 @@ test('checkout advances after a recorded payment and retries do not duplicate it
   const paymentScreenStart = app.indexOf("case 'payment':")
   const confirmationScreenStart = app.indexOf("case 'confirmation':")
   const paymentScreen = app.slice(paymentScreenStart, confirmationScreenStart)
+  const bookingSubmissionStart = app.indexOf('const submitBookingRequests = async () => {')
+  const bookingSubmissionEnd = app.indexOf('const reviewSavedPlanChanges = () => {')
+  const bookingSubmission = app.slice(bookingSubmissionStart, bookingSubmissionEnd)
 
   mustContain(app, [
-    'paymentSubmissionInFlight',
-    "setScreen('confirmation')",
+    'bookingRequestSubmissionInFlight',
+    "setScreen('bookings')",
     'void refreshLiveData().catch(() => undefined)',
-  ], 'checkout success transition')
+  ], 'V14 booking-request success transition')
   assert.ok(
-    paymentScreen.indexOf("setScreen('confirmation')")
-      < paymentScreen.indexOf('void refreshLiveData().catch(() => undefined)'),
-    'The receipt must not wait for the non-critical workspace refresh.'
+    bookingSubmission.indexOf("setScreen('bookings')")
+      < bookingSubmission.indexOf('void refreshLiveData().catch(() => undefined)'),
+    'The bookings workspace must not wait for the non-critical workspace refresh.'
   )
+  assert.doesNotMatch(paymentScreen, /savePlanningPayment\(/,
+    'V14 Step 5 must not collect a payment while submitting requests')
   mustContain(planning, [
     'checkout_reference:',
     "onConflict: 'checkout_reference'",
@@ -2324,7 +2332,7 @@ test('V11 Phase 4 locks only cancelled or rejected allocations without inventing
   assert.doesNotMatch(cancellationProtection, /update\s+public\.payments\s+set\s+status\s*=\s*'refunded'/i,
     'cancellation protection must not claim a refund was completed without verified refund processing')
   mustContain(merchant, [
-    'Eligible initial-payment refunds are added automatically to your MULTIVENT Wallet',
+    'Eligible initial-payment refunds are recorded automatically for external bank or e-wallet disbursement',
   ], 'client cancellation outcome copy')
 })
 
@@ -2333,8 +2341,8 @@ test('V11 wallet refunds apply the confirmed cancellation policy without rewriti
   const deployMigration = read(
     'supabase/migrations/20261022000600_client_refund_wallet.sql'
   )
-  const clientWallet = read('src/lib/client-wallet.ts')
-  const walletScreen = read('src/screens/24.1-ClientWallet.tsx')
+  const clientRefunds = read('src/lib/client-wallet.ts')
+  const refundsScreen = read('src/screens/24.1-ClientWallet.tsx')
   const home = read('src/screens/03-ClientHome.tsx')
   const app = read('src/App.tsx')
 
@@ -2363,27 +2371,27 @@ test('V11 wallet refunds apply the confirmed cancellation policy without rewriti
     'a wallet credit must preserve the original recognized payment record')
   assert.doesNotMatch(walletRefunds, /grant\s+execute\s+on\s+function\s+public\.credit_phase11_client_wallet_refund/i,
     'clients must not be able to invoke the refund-credit routine directly')
-  mustContain(clientWallet, [
-    "supabase.rpc('get_my_client_wallet')",
-    "type: 'refund_credit'",
-    "status: 'available'",
-  ], 'client wallet data boundary')
-  mustContain(walletScreen, [
-    'AVAILABLE WALLET BALANCE',
-    'Refund activity',
-    'No external transfer is created from this screen.',
-    'Eligible refunds will appear here automatically',
-  ], 'client wallet presentation')
+  mustContain(clientRefunds, [
+    "supabase.rpc('get_my_client_refund_overview_v14')",
+    "pendingExternalDisbursements",
+    "historicalWalletCredits",
+  ], 'client external-refund data boundary')
+  mustContain(refundsScreen, [
+    'PENDING EXTERNAL REFUNDS',
+    'External refund activity',
+    'This is not an in-app cash balance.',
+    'Historical records',
+  ], 'client external-refund presentation')
   mustContain(home, [
-    'onOpenWallet?: () => void',
-    "{ id: 'wallet', label: 'Wallet'",
-    'onOpenWallet?.()',
-  ], 'client home wallet entry point')
+    'onOpenRefunds?: () => void',
+    "{ id: 'refunds', label: 'Refunds'",
+    'onOpenRefunds?.()',
+  ], 'client home refund entry point')
   mustContain(app, [
-    "| 'clientWallet'",
-    'fetchClientWallet',
-    '<ClientWalletScreen',
-  ], 'client wallet navigation')
+    "| 'clientRefunds'",
+    'fetchClientRefundOverview',
+    '<ClientRefundsScreen',
+  ], 'client refund navigation')
 })
 
 test('V11 Phase 5 maps payout requests to authoritative allocations and exposes read-only reconciliation', () => {
@@ -2607,4 +2615,390 @@ test('client home appearance keeps Classic as the default while Modern reuses th
     'appearance={clientHomeAppearance}',
     'onHomeAppearanceChange={changeClientHomeAppearance}',
   ], 'appearance routing without a data reload')
+})
+
+test('V14 Phase 1 asks for coordinator planning before conditionally asking about a church wedding', () => {
+  const eventCreation = read('src/screens/04-EventCreation.tsx')
+  const app = read('src/App.tsx')
+
+  mustContain(eventCreation, [
+    'const handleCoordinatorPreferenceChange = (nextPreference: boolean)',
+    'if (!nextPreference) {',
+    'setIsChurchWedding(undefined)',
+    "const shouldAskChurchQuestion = eventType === 'wedding' && wantsCoordinator === true",
+    "(!shouldAskChurchQuestion || typeof isChurchWedding === 'boolean')",
+    'onPress={() => handleCoordinatorPreferenceChange(option.value)}',
+    '{shouldAskChurchQuestion ? (',
+  ], 'V14 coordinator-first event creation')
+  assert.ok(
+    eventCreation.indexOf('WOULD YOU LIKE AN EVENT COORDINATOR?')
+      < eventCreation.indexOf('IS THIS A CHURCH WEDDING?'),
+    'the coordinator question must be rendered before the church question'
+  )
+
+  mustContain(app, [
+    '&& first.wantsCoordinator === second.wantsCoordinator',
+    'value.wantsCoordinator === false && assignedCoordinator',
+    'Keep the persisted draft intact',
+    'if (value.wantsCoordinator === false && assignedCoordinator) {',
+    "'Remove coordinator booking?'",
+  ], 'V14 safe coordinator preference persistence')
+})
+
+test('V14 Phase 2 keeps Step 5 as a payment-free event summary with idempotent booking requests', () => {
+  const app = read('src/App.tsx')
+  const planning = read('src/lib/planning.ts')
+  const summary = read('src/screens/12-EventSummary.tsx')
+  const sourceMigration = read('database/86_v14_booking_requests_before_payment.sql')
+  const deployMigration = read('supabase/migrations/20261024000800_v14_booking_requests_before_payment.sql')
+
+  assert.equal(
+    deployMigration,
+    sourceMigration,
+    'the tracked V14 booking-request migration must exactly match the reviewed database source'
+  )
+  mustContain(summary, [
+    'label="Event Summary"',
+    'Total Event Cost',
+    'Required Down Payment (35%)',
+    'Remaining Balance',
+    'Save for Later',
+    'Book Now',
+    'Submit Booking Requests?',
+    'Submit Requests',
+    'No payment is collected when you submit booking requests.',
+  ], 'V14 event summary UI')
+  assert.doesNotMatch(summary, /Select Payment Method|onPay\?\.|Pay 35% Downpayment/,
+    'the event summary must not collect a payment')
+  mustContain(app, [
+    '<EventSummaryScreen',
+    'isSubmittingRequests={isSubmittingBookingRequests}',
+    'onSubmitRequests={() => void submitBookingRequests()}',
+    'const submitBookingRequests = async () => {',
+    "setScreen('bookings')",
+  ], 'V14 event-summary routing')
+  assert.doesNotMatch(app, /savePlanningPayment\(/,
+    'Step 5 must not record a payment while submitting requests')
+  mustContain(planning, [
+    'export const submitPlanningBookingRequests',
+    "client.rpc('submit_my_event_booking_requests_v14'",
+  ], 'V14 mobile booking-request API')
+  mustContain(deployMigration, [
+    'create or replace function public.submit_my_event_booking_requests_v14(',
+    'for update;',
+    "'requested'",
+    "'New booking request'",
+    "'New coordinator booking request'",
+    "'coordinator_request_submitted'",
+  ], 'V14 booking-request backend')
+  assert.doesNotMatch(deployMigration, /insert\s+into\s+public\.payments/i,
+    'booking-request submission must not create a payment record')
+})
+
+test('V14 Phase 3 tracks each acceptance and blocks payment until all required recipients accept', () => {
+  const sourceMigration = read('database/87_v14_all_provider_acceptance_gate.sql')
+  const deployMigration = read('supabase/migrations/20261024000900_v14_all_provider_acceptance_gate.sql')
+  const merchant = read('src/lib/merchant.ts')
+  const coordinatorScreen = read('src/screens/23-Coordinator.tsx')
+
+  assert.equal(
+    deployMigration,
+    sourceMigration,
+    'the tracked V14 all-provider gate migration must exactly match the reviewed database source'
+  )
+  mustContain(sourceMigration, [
+    'create or replace function public.event_payment_eligibility_v14(',
+    "'accepted_provider_count'",
+    "'coordinator_required'",
+    "'payment_eligible'",
+    'create or replace function public.refresh_event_payment_eligibility_v14(',
+    "'All booking requests accepted'",
+    'create or replace function public.enforce_v14_payment_eligibility()',
+    'aaa_enforce_v14_payment_eligibility_trigger',
+    'create or replace function public.respond_to_provider_booking(',
+    "set status = 'confirmed'",
+    'create or replace function public.respond_event_coordinator_assignment(',
+    'create or replace function public.get_my_coordinator_booking_details()',
+    'true as can_accept',
+  ], 'V14 acceptance gate backend')
+  assert.doesNotMatch(
+    sourceMigration,
+    /payment must be confirmed before this request can be answered/i,
+    'V14 providers and coordinators must be able to accept their own unpaid requests'
+  )
+  mustContain(merchant, [
+    'payments(status, amount, service_subtotal',
+    'Awaiting provider confirmations',
+    'No client payment yet — accept this request to help unlock payment.',
+  ], 'V14 pre-payment provider and client request visibility')
+  assert.doesNotMatch(merchant, /payments!inner/,
+    'pre-payment booking requests must not require a payment join to appear')
+  mustContain(coordinatorScreen, [
+    'const cannotAccept = busy',
+    'The client can pay only after every required provider and coordinator has accepted.',
+  ], 'V14 coordinator pre-payment acceptance UI')
+})
+
+test('V14 Phase 4 starts payment only from Booking Details after the secured acceptance gate', () => {
+  const sourceMigration = read('database/88_v14_booking_details_payment_flow.sql')
+  const deployMigration = read('supabase/migrations/20261025000100_v14_booking_details_payment_flow.sql')
+  const app = read('src/App.tsx')
+  const planning = read('src/lib/planning.ts')
+  const details = read('src/screens/11.1-BookingDetails.tsx')
+  const payment = read('src/screens/12-Payment.tsx')
+  const merchant = read('src/lib/merchant.ts')
+
+  assert.equal(
+    deployMigration,
+    sourceMigration,
+    'the tracked V14 Booking Details payment migration must exactly match the reviewed database source'
+  )
+  mustContain(sourceMigration, [
+    'create or replace function public.get_my_event_payment_quote_v14(',
+    'immutable booking/coordinator price snapshots',
+    'create or replace function public.initiate_my_event_payment_v14(',
+    'public.event_payment_eligibility_v14(event_row.id)',
+    "'v14-phase4'",
+    "'pending'",
+    'Pending attempts create no verified funds or provider receivables.',
+    "payment_type not in ('deposit', 'full')",
+    "payment_type = 'full'",
+  ], 'V14 Booking Details payment backend')
+  mustContain(planning, [
+    'export const fetchMyEventPaymentQuoteV14',
+    "client.rpc('get_my_event_payment_quote_v14'",
+    'export const initiateMyEventPaymentV14',
+    "client.rpc('initiate_my_event_payment_v14'",
+  ], 'V14 client payment API')
+  mustContain(details, [
+    'Provider Confirmations',
+    'Payment opens only when every required booking is accepted.',
+    'Pay Now to Reserve',
+    'paymentQuote?.paymentEligible',
+    'not financially reserved yet',
+  ], 'V14 Booking Details payment UI')
+  mustContain(payment, [
+    "const [paymentType, setPaymentType] = React.useState<PaymentType>('deposit')",
+    "onPress={() => setPaymentType('full')}",
+    'Pay in Full',
+    'Full Payment Due Now',
+    'server-authoritative snapshot',
+  ], 'V14 payment option UI')
+  mustContain(merchant, [
+    'const hasRecordedPayment',
+    "paymentStatusValue === 'verified' || paymentStatusValue === 'paid'",
+  ], 'V14 pending payment financial-display boundary')
+  mustContain(app, [
+    "| 'bookingPayment'",
+    "setScreen('bookingPayment')",
+    '<PaymentScreen',
+    'mode="booking"',
+    'onStartPayment={() => void openBookingPayment()}',
+  ], 'V14 Booking Details payment routing')
+  assert.doesNotMatch(
+    app.slice(app.indexOf("case 'payment':"), app.indexOf("case 'confirmation':")),
+    /savePlanningPayment\(/,
+    'event-summary submission must remain payment-free after adding Booking Details payment'
+  )
+})
+
+test('V14 Phase 5 tracks external settlement and refunds without operating an internal cash wallet', () => {
+  const sourceMigration = read('database/89_v14_bank_settlement_financial_tracking.sql')
+  const deployMigration = read('supabase/migrations/20261025000200_v14_bank_settlement_financial_tracking.sql')
+  const payment = read('src/screens/12-Payment.tsx')
+  const planning = read('src/lib/planning.ts')
+  const refunds = read('src/lib/client-wallet.ts')
+  const refundsScreen = read('src/screens/24.1-ClientWallet.tsx')
+  const home = read('src/screens/03-ClientHome.tsx')
+
+  assert.equal(
+    deployMigration,
+    sourceMigration,
+    'the deployed V14 bank-settlement migration must exactly match the reviewed database source'
+  )
+  mustContain(sourceMigration, [
+    'create table if not exists public.payment_settlement_records',
+    "'manual_bank_transfer', 'e_wallet_checkout'",
+    'create table if not exists public.client_refund_disbursements',
+    "'pending_destination', 'pending_disbursement', 'processing'",
+    'create or replace function public.get_v14_payment_settlement_context()',
+    'Prototype mode: no live bank account is configured.',
+    'create or replace function public.enforce_v14_authoritative_payment_status()',
+    'Client checkout can only create a pending payment.',
+    'create or replace function public.verify_v14_payment_settlement(',
+    "public.has_permission('remittance.verify')",
+    'drop trigger if exists phase11_wallet_refund_cancelled_event_trigger',
+    'create or replace function public.create_v14_external_refund_obligation(',
+    "'external_refund_obligation'",
+    'create or replace function public.get_my_client_refund_overview_v14()',
+    'create or replace function public.record_v14_refund_disbursement(',
+  ], 'V14 external-settlement backend')
+  assert.doesNotMatch(sourceMigration, /update\s+public\.payments\s+set\s+status\s*=\s*'refunded'/i,
+    'refund-disbursement tracking must not simulate a completed refund by overwriting the original payment')
+  mustContain(planning, [
+    'export const fetchPaymentSettlementContextV14',
+    "client.rpc('get_v14_payment_settlement_context')",
+    "environment: environment === 'live' || environment === 'sandbox' ? environment : 'prototype'",
+  ], 'client settlement configuration boundary')
+  mustContain(payment, [
+    'paymentSettlementContext?: V14PaymentSettlementContext',
+    '<SettlementInstructions',
+    'Payment remains pending until MULTIVENT receives authoritative bank or processor confirmation.',
+    'A screenshot or client-entered reference is not verification.',
+  ], 'client payment settlement presentation')
+  mustContain(refunds, [
+    "supabase.rpc('get_my_client_refund_overview_v14')",
+    "'pending_destination'",
+    'historicalRecords',
+  ], 'client refund tracking data boundary')
+  mustContain(refundsScreen, [
+    'Refunds & Disbursements',
+    'PENDING EXTERNAL REFUNDS',
+    'This is not an in-app cash balance.',
+    'Historical records',
+  ], 'client refund tracking presentation')
+  mustContain(home, [
+    "{ id: 'refunds', label: 'Refunds'",
+  ], 'home refund entry point')
+})
+
+test('V14 Phase 6 records bank payout and refund operations without bypassing receivable holds', () => {
+  const sourceMigration = read('database/90_v14_bank_payout_and_refund_operations.sql')
+  const deployMigration = read('supabase/migrations/20261025000300_v14_bank_payout_and_refund_operations.sql')
+  const app = read('src/App.tsx')
+
+  assert.equal(
+    deployMigration,
+    sourceMigration,
+    'the deployed V14 payout/refund migration must exactly match the reviewed database source'
+  )
+  mustContain(sourceMigration, [
+    'create table if not exists public.provider_payout_disbursements',
+    "'approved', 'processing', 'completed', 'failed', 'cancelled'",
+    'create table if not exists public.external_disbursement_audit_events',
+    "'provider_payout', 'client_refund'",
+    'create or replace function public.phase14_provider_payout_request_is_bank_eligible(',
+    "public.phase11_event_local_date(allocation_row.timezone)",
+    "public.phase11_has_refund_or_financial_hold",
+    'create or replace function public.approve_v14_provider_bank_payout(',
+    'create or replace function public.start_v14_provider_bank_payout(',
+    'create or replace function public.complete_v14_provider_bank_payout(',
+    'A bank or processor reference is required before completing a payout.',
+    'create or replace function public.fail_v14_provider_bank_payout(',
+    'create or replace function public.record_v14_refund_disbursement(',
+    'The requested refund status transition is not allowed.',
+    "public.has_permission('remittance.verify')",
+  ], 'V14 bank payout and refund-operation backend')
+  assert.doesNotMatch(
+    sourceMigration,
+    /update\s+public\.payments\s+set\s+status\s*=\s*'refunded'/i,
+    'manual refund completion must not rewrite the original verified payment as a simulated refund'
+  )
+  mustContain(app, [
+    "setToastMessage('Payout request submitted for review.')",
+  ], 'provider payout request UI status copy')
+})
+
+test('V14 Phase 7 exposes permission-gated financial operations and preserves authoritative settlement states', () => {
+  const sourceMigration = read('database/91_v14_admin_financial_operations.sql')
+  const deployMigration = read('supabase/migrations/20261025000400_v14_admin_financial_operations.sql')
+  const financialScreen = read('web/components/screens/financial-reporting-screen.tsx')
+
+  assert.equal(
+    deployMigration,
+    sourceMigration,
+    'the deployed V14 financial-operations migration must exactly match the reviewed database source'
+  )
+  mustContain(sourceMigration, [
+    'create or replace function public.notify_v14_payment_status_change()',
+    "'Payment verified'",
+    "'Event reservation confirmed'",
+    "new.status not in ('verified', 'failed', 'cancelled')",
+    'create or replace function public.process_phase11_payout_eligibility(',
+    "'Payout available'",
+    'create or replace function public.get_admin_v14_financial_operations()',
+    "public.has_permission('cashflow.view')",
+    "'awaitingProviderConfirmations'",
+    "'paymentsPendingVerification'",
+    "'pendingRefunds'",
+    "'completedRefunds'",
+    'individual transitions are still protected by remittance.verify',
+    'does not introduce a payment deadline',
+  ], 'V14 financial operations backend')
+  assert.doesNotMatch(
+    sourceMigration,
+    /update\s+public\.payments\s+set\s+status\s*=\s*'refunded'/i,
+    'financial operations must not simulate a completed client refund by overwriting the original payment'
+  )
+  mustContain(financialScreen, [
+    "supabase.rpc('get_admin_v14_financial_operations')",
+    "const canOperateFinancials = can('remittance.verify')",
+    "supabase.rpc('verify_v14_payment_settlement'",
+    "supabase.rpc('approve_v14_provider_bank_payout'",
+    "supabase.rpc('complete_v14_provider_bank_payout'",
+    "supabase.rpc('record_v14_refund_disbursement'",
+    'Payment verification queue',
+    'Booking and payment readiness',
+    'Provider payout operations',
+    'Client refund operations',
+  ], 'web financial operations UI')
+})
+
+test('V14 settlement verification is retry-safe without rewriting a verified payment snapshot', () => {
+  const sourceMigration = read('database/92_v14_settlement_verification_idempotency.sql')
+  const deployMigration = read('supabase/migrations/20261025000500_v14_settlement_verification_idempotency.sql')
+
+  assert.equal(
+    deployMigration,
+    sourceMigration,
+    'the deployed V14 settlement idempotency migration must exactly match the reviewed database source'
+  )
+  mustContain(sourceMigration, [
+    'create or replace function public.verify_v14_payment_settlement(',
+    "if payment_row.status = 'verified' then",
+    "'alreadyVerified', true",
+    'already verified with a different authoritative reference',
+    "if payment_row.status = 'paid' then",
+    'A response-lost or double-click retry with the same authoritative',
+  ], 'V14 settlement retry safety')
+})
+
+test('V14 verified payments become protected receivables when acceptance preceded payment', () => {
+  const sourceMigration = read('database/93_v14_verified_payment_receivable_hold.sql')
+  const deployMigration = read('supabase/migrations/20261025000600_v14_verified_payment_receivable_hold.sql')
+
+  assert.equal(
+    deployMigration,
+    sourceMigration,
+    'the deployed V14 pre-acceptance receivable migration must exactly match the reviewed database source'
+  )
+  mustContain(sourceMigration, [
+    'create or replace function public.verify_v14_payment_settlement(',
+    'perform public.hold_phase11_provider_receivable(payment_row.booking_id);',
+    'perform public.hold_phase11_coordinator_receivable(',
+    'same private custody helpers after the verified ledger row exists',
+  ], 'V14 acceptance-before-payment receivable bridge')
+})
+
+test('V14 refunds are isolated to the affected payout allocation', () => {
+  const sourceMigration = read('database/94_v14_refund_allocation_isolation.sql')
+  const deployMigration = read('supabase/migrations/20261025000700_v14_refund_allocation_isolation.sql')
+
+  assert.equal(
+    deployMigration,
+    sourceMigration,
+    'the deployed V14 refund-allocation isolation migration must exactly match the reviewed database source'
+  )
+  mustContain(sourceMigration, [
+    'create or replace function public.create_v14_external_refund_obligation(',
+    'from public.provider_payout_request_allocations allocation',
+    'where allocation.financial_transaction_id = ledger_row.id',
+    'Another booking',
+    "refund_status_value text := 'pending_destination'",
+  ], 'V14 refund allocation isolation')
+  assert.doesNotMatch(
+    sourceMigration,
+    /where\s+request\.provider_id\s*=\s*ledger_row\.provider_id\s+and\s+request\.status/i,
+    'refund eligibility must not treat another booking from the same provider as a payout against this ledger row'
+  )
 })

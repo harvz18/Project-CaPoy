@@ -6,6 +6,7 @@ import React from 'react'
 import { Image, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native'
 import type { CateringFoodTastingSlot, CateringFoodTastingSlotsResult } from '../lib/merchant'
 import { formatPeso } from '../lib/catalog'
+import type { EventPaymentQuote } from '../lib/planning'
 import type { BookingItem } from './11-BookingScreen'
 
 export interface BookingChangeActionResult {
@@ -34,6 +35,7 @@ interface BookingDetailsScreenProps {
   onMessageProviderForBooking?: (bookingId: string) => void
   onRespondChurchProposal?: (approved: boolean, declineReason?: string) => Promise<BookingChangeActionResult>
   onLoadFoodTastingSlots?: (bookingId: string) => Promise<CateringFoodTastingSlotsResult>
+  onStartPayment?: () => void
   onRequestFoodTasting?: (value: {
     bookingId: string
     note?: string
@@ -49,6 +51,9 @@ interface BookingDetailsScreenProps {
     acceptProposal: boolean
   ) => Promise<BookingChangeActionResult>
   onSubmitReview?: () => void
+  paymentQuote?: EventPaymentQuote
+  isLoadingPaymentQuote?: boolean
+  isStartingPayment?: boolean
 }
 
 const defaultProvider: Pick<
@@ -226,10 +231,14 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
   onMessageProviderForBooking,
   onRespondChurchProposal,
   onLoadFoodTastingSlots,
+  onStartPayment,
   onRequestFoodTasting,
   onRescheduleBooking,
   onRespondToFoodTastingProposal,
   onSubmitReview,
+  paymentQuote,
+  isLoadingPaymentQuote = false,
+  isStartingPayment = false,
 }) => {
   const provider = booking ?? defaultProvider
   const isConfirmed = booking?.status === 'confirmed' || booking?.status === 'completed'
@@ -241,6 +250,28 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
       && booking?.coordinatorAssignmentStatus === 'accepted'
   )
   const bookedServices = booking?.services ?? []
+  const localAcceptedProviderCount = bookedServices.filter(
+    (service) => service.status === 'confirmed' || service.status === 'completed'
+  ).length
+  const providerCount = paymentQuote?.acceptance.providerCount ?? bookedServices.length
+  const acceptedProviderCount = paymentQuote?.acceptance.acceptedProviderCount ?? localAcceptedProviderCount
+  const coordinatorRequired = paymentQuote?.acceptance.coordinatorRequired ?? Boolean(booking?.coordinatorRequired)
+  const coordinatorAccepted = paymentQuote?.acceptance.coordinatorAccepted
+    ?? (!coordinatorRequired || booking?.coordinatorAssignmentStatus === 'accepted')
+  const paymentReady = Boolean(
+    paymentQuote?.paymentEligible
+      && ['not_initiated', 'payment_failed_or_cancelled'].includes(paymentQuote.paymentState)
+      && onStartPayment
+  )
+  const paymentInitiated = paymentQuote?.paymentState === 'payment_initiated'
+  const paymentRecorded = paymentQuote?.paymentState === 'paid_or_verified'
+  const paymentFailed = paymentQuote?.paymentState === 'payment_failed_or_cancelled'
+  const paymentBlockedMessage = paymentQuote?.reason
+    ?? (providerCount > acceptedProviderCount
+      ? 'Payment will become available once all selected service providers have accepted your booking requests.'
+      : coordinatorRequired && !coordinatorAccepted
+        ? 'Payment will become available once your event coordinator has accepted the booking request.'
+        : 'Checking the latest provider confirmations before payment is enabled.')
   const eventPaymentSummary = calculateEventPaymentSummary(bookedServices)
   const [changeMode, setChangeMode] = React.useState<'cancel' | 'options' | 'reschedule'>()
   const [changeError, setChangeError] = React.useState('')
@@ -275,6 +306,15 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
       : {}),
     ...details,
   }
+  const paymentStatusText = paymentInitiated
+    ? 'Awaiting verification'
+    : paymentRecorded
+      ? paymentQuote?.paymentStatus === 'verified' ? 'Payment verified' : 'Payment recorded'
+      : paymentFailed
+        ? 'Payment needs attention'
+        : paymentQuote?.paymentEligible
+          ? 'Ready for payment'
+          : value.paymentStatus
   const churchProposalPending = booking?.churchArrangement?.arrangementStatus === 'awaiting_client_confirmation'
     && booking.churchArrangement.clientResponseStatus === 'pending'
   const coordinatorConfirmedChurch = booking?.churchArrangement?.arrangementStatus === 'coordinator_confirmed'
@@ -930,11 +970,89 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
           </View>
         ) : null}
 
-        <View style={styles.paymentCard}>
-          <Text style={styles.paymentLabel}>Payment Status</Text>
-          <View style={styles.paymentBadge}>
-            <Text style={styles.paymentBadgeText}>{value.paymentStatus}</Text>
+        <View style={styles.confirmationCard}>
+          <View style={styles.confirmationHeading}>
+            <View>
+              <Text style={styles.cardTitle}>Provider Confirmations</Text>
+              <Text style={styles.confirmationSubtitle}>
+                Payment opens only when every required booking is accepted.
+              </Text>
+            </View>
+            <MaterialIcons
+              color={acceptedProviderCount === providerCount && coordinatorAccepted ? '#145133' : palette.burgundy}
+              name={acceptedProviderCount === providerCount && coordinatorAccepted ? 'verified' : 'hourglass-empty'}
+              size={24}
+            />
           </View>
+          <View style={styles.confirmationRow}>
+            <Text style={styles.confirmationLabel}>Service providers</Text>
+            <Text style={styles.confirmationValue}>{acceptedProviderCount} of {providerCount} accepted</Text>
+          </View>
+          {coordinatorRequired ? (
+            <View style={styles.confirmationRow}>
+              <Text style={styles.confirmationLabel}>Event coordinator</Text>
+              <Text style={styles.confirmationValue}>{coordinatorAccepted ? 'Accepted' : 'Awaiting confirmation'}</Text>
+            </View>
+          ) : null}
+        </View>
+
+        <View style={styles.paymentCard}>
+          <View style={styles.paymentCardHeading}>
+            <Text style={styles.paymentLabel}>Payment Status</Text>
+            <View style={styles.paymentBadge}>
+              <Text style={styles.paymentBadgeText}>{paymentStatusText}</Text>
+            </View>
+          </View>
+          {paymentQuote ? (
+            <View style={styles.paymentBreakdown}>
+              <View style={styles.paymentBreakdownRow}>
+                <Text style={styles.paymentBreakdownLabel}>Total event cost</Text>
+                <Text style={styles.paymentBreakdownValue}>{formatPeso(paymentQuote.breakdown.clientTotal)}</Text>
+              </View>
+              <View style={styles.paymentBreakdownRow}>
+                <Text style={styles.paymentBreakdownLabel}>Required downpayment (35%)</Text>
+                <Text style={styles.paymentBreakdownValue}>{formatPeso(paymentQuote.breakdown.initialPayment)}</Text>
+              </View>
+              <Text style={styles.paymentBreakdownHint}>
+                The downpayment contains the 30% provider allocation and 5% MULTIVENT service fee.
+              </Text>
+            </View>
+          ) : null}
+          {isLoadingPaymentQuote ? (
+            <Text style={styles.paymentNotice}>Checking current confirmations and price snapshots…</Text>
+          ) : paymentReady ? (
+            <>
+              <View style={styles.paymentReadyNotice}>
+                <MaterialIcons color="#145133" name="check-circle" size={18} />
+                <Text style={styles.paymentReadyText}>All providers confirmed — payment is ready.</Text>
+              </View>
+              <Pressable
+                accessibilityLabel="Pay now to reserve this booking"
+                accessibilityRole="button"
+                disabled={isStartingPayment}
+                onPress={onStartPayment}
+                style={({ pressed }) => [
+                  styles.paymentActionButton,
+                  isStartingPayment && styles.paymentActionButtonDisabled,
+                  pressed && !isStartingPayment && styles.paymentActionButtonPressed,
+                ]}
+              >
+                <Text style={styles.paymentActionButtonText}>
+                  {isStartingPayment ? 'Loading payment…' : paymentFailed ? 'Try Payment Again' : 'Pay Now to Reserve'}
+                </Text>
+              </Pressable>
+            </>
+          ) : paymentInitiated ? (
+            <Text style={styles.paymentNotice}>
+              Payment was initiated and is awaiting completion or verification. Your booking is not financially reserved yet.
+            </Text>
+          ) : paymentRecorded ? (
+            <Text style={styles.paymentNotice}>
+              Payment is recorded. Provider funds follow the existing verified-payment hold and release policy.
+            </Text>
+          ) : (
+            <Text style={styles.paymentNotice}>{paymentBlockedMessage}</Text>
+          )}
         </View>
 
         <View style={styles.actions}>
@@ -1304,7 +1422,7 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                 <View style={[styles.changeNotice, styles.cancelNotice]}>
                   <MaterialIcons color={palette.error} name="warning-amber" size={19} />
                   <Text style={styles.changeNoticeText}>
-                    More than 14 days before the event, the full initial payment is credited to your MULTIVENT Wallet. Cancellations at 14 days or sooner are non-refundable.
+                    More than 14 days before the event, the eligible refund is recorded for external bank or e-wallet disbursement. Cancellations at 14 days or sooner are non-refundable.
                   </Text>
                 </View>
               </View>
@@ -1660,11 +1778,22 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.4,
   },
+  confirmationCard: {
+    gap: 10,
+    borderWidth: 1,
+    borderColor: '#D9C6CA',
+    borderRadius: 12,
+    backgroundColor: '#FCF7F8',
+    padding: 16,
+    marginBottom: 12,
+  },
+  confirmationHeading: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
+  confirmationSubtitle: { color: palette.muted, fontSize: 11, lineHeight: 16, marginTop: 3 },
+  confirmationRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  confirmationLabel: { color: palette.muted, fontSize: 12, lineHeight: 17 },
+  confirmationValue: { color: palette.burgundy, fontSize: 12, lineHeight: 17, fontWeight: '700', textAlign: 'right' },
   paymentCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 16,
+    gap: 12,
     borderWidth: 1,
     borderColor: palette.border,
     borderRadius: 12,
@@ -1677,6 +1806,7 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
   },
+  paymentCardHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   paymentLabel: { color: palette.text, fontSize: 16, lineHeight: 24, fontWeight: '700' },
   paymentBadge: {
     borderRadius: 14,
@@ -1691,6 +1821,18 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 1,
   },
+  paymentBreakdown: { gap: 6, borderTopWidth: 1, borderTopColor: '#E6DADC', paddingTop: 11 },
+  paymentBreakdownRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  paymentBreakdownLabel: { color: palette.muted, flex: 1, fontSize: 11, lineHeight: 16 },
+  paymentBreakdownValue: { color: palette.text, fontSize: 12, lineHeight: 17, fontWeight: '700', textAlign: 'right' },
+  paymentBreakdownHint: { color: palette.muted, fontSize: 10, lineHeight: 15, marginTop: 2 },
+  paymentReadyNotice: { flexDirection: 'row', alignItems: 'center', gap: 7, borderRadius: 9, backgroundColor: '#E7F3EB', padding: 10 },
+  paymentReadyText: { color: '#145133', flex: 1, fontSize: 12, lineHeight: 17, fontWeight: '700' },
+  paymentNotice: { color: palette.muted, fontSize: 11, lineHeight: 17 },
+  paymentActionButton: { minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: palette.burgundy, paddingHorizontal: 16, paddingVertical: 11 },
+  paymentActionButtonDisabled: { opacity: 0.62 },
+  paymentActionButtonPressed: { opacity: 0.9, transform: [{ scale: 0.98 }] },
+  paymentActionButtonText: { color: palette.surface, fontSize: 13, lineHeight: 18, fontWeight: '800' },
   feedbackSubmittedCard: {
     width: '100%',
     flexDirection: 'row',

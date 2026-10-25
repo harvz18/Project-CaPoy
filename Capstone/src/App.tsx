@@ -42,16 +42,21 @@ import {
   fetchClientEventDrafts,
   fetchClientSavedPlans,
   fetchClientPlanningState,
+  fetchPaymentSettlementContextV14,
   removeCoordinatorFromEvent,
   removeServiceSelection,
   saveBudgetPlan,
   saveBookingPlanForLater,
   saveEventFeedback,
   saveEventDraft,
-  savePlanningPayment,
   saveProviderInstructions,
   saveServiceSelection,
   setCategoryBudgetAllocation,
+  fetchMyEventPaymentQuoteV14,
+  initiateMyEventPaymentV14,
+  submitPlanningBookingRequests,
+  type EventPaymentQuote,
+  type V14PaymentSettlementContext,
   resumeClientEventDraft,
   resumeClientSavedPlan,
   type ClientPlanningState,
@@ -149,7 +154,7 @@ import { MerchantBookingDetailScreen } from './screens/20-BookingDetail'
 import { ReviewPerformanceScreen } from './screens/21-ReviewPerformance'
 import { MerchantProfileAction, MerchantProfileScreen } from './screens/22-MerchantProfile'
 import { AccountProfileScreen } from './screens/24-AccountProfile'
-import { ClientWalletScreen } from './screens/24.1-ClientWallet'
+import { ClientRefundsScreen } from './screens/24.1-ClientWallet'
 import { SupportScreen } from './screens/25-Support'
 import { OperatingHoursScreen } from './screens/22.1-OperatingHours'
 import {
@@ -212,12 +217,12 @@ import {
 import { PlanningStepNavigationProvider } from './components/PlanningStepIndicator'
 import { BookingItem, BookingScreen } from './screens/11-BookingScreen'
 import { BookingDetailsScreen } from './screens/11.1-BookingDetails'
+import { PaymentScreen, type PaymentValue } from './screens/12-Payment'
 import {
-  PaymentEventDetails,
-  PaymentOrderItem,
-  PaymentScreen,
-  PaymentValue,
-} from './screens/12-Payment'
+  EventSummaryScreen,
+  type EventSummaryDetails,
+  type EventSummaryOrderItem,
+} from './screens/12-EventSummary'
 import { ConfirmationReceipt, ConfirmationScreen } from './screens/13-Confirmation'
 import {
   EventLedgerScreen,
@@ -268,9 +273,9 @@ import {
   uploadEditableAccountPhoto,
 } from './lib/profile'
 import {
-  ClientWallet,
-  emptyClientWallet,
-  fetchClientWallet,
+  ClientRefundOverview,
+  emptyClientRefundOverview,
+  fetchClientRefundOverview,
 } from './lib/client-wallet'
 import {
   ClientHomeAppearance,
@@ -313,7 +318,7 @@ type AppScreen =
   | 'providerChangePassword'
   | 'providerNotifications'
   | 'accountProfile'
-  | 'clientWallet'
+  | 'clientRefunds'
   | 'support'
   | 'coordinatorHome'
   | 'coordinatorEventDetails'
@@ -332,6 +337,7 @@ type AppScreen =
   | 'instructionModule'
   | 'bookings'
   | 'bookingDetails'
+  | 'bookingPayment'
   | 'payment'
   | 'confirmation'
   | 'eventLedger'
@@ -458,6 +464,7 @@ const eventDetailsMatch = (first: EventCreationValue, second: EventCreationValue
     && first.eventType === second.eventType
     && first.guestCount === second.guestCount
     && first.isChurchWedding === second.isChurchWedding
+    && first.wantsCoordinator === second.wantsCoordinator
     && first.time === second.time
     && first.venueAddress === second.venueAddress
     && first.venueName === second.venueName
@@ -684,6 +691,11 @@ export const App: React.FC = () => {
     React.useState<VerificationNextScreen>('clientHome')
   const [recoveryContact, setRecoveryContact] = React.useState('')
   const [selectedBooking, setSelectedBooking] = React.useState<BookingItem>()
+  const [bookingPaymentQuote, setBookingPaymentQuote] = React.useState<EventPaymentQuote>()
+  const [paymentSettlementContext, setPaymentSettlementContext] =
+    React.useState<V14PaymentSettlementContext>()
+  const [isLoadingBookingPaymentQuote, setIsLoadingBookingPaymentQuote] = React.useState(false)
+  const [isInitiatingBookingPayment, setIsInitiatingBookingPayment] = React.useState(false)
   const [selectedConversation, setSelectedConversation] =
     React.useState<ClientConversation>()
   const [chatReturnScreen, setChatReturnScreen] = React.useState<AppScreen>('messages')
@@ -750,11 +762,22 @@ export const App: React.FC = () => {
   const eventDetailsDirtyRef = React.useRef(false)
   const handleEventDetailsChange = React.useCallback((value: EventCreationValue) => {
     setEventDetails((current) => {
-      if (eventDetailsMatch(current, value)) return current
+      // Removing an already selected coordinator requires an explicit
+      // confirmation in handleEventContinue. Keep the persisted draft intact
+      // until then so background autosave cannot silently remove that booking.
+      const nextValue = value.wantsCoordinator === false && assignedCoordinator
+        ? {
+            ...value,
+            isChurchWedding: current.isChurchWedding,
+            wantsCoordinator: current.wantsCoordinator,
+          }
+        : value
+
+      if (eventDetailsMatch(current, nextValue)) return current
       eventDetailsDirtyRef.current = true
-      return value
+      return nextValue
     })
-  }, [])
+  }, [assignedCoordinator])
 
   const persistClientPlanningResume = React.useCallback((update: ClientPlanningResumeUpdate) => {
     if (!authenticatedUserId) return
@@ -1065,11 +1088,11 @@ export const App: React.FC = () => {
   const [isSavingAvailability, setIsSavingAvailability] = React.useState(false)
   const [completingBookingId, setCompletingBookingId] = React.useState('')
   const [processingMerchantBookingId, setProcessingMerchantBookingId] = React.useState('')
-  const [isFinalizingPayment, setIsFinalizingPayment] = React.useState(false)
+  const [isSubmittingBookingRequests, setIsSubmittingBookingRequests] = React.useState(false)
   // State updates are asynchronous, so state alone cannot protect two taps
   // that arrive in the same render frame. Keep this guard outside the render
-  // cycle until the current payment attempt has settled.
-  const paymentSubmissionInFlight = React.useRef(false)
+  // cycle until the current booking-request submission has settled.
+  const bookingRequestSubmissionInFlight = React.useRef(false)
   const [coordinatorDashboard, setCoordinatorDashboard] =
     React.useState<CoordinatorDashboard>(emptyCoordinatorDashboard())
   const [selectedCoordinatorEventId, setSelectedCoordinatorEventId] = React.useState('')
@@ -1109,11 +1132,11 @@ export const App: React.FC = () => {
   const [clientHomeAppearance, setClientHomeAppearance] = React.useState<ClientHomeAppearance>('classic')
   const clientHomeAppearanceRevisionRef = React.useRef(0)
   const [supportReturnScreen, setSupportReturnScreen] = React.useState<AppScreen>('accountProfile')
-  const [clientWalletReturnScreen, setClientWalletReturnScreen] = React.useState<AppScreen>('accountProfile')
-  const [clientWallet, setClientWallet] = React.useState<ClientWallet>(emptyClientWallet())
-  const [clientWalletError, setClientWalletError] = React.useState('')
-  const [isClientWalletLoading, setIsClientWalletLoading] = React.useState(false)
-  const [isClientWalletRefreshing, setIsClientWalletRefreshing] = React.useState(false)
+  const [clientRefundsReturnScreen, setClientRefundsReturnScreen] = React.useState<AppScreen>('accountProfile')
+  const [clientRefundOverview, setClientRefundOverview] = React.useState<ClientRefundOverview>(emptyClientRefundOverview())
+  const [clientRefundOverviewError, setClientRefundOverviewError] = React.useState('')
+  const [isClientRefundOverviewLoading, setIsClientRefundOverviewLoading] = React.useState(false)
+  const [isClientRefundOverviewRefreshing, setIsClientRefundOverviewRefreshing] = React.useState(false)
 
   const runOnce = React.useCallback(async <T,>(
     actionKey: string,
@@ -1294,20 +1317,20 @@ export const App: React.FC = () => {
     return result.profile
   }, [])
 
-  const loadClientWallet = React.useCallback(async (refreshing = false) => {
-    if (refreshing) setIsClientWalletRefreshing(true)
-    else setIsClientWalletLoading(true)
+  const loadClientRefundOverview = React.useCallback(async (refreshing = false) => {
+    if (refreshing) setIsClientRefundOverviewRefreshing(true)
+    else setIsClientRefundOverviewLoading(true)
 
-    const result = await fetchClientWallet()
+    const result = await fetchClientRefundOverview()
     if (result.ok && result.data) {
-      setClientWallet(result.data)
-      setClientWalletError('')
+      setClientRefundOverview(result.data)
+      setClientRefundOverviewError('')
     } else {
-      setClientWalletError(result.message ?? 'Unable to load your wallet.')
+      setClientRefundOverviewError(result.message ?? 'Unable to load your refund records.')
     }
 
-    setIsClientWalletLoading(false)
-    setIsClientWalletRefreshing(false)
+    setIsClientRefundOverviewLoading(false)
+    setIsClientRefundOverviewRefreshing(false)
   }, [])
 
   const openAccountProfile = (returnScreen: AppScreen = 'clientHome') => {
@@ -1578,39 +1601,53 @@ export const App: React.FC = () => {
     (service) => service.categoryId === selectedCategory
   )
   const visibleCatalogServices = categoryServices
-  const paymentItems: PaymentOrderItem[] = [
-    ...selectedServices.map((service) => ({
-      commissionAmount: service.commissionAmount,
-      commissionRate: service.commissionRate,
-      description: service.detail,
-      id: service.id,
-      name: service.name,
-      price: service.price,
-      providerPrice: service.providerPrice,
-    })),
+  const summaryItems: EventSummaryOrderItem[] = [
+    ...selectedServices.map((service) => {
+      const catalogService = catalogServices.find((candidate) => (
+        candidate.id === service.id || candidate.bookingServiceId === service.id
+      ))
+      return {
+        category: service.category,
+        commissionAmount: service.commissionAmount,
+        commissionRate: service.commissionRate,
+        detail: service.detail,
+        id: service.id,
+        name: service.name,
+        price: service.price,
+        providerName: catalogService?.providerName ?? 'Selected service provider',
+        providerPrice: service.providerPrice,
+      }
+    }),
     ...(assignedCoordinator
       ? [{
+          category: 'Event Coordinator',
           commissionAmount: assignedCoordinator.commissionAmount,
           commissionRate: assignedCoordinator.commissionRate,
-          description: 'Event Coordination',
+          detail: assignedCoordinator.status === 'accepted'
+            ? 'Coordinator accepted for this event.'
+            : 'Coordinator will receive a booking request.',
           id: assignedCoordinator.id,
+          isCoordinator: true,
           name: assignedCoordinator.name,
           price: assignedCoordinator.price,
+          providerName: assignedCoordinator.name,
           providerPrice: assignedCoordinator.providerPrice,
         }]
       : []),
   ]
   const payableItems =
-    paymentItems.length > 0
-      ? paymentItems
+    summaryItems.length > 0
+      ? summaryItems
       : [
           {
-            description: 'Add services first to build a real order.',
+            category: 'Services',
             commissionAmount: 0,
             commissionRate: DEFAULT_COMMISSION_RATE,
+            detail: 'Add services first to build a real order.',
             id: 'empty-plan',
             name: 'No selected services yet',
             price: 0,
+            providerName: 'Not selected',
             providerPrice: 0,
           },
         ]
@@ -1644,9 +1681,27 @@ export const App: React.FC = () => {
         }]
       : []),
   ]
-  const paymentEvent: PaymentEventDetails = {
+  const eventSummary: EventSummaryDetails = {
+    churchWedding: eventDetails.eventType === 'wedding' && eventDetails.wantsCoordinator === true
+      ? (typeof eventDetails.isChurchWedding === 'boolean'
+        ? eventDetails.isChurchWedding ? 'Yes' : 'No'
+        : 'Not specified')
+      : undefined,
+    coordinatorPreference: eventDetails.wantsCoordinator === true
+      ? assignedCoordinator
+        ? `Yes — ${assignedCoordinator.name}`
+        : 'Yes — selecting a coordinator'
+      : 'No — self-managed event',
     date: eventDisplayDate,
+    eventType: eventDetails.eventType === 'preWedding'
+      ? 'Pre-wedding'
+      : eventDetails.eventType === 'postWedding'
+        ? 'Post-wedding'
+        : 'Wedding',
     guestCount: eventDetails.guestCount,
+    location: eventDetails.venueName?.trim()
+      || eventDetails.venueAddress?.trim()
+      || 'Venue to be confirmed',
     name: eventDisplayName,
     time: eventDisplayTime,
   }
@@ -2003,9 +2058,9 @@ export const App: React.FC = () => {
   }, [loadMerchantHomeEarnings, screen])
 
   React.useEffect(() => {
-    if (screen !== 'clientWallet') return
-    void loadClientWallet()
-  }, [loadClientWallet, screen])
+    if (screen !== 'clientRefunds') return
+    void loadClientRefundOverview()
+  }, [loadClientRefundOverview, screen])
 
   React.useEffect(() => {
     if (screen !== 'providerPayouts') return
@@ -2029,7 +2084,7 @@ export const App: React.FC = () => {
       setMerchantPayoutError(result.message ?? 'Unable to request the payout.')
       return
     }
-    setToastMessage('Payout request submitted for processing.')
+    setToastMessage('Payout request submitted for review.')
     await loadMerchantPayouts(merchantPayoutPeriod)
   }, [isRequestingMerchantPayout, loadMerchantPayouts, merchantPayoutPeriod])
 
@@ -3736,6 +3791,118 @@ export const App: React.FC = () => {
     })
   }
 
+  const submitBookingRequests = async () => {
+    if (bookingRequestSubmissionInFlight.current) return
+
+    bookingRequestSubmissionInFlight.current = true
+    setIsSubmittingBookingRequests(true)
+    try {
+      const result = await submitPlanningBookingRequests()
+      if (!result.ok) {
+        setToastMessage(result.message ?? 'Unable to submit booking requests.')
+        return
+      }
+
+      setReplacementBooking(undefined)
+      setSavedPlanReview(undefined)
+      clearClientPlanningResume()
+      setToastMessage(
+        'Booking requests submitted. Payment will become available once every required provider accepts.'
+      )
+      setScreen('bookings')
+      void refreshLiveData().catch(() => undefined)
+    } catch (error) {
+      setToastMessage(error instanceof Error ? error.message : 'Unable to submit booking requests.')
+    } finally {
+      bookingRequestSubmissionInFlight.current = false
+      setIsSubmittingBookingRequests(false)
+    }
+  }
+
+  const loadBookingPaymentQuote = async (eventId: string) => {
+    setIsLoadingBookingPaymentQuote(true)
+    try {
+      const result = await fetchMyEventPaymentQuoteV14(eventId)
+      if (!result.ok || !result.paymentQuote) {
+        setToastMessage(result.message ?? 'Unable to load the current payment details.')
+        return undefined
+      }
+      setBookingPaymentQuote(result.paymentQuote)
+      return result.paymentQuote
+    } finally {
+      setIsLoadingBookingPaymentQuote(false)
+    }
+  }
+
+  const openBookingPayment = async () => {
+    const eventId = selectedBooking?.eventId
+    if (!eventId || isLoadingBookingPaymentQuote || isInitiatingBookingPayment) return
+
+    // Re-read the secured quote at the point of payment. This keeps the UI
+    // responsive after provider acceptance while the server remains the final
+    // authority for acceptance and immutable booking-price snapshots.
+    const [paymentQuote, settlementResult] = await Promise.all([
+      loadBookingPaymentQuote(eventId),
+      fetchPaymentSettlementContextV14(),
+    ])
+    if (!paymentQuote) return
+    if (settlementResult.ok && settlementResult.context) {
+      setPaymentSettlementContext(settlementResult.context)
+    } else {
+      setPaymentSettlementContext(undefined)
+      setToastMessage(settlementResult.message ?? 'Unable to load the current payment settlement instructions.')
+      return
+    }
+    if (!paymentQuote.paymentEligible) {
+      setToastMessage(paymentQuote.reason ?? 'Payment is not available until all required confirmations are complete.')
+      return
+    }
+    if (!['not_initiated', 'payment_failed_or_cancelled'].includes(paymentQuote.paymentState)) {
+      setToastMessage(
+        paymentQuote.paymentState === 'payment_initiated'
+          ? 'A payment attempt is already awaiting completion or verification.'
+          : 'Payment is already recorded for this event.'
+      )
+      return
+    }
+    setScreen('bookingPayment')
+  }
+
+  const initiateBookingPayment = async (value: PaymentValue) => {
+    const eventId = selectedBooking?.eventId
+    if (!eventId || isInitiatingBookingPayment) return
+
+    setIsInitiatingBookingPayment(true)
+    try {
+      const result = await initiateMyEventPaymentV14({
+        eventId,
+        method: value.method,
+        paymentType: value.paymentType,
+        termsAccepted: value.termsAccepted,
+      })
+      if (!result.ok || !result.paymentQuote) {
+        setToastMessage(result.message ?? 'Unable to start payment for this booking.')
+        return
+      }
+
+      setBookingPaymentQuote(result.paymentQuote)
+      setSelectedBooking((current) => current && current.eventId === eventId
+        ? {
+            ...current,
+            paymentState: result.paymentQuote!.paymentState,
+            paymentStatus: result.paymentQuote!.paymentState === 'payment_initiated'
+              ? 'Payment initiated — awaiting verification'
+              : current.paymentStatus,
+          }
+        : current)
+      setToastMessage(result.message ?? 'Payment initiated and awaiting completion or verification.')
+      setScreen('bookingDetails')
+      void refreshLiveData().catch(() => undefined)
+    } finally {
+      setIsInitiatingBookingPayment(false)
+    }
+  }
+
   const reviewSavedPlanChanges = () => {
     const changedItem = savedPlanReview?.items.find((item) => (
       !item.available
@@ -3780,7 +3947,10 @@ export const App: React.FC = () => {
       onOpenDraft={(draftId) => void resumeClientDraft(draftId)}
       onOpenBookingProgress={(booking) => {
         setSelectedBooking(booking)
+        setBookingPaymentQuote(undefined)
+        setPaymentSettlementContext(undefined)
         setScreen('bookingDetails')
+        if (booking.eventId) void loadBookingPaymentQuote(booking.eventId)
       }}
       onStartNewEvent={startNewClientEvent}
       onOpenProfile={() => openAccountProfile('clientHome')}
@@ -3788,9 +3958,9 @@ export const App: React.FC = () => {
         setSupportReturnScreen('clientHome')
         setScreen('support')
       }}
-      onOpenWallet={() => {
-        setClientWalletReturnScreen('clientHome')
-        setScreen('clientWallet')
+      onOpenRefunds={() => {
+        setClientRefundsReturnScreen('clientHome')
+        setScreen('clientRefunds')
       }}
       onOpenSavedPlans={() => setScreen('clientPlans')}
       onScrollDirectionChange={(direction) => {
@@ -4553,15 +4723,15 @@ export const App: React.FC = () => {
             profile={accountProfile}
           />
         )
-      case 'clientWallet':
+      case 'clientRefunds':
         return (
-          <ClientWalletScreen
-            error={clientWalletError}
-            isLoading={isClientWalletLoading}
-            isRefreshing={isClientWalletRefreshing}
-            onBack={() => setScreen(clientWalletReturnScreen)}
-            onRefresh={() => void loadClientWallet(true)}
-            wallet={clientWallet}
+          <ClientRefundsScreen
+            error={clientRefundOverviewError}
+            isLoading={isClientRefundOverviewLoading}
+            isRefreshing={isClientRefundOverviewRefreshing}
+            onBack={() => setScreen(clientRefundsReturnScreen)}
+            onRefresh={() => void loadClientRefundOverview(true)}
+            overview={clientRefundOverview}
           />
         )
       case 'support':
@@ -5119,7 +5289,7 @@ export const App: React.FC = () => {
               setInstructionDraft(undefined)
               persistClientPlanningResume({ instructionDraft: undefined })
               setMaxPlanningStep((current) => Math.max(current, 5))
-              setScreen(selectedServices.length > 0 ? 'payment' : 'categoryBrowse')
+              setScreen(selectedServices.length > 0 || assignedCoordinator ? 'payment' : 'categoryBrowse')
             }}
           />
         )
@@ -5230,56 +5400,15 @@ export const App: React.FC = () => {
         )
       case 'payment':
         return (
-          <PaymentScreen
-            event={paymentEvent}
-            isProcessing={isFinalizingPayment}
+          <EventSummaryScreen
+            event={eventSummary}
             isSavingPlan={isSavingPlanForLater}
-            items={payableItems}
+            isSubmittingRequests={isSubmittingBookingRequests}
+            items={summaryItems}
             onBack={() => setScreen('instructionModule')}
-            onOpenCancellationPolicy={() => setScreen('payment')}
-            onOpenTerms={() => setScreen('payment')}
             onReviewSavedPlan={reviewSavedPlanChanges}
             onSavePlan={() => void savePlanForLater()}
-            onPay={(value) => {
-              if (paymentSubmissionInFlight.current) return
-
-              paymentSubmissionInFlight.current = true
-              setIsFinalizingPayment(true)
-              void (async () => {
-                try {
-                  const result = await savePlanningPayment(
-                    value,
-                    replacementBooking
-                      ? payableItems.filter((item) => item.id === replacementBooking.serviceId || item.id === currentServiceId)
-                      : payableItems,
-                    replacementBooking?.bookingId
-                  )
-
-                  if (!result.ok) {
-                    setToastMessage(result.message ?? 'Unable to record the payment.')
-                    return
-                  }
-
-                  // A completed payment must advance immediately. Refreshing
-                  // the surrounding workspace is useful, but it must never
-                  // block the receipt screen when an unrelated read fails.
-                  setLastPayment(value)
-                  setReplacementBooking(undefined)
-                  setSavedPlanReview(undefined)
-                  clearClientPlanningResume()
-                  setToastMessage(replacementBooking
-                    ? 'Replacement payment recorded. The new provider has received a separate booking request.'
-                    : 'Payment recorded. Booking requests were sent to your providers.')
-                  setScreen('confirmation')
-                  void refreshLiveData().catch(() => undefined)
-                } catch (error) {
-                  setToastMessage(error instanceof Error ? error.message : 'Unable to record the payment.')
-                } finally {
-                  paymentSubmissionInFlight.current = false
-                  setIsFinalizingPayment(false)
-                }
-              })()
-            }}
+            onSubmitRequests={() => void submitBookingRequests()}
             savedPlanReview={savedPlanReview}
           />
         )
@@ -5290,7 +5419,7 @@ export const App: React.FC = () => {
               currencySymbol: '₱',
               eventDate: eventDisplayDate,
               items: payableItems.map((item) => ({
-                detail: item.description,
+                detail: item.detail,
                 id: item.id,
                 name: item.name,
                 price:
@@ -5315,7 +5444,10 @@ export const App: React.FC = () => {
             onScrollDirectionChange={handleClientNavigationScrollDirection}
             onSelectBooking={(booking) => {
               setSelectedBooking(booking)
+              setBookingPaymentQuote(undefined)
+              setPaymentSettlementContext(undefined)
               setScreen('bookingDetails')
+              if (booking.eventId) void loadBookingPaymentQuote(booking.eventId)
             }}
             onSelectTab={(tab) => {
               if (tab === 'merchants') openClientTab('explore')
@@ -5348,6 +5480,7 @@ export const App: React.FC = () => {
             }
             onRespondChurchProposal={handleClientChurchProposalResponse}
             onLoadFoodTastingSlots={loadCateringFoodTastingSlots}
+            onStartPayment={() => void openBookingPayment()}
             onRequestFoodTasting={handleClientFoodTastingRequest}
             onRescheduleBooking={handleClientBookingReschedule}
             onRespondToFoodTastingProposal={handleClientFoodTastingProposal}
@@ -5356,6 +5489,27 @@ export const App: React.FC = () => {
                 ? () => setScreen('eventFeedback')
                 : undefined
             }
+            paymentQuote={bookingPaymentQuote}
+            isLoadingPaymentQuote={isLoadingBookingPaymentQuote}
+            isStartingPayment={isInitiatingBookingPayment}
+          />
+        )
+      case 'bookingPayment':
+        return (
+          <PaymentScreen
+            event={{
+              date: selectedBooking?.date ?? eventDisplayDate,
+              guestCount: selectedBooking?.guestCount ?? 0,
+              name: bookingPaymentQuote?.eventName ?? selectedBooking?.name ?? 'Event booking',
+              time: selectedBooking?.requestedTime ?? eventDisplayTime,
+            }}
+            isProcessing={isInitiatingBookingPayment}
+            items={bookingPaymentQuote?.items ?? []}
+            mode="booking"
+            onBack={() => setScreen('bookingDetails')}
+            onPay={(value) => void initiateBookingPayment(value)}
+            paymentBreakdown={bookingPaymentQuote?.breakdown}
+            paymentSettlementContext={paymentSettlementContext}
           />
         )
       case 'eventFeedback':
@@ -5436,7 +5590,7 @@ export const App: React.FC = () => {
       || isPublishingService
       || isSavingServiceDraft
       || isSavingAvailability
-      || isFinalizingPayment
+      || isSubmittingBookingRequests
       || isCoordinatorLoading
       || isCoordinatorRefreshing
       || isCoordinatorRemittanceLoading

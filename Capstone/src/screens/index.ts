@@ -87,7 +87,7 @@ export type {
 } from './21-ReviewPerformance'
 export { MerchantProfileScreen } from './22-MerchantProfile'
 export { AccountProfileScreen } from './24-AccountProfile'
-export { ClientWalletScreen } from './24.1-ClientWallet'
+export { ClientRefundsScreen } from './24.1-ClientWallet'
 export type {
   MerchantProfileAction,
   MerchantProfileMediaTarget,
@@ -188,6 +188,8 @@ export type {
   PaymentType,
   PaymentValue,
 } from './12-Payment'
+export { EventSummaryScreen } from './12-EventSummary'
+export type { EventSummaryDetails, EventSummaryOrderItem } from './12-EventSummary'
 export { ConfirmationScreen } from './13-Confirmation'
 export type { ConfirmationLineItem, ConfirmationReceipt } from './13-Confirmation'
 export { EventLedgerScreen } from './14-EventLedger'
