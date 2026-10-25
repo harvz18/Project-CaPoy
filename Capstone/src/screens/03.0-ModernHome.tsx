@@ -30,6 +30,7 @@ type QuickAccessId = (typeof QUICK_ACCESS_ITEMS)[number]['id']
 export interface ModernHomeScreenProps {
   bookingProgressEvents?: ClientBookingProgress[]
   hasAdditionalBookingProgress: boolean
+  hasUnreadBookingUpdates?: boolean
   isDraftPromptVisible: boolean
   isStartingNewEvent: boolean
   onCreateEvent: () => void
@@ -73,6 +74,7 @@ const daysRemainingLabel = (daysRemaining?: number) => {
 export const ModernHomeScreen: React.FC<ModernHomeScreenProps> = ({
   bookingProgressEvents = [],
   hasAdditionalBookingProgress,
+  hasUnreadBookingUpdates = false,
   isDraftPromptVisible,
   isStartingNewEvent,
   onCreateEvent,
@@ -185,19 +187,22 @@ export const ModernHomeScreen: React.FC<ModernHomeScreenProps> = ({
               {QUICK_ACCESS_ITEMS.map((item) => (
                 <Pressable
                   key={item.id}
-                  accessibilityLabel={`Open ${item.label}`}
+                  accessibilityLabel={`Open ${item.label}${item.id === 'bookings' && hasUnreadBookingUpdates ? ', with unread updates' : ''}`}
                   accessibilityRole="button"
                   onPress={() => onQuickAccess(item.id)}
                   style={({ pressed }) => [styles.quickAccessCard, pressed && styles.quickAccessPressed]}
                 >
-                  <Image
-                    resizeMode="contain"
-                    source={item.image}
-                    style={[
-                      styles.quickAccessIcon,
-                      { transform: [{ scale: item.iconScale }] },
-                    ]}
-                  />
+                  <View style={styles.quickAccessIconWrap}>
+                    <Image
+                      resizeMode="contain"
+                      source={item.image}
+                      style={[
+                        styles.quickAccessIcon,
+                        { transform: [{ scale: item.iconScale }] },
+                      ]}
+                    />
+                    {item.id === 'bookings' && hasUnreadBookingUpdates ? <View style={styles.quickAccessUnreadDot} /> : null}
+                  </View>
                   <Text numberOfLines={1} style={styles.quickAccessLabel}>
                     {item.label}
                   </Text>
@@ -240,6 +245,7 @@ export const ModernHomeScreen: React.FC<ModernHomeScreenProps> = ({
                   onPress={() => onOpenBookingProgress?.(progress.booking)}
                   style={({ pressed }) => [styles.bookingCard, pressed && styles.bookingCardPressed]}
                 >
+                  {progress.hasUnreadUpdate ? <View style={styles.bookingUnreadDot} /> : null}
                   <View style={styles.bookingAccent} />
                   <View style={styles.bookingCardBody}>
                     <View style={styles.bookingHeading}>
@@ -429,6 +435,8 @@ const styles = StyleSheet.create({
   quickAccessCard: { width: '22%', alignItems: 'center', justifyContent: 'flex-start', paddingVertical: 4 },
   quickAccessPressed: { opacity: 0.84, transform: [{ scale: 0.96 }] },
   quickAccessIcon: { width: 76, height: 64 },
+  quickAccessIconWrap: { position: 'relative', width: 76, height: 64, alignItems: 'center', justifyContent: 'center' },
+  quickAccessUnreadDot: { position: 'absolute', top: 3, right: 4, width: 9, height: 9, borderWidth: 1.5, borderColor: '#FFFDF9', borderRadius: 5, backgroundColor: '#C93643' },
   quickAccessLabel: { color: '#4A3B3C', fontSize: 12, lineHeight: 16, fontWeight: '700', marginTop: 3, textAlign: 'center' },
   sectionHeader: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, marginTop: 32, marginHorizontal: 4 },
   sectionTitleCopy: { minWidth: 0, flex: 1 },
@@ -438,7 +446,8 @@ const styles = StyleSheet.create({
   showAllText: { color: '#8A2944', fontSize: 12, lineHeight: 16, fontWeight: '700' },
   textPressed: { opacity: 0.62 },
   bookingList: { gap: 14, marginTop: 14 },
-  bookingCard: { minHeight: 184, flexDirection: 'row', overflow: 'hidden', borderWidth: 1, borderColor: '#EEE1DD', borderRadius: 21, backgroundColor: '#FFFFFF', shadowColor: '#6B1E2E', shadowOffset: { width: 0, height: 7 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 3 },
+  bookingCard: { position: 'relative', minHeight: 184, flexDirection: 'row', overflow: 'hidden', borderWidth: 1, borderColor: '#EEE1DD', borderRadius: 21, backgroundColor: '#FFFFFF', shadowColor: '#6B1E2E', shadowOffset: { width: 0, height: 7 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 3 },
+  bookingUnreadDot: { position: 'absolute', top: 11, left: 11, zIndex: 2, width: 10, height: 10, borderWidth: 1.5, borderColor: '#FFFFFF', borderRadius: 5, backgroundColor: '#C93643' },
   bookingCardPressed: { opacity: 0.86, transform: [{ scale: 0.992 }] },
   bookingAccent: { width: 6, backgroundColor: '#8A2944' },
   bookingCardBody: { minWidth: 0, flex: 1, paddingHorizontal: 16, paddingVertical: 15 },

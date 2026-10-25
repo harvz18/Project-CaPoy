@@ -810,7 +810,7 @@ test('client home uses live eligible services, resumable drafts, and booking pro
     'createClientEventDraft()',
     'resumeClientEventDraft(draftId)',
     'rankHomeRecommendations(catalogServices)',
-    'getClientBookingProgress(clientBookings)',
+    'getClientBookingProgress(clientBookings, new Date(), unreadBookingResourceIds)',
     'client-event-progress-',
   ], 'client home data integration')
   mustContain(planning, [
@@ -2453,7 +2453,9 @@ test('V12 Phase 1 keeps client navigation floating, expandable, and booking-rout
     'navigationTranslateY.setValue(0)',
     'outputRange: [0.02, 1]',
     "require('../../assets/Metallic LOGO.png')",
-    "accessibilityLabel={isExpanded ? 'Collapse navigation' : 'Expand navigation'}",
+    'const hasCollapsedNavigationUpdate = !isExpanded && (hasUnreadHomeUpdates || hasUnreadInbox)',
+    "`Expand navigation${hasCollapsedNavigationUpdate ? ', with unread updates' : ''}`",
+    'styles.logoUnreadDot',
     'pressed && styles.navItemPressed',
     'backgroundColor: palette.white',
     "iconMuted: '#625D5D'",

@@ -104,6 +104,7 @@ interface BookingScreenProps {
   onSelectBooking?: (booking: BookingItem) => void
   onSelectTab?: (tab: BookingTab) => void
   onScrollDirectionChange?: (direction: 'down' | 'up') => void
+  unreadBookingResourceIds?: ReadonlySet<string>
 }
 
 const filterOptions = [
@@ -127,6 +128,7 @@ export const BookingScreen: React.FC<BookingScreenProps> = ({
   onSelectBooking,
   onSelectTab,
   onScrollDirectionChange,
+  unreadBookingResourceIds = new Set(),
 }) => {
   const { width } = useWindowDimensions()
   const isWide = width >= 768
@@ -244,6 +246,10 @@ export const BookingScreen: React.FC<BookingScreenProps> = ({
                           ]}
                         />
                         <Text style={styles.statusText}>{booking.status.toUpperCase()}</Text>
+                        {[booking.id, booking.eventId, ...(booking.services ?? []).map((service) => service.bookingId)]
+                          .some((id) => Boolean(id && unreadBookingResourceIds.has(id))) ? (
+                            <View style={styles.bookingUnreadDot} />
+                          ) : null}
                       </View>
                     </View>
 
@@ -414,6 +420,7 @@ const styles = StyleSheet.create({
   },
   bookingName: { flex: 1, color: palette.text, fontSize: 16, lineHeight: 24, fontWeight: '700' },
   statusBadge: {
+    position: 'relative',
     flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
@@ -423,6 +430,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
+  bookingUnreadDot: { position: 'absolute', top: -4, right: -4, width: 9, height: 9, borderWidth: 1.5, borderColor: palette.surface, borderRadius: 5, backgroundColor: '#C93643' },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
   confirmedDot: { backgroundColor: palette.green },
   pendingDot: { backgroundColor: palette.orange },

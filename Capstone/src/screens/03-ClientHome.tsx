@@ -32,6 +32,7 @@ export interface ClientBookingProgress {
   confirmedServiceCount: number
   coordinatorIncluded: boolean
   daysRemaining?: number
+  hasUnreadUpdate: boolean
   progressPercent: number
   statusLabel: string
   totalBookingRecipientCount: number
@@ -42,6 +43,7 @@ export interface ClientHomeScreenProps {
   appearance?: ClientHomeAppearance
   draftEvents?: ClientEventDraftSummary[]
   bookingProgressEvents?: ClientBookingProgress[]
+  hasUnreadBookingUpdates?: boolean
   recommendations?: HomeServiceRecommendation[]
   selectedServiceCount?: number
   userAvatarUrl?: string
@@ -96,7 +98,8 @@ const getDaysLeft = (value: string, now = new Date()) => {
 
 export const getClientBookingProgress = (
   bookings: BookingItem[],
-  now = new Date()
+  now = new Date(),
+  unreadResourceIds: ReadonlySet<string> = new Set()
 ): ClientBookingProgress[] => bookings.flatMap((booking) => {
   if (['cancelled', 'completed'].includes(booking.rawStatus ?? '')) return []
   const activeServices = (booking.services ?? []).filter(
@@ -116,6 +119,11 @@ export const getClientBookingProgress = (
   const daysRemaining = getDaysLeft(booking.date, now)
   const outstandingProviderCount = totalActiveServiceCount - confirmedServiceCount
   const coordinatorOutstanding = coordinatorIncluded && !coordinatorAccepted
+  const hasUnreadUpdate = [
+    booking.id,
+    booking.eventId,
+    ...(booking.services ?? []).map((service) => service.bookingId),
+  ].some((id) => Boolean(id && unreadResourceIds.has(id)))
   const statusLabel = daysRemaining === 0
     ? 'Event is today'
     : daysRemaining !== null && daysRemaining < 0
@@ -136,6 +144,7 @@ export const getClientBookingProgress = (
     confirmedServiceCount,
     coordinatorIncluded,
     daysRemaining: daysRemaining === null ? undefined : daysRemaining,
+    hasUnreadUpdate,
     progressPercent,
     statusLabel,
     totalBookingRecipientCount,
@@ -164,6 +173,7 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   appearance = 'classic',
   draftEvents = [],
   bookingProgressEvents = [],
+  hasUnreadBookingUpdates = false,
   recommendations = [],
   onOpenDraft,
   onOpenSavedPlans,
@@ -236,6 +246,7 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
         <ModernHomeScreen
           bookingProgressEvents={bookingProgressEvents}
           hasAdditionalBookingProgress={hasAdditionalBookingProgress}
+          hasUnreadBookingUpdates={hasUnreadBookingUpdates}
           isDraftPromptVisible={isDraftPromptVisible}
           isStartingNewEvent={isStartingNewEvent}
           onCreateEvent={handleCreateEventPress}
@@ -354,7 +365,7 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
             {QUICK_ACCESS_ITEMS.map((item) => (
               <Pressable
                 key={item.id}
-                accessibilityLabel={`Open ${item.label}`}
+                accessibilityLabel={`Open ${item.label}${item.id === 'bookings' && hasUnreadBookingUpdates ? ', with unread updates' : ''}`}
                 accessibilityRole="button"
                 onPress={() => handleQuickAccess(item.id)}
                 style={({ pressed }) => [
@@ -362,11 +373,14 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
                   pressed && styles.quickAccessItemPressed,
                 ]}
               >
-                <Image
-                  resizeMode="contain"
-                  source={item.image}
-                  style={[styles.quickAccessIcon, { transform: [{ scale: item.iconScale }] }]}
-                />
+                <View style={styles.quickAccessIconWrap}>
+                  <Image
+                    resizeMode="contain"
+                    source={item.image}
+                    style={[styles.quickAccessIcon, { transform: [{ scale: item.iconScale }] }]}
+                  />
+                  {item.id === 'bookings' && hasUnreadBookingUpdates ? <View style={styles.quickAccessUnreadDot} /> : null}
+                </View>
                 <Text numberOfLines={1} style={styles.quickAccessLabel}>{item.label}</Text>
               </Pressable>
             ))}
@@ -405,6 +419,7 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
               onPress={() => onOpenBookingProgress?.(progress.booking)}
               style={({ pressed }) => [styles.bookingProgressCard, pressed && styles.referencePressed]}
             >
+              {progress.hasUnreadUpdate ? <View style={styles.bookingProgressUnreadDot} /> : null}
               <View style={styles.bookingProgressHeading}>
                 <View style={styles.bookingProgressCopy}>
                   <Text numberOfLines={1} style={styles.bookingProgressName}>{progress.booking.name}</Text>
@@ -793,6 +808,8 @@ const styles = StyleSheet.create({
     width: 76,
     height: 64,
   },
+  quickAccessIconWrap: { position: 'relative', width: 76, height: 64, alignItems: 'center', justifyContent: 'center' },
+  quickAccessUnreadDot: { position: 'absolute', top: 3, right: 4, width: 9, height: 9, borderWidth: 1.5, borderColor: '#FFFDF9', borderRadius: 5, backgroundColor: '#C93643' },
   quickAccessLabel: {
     color: '#4A3B3C',
     fontSize: 12,
@@ -868,7 +885,8 @@ const styles = StyleSheet.create({
   compactDraftAction: { color: '#8A2944', fontSize: 12, fontWeight: '700' },
   compactDraftDeleteButton: { padding: 8 },
   bookingDropdown: { flexDirection: 'row', alignItems: 'center', gap: 1 },
-  bookingProgressCard: { borderWidth: 1, borderColor: '#E4D9D5', borderRadius: 9, backgroundColor: '#FFFFFF', marginBottom: 9, padding: 12, shadowColor: '#5B1B2C', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 1 },
+  bookingProgressCard: { position: 'relative', borderWidth: 1, borderColor: '#E4D9D5', borderRadius: 9, backgroundColor: '#FFFFFF', marginBottom: 9, padding: 12, shadowColor: '#5B1B2C', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 1 },
+  bookingProgressUnreadDot: { position: 'absolute', top: 8, left: 8, zIndex: 1, width: 9, height: 9, borderWidth: 1.5, borderColor: '#FFFFFF', borderRadius: 5, backgroundColor: '#C93643' },
   bookingProgressHeading: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
   bookingProgressCopy: { flex: 1, minWidth: 0 },
   bookingProgressName: { color: '#241E1E', fontSize: 14, lineHeight: 19, fontWeight: '700' },

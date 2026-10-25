@@ -51,6 +51,8 @@ interface CoordinatorScreenProps {
   busyTaskId?: string
   dashboard?: CoordinatorDashboard
   errorMessage?: string
+  hasUnreadEventUpdates?: boolean
+  hasUnreadTaskUpdates?: boolean
   isLoading?: boolean
   isRefreshing?: boolean
   initialScrollOffset?: number
@@ -1421,6 +1423,8 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
   busyTaskId,
   dashboard = emptyDashboard,
   errorMessage,
+  hasUnreadEventUpdates = false,
+  hasUnreadTaskUpdates = false,
   isLoading = false,
   isRefreshing = false,
   initialScrollOffset = 0,
@@ -1993,6 +1997,9 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
       {!isWide ? (
         <CoordinatorBottomNavigation
           activeTab={activeView === 'overview' ? 'home' : activeView}
+          hasUnreadEvents={hasUnreadEventUpdates}
+          hasUnreadMessages={unreadMessageCount > 0}
+          hasUnreadTasks={hasUnreadTaskUpdates}
           onSelectTab={(tab) => {
             if (tab === 'account') {
               onOpenProfile?.()

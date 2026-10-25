@@ -250,6 +250,14 @@ import {
   supportsRemotePushNotifications,
 } from './lib/notifications'
 import {
+  isBookingUpdate,
+  isEventUpdate,
+  isMessageUpdate,
+  isTaskUpdate,
+  isUnreadUpdate,
+  unreadBookingTrackerResourceIds,
+} from './lib/unread-updates'
+import {
   confirmCoordinatorChurchWeddingArrangement,
   CoordinatorBookedService,
   CoordinatorDashboard,
@@ -3930,9 +3938,34 @@ export const App: React.FC = () => {
     () => rankHomeRecommendations(catalogServices),
     [catalogServices]
   )
+  const unreadNotifications = React.useMemo(
+    () => notifications.filter(isUnreadUpdate),
+    [notifications]
+  )
+  const unreadBookingResourceIds = React.useMemo(
+    () => unreadBookingTrackerResourceIds(notifications),
+    [notifications]
+  )
+  const hasUnreadBookingUpdates = React.useMemo(
+    () => unreadNotifications.some(isBookingUpdate),
+    [unreadNotifications]
+  )
+  const hasUnreadEventUpdates = React.useMemo(
+    () => unreadNotifications.some(isEventUpdate),
+    [unreadNotifications]
+  )
+  const hasUnreadTaskUpdates = React.useMemo(
+    () => unreadNotifications.some(isTaskUpdate),
+    [unreadNotifications]
+  )
+  const hasUnreadMessageUpdates = React.useMemo(
+    () => conversations.some((conversation) => conversation.unreadCount > 0)
+      || unreadNotifications.some(isMessageUpdate),
+    [conversations, unreadNotifications]
+  )
   const clientBookingProgress = React.useMemo(
-    () => getClientBookingProgress(clientBookings),
-    [clientBookings]
+    () => getClientBookingProgress(clientBookings, new Date(), unreadBookingResourceIds),
+    [clientBookings, unreadBookingResourceIds]
   )
 
   const renderClientHome = () => (
@@ -3940,6 +3973,7 @@ export const App: React.FC = () => {
       appearance={clientHomeAppearance}
       draftEvents={clientEventDrafts}
       bookingProgressEvents={clientBookingProgress}
+      hasUnreadBookingUpdates={hasUnreadBookingUpdates}
       recommendations={homeRecommendations}
       userAvatarUrl={userAvatarUrl}
       userName={userName}
@@ -4828,6 +4862,8 @@ export const App: React.FC = () => {
             busyTaskId={busyCoordinatorTaskId}
             dashboard={coordinatorDashboard}
             errorMessage={coordinatorError}
+            hasUnreadEventUpdates={hasUnreadEventUpdates}
+            hasUnreadTaskUpdates={hasUnreadTaskUpdates}
             isLoading={isCoordinatorLoading}
             isRefreshing={isCoordinatorRefreshing}
             initialScrollOffset={coordinatorHomeScrollOffsetRef.current}
@@ -5442,6 +5478,7 @@ export const App: React.FC = () => {
             onOpenMenu={() => setScreen('clientHome')}
             onOpenProfile={() => openAccountProfile('bookings')}
             onScrollDirectionChange={handleClientNavigationScrollDirection}
+            unreadBookingResourceIds={unreadBookingResourceIds}
             onSelectBooking={(booking) => {
               setSelectedBooking(booking)
               setBookingPaymentQuote(undefined)
@@ -5539,9 +5576,7 @@ export const App: React.FC = () => {
 
   const isHome =
     screen === 'clientHome' || screen === 'providerHome' || screen === 'providerServices'
-  const hasUnreadClientInbox =
-    conversations.some((conversation) => conversation.unreadCount > 0)
-    || notifications.some((notification) => !notification.isRead)
+  const hasUnreadClientInbox = hasUnreadMessageUpdates || unreadNotifications.length > 0
   const clientMainTab: ClientHomeTab | null =
     screen === 'clientHome'
       ? 'home'
@@ -5673,6 +5708,7 @@ export const App: React.FC = () => {
         {width < 768 && clientMainTab ? (
           <ClientBottomNavigation
             activeTab={clientMainTab}
+            hasUnreadHomeUpdates={hasUnreadBookingUpdates}
             hasUnreadInbox={hasUnreadClientInbox}
             isVisible={isClientNavigationVisible}
             onSelectTab={openClientTab}
@@ -5682,6 +5718,8 @@ export const App: React.FC = () => {
         {width < 768 && providerMainTab ? (
           <MerchantBottomNavigation
             activeTab={providerMainTab}
+            hasUnreadBookings={hasUnreadBookingUpdates}
+            hasUnreadMessages={hasUnreadMessageUpdates}
             onSelectTab={openMerchantTab}
           />
         ) : null}

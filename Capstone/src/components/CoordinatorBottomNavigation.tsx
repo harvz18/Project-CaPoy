@@ -7,6 +7,9 @@ export type CoordinatorMainTab = 'account' | 'events' | 'home' | 'messages' | 't
 
 interface CoordinatorBottomNavigationProps {
   activeTab: CoordinatorMainTab
+  hasUnreadEvents?: boolean
+  hasUnreadMessages?: boolean
+  hasUnreadTasks?: boolean
   onSelectTab?: (tab: CoordinatorMainTab) => void
 }
 
@@ -24,6 +27,9 @@ const tabs: Array<{
 
 export const CoordinatorBottomNavigation: React.FC<CoordinatorBottomNavigationProps> = ({
   activeTab,
+  hasUnreadEvents = false,
+  hasUnreadMessages = false,
+  hasUnreadTasks = false,
   onSelectTab,
 }) => {
   const activeIndex = Math.max(0, tabs.findIndex((tab) => tab.id === activeTab))
@@ -70,10 +76,13 @@ export const CoordinatorBottomNavigation: React.FC<CoordinatorBottomNavigationPr
         />
         {tabs.map((tab) => {
           const selected = tab.id === activeTab
+          const hasUnreadUpdate = (tab.id === 'events' && hasUnreadEvents)
+            || (tab.id === 'tasks' && hasUnreadTasks)
+            || (tab.id === 'messages' && hasUnreadMessages)
           return (
             <Pressable
               key={tab.id}
-              accessibilityLabel={`Open ${tab.label}`}
+              accessibilityLabel={`Open ${tab.label}${hasUnreadUpdate ? ', with unread updates' : ''}`}
               accessibilityRole="tab"
               accessibilityState={{ selected }}
               onPress={() => onSelectTab?.(tab.id)}
@@ -85,6 +94,7 @@ export const CoordinatorBottomNavigation: React.FC<CoordinatorBottomNavigationPr
                   name={tab.icon}
                   size={21}
                 />
+                {hasUnreadUpdate ? <View style={styles.unreadDot} /> : null}
               </View>
               <Text style={[styles.navLabel, selected && styles.navLabelSelected]}>{tab.label}</Text>
             </Pressable>
@@ -144,12 +154,24 @@ const styles = StyleSheet.create({
   },
   navItemPressed: { opacity: 0.58 },
   navIconContainer: {
+    position: 'relative',
     width: 40,
     height: 26,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 13,
     marginBottom: 2,
+  },
+  unreadDot: {
+    position: 'absolute',
+    top: 1,
+    right: 5,
+    width: 8,
+    height: 8,
+    borderWidth: 1.5,
+    borderColor: palette.white,
+    borderRadius: 4,
+    backgroundColor: '#C93643',
   },
   navLabel: {
     color: palette.secondary,

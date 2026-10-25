@@ -19,6 +19,7 @@ export type ClientMainTab = 'home' | 'explore' | 'bookings' | 'messages' | 'prof
 
 interface ClientBottomNavigationProps {
   activeTab: ClientMainTab
+  hasUnreadHomeUpdates?: boolean
   hasUnreadInbox?: boolean
   isVisible?: boolean
   onSelectTab?: (tab: ClientMainTab) => void
@@ -36,6 +37,7 @@ const animationDuration = 240
 
 export const ClientBottomNavigation: React.FC<ClientBottomNavigationProps> = ({
   activeTab,
+  hasUnreadHomeUpdates = false,
   hasUnreadInbox = false,
   isVisible = true,
   onSelectTab,
@@ -141,12 +143,18 @@ export const ClientBottomNavigation: React.FC<ClientBottomNavigationProps> = ({
     inputRange: [0, 1],
     outputRange: [0.02, 1],
   })
+  // While the pill is collapsed, the center M is the only visible way to
+  // discover updates in Home or Inbox. Surface one consolidated indicator
+  // there; the per-tab indicators remain visible after it expands.
+  const hasCollapsedNavigationUpdate = !isExpanded && (hasUnreadHomeUpdates || hasUnreadInbox)
   const renderTab = (tab: (typeof tabs)[number]) => {
     const isActive = tab.id === activeTab
+    const hasUnreadUpdate = (tab.id === 'home' && hasUnreadHomeUpdates)
+      || (tab.id === 'messages' && hasUnreadInbox)
     return (
       <Pressable
         key={tab.id}
-        accessibilityLabel={`Open ${tab.label}${tab.id === 'messages' && hasUnreadInbox ? ', with unread updates' : ''}`}
+        accessibilityLabel={`Open ${tab.label}${hasUnreadUpdate ? ', with unread updates' : ''}`}
         accessibilityRole="tab"
         accessibilityState={{ selected: isActive }}
         onPress={() => selectTab(tab.id)}
@@ -158,7 +166,7 @@ export const ClientBottomNavigation: React.FC<ClientBottomNavigationProps> = ({
             name={tab.icon}
             size={21}
           />
-          {tab.id === 'messages' && hasUnreadInbox ? <View style={styles.inboxUnreadDot} /> : null}
+          {hasUnreadUpdate ? <View style={styles.inboxUnreadDot} /> : null}
         </View>
         <Text numberOfLines={1} style={[styles.navLabel, isActive && styles.navLabelActive]}>
           {tab.label}
@@ -210,7 +218,9 @@ export const ClientBottomNavigation: React.FC<ClientBottomNavigationProps> = ({
       <Animated.View style={[styles.logoButton, { transform: [{ scale: logoPressScale }] }]}>
         <Pressable
           accessibilityHint={isExpanded ? 'Collapses client navigation' : 'Expands client navigation'}
-          accessibilityLabel={isExpanded ? 'Collapse navigation' : 'Expand navigation'}
+          accessibilityLabel={isExpanded
+            ? 'Collapse navigation'
+            : `Expand navigation${hasCollapsedNavigationUpdate ? ', with unread updates' : ''}`}
           accessibilityRole="button"
           onPress={toggleNavigation}
           onPressIn={handleLogoPressIn}
@@ -235,6 +245,7 @@ export const ClientBottomNavigation: React.FC<ClientBottomNavigationProps> = ({
             </View>
           </LinearGradient>
         </Pressable>
+        {hasCollapsedNavigationUpdate ? <View pointerEvents="none" style={styles.logoUnreadDot} /> : null}
       </Animated.View>
     </Animated.View>
   )
@@ -364,6 +375,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 41,
+  },
+  logoUnreadDot: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 12,
+    height: 12,
+    borderWidth: 2,
+    borderColor: palette.white,
+    borderRadius: 6,
+    backgroundColor: '#C93643',
+    shadowColor: '#3A0814',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.28,
+    shadowRadius: 2,
+    elevation: 3,
   },
   logoRim: {
     width: '100%',
