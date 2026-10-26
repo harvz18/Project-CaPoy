@@ -2795,6 +2795,10 @@ test('V14 Phase 4 starts payment only from Booking Details after the secured acc
     'animationType="fade"',
     'summaryExpanded',
     'bookingSheetHandle',
+    'LayoutAnimation.configureNext',
+    'bookingSheetServiceRow',
+    'bookingSheetFooter',
+    'Confirm Downpayment',
   ], 'V14 payment option UI')
   mustContain(merchant, [
     'const hasRecordedPayment',
@@ -2804,6 +2808,7 @@ test('V14 Phase 4 starts payment only from Booking Details after the secured acc
     "| 'bookingPayment'",
     'setIsBookingPaymentSheetVisible(true)',
     '<BookingPaymentSheet',
+    'items={bookingPaymentQuote?.items}',
     'visible={isBookingPaymentSheetVisible}',
     'onStartPayment={() => void openBookingPayment()}',
   ], 'V14 Booking Details payment routing')

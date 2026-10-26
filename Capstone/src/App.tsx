@@ -5705,6 +5705,7 @@ export const App: React.FC = () => {
               isProcessing={isInitiatingBookingPayment}
               onClose={() => setIsBookingPaymentSheetVisible(false)}
               onPay={(value) => void initiateBookingPayment(value)}
+              items={bookingPaymentQuote?.items}
               paymentBreakdown={bookingPaymentQuote?.breakdown}
               paymentSettlementContext={paymentSettlementContext}
               visible={isBookingPaymentSheetVisible}

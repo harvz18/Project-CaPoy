@@ -1361,7 +1361,7 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                 <Text style={styles.paymentBreakdownValue}>{formatPeso(paymentQuote.breakdown.clientTotal)}</Text>
               </View>
               <View style={styles.paymentBreakdownRow}>
-                <Text style={styles.paymentBreakdownLabel}>Required downpayment (35%)</Text>
+                <Text style={styles.paymentBreakdownLabel}>Required downpayment</Text>
                 <Text style={styles.paymentBreakdownValue}>{formatPeso(paymentQuote.breakdown.initialPayment)}</Text>
               </View>
               <Text style={styles.paymentBreakdownHint}>
@@ -1452,7 +1452,7 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                 <Text style={styles.paymentBreakdownValue}>{formatPeso(paymentQuote.breakdown.clientTotal)}</Text>
               </View>
               <View style={styles.paymentBreakdownRow}>
-                <Text style={styles.paymentBreakdownLabel}>Required downpayment (35%)</Text>
+                <Text style={styles.paymentBreakdownLabel}>Required downpayment</Text>
                 <Text style={styles.paymentBreakdownValue}>{formatPeso(paymentQuote.breakdown.initialPayment)}</Text>
               </View>
             </View>
