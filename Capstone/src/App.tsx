@@ -225,7 +225,7 @@ import {
 import { PlanningStepNavigationProvider } from './components/PlanningStepIndicator'
 import { BookingItem, BookingScreen } from './screens/11-BookingScreen'
 import { BookingDetailsScreen } from './screens/11.1-BookingDetails'
-import { PaymentScreen, type PaymentValue } from './screens/12-Payment'
+import { BookingPaymentSheet, PaymentScreen, type PaymentValue } from './screens/12-Payment'
 import {
   EventSummaryScreen,
   type EventSummaryDetails,
@@ -708,6 +708,7 @@ export const App: React.FC = () => {
   const [recoveryContact, setRecoveryContact] = React.useState('')
   const [selectedBooking, setSelectedBooking] = React.useState<BookingItem>()
   const [bookingPaymentQuote, setBookingPaymentQuote] = React.useState<EventPaymentQuote>()
+  const [isBookingPaymentSheetVisible, setIsBookingPaymentSheetVisible] = React.useState(false)
   const [paymentSettlementContext, setPaymentSettlementContext] =
     React.useState<V14PaymentSettlementContext>()
   const [isLoadingBookingPaymentQuote, setIsLoadingBookingPaymentQuote] = React.useState(false)
@@ -4001,7 +4002,7 @@ export const App: React.FC = () => {
       )
       return
     }
-    setScreen('bookingPayment')
+    setIsBookingPaymentSheetVisible(true)
   }
 
   const initiateBookingPayment = async (value: PaymentValue) => {
@@ -4032,6 +4033,7 @@ export const App: React.FC = () => {
           }
         : current)
       setToastMessage(result.message ?? 'Payment initiated and awaiting completion or verification.')
+      setIsBookingPaymentSheetVisible(false)
       setScreen('bookingDetails')
       void refreshLiveData().catch(() => undefined)
     } finally {
@@ -5630,6 +5632,7 @@ export const App: React.FC = () => {
               setSelectedBooking(booking)
               setBookingPaymentQuote(undefined)
               setPaymentSettlementContext(undefined)
+              setIsBookingPaymentSheetVisible(false)
               setScreen('bookingDetails')
               if (booking.eventId) void loadBookingPaymentQuote(booking.eventId)
             }}
@@ -5641,7 +5644,8 @@ export const App: React.FC = () => {
         )
       case 'bookingDetails':
         return (
-          <BookingDetailsScreen
+          <>
+            <BookingDetailsScreen
             booking={selectedBooking}
             details={{
               date: selectedBooking?.date ?? eventDisplayDate,
@@ -5653,7 +5657,10 @@ export const App: React.FC = () => {
                 : eventDisplayDate,
               time: selectedBooking?.requestedTime ?? eventDisplayTime,
             }}
-            onBack={() => setScreen('bookings')}
+            onBack={() => {
+              setIsBookingPaymentSheetVisible(false)
+              setScreen('bookings')
+            }}
             onCancelBooking={handleClientBookingCancellation}
             onFindAlternativeServices={(service) => void handleFindAlternativeServices(service)}
             onMessageProviderForBooking={(bookingId) =>
@@ -5681,7 +5688,16 @@ export const App: React.FC = () => {
             paymentQuote={bookingPaymentQuote}
             isLoadingPaymentQuote={isLoadingBookingPaymentQuote}
             isStartingPayment={isInitiatingBookingPayment}
-          />
+            />
+            <BookingPaymentSheet
+              isProcessing={isInitiatingBookingPayment}
+              onClose={() => setIsBookingPaymentSheetVisible(false)}
+              onPay={(value) => void initiateBookingPayment(value)}
+              paymentBreakdown={bookingPaymentQuote?.breakdown}
+              paymentSettlementContext={paymentSettlementContext}
+              visible={isBookingPaymentSheetVisible}
+            />
+          </>
         )
       case 'bookingPayment':
         return (

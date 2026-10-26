@@ -2776,6 +2776,9 @@ test('V14 Phase 4 starts payment only from Booking Details after the secured acc
   mustContain(details, [
     'paymentDock',
     'paymentDockContent',
+    'acceptedConfirmationCount',
+    'requiredConfirmationCount',
+    'paddingBottom: 24',
     'Pay Now to Reserve',
     'setChangeMode(\'cancel\')',
     '>Cancel</Text>',
@@ -2795,9 +2798,9 @@ test('V14 Phase 4 starts payment only from Booking Details after the secured acc
   ], 'V14 pending payment financial-display boundary')
   mustContain(app, [
     "| 'bookingPayment'",
-    "setScreen('bookingPayment')",
-    '<PaymentScreen',
-    'mode="booking"',
+    'setIsBookingPaymentSheetVisible(true)',
+    '<BookingPaymentSheet',
+    'visible={isBookingPaymentSheetVisible}',
     'onStartPayment={() => void openBookingPayment()}',
   ], 'V14 Booking Details payment routing')
   assert.doesNotMatch(

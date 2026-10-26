@@ -525,6 +525,162 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
   )
 }
 
+interface BookingPaymentSheetProps {
+  isProcessing?: boolean
+  onClose: () => void
+  onPay: (value: PaymentValue) => void
+  paymentBreakdown?: Pick<
+    PaymentBreakdown,
+    'clientTotal' | 'initialPayment' | 'platformFee' | 'providerBalance' | 'providerInitialAllocation' | 'serviceSubtotal'
+  >
+  paymentSettlementContext?: V14PaymentSettlementContext
+  visible: boolean
+}
+
+export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
+  isProcessing = false,
+  onClose,
+  onPay,
+  paymentBreakdown,
+  paymentSettlementContext,
+  visible,
+}) => {
+  const [paymentType, setPaymentType] = React.useState<PaymentType>('deposit')
+  const [paymentMethod, setPaymentMethod] = React.useState<PaymentMethod>('eWallet')
+  const [termsAccepted, setTermsAccepted] = React.useState(false)
+  const [showTermsError, setShowTermsError] = React.useState(false)
+  const breakdown = paymentBreakdown ?? calculatePaymentBreakdown([])
+  const amountDue = paymentType === 'full' ? breakdown.clientTotal : breakdown.initialPayment
+  const selectedSettlement = paymentMethod === 'bankTransfer'
+    ? paymentSettlementContext?.manualBankTransfer
+    : paymentSettlementContext?.eWalletCheckout
+  const selectedMethodEnabled = selectedSettlement?.enabled !== false
+
+  React.useEffect(() => {
+    if (!visible) return
+    setShowTermsError(false)
+  }, [visible])
+
+  React.useEffect(() => {
+    if (!paymentSettlementContext) return
+    if (paymentMethod === 'eWallet' && !paymentSettlementContext.eWalletCheckout.enabled
+      && paymentSettlementContext.manualBankTransfer.enabled) {
+      setPaymentMethod('bankTransfer')
+    }
+    if (paymentMethod === 'bankTransfer' && !paymentSettlementContext.manualBankTransfer.enabled
+      && paymentSettlementContext.eWalletCheckout.enabled) {
+      setPaymentMethod('eWallet')
+    }
+  }, [paymentMethod, paymentSettlementContext])
+
+  const submit = () => {
+    if (isProcessing || !selectedMethodEnabled) return
+    if (!termsAccepted) {
+      setShowTermsError(true)
+      return
+    }
+    onPay({ amount: amountDue, method: paymentMethod, paymentType, termsAccepted })
+  }
+
+  return (
+    <Modal animationType="slide" onRequestClose={onClose} transparent visible={visible}>
+      <View style={styles.bookingSheetBackdrop}>
+        <Pressable accessibilityLabel="Close payment details" onPress={onClose} style={styles.bookingSheetDismissArea} />
+        <View accessibilityViewIsModal style={styles.bookingSheet}>
+          <View style={styles.bookingSheetHandle} />
+          <View style={styles.bookingSheetHeader}>
+            <View>
+              <Text style={styles.bookingSheetTitle}>Complete your booking</Text>
+              <Text style={styles.bookingSheetSubtitle}>Review your payment without leaving this booking.</Text>
+            </View>
+            <Pressable accessibilityLabel="Close payment details" onPress={onClose} style={styles.bookingSheetClose}>
+              <MaterialCommunityIcons color={palette.muted} name="close" size={22} />
+            </Pressable>
+          </View>
+          <ScrollView contentContainerStyle={styles.bookingSheetContent} showsVerticalScrollIndicator={false}>
+            <View style={styles.bookingSheetSummary}>
+              <BreakdownRow label="Total event cost" value={formatCurrency(breakdown.clientTotal)} />
+              <BreakdownRow label="Required downpayment (35%)" value={formatCurrency(breakdown.initialPayment)} />
+            </View>
+            <Text style={styles.bookingSheetSectionTitle}>Payment option</Text>
+            <View style={styles.bookingSheetOptionRow}>
+              <Pressable
+                accessibilityRole="radio"
+                accessibilityState={{ checked: paymentType === 'deposit' }}
+                onPress={() => setPaymentType('deposit')}
+                style={[styles.bookingSheetOption, paymentType === 'deposit' && styles.bookingSheetOptionSelected]}
+              >
+                <Text style={styles.bookingSheetOptionLabel}>35% Downpayment</Text>
+                <Text style={styles.bookingSheetOptionValue}>{formatCurrency(breakdown.initialPayment)}</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="radio"
+                accessibilityState={{ checked: paymentType === 'full' }}
+                onPress={() => setPaymentType('full')}
+                style={[styles.bookingSheetOption, paymentType === 'full' && styles.bookingSheetOptionSelected]}
+              >
+                <Text style={styles.bookingSheetOptionLabel}>Pay in full</Text>
+                <Text style={styles.bookingSheetOptionValue}>{formatCurrency(breakdown.clientTotal)}</Text>
+              </Pressable>
+            </View>
+            <Text style={styles.bookingSheetSectionTitle}>Payment method</Text>
+            <View style={styles.bookingSheetMethodRow}>
+              {paymentMethods.map((method) => {
+                const selected = paymentMethod === method.id
+                const enabled = paymentSettlementContext
+                  ? method.id === 'bankTransfer'
+                    ? paymentSettlementContext.manualBankTransfer.enabled
+                    : paymentSettlementContext.eWalletCheckout.enabled
+                  : true
+                return (
+                  <Pressable
+                    key={method.id}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: selected, disabled: !enabled }}
+                    disabled={!enabled}
+                    onPress={() => setPaymentMethod(method.id)}
+                    style={[styles.bookingSheetMethod, selected && styles.bookingSheetMethodSelected, !enabled && styles.bookingSheetMethodDisabled]}
+                  >
+                    <MaterialCommunityIcons color={palette.burgundy} name={method.icon} size={20} />
+                    <Text style={styles.bookingSheetMethodText}>{method.label}</Text>
+                  </Pressable>
+                )
+              })}
+            </View>
+            {paymentSettlementContext ? <SettlementInstructions context={paymentSettlementContext} method={paymentMethod} /> : null}
+            <Pressable
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: termsAccepted }}
+              onPress={() => {
+                setTermsAccepted((current) => !current)
+                setShowTermsError(false)
+              }}
+              style={styles.bookingSheetTerms}
+            >
+              <View style={[styles.checkbox, termsAccepted && styles.checkboxChecked]}>
+                {termsAccepted ? <Text style={styles.checkboxMark}>{'\u2713'}</Text> : null}
+              </View>
+              <Text style={styles.bookingSheetTermsText}>I agree to the cancellation policy and terms of service.</Text>
+            </Pressable>
+            {showTermsError ? <Text accessibilityRole="alert" style={styles.termsError}>Please accept the policies and terms before continuing.</Text> : null}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ disabled: isProcessing || !selectedMethodEnabled }}
+              disabled={isProcessing || !selectedMethodEnabled}
+              onPress={submit}
+              style={({ pressed }) => [styles.bookingSheetPayButton, (isProcessing || !selectedMethodEnabled) && styles.payButtonDisabled, pressed && styles.payButtonPressed]}
+            >
+              <Text style={styles.payButtonText}>
+                {isProcessing ? 'Starting payment...' : `Continue with ${formatCurrency(amountDue)}`}
+              </Text>
+            </Pressable>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  )
+}
+
 interface EventDetailProps {
   label: string
   value: string
@@ -870,6 +1026,39 @@ const styles = StyleSheet.create({
   payButtonText: { color: palette.surface, fontSize: 18, lineHeight: 28, fontWeight: '700', textAlign: 'center' },
   payButtonDisabled: { opacity: 0.6 },
   payButtonPressed: { backgroundColor: '#7B2B3A', transform: [{ scale: 0.98 }] },
+  bookingSheetBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(26, 28, 28, 0.28)' },
+  bookingSheetDismissArea: { flex: 1 },
+  bookingSheet: {
+    width: '100%',
+    maxHeight: '78%',
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    backgroundColor: palette.background,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 20,
+  },
+  bookingSheetHandle: { alignSelf: 'center', width: 42, height: 4, borderRadius: 2, backgroundColor: '#B7B1B2' },
+  bookingSheetHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, paddingTop: 15, paddingBottom: 12 },
+  bookingSheetTitle: { color: palette.text, fontSize: 20, lineHeight: 27, fontWeight: '700' },
+  bookingSheetSubtitle: { color: palette.muted, fontSize: 12, lineHeight: 17, marginTop: 2 },
+  bookingSheetClose: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18, backgroundColor: palette.surfaceLow },
+  bookingSheetContent: { gap: 14, paddingBottom: 8 },
+  bookingSheetSummary: { gap: 8, borderTopWidth: 1, borderBottomWidth: 1, borderColor: palette.border, paddingVertical: 12 },
+  bookingSheetSectionTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '700', marginTop: 2 },
+  bookingSheetOptionRow: { flexDirection: 'row', gap: 10 },
+  bookingSheetOption: { flex: 1, borderWidth: 1, borderColor: palette.border, borderRadius: 10, backgroundColor: palette.surface, padding: 12 },
+  bookingSheetOptionSelected: { borderColor: palette.burgundy, backgroundColor: '#FCF5F6' },
+  bookingSheetOptionLabel: { color: palette.text, fontSize: 12, lineHeight: 17, fontWeight: '700' },
+  bookingSheetOptionValue: { color: palette.burgundy, fontSize: 13, lineHeight: 18, fontWeight: '700', marginTop: 5 },
+  bookingSheetMethodRow: { flexDirection: 'row', gap: 10 },
+  bookingSheetMethod: { flex: 1, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderWidth: 1, borderColor: palette.border, borderRadius: 10, backgroundColor: palette.surface, paddingHorizontal: 8 },
+  bookingSheetMethodSelected: { borderColor: palette.burgundy, backgroundColor: '#FCF5F6' },
+  bookingSheetMethodDisabled: { opacity: 0.48 },
+  bookingSheetMethodText: { color: palette.text, fontSize: 12, lineHeight: 17, fontWeight: '600' },
+  bookingSheetTerms: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 2 },
+  bookingSheetTermsText: { flex: 1, color: palette.muted, fontSize: 12, lineHeight: 17 },
+  bookingSheetPayButton: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: palette.burgundy, marginTop: 2, paddingHorizontal: 16, paddingVertical: 12 },
   cardPressed: { opacity: 0.88, transform: [{ scale: 0.99 }] },
   pressed: { opacity: 0.58 },
   savePlanModalBackdrop: {

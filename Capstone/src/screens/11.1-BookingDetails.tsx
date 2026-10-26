@@ -289,6 +289,8 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
   const coordinatorRequired = paymentQuote?.acceptance.coordinatorRequired ?? Boolean(booking?.coordinatorRequired)
   const coordinatorAccepted = paymentQuote?.acceptance.coordinatorAccepted
     ?? (!coordinatorRequired || booking?.coordinatorAssignmentStatus === 'accepted')
+  const requiredConfirmationCount = providerCount + (coordinatorRequired ? 1 : 0)
+  const acceptedConfirmationCount = acceptedProviderCount + (coordinatorRequired && coordinatorAccepted ? 1 : 0)
   const coordinatorTrackerStatus = getCoordinatorTrackerStatus(booking?.coordinatorAssignmentStatus)
   const hasCoordinatorTracker = Boolean(booking?.coordinatorRequired)
   const canMessageEventCoordinator = Boolean(
@@ -1346,9 +1348,11 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
         <View style={styles.legacyPaymentCard}>
           <View style={styles.paymentCardHeading}>
             <Text style={styles.paymentLabel}>Payment Status</Text>
-            <View style={styles.paymentBadge}>
-              <Text style={styles.paymentBadgeText}>{paymentStatusText}</Text>
-            </View>
+            <Text style={styles.paymentAcceptanceText}>
+              {requiredConfirmationCount > 0
+                ? `${acceptedConfirmationCount} of ${requiredConfirmationCount} accepted`
+                : paymentStatusText}
+            </Text>
           </View>
           {paymentQuote ? (
             <View style={styles.paymentBreakdown}>
@@ -1435,9 +1439,11 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
         <View style={styles.paymentDockContent}>
           <View style={styles.paymentCardHeading}>
             <Text style={styles.paymentLabel}>Payment Status</Text>
-            <View style={styles.paymentBadge}>
-              <Text style={styles.paymentBadgeText}>{paymentStatusText}</Text>
-            </View>
+            <Text style={styles.paymentAcceptanceText}>
+              {requiredConfirmationCount > 0
+                ? `${acceptedConfirmationCount} of ${requiredConfirmationCount} accepted`
+                : paymentStatusText}
+            </Text>
           </View>
           {paymentQuote ? (
             <View style={styles.paymentBreakdown}>
@@ -2037,7 +2043,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     paddingHorizontal: 20,
     paddingTop: 24,
-    paddingBottom: 320,
+    paddingBottom: 24,
   },
   providerHeader: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 32 },
   providerImage: {
@@ -2280,25 +2286,13 @@ const styles = StyleSheet.create({
   },
   paymentCardHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   paymentLabel: { color: palette.text, fontSize: 16, lineHeight: 24, fontWeight: '700' },
-  paymentBadge: {
-    borderRadius: 14,
-    backgroundColor: palette.burgundy,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-  },
-  paymentBadgeText: {
-    color: palette.surface,
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: '700',
-    letterSpacing: 1,
-  },
+  paymentAcceptanceText: { color: palette.burgundy, fontSize: 12, lineHeight: 16, fontWeight: '700', textAlign: 'right' },
   paymentBreakdown: { gap: 6, borderTopWidth: 1, borderTopColor: '#E6DADC', paddingTop: 11 },
   paymentBreakdownRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   paymentBreakdownLabel: { color: palette.muted, flex: 1, fontSize: 11, lineHeight: 16 },
   paymentBreakdownValue: { color: palette.text, fontSize: 12, lineHeight: 17, fontWeight: '700', textAlign: 'right' },
   paymentBreakdownHint: { color: palette.muted, fontSize: 10, lineHeight: 15, marginTop: 2 },
-  paymentReadyNotice: { flexDirection: 'row', alignItems: 'center', gap: 7, borderRadius: 9, backgroundColor: '#E7F3EB', padding: 10 },
+  paymentReadyNotice: { display: 'none' },
   paymentReadyText: { color: '#145133', flex: 1, fontSize: 12, lineHeight: 17, fontWeight: '700' },
   paymentNotice: { color: palette.muted, fontSize: 11, lineHeight: 17 },
   paymentActionButton: { minHeight: 56, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: palette.burgundy, paddingHorizontal: 16, paddingVertical: 14 },
