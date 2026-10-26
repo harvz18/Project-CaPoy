@@ -9,9 +9,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  type ScrollViewInstance,
   StyleSheet,
-  type TextInputInstance,
   TouchableWithoutFeedback,
   useWindowDimensions,
   View,
@@ -19,7 +17,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { Button } from '../components/Button'
 import { BrandIdentity } from '../components/BrandIdentity'
-import { TextInput } from '../components/TextInput'
+import { TextInput, type AppTextInputInstance } from '../components/TextInput'
 import { signInWithOAuth, signUpClient } from '../lib/auth'
 import { colors, radius, spacing } from '../theme/tokens'
 import { typography } from '../theme/typography'
@@ -36,6 +34,7 @@ interface SignupScreenProps {
 }
 
 type SignupField = 'fullName' | 'email' | 'phone' | 'password' | 'confirmPassword' | 'terms'
+type ScrollViewInstance = React.ComponentRef<typeof ScrollView>
 
 export const SignupScreen: React.FC<SignupScreenProps> = ({
   onBack,
@@ -51,11 +50,11 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({
   const isSheet = presentation === 'sheet'
   const sheetEntrance = useRef(new Animated.Value(presentation === 'sheet' ? 0 : 1)).current
   const sheetScroll = useRef<ScrollViewInstance>(null)
-  const fullNameRef = useRef<TextInputInstance>(null)
-  const emailRef = useRef<TextInputInstance>(null)
-  const phoneRef = useRef<TextInputInstance>(null)
-  const passwordRef = useRef<TextInputInstance>(null)
-  const confirmPasswordRef = useRef<TextInputInstance>(null)
+  const fullNameRef = useRef<AppTextInputInstance>(null)
+  const emailRef = useRef<AppTextInputInstance>(null)
+  const phoneRef = useRef<AppTextInputInstance>(null)
+  const passwordRef = useRef<AppTextInputInstance>(null)
+  const confirmPasswordRef = useRef<AppTextInputInstance>(null)
   const fieldOffsets = useRef<Record<SignupField, number>>({
     fullName: 0,
     email: 0,
@@ -198,7 +197,7 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({
 
   function revealField(
     field: SignupField,
-    inputRef?: React.RefObject<TextInputInstance | null>
+    inputRef?: React.RefObject<AppTextInputInstance | null>
   ) {
     focusedField.current = field
     scrollToField(field)

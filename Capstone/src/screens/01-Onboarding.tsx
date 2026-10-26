@@ -7,7 +7,7 @@ import {
   NativeScrollEvent,
   NativeSyntheticEvent,
   Pressable,
-  type ScrollViewInstance,
+  ScrollView,
   StyleSheet,
   
   useWindowDimensions,
@@ -21,6 +21,7 @@ interface OnboardingScreenProps {
 }
 
 const ONBOARDING_TRANSITION_DURATION = 900
+type ScrollViewInstance = React.ComponentRef<typeof ScrollView>
 
 const slides = [
   {

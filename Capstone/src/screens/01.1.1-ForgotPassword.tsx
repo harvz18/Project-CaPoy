@@ -5,13 +5,11 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  type ScrollViewInstance,
   StyleSheet,
-  type TextInputInstance,
   View,
 } from 'react-native'
 import { Button } from '../components/Button'
-import { TextInput } from '../components/TextInput'
+import { TextInput, type AppTextInputInstance } from '../components/TextInput'
 import { requestPasswordReset } from '../lib/auth'
 import { colors, radius, spacing } from '../theme/tokens'
 import { typography } from '../theme/typography'
@@ -20,6 +18,8 @@ interface ForgotPasswordScreenProps {
   onBackToLogin: () => void
   onContinueToNewPassword: (recoveryContact: string) => void
 }
+
+type ScrollViewInstance = React.ComponentRef<typeof ScrollView>
 
 export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
   onBackToLogin,
@@ -31,7 +31,7 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
   const [isLoading, setIsLoading] = useState(false)
   const [authError, setAuthError] = useState('')
   const scrollRef = useRef<ScrollViewInstance>(null)
-  const contactRef = useRef<TextInputInstance>(null)
+  const contactRef = useRef<AppTextInputInstance>(null)
   const formTop = useRef(0)
   const contactOffset = useRef(0)
 

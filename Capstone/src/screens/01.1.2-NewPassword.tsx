@@ -5,13 +5,11 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  type ScrollViewInstance,
   StyleSheet,
-  type TextInputInstance,
   View,
 } from 'react-native'
 import { Button } from '../components/Button'
-import { TextInput } from '../components/TextInput'
+import { TextInput, type AppTextInputInstance } from '../components/TextInput'
 import { resetPasswordWithCode } from '../lib/auth'
 import { colors, radius, spacing } from '../theme/tokens'
 import { typography } from '../theme/typography'
@@ -21,6 +19,8 @@ interface NewPasswordScreenProps {
   onBack: () => void
   onPasswordReset: () => void
 }
+
+type ScrollViewInstance = React.ComponentRef<typeof ScrollView>
 
 export const NewPasswordScreen: React.FC<NewPasswordScreenProps> = ({
   recoveryContact,
@@ -35,9 +35,9 @@ export const NewPasswordScreen: React.FC<NewPasswordScreenProps> = ({
   const [isLoading, setIsLoading] = useState(false)
   const [authError, setAuthError] = useState('')
   const scrollRef = useRef<ScrollViewInstance>(null)
-  const resetCodeRef = useRef<TextInputInstance>(null)
-  const newPasswordRef = useRef<TextInputInstance>(null)
-  const confirmPasswordRef = useRef<TextInputInstance>(null)
+  const resetCodeRef = useRef<AppTextInputInstance>(null)
+  const newPasswordRef = useRef<AppTextInputInstance>(null)
+  const confirmPasswordRef = useRef<AppTextInputInstance>(null)
   const formTop = useRef(0)
   const fieldOffsets = useRef<Record<'resetCode' | 'newPassword' | 'confirmPassword', number>>({
     resetCode: 0,
@@ -78,7 +78,7 @@ export const NewPasswordScreen: React.FC<NewPasswordScreenProps> = ({
 
   function revealField(
     field: 'resetCode' | 'newPassword' | 'confirmPassword',
-    inputRef: React.RefObject<TextInputInstance | null>
+    inputRef: React.RefObject<AppTextInputInstance | null>
   ) {
     requestAnimationFrame(() => {
       scrollRef.current?.scrollTo({

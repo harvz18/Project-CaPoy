@@ -7,13 +7,13 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  type ScrollViewInstance,
   StyleSheet,
-  
   TextInput,
   useWindowDimensions,
   View,
 } from 'react-native'
+
+type ScrollViewInstance = React.ComponentRef<typeof ScrollView>
 
 export type ChatAttachmentKind = 'file' | 'image'
 export type ChatDeliveryStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed'

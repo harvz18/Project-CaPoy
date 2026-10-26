@@ -8,15 +8,13 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  type ScrollViewInstance,
   StyleSheet,
-  type TextInputInstance,
   View,
 } from 'react-native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { Button } from '../components/Button'
 import { BrandIdentity } from '../components/BrandIdentity'
-import { TextInput } from '../components/TextInput'
+import { TextInput, type AppTextInputInstance } from '../components/TextInput'
 import { signInWithEmail, signInWithOAuth } from '../lib/auth'
 import { colors, radius, spacing } from '../theme/tokens'
 import { typography } from '../theme/typography'
@@ -31,6 +29,8 @@ interface LoginScreenProps {
   onSheetDrag?: (translationY: number) => void
   onSheetDragEnd?: (translationY: number, velocityY: number) => void
 }
+
+type ScrollViewInstance = React.ComponentRef<typeof ScrollView>
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({
   onBack,
@@ -51,8 +51,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const [authError, setAuthError] = useState('')
   const [keyboardHeight, setKeyboardHeight] = useState(0)
   const scrollRef = useRef<ScrollViewInstance>(null)
-  const emailRef = useRef<TextInputInstance>(null)
-  const passwordRef = useRef<TextInputInstance>(null)
+  const emailRef = useRef<AppTextInputInstance>(null)
+  const passwordRef = useRef<AppTextInputInstance>(null)
   const formTop = useRef(0)
   const fieldOffsets = useRef<Record<'email' | 'password', number>>({ email: 0, password: 0 })
   const focusedField = useRef<'email' | 'password' | null>(null)
@@ -152,7 +152,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
 
   function revealField(
     field: 'email' | 'password',
-    inputRef: React.RefObject<TextInputInstance | null>
+    inputRef: React.RefObject<AppTextInputInstance | null>
   ) {
     focusedField.current = field
     scrollToField(field)

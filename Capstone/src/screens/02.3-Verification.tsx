@@ -6,9 +6,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  
   TextInput,
-  type TextInputInstance,
   View,
 } from 'react-native'
 import { Button } from '../components/Button'
@@ -23,6 +21,7 @@ interface VerificationScreenProps {
 }
 
 const codeLength = 6
+type TextInputInstance = React.ComponentRef<typeof TextInput>
 
 export const VerificationScreen: React.FC<VerificationScreenProps> = ({
   email,

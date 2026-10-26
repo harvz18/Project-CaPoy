@@ -2021,7 +2021,7 @@ test('V10 Phase 6 keeps the mobile brand and navigation treatment consistent', (
     'MULTIVENT',
   ], 'shared MULTIVENT identity')
   mustContain(clientNavigation, [
-    'size={21}',
+    'size={26}',
     'fontSize: 12',
     'lineHeight: 16',
     'pressed && styles.navItemPressed',
@@ -2483,8 +2483,9 @@ test('V12 Phase 1 keeps client navigation floating, expandable, and booking-rout
     "iconMuted: '#625D5D'",
     'width: 82',
     "overflow: 'hidden'",
-    'styles.logoGlow',
-    "backgroundColor: 'rgba(107, 30, 46, 0.11)'",
+    'styles.logoRim',
+    'styles.logoMask',
+    "backgroundColor: 'rgba(107, 30, 46, 0.1)'",
     "import { LinearGradient } from 'expo-linear-gradient'",
     'styles.navigationFade',
     "'rgba(224, 185, 198, 0.98)'",
@@ -2497,7 +2498,7 @@ test('V12 Phase 1 keeps client navigation floating, expandable, and booking-rout
     "if (tab === 'bookings') setScreen('bookings')",
     "screen === 'bookings'",
     '<ClientBottomNavigation',
-    "edges={['top', 'right', 'bottom', 'left']}",
+    '<SafeAreaView',
     "profileReturnScreen === 'clientHome'",
     'handleClientNavigationScrollDirection',
     'onToggleNavigation={keepClientNavigationVisibleForToggle}',
@@ -2577,12 +2578,12 @@ test('client home uses a unified MULTIVENT top surface and routes its headset co
   const app = read('src/App.tsx')
 
   mustContain(home, [
-    "import { LinearGradient } from 'expo-linear-gradient'",
+    "import { AnimatedQuickAccessButton } from '../components/AnimatedQuickAccessButton'",
+    "import { CardInsetShadow } from '../components/CardInsetShadow'",
     "import { BrandIdentity } from '../components/BrandIdentity'",
-    "backgroundColor: '#701B30'",
-    'backgroundColor: colors.primaryLight',
     'referenceTopSurface',
-    'BrandIdentity markSize={30} showName={false} variant="metallicWordmark"',
+    'styles.heroButton',
+    'styles.quickAccessRow',
     'accessibilityLabel="Contact MULTIVENT Support"',
     'name="support-agent"',
     'referenceAvatarRim',

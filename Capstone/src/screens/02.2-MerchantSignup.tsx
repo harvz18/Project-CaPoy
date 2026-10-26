@@ -9,18 +9,15 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  type ScrollViewInstance,
   StyleSheet,
-  type TextInputInstance,
   TouchableWithoutFeedback,
   useWindowDimensions,
   View,
-  type ViewInstance,
 } from 'react-native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { Button } from '../components/Button'
 import { BrandIdentity } from '../components/BrandIdentity'
-import { TextInput } from '../components/TextInput'
+import { TextInput, type AppTextInputInstance } from '../components/TextInput'
 import { signUpMerchant } from '../lib/auth'
 import { colors, radius, spacing } from '../theme/tokens'
 import { typography } from '../theme/typography'
@@ -40,6 +37,8 @@ interface MerchantSignupScreenProps {
 }
 
 type MerchantSignupField = 'businessName' | 'contactName' | 'category' | 'email' | 'phone' | 'password' | 'confirmPassword' | 'terms'
+type ScrollViewInstance = React.ComponentRef<typeof ScrollView>
+type ViewInstance = React.ComponentRef<typeof View>
 
 const serviceCategories = ['Venue', 'Photography', 'Catering', 'Florist', 'Attire']
 
@@ -56,12 +55,12 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
   const isSheet = presentation === 'sheet'
   const sheetEntrance = useRef(new Animated.Value(presentation === 'sheet' ? 0 : 1)).current
   const sheetScroll = useRef<ScrollViewInstance>(null)
-  const businessNameRef = useRef<TextInputInstance>(null)
-  const contactNameRef = useRef<TextInputInstance>(null)
-  const emailRef = useRef<TextInputInstance>(null)
-  const phoneRef = useRef<TextInputInstance>(null)
-  const passwordRef = useRef<TextInputInstance>(null)
-  const confirmPasswordRef = useRef<TextInputInstance>(null)
+  const businessNameRef = useRef<AppTextInputInstance>(null)
+  const contactNameRef = useRef<AppTextInputInstance>(null)
+  const emailRef = useRef<AppTextInputInstance>(null)
+  const phoneRef = useRef<AppTextInputInstance>(null)
+  const passwordRef = useRef<AppTextInputInstance>(null)
+  const confirmPasswordRef = useRef<AppTextInputInstance>(null)
   const fieldOffsets = useRef<Record<MerchantSignupField, number>>({
     businessName: 0,
     contactName: 0,
@@ -242,7 +241,7 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
 
   function revealField(
     field: MerchantSignupField,
-    inputRef?: React.RefObject<TextInputInstance | null>
+    inputRef?: React.RefObject<AppTextInputInstance | null>
   ) {
     focusedField.current = field
     scrollToField(field)

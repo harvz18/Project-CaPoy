@@ -11,7 +11,6 @@ import {
   ScrollView,
   StyleSheet,
   TextInput,
-  type TextInputInstance,
   View,
   useWindowDimensions,
 } from 'react-native'
@@ -21,6 +20,7 @@ import { PlanningScreenHeader } from '../components/PlanningScreenHeader'
 import { formatPeso } from '../lib/catalog'
 
 type MaterialIconName = React.ComponentProps<typeof MaterialIcons>['name']
+type TextInputInstance = React.ComponentRef<typeof TextInput>
 
 export type BudgetPriority =
   | 'venue'
