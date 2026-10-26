@@ -3581,6 +3581,8 @@ test('V17 Phases 7-8 price and persist only provider-configured florist selectio
   const deployMigration = read('supabase/migrations/20261026001000_v17_florist_selection_pricing.sql')
   const validationMigration = read('database/104_v17_florist_selection_validation.sql')
   const deployValidationMigration = read('supabase/migrations/20261026001100_v17_florist_selection_validation.sql')
+  const quoteFixMigration = read('database/105_v17_florist_quote_package_fix.sql')
+  const deployQuoteFixMigration = read('supabase/migrations/20261026001200_v17_florist_quote_package_fix.sql')
   const catalog = read('src/lib/catalog.ts')
   const details = read('src/screens/08-ServiceDetails.tsx')
   const configurator = read('src/components/FloristBookingConfigurator.tsx')
@@ -3588,6 +3590,7 @@ test('V17 Phases 7-8 price and persist only provider-configured florist selectio
 
   assert.equal(deployMigration, sourceMigration, 'the deployed V17 florist selection migration must match its reviewed source')
   assert.equal(deployValidationMigration, validationMigration, 'the deployed V17 florist validation migration must match its reviewed source')
+  assert.equal(deployQuoteFixMigration, quoteFixMigration, 'the deployed V17 florist quote fix must match its reviewed source')
   mustContain(sourceMigration, [
     'calculate_my_florist_service_quote_v17',
     'save_my_florist_service_selection_v17',
@@ -3600,6 +3603,11 @@ test('V17 Phases 7-8 price and persist only provider-configured florist selectio
     'option_quantity < greatest(group_row.minimum_selections',
     'exceeds the provider selection limit',
   ], 'V17 server-side florist customization selection limits')
+  mustContain(quoteFixMigration, [
+    'package_name text',
+    'package_base_price numeric',
+    "'packageName', case when package_selected then package_name else null end",
+  ], 'V17 custom-arrangement quotes never dereference optional package records')
   mustContain(catalog, [
     'florist_arrangements(',
     'florist_service_fulfillment_options(',
