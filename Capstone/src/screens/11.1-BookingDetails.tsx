@@ -289,10 +289,6 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
   const coordinatorRequired = paymentQuote?.acceptance.coordinatorRequired ?? Boolean(booking?.coordinatorRequired)
   const coordinatorAccepted = paymentQuote?.acceptance.coordinatorAccepted
     ?? (!coordinatorRequired || booking?.coordinatorAssignmentStatus === 'accepted')
-  const requiredConfirmationCount = providerCount + (coordinatorRequired ? 1 : 0)
-  const acceptedConfirmationCount = acceptedProviderCount + (coordinatorRequired && coordinatorAccepted ? 1 : 0)
-  const confirmationsComplete = requiredConfirmationCount > 0
-    && acceptedConfirmationCount >= requiredConfirmationCount
   const coordinatorTrackerStatus = getCoordinatorTrackerStatus(booking?.coordinatorAssignmentStatus)
   const hasCoordinatorTracker = Boolean(booking?.coordinatorRequired)
   const canMessageEventCoordinator = Boolean(
@@ -315,6 +311,10 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
         ? 'Payment will become available once your event coordinator has accepted the booking request.'
         : 'Checking the latest provider confirmations before payment is enabled.')
   const eventPaymentSummary = calculateEventPaymentSummary(bookedServices)
+  const marketplaceEventTotal = paymentQuote?.breakdown.clientTotal
+    ?? bookedServices
+      .filter((service) => !['cancelled', 'declined'].includes(service.status))
+      .reduce((total, service) => total + Math.max(0, service.amount), 0)
   const [changeMode, setChangeMode] = React.useState<'cancel' | 'options' | 'reschedule'>()
   const [changeError, setChangeError] = React.useState('')
   const [cancelReason, setCancelReason] = React.useState('')
@@ -853,8 +853,8 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
               <MaterialIcons color={palette.burgundy} name="receipt-long" size={25} />
             </View>
             <View style={styles.eventPaymentTotalRow}>
-              <Text style={styles.eventPaymentTotalLabel}>TOTAL EVENT SERVICE CHARGES</Text>
-              <Text style={styles.eventPaymentTotalValue}>{formatPeso(eventPaymentSummary.serviceAmount)}</Text>
+              <Text style={styles.eventPaymentTotalLabel}>TOTAL EVENT COST</Text>
+              <Text style={styles.eventPaymentTotalValue}>{formatPeso(marketplaceEventTotal)}</Text>
             </View>
             <View style={styles.eventPaymentRow}>
               <Text style={styles.eventPaymentLabel}>RECORDED SERVICE PAYMENTS</Text>
@@ -909,7 +909,7 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
               )
             })}
             <Text style={styles.eventPaymentDisclaimer}>
-              Totals cover service charges only. MULTIVENT platform fees, held funds, and provider payouts follow their existing separate workflows and are not counted again here. External payments are provider-confirmed, not verified PayMongo transactions.
+              Marketplace prices shown here already match the amount presented when you selected each service. External payments are provider-confirmed, not verified PayMongo transactions.
             </Text>
           </View>
         ) : null}
@@ -992,9 +992,9 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                     || service.remainingServiceBalance !== undefined ? (
                       <View style={styles.servicePaymentSummary}>
                         <View style={styles.servicePaymentRow}>
-                          <Text style={styles.servicePaymentLabel}>TOTAL SERVICE AMOUNT</Text>
+                          <Text style={styles.servicePaymentLabel}>MARKETPLACE SERVICE PRICE</Text>
                           <Text style={styles.servicePaymentValue}>
-                            {formatPeso(service.serviceAmount ?? service.amount)}
+                            {formatPeso(service.amount)}
                           </Text>
                         </View>
                         <View style={styles.servicePaymentRow}>
@@ -1428,45 +1428,15 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
               <Text style={styles.reviewButtonText}>Share Event Experience</Text>
             </Pressable>
           )}
-          {!isCompleted && !isCancelled ? (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                setChangeError('')
-                setChangeMode('options')
-              }}
-              style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
-            >
-              <Text style={styles.secondaryButtonText}>CANCEL OR RESCHEDULE</Text>
-            </Pressable>
-          ) : null}
         </View>
       </ScrollView>
 
       <View style={styles.paymentDock}>
-        <View style={styles.paymentCard}>
+        <View style={styles.paymentDockContent}>
           <View style={styles.paymentCardHeading}>
             <Text style={styles.paymentLabel}>Payment Status</Text>
             <View style={styles.paymentBadge}>
               <Text style={styles.paymentBadgeText}>{paymentStatusText}</Text>
-            </View>
-          </View>
-          <View style={styles.paymentConfirmationRow}>
-            <View style={styles.paymentConfirmationCopy}>
-              <Text style={styles.paymentConfirmationLabel}>Booking confirmations</Text>
-              <Text style={styles.paymentConfirmationHint}>
-                {coordinatorRequired ? 'Includes your event coordinator.' : 'All selected service providers must accept.'}
-              </Text>
-            </View>
-            <View style={styles.paymentConfirmationValue}>
-              <MaterialIcons
-                color={confirmationsComplete ? '#145133' : palette.burgundy}
-                name={confirmationsComplete ? 'verified' : 'hourglass-empty'}
-                size={17}
-              />
-              <Text style={[styles.paymentConfirmationValueText, confirmationsComplete && styles.paymentConfirmationValueTextComplete]}>
-                {acceptedConfirmationCount} of {requiredConfirmationCount} accepted
-              </Text>
             </View>
           </View>
           {paymentQuote ? (
@@ -1512,6 +1482,19 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
           ) : (
             <Text style={styles.paymentNotice}>{paymentBlockedMessage}</Text>
           )}
+          {!isCompleted && !isCancelled ? (
+            <Pressable
+              accessibilityLabel="Cancel this booking"
+              accessibilityRole="button"
+              onPress={() => {
+                setChangeError('')
+                setChangeMode('cancel')
+              }}
+              style={({ pressed }) => [styles.paymentCancelButton, pressed && styles.pressed]}
+            >
+              <Text style={styles.paymentCancelButtonText}>Cancel</Text>
+            </Pressable>
+          ) : null}
         </View>
       </View>
 
@@ -2289,38 +2272,13 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 8,
   },
-  paymentCard: {
+  paymentDockContent: {
     width: '100%',
     maxWidth: 600,
     alignSelf: 'center',
     gap: 12,
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 12,
-    backgroundColor: palette.background,
-    padding: 16,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
   },
   paymentCardHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  paymentConfirmationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#E6DADC',
-    paddingTop: 10,
-  },
-  paymentConfirmationCopy: { flex: 1, minWidth: 0 },
-  paymentConfirmationLabel: { color: palette.text, fontSize: 11, lineHeight: 16, fontWeight: '700' },
-  paymentConfirmationHint: { color: palette.muted, fontSize: 10, lineHeight: 14, marginTop: 1 },
-  paymentConfirmationValue: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 0 },
-  paymentConfirmationValueText: { color: palette.burgundy, fontSize: 11, lineHeight: 16, fontWeight: '700' },
-  paymentConfirmationValueTextComplete: { color: '#145133' },
   paymentLabel: { color: palette.text, fontSize: 16, lineHeight: 24, fontWeight: '700' },
   paymentBadge: {
     borderRadius: 14,
@@ -2343,10 +2301,12 @@ const styles = StyleSheet.create({
   paymentReadyNotice: { flexDirection: 'row', alignItems: 'center', gap: 7, borderRadius: 9, backgroundColor: '#E7F3EB', padding: 10 },
   paymentReadyText: { color: '#145133', flex: 1, fontSize: 12, lineHeight: 17, fontWeight: '700' },
   paymentNotice: { color: palette.muted, fontSize: 11, lineHeight: 17 },
-  paymentActionButton: { minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: palette.burgundy, paddingHorizontal: 16, paddingVertical: 11 },
+  paymentActionButton: { minHeight: 56, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: palette.burgundy, paddingHorizontal: 16, paddingVertical: 14 },
   paymentActionButtonDisabled: { opacity: 0.62 },
   paymentActionButtonPressed: { opacity: 0.9, transform: [{ scale: 0.98 }] },
-  paymentActionButtonText: { color: palette.surface, fontSize: 13, lineHeight: 18, fontWeight: '800' },
+  paymentActionButtonText: { color: palette.surface, fontSize: 15, lineHeight: 20, fontWeight: '800' },
+  paymentCancelButton: { minHeight: 40, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 9 },
+  paymentCancelButtonText: { color: palette.burgundy, fontSize: 13, lineHeight: 18, fontWeight: '700' },
   feedbackSubmittedCard: {
     width: '100%',
     flexDirection: 'row',

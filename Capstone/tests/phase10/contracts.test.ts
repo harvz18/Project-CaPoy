@@ -892,7 +892,7 @@ test('provider completion records direct external payments atomically before ser
     'onCompletionPayment',
   ], 'provider completion-payment UI')
   mustContain(clientDetails, [
-    'TOTAL SERVICE AMOUNT',
+    'MARKETPLACE SERVICE PRICE',
     'INITIAL PROVIDER ALLOCATION',
     'REMAINING BALANCE',
     'Awaiting remaining payment',
@@ -913,11 +913,12 @@ test('client booking details consolidate authoritative provider balances without
     'calculateEventPaymentSummary',
     "!['cancelled', 'declined'].includes(service.status)",
     'Event Payment Summary',
-    'TOTAL EVENT SERVICE CHARGES',
+    'TOTAL EVENT COST',
+    'marketplaceEventTotal',
     'RECORDED SERVICE PAYMENTS',
     'TOTAL REMAINING BALANCE',
     'All Provider Balances Cleared',
-    'MULTIVENT platform fees, held funds, and provider payouts',
+    'Marketplace prices shown here already match',
     'External payments are provider-confirmed',
   ], 'client event payment summary')
   mustContain(merchant, [
@@ -2774,10 +2775,10 @@ test('V14 Phase 4 starts payment only from Booking Details after the secured acc
   ], 'V14 client payment API')
   mustContain(details, [
     'paymentDock',
-    'Booking confirmations',
-    'acceptedConfirmationCount',
-    'requiredConfirmationCount',
+    'paymentDockContent',
     'Pay Now to Reserve',
+    'setChangeMode(\'cancel\')',
+    '>Cancel</Text>',
     'paymentQuote?.paymentEligible',
     'not financially reserved yet',
   ], 'V14 Booking Details payment UI')
