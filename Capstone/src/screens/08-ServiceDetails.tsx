@@ -1,4 +1,5 @@
 import { Text } from '../components/AppText'
+import { FloristBookingConfigurator } from '../components/FloristBookingConfigurator'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
 import React from 'react'
@@ -33,6 +34,7 @@ import {
   type VenueBookingOption,
   type VenueOptionSelection,
 } from '../lib/service-category-details'
+import type { FloristSelectionSnapshot } from '../lib/florist'
 import type { ReviewSentiment, ServiceReviewInsights } from '../lib/reviews'
 
 export type MealType = CateringServiceType
@@ -46,6 +48,7 @@ export interface ServiceSelectionValue {
   estimatedTotal: number
   foodTastingMenuItemIds?: string[]
   foodTastingPreference?: boolean
+  floristSelection?: FloristSelectionSnapshot
   combinedCateringServiceId?: string
   mealType?: MealType
   notes: string
@@ -79,6 +82,7 @@ interface ServiceDetailsScreenProps {
     optionId?: string
     packageId?: string
     quantity?: number
+    floristSelection?: FloristSelectionSnapshot
     service: CatalogService
     venueSelections?: VenueOptionSelection[]
   }) => Promise<ServiceQuotePreview>
@@ -213,6 +217,10 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   const [selectedPackageId, setSelectedPackageId] = React.useState(
     service?.packageId ?? ''
   )
+  const [floristSelection, setFloristSelection] = React.useState<FloristSelectionSnapshot>({
+    schemaVersion: 1,
+    selectedArrangements: [],
+  })
   const eventGuestCountRef = React.useRef(eventGuestCount)
   const foodTastingDraftRevisionRef = React.useRef(0)
   const foodTastingDraftTouchedRef = React.useRef(false)
@@ -241,6 +249,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   React.useEffect(() => {
     const initialGuestCount = Math.max(1, Math.floor(eventGuestCountRef.current || 1))
     setSelectedPackageId(service?.packageId ?? '')
+    setFloristSelection({ schemaVersion: 1, selectedArrangements: [] })
     setFoodTastingPreference(initialFoodTastingPreference)
     setSelectedTastingMenuItemIds([])
     setExpandedTastingMenuSections(new Set())
@@ -380,6 +389,9 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
 
     const isCateringService = service.categoryId === 'catering'
     const isVenueService = service.categoryId === 'venues'
+    const isFloristService = service.categoryId === 'florists'
+    if (isFloristService && (!service.floristConfiguration
+      || (!floristSelection.packageId && floristSelection.selectedArrangements.length === 0))) return
     if (isCateringService && foodTastingPreference === true) return
     const quoteGuestCount = isCateringService ? cateringGuestCount : eventGuestCount
     const selectedProviderPackage = service.packages?.find((item) => item.id === selectedPackageId)
@@ -424,6 +436,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
         optionId: isVenueService ? undefined
           : isCateringService && !useSelectedProviderPackage ? selectedCateringOptionId : undefined,
         packageId: selectedPackageId || service.packageId,
+        floristSelection: isFloristService ? floristSelection : undefined,
         quantity: undefined,
         service: selectedProviderPackage?.serviceId
           ? { ...service, bookingServiceId: selectedProviderPackage.serviceId }
@@ -475,6 +488,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     selectedVenueHours,
     service,
     foodTastingPreference,
+    floristSelection,
   ])
 
   if (!service) {
@@ -494,6 +508,12 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
 
   const categoryFacts = summarizeCategoryDetails(service.categoryName, service.categoryDetails)
   const isVenue = service.categoryId === 'venues'
+  const isFlorist = service.categoryId === 'florists'
+  const floristConfiguration = service.floristConfiguration
+  const floristSelectionIssue = isFlorist && (!floristConfiguration
+    || (!floristSelection.packageId && floristSelection.selectedArrangements.length === 0))
+    ? 'Choose a florist package or at least one arrangement.'
+    : ''
   const selectedPackage = service.packages?.find((item) => item.id === selectedPackageId)
   const isVenueCateringPackage = Boolean(
     isVenue && selectedPackage?.isVenueCatering && selectedPackage.cateringDetails && selectedPackage.cateringServiceId
@@ -730,6 +750,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     || cateringSelectionUnavailable
     || venueSelectionUnavailable
     || Boolean(cateringGuestCountIssue)
+    || Boolean(floristSelectionIssue)
     || foodTastingPreferenceRequired
     || foodTastingMenuSelectionPending
     || authoritativeQuoteUnavailable
@@ -816,6 +837,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
       || cateringSelectionUnavailable
       || venueSelectionUnavailable
       || Boolean(cateringGuestCountIssue)
+      || Boolean(floristSelectionIssue)
       || foodTastingPreferenceRequired
       || foodTastingMenuSelectionPending
       || authoritativeQuoteUnavailable
@@ -836,6 +858,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
         combinedCateringServiceId: isVenueCateringPackage ? selectedPackage?.cateringServiceId : undefined,
         estimatedTotal,
         foodTastingPreference: isCatering ? foodTastingPreference : undefined,
+        floristSelection: isFlorist ? floristSelection : undefined,
         // Catering formats are provider capabilities, not client booking choices.
         mealType: undefined,
         // Client dietary and special requests belong in the dedicated
@@ -1735,6 +1758,24 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
               </View>
             ) : null}
 
+            {isFlorist ? (
+              <View style={styles.floristConfigurationSection}>
+                {floristConfiguration ? (
+                  <FloristBookingConfigurator
+                    configuration={floristConfiguration}
+                    onChange={setFloristSelection}
+                    value={floristSelection}
+                  />
+                ) : (
+                  <View style={styles.unavailableNotice}>
+                    <MaterialCommunityIcons color={palette.secondary} name="alert-circle-outline" size={20} />
+                    <Text style={styles.unavailableNoticeText}>This florist has no active client-bookable configuration yet.</Text>
+                  </View>
+                )}
+                {floristSelectionIssue ? <Text style={styles.cateringMismatch}>{floristSelectionIssue}</Text> : null}
+              </View>
+            ) : null}
+
             </View>
           ) : null}
 
@@ -2038,6 +2079,7 @@ const palette = {
 } as const
 
 const styles = StyleSheet.create({
+  floristConfigurationSection: { borderTopColor: '#E2E2E2', borderTopWidth: 1, marginTop: 24, paddingTop: 24 },
   screen: { flex: 1, backgroundColor: palette.background },
   scrollContent: { paddingBottom: 112 },
   hero: {

@@ -723,6 +723,7 @@ export const App: React.FC = () => {
     optionId?: string
     packageId?: string
     quantity?: number
+    floristSelection?: import('./lib/florist').FloristSelectionSnapshot
     service: CatalogService
     venueSelections?: VenueOptionSelection[]
   }) => calculateServiceQuote({
@@ -731,6 +732,7 @@ export const App: React.FC = () => {
     optionId: value.optionId,
     packageId: value.packageId,
     quantity: value.quantity,
+    floristSelection: value.floristSelection,
     serviceId: value.service.bookingServiceId ?? value.service.id,
     venueSelections: value.venueSelections,
   }), [])

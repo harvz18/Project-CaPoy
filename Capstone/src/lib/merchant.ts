@@ -2135,7 +2135,7 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
   const { data, error } = await context.client
     .from('bookings')
     .select(
-      'id, event_id, service_id, amount, provider_amount, status, requested_date, requested_time, client_notes, catering_option_name, catering_option_snapshot, venue_option_name, venue_option_snapshot, venue_options_snapshot, venue_booking_snapshot, venue_booked_hours, venue_setup_start_at, venue_start_at, venue_end_at, created_at, profiles(full_name, email), events(name, event_type, event_date, event_time, guest_count, venue, location), services(name, description, category_details, service_categories(name)), service_packages(name, description, inclusions), payments(status, amount, service_subtotal, platform_fee_amount, provider_initial_allocation, paid_at, verified_at, created_at, metadata)'
+      'id, event_id, service_id, amount, provider_amount, status, requested_date, requested_time, client_notes, florist_selection_snapshot, catering_option_name, catering_option_snapshot, venue_option_name, venue_option_snapshot, venue_options_snapshot, venue_booking_snapshot, venue_booked_hours, venue_setup_start_at, venue_start_at, venue_end_at, created_at, profiles(full_name, email), events(name, event_type, event_date, event_time, guest_count, venue, location), services(name, description, category_details, service_categories(name)), service_packages(name, description, inclusions), payments(status, amount, service_subtotal, platform_fee_amount, provider_initial_allocation, paid_at, verified_at, created_at, metadata)'
     )
     .eq('provider_id', context.providerId)
     .neq('status', 'payment_required')
@@ -2229,6 +2229,27 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
           return name ? [`${name}${price > 0 ? ` — PHP ${price.toLocaleString('en-PH')}/head` : ''}`] : []
         })
       : []
+    const floristSnapshot = record.florist_selection_snapshot && typeof record.florist_selection_snapshot === 'object'
+      ? record.florist_selection_snapshot as Record<string, unknown>
+      : {}
+    const floristSelectionSummary = [
+      textFrom(floristSnapshot.packageName) ? `Package: ${textFrom(floristSnapshot.packageName)}` : '',
+      ...(Array.isArray(floristSnapshot.selectedArrangements) ? floristSnapshot.selectedArrangements.flatMap((item) => {
+        if (!item || typeof item !== 'object') return []
+        const arrangement = item as Record<string, unknown>
+        const name = textFrom(arrangement.name)
+        const quantity = numberFrom(arrangement.quantity, 0)
+        return name ? [`${name}${quantity > 0 ? ` × ${quantity}` : ''}`] : []
+      }) : []),
+      ...(Array.isArray(floristSnapshot.packageAddOns) ? floristSnapshot.packageAddOns.flatMap((item) => {
+        if (!item || typeof item !== 'object') return []
+        const name = textFrom((item as Record<string, unknown>).name)
+        return name ? [`Add-on: ${name}`] : []
+      }) : []),
+      floristSnapshot.fulfillment && typeof floristSnapshot.fulfillment === 'object'
+        ? `Fulfillment: ${textFrom((floristSnapshot.fulfillment as Record<string, unknown>).name)}`
+        : '',
+    ].filter(Boolean)
     const foodTastingWorkflow = foodTastingWorkflowsByBooking.get(textFrom(record.id))
     const instructions = (instructionRows ?? [])
       .filter(
@@ -2260,6 +2281,7 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
       foodTasting: foodTastingsByBooking.get(textFrom(record.id)),
       foodTastingEnabled: Boolean(getCateringTastingSettings(service?.category_details)),
       foodTastingWorkflow,
+      floristSelectionSummary: floristSelectionSummary.length ? floristSelectionSummary : undefined,
       clientEmail: textFrom(profile?.email),
       clientNotes: textFrom(record.client_notes),
       dietaryNotes: textFrom(bookingDetails?.dietary_notes) || undefined,
@@ -2326,6 +2348,7 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
       foodTasting: request.foodTasting,
       foodTastingEnabled: request.foodTastingEnabled,
       foodTastingWorkflow: request.foodTastingWorkflow,
+      floristSelectionSummary: request.floristSelectionSummary,
       clientNotes: request.clientNotes,
       completionPaymentStatus: request.completionPaymentStatus,
       confirmedExternalPaymentAmount: request.confirmedExternalPaymentAmount,

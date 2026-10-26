@@ -21,6 +21,7 @@ import type {
   VenueBookingOption,
   VenueOptionSelection,
 } from './service-category-details'
+import type { FloristSelectionSnapshot } from './florist'
 import type {
   BudgetPriority,
   CategoryBudgetAllocation,
@@ -151,6 +152,7 @@ type ServiceSelectionInput = {
   estimatedTotal: number
   foodTastingMenuItemIds?: string[]
   foodTastingPreference?: boolean
+  floristSelection?: FloristSelectionSnapshot
   combinedCateringServiceId?: string
   mealType?: string
   notes: string
@@ -286,6 +288,7 @@ export const calculateServiceQuote = async ({
   packageId,
   quantity,
   serviceId,
+  floristSelection,
   venueSelections,
 }: {
   attendeeCount?: number
@@ -294,6 +297,7 @@ export const calculateServiceQuote = async ({
   packageId?: string
   quantity?: number
   serviceId: string
+  floristSelection?: FloristSelectionSnapshot
   venueSelections?: VenueOptionSelection[]
 }): Promise<PlanningResult> => {
   try {
@@ -301,6 +305,20 @@ export const calculateServiceQuote = async ({
     const event = await ensureDraftEvent()
     if (!client || !event || !isUuid(serviceId)) {
       return { ok: false, message: 'Choose a published service to calculate its event price.' }
+    }
+    if (floristSelection) {
+      const { data, error } = await client.rpc('calculate_my_florist_service_quote_v17', {
+        target_event_id: event.eventId,
+        target_selection: floristSelection,
+        target_service_id: serviceId,
+      })
+      if (error) return { ok: false, message: error.message }
+      const result = data && typeof data === 'object' ? data as Record<string, unknown> : {}
+      return {
+        calculatedAmount: Number(result.customerAmount),
+        ok: Number.isFinite(Number(result.customerAmount)) && Number(result.customerAmount) > 0,
+        providerAmount: Number(result.providerAmount),
+      }
     }
     // A provider-created package is a complete configuration.  It must use
     // the package-aware quote endpoint even for a venue, because the venue
@@ -2303,6 +2321,24 @@ export const saveServiceSelection = async (
     const providerId = value.service.bookingProviderId ?? value.service.providerId
     const serviceId = value.service.bookingServiceId ?? value.service.id
     const packageId = value.service.bookingPackageId ?? value.service.packageId
+    if (isUuid(serviceId) && value.service.categoryId === 'florists' && value.floristSelection) {
+      const { data, error } = await client.rpc('save_my_florist_service_selection_v17', {
+        replace_existing: true,
+        target_event_id: event.eventId,
+        target_notes: value.notes.trim() || null,
+        target_selection: value.floristSelection,
+        target_service_id: serviceId,
+      })
+      if (error) return { ok: false, message: error.message }
+      const result = data && typeof data === 'object' ? data as Record<string, unknown> : {}
+      return {
+        calculatedAmount: Number(result.customerAmount ?? value.estimatedTotal),
+        ok: true,
+        providerAmount: Number(result.providerAmount ?? value.service.providerMinPrice),
+        replacedSelectionId: typeof result.replacedSelectionId === 'string' ? result.replacedSelectionId : undefined,
+        selectionId: typeof result.selectionId === 'string' ? result.selectionId : undefined,
+      }
+    }
     if (isUuid(value.venueCateringPackageId)) {
       const { data, error } = value.foodTastingPreference === true
         ? await client.rpc('submit_my_v15_venue_catering_food_tasting_request', {

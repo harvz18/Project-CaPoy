@@ -3575,3 +3575,42 @@ test('V17 Phase 6 keeps florist fulfillment provider-configured and availability
     'Do not substitute without approval',
   ], 'V17 Phase 6 provider substitution policy')
 })
+
+test('V17 Phases 7-8 price and persist only provider-configured florist selections', () => {
+  const sourceMigration = read('database/103_v17_florist_selection_pricing.sql')
+  const deployMigration = read('supabase/migrations/20261026001000_v17_florist_selection_pricing.sql')
+  const catalog = read('src/lib/catalog.ts')
+  const details = read('src/screens/08-ServiceDetails.tsx')
+  const configurator = read('src/components/FloristBookingConfigurator.tsx')
+  const planning = read('src/lib/planning.ts')
+
+  assert.equal(deployMigration, sourceMigration, 'the deployed V17 florist selection migration must match its reviewed source')
+  mustContain(sourceMigration, [
+    'calculate_my_florist_service_quote_v17',
+    'save_my_florist_service_selection_v17',
+    'provider_total',
+    "round(provider_total * (1 + commission_rate), 2)",
+    'florist_selection_snapshot',
+    'Florist package add-ons require a selected package.',
+  ], 'V17 server-owned florist pricing and immutable selection persistence')
+  mustContain(catalog, [
+    'florist_arrangements(',
+    'florist_service_fulfillment_options(',
+    'floristConfiguration',
+  ], 'V17 published provider configuration catalogue mapping')
+  mustContain(configurator, [
+    'Wedding package',
+    'Customize flowers',
+    'Fulfillment',
+    'selectedOptions',
+  ], 'V17 client florist configuration controls')
+  mustContain(details, [
+    'FloristBookingConfigurator',
+    'floristSelection',
+    'floristSelectionIssue',
+  ], 'V17 existing service detail integration')
+  mustContain(planning, [
+    "calculate_my_florist_service_quote_v17",
+    "save_my_florist_service_selection_v17",
+  ], 'V17 existing planning and event-selection integration')
+})

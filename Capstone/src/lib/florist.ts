@@ -81,7 +81,8 @@ export type FloristPackageDraft = {
 }
 
 export type FloristOptionSelectionSnapshot = {
-  optionId: string
+  optionGroupId?: string
+  optionId?: string
   quantity?: number
   value?: string
 }
@@ -99,7 +100,58 @@ export type FloristSelectionSnapshot = {
   schemaVersion: 1
   fulfillmentOptionId?: string
   packageId?: string
+  packageAddOnIds?: string[]
   selectedArrangements: FloristArrangementSelectionSnapshot[]
+}
+
+export type FloristPublishedOption = {
+  id: string
+  name: string
+  priceModifier: number
+  priceModifierType: FloristPriceModifierType
+}
+
+export type FloristPublishedOptionGroup = {
+  id: string
+  isRequired: boolean
+  maximumSelections?: number
+  minimumSelections: number
+  name: string
+  options: FloristPublishedOption[]
+  selectionType: FloristCustomizationSelectionType
+}
+
+export type FloristPublishedArrangement = {
+  basePrice: number
+  category: string
+  description?: string
+  id: string
+  maximumQuantity?: number
+  minimumQuantity: number
+  name: string
+  pricingUnit: FloristArrangementPricingUnit
+  customizationGroups: FloristPublishedOptionGroup[]
+}
+
+export type FloristPublishedPackage = {
+  addOns: Array<{ id: string; name: string; price: number; pricingUnit: FloristArrangementPricingUnit }>
+  id: string
+  inclusions: Array<{ arrangementId: string; customizationAllowed: boolean; quantity: number }>
+  name: string
+  price: number
+}
+
+export type FloristPublishedFulfillment = {
+  id: string
+  kind: FloristFulfillmentKind
+  name: string
+  price: number
+}
+
+export type FloristServiceConfiguration = {
+  arrangements: FloristPublishedArrangement[]
+  fulfillmentOptions: FloristPublishedFulfillment[]
+  packages: FloristPublishedPackage[]
 }
 
 export const isFloristSelectionSnapshot = (value: unknown): value is FloristSelectionSnapshot => {

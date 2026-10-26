@@ -37,6 +37,7 @@ export interface MerchantBookedService {
   foodTasting?: CateringFoodTasting
   foodTastingEnabled?: boolean
   foodTastingWorkflow?: CateringFoodTastingWorkflow
+  floristSelectionSummary?: string[]
   dietaryNotes?: string
   downpaymentAmount?: number
   id: string
@@ -75,6 +76,7 @@ export interface MerchantBookingRequest {
   foodTasting?: CateringFoodTasting
   foodTastingEnabled?: boolean
   foodTastingWorkflow?: CateringFoodTastingWorkflow
+  floristSelectionSummary?: string[]
   dietaryNotes?: string
   downpaymentAmount?: number
   clientName: string

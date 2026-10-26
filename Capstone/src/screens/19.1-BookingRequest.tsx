@@ -130,6 +130,7 @@ const servicesFor = (request: MerchantBookingRequest): MerchantBookedService[] =
         cateringMenuItems: request.cateringMenuItems,
         cateringOptionName: request.cateringOptionName,
         foodTastingWorkflow: request.foodTastingWorkflow,
+        floristSelectionSummary: request.floristSelectionSummary,
         clientNotes: request.clientNotes,
         dietaryNotes: request.dietaryNotes,
         downpaymentAmount: request.downpaymentAmount,
@@ -169,6 +170,7 @@ const requestForService = (
   foodTasting: service.foodTasting,
   foodTastingEnabled: service.foodTastingEnabled,
   foodTastingWorkflow: service.foodTastingWorkflow,
+  floristSelectionSummary: service.floristSelectionSummary,
   clientNotes: service.clientNotes,
   dietaryNotes: service.dietaryNotes,
   downpaymentAmount: service.downpaymentAmount,
@@ -590,7 +592,7 @@ export const BookingRequestDetailsScreen: React.FC<BookingRequestDetailsScreenPr
                   </View>
                 ) : null}
 
-                {service.mealType || service.attendeeCount || service.budgetPerHead || service.cateringOptionName || service.cateringMenuItems?.length || service.venueOptionName ? (
+                {service.mealType || service.attendeeCount || service.budgetPerHead || service.cateringOptionName || service.cateringMenuItems?.length || service.venueOptionName || service.floristSelectionSummary?.length ? (
                   <View style={styles.bookingDetailsCard}>
                     <Text style={styles.miniLabel}>CLIENT BOOKING DETAILS</Text>
                     <View style={styles.bookingDetailsGrid}>
@@ -604,6 +606,12 @@ export const BookingRequestDetailsScreen: React.FC<BookingRequestDetailsScreenPr
                         <View style={styles.bookingMenuItems}>
                           <Text style={styles.miniLabel}>SELECTED FOOD ITEMS</Text>
                           {service.cateringMenuItems.map((item) => <Text key={item} style={styles.bookingDetailText}>• {item}</Text>)}
+                        </View>
+                      ) : null}
+                      {service.floristSelectionSummary?.length ? (
+                        <View style={styles.bookingMenuItems}>
+                          <Text style={styles.miniLabel}>SELECTED FLORALS</Text>
+                          {service.floristSelectionSummary.map((item) => <Text key={item} style={styles.bookingDetailText}>â€¢ {item}</Text>)}
                         </View>
                       ) : null}
                       {service.venueOptionName ? (

@@ -13,6 +13,7 @@ import {
   type VenueBookingOption,
   type VenueBookingRules,
 } from './service-category-details'
+import type { FloristServiceConfiguration } from './florist'
 
 export type CatalogCategoryId =
   | 'venues'
@@ -132,6 +133,7 @@ export interface CatalogService {
   description: string
   detail: string
   galleryUrls?: string[]
+  floristConfiguration?: FloristServiceConfiguration
   imageLabel: string
   imageUrl: string
   isMostBooked?: boolean
@@ -375,7 +377,7 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
   const baseSelection =
     'id, provider_id, category_id, name, description, base_price, location, cover_image_url, provider_profiles(id, user_id, business_name), service_categories(id, name), service_packages(id, service_id, name, description, price, inclusions, pricing_unit, pricing_mode, is_deleted), reviews(rating)'
   const detailedSelection =
-    'id, provider_id, category_id, name, description, base_price, location, cover_image_url, gallery_urls, pricing_model, pricing_unit, pricing_details, catering_service_types, category_details, provider_profiles(id, user_id, business_name), service_categories(id, name), service_packages(id, service_id, name, description, price, inclusions, pricing_unit, pricing_mode, subtotal, discount_type, discount_value, discount_amount, is_deleted, venue_catering_package_details(venue_service_id, catering_service_id, venue_option_id), service_package_items(position, services(id, name, category_details, service_categories(name)))), reviews(rating, analysis_status, sentiment_label)'
+    'id, provider_id, category_id, name, description, base_price, location, cover_image_url, gallery_urls, pricing_model, pricing_unit, pricing_details, catering_service_types, category_details, provider_profiles(id, user_id, business_name), service_categories(id, name), service_packages(id, service_id, name, description, price, inclusions, pricing_unit, pricing_mode, subtotal, discount_type, discount_value, discount_amount, is_deleted, venue_catering_package_details(venue_service_id, catering_service_id, venue_option_id), service_package_items(position, services(id, name, category_details, service_categories(name))), florist_package_arrangements(arrangement_id, included_quantity, customization_allowed), florist_package_add_ons(id, name, price, pricing_unit, is_active)), florist_arrangements(id, name, category, description, base_price, pricing_unit, minimum_quantity, maximum_quantity, is_active, display_order, florist_arrangement_option_groups(id, name, selection_type, is_required, minimum_selections, maximum_selections, is_active, display_order, florist_arrangement_options(id, name, price_modifier, price_modifier_type, is_active, display_order))), florist_service_fulfillment_options(id, fulfillment_kind, name, price, is_active, display_order), reviews(rating, analysis_status, sentiment_label)'
 
   const [detailedResult, commissionResult, includedPackageResult] = await Promise.all([
     supabase
@@ -447,6 +449,49 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
         && items.findIndex((candidate) => textFrom(candidate.id, '') === packageId) === itemIndex
     })
     const packages = getPackages(packageRows, commissionRate)
+    const floristArrangements = Array.isArray(record.florist_arrangements)
+      ? (record.florist_arrangements as Array<Record<string, unknown>>)
+        .filter((item) => item.is_active !== false)
+        .map((arrangement) => ({
+          id: textFrom(arrangement.id, ''),
+          name: textFrom(arrangement.name, ''),
+          category: textFrom(arrangement.category, ''),
+          description: textFrom(arrangement.description, '') || undefined,
+          basePrice: numberFrom(arrangement.base_price, 0),
+          pricingUnit: (['piece', 'pair', 'set', 'table', 'installation', 'fixed'].includes(textFrom(arrangement.pricing_unit, '')) ? textFrom(arrangement.pricing_unit, '') : 'piece') as FloristServiceConfiguration['arrangements'][number]['pricingUnit'],
+          minimumQuantity: Math.max(1, numberFrom(arrangement.minimum_quantity, 1)),
+          maximumQuantity: Number.isFinite(numberFrom(arrangement.maximum_quantity, Number.NaN)) ? numberFrom(arrangement.maximum_quantity, 0) : undefined,
+          customizationGroups: Array.isArray(arrangement.florist_arrangement_option_groups)
+            ? (arrangement.florist_arrangement_option_groups as Array<Record<string, unknown>>).filter((group) => group.is_active !== false).map((group) => ({
+              id: textFrom(group.id, ''), name: textFrom(group.name, ''), isRequired: group.is_required === true,
+              minimumSelections: Math.max(0, numberFrom(group.minimum_selections, 0)),
+              maximumSelections: Number.isFinite(numberFrom(group.maximum_selections, Number.NaN)) ? numberFrom(group.maximum_selections, 0) : undefined,
+              selectionType: (['single', 'multiple', 'quantity', 'text', 'image'].includes(textFrom(group.selection_type, '')) ? textFrom(group.selection_type, '') : 'single') as FloristServiceConfiguration['arrangements'][number]['customizationGroups'][number]['selectionType'],
+              options: Array.isArray(group.florist_arrangement_options) ? (group.florist_arrangement_options as Array<Record<string, unknown>>).filter((option) => option.is_active !== false).map((option) => ({
+                id: textFrom(option.id, ''), name: textFrom(option.name, ''), priceModifier: numberFrom(option.price_modifier, 0),
+                priceModifierType: (['fixed', 'per_unit', 'per_selection', 'included'].includes(textFrom(option.price_modifier_type, '')) ? textFrom(option.price_modifier_type, '') : 'included') as FloristServiceConfiguration['arrangements'][number]['customizationGroups'][number]['options'][number]['priceModifierType'],
+              })) : [],
+            })) : [],
+        })).filter((item) => item.id && item.name)
+      : []
+    const floristPackages = packageRows
+      .filter((item) => item.is_active !== false && item.is_deleted !== true)
+      .map((item) => ({
+        id: textFrom(item.id, ''), name: textFrom(item.name, ''), price: numberFrom(item.price, 0),
+        inclusions: Array.isArray(item.florist_package_arrangements) ? (item.florist_package_arrangements as Array<Record<string, unknown>>).map((entry) => ({
+          arrangementId: textFrom(entry.arrangement_id, ''), customizationAllowed: entry.customization_allowed === true, quantity: Math.max(1, numberFrom(entry.included_quantity, 1)),
+        })).filter((entry) => entry.arrangementId) : [],
+        addOns: Array.isArray(item.florist_package_add_ons) ? (item.florist_package_add_ons as Array<Record<string, unknown>>).filter((entry) => entry.is_active !== false).map((entry) => ({
+          id: textFrom(entry.id, ''), name: textFrom(entry.name, ''), price: numberFrom(entry.price, 0),
+          pricingUnit: (['piece', 'pair', 'set', 'table', 'installation', 'fixed'].includes(textFrom(entry.pricing_unit, '')) ? textFrom(entry.pricing_unit, '') : 'piece') as FloristServiceConfiguration['packages'][number]['addOns'][number]['pricingUnit'],
+        })).filter((entry) => entry.id && entry.name) : [],
+      })).filter((item) => item.id && item.name && item.price > 0 && item.inclusions.length > 0)
+    const floristFulfillmentOptions = Array.isArray(record.florist_service_fulfillment_options)
+      ? (record.florist_service_fulfillment_options as Array<Record<string, unknown>>).filter((item) => item.is_active !== false).map((item) => ({
+        id: textFrom(item.id, ''), name: textFrom(item.name, ''), price: numberFrom(item.price, 0),
+        kind: (['pickup', 'delivery', 'delivery_with_setup', 'installation', 'post_event_removal'].includes(textFrom(item.fulfillment_kind, '')) ? textFrom(item.fulfillment_kind, '') : 'pickup') as FloristServiceConfiguration['fulfillmentOptions'][number]['kind'],
+      })).filter((item) => item.id && item.name)
+      : []
     const providerMinPrice = numberFrom(
       record.base_price,
       packages[0]?.providerPrice ?? 0
@@ -496,6 +541,9 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
       description: textFrom(record.description, `${name} service package.`),
       detail: categoryName,
       galleryUrls: serviceImages,
+      floristConfiguration: categoryNameToId(categoryName) === 'florists'
+        ? { arrangements: floristArrangements, packages: floristPackages, fulfillmentOptions: floristFulfillmentOptions }
+        : undefined,
       imageLabel: name,
       imageUrl: coverImageUrl,
       isMock: false,
