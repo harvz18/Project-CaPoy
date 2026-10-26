@@ -2773,8 +2773,10 @@ test('V14 Phase 4 starts payment only from Booking Details after the secured acc
     "client.rpc('initiate_my_event_payment_v14'",
   ], 'V14 client payment API')
   mustContain(details, [
-    'Provider Confirmations',
-    'Payment opens only when every required booking is accepted.',
+    'paymentDock',
+    'Booking confirmations',
+    'acceptedConfirmationCount',
+    'requiredConfirmationCount',
     'Pay Now to Reserve',
     'paymentQuote?.paymentEligible',
     'not financially reserved yet',
