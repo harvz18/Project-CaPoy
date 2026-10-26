@@ -2793,12 +2793,22 @@ test('V14 Phase 4 starts payment only from Booking Details after the secured acc
     'acceptedConfirmationCount',
     'requiredConfirmationCount',
     'paddingBottom: 24',
-    'Pay Now to Reserve',
+    'Confirm Payment',
     'setChangeMode(\'cancel\')',
     '>Cancel</Text>',
     'paymentQuote?.paymentEligible',
     'not financially reserved yet',
   ], 'V14 Booking Details payment UI')
+  assert.doesNotMatch(details, /<DetailRow label="PRICE"/,
+    'the Event Details card must not duplicate marketplace pricing')
+  mustContain(details, [
+    'const bookedServiceCount = bookedServices.length + (hasCoordinatorTracker ? 1 : 0)',
+    "coverage: `${bookedServiceCount} service${bookedServiceCount === 1 ? '' : 's'}`",
+    '>Event Details</Text>',
+    'borderTopLeftRadius: 18',
+    'borderTopRightRadius: 18',
+    'accessibilityLabel="Confirm payment"',
+  ], 'Booking Details header, service count, and payment actions')
   mustContain(payment, [
     "const [paymentType, setPaymentType] = React.useState<PaymentType>('deposit')",
     "onPress={() => setPaymentType('full')}",

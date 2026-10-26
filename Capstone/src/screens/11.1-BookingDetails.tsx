@@ -293,6 +293,7 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
   const acceptedConfirmationCount = acceptedProviderCount + (coordinatorRequired && coordinatorAccepted ? 1 : 0)
   const coordinatorTrackerStatus = getCoordinatorTrackerStatus(booking?.coordinatorAssignmentStatus)
   const hasCoordinatorTracker = Boolean(booking?.coordinatorRequired)
+  const bookedServiceCount = bookedServices.length + (hasCoordinatorTracker ? 1 : 0)
   const canMessageEventCoordinator = Boolean(
     booking?.eventId
       && booking?.coordinatorAssignmentStatus === 'accepted'
@@ -350,7 +351,7 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
             isConfirmed && booking.updatedAt
               ? new Date(booking.updatedAt).toLocaleDateString('en-PH')
               : '',
-          coverage: `${bookedServices.length} service${bookedServices.length === 1 ? '' : 's'}`,
+          coverage: `${bookedServiceCount} service${bookedServiceCount === 1 ? '' : 's'}`,
           service: booking.eventType || booking.category,
           date: booking.date,
         }
@@ -623,9 +624,9 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
             onPress={onBack}
             style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
           >
-            <Text style={styles.backIcon}>{'\u2190'}</Text>
+            <Text style={styles.backIcon}>{'\u2039'}</Text>
           </Pressable>
-          <Text style={styles.headerTitle}>Event Booking</Text>
+          <Text style={styles.headerTitle}>Event Details</Text>
           <View style={styles.headerSpacer} />
         </View>
       </View>
@@ -653,8 +654,8 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
             </Text>
             <View style={styles.categoryBadge}>
               <Text style={styles.categoryBadgeText}>
-                {bookedServices.length
-                  ? `${bookedServices.length} SERVICES`
+                {bookedServiceCount
+                  ? `${bookedServiceCount} SERVICES`
                   : provider.category.toUpperCase()}
               </Text>
             </View>
@@ -706,7 +707,6 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
             />
           ) : null}
           <DetailRow label="SERVICES" value={value.coverage} />
-          <DetailRow label="PRICE" last price value={value.price} />
         </View>
 
         {booking?.isChurchWedding ? (
@@ -1437,7 +1437,21 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
 
       <View style={styles.paymentDock}>
         <View style={styles.paymentDockContent}>
-          <View style={styles.paymentCardHeading}>
+          <Pressable
+            accessibilityLabel="Confirm payment"
+            accessibilityRole="button"
+            disabled={!paymentReady || isStartingPayment}
+            onPress={onStartPayment}
+            style={({ pressed }) => [
+              styles.paymentActionButton,
+              (!paymentReady || isStartingPayment) && styles.paymentActionButtonDisabled,
+              pressed && paymentReady && !isStartingPayment && styles.paymentActionButtonPressed,
+            ]}
+          >
+            <Text style={styles.paymentActionButtonText}>Confirm Payment</Text>
+          </Pressable>
+          <View style={styles.hiddenPaymentDockContent}>
+            <View style={styles.paymentCardHeading}>
             <Text style={styles.paymentLabel}>Payment Status</Text>
             <Text style={styles.paymentAcceptanceText}>
               {requiredConfirmationCount > 0
@@ -1488,6 +1502,7 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
           ) : (
             <Text style={styles.paymentNotice}>{paymentBlockedMessage}</Text>
           )}
+          </View>
           {!isCompleted && !isCancelled ? (
             <Pressable
               accessibilityLabel="Cancel this booking"
@@ -2007,14 +2022,16 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.background },
   topAppBar: {
     zIndex: 50,
+    minHeight: 64,
+    justifyContent: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: palette.card,
-    backgroundColor: palette.background,
+    borderBottomColor: palette.burgundy,
+    backgroundColor: palette.burgundy,
   },
   topAppBarContent: {
     width: '100%',
     maxWidth: 600,
-    minHeight: 80,
+    minHeight: 64,
     alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
@@ -2027,13 +2044,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 20,
   },
-  backIcon: { color: palette.muted, fontSize: 25, lineHeight: 28 },
+  backIcon: { color: palette.surface, fontSize: 32, lineHeight: 34, fontWeight: '300' },
   headerTitle: {
     flex: 1,
-    color: palette.text,
-    fontSize: 24,
-    lineHeight: 32,
-    fontWeight: '600',
+    color: palette.surface,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '700',
+    letterSpacing: 1.2,
     textAlign: 'center',
   },
   headerSpacer: { width: 40, height: 40 },
@@ -2268,6 +2286,8 @@ const styles = StyleSheet.create({
     width: '100%',
     borderTopWidth: 1,
     borderTopColor: palette.border,
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
     backgroundColor: palette.surface,
     paddingHorizontal: 20,
     paddingTop: 10,
@@ -2284,6 +2304,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     gap: 12,
   },
+  hiddenPaymentDockContent: { display: 'none' },
   paymentCardHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   paymentLabel: { color: palette.text, fontSize: 16, lineHeight: 24, fontWeight: '700' },
   paymentAcceptanceText: { color: palette.burgundy, fontSize: 12, lineHeight: 16, fontWeight: '700', textAlign: 'right' },
