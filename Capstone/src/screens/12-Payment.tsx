@@ -762,7 +762,11 @@ export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
               style={({ pressed }) => [styles.payButton, (isProcessing || isLoading || !selectedMethodEnabled) && styles.payButtonDisabled, pressed && styles.payButtonPressed]}
             >
               <Text style={styles.payButtonText}>
-                {isProcessing ? 'Starting payment...' : paymentType === 'full' ? 'Pay Full' : 'Confirm Downpayment'}
+                {isProcessing
+                  ? 'Starting payment...'
+                  : paymentType === 'full'
+                    ? `Pay Full · ${formatCurrency(amountDue)}`
+                    : `Confirm Downpayment · ${formatCurrency(amountDue)}`}
               </Text>
             </Pressable>
           </View>
