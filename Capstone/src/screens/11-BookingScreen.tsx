@@ -12,6 +12,9 @@ import {
 import { ClientBottomNavigation, ClientMainTab } from '../components/ClientBottomNavigation'
 import type { CateringFoodTasting, CateringFoodTastingWorkflow } from '../lib/merchant'
 import type { VenueBookingConfiguration } from '../lib/venue-booking'
+import type { PhotoVideoPreEventPlan } from '../lib/photo-video-pre-event'
+import type { PhotoVideoEventDayLog } from '../lib/photo-video-event-day'
+import type { PhotoVideoDeliverableTracking } from '../lib/photo-video-deliverables'
 
 export type BookingStatus = 'all' | 'confirmed' | 'requested' | 'completed' | 'cancelled'
 export type BookingTab = ClientMainTab | 'merchants'
@@ -37,6 +40,9 @@ export interface BookingServiceItem {
   isVenueCateringPackage?: boolean
   initialPaymentRecordedAt?: string
   paymentStatus: string
+  photoVideoPreEventPlan?: PhotoVideoPreEventPlan
+  photoVideoEventDayLog?: PhotoVideoEventDayLog
+  photoVideoDeliverableTracking?: PhotoVideoDeliverableTracking
   providerId: string
   providerName: string
   rawStatus: string

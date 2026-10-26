@@ -14,6 +14,14 @@ import {
   type VenueBookingRules,
 } from './service-category-details'
 import type { FloristServiceConfiguration } from './florist'
+import {
+  photoVideoBookingConfigurationFrom,
+  type PhotoVideoBookingConfiguration,
+} from './photo-video-booking'
+import {
+  isPhotoVideoPackageConfiguration,
+  photoVideoPackageDraftsFrom,
+} from './photo-video'
 
 export type CatalogCategoryId =
   | 'venues'
@@ -134,6 +142,7 @@ export interface CatalogService {
   detail: string
   galleryUrls?: string[]
   floristConfiguration?: FloristServiceConfiguration
+  photoVideoConfiguration?: PhotoVideoBookingConfiguration
   imageLabel: string
   imageUrl: string
   isMostBooked?: boolean
@@ -243,7 +252,7 @@ const getPackages = (value: unknown, commissionRate: number) => {
     if (!item || typeof item !== 'object') return []
 
     const record = item as Record<string, unknown>
-    if (record.is_deleted === true) return []
+    if (record.is_deleted === true || record.is_active === false) return []
     const id = textFrom(record.id, '')
     const name = textFrom(record.name, '')
     const providerPrice = numberFrom(record.price, 0)
@@ -375,9 +384,9 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
   }
 
   const baseSelection =
-    'id, provider_id, category_id, name, description, base_price, location, cover_image_url, provider_profiles(id, user_id, business_name), service_categories(id, name), service_packages(id, service_id, name, description, price, inclusions, pricing_unit, pricing_mode, is_deleted), reviews(rating)'
+    'id, provider_id, category_id, name, description, base_price, location, cover_image_url, provider_profiles(id, user_id, business_name), service_categories(id, name), service_packages(id, service_id, name, description, price, inclusions, pricing_unit, pricing_mode, is_active, is_deleted), reviews(rating)'
   const detailedSelection =
-    'id, provider_id, category_id, name, description, base_price, location, cover_image_url, gallery_urls, pricing_model, pricing_unit, pricing_details, catering_service_types, category_details, provider_profiles(id, user_id, business_name), service_categories(id, name), service_packages(id, service_id, name, description, price, inclusions, pricing_unit, pricing_mode, subtotal, discount_type, discount_value, discount_amount, is_deleted, venue_catering_package_details(venue_service_id, catering_service_id, venue_option_id), service_package_items(position, services(id, name, category_details, service_categories(name))), florist_package_arrangements(arrangement_id, included_quantity, customization_allowed), florist_package_add_ons(id, name, price, pricing_unit, is_active)), florist_arrangements(id, name, category, description, base_price, pricing_unit, minimum_quantity, maximum_quantity, is_active, display_order, florist_arrangement_option_groups(id, name, selection_type, is_required, minimum_selections, maximum_selections, is_active, display_order, florist_arrangement_options(id, name, price_modifier, price_modifier_type, is_active, display_order))), florist_service_fulfillment_options(id, fulfillment_kind, name, price, is_active, display_order), reviews(rating, analysis_status, sentiment_label)'
+    'id, provider_id, category_id, name, description, base_price, location, cover_image_url, gallery_urls, pricing_model, pricing_unit, pricing_details, catering_service_types, category_details, provider_profiles(id, user_id, business_name), service_categories(id, name), service_packages(id, service_id, name, description, price, inclusions, pricing_unit, pricing_mode, subtotal, discount_type, discount_value, discount_amount, is_active, is_deleted, configuration, image_urls, venue_catering_package_details(venue_service_id, catering_service_id, venue_option_id), service_package_items(position, services(id, name, category_details, service_categories(name))), florist_package_arrangements(arrangement_id, included_quantity, customization_allowed), florist_package_add_ons(id, name, price, pricing_unit, is_active)), florist_arrangements(id, name, category, description, base_price, pricing_unit, minimum_quantity, maximum_quantity, is_active, display_order, florist_arrangement_option_groups(id, name, selection_type, is_required, minimum_selections, maximum_selections, is_active, display_order, florist_arrangement_options(id, name, price_modifier, price_modifier_type, is_active, display_order))), florist_service_fulfillment_options(id, fulfillment_kind, name, price, is_active, display_order), reviews(rating, analysis_status, sentiment_label)'
 
   const [detailedResult, commissionResult, includedPackageResult] = await Promise.all([
     supabase
@@ -390,7 +399,7 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
     supabase
       .from('service_package_items')
       .select(
-        'service_id, service_packages(id, service_id, name, description, price, inclusions, pricing_unit, pricing_mode, subtotal, discount_type, discount_value, discount_amount, is_deleted, venue_catering_package_details(venue_service_id, catering_service_id, venue_option_id), service_package_items(position, services(id, name, category_details, service_categories(name))))'
+        'service_id, service_packages(id, service_id, name, description, price, inclusions, pricing_unit, pricing_mode, subtotal, discount_type, discount_value, discount_amount, is_active, is_deleted, venue_catering_package_details(venue_service_id, catering_service_id, venue_option_id), service_package_items(position, services(id, name, category_details, service_categories(name))))'
       )
       .limit(5000),
   ])
@@ -449,6 +458,17 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
         && items.findIndex((candidate) => textFrom(candidate.id, '') === packageId) === itemIndex
     })
     const packages = getPackages(packageRows, commissionRate)
+    const photoVideoPackages = packageRows.flatMap((item) => {
+      if (!isPhotoVideoPackageConfiguration(item.configuration)) return []
+      return photoVideoPackageDraftsFrom({
+        photoVideoPackages: [{
+          ...(item.configuration as Record<string, unknown>),
+          id: textFrom(item.id, '') || undefined,
+          imageUrls: Array.isArray(item.image_urls) ? item.image_urls : [],
+          isActive: item.is_active !== false && item.is_deleted !== true,
+        }],
+      })
+    }).filter((item) => Boolean(item.id) && item.isActive)
     const floristArrangements = Array.isArray(record.florist_arrangements)
       ? (record.florist_arrangements as Array<Record<string, unknown>>)
         .filter((item) => item.is_active !== false)
@@ -543,6 +563,9 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
       galleryUrls: serviceImages,
       floristConfiguration: categoryNameToId(categoryName) === 'florists'
         ? { arrangements: floristArrangements, packages: floristPackages, fulfillmentOptions: floristFulfillmentOptions }
+        : undefined,
+      photoVideoConfiguration: categoryNameToId(categoryName) === 'photography'
+        ? photoVideoBookingConfigurationFrom(record.category_details, photoVideoPackages)
         : undefined,
       imageLabel: name,
       imageUrl: coverImageUrl,

@@ -22,6 +22,7 @@ import type {
   VenueOptionSelection,
 } from './service-category-details'
 import type { FloristSelectionSnapshot } from './florist'
+import type { PhotoVideoSelectionSnapshot } from './photo-video-booking'
 import type {
   BudgetPriority,
   CategoryBudgetAllocation,
@@ -153,6 +154,7 @@ type ServiceSelectionInput = {
   foodTastingMenuItemIds?: string[]
   foodTastingPreference?: boolean
   floristSelection?: FloristSelectionSnapshot
+  photoVideoSelection?: PhotoVideoSelectionSnapshot
   combinedCateringServiceId?: string
   mealType?: string
   notes: string
@@ -289,6 +291,7 @@ export const calculateServiceQuote = async ({
   quantity,
   serviceId,
   floristSelection,
+  photoVideoSelection,
   venueSelections,
 }: {
   attendeeCount?: number
@@ -298,6 +301,7 @@ export const calculateServiceQuote = async ({
   quantity?: number
   serviceId: string
   floristSelection?: FloristSelectionSnapshot
+  photoVideoSelection?: PhotoVideoSelectionSnapshot
   venueSelections?: VenueOptionSelection[]
 }): Promise<PlanningResult> => {
   try {
@@ -310,6 +314,20 @@ export const calculateServiceQuote = async ({
       const { data, error } = await client.rpc('calculate_my_florist_service_quote_v17', {
         target_event_id: event.eventId,
         target_selection: floristSelection,
+        target_service_id: serviceId,
+      })
+      if (error) return { ok: false, message: error.message }
+      const result = data && typeof data === 'object' ? data as Record<string, unknown> : {}
+      return {
+        calculatedAmount: Number(result.customerAmount),
+        ok: Number.isFinite(Number(result.customerAmount)) && Number(result.customerAmount) > 0,
+        providerAmount: Number(result.providerAmount),
+      }
+    }
+    if (photoVideoSelection) {
+      const { data, error } = await client.rpc('calculate_my_photo_video_service_quote_v18', {
+        target_event_id: event.eventId,
+        target_selection: photoVideoSelection,
         target_service_id: serviceId,
       })
       if (error) return { ok: false, message: error.message }
@@ -2327,6 +2345,24 @@ export const saveServiceSelection = async (
         target_event_id: event.eventId,
         target_notes: value.notes.trim() || null,
         target_selection: value.floristSelection,
+        target_service_id: serviceId,
+      })
+      if (error) return { ok: false, message: error.message }
+      const result = data && typeof data === 'object' ? data as Record<string, unknown> : {}
+      return {
+        calculatedAmount: Number(result.customerAmount ?? value.estimatedTotal),
+        ok: true,
+        providerAmount: Number(result.providerAmount ?? value.service.providerMinPrice),
+        replacedSelectionId: typeof result.replacedSelectionId === 'string' ? result.replacedSelectionId : undefined,
+        selectionId: typeof result.selectionId === 'string' ? result.selectionId : undefined,
+      }
+    }
+    if (isUuid(serviceId) && value.service.categoryId === 'photography' && value.photoVideoSelection) {
+      const { data, error } = await client.rpc('save_my_photo_video_service_selection_v18', {
+        replace_existing: true,
+        target_event_id: event.eventId,
+        target_notes: value.notes.trim() || null,
+        target_selection: value.photoVideoSelection,
         target_service_id: serviceId,
       })
       if (error) return { ok: false, message: error.message }

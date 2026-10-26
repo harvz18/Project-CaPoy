@@ -65,6 +65,15 @@ import {
   type SavedPlanReview,
 } from './lib/planning'
 import type { VenueOptionSelection } from './lib/service-category-details'
+import type { PhotoVideoSelectionSnapshot } from './lib/photo-video-booking'
+import {
+  confirmPhotoVideoPreEventPlan,
+  savePhotoVideoPreEventPlan,
+  savePhotoVideoShotList,
+  type PhotoVideoPreEventPlan,
+} from './lib/photo-video-pre-event'
+import { respondToPhotoVideoEventDayRequest, savePhotoVideoEventDayUpdate } from './lib/photo-video-event-day'
+import { respondToPhotoVideoDeliverable, savePhotoVideoDeliverableUpdate } from './lib/photo-video-deliverables'
 import {
   getActivePlanningCategories,
   getFirstPlanningCategory,
@@ -413,6 +422,10 @@ type ClientPlanningResumeState = {
   eventId?: string
   eventDetails?: EventCreationValue
   instructionDraft?: InstructionModuleValue
+  photoVideoSelectionDraft?: {
+    selection: PhotoVideoSelectionSnapshot
+    serviceId: string
+  }
   savedPlanId?: string
   screen: ClientPlanningResumeScreen
   selectedCategory?: CatalogCategoryId
@@ -724,6 +737,7 @@ export const App: React.FC = () => {
     packageId?: string
     quantity?: number
     floristSelection?: import('./lib/florist').FloristSelectionSnapshot
+    photoVideoSelection?: import('./lib/photo-video-booking').PhotoVideoSelectionSnapshot
     service: CatalogService
     venueSelections?: VenueOptionSelection[]
   }) => calculateServiceQuote({
@@ -733,6 +747,7 @@ export const App: React.FC = () => {
     packageId: value.packageId,
     quantity: value.quantity,
     floristSelection: value.floristSelection,
+    photoVideoSelection: value.photoVideoSelection,
     serviceId: value.service.bookingServiceId ?? value.service.id,
     venueSelections: value.venueSelections,
   }), [])
@@ -800,6 +815,10 @@ export const App: React.FC = () => {
     React.useState<EventCreationValue>(DEFAULT_EVENT)
   const [instructionDraft, setInstructionDraft] =
     React.useState<InstructionModuleValue>()
+  const [photoVideoSelectionDraft, setPhotoVideoSelectionDraft] = React.useState<{
+    selection: PhotoVideoSelectionSnapshot
+    serviceId: string
+  }>()
   const eventDetailsDirtyRef = React.useRef(false)
   const handleEventDetailsChange = React.useCallback((value: EventCreationValue) => {
     setEventDetails((current) => {
@@ -979,6 +998,7 @@ export const App: React.FC = () => {
           currentServiceId,
           eventDetails,
           instructionDraft,
+          photoVideoSelectionDraft,
           screen: screenRef.current as ClientPlanningResumeScreen,
           selectedCategory,
         })
@@ -1010,6 +1030,7 @@ export const App: React.FC = () => {
     flushBudgetAutosave,
     flushEventAutosave,
     instructionDraft,
+    photoVideoSelectionDraft,
     persistClientPlanningResume,
     selectedCategory,
     serviceBrowseMode,
@@ -1987,6 +2008,7 @@ export const App: React.FC = () => {
         setTotalBudget(resume.budgetDraft.budget)
       }
       if (resume.instructionDraft) setInstructionDraft(resume.instructionDraft)
+      if (resume.photoVideoSelectionDraft) setPhotoVideoSelectionDraft(resume.photoVideoSelectionDraft)
       if (resume.selectedCategory) setSelectedCategory(resume.selectedCategory)
       if (resume.currentServiceId) setCurrentServiceId(resume.currentServiceId)
       setServiceBrowseMode('planning')
@@ -3834,6 +3856,74 @@ export const App: React.FC = () => {
     return { ok: true, message }
   }
 
+  const handleSavePhotoVideoPreEventPlan = async (bookingId: string, plan: PhotoVideoPreEventPlan) => {
+    const result = await savePhotoVideoPreEventPlan(bookingId, plan)
+    if (result.ok) {
+      await refreshLiveData()
+      setToastMessage('Pre-event coverage plan saved. The client can now review it.')
+    }
+    return result
+  }
+
+  const handleSavePhotoVideoShotList = async (bookingId: string, shotList: string) => {
+    const result = await savePhotoVideoShotList(bookingId, shotList)
+    if (result.ok) {
+      await refreshClientBookings()
+      setToastMessage('Your Photo/Video shot list was saved.')
+    }
+    return result
+  }
+
+  const handleConfirmPhotoVideoPreEventPlan = async (bookingId: string) => {
+    const result = await confirmPhotoVideoPreEventPlan(bookingId)
+    if (result.ok) {
+      await refreshLiveData()
+      setToastMessage('Pre-event coverage plan confirmed. This does not change payment or booking terms.')
+    }
+    return result
+  }
+
+  const handleSavePhotoVideoEventDayUpdate = async (bookingId: string, update: Record<string, unknown>) => {
+    const result = await savePhotoVideoEventDayUpdate(bookingId, update)
+    if (result.ok) {
+      await refreshLiveData()
+      setToastMessage('Event-day coverage update saved. It did not change payment or booking completion.')
+    }
+    return result
+  }
+
+  const handleRespondToPhotoVideoEventDayRequest = async (bookingId: string, entryId: string, approve: boolean) => {
+    const result = await respondToPhotoVideoEventDayRequest(bookingId, entryId, approve)
+    if (result.ok) {
+      await refreshClientBookings()
+      setToastMessage(approve ? 'Event-day request approved. No charge was created automatically.' : 'Event-day request declined.')
+    }
+    return result
+  }
+
+  const handleSavePhotoVideoDeliverableUpdate = async (bookingId: string, update: Record<string, unknown>) => {
+    const result = await savePhotoVideoDeliverableUpdate(bookingId, update)
+    if (result.ok) {
+      await refreshLiveData()
+      setToastMessage('Deliverable progress saved. It did not change payment, payout, or booking completion.')
+    }
+    return result
+  }
+
+  const handleRespondToPhotoVideoDeliverable = async (
+    bookingId: string,
+    deliverableId: string,
+    action: 'confirm_receipt' | 'request_revision' | 'approve_output' | 'report_issue',
+    note?: string
+  ) => {
+    const result = await respondToPhotoVideoDeliverable(bookingId, deliverableId, action, note)
+    if (result.ok) {
+      await refreshClientBookings()
+      setToastMessage(action === 'report_issue' ? 'Deliverable issue recorded. You may continue through the existing support process.' : 'Deliverable response saved.')
+    }
+    return result
+  }
+
   const pickMerchantServicePhotos = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync()
 
@@ -4893,6 +4983,10 @@ export const App: React.FC = () => {
             onCompletionPayment={handleBookingCompletionPayment}
             onFoodTastingResponse={handleProviderFoodTastingResponse}
             onSubmitFoodTastingFinalMenu={handleProviderFoodTastingFinalMenu}
+            onSavePhotoVideoPreEventPlan={handleSavePhotoVideoPreEventPlan}
+            onConfirmPhotoVideoPreEventPlan={handleConfirmPhotoVideoPreEventPlan}
+            onSavePhotoVideoEventDayUpdate={handleSavePhotoVideoEventDayUpdate}
+            onSavePhotoVideoDeliverableUpdate={handleSavePhotoVideoDeliverableUpdate}
           />
         )
       case 'providerBookingDecline':
@@ -5518,12 +5612,23 @@ export const App: React.FC = () => {
             initialFoodTastingPreference={
               directCateringFallbackServiceId === currentService?.id ? false : undefined
             }
+            initialPhotoVideoSelection={
+              photoVideoSelectionDraft?.serviceId === currentService?.id
+                ? photoVideoSelectionDraft?.selection
+                : undefined
+            }
             onAddSelection={handleAddSelection}
             onLoadFoodTastingDraft={handleLoadCateringTastingDraft}
             onSaveFoodTastingDraft={handleSaveCateringTastingDraft}
             onCalculateQuote={calculateServiceDetailsQuote}
             onBack={() => setScreen('categoryBrowse')}
             onReadAllReviews={() => setScreen('serviceDetails')}
+            onPhotoVideoSelectionChange={(selection) => {
+              if (!currentService) return
+              const draft = { selection, serviceId: currentService.id }
+              setPhotoVideoSelectionDraft(draft)
+              persistClientPlanningResume({ photoVideoSelectionDraft: draft })
+            }}
             reviewInsights={serviceReviewInsights}
             reviewInsightsLoading={serviceReviewInsightsLoading}
           />
@@ -5769,6 +5874,10 @@ export const App: React.FC = () => {
             onRescheduleBooking={handleClientBookingReschedule}
             onRescheduleFoodTasting={handleClientFoodTastingReschedule}
             onRespondToFoodTastingProposal={handleClientFoodTastingProposal}
+            onSavePhotoVideoShotList={handleSavePhotoVideoShotList}
+            onConfirmPhotoVideoPreEventPlan={handleConfirmPhotoVideoPreEventPlan}
+            onRespondToPhotoVideoEventDayRequest={handleRespondToPhotoVideoEventDayRequest}
+            onRespondToPhotoVideoDeliverable={handleRespondToPhotoVideoDeliverable}
             onSubmitReview={
               selectedBooking?.status === 'completed' && !selectedBooking.hasFeedback
                 ? () => setScreen('eventFeedback')

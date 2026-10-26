@@ -3629,3 +3629,435 @@ test('V17 Phases 7-8 price and persist only provider-configured florist selectio
     "save_my_florist_service_selection_v17",
   ], 'V17 existing planning and event-selection integration')
 })
+
+test('V18 Phase 2 keeps Photo/Video creation in the existing provider flow with server-side publication checks', () => {
+  const sourceMigration = read('database/106_v18_photo_video_provider_creation.sql')
+  const deployMigration = read('supabase/migrations/20261026001300_v18_photo_video_provider_creation.sql')
+  const categoryDetails = read('src/components/CategorySpecificServiceDetails.tsx')
+  const detailsContract = read('src/lib/service-category-details.ts')
+  const merchant = read('src/lib/merchant.ts')
+
+  assert.equal(
+    deployMigration,
+    sourceMigration,
+    'the deployed V18 Photo/Video migration must match the reviewed database source'
+  )
+  mustContain(sourceMigration, [
+    'validate_service_category_details',
+    "'photography', 'videography', 'combined'",
+    "new.category_details ? 'photoVideoServiceType'",
+    'coverageAreas',
+    'operatingLocation',
+    'At least one videographer is required when videography is included.',
+    'Listings created before V18 retain the original validation behaviour.',
+  ], 'V18 Phase 2 backward-compatible server-side Photo/Video publication guard')
+  mustContain(categoryDetails, [
+    'Photo / Video Service',
+    'Photography Only',
+    'Videography Only',
+    'Photography + Videography',
+    'Photography Styles',
+    'Videography Styles',
+    'Operating Location',
+    'Coverage Areas',
+    'Minimum Booking Notice',
+    'existing Availability screen',
+  ], 'V18 Phase 2 existing provider listing form extensions')
+  mustContain(detailsContract, [
+    'photoVideoServiceType',
+    'Select at least one supported event type.',
+    'Enter the operating location.',
+    'Add at least one coverage area.',
+  ], 'V18 Phase 2 client-side Photo/Video validation')
+  mustContain(merchant, [
+    'isPhotoVideo',
+    'Set a positive, client-visible price before publishing this Photo/Video service.',
+    'validateCategoryDetails',
+  ], 'V18 Phase 2 listing persistence validation')
+})
+
+test('V18 Phase 3 keeps Photo/Video coverage, crew, capacity, and overtime provider-configured', () => {
+  const sourceMigration = read('database/107_v18_photo_video_coverage_configuration.sql')
+  const deployMigration = read('supabase/migrations/20261026001400_v18_photo_video_coverage_configuration.sql')
+  const detailsContract = read('src/lib/service-category-details.ts')
+  const editor = read('src/components/PhotoVideoCoverageEditor.tsx')
+  const pricing = read('src/screens/17.1-Step2Pricing.tsx')
+
+  assert.equal(
+    deployMigration,
+    sourceMigration,
+    'the deployed V18 coverage migration must match the reviewed database source'
+  )
+  mustContain(sourceMigration, [
+    'validate_v18_photo_video_coverage_configuration',
+    "new.category_details ? 'coverageConfigurations'",
+    'includedCrew',
+    'additionalCrewOptions',
+    'teamCapacity',
+    'additionalHoursAllowed',
+    'overtimeRequiresAuthorization',
+    'new.base_price := minimum_coverage_price',
+    'validates only listings that opt into',
+  ], 'V18 Phase 3 backward-compatible server-side coverage safeguards')
+  mustContain(editor, [
+    'Bookable Coverage Configurations',
+    'Included crew',
+    'Additional Crew & Team Capacity',
+    'Coverage Schedule & Locations',
+    'Allow prebooked additional hours',
+    'Allow event-day overtime',
+    'Client authorization is required',
+  ], 'V18 Phase 3 provider coverage configuration editor')
+  mustContain(detailsContract, [
+    'PhotoVideoCoverageConfiguration',
+    'PhotoVideoAdditionalCrewOption',
+    'getPhotoVideoCoverageConfigurations',
+    'Add at least one bookable coverage configuration.',
+    'Event-day overtime must require client authorization.',
+  ], 'V18 Phase 3 shared coverage validation')
+  mustContain(pricing, [
+    'getPhotoVideoCoverageConfigurations',
+    'photoVideoStartingPrice',
+    'lowest provider price from your configured coverage options',
+  ], 'V18 Phase 3 marketplace starting-price integration')
+})
+
+test('V18 Phase 4 keeps Photo/Video deliverables and add-ons provider-defined and crew-supported', () => {
+  const sourceMigration = read('database/108_v18_photo_video_deliverables.sql')
+  const deployMigration = read('supabase/migrations/20261026001500_v18_photo_video_deliverables.sql')
+  const detailsContract = read('src/lib/service-category-details.ts')
+  const editor = read('src/components/PhotoVideoDeliverablesEditor.tsx')
+  const categoryDetails = read('src/components/CategorySpecificServiceDetails.tsx')
+
+  assert.equal(
+    deployMigration,
+    sourceMigration,
+    'the deployed V18 deliverables migration must match the reviewed database source'
+  )
+  mustContain(sourceMigration, [
+    'validate_v18_photo_video_deliverables',
+    "new.category_details ? 'deliverableConfigurations'",
+    'requiredCrewRoles',
+    'additionalServices',
+    "'included', 'fixed', 'per_unit', 'per_hour'",
+    'requires a crew role that this provider has not configured',
+    'Existing listings remain untouched unless they opt in.',
+  ], 'V18 Phase 4 server-side deliverable and dependency safeguards')
+  mustContain(editor, [
+    'DELIVERABLES & ADDITIONAL SERVICES',
+    'Promised deliverables',
+    'Optional additional services',
+    'Required crew roles',
+    'Add promised deliverable',
+    'Add optional additional service',
+  ], 'V18 Phase 4 provider deliverable editor')
+  mustContain(detailsContract, [
+    'PhotoVideoDeliverableConfiguration',
+    'PhotoVideoAdditionalService',
+    'getPhotoVideoDeliverableConfigurations',
+    'Add at least one promised deliverable.',
+    'requires an unavailable crew role',
+  ], 'V18 Phase 4 provider configuration contract')
+  mustContain(categoryDetails, [
+    'PhotoVideoDeliverablesEditor',
+    'PhotoVideoCoverageEditor',
+  ], 'V18 Phase 4 existing Photo/Video provider listing integration')
+})
+
+test('V18 Phase 5 reuses service packages for structured provider-owned Photo/Video packages', () => {
+  const sourceMigration = read('database/109_v18_photo_video_packages.sql')
+  const deployMigration = read('supabase/migrations/20261026001600_v18_photo_video_packages.sql')
+  const packageEditor = read('src/components/PhotoVideoPackagesEditor.tsx')
+  const merchant = read('src/lib/merchant.ts')
+  const photoVideo = read('src/lib/photo-video.ts')
+  const detailsContract = read('src/lib/service-category-details.ts')
+
+  assert.equal(
+    deployMigration,
+    sourceMigration,
+    'the deployed V18 Photo/Video package migration must match the reviewed database source'
+  )
+  mustContain(sourceMigration, [
+    'alter table public.service_packages',
+    'configuration jsonb',
+    'image_urls jsonb',
+    'validate_v18_photo_video_package',
+    'coverageConfigurationId',
+    'deliverableIds',
+    'allowedAdditionalCrewOptionIds',
+    'allowedAdditionalServiceIds',
+    'Inactive package rows are provider drafts',
+  ], 'V18 Phase 5 additive package schema and server validation')
+  mustContain(packageEditor, [
+    'PHOTO / VIDEO PACKAGES',
+    'Coverage configuration',
+    'Included deliverables',
+    'Allowed additional crew',
+    'Allowed additional services',
+    'Duplicate',
+    'Add package image',
+  ], 'V18 Phase 5 provider package builder')
+  mustContain(photoVideo, [
+    'PhotoVideoPackageDraft',
+    'PhotoVideoPackageConfiguration',
+    'photoVideoPackageConfigurationFrom',
+    'isPhotoVideoPackageConfiguration',
+  ], 'V18 Phase 5 package configuration contract')
+  mustContain(merchant, [
+    'savePhotoVideoPackages',
+    'photoVideoPackageConfigurationFrom',
+    'configuration, image_urls',
+    'isPhotoVideoPackageConfiguration',
+  ], 'V18 Phase 5 existing service-package persistence and edit loading')
+  mustContain(detailsContract, [
+    'photoVideoPackages',
+    'Package records are persisted in the established service_packages table.',
+    'needs valid included deliverables',
+  ], 'V18 Phase 5 package validation inside the existing provider form')
+})
+
+test('V18 Phase 6 keeps Photo/Video post-production commitments provider-owned and immutable at booking', () => {
+  const sourceMigration = read('database/110_v18_photo_video_postproduction.sql')
+  const deployMigration = read('supabase/migrations/20261026001700_v18_photo_video_postproduction.sql')
+  const editor = read('src/components/PhotoVideoPostProductionEditor.tsx')
+  const detailsContract = read('src/lib/service-category-details.ts')
+  const categoryDetails = read('src/components/CategorySpecificServiceDetails.tsx')
+
+  assert.equal(
+    deployMigration,
+    sourceMigration,
+    'the deployed V18 post-production migration must match the reviewed database source'
+  )
+  mustContain(sourceMigration, [
+    'validate_v18_photo_video_postproduction',
+    "new.category_details ? 'postProductionSettings'",
+    "'event_completion', 'agreed_custom_start'",
+    'rushEditingOptions',
+    'deliveryMethods',
+    'revisionPolicy',
+    'capture_v18_photo_video_postproduction_booking_snapshot',
+    'photoVideoPostProduction',
+    'expectedDeadlineDate',
+    'before insert on public.bookings',
+    'records, files, approvals, or payment behavior are changed here.',
+  ], 'V18 Phase 6 additive post-production and booking snapshot safeguards')
+  mustContain(editor, [
+    'EDITING, DELIVERY & REVISIONS',
+    'Expected editing turnaround',
+    'Rush editing',
+    'Delivery methods',
+    'Revision policy',
+    'Secure external links can be used later for large files',
+  ], 'V18 Phase 6 provider post-production editor')
+  mustContain(detailsContract, [
+    'PhotoVideoPostProductionSettings',
+    'PhotoVideoDeliveryMethodKind',
+    'getPhotoVideoPostProductionSettings',
+    'calculatePhotoVideoExpectedDeadline',
+    'Every delivery method needs a unique ID.',
+    'Explain and agree the alternate post-production starting point.',
+  ], 'V18 Phase 6 shared deadline and validation contract')
+  mustContain(categoryDetails, [
+    'PhotoVideoPostProductionEditor',
+    'PhotoVideoDeliverablesEditor',
+  ], 'V18 Phase 6 existing provider listing integration')
+})
+
+test('V18 Phase 7 renders provider-owned Photo/Video options and a resumable client draft', () => {
+  const configurator = read('src/components/PhotoVideoBookingConfigurator.tsx')
+  const bookingContract = read('src/lib/photo-video-booking.ts')
+  const details = read('src/screens/08-ServiceDetails.tsx')
+  const catalog = read('src/lib/catalog.ts')
+  const app = read('src/App.tsx')
+
+  mustContain(configurator, [
+    'Select a package',
+    'Customize my coverage',
+    'Coverage duration & team',
+    'Additional crew',
+    'Deliverables',
+    'Additional services',
+    'Rush editing',
+    'Requested coverage schedule',
+    'Instruction Module',
+    'Current marketplace price',
+  ], 'V18 Phase 7 existing service-details configurator')
+  mustContain(bookingContract, [
+    'PhotoVideoSelectionSnapshot',
+    'photoVideoBookingConfigurationFrom',
+    'calculatePhotoVideoSelectionPrice',
+    'validatePhotoVideoSelection',
+    'customerPriceFromProviderPrice',
+    'allowedAdditionalCrewOptionIds',
+    'allowedAdditionalServiceIds',
+    'packageDeliverableIds',
+  ], 'V18 Phase 7 provider-owned selection and pricing contract')
+  mustContain(catalog, [
+    'configuration, image_urls',
+    'photoVideoBookingConfigurationFrom',
+    'photoVideoConfiguration',
+    'record.is_active === false',
+  ], 'V18 Phase 7 published provider configuration catalogue mapping')
+  mustContain(details, [
+    'PhotoVideoBookingConfigurator',
+    'photoVideoSelectionIssue',
+    'calculatePhotoVideoSelectionPrice',
+    'photoVideoSelection: isPhotoVideo ? photoVideoSelection : undefined',
+    'Add to Selection for',
+  ], 'V18 Phase 7 existing client service-details integration')
+  mustContain(app, [
+    'photoVideoSelectionDraft',
+    'initialPhotoVideoSelection',
+    'onPhotoVideoSelectionChange',
+    'persistClientPlanningResume({ photoVideoSelectionDraft: draft })',
+  ], 'V18 Phase 7 draft restoration through the established planning resume store')
+})
+
+test('V18 Phase 8 prices, persists, snapshots, and reviews Photo/Video booking requests through V14', () => {
+  const migration = read('database/111_v18_photo_video_booking_requests.sql')
+  const mirror = read('supabase/migrations/20261026001800_v18_photo_video_booking_requests.sql')
+  const planning = read('src/lib/planning.ts')
+  const merchant = read('src/lib/merchant.ts')
+  const requestDetails = read('src/screens/19.1-BookingRequest.tsx')
+
+  assert.equal(migration, mirror, 'V18 Phase 8 database migration must match its Supabase mirror')
+  mustContain(migration, [
+    'photo_video_selection_snapshot',
+    'calculate_my_photo_video_service_quote_v18',
+    'save_my_photo_video_service_selection_v18',
+    'save_my_event_service_selection',
+    'selected_provider_snapshot',
+    "category_key = 'photoVideo'",
+    'capture_v18_photo_video_booking_selection_snapshot',
+    'before insert on public.bookings',
+  ], 'V18 Phase 8 server-owned request selection and immutable booking snapshot')
+  mustContain(planning, [
+    'calculate_my_photo_video_service_quote_v18',
+    'save_my_photo_video_service_selection_v18',
+    'photoVideoSelection?: PhotoVideoSelectionSnapshot',
+  ], 'V18 Phase 8 client selection uses the secured server quote and save path')
+  mustContain(merchant, [
+    'photo_video_selection_snapshot',
+    'photoVideoSelectionSummary',
+    'coverageScheduleSummary',
+    'deliverySummary',
+  ], 'V18 Phase 8 provider booking-request mapper')
+  mustContain(requestDetails, [
+    'PHOTO / VIDEO COVERAGE',
+    'photoVideoSelectionSummary',
+    'Accept service',
+    'Decline service',
+  ], 'V18 Phase 8 provider review and existing V14 decision actions')
+})
+
+test('V18 Phase 9 keeps Photo/Video pre-event coordination separate from bookings and payment', () => {
+  const migration = read('database/112_v18_photo_video_pre_event_coordination.sql')
+  const mirror = read('supabase/migrations/20261026001900_v18_photo_video_pre_event_coordination.sql')
+  const plan = read('src/lib/photo-video-pre-event.ts')
+  const card = read('src/components/PhotoVideoPreEventPlanCard.tsx')
+  const clientDetails = read('src/screens/11.1-BookingDetails.tsx')
+  const providerDetails = read('src/screens/19.1-BookingRequest.tsx')
+
+  assert.equal(migration, mirror, 'V18 Phase 9 database migration must match its Supabase mirror')
+  mustContain(migration, [
+    'photo_video_pre_event_plan',
+    'save_my_photo_video_pre_event_plan_v18',
+    'save_my_photo_video_shot_list_v18',
+    'confirm_my_photo_video_pre_event_plan_v18',
+    "booking.status::text in ('confirmed', 'completed')",
+    'creates no booking, price, or payment',
+  ], 'V18 Phase 9 secured confirmed-booking coordination migration')
+  mustContain(plan, [
+    'PhotoVideoPreEventPlan',
+    'savePhotoVideoPreEventPlan',
+    'savePhotoVideoShotList',
+    'confirmPhotoVideoPreEventPlan',
+  ], 'V18 Phase 9 coordination client contract')
+  mustContain(card, [
+    'Pre-event coverage plan',
+    'Crew assignments',
+    'Shot list and important moments',
+    'Timeline and travel notes',
+    'Coordination checks',
+    'does not create payment or change the booking price',
+  ], 'V18 Phase 9 existing booking detail UI extension')
+  mustContain(clientDetails, ['PhotoVideoPreEventPlanCard', 'onSavePhotoVideoShotList'], 'V18 Phase 9 client review integration')
+  mustContain(providerDetails, ['PhotoVideoPreEventPlanCard', 'onSavePhotoVideoPreEventPlan'], 'V18 Phase 9 provider coordination integration')
+})
+
+test('V18 Phase 10 records Photo/Video event-day operations without automatic financial changes', () => {
+  const migration = read('database/113_v18_photo_video_event_day.sql')
+  const mirror = read('supabase/migrations/20261026002000_v18_photo_video_event_day.sql')
+  const contract = read('src/lib/photo-video-event-day.ts')
+  const card = read('src/components/PhotoVideoEventDayCard.tsx')
+  const clientDetails = read('src/screens/11.1-BookingDetails.tsx')
+  const providerDetails = read('src/screens/19.1-BookingRequest.tsx')
+
+  assert.equal(migration, mirror, 'V18 Phase 10 database migration must match its Supabase mirror')
+  mustContain(migration, [
+    'photo_video_event_day_log',
+    'save_my_photo_video_event_day_update_v18',
+    'respond_to_my_photo_video_event_day_request_v18',
+    "'coverage_started'",
+    "'overtime_request'",
+    "'crew_replacement'",
+    'never amend booking prices, payment state, or booking completion',
+    'pending_client_approval',
+  ], 'V18 Phase 10 secured operational event-day migration')
+  mustContain(contract, ['PhotoVideoEventDayLog', 'savePhotoVideoEventDayUpdate', 'respondToPhotoVideoEventDayRequest'], 'V18 Phase 10 event-day client contract')
+  mustContain(card, ['Event-day coverage', 'Request overtime', 'Record incident', 'Record restriction', 'Propose crew replacement', 'do not complete the booking or create a charge automatically'], 'V18 Phase 10 controlled operational UI')
+  mustContain(clientDetails, ['PhotoVideoEventDayCard', 'onRespondToPhotoVideoEventDayRequest'], 'V18 Phase 10 client approval integration')
+  mustContain(providerDetails, ['PhotoVideoEventDayCard', 'onSavePhotoVideoEventDayUpdate'], 'V18 Phase 10 provider operational integration')
+})
+
+test('V18 Phase 11 tracks every Photo/Video deliverable without changing financial settlement', () => {
+  const migration = read('database/114_v18_photo_video_deliverable_tracking.sql')
+  const mirror = read('supabase/migrations/20261026002100_v18_photo_video_deliverable_tracking.sql')
+  const contract = read('src/lib/photo-video-deliverables.ts')
+  const card = read('src/components/PhotoVideoDeliverablesCard.tsx')
+  const clientDetails = read('src/screens/11.1-BookingDetails.tsx')
+  const providerDetails = read('src/screens/19.1-BookingRequest.tsx')
+
+  assert.equal(migration, mirror, 'V18 Phase 11 database migration must match its Supabase mirror')
+  mustContain(migration, [
+    'photo_video_deliverable_tracking',
+    'save_my_photo_video_deliverable_update_v18',
+    'respond_to_my_photo_video_deliverable_v18',
+    "'awaiting_event'", "'editing'", "'ready_for_review'", "'revision_requested'", "'completed'",
+    'additionalPaidRevisionRequested',
+    'supportEscalationSuggested',
+    'does not write booking amount, payment state, payout state, or booking status',
+  ], 'V18 Phase 11 separately tracked delivery and revision safeguards')
+  mustContain(contract, ['PhotoVideoDeliverableTracking', 'savePhotoVideoDeliverableUpdate', 'respondToPhotoVideoDeliverable'], 'V18 Phase 11 deliverable client contract')
+  mustContain(card, ['Post-event deliverables', 'OVERDUE', 'Confirm receipt', 'Request revision', 'Record completion', 'Report issue', 'Delivery updates do not affect payout or payment'], 'V18 Phase 11 client/provider deliverable UI')
+  mustContain(clientDetails, ['PhotoVideoDeliverablesCard', 'onRespondToPhotoVideoDeliverable'], 'V18 Phase 11 client review integration')
+  mustContain(providerDetails, ['PhotoVideoDeliverablesCard', 'onSavePhotoVideoDeliverableUpdate'], 'V18 Phase 11 provider delivery integration')
+})
+
+test('V18 Phase 12 regression matrix preserves Photo/Video safeguards and existing booking behavior', () => {
+  const providerCreation = read('database/106_v18_photo_video_provider_creation.sql')
+  const coverage = read('database/107_v18_photo_video_coverage_configuration.sql')
+  const deliverables = read('database/108_v18_photo_video_deliverables.sql')
+  const booking = read('database/111_v18_photo_video_booking_requests.sql')
+  const preEvent = read('database/112_v18_photo_video_pre_event_coordination.sql')
+  const eventDay = read('database/113_v18_photo_video_event_day.sql')
+  const postEvent = read('database/114_v18_photo_video_deliverable_tracking.sql')
+  const bookingContract = read('src/lib/photo-video-booking.ts')
+  const planning = read('src/lib/planning.ts')
+  const app = read('src/App.tsx')
+  const merchant = read('src/lib/merchant.ts')
+
+  // Photography/video-only publishing, package inclusion, extra crew/hours,
+  // capacity, upgrades, budget visibility, draft restoration, and price authority.
+  mustContain(providerCreation, ["'photography', 'videography', 'combined'", 'validate_service_category_details', 'Choose photography, videography, or combined coverage.'], 'Phase 12 service-type scenarios')
+  mustContain(deliverables, ['A deliverable is not supported by this Photo/Video service type.', 'requires a crew role that this provider has not configured'], 'Phase 12 unavailable media and crew-capacity scenarios')
+  mustContain(coverage, ['additionalHoursAllowed', 'additionalHourRate', 'maximumAdditionalHours', 'overtimeRequiresAuthorization'], 'Phase 12 coverage extension and approval scenarios')
+  mustContain(bookingContract, ['packageDeliverableIds', 'allowedAdditionalCrewOptionIds', 'maximumAdditionalCrew', 'maximumCoverageExtensionHours'], 'Phase 12 package, upgrade, and duplicate-charge scenarios')
+  mustContain(booking, ['calculate_my_photo_video_service_quote_v18', 'save_my_photo_video_service_selection_v18', 'selected_provider_snapshot', 'provider_total', 'commission_rate'], 'Phase 12 server-owned price, provider-isolation, and manipulated-selection scenarios')
+  mustContain(planning, ['photoVideoSelection?: PhotoVideoSelectionSnapshot', 'calculate_my_photo_video_service_quote_v18', 'save_my_photo_video_service_selection_v18'], 'Phase 12 saved draft and secured booking flows')
+  mustContain(app, ['photoVideoSelectionDraft', 'refreshClientBookings', 'handleRespondToPhotoVideoEventDayRequest'], 'Phase 12 draft restoration, date/payment, and event-day flows')
+  mustContain(preEvent, ["booking.status::text in ('confirmed', 'completed')", 'creates no booking, price, or payment'], 'Phase 12 schedule-change coordination isolation')
+  mustContain(eventDay, ['overtime_request', 'pending_client_approval', "'restriction'", 'never amend booking prices, payment state, or booking completion'], 'Phase 12 drone restriction and overtime safeguards')
+  mustContain(postEvent, ['supportEscalationSuggested', 'additionalPaidRevisionRequested', 'The agreed revision request period has ended.', 'does not write booking amount, payment state, payout state, or booking status'], 'Phase 12 delay, revision, and payout-isolation scenarios')
+  mustContain(merchant, ['florist_selection_snapshot', 'catering_option_snapshot', 'venue_booking_snapshot', 'photo_video_selection_snapshot'], 'Phase 12 existing-category and historical-booking compatibility')
+})

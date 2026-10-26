@@ -8,6 +8,10 @@ import {
 } from 'react-native'
 import { Text } from './AppText'
 import { MultiSelectField } from './MultiSelectField'
+import { PhotoVideoCoverageEditor } from './PhotoVideoCoverageEditor'
+import { PhotoVideoDeliverablesEditor } from './PhotoVideoDeliverablesEditor'
+import { PhotoVideoPackagesEditor } from './PhotoVideoPackagesEditor'
+import { PhotoVideoPostProductionEditor } from './PhotoVideoPostProductionEditor'
 import {
   normalizeCategoryDetails,
   serviceCategoryKind,
@@ -17,6 +21,7 @@ import {
 type Props = {
   categoryName: string
   errors?: string[]
+  onAddPackagePhoto?: () => Promise<string | string[] | null | undefined> | string | string[] | null | undefined
   onChange: (value: ServiceCategoryDetails) => void
   value: ServiceCategoryDetails
 }
@@ -44,6 +49,8 @@ const presets = {
   lightingTypes: ['Stage Lighting', 'Moving Heads', 'Spotlights', 'Ambient Lighting', 'Uplighting', 'Other'],
   photoCoverage: ['Ceremony', 'Reception', 'Full Event', 'Pre-event', 'Pre-event + Event'],
   eventTypes: ['Wedding', 'Birthday', 'Debut', 'Corporate', 'Anniversary', 'Other'],
+  photographyStyles: ['Traditional', 'Candid', 'Documentary', 'Editorial', 'Fine Art', 'Cinematic', 'Lifestyle', 'Other'],
+  videographyStyles: ['Cinematic', 'Documentary', 'Traditional', 'Storytelling', 'Highlight-Focused', 'Full Event Coverage', 'Other'],
   hostEventTypes: ['Wedding', 'Birthday', 'Debut', 'Corporate', 'Anniversary', 'Seminar', 'Other'],
   hostingStyles: ['Formal', 'Casual', 'Energetic', 'Corporate', 'Interactive', 'Other'],
   languages: ['English', 'Filipino / Tagalog', 'Hiligaynon', 'Other'],
@@ -684,10 +691,21 @@ const VenueSpaces = ({ details, onChange }: {
   )
 }
 
-export const CategorySpecificServiceDetails: React.FC<Props> = ({ categoryName, errors = [], onChange, value }) => {
+export const CategorySpecificServiceDetails: React.FC<Props> = ({ categoryName, errors = [], onAddPackagePhoto, onChange, value }) => {
   const details = normalizeCategoryDetails(categoryName, value)
   const kind = serviceCategoryKind(categoryName)
   const set = (key: string, next: unknown) => onChange({ ...details, [key]: next })
+  const setPhotoVideoServiceType = (next: string | string[]) => {
+    const serviceType = Array.isArray(next) ? next[0] ?? '' : next
+    const includesPhoto = serviceType === 'photography' || serviceType === 'combined'
+    const includesVideo = serviceType === 'videography' || serviceType === 'combined'
+    onChange({
+      ...details,
+      photoCoverage: includesPhoto,
+      photoVideoServiceType: serviceType,
+      videoCoverage: includesVideo,
+    })
+  }
 
   return (
     <View style={styles.container}>
@@ -814,23 +832,38 @@ export const CategorySpecificServiceDetails: React.FC<Props> = ({ categoryName, 
       </> : null}
 
       {kind === 'photography' ? <>
-        <Section title="Coverage">
-          <ChoiceField label="Coverage Type" multiple onChange={(next) => set('coverageTypes', next)} options={presets.photoCoverage} value={asList(details.coverageTypes)} />
-          <ChoiceField label="Event Types" multiple onChange={(next) => set('eventTypes', next)} options={presets.eventTypes} value={asList(details.eventTypes)} />
+        <Section title="Photo / Video Service" description="Choose the coverage you actually provide. Client-facing choices will be built from your saved configuration in later phases.">
+          <ChoiceField label="Service Type" onChange={setPhotoVideoServiceType} options={[
+            { label: 'Photography Only', value: 'photography' },
+            { label: 'Videography Only', value: 'videography' },
+            { label: 'Photography + Videography', value: 'combined' },
+          ]} value={textValue(details.photoVideoServiceType)} />
+          <ChoiceField label="Supported Event Types" multiple onChange={(next) => set('eventTypes', next)} options={presets.eventTypes} value={asList(details.eventTypes)} />
           {asList(details.eventTypes).includes('Other') ? <TextField label="Other Event Type" onChange={(next) => set('eventTypeOther', next)} value={details.eventTypeOther} /> : null}
+          {details.photoVideoServiceType !== 'videography' ? <TagField label="Photography Styles" onChange={(next) => set('photographyStyles', next)} options={presets.photographyStyles} value={details.photographyStyles} /> : null}
+          {details.photoVideoServiceType !== 'photography' ? <TagField label="Videography Styles" onChange={(next) => set('videographyStyles', next)} options={presets.videographyStyles} value={details.videographyStyles} /> : null}
+        </Section>
+        <Section title="Coverage & Crew">
+          <ChoiceField label="Coverage Type" multiple onChange={(next) => set('coverageTypes', next)} options={presets.photoCoverage} value={asList(details.coverageTypes)} />
           <NumberField label="Coverage Duration" min={1} onChange={(next) => set('coverageDurationHours', next)} suffix="hours" value={details.coverageDurationHours} />
-          <NumberField label="Number of Photographers" min={1} onChange={(next) => set('photographerCount', next)} value={details.photographerCount} />
-          <ToggleField label="Photo Coverage" onChange={(next) => set('photoCoverage', next)} value={details.photoCoverage} />
-          <ToggleField label="Video Coverage" onChange={(next) => set('videoCoverage', next)} value={details.videoCoverage} />
-          {details.videoCoverage === true ? <NumberField label="Number of Videographers" min={1} onChange={(next) => set('videographerCount', next)} value={details.videographerCount} /> : null}
+          {details.photoVideoServiceType !== 'videography' ? <NumberField label="Included Photographers" min={1} onChange={(next) => set('photographerCount', next)} value={details.photographerCount} /> : null}
+          {details.photoVideoServiceType !== 'photography' ? <NumberField label="Included Videographers" min={1} onChange={(next) => set('videographerCount', next)} value={details.videographerCount} /> : null}
         </Section>
         <Section title="Deliverables">
           {['droneCoverage', 'sameDayEdit', 'preEventShoot', 'rawFilesIncluded', 'onlineGallery', 'physicalAlbum'].map((key) => <ToggleField key={key} label={({ droneCoverage: 'Drone Coverage', sameDayEdit: 'Same-Day Edit', preEventShoot: 'Pre-event Shoot', rawFilesIncluded: 'Raw Files Included', onlineGallery: 'Online Gallery', physicalAlbum: 'Physical Album' } as Record<string, string>)[key]} onChange={(next) => set(key, next)} value={details[key]} />)}
-          <NumberField label="Minimum Edited Photos (optional)" onChange={(next) => set('minimumEditedPhotos', next)} value={details.minimumEditedPhotos} />
-          {details.videoCoverage === true ? <><ToggleField label="Highlight Video" onChange={(next) => set('highlightVideo', next)} value={details.highlightVideo} /><ToggleField label="Full Event Video" onChange={(next) => set('fullEventVideo', next)} value={details.fullEventVideo} /></> : null}
+          {details.photoVideoServiceType !== 'videography' ? <NumberField label="Minimum Edited Photos (optional)" onChange={(next) => set('minimumEditedPhotos', next)} value={details.minimumEditedPhotos} /> : null}
+          {details.photoVideoServiceType !== 'photography' ? <><ToggleField label="Highlight Video" onChange={(next) => set('highlightVideo', next)} value={details.highlightVideo} /><ToggleField label="Full Event Video" onChange={(next) => set('fullEventVideo', next)} value={details.fullEventVideo} /></> : null}
           <DurationField amount={details.turnaroundTime} amountLabel="Turnaround Time" onAmountChange={(next) => set('turnaroundTime', next)} onUnitChange={(next) => set('turnaroundUnit', next)} unit={details.turnaroundUnit || 'weeks'} units={['days', 'weeks']} />
-          <TextField label="Service Area" onChange={(next) => set('serviceArea', next)} value={details.serviceArea} />
+          <TextField label="Operating Location" onChange={(next) => set('operatingLocation', next)} placeholder="e.g., Iloilo City" value={details.operatingLocation} />
+          <TagField label="Coverage Areas" onChange={(next) => set('coverageAreas', next)} value={details.coverageAreas} />
+          <NumberField label="Minimum Booking Notice" min={0} onChange={(next) => set('minimumBookingNoticeDays', next)} suffix="days" value={details.minimumBookingNoticeDays} />
+          <TextField label="Video Portfolio Preview URL (optional)" onChange={(next) => set('portfolioVideoUrl', next)} placeholder="https://..." value={details.portfolioVideoUrl} />
+          <Text style={styles.integrationNote}>Use the service photos above for your photo portfolio. Manage working dates and hours in the existing Availability screen.</Text>
         </Section>
+        <PhotoVideoCoverageEditor details={details} onChange={onChange} />
+        <PhotoVideoDeliverablesEditor details={details} onChange={onChange} />
+        <PhotoVideoPostProductionEditor details={details} onChange={onChange} />
+        <PhotoVideoPackagesEditor details={details} onAddPackagePhoto={onAddPackagePhoto} onChange={onChange} />
       </> : null}
 
       {kind === 'host_emcee' ? <>

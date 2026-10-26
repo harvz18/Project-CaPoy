@@ -8,10 +8,20 @@ import {
   getCateringTastingSettings,
   isLegacyCategoryDetails,
   normalizeCategoryDetails,
+  validateCategoryDetails,
   type ServiceCategoryDetails,
 } from './service-category-details'
 import { venueBookingConfigurationFrom } from './venue-booking'
 import type { FloristArrangementDraft, FloristFulfillmentDraft, FloristPackageDraft } from './florist'
+import { photoVideoPreEventPlanFrom } from './photo-video-pre-event'
+import { photoVideoEventDayLogFrom } from './photo-video-event-day'
+import { photoVideoDeliverableTrackingFrom } from './photo-video-deliverables'
+import {
+  isPhotoVideoPackageConfiguration,
+  photoVideoPackageConfigurationFrom,
+  photoVideoPackageDraftsFrom,
+  type PhotoVideoPackageDraft,
+} from './photo-video'
 import type {
   AvailabilityCalendarValue,
   BookingItem,
@@ -443,6 +453,9 @@ const isMissingListingDetailsColumn = (message?: string) => {
   )
 }
 
+const isMissingPhotoVideoBookingColumn = (message?: string) =>
+  (message?.toLowerCase() ?? '').includes('photo_video_selection_snapshot')
+
 const uploadListingPhoto = async (uri: string) => {
   if (isRemoteUri(uri)) {
     return uri
@@ -538,6 +551,59 @@ const saveFloristFulfillmentOptions = async (
     const { error } = option.id
       ? await context.client.from('florist_service_fulfillment_options').update(payload).eq('id', option.id).eq('service_id', serviceId)
       : await context.client.from('florist_service_fulfillment_options').insert(payload)
+    if (error) return error
+  }
+  return null
+}
+
+const savePhotoVideoPackages = async (
+  context: NonNullable<Awaited<ReturnType<typeof getMerchantContext>>>,
+  serviceId: string,
+  packages: PhotoVideoPackageDraft[],
+  publishPackages: boolean
+) => {
+  const { data: existing, error: existingError } = await context.client
+    .from('service_packages')
+    .select('id, configuration')
+    .eq('service_id', serviceId)
+  if (existingError) return existingError
+
+  const retainedIds: string[] = []
+  for (const pkg of packages) {
+    const imageUrls = (await Promise.all(pkg.imageUrls.map(uploadListingPhoto))).filter(Boolean)
+    const payload = {
+      configuration: photoVideoPackageConfigurationFrom(pkg),
+      description: pkg.description || null,
+      image_urls: imageUrls,
+      inclusions: pkg.deliverableIds,
+      is_active: publishPackages ? pkg.isActive : false,
+      name: pkg.name,
+      price: pkg.price,
+      pricing_mode: 'legacy',
+      pricing_unit: 'event',
+      service_id: serviceId,
+      updated_at: new Date().toISOString(),
+    }
+    const { data, error } = isUuid(pkg.id)
+      ? await context.client.from('service_packages').update(payload).eq('id', pkg.id).eq('service_id', serviceId).select('id').single()
+      : await context.client.from('service_packages').insert(payload).select('id').single()
+    if (error) return error
+    const packageId = textFrom((data as { id?: string } | null)?.id, pkg.id ?? '')
+    if (packageId) retainedIds.push(packageId)
+  }
+
+  const removedIds = (existing ?? []).flatMap((item) => {
+    const row = item as Record<string, unknown>
+    return isPhotoVideoPackageConfiguration(row.configuration) && !retainedIds.includes(textFrom(row.id))
+      ? [textFrom(row.id)]
+      : []
+  }).filter(Boolean)
+  if (removedIds.length) {
+    const { error } = await context.client
+      .from('service_packages')
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .in('id', removedIds)
+      .eq('service_id', serviceId)
     if (error) return error
   }
   return null
@@ -815,6 +881,7 @@ export const saveMerchantServiceListing = async (
 
     const isCatering = value.information.category.toLowerCase().includes('cater')
     const isFlorist = value.information.category.toLowerCase().includes('flor')
+    const isPhotoVideo = value.information.category.toLowerCase().includes('photo')
     const cateringServiceTypes = value.pricing.cateringServiceTypes ?? []
     if (status === 'active' && isCatering && cateringServiceTypes.length === 0) {
       return {
@@ -827,6 +894,16 @@ export const saveMerchantServiceListing = async (
         .filter((arrangement) => arrangement.isActive)
       if (activeArrangements.some((arrangement) => !arrangement.name.trim() || !arrangement.category.trim() || arrangement.minimumQuantity < 1 || arrangement.basePrice < 0)) {
         return { ok: false, message: 'Complete the name, category, price, and quantity for every active floral arrangement.' }
+      }
+    }
+    if (status === 'active' && isPhotoVideo) {
+      const photoVideoErrors = validateCategoryDetails(
+        value.information.category,
+        value.information.categoryDetails
+      )
+      if (photoVideoErrors.length > 0) return { ok: false, message: photoVideoErrors[0] }
+      if ((amountFromListing(value) ?? 0) <= 0) {
+        return { ok: false, message: 'Set a positive, client-visible price before publishing this Photo/Video service.' }
       }
     }
     const uploadedPhotos = await Promise.all(
@@ -912,6 +989,16 @@ export const saveMerchantServiceListing = async (
           .eq('id', serviceId).eq('provider_id', context.providerId)
         if (submitError) return { ok: false, message: submitError.message }
       }
+    }
+
+    if (isPhotoVideo) {
+      const packageError = await savePhotoVideoPackages(
+        context,
+        serviceId,
+        photoVideoPackageDraftsFrom(value.information.categoryDetails),
+        status === 'active'
+      )
+      if (packageError) return { ok: false, message: packageError.message }
     }
 
     if (value.packages.length > 0) {
@@ -1633,14 +1720,20 @@ export const loadMerchantServiceForEditing = async (
   const context = await getMerchantContext()
   if (!context) return null
 
-  const { data, error } = await context.client
+  const editingSelect =
+    'id, name, description, base_price, cover_image_url, gallery_urls, pricing_model, pricing_unit, pricing_details, catering_service_types, category_details, category_id, service_categories(name), florist_service_fulfillment_options(id, fulfillment_kind, name, description, coverage_details, price, is_active, display_order), florist_arrangements(id, name, category, description, image_urls, base_price, pricing_unit, minimum_quantity, maximum_quantity, is_active, display_order, florist_arrangement_option_groups(id, name, selection_type, is_required, minimum_selections, maximum_selections, is_active, display_order, florist_arrangement_options(id, name, price_modifier, price_modifier_type, is_active, display_order))), service_packages(id, name, description, price, inclusions, pricing_unit, pricing_mode, subtotal, discount_type, discount_value, discount_amount, configuration, image_urls, is_active, service_package_items(service_id, position, services(id, name, base_price, pricing_unit)))'
+  const legacyEditingSelect = editingSelect
+    .replace(', configuration, image_urls, is_active, service_package_items', ', service_package_items')
+  const load = (select: string) => context.client
     .from('services')
-    .select(
-      'id, name, description, base_price, cover_image_url, gallery_urls, pricing_model, pricing_unit, pricing_details, catering_service_types, category_details, category_id, service_categories(name), florist_service_fulfillment_options(id, fulfillment_kind, name, description, coverage_details, price, is_active, display_order), florist_arrangements(id, name, category, description, image_urls, base_price, pricing_unit, minimum_quantity, maximum_quantity, is_active, display_order, florist_arrangement_option_groups(id, name, selection_type, is_required, minimum_selections, maximum_selections, is_active, display_order, florist_arrangement_options(id, name, price_modifier, price_modifier_type, is_active, display_order))), service_packages(id, name, description, price, inclusions, pricing_unit, pricing_mode, subtotal, discount_type, discount_value, discount_amount, service_package_items(service_id, position, services(id, name, base_price, pricing_unit)))'
-    )
+    .select(select)
     .eq('id', serviceId)
     .eq('provider_id', context.providerId)
     .maybeSingle()
+  let { data, error } = await load(editingSelect)
+  if (error && isMissingListingDetailsColumn(error.message)) {
+    ({ data, error } = await load(legacyEditingSelect))
+  }
 
   if (error || !data) return null
 
@@ -1672,16 +1765,33 @@ export const loadMerchantServiceForEditing = async (
           item === 'plated' || item === 'buffet' || item === 'packed'
       )
     : []
+  const categoryName = textFrom(category?.name, 'Service')
+  const normalizedCategoryDetails = isLegacyCategoryDetails(record.category_details)
+    ? {} as ServiceCategoryDetails
+    : normalizeCategoryDetails(categoryName, record.category_details)
+  const photoVideoPackages = categoryName.toLowerCase().includes('photo')
+    ? packageRows.flatMap((item) => {
+        if (!isPhotoVideoPackageConfiguration(item.configuration)) return []
+        return photoVideoPackageDraftsFrom({
+          photoVideoPackages: [{
+            ...(item.configuration as Record<string, unknown>),
+            id: textFrom(item.id) || undefined,
+            imageUrls: Array.isArray(item.image_urls)
+              ? item.image_urls.filter((url): url is string => typeof url === 'string')
+              : [],
+          }],
+        })
+      })
+    : []
+  const categoryDetails = categoryName.toLowerCase().includes('photo')
+    && normalizedCategoryDetails.kind === 'photography'
+    ? { ...normalizedCategoryDetails, photoVideoPackages }
+    : normalizedCategoryDetails
 
   return {
     information: {
-      category: textFrom(category?.name, 'Service'),
-      categoryDetails: isLegacyCategoryDetails(record.category_details)
-        ? {} as ServiceCategoryDetails
-        : normalizeCategoryDetails(
-            textFrom(category?.name, 'Service'),
-            record.category_details
-          ),
+      category: categoryName,
+      categoryDetails,
       categoryId: textFrom(record.category_id),
       description: textFrom(record.description),
       floristArrangements,
@@ -1834,7 +1944,7 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
   const { data, error } = await client
     .from('bookings')
     .select(
-      'id, event_id, provider_id, service_id, amount, provider_amount, status, requested_date, requested_time, client_notes, food_tasting_preference, catering_option_snapshot, final_menu_snapshot, venue_option_snapshot, venue_options_snapshot, venue_booking_snapshot, created_at, updated_at, events(id, coordinator_id, pending_coordinator_id, coordinator_assignment_status, coordinator_fee_amount, wants_coordinator, name, event_type, is_church_wedding, event_date, event_time, guest_count, venue, location, status), services(name, cover_image_url, category_details, service_categories(name)), provider_profiles(business_name), payments(status, amount, service_subtotal, provider_initial_allocation, paid_at, created_at, metadata)'
+      'id, event_id, provider_id, service_id, amount, provider_amount, status, requested_date, requested_time, client_notes, food_tasting_preference, catering_option_snapshot, final_menu_snapshot, venue_option_snapshot, venue_options_snapshot, venue_booking_snapshot, photo_video_selection_snapshot, photo_video_pre_event_plan, photo_video_event_day_log, photo_video_deliverable_tracking, created_at, updated_at, events(id, coordinator_id, pending_coordinator_id, coordinator_assignment_status, coordinator_fee_amount, wants_coordinator, name, event_type, is_church_wedding, event_date, event_time, guest_count, venue, location, status), services(name, cover_image_url, category_details, service_categories(name)), provider_profiles(business_name), payments(status, amount, service_subtotal, provider_initial_allocation, paid_at, created_at, metadata)'
     )
     .eq('client_id', userId)
     .neq('status', 'payment_required')
@@ -2035,6 +2145,16 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
         ? textFrom(latestPayment?.paid_at) || undefined
         : undefined,
       paymentStatus: paymentStatusLabel,
+      photoVideoPreEventPlan: record.photo_video_selection_snapshot && typeof record.photo_video_selection_snapshot === 'object'
+        && Object.keys(record.photo_video_selection_snapshot as Record<string, unknown>).length > 0
+        ? photoVideoPreEventPlanFrom(record.photo_video_pre_event_plan)
+        : undefined,
+      photoVideoEventDayLog: record.photo_video_selection_snapshot && typeof record.photo_video_selection_snapshot === 'object'
+        && Object.keys(record.photo_video_selection_snapshot as Record<string, unknown>).length > 0
+        ? photoVideoEventDayLogFrom(record.photo_video_event_day_log) : undefined,
+      photoVideoDeliverableTracking: record.photo_video_selection_snapshot && typeof record.photo_video_selection_snapshot === 'object'
+        && Object.keys(record.photo_video_selection_snapshot as Record<string, unknown>).length > 0
+        ? photoVideoDeliverableTrackingFrom(record.photo_video_deliverable_tracking) : undefined,
       providerId: textFrom(record.provider_id),
       providerName: textFrom(provider?.business_name, 'Service provider'),
       rawStatus,
@@ -2132,21 +2252,26 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
 
   if (!context) return []
 
-  const { data, error } = await context.client
+  const bookingSelect =
+    'id, event_id, service_id, amount, provider_amount, status, requested_date, requested_time, client_notes, florist_selection_snapshot, photo_video_selection_snapshot, photo_video_pre_event_plan, photo_video_event_day_log, photo_video_deliverable_tracking, catering_option_name, catering_option_snapshot, venue_option_name, venue_option_snapshot, venue_options_snapshot, venue_booking_snapshot, venue_booked_hours, venue_setup_start_at, venue_start_at, venue_end_at, created_at, profiles(full_name, email), events(name, event_type, event_date, event_time, guest_count, venue, location), services(name, description, category_details, service_categories(name)), service_packages(name, description, inclusions), payments(status, amount, service_subtotal, platform_fee_amount, provider_initial_allocation, paid_at, verified_at, created_at, metadata)'
+  const loadBookings = (select: string) => context.client
     .from('bookings')
-    .select(
-      'id, event_id, service_id, amount, provider_amount, status, requested_date, requested_time, client_notes, florist_selection_snapshot, catering_option_name, catering_option_snapshot, venue_option_name, venue_option_snapshot, venue_options_snapshot, venue_booking_snapshot, venue_booked_hours, venue_setup_start_at, venue_start_at, venue_end_at, created_at, profiles(full_name, email), events(name, event_type, event_date, event_time, guest_count, venue, location), services(name, description, category_details, service_categories(name)), service_packages(name, description, inclusions), payments(status, amount, service_subtotal, platform_fee_amount, provider_initial_allocation, paid_at, verified_at, created_at, metadata)'
-    )
+    .select(select)
     .eq('provider_id', context.providerId)
     .neq('status', 'payment_required')
     .order('updated_at', { ascending: false })
+  let { data, error } = await loadBookings(bookingSelect)
+  if (error && isMissingPhotoVideoBookingColumn(error.message)) {
+    ({ data, error } = await loadBookings(bookingSelect.replace(', photo_video_selection_snapshot, photo_video_pre_event_plan, photo_video_event_day_log, photo_video_deliverable_tracking', '')))
+  }
 
   if (error || !data) return []
+  const bookingRows = data as unknown as Array<Record<string, unknown>>
 
   const eventIds = Array.from(
-    new Set(data.map((row) => row.event_id as string | null).filter(Boolean))
+    new Set(bookingRows.map((row) => row.event_id as string | null).filter(Boolean))
   ) as string[]
-  const bookingIds = data.map((row) => textFrom(row.id)).filter(Boolean)
+  const bookingIds = bookingRows.map((row) => textFrom(row.id)).filter(Boolean)
   const [instructionResult, selectionResult, externalPaymentSummaries, foodTastingResult, foodTastingWorkflowResult] = eventIds.length
     ? await Promise.all([
         context.client
@@ -2175,8 +2300,7 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
   const foodTastingsByBooking = mapFoodTastingsByBooking(foodTastingResult.data)
   const foodTastingWorkflowsByBooking = mapFoodTastingWorkflowsByBooking(foodTastingWorkflowResult.data)
 
-  const individualRequests = data.map((row) => {
-    const record = row as Record<string, unknown>
+  const individualRequests = bookingRows.map((record) => {
     const profile = nested(record.profiles) as Record<string, unknown> | undefined
     const event = nested(record.events) as Record<string, unknown> | undefined
     const service = nested(record.services) as Record<string, unknown> | undefined
@@ -2250,6 +2374,48 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
         ? `Fulfillment: ${textFrom((floristSnapshot.fulfillment as Record<string, unknown>).name)}`
         : '',
     ].filter(Boolean)
+    const photoVideoSnapshot = record.photo_video_selection_snapshot && typeof record.photo_video_selection_snapshot === 'object'
+      ? record.photo_video_selection_snapshot as Record<string, unknown>
+      : {}
+    const photoVideoSelectionSummary = [
+      textFrom(photoVideoSnapshot.packageName) ? `Package: ${textFrom(photoVideoSnapshot.packageName)}` : '',
+      textFrom(photoVideoSnapshot.coverageName) ? `Coverage: ${textFrom(photoVideoSnapshot.coverageName)}` : '',
+      textFrom(photoVideoSnapshot.requestedMediaType) ? `Media: ${textFrom(photoVideoSnapshot.requestedMediaType)}` : '',
+      textFrom(photoVideoSnapshot.coverageScheduleSummary) ? `Schedule: ${textFrom(photoVideoSnapshot.coverageScheduleSummary)}` : '',
+      ...(Array.isArray(photoVideoSnapshot.includedCrew) ? photoVideoSnapshot.includedCrew.flatMap((item) => {
+        if (!item || typeof item !== 'object') return []
+        const crew = item as Record<string, unknown>
+        const role = textFrom(crew.role)
+        const quantity = numberFrom(crew.quantity, 0)
+        return role ? [`Included crew: ${role}${quantity > 1 ? ` × ${quantity}` : ''}`] : []
+      }) : []),
+      ...(Array.isArray(photoVideoSnapshot.additionalCrew) ? photoVideoSnapshot.additionalCrew.flatMap((item) => {
+        if (!item || typeof item !== 'object') return []
+        const crew = item as Record<string, unknown>
+        const name = textFrom(crew.role, textFrom(crew.name))
+        const quantity = numberFrom(crew.quantity, 0)
+        return name ? [`Additional crew: ${name}${quantity > 1 ? ` × ${quantity}` : ''}`] : []
+      }) : []),
+      ...(Array.isArray(photoVideoSnapshot.deliverables) ? photoVideoSnapshot.deliverables.flatMap((item) => {
+        if (!item || typeof item !== 'object') return []
+        const deliverable = item as Record<string, unknown>
+        const name = textFrom(deliverable.name)
+        const quantity = numberFrom(deliverable.quantity, 0)
+        const deadline = textFrom(deliverable.expectedDeadlineDate)
+        return name ? [`Deliverable: ${name}${quantity > 1 ? ` × ${quantity}` : ''}${deadline ? ` · due ${deadline}` : ''}`] : []
+      }) : []),
+      ...(Array.isArray(photoVideoSnapshot.additionalServices) ? photoVideoSnapshot.additionalServices.flatMap((item) => {
+        if (!item || typeof item !== 'object') return []
+        const additional = item as Record<string, unknown>
+        const name = textFrom(additional.name)
+        const quantity = numberFrom(additional.quantity, 0)
+        return name ? [`Add-on: ${name}${quantity > 1 ? ` × ${quantity}` : ''}`] : []
+      }) : []),
+      textFrom(photoVideoSnapshot.coverageLocationsSummary) ? `Locations: ${textFrom(photoVideoSnapshot.coverageLocationsSummary)}` : '',
+      textFrom(photoVideoSnapshot.rushEditingSummary) ? `Rush editing: ${textFrom(photoVideoSnapshot.rushEditingSummary)}` : '',
+      textFrom(photoVideoSnapshot.deliverySummary) ? `Delivery: ${textFrom(photoVideoSnapshot.deliverySummary)}` : '',
+      textFrom(photoVideoSnapshot.revisionSummary) ? `Revisions: ${textFrom(photoVideoSnapshot.revisionSummary)}` : '',
+    ].filter(Boolean)
     const foodTastingWorkflow = foodTastingWorkflowsByBooking.get(textFrom(record.id))
     const instructions = (instructionRows ?? [])
       .filter(
@@ -2282,6 +2448,16 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
       foodTastingEnabled: Boolean(getCateringTastingSettings(service?.category_details)),
       foodTastingWorkflow,
       floristSelectionSummary: floristSelectionSummary.length ? floristSelectionSummary : undefined,
+      photoVideoSelectionSummary: photoVideoSelectionSummary.length ? photoVideoSelectionSummary : undefined,
+      photoVideoPreEventPlan: Object.keys(photoVideoSnapshot).length
+        ? photoVideoPreEventPlanFrom(record.photo_video_pre_event_plan)
+        : undefined,
+      photoVideoEventDayLog: Object.keys(photoVideoSnapshot).length
+        ? photoVideoEventDayLogFrom(record.photo_video_event_day_log)
+        : undefined,
+      photoVideoDeliverableTracking: Object.keys(photoVideoSnapshot).length
+        ? photoVideoDeliverableTrackingFrom(record.photo_video_deliverable_tracking)
+        : undefined,
       clientEmail: textFrom(profile?.email),
       clientNotes: textFrom(record.client_notes),
       dietaryNotes: textFrom(bookingDetails?.dietary_notes) || undefined,
@@ -2349,6 +2525,10 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
       foodTastingEnabled: request.foodTastingEnabled,
       foodTastingWorkflow: request.foodTastingWorkflow,
       floristSelectionSummary: request.floristSelectionSummary,
+      photoVideoSelectionSummary: request.photoVideoSelectionSummary,
+      photoVideoPreEventPlan: request.photoVideoPreEventPlan,
+      photoVideoEventDayLog: request.photoVideoEventDayLog,
+      photoVideoDeliverableTracking: request.photoVideoDeliverableTracking,
       clientNotes: request.clientNotes,
       completionPaymentStatus: request.completionPaymentStatus,
       confirmedExternalPaymentAmount: request.confirmedExternalPaymentAmount,

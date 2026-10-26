@@ -1,3 +1,5 @@
+import { photoVideoPackageDraftsFrom } from './photo-video'
+
 export type ServiceCategoryKind =
   | 'attire'
   | 'florists'
@@ -94,6 +96,97 @@ export type CateringPriceCalculation = {
   unitPrice: number
 }
 
+// Photo/Video coverage is stored with the existing category details so it is
+// provider-owned, draft-friendly, and does not create a competing service or
+// pricing system. Later booking phases will snapshot these exact records.
+export type PhotoVideoCrewAllocation = {
+  quantity: number
+  role: string
+}
+
+export type PhotoVideoCoverageConfiguration = {
+  durationHours: number
+  id: string
+  includedCrew: PhotoVideoCrewAllocation[]
+  name: string
+  price: number
+}
+
+export type PhotoVideoAdditionalCrewOption = {
+  id: string
+  maximumQuantity: number
+  price: number
+  pricingUnit: 'event' | 'hour'
+  role: string
+}
+
+export type PhotoVideoDeliverablePricingMode = 'included' | 'fixed' | 'per_unit' | 'per_hour'
+
+export type PhotoVideoDeliverableConfiguration = {
+  deliveryFormat?: string
+  id: string
+  includedQuantity?: number
+  maximumQuantity?: number
+  mediaType: 'photo' | 'video' | 'both'
+  name: string
+  price: number
+  pricingMode: PhotoVideoDeliverablePricingMode
+  requiredCrewRoles: string[]
+  turnaroundDays?: number
+}
+
+export type PhotoVideoAdditionalService = {
+  id: string
+  maximumQuantity?: number
+  name: string
+  price: number
+  pricingUnit: 'event' | 'hour' | 'unit'
+  requiredCrewRoles: string[]
+}
+
+export type PhotoVideoDeadlineStartingPoint = 'event_completion' | 'agreed_custom_start'
+
+export type PhotoVideoDeliveryMethodKind =
+  | 'secure_download_link'
+  | 'online_gallery'
+  | 'cloud_delivery'
+  | 'usb'
+  | 'physical_album_delivery'
+  | 'courier_delivery'
+  | 'client_pickup'
+
+export type PhotoVideoDeliveryMethod = {
+  details?: string
+  id: string
+  kind: PhotoVideoDeliveryMethodKind
+}
+
+export type PhotoVideoRushEditingOption = {
+  additionalCharge: number
+  capacityLimit?: number
+  deliverableIds: string[]
+  id: string
+  isAvailable: boolean
+  turnaroundDays: number
+}
+
+export type PhotoVideoRevisionPolicy = {
+  additionalRevisionCharge?: number
+  eligibleDeliverableIds: string[]
+  includedRevisionRounds: number
+  revisionRequestPeriodDays?: number
+  revisionTurnaroundDays?: number
+  scopeNote?: string
+}
+
+export type PhotoVideoPostProductionSettings = {
+  deadlineStartingPoint: PhotoVideoDeadlineStartingPoint
+  deliveryMethods: PhotoVideoDeliveryMethod[]
+  revisionPolicy: PhotoVideoRevisionPolicy
+  rushEditingOptions: PhotoVideoRushEditingOption[]
+  startingPointDisclosure?: string
+}
+
 export type VenueBookingOption = {
   accessEndTime?: string
   accessStartTime?: string
@@ -168,6 +261,192 @@ const individuallyBookableVenueOption = (value: Record<string, unknown>) =>
   value.isBookableIndividually !== false
 const combinableVenueSpace = (value: Record<string, unknown>) =>
   value.allowsCombination !== false
+
+const photoVideoCrewAllocations = (value: unknown): PhotoVideoCrewAllocation[] => (
+  Array.isArray(value) ? value.map(asObject).flatMap((item) => {
+    const role = text(item.role)
+    const quantity = number(item.quantity)
+    return role && quantity > 0 ? [{ role, quantity }] : []
+  }) : []
+)
+
+export const getPhotoVideoCoverageConfigurations = (
+  value: unknown
+): PhotoVideoCoverageConfiguration[] => {
+  const details = asObject(value)
+  const configurations = Array.isArray(details.coverageConfigurations)
+    ? details.coverageConfigurations.map(asObject)
+    : []
+  return configurations.flatMap((configuration) => {
+    const id = text(configuration.id)
+    const name = text(configuration.name)
+    const durationHours = number(configuration.durationHours)
+    const price = number(configuration.price)
+    return id && name && durationHours > 0 && price > 0
+      ? [{ durationHours, id, includedCrew: photoVideoCrewAllocations(configuration.includedCrew), name, price }]
+      : []
+  })
+}
+
+export const getPhotoVideoAdditionalCrewOptions = (
+  value: unknown
+): PhotoVideoAdditionalCrewOption[] => {
+  const details = asObject(value)
+  const options = Array.isArray(details.additionalCrewOptions)
+    ? details.additionalCrewOptions.map(asObject)
+    : []
+  return options.flatMap((option) => {
+    const id = text(option.id)
+    const role = text(option.role)
+    const maximumQuantity = number(option.maximumQuantity)
+    const price = number(option.price)
+    const pricingUnit = option.pricingUnit === 'hour' ? 'hour' : 'event'
+    return id && role && maximumQuantity > 0 && price > 0
+      ? [{ id, maximumQuantity, price, pricingUnit, role }]
+      : []
+  })
+}
+
+const photoVideoRequiredCrewRoles = (value: unknown) => list(value)
+
+export const getPhotoVideoDeliverableConfigurations = (
+  value: unknown
+): PhotoVideoDeliverableConfiguration[] => {
+  const details = asObject(value)
+  const configurations = Array.isArray(details.deliverableConfigurations)
+    ? details.deliverableConfigurations.map(asObject)
+    : []
+  return configurations.flatMap((configuration) => {
+    const id = text(configuration.id)
+    const name = text(configuration.name)
+    const mediaType = ['photo', 'video', 'both'].includes(text(configuration.mediaType))
+      ? text(configuration.mediaType) as PhotoVideoDeliverableConfiguration['mediaType']
+      : null
+    const pricingMode = ['included', 'fixed', 'per_unit', 'per_hour'].includes(text(configuration.pricingMode))
+      ? text(configuration.pricingMode) as PhotoVideoDeliverablePricingMode
+      : null
+    const price = number(configuration.price)
+    const includedQuantity = optionalPositiveNumber(configuration.includedQuantity)
+    const maximumQuantity = optionalPositiveNumber(configuration.maximumQuantity)
+    return id && name && mediaType && pricingMode && (pricingMode === 'included' || price > 0)
+      ? [{
+          deliveryFormat: text(configuration.deliveryFormat) || undefined,
+          id,
+          includedQuantity,
+          maximumQuantity,
+          mediaType,
+          name,
+          price: pricingMode === 'included' ? 0 : price,
+          pricingMode,
+          requiredCrewRoles: photoVideoRequiredCrewRoles(configuration.requiredCrewRoles),
+          turnaroundDays: optionalPositiveNumber(configuration.turnaroundDays),
+        }]
+      : []
+  })
+}
+
+export const getPhotoVideoAdditionalServices = (value: unknown): PhotoVideoAdditionalService[] => {
+  const details = asObject(value)
+  const services = Array.isArray(details.additionalServices) ? details.additionalServices.map(asObject) : []
+  return services.flatMap((service) => {
+    const id = text(service.id)
+    const name = text(service.name)
+    const price = number(service.price)
+    const pricingUnit = ['event', 'hour', 'unit'].includes(text(service.pricingUnit))
+      ? text(service.pricingUnit) as PhotoVideoAdditionalService['pricingUnit']
+      : null
+    return id && name && pricingUnit && price > 0
+      ? [{
+          id,
+          maximumQuantity: optionalPositiveNumber(service.maximumQuantity),
+          name,
+          price,
+          pricingUnit,
+          requiredCrewRoles: photoVideoRequiredCrewRoles(service.requiredCrewRoles),
+        }]
+      : []
+  })
+}
+
+const photoVideoDeliveryMethodKinds: PhotoVideoDeliveryMethodKind[] = [
+  'secure_download_link',
+  'online_gallery',
+  'cloud_delivery',
+  'usb',
+  'physical_album_delivery',
+  'courier_delivery',
+  'client_pickup',
+]
+
+export const getPhotoVideoPostProductionSettings = (
+  value: unknown
+): PhotoVideoPostProductionSettings | undefined => {
+  const details = asObject(value)
+  if (!Object.prototype.hasOwnProperty.call(details, 'postProductionSettings')) return undefined
+  const settings = asObject(details.postProductionSettings)
+  const deadlineStartingPoint = settings.deadlineStartingPoint === 'agreed_custom_start'
+    ? 'agreed_custom_start' as const
+    : 'event_completion' as const
+  const deliveryMethods = Array.isArray(settings.deliveryMethods) ? settings.deliveryMethods.map(asObject).flatMap((method) => {
+    const id = text(method.id)
+    const kind = text(method.kind) as PhotoVideoDeliveryMethodKind
+    return id && photoVideoDeliveryMethodKinds.includes(kind)
+      ? [{ details: text(method.details) || undefined, id, kind }]
+      : []
+  }) : []
+  const rushEditingOptions = Array.isArray(settings.rushEditingOptions)
+    ? settings.rushEditingOptions.map(asObject).flatMap((option) => {
+      const id = text(option.id)
+      const turnaroundDays = optionalPositiveNumber(option.turnaroundDays)
+      const additionalCharge = optionalPositiveNumber(option.additionalCharge)
+      return id && turnaroundDays && additionalCharge
+        ? [{
+            additionalCharge,
+            capacityLimit: optionalPositiveNumber(option.capacityLimit),
+            deliverableIds: list(option.deliverableIds),
+            id,
+            isAvailable: option.isAvailable !== false,
+            turnaroundDays,
+          }]
+        : []
+    }) : []
+  const rawPolicy = asObject(settings.revisionPolicy)
+  const includedRevisionRounds = Math.max(0, Math.floor(number(rawPolicy.includedRevisionRounds)))
+  return {
+    deadlineStartingPoint,
+    deliveryMethods,
+    revisionPolicy: {
+      additionalRevisionCharge: optionalNonNegativeNumber(rawPolicy.additionalRevisionCharge),
+      eligibleDeliverableIds: list(rawPolicy.eligibleDeliverableIds),
+      includedRevisionRounds,
+      revisionRequestPeriodDays: optionalPositiveNumber(rawPolicy.revisionRequestPeriodDays),
+      revisionTurnaroundDays: optionalPositiveNumber(rawPolicy.revisionTurnaroundDays),
+      scopeNote: text(rawPolicy.scopeNote) || undefined,
+    },
+    rushEditingOptions,
+    startingPointDisclosure: text(settings.startingPointDisclosure) || undefined,
+  }
+}
+
+// A calendar deadline is intentionally only produced when the agreed start is
+// known. Custom starts are disclosed and retained, then resolved once both
+// parties agree on that date in the booking workflow.
+export const calculatePhotoVideoExpectedDeadline = (
+  eventCompletionDate: string | undefined,
+  turnaroundDays: number | undefined,
+  settings: Pick<PhotoVideoPostProductionSettings, 'deadlineStartingPoint'>,
+  agreedCustomStartDate?: string
+) => {
+  const startingDate = settings.deadlineStartingPoint === 'event_completion'
+    ? eventCompletionDate
+    : agreedCustomStartDate
+  const days = Math.floor(Number(turnaroundDays))
+  if (!startingDate || !Number.isFinite(days) || days <= 0) return undefined
+  const parsed = new Date(`${startingDate}T12:00:00.000Z`)
+  if (Number.isNaN(parsed.getTime())) return undefined
+  parsed.setUTCDate(parsed.getUTCDate() + days)
+  return parsed.toISOString().slice(0, 10)
+}
 const venueOptionDetails = (value: Record<string, unknown>) => ({
   accessEndTime: text(value.accessEndTime) || undefined,
   accessStartTime: text(value.accessStartTime) || undefined,
@@ -523,7 +802,18 @@ export const emptyCategoryDetails = (categoryName: string): ServiceCategoryDetai
   schemaVersion: 1,
   ...(serviceCategoryKind(categoryName) === 'catering'
     ? { pricingBasis: 'per_person', pricingOptions: [] }
-    : {}),
+    : serviceCategoryKind(categoryName) === 'photography'
+      ? {
+          additionalCrewOptions: [],
+          additionalServices: [],
+          coverageConfigurations: [],
+          deliverableConfigurations: [],
+          overtimeRequiresAuthorization: true,
+          photoVideoServiceType: '',
+          photoVideoPackages: [],
+          teamCapacity: 1,
+        }
+      : {}),
 })
 
 export const normalizeCategoryDetails = (
@@ -557,6 +847,13 @@ export const categoryDetailsForStorage = (
 ): Record<string, unknown> => {
   if (isLegacyCategoryDetails(value)) return {}
   const normalized = normalizeCategoryDetails(categoryName, value)
+  if (normalized.kind === 'photography') {
+    // Package records are persisted in the established service_packages table.
+    // Keep temporary provider-form package state out of category_details.
+    const persisted = { ...normalized }
+    delete persisted.photoVideoPackages
+    return persisted
+  }
   if (normalized.kind === 'venues') {
     // Option-level venue configuration intentionally lives on the established
     // spaces/combinations resources. This avoids a parallel source of truth
@@ -770,10 +1067,283 @@ export const validateCategoryDetails = (
   }
 
   if (details.kind === 'photography') {
+    const serviceType = text(details.photoVideoServiceType)
+    const usesV18Configuration = Object.prototype.hasOwnProperty.call(details, 'photoVideoServiceType')
+    const includesPhoto = serviceType === 'photography' || serviceType === 'combined'
+    const includesVideo = serviceType === 'videography' || serviceType === 'combined'
+    if (usesV18Configuration && !['photography', 'videography', 'combined'].includes(serviceType)) {
+      errors.push('Choose photography, videography, or combined coverage.')
+    }
     requirePositive(errors, details.coverageDurationHours, 'Coverage duration must be greater than zero.')
-    if (number(details.photographerCount) < 1) errors.push('At least one photographer is required.')
-    if (details.videoCoverage === true && number(details.videographerCount) < 1) {
+    if ((!usesV18Configuration || includesPhoto) && number(details.photographerCount) < 1) {
+      errors.push('At least one photographer is required.')
+    }
+    if ((usesV18Configuration ? includesVideo : details.videoCoverage === true)
+      && number(details.videographerCount) < 1) {
       errors.push('At least one videographer is required when video coverage is included.')
+    }
+    if (usesV18Configuration) {
+      if (list(details.eventTypes).length === 0) errors.push('Select at least one supported event type.')
+      if (!text(details.operatingLocation)) errors.push('Enter the operating location.')
+      if (list(details.coverageAreas).length === 0) errors.push('Add at least one coverage area.')
+      if (number(details.minimumBookingNoticeDays) < 0) errors.push('Minimum booking notice cannot be negative.')
+
+      const rawCoverageConfigurations = Array.isArray(details.coverageConfigurations)
+        ? details.coverageConfigurations.map(asObject)
+        : []
+      if (rawCoverageConfigurations.length === 0) {
+        errors.push('Add at least one bookable coverage configuration.')
+      }
+      const coverageIds: string[] = []
+      rawCoverageConfigurations.forEach((configuration, index) => {
+        const label = `Coverage configuration ${index + 1}`
+        const id = text(configuration.id)
+        if (!id) errors.push(`${label} needs an ID.`)
+        else coverageIds.push(id)
+        if (!text(configuration.name)) errors.push(`${label} needs a name.`)
+        if (number(configuration.durationHours) <= 0) errors.push(`${label} needs a positive duration.`)
+        if (number(configuration.price) <= 0) errors.push(`${label} needs a positive provider price.`)
+        const includedCrew = Array.isArray(configuration.includedCrew)
+          ? configuration.includedCrew.map(asObject)
+          : []
+        if (includedCrew.length === 0) errors.push(`${label} needs at least one included crew role.`)
+        includedCrew.forEach((crew, crewIndex) => {
+          if (!text(crew.role) || number(crew.quantity) < 1) {
+            errors.push(`${label} crew member ${crewIndex + 1} needs a role and positive quantity.`)
+          }
+        })
+      })
+      if (new Set(coverageIds).size !== coverageIds.length) {
+        errors.push('Every coverage configuration needs a unique ID.')
+      }
+
+      const rawAdditionalCrew = Array.isArray(details.additionalCrewOptions)
+        ? details.additionalCrewOptions.map(asObject)
+        : []
+      const additionalCrewIds: string[] = []
+      rawAdditionalCrew.forEach((option, index) => {
+        const label = `Additional crew option ${index + 1}`
+        const id = text(option.id)
+        if (!id) errors.push(`${label} needs an ID.`)
+        else additionalCrewIds.push(id)
+        if (!text(option.role)) errors.push(`${label} needs a role.`)
+        if (number(option.maximumQuantity) < 1) errors.push(`${label} needs a positive maximum quantity.`)
+        if (number(option.price) <= 0) errors.push(`${label} needs a positive price.`)
+        if (option.pricingUnit !== 'event' && option.pricingUnit !== 'hour') {
+          errors.push(`${label} needs a per-event or per-hour price type.`)
+        }
+      })
+      if (new Set(additionalCrewIds).size !== additionalCrewIds.length) {
+        errors.push('Every additional crew option needs a unique ID.')
+      }
+      if (number(details.teamCapacity) < 1) errors.push('Set the number of teams available for the same time period.')
+      if (number(details.scheduleFlexibilityMinutes) < 0) errors.push('Schedule flexibility cannot be negative.')
+      if (number(details.additionalLocationFee) < 0) errors.push('Additional-location fee cannot be negative.')
+      if (details.additionalHoursAllowed === true) {
+        if (number(details.additionalHourRate) <= 0) errors.push('Set a positive prebooked additional-hour rate.')
+        if (number(details.maximumAdditionalHours) < 1) errors.push('Set a maximum number of prebooked additional hours.')
+      }
+      if (details.overtimeAllowed === true) {
+        if (number(details.overtimeRate) <= 0) errors.push('Set a positive overtime rate.')
+        if (number(details.overtimeMinimumIncrementHours) <= 0) errors.push('Set a positive overtime minimum increment.')
+        if (details.overtimeRequiresAuthorization !== true) {
+          errors.push('Event-day overtime must require client authorization.')
+        }
+      }
+
+      const supportedMediaTypes = serviceType === 'photography'
+        ? ['photo']
+        : serviceType === 'videography'
+          ? ['video']
+          : ['photo', 'video', 'both']
+      const rawDeliverables = Array.isArray(details.deliverableConfigurations)
+        ? details.deliverableConfigurations.map(asObject)
+        : []
+      if (rawDeliverables.length === 0) errors.push('Add at least one promised deliverable.')
+      const deliverableIds: string[] = []
+      rawDeliverables.forEach((deliverable, index) => {
+        const label = `Deliverable ${index + 1}`
+        const id = text(deliverable.id)
+        if (!id) errors.push(`${label} needs an ID.`)
+        else deliverableIds.push(id)
+        if (!text(deliverable.name)) errors.push(`${label} needs a name.`)
+        const mediaType = text(deliverable.mediaType)
+        if (!supportedMediaTypes.includes(mediaType)) errors.push(`${label} is not supported by this service type.`)
+        const pricingMode = text(deliverable.pricingMode)
+        if (!['included', 'fixed', 'per_unit', 'per_hour'].includes(pricingMode)) {
+          errors.push(`${label} needs a valid pricing mode.`)
+        } else if (pricingMode !== 'included' && number(deliverable.price) <= 0) {
+          errors.push(`${label} needs a positive price when it is not included.`)
+        }
+        if (number(deliverable.includedQuantity) < 0 || number(deliverable.maximumQuantity) < 0) {
+          errors.push(`${label} quantities cannot be negative.`)
+        }
+        if (pricingMode === 'included' && number(deliverable.includedQuantity) < 1) {
+          errors.push(`${label} needs an included quantity.`)
+        }
+        if (number(deliverable.maximumQuantity) > 0
+          && number(deliverable.includedQuantity) > number(deliverable.maximumQuantity)) {
+          errors.push(`${label} maximum quantity must cover its included quantity.`)
+        }
+        if (number(deliverable.turnaroundDays) < 0) errors.push(`${label} turnaround cannot be negative.`)
+      })
+      if (new Set(deliverableIds).size !== deliverableIds.length) errors.push('Every deliverable needs a unique ID.')
+
+      const rawAdditionalServices = Array.isArray(details.additionalServices)
+        ? details.additionalServices.map(asObject)
+        : []
+      const configuredCrewRoles = new Set([
+        ...rawCoverageConfigurations.flatMap((configuration) => (
+          Array.isArray(configuration.includedCrew) ? configuration.includedCrew.map(asObject) : []
+        )).map((crew) => text(crew.role).toLowerCase()).filter(Boolean),
+        ...rawAdditionalCrew.map((crew) => text(crew.role).toLowerCase()).filter(Boolean),
+      ])
+      const validateCrewDependencies = (value: Record<string, unknown>, label: string) => {
+        if (!Array.isArray(value.requiredCrewRoles)) {
+          errors.push(`${label} crew requirements must be a list.`)
+          return
+        }
+        list(value.requiredCrewRoles).forEach((role) => {
+          if (!configuredCrewRoles.has(role.toLowerCase())) {
+            errors.push(`${label} requires an unavailable crew role: ${role}.`)
+          }
+        })
+      }
+      rawDeliverables.forEach((deliverable, index) => validateCrewDependencies(deliverable, `Deliverable ${index + 1}`))
+      const additionalServiceIds: string[] = []
+      rawAdditionalServices.forEach((service, index) => {
+        const label = `Additional service ${index + 1}`
+        const id = text(service.id)
+        if (!id) errors.push(`${label} needs an ID.`)
+        else additionalServiceIds.push(id)
+        if (!text(service.name)) errors.push(`${label} needs a name.`)
+        if (number(service.price) <= 0) errors.push(`${label} needs a positive price.`)
+        if (!['event', 'hour', 'unit'].includes(text(service.pricingUnit))) {
+          errors.push(`${label} needs an event, hour, or unit price type.`)
+        }
+        if (number(service.maximumQuantity) < 0) errors.push(`${label} maximum quantity cannot be negative.`)
+        validateCrewDependencies(service, label)
+      })
+      if (new Set(additionalServiceIds).size !== additionalServiceIds.length) {
+        errors.push('Every additional service needs a unique ID.')
+      }
+
+      // Post-production is opt-in so historic Photo/Video listings remain
+      // publishable. Once a provider saves these commitments, require a
+      // complete, client-safe configuration rather than inventing deadlines.
+      if (Object.prototype.hasOwnProperty.call(details, 'postProductionSettings')) {
+        const settings = asObject(details.postProductionSettings)
+        const deadlineStartingPoint = text(settings.deadlineStartingPoint)
+        if (!['event_completion', 'agreed_custom_start'].includes(deadlineStartingPoint)) {
+          errors.push('Choose when post-production turnaround begins.')
+        }
+        if (deadlineStartingPoint === 'agreed_custom_start' && !text(settings.startingPointDisclosure)) {
+          errors.push('Explain and agree the alternate post-production starting point.')
+        }
+        rawDeliverables.forEach((deliverable, index) => {
+          if (number(deliverable.turnaroundDays) <= 0 || !Number.isInteger(number(deliverable.turnaroundDays))) {
+            errors.push(`Deliverable ${index + 1} needs a positive whole-day editing turnaround.`)
+          }
+        })
+
+        const rawDeliveryMethods = Array.isArray(settings.deliveryMethods)
+          ? settings.deliveryMethods.map(asObject)
+          : []
+        if (rawDeliveryMethods.length === 0) errors.push('Add at least one delivery method.')
+        const deliveryMethodIds: string[] = []
+        rawDeliveryMethods.forEach((method, index) => {
+          const label = `Delivery method ${index + 1}`
+          const id = text(method.id)
+          if (!id) errors.push(`${label} needs an ID.`)
+          else deliveryMethodIds.push(id)
+          if (!photoVideoDeliveryMethodKinds.includes(text(method.kind) as PhotoVideoDeliveryMethodKind)) {
+            errors.push(`${label} is not supported.`)
+          }
+        })
+        if (new Set(deliveryMethodIds).size !== deliveryMethodIds.length) {
+          errors.push('Every delivery method needs a unique ID.')
+        }
+
+        const rawRushOptions = Array.isArray(settings.rushEditingOptions)
+          ? settings.rushEditingOptions.map(asObject)
+          : []
+        const rushIds: string[] = []
+        rawRushOptions.forEach((option, index) => {
+          const label = `Rush editing option ${index + 1}`
+          const id = text(option.id)
+          if (!id) errors.push(`${label} needs an ID.`)
+          else rushIds.push(id)
+          if (!Array.isArray(option.deliverableIds) || list(option.deliverableIds).length === 0
+            || list(option.deliverableIds).some((id) => !deliverableIds.includes(id))) {
+            errors.push(`${label} needs eligible configured deliverables.`)
+          }
+          if (number(option.turnaroundDays) <= 0 || !Number.isInteger(number(option.turnaroundDays))) {
+            errors.push(`${label} needs a positive whole-day rush turnaround.`)
+          }
+          if (number(option.additionalCharge) <= 0) errors.push(`${label} needs a positive additional charge.`)
+          if (number(option.capacityLimit) < 0) errors.push(`${label} capacity cannot be negative.`)
+        })
+        if (new Set(rushIds).size !== rushIds.length) errors.push('Every rush editing option needs a unique ID.')
+
+        const policy = asObject(settings.revisionPolicy)
+        if (!Object.prototype.hasOwnProperty.call(policy, 'includedRevisionRounds')
+          || number(policy.includedRevisionRounds) < 0
+          || !Number.isInteger(number(policy.includedRevisionRounds))) {
+          errors.push('Set the number of included revision rounds, including zero when none are included.')
+        }
+        const includedRevisionRounds = number(policy.includedRevisionRounds)
+        const eligibleRevisionDeliverables = list(policy.eligibleDeliverableIds)
+        if (includedRevisionRounds > 0) {
+          if (eligibleRevisionDeliverables.length === 0
+            || eligibleRevisionDeliverables.some((id) => !deliverableIds.includes(id))) {
+            errors.push('Revision-eligible deliverables must be configured deliverables.')
+          }
+          if (number(policy.revisionRequestPeriodDays) <= 0) {
+            errors.push('Set a positive revision request period.')
+          }
+          if (number(policy.revisionRequestPeriodDays) > 0
+            && !Number.isInteger(number(policy.revisionRequestPeriodDays))) {
+            errors.push('Revision request period must be a whole number of days.')
+          }
+          if (number(policy.revisionTurnaroundDays) <= 0) {
+            errors.push('Set a positive revision turnaround.')
+          }
+          if (number(policy.revisionTurnaroundDays) > 0
+            && !Number.isInteger(number(policy.revisionTurnaroundDays))) {
+            errors.push('Revision turnaround must be a whole number of days.')
+          }
+        } else if (eligibleRevisionDeliverables.length > 0
+          && eligibleRevisionDeliverables.some((id) => !deliverableIds.includes(id))) {
+          errors.push('Revision-eligible deliverables must be configured deliverables.')
+        }
+        if (number(policy.additionalRevisionCharge) < 0) {
+          errors.push('Additional revision charges cannot be negative.')
+        }
+      }
+
+      const packages = photoVideoPackageDraftsFrom(details)
+      const packageCoverageIds = new Set(rawCoverageConfigurations.map((configuration) => text(configuration.id)).filter(Boolean))
+      const packageDeliverableIds = new Set(rawDeliverables.map((deliverable) => text(deliverable.id)).filter(Boolean))
+      const packageAdditionalCrewIds = new Set(rawAdditionalCrew.map((crew) => text(crew.id)).filter(Boolean))
+      const additionalServiceIdsSet = new Set(rawAdditionalServices.map((service) => text(service.id)).filter(Boolean))
+      packages.filter((pkg) => pkg.isActive).forEach((pkg, index) => {
+        const label = `Photo/Video package ${index + 1}`
+        if (!pkg.name) errors.push(`${label} needs a name.`)
+        if (pkg.price <= 0) errors.push(`${label} needs a positive provider price.`)
+        if (!packageCoverageIds.has(pkg.coverageConfigurationId)) errors.push(`${label} needs a configured coverage option.`)
+        if (pkg.eventTypes.length === 0 || pkg.eventTypes.some((eventType) => !list(details.eventTypes).includes(eventType))) {
+          errors.push(`${label} includes an unsupported event type.`)
+        }
+        if (pkg.deliverableIds.length === 0 || pkg.deliverableIds.some((id) => !packageDeliverableIds.has(id))) {
+          errors.push(`${label} needs valid included deliverables.`)
+        }
+        if (pkg.allowedAdditionalCrewOptionIds.some((id) => !packageAdditionalCrewIds.has(id))) {
+          errors.push(`${label} includes an unavailable additional crew option.`)
+        }
+        if (pkg.allowedAdditionalServiceIds.some((id) => !additionalServiceIdsSet.has(id))) {
+          errors.push(`${label} includes an unavailable additional service.`)
+        }
+      })
     }
   }
 
@@ -884,13 +1454,42 @@ export const summarizeCategoryDetails = (
     add('Lighting types', joined(detail.lightingTypes))
     add('Technician included', yesNo(detail.technicianIncluded))
   } else if (detail.kind === 'photography') {
+    const serviceTypeLabels: Record<string, string> = {
+      photography: 'Photography only', videography: 'Videography only', combined: 'Photography + Videography',
+    }
+    add('Service type', serviceTypeLabels[text(detail.photoVideoServiceType)] || '')
     add('Coverage types', joined(detail.coverageTypes))
     add('Event types', joined(detail.eventTypes))
     add('Coverage duration', duration(detail.coverageDurationHours, 'hours'))
-    add('Photographers', detail.photographerCount)
-    add('Video coverage', yesNo(detail.videoCoverage))
-    if (detail.videoCoverage === true) add('Videographers', detail.videographerCount)
-    add('Turnaround time', duration(detail.turnaroundTime, detail.turnaroundUnit))
+    if (text(detail.photoVideoServiceType) !== 'videography') add('Photographers', detail.photographerCount)
+    if (text(detail.photoVideoServiceType) !== 'photography') add('Videographers', detail.videographerCount)
+    add('Operating location', detail.operatingLocation)
+    add('Coverage areas', joined(detail.coverageAreas))
+    add('Minimum notice', duration(detail.minimumBookingNoticeDays, 'days'))
+    const coverageConfigurations = getPhotoVideoCoverageConfigurations(detail)
+    add('Bookable coverage', coverageConfigurations.map((configuration) =>
+      `${configuration.name} (${configuration.durationHours} hours)`
+    ).join(', '))
+    add('Team capacity', detail.teamCapacity)
+    const deliverables = getPhotoVideoDeliverableConfigurations(detail)
+    add('Deliverables', deliverables.map((deliverable) => deliverable.name).join(', '))
+    const additionalServices = getPhotoVideoAdditionalServices(detail)
+    add('Additional services', additionalServices.map((service) => service.name).join(', '))
+    const postProduction = getPhotoVideoPostProductionSettings(detail)
+    if (postProduction) {
+      add('Editing deadline starts', postProduction.deadlineStartingPoint === 'event_completion'
+        ? 'Event completion date'
+        : postProduction.startingPointDisclosure || 'Agreed alternate starting point')
+      add('Delivery methods', postProduction.deliveryMethods.map((method) => ({
+        secure_download_link: 'Secure download link', online_gallery: 'Online gallery', cloud_delivery: 'Cloud delivery',
+        usb: 'USB', physical_album_delivery: 'Physical album delivery', courier_delivery: 'Courier delivery', client_pickup: 'Client pickup',
+      } as Record<PhotoVideoDeliveryMethodKind, string>)[method.kind]).join(', '))
+      add('Included revisions', `${postProduction.revisionPolicy.includedRevisionRounds} round${postProduction.revisionPolicy.includedRevisionRounds === 1 ? '' : 's'}`)
+      add('Revision request period', duration(postProduction.revisionPolicy.revisionRequestPeriodDays, 'days'))
+      add('Rush editing', postProduction.rushEditingOptions.some((option) => option.isAvailable) ? 'Available for selected deliverables' : '')
+    } else {
+      add('Turnaround time', duration(detail.turnaroundTime, detail.turnaroundUnit))
+    }
   } else if (detail.kind === 'host_emcee') {
     add('Event types', joined(detail.eventTypes))
     add('Hosting styles', joined(detail.hostingStyles))

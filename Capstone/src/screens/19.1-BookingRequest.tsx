@@ -12,6 +12,10 @@ import {
 } from 'react-native'
 import { Text } from '../components/AppText'
 import { VenueBookingSummary } from '../components/VenueBookingSummary'
+import { PhotoVideoPreEventPlanCard } from '../components/PhotoVideoPreEventPlanCard'
+import { PhotoVideoEventDayCard } from '../components/PhotoVideoEventDayCard'
+import { PhotoVideoDeliverablesCard } from '../components/PhotoVideoDeliverablesCard'
+import type { PhotoVideoPreEventPlan } from '../lib/photo-video-pre-event'
 import type { MerchantBookedService, MerchantBookingRequest } from './19-BookingRequest'
 
 export interface MerchantBookingRequestDetails {
@@ -69,6 +73,10 @@ interface BookingRequestDetailsScreenProps {
   onFoodTastingResponse?: (value: ProviderFoodTastingResponseValue) => Promise<ProviderCompletionPaymentResult>
   onSubmitFoodTastingFinalMenu?: (value: ProviderFoodTastingFinalMenuValue) => Promise<ProviderCompletionPaymentResult>
   onMessageClient?: (request: MerchantBookingRequest) => void
+  onSavePhotoVideoPreEventPlan?: (bookingId: string, plan: PhotoVideoPreEventPlan) => Promise<ProviderCompletionPaymentResult>
+  onConfirmPhotoVideoPreEventPlan?: (bookingId: string) => Promise<ProviderCompletionPaymentResult>
+  onSavePhotoVideoEventDayUpdate?: (bookingId: string, update: Record<string, unknown>) => Promise<ProviderCompletionPaymentResult>
+  onSavePhotoVideoDeliverableUpdate?: (bookingId: string, update: Record<string, unknown>) => Promise<ProviderCompletionPaymentResult>
   processingBookingId?: string
   request?: MerchantBookingRequest
 }
@@ -131,6 +139,10 @@ const servicesFor = (request: MerchantBookingRequest): MerchantBookedService[] =
         cateringOptionName: request.cateringOptionName,
         foodTastingWorkflow: request.foodTastingWorkflow,
         floristSelectionSummary: request.floristSelectionSummary,
+        photoVideoSelectionSummary: request.photoVideoSelectionSummary,
+        photoVideoPreEventPlan: request.photoVideoPreEventPlan,
+        photoVideoEventDayLog: request.photoVideoEventDayLog,
+        photoVideoDeliverableTracking: request.photoVideoDeliverableTracking,
         clientNotes: request.clientNotes,
         dietaryNotes: request.dietaryNotes,
         downpaymentAmount: request.downpaymentAmount,
@@ -171,6 +183,10 @@ const requestForService = (
   foodTastingEnabled: service.foodTastingEnabled,
   foodTastingWorkflow: service.foodTastingWorkflow,
   floristSelectionSummary: service.floristSelectionSummary,
+  photoVideoSelectionSummary: service.photoVideoSelectionSummary,
+  photoVideoPreEventPlan: service.photoVideoPreEventPlan,
+  photoVideoEventDayLog: service.photoVideoEventDayLog,
+  photoVideoDeliverableTracking: service.photoVideoDeliverableTracking,
   clientNotes: service.clientNotes,
   dietaryNotes: service.dietaryNotes,
   downpaymentAmount: service.downpaymentAmount,
@@ -232,6 +248,10 @@ export const BookingRequestDetailsScreen: React.FC<BookingRequestDetailsScreenPr
   onFoodTastingResponse,
   onSubmitFoodTastingFinalMenu,
   onMessageClient,
+  onSavePhotoVideoPreEventPlan,
+  onConfirmPhotoVideoPreEventPlan,
+  onSavePhotoVideoEventDayUpdate,
+  onSavePhotoVideoDeliverableUpdate,
   processingBookingId,
   request = emptyRequest,
 }) => {
@@ -592,7 +612,7 @@ export const BookingRequestDetailsScreen: React.FC<BookingRequestDetailsScreenPr
                   </View>
                 ) : null}
 
-                {service.mealType || service.attendeeCount || service.budgetPerHead || service.cateringOptionName || service.cateringMenuItems?.length || service.venueOptionName || service.floristSelectionSummary?.length ? (
+                {service.mealType || service.attendeeCount || service.budgetPerHead || service.cateringOptionName || service.cateringMenuItems?.length || service.venueOptionName || service.floristSelectionSummary?.length || service.photoVideoSelectionSummary?.length ? (
                   <View style={styles.bookingDetailsCard}>
                     <Text style={styles.miniLabel}>CLIENT BOOKING DETAILS</Text>
                     <View style={styles.bookingDetailsGrid}>
@@ -612,6 +632,12 @@ export const BookingRequestDetailsScreen: React.FC<BookingRequestDetailsScreenPr
                         <View style={styles.bookingMenuItems}>
                           <Text style={styles.miniLabel}>SELECTED FLORALS</Text>
                           {service.floristSelectionSummary.map((item) => <Text key={item} style={styles.bookingDetailText}>â€¢ {item}</Text>)}
+                        </View>
+                      ) : null}
+                      {service.photoVideoSelectionSummary?.length ? (
+                        <View style={styles.bookingMenuItems}>
+                          <Text style={styles.miniLabel}>PHOTO / VIDEO COVERAGE</Text>
+                          {service.photoVideoSelectionSummary.map((item) => <Text key={item} style={styles.bookingDetailText}>• {item}</Text>)}
                         </View>
                       ) : null}
                       {service.venueOptionName ? (
@@ -795,6 +821,22 @@ export const BookingRequestDetailsScreen: React.FC<BookingRequestDetailsScreenPr
                       'The client did not add a separate note for this service.'}
                   </Text>
                 </View>
+
+                {service.photoVideoPreEventPlan !== undefined ? (
+                  <PhotoVideoPreEventPlanCard
+                    bookingId={service.id}
+                    mode="provider"
+                    onConfirm={onConfirmPhotoVideoPreEventPlan}
+                    onSavePlan={onSavePhotoVideoPreEventPlan}
+                    plan={service.photoVideoPreEventPlan}
+                  />
+                ) : null}
+                {service.photoVideoEventDayLog !== undefined ? (
+                  <PhotoVideoEventDayCard bookingId={service.id} log={service.photoVideoEventDayLog} mode="provider" onSave={onSavePhotoVideoEventDayUpdate} />
+                ) : null}
+                {service.photoVideoDeliverableTracking !== undefined ? (
+                  <PhotoVideoDeliverablesCard bookingId={service.id} mode="provider" onSave={onSavePhotoVideoDeliverableUpdate} tracking={service.photoVideoDeliverableTracking} />
+                ) : null}
 
                 <View style={styles.instructionsSection}>
                   <View style={styles.noteHeading}>

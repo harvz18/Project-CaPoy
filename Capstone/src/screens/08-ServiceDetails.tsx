@@ -1,5 +1,6 @@
 import { Text } from '../components/AppText'
 import { FloristBookingConfigurator } from '../components/FloristBookingConfigurator'
+import { PhotoVideoBookingConfigurator } from '../components/PhotoVideoBookingConfigurator'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
 import React from 'react'
@@ -35,6 +36,13 @@ import {
   type VenueOptionSelection,
 } from '../lib/service-category-details'
 import type { FloristSelectionSnapshot } from '../lib/florist'
+import {
+  calculatePhotoVideoSelectionPrice,
+  defaultPhotoVideoSelection,
+  normalizePhotoVideoSelection,
+  validatePhotoVideoSelection,
+  type PhotoVideoSelectionSnapshot,
+} from '../lib/photo-video-booking'
 import type { ReviewSentiment, ServiceReviewInsights } from '../lib/reviews'
 
 export type MealType = CateringServiceType
@@ -49,6 +57,7 @@ export interface ServiceSelectionValue {
   foodTastingMenuItemIds?: string[]
   foodTastingPreference?: boolean
   floristSelection?: FloristSelectionSnapshot
+  photoVideoSelection?: PhotoVideoSelectionSnapshot
   combinedCateringServiceId?: string
   mealType?: MealType
   notes: string
@@ -73,6 +82,7 @@ interface ServiceDetailsScreenProps {
   eventTime?: string
   hasBudget?: boolean
   initialFoodTastingPreference?: boolean
+  initialPhotoVideoSelection?: PhotoVideoSelectionSnapshot
   mode?: 'explore' | 'planning'
   service?: CatalogService
   onAddSelection?: (value: ServiceSelectionValue) => Promise<void> | void
@@ -83,6 +93,7 @@ interface ServiceDetailsScreenProps {
     packageId?: string
     quantity?: number
     floristSelection?: FloristSelectionSnapshot
+    photoVideoSelection?: PhotoVideoSelectionSnapshot
     service: CatalogService
     venueSelections?: VenueOptionSelection[]
   }) => Promise<ServiceQuotePreview>
@@ -99,6 +110,7 @@ interface ServiceDetailsScreenProps {
     ok: boolean
   }>
   onReadAllReviews?: () => void
+  onPhotoVideoSelectionChange?: (value: PhotoVideoSelectionSnapshot) => void
   reviewInsights?: ServiceReviewInsights
   reviewInsightsLoading?: boolean
   onSaveFoodTastingDraft?: (value: {
@@ -168,6 +180,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   eventTime = '',
   hasBudget,
   initialFoodTastingPreference,
+  initialPhotoVideoSelection,
   mode = 'planning',
   service,
   onAddSelection,
@@ -175,6 +188,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   onBack,
   onLoadFoodTastingDraft,
   onReadAllReviews,
+  onPhotoVideoSelectionChange,
   reviewInsights,
   reviewInsightsLoading = false,
   onSaveFoodTastingDraft,
@@ -221,6 +235,9 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     schemaVersion: 1,
     selectedArrangements: [],
   })
+  const [photoVideoSelection, setPhotoVideoSelection] = React.useState<PhotoVideoSelectionSnapshot>(
+    () => normalizePhotoVideoSelection(initialPhotoVideoSelection ?? defaultPhotoVideoSelection())
+  )
   const eventGuestCountRef = React.useRef(eventGuestCount)
   const foodTastingDraftRevisionRef = React.useRef(0)
   const foodTastingDraftTouchedRef = React.useRef(false)
@@ -250,6 +267,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     const initialGuestCount = Math.max(1, Math.floor(eventGuestCountRef.current || 1))
     setSelectedPackageId(service?.packageId ?? '')
     setFloristSelection({ schemaVersion: 1, selectedArrangements: [] })
+    setPhotoVideoSelection(defaultPhotoVideoSelection())
     setFoodTastingPreference(initialFoodTastingPreference)
     setSelectedTastingMenuItemIds([])
     setExpandedTastingMenuSections(new Set())
@@ -296,6 +314,11 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     service?.packageId,
     service?.providerMinPrice,
   ])
+
+  React.useEffect(() => {
+    if (!service?.id || !initialPhotoVideoSelection) return
+    setPhotoVideoSelection(normalizePhotoVideoSelection(initialPhotoVideoSelection))
+  }, [initialPhotoVideoSelection, service?.id])
 
   React.useEffect(() => {
     const isCombinedPackage = service?.categoryId === 'venues'
@@ -390,6 +413,10 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     const isCateringService = service.categoryId === 'catering'
     const isVenueService = service.categoryId === 'venues'
     const isFloristService = service.categoryId === 'florists'
+    const isConfiguredPhotoVideo = service.categoryId === 'photography' && Boolean(service.photoVideoConfiguration)
+    if (isConfiguredPhotoVideo && validatePhotoVideoSelection(
+      service.photoVideoConfiguration!, photoVideoSelection
+    )) return
     if (isFloristService && (!service.floristConfiguration
       || (!floristSelection.packageId && floristSelection.selectedArrangements.length === 0))) return
     if (isCateringService && foodTastingPreference === true) return
@@ -437,6 +464,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
           : isCateringService && !useSelectedProviderPackage ? selectedCateringOptionId : undefined,
         packageId: selectedPackageId || service.packageId,
         floristSelection: isFloristService ? floristSelection : undefined,
+        photoVideoSelection: isConfiguredPhotoVideo ? photoVideoSelection : undefined,
         quantity: undefined,
         service: selectedProviderPackage?.serviceId
           ? { ...service, bookingServiceId: selectedProviderPackage.serviceId }
@@ -489,6 +517,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     service,
     foodTastingPreference,
     floristSelection,
+    photoVideoSelection,
   ])
 
   if (!service) {
@@ -509,6 +538,14 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   const categoryFacts = summarizeCategoryDetails(service.categoryName, service.categoryDetails)
   const isVenue = service.categoryId === 'venues'
   const isFlorist = service.categoryId === 'florists'
+  const isPhotoVideo = service.categoryId === 'photography' && Boolean(service.photoVideoConfiguration)
+  const photoVideoConfiguration = service.photoVideoConfiguration
+  const photoVideoSelectionIssue = photoVideoConfiguration
+    ? validatePhotoVideoSelection(photoVideoConfiguration, photoVideoSelection)
+    : ''
+  const photoVideoCalculation = photoVideoConfiguration
+    ? calculatePhotoVideoSelectionPrice(photoVideoConfiguration, photoVideoSelection, service.commissionRate)
+    : undefined
   const floristConfiguration = service.floristConfiguration
   const floristSelectionIssue = isFlorist && (!floristConfiguration
     || (!floristSelection.packageId && floristSelection.selectedArrangements.length === 0))
@@ -691,7 +728,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   const selectedProviderPrice = selectedPackage?.providerPrice ?? service.providerMinPrice
   const hasOptionLevelVenuePricing = selectedVenueOptions.length > 0
     && selectedVenueOptions.every((option) => Boolean(option.pricingUnit && option.baseRate && option.baseRate > 0))
-  const requiresQuote = !usesSelectedProviderPackage
+  const requiresQuote = !isPhotoVideo && !usesSelectedProviderPackage
     && (service.pricingModel === 'customQuote' || selectedPrice <= 0)
     && !(isVenue && hasOptionLevelVenuePricing)
   const locallyEstimatedVenueProviderTotal = selectedVenueOptions.reduce((total, option) => {
@@ -707,7 +744,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
         + (venueRules.setupAllowanceBillable ? selectedProviderPrice * venueRules.setupAllowanceHours : 0)
       : selectedProviderPrice)
   }, 0)
-  const locallyEstimatedProviderTotal = usesSelectedProviderPackage
+  const locallyEstimatedProviderTotal = photoVideoCalculation?.providerTotal ?? (usesSelectedProviderPackage
     ? selectedProviderPrice * (selectedUnit === 'person' ? Math.max(attendeeCount, 1) : 1)
     : isCatering
     ? cateringCalculation?.providerSubtotal ?? 0
@@ -715,7 +752,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
       ? locallyEstimatedVenueProviderTotal
     : selectedUnit === 'person' && attendeeCount > 0
       ? selectedProviderPrice * attendeeCount
-      : selectedProviderPrice
+      : selectedProviderPrice)
   const providerEstimatedTotal = authoritativeQuote?.providerAmount
     ?? locallyEstimatedProviderTotal
   const estimatedTotal =
@@ -727,6 +764,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     onCalculateQuote
     && !isExploreMode
     && !(service.isMock && !service.bookingServiceId)
+    && !isPhotoVideo
   )
   const authoritativeQuoteUnavailable = requiresAuthoritativeQuote
     && (quoteLoading || Boolean(quoteError) || !authoritativeQuote)
@@ -751,6 +789,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     || venueSelectionUnavailable
     || Boolean(cateringGuestCountIssue)
     || Boolean(floristSelectionIssue)
+    || Boolean(photoVideoSelectionIssue)
     || foodTastingPreferenceRequired
     || foodTastingMenuSelectionPending
     || authoritativeQuoteUnavailable
@@ -838,6 +877,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
       || venueSelectionUnavailable
       || Boolean(cateringGuestCountIssue)
       || Boolean(floristSelectionIssue)
+      || Boolean(photoVideoSelectionIssue)
       || foodTastingPreferenceRequired
       || foodTastingMenuSelectionPending
       || authoritativeQuoteUnavailable
@@ -859,6 +899,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
         estimatedTotal,
         foodTastingPreference: isCatering ? foodTastingPreference : undefined,
         floristSelection: isFlorist ? floristSelection : undefined,
+        photoVideoSelection: isPhotoVideo ? photoVideoSelection : undefined,
         // Catering formats are provider capabilities, not client booking choices.
         mealType: undefined,
         // Client dietary and special requests belong in the dedicated
@@ -1776,6 +1817,29 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
               </View>
             ) : null}
 
+            {isPhotoVideo ? (
+              <View style={styles.floristConfigurationSection}>
+                {photoVideoConfiguration ? (
+                  <PhotoVideoBookingConfigurator
+                    commissionRate={service.commissionRate}
+                    configuration={photoVideoConfiguration}
+                    onChange={(next) => {
+                      const normalized = normalizePhotoVideoSelection(next)
+                      setPhotoVideoSelection(normalized)
+                      onPhotoVideoSelectionChange?.(normalized)
+                    }}
+                    value={photoVideoSelection}
+                  />
+                ) : (
+                  <View style={styles.unavailableNotice}>
+                    <MaterialCommunityIcons color={palette.secondary} name="alert-circle-outline" size={20} />
+                    <Text style={styles.unavailableNoticeText}>This Photo/Video provider has no active client-bookable configuration yet.</Text>
+                  </View>
+                )}
+                {photoVideoSelectionIssue ? <Text style={styles.cateringMismatch}>{photoVideoSelectionIssue}</Text> : null}
+              </View>
+            ) : null}
+
             </View>
           ) : null}
 
@@ -2005,6 +2069,8 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
               accessibilityLabel={
                 isFoodTastingFlow
                   ? 'Submit food tasting request'
+                  : isPhotoVideo
+                  ? 'Photo and video coverage draft saved'
                   : requiresQuote
                   ? 'Add custom quote service to selection'
                   : `Add to selection for ${formatPeso(estimatedTotal)} Philippine pesos`
@@ -2029,6 +2095,10 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                       : 'Submit Food Tasting Request'
                   : isAddingSelection
                   ? 'Adding...'
+                  : isPhotoVideo
+                    ? photoVideoSelectionIssue
+                      ? 'Complete Photo / Video Selection'
+                      : `Add to Selection for ${formatPeso(estimatedTotal)}`
                   : cateringSelectionUnavailable
                     ? 'Catering Options Unavailable'
                     : venueSelectionUnavailable

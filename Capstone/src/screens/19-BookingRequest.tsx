@@ -12,6 +12,9 @@ import { MerchantBottomNavigation } from '../components/MerchantBottomNavigation
 import { MerchantWorkspaceHeader } from '../components/MerchantWorkspaceHeader'
 import type { CateringFoodTasting, CateringFoodTastingWorkflow } from '../lib/merchant'
 import type { VenueBookingConfiguration } from '../lib/venue-booking'
+import type { PhotoVideoPreEventPlan } from '../lib/photo-video-pre-event'
+import type { PhotoVideoEventDayLog } from '../lib/photo-video-event-day'
+import type { PhotoVideoDeliverableTracking } from '../lib/photo-video-deliverables'
 import type { MerchantHomeTab } from './16-MerchantHome'
 
 export type BookingRequestStatus = 'new' | 'confirmed' | 'completed' | 'cancelled'
@@ -38,6 +41,10 @@ export interface MerchantBookedService {
   foodTastingEnabled?: boolean
   foodTastingWorkflow?: CateringFoodTastingWorkflow
   floristSelectionSummary?: string[]
+  photoVideoSelectionSummary?: string[]
+  photoVideoPreEventPlan?: PhotoVideoPreEventPlan
+  photoVideoEventDayLog?: PhotoVideoEventDayLog
+  photoVideoDeliverableTracking?: PhotoVideoDeliverableTracking
   dietaryNotes?: string
   downpaymentAmount?: number
   id: string
@@ -77,6 +84,10 @@ export interface MerchantBookingRequest {
   foodTastingEnabled?: boolean
   foodTastingWorkflow?: CateringFoodTastingWorkflow
   floristSelectionSummary?: string[]
+  photoVideoSelectionSummary?: string[]
+  photoVideoPreEventPlan?: PhotoVideoPreEventPlan
+  photoVideoEventDayLog?: PhotoVideoEventDayLog
+  photoVideoDeliverableTracking?: PhotoVideoDeliverableTracking
   dietaryNotes?: string
   downpaymentAmount?: number
   clientName: string

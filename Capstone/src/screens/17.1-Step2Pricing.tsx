@@ -17,6 +17,7 @@ import {
   cateringCustomMenuStartingPrice,
   getCateringCustomMenu,
   getCateringPricingOptions,
+  getPhotoVideoCoverageConfigurations,
   type ServiceCategoryDetails,
 } from '../lib/service-category-details'
 
@@ -113,15 +114,22 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
   const cateringStartingPrice = cateringCustomMenuStartingPrice(getCateringCustomMenu(categoryDetails)) ?? (cateringOptions.length
     ? Math.min(...cateringOptions.map((option) => option.pricePerHead))
     : undefined)
+  const photoVideoCoverageConfigurations = getPhotoVideoCoverageConfigurations(categoryDetails)
+  const photoVideoStartingPrice = photoVideoCoverageConfigurations.length
+    ? Math.min(...photoVideoCoverageConfigurations.map((configuration) => configuration.price))
+    : undefined
+  const configuredStartingPrice = cateringStartingPrice ?? photoVideoStartingPrice
+  const isConfiguredPhotoVideo = categoryDetails?.kind === 'photography'
+    && photoVideoCoverageConfigurations.length > 0
   const categoryPricingUnit = categoryDetails?.kind === 'catering'
     ? 'person' as const
-    : undefined
+    : isConfiguredPhotoVideo ? 'event' as const : undefined
   const [model, setModel] = React.useState<ServicePricingModel>(
     initialValue?.model ?? 'fixed'
   )
   const [amountInput, setAmountInput] = React.useState(
-    cateringStartingPrice
-      ? String(cateringStartingPrice)
+    configuredStartingPrice
+      ? String(configuredStartingPrice)
       : initialValue?.amount && initialValue.amount > 0 ? String(initialValue.amount) : ''
   )
   const [unit, setUnit] = React.useState<ServicePricingUnit>(
@@ -144,20 +152,27 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
   const [submitted, setSubmitted] = React.useState(false)
 
   React.useEffect(() => {
-    if (!isCatering || !cateringStartingPrice) return
-    setModel('fixed')
-    setUnit('person')
-    setAmountInput(String(cateringStartingPrice))
-  }, [cateringStartingPrice, isCatering])
+    if (isCatering && cateringStartingPrice) {
+      setModel('fixed')
+      setUnit('person')
+      setAmountInput(String(cateringStartingPrice))
+      return
+    }
+    if (isConfiguredPhotoVideo && photoVideoStartingPrice) {
+      setModel('startingAt')
+      setUnit('event')
+      setAmountInput(String(photoVideoStartingPrice))
+    }
+  }, [cateringStartingPrice, isCatering, isConfiguredPhotoVideo, photoVideoStartingPrice])
 
-  const effectiveModel = isCatering ? 'fixed' : model
+  const effectiveModel = isCatering ? 'fixed' : isConfiguredPhotoVideo ? 'startingAt' : model
   const requiresAmount = effectiveModel !== 'customQuote'
-  const amount = cateringStartingPrice ?? parseAmount(amountInput)
+  const amount = cateringStartingPrice ?? photoVideoStartingPrice ?? parseAmount(amountInput)
   const amountMissing = submitted && requiresAmount && !amount
   const cateringTypesMissing = submitted && isCatering && selectedCateringTypes.length === 0
 
   const handleModelChange = (nextModel: ServicePricingModel) => {
-    if (isCatering) return
+    if (isCatering || isConfiguredPhotoVideo) return
     setModel(nextModel)
     setSubmitted(false)
   }
@@ -254,7 +269,7 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
             <Text style={styles.label}>Pricing Type</Text>
             <View style={styles.pricingModelList}>
               {pricingModels.map((option) => {
-                const selected = model === option.id
+                const selected = effectiveModel === option.id
 
                 return (
                   <Pressable
@@ -293,7 +308,7 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
             <>
               <View style={styles.fieldGroup}>
                 <Text style={styles.label}>
-                  {model === 'startingAt' ? 'Starting Price' : 'Price'}
+                  {effectiveModel === 'startingAt' ? 'Starting Price' : 'Price'}
                 </Text>
                 <View style={[styles.amountField, amountMissing && styles.inputError]}>
                   <View style={styles.currencyPrefix}>
@@ -301,10 +316,10 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
                   </View>
                   <TextInput
                     accessibilityLabel={
-                      model === 'startingAt' ? 'Starting price in Philippine pesos' : 'Price in Philippine pesos'
+                      effectiveModel === 'startingAt' ? 'Starting price in Philippine pesos' : 'Price in Philippine pesos'
                     }
                     inputMode="decimal"
-                    editable={!isCatering}
+                    editable={!isCatering && !isConfiguredPhotoVideo}
                     keyboardType="decimal-pad"
                     onChangeText={(value) => setAmountInput(sanitizeAmount(value))}
                     placeholder="0.00"
@@ -322,6 +337,8 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
                 ) : (
                   <Text style={styles.helperText}>{isCatering
                     ? 'This is the lowest configured menu price. Clients choose an option and the event guest count determines the subtotal.'
+                    : isConfiguredPhotoVideo
+                      ? 'This is the lowest provider price from your configured coverage options. Clients will see the actual available options in the booking flow.'
                     : 'This is the amount you receive. MULTIVENT adds its service fee on top for the client-facing price.'}</Text>
                 )}
               </View>
@@ -332,9 +349,9 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
                     <Text style={styles.quoteNoticeIconText}>i</Text>
                   </View>
                   <Text style={styles.quoteNoticeText}>
-                    This catering price is charged {categoryPricingUnit === 'person'
-                      ? 'per person'
-                      : 'per package/event'}, based on Service Information.
+                    {isCatering
+                      ? 'This catering price is charged per person, based on Service Information.'
+                      : 'This starting price is the lowest configured coverage option, charged per event.'}
                   </Text>
                 </View>
               ) : <View style={styles.fieldGroup}>

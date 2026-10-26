@@ -1,6 +1,9 @@
 import { Text } from '../components/AppText'
 import { ChurchLocationMap, formatChurchDate, formatChurchTime } from '../components/ChurchArrangementControls'
 import { VenueBookingSummary } from '../components/VenueBookingSummary'
+import { PhotoVideoPreEventPlanCard } from '../components/PhotoVideoPreEventPlanCard'
+import { PhotoVideoEventDayCard } from '../components/PhotoVideoEventDayCard'
+import { PhotoVideoDeliverablesCard } from '../components/PhotoVideoDeliverablesCard'
 import { MaterialIcons } from '@expo/vector-icons'
 import React from 'react'
 import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native'
@@ -66,6 +69,10 @@ interface BookingDetailsScreenProps {
     acceptProposal: boolean
   ) => Promise<BookingChangeActionResult>
   onSubmitReview?: () => void
+  onSavePhotoVideoShotList?: (bookingId: string, shotList: string) => Promise<BookingChangeActionResult>
+  onConfirmPhotoVideoPreEventPlan?: (bookingId: string) => Promise<BookingChangeActionResult>
+  onRespondToPhotoVideoEventDayRequest?: (bookingId: string, entryId: string, approve: boolean) => Promise<BookingChangeActionResult>
+  onRespondToPhotoVideoDeliverable?: (bookingId: string, deliverableId: string, action: 'confirm_receipt' | 'request_revision' | 'approve_output' | 'report_issue', note?: string) => Promise<BookingChangeActionResult>
   paymentQuote?: EventPaymentQuote
   isLoadingPaymentQuote?: boolean
   isStartingPayment?: boolean
@@ -267,6 +274,10 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
   onRescheduleFoodTasting,
   onRespondToFoodTastingProposal,
   onSubmitReview,
+  onSavePhotoVideoShotList,
+  onConfirmPhotoVideoPreEventPlan,
+  onRespondToPhotoVideoEventDayRequest,
+  onRespondToPhotoVideoDeliverable,
   paymentQuote,
   isLoadingPaymentQuote = false,
   isStartingPayment = false,
@@ -846,6 +857,23 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
             ) : null}
           </View>
         ) : null}
+
+        {booking?.services?.filter((service) => service.photoVideoPreEventPlan !== undefined).map((service) => (
+          <PhotoVideoPreEventPlanCard
+            bookingId={service.bookingId}
+            key={`photo-video-plan-${service.bookingId}`}
+            mode="client"
+            onConfirm={onConfirmPhotoVideoPreEventPlan}
+            onSaveShotList={onSavePhotoVideoShotList}
+            plan={service.photoVideoPreEventPlan}
+          />
+        ))}
+        {booking?.services?.filter((service) => service.photoVideoEventDayLog !== undefined).map((service) => (
+          <PhotoVideoEventDayCard bookingId={service.bookingId} key={`photo-video-day-${service.bookingId}`} log={service.photoVideoEventDayLog} mode="client" onRespond={onRespondToPhotoVideoEventDayRequest} />
+        ))}
+        {booking?.services?.filter((service) => service.photoVideoDeliverableTracking !== undefined).map((service) => (
+          <PhotoVideoDeliverablesCard bookingId={service.bookingId} key={`photo-video-deliverables-${service.bookingId}`} mode="client" onRespond={onRespondToPhotoVideoDeliverable} tracking={service.photoVideoDeliverableTracking} />
+        ))}
 
         {eventPaymentSummary ? (
           <View style={styles.eventPaymentCard}>
