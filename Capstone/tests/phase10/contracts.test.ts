@@ -3313,3 +3313,20 @@ test('V15 menu-driven catering keeps legacy style validation without blocking a 
     'Choose one provider menu and pricing option.',
   ], 'V15 client menu selection')
 })
+
+test('food tasting schedules only for catering after the V15 provider-acceptance gate', () => {
+  const bookingProjection = read('src/lib/merchant.ts')
+  const bookingDetails = read('src/screens/11.1-BookingDetails.tsx')
+
+  mustContain(bookingProjection, [
+    'const isCateringService = /cater/i.test(categoryName)',
+    'const hasCateringComponent = isCateringService || isVenueCateringPackage',
+    'foodTastingEnabled: isCateringService',
+    'foodTastingWorkflow: hasCateringComponent',
+  ], 'food tasting booking projection')
+  mustContain(bookingDetails, [
+    "service.foodTastingWorkflow?.status !== 'scheduling_required'",
+    'isLegacyCateringTasting(service)',
+    'isFoodTastingRelevant(service)',
+  ], 'food tasting client schedule gate')
+})

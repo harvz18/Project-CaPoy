@@ -1701,7 +1701,7 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
   const { data, error } = await client
     .from('bookings')
     .select(
-      'id, event_id, provider_id, service_id, amount, provider_amount, status, requested_date, requested_time, client_notes, catering_option_snapshot, final_menu_snapshot, venue_option_snapshot, venue_options_snapshot, venue_booking_snapshot, created_at, updated_at, events(id, coordinator_id, pending_coordinator_id, coordinator_assignment_status, coordinator_fee_amount, wants_coordinator, name, event_type, is_church_wedding, event_date, event_time, guest_count, venue, location, status), services(name, cover_image_url, category_details, service_categories(name)), provider_profiles(business_name), payments(status, amount, service_subtotal, provider_initial_allocation, paid_at, created_at, metadata)'
+      'id, event_id, provider_id, service_id, amount, provider_amount, status, requested_date, requested_time, client_notes, food_tasting_preference, catering_option_snapshot, final_menu_snapshot, venue_option_snapshot, venue_options_snapshot, venue_booking_snapshot, created_at, updated_at, events(id, coordinator_id, pending_coordinator_id, coordinator_assignment_status, coordinator_fee_amount, wants_coordinator, name, event_type, is_church_wedding, event_date, event_time, guest_count, venue, location, status), services(name, cover_image_url, category_details, service_categories(name)), provider_profiles(business_name), payments(status, amount, service_subtotal, provider_initial_allocation, paid_at, created_at, metadata)'
     )
     .eq('client_id', userId)
     .neq('status', 'payment_required')
@@ -1874,19 +1874,29 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
     const cateringSnapshot = nested(record.catering_option_snapshot)
     const isVenueCateringPackage = finalCateringMenu?.source === 'venue_catering_package'
       || Boolean(textFrom(cateringSnapshot?.combinedPackageId))
+    const categoryName = textFrom(category?.name, 'Service')
+    const isCateringService = /cater/i.test(categoryName)
+    const hasCateringComponent = isCateringService || isVenueCateringPackage
+    const foodTastingPreference = record.food_tasting_preference === true
+      ? true
+      : record.food_tasting_preference === false
+        ? false
+        : undefined
     const serviceItem: BookingServiceItem = {
       amount: numberFrom(record.amount),
       bookingId,
-      category: textFrom(category?.name, 'Service'),
+      category: categoryName,
       clientNotes: textFrom(record.client_notes) || undefined,
       completionPaymentStatus,
       confirmedExternalPaymentAmount,
       finalCateringMenu,
-      foodTasting: foodTastingsByBooking.get(bookingId),
-      foodTastingEnabled: Boolean(getCateringTastingSettings(service?.category_details)),
-      foodTastingWorkflow: foodTastingWorkflowsByBooking.get(bookingId),
+      foodTasting: hasCateringComponent ? foodTastingsByBooking.get(bookingId) : undefined,
+      foodTastingEnabled: isCateringService && Boolean(getCateringTastingSettings(service?.category_details)),
+      foodTastingPreference,
+      foodTastingWorkflow: hasCateringComponent ? foodTastingWorkflowsByBooking.get(bookingId) : undefined,
       image: textFrom(service?.cover_image_url),
       initialProviderShare,
+      isCateringService,
       isVenueCateringPackage,
       initialPaymentRecordedAt: hasRecordedPayment
         ? textFrom(latestPayment?.paid_at) || undefined

@@ -379,6 +379,15 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
     && !isSavingTasting
     && (tastingScheduleMode === 'reschedule' ? onRescheduleFoodTasting : onRequestFoodTasting)
   )
+  const isLegacyCateringTasting = (service: NonNullable<BookingItem['services']>[number]) => (
+    service.isCateringService
+    && service.foodTastingEnabled
+    && service.foodTastingPreference === undefined
+    && service.status === 'confirmed'
+  )
+  const isFoodTastingRelevant = (service: NonNullable<BookingItem['services']>[number]) => (
+    service.isCateringService || service.isVenueCateringPackage === true
+  )
 
   React.useEffect(() => {
     setChangeMode(undefined)
@@ -515,6 +524,14 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
     service: NonNullable<BookingItem['services']>[number],
     mode: 'initial' | 'reschedule' = 'initial'
   ) => {
+    // A V15 tasting can only be scheduled after provider acceptance moves its
+    // workflow into the server-owned scheduling window. Legacy catering
+    // bookings preserve their existing optional tasting flow below.
+    if (
+      mode === 'initial'
+      && service.foodTastingPreference !== undefined
+      && service.foodTastingWorkflow?.status !== 'scheduling_required'
+    ) return
     const loadSlots = mode === 'reschedule'
       ? onLoadFoodTastingRescheduleSlots
       : onLoadFoodTastingSlots
@@ -1027,9 +1044,8 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                       </View>
                     </View>
                   ) : null}
-                  {(service.finalCateringMenu || service.foodTasting || service.foodTastingWorkflow || (
-                    service.foodTastingEnabled
-                    && service.status === 'confirmed'
+                  {isFoodTastingRelevant(service) && (service.finalCateringMenu || service.foodTasting || service.foodTastingWorkflow || (
+                    isLegacyCateringTasting(service)
                     && !dismissedTastingPrompts.has(service.bookingId)
                   )) ? (
                     <View style={styles.tastingCard}>
@@ -1237,7 +1253,7 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                               </Pressable>
                             </View>
                         ) : null
-                      ) : (
+                      ) : isLegacyCateringTasting(service) ? (
                         <View style={styles.tastingActions}>
                           <Pressable
                             accessibilityLabel={`Schedule food tasting with ${service.providerName}`}
@@ -1257,7 +1273,7 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                             <Text style={styles.tastingSecondaryText}>Not now</Text>
                           </Pressable>
                         </View>
-                      )}
+                      ) : null}
                     </View>
                   ) : null}
                 </View>

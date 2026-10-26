@@ -25,6 +25,7 @@ export interface BookingServiceItem {
   confirmedExternalPaymentAmount?: number
   foodTasting?: CateringFoodTasting
   foodTastingEnabled?: boolean
+  foodTastingPreference?: boolean
   foodTastingWorkflow?: CateringFoodTastingWorkflow
   finalCateringMenu?: {
     courses: Array<{ name: string; selectedItemNames: string[] }>
@@ -32,6 +33,7 @@ export interface BookingServiceItem {
   }
   image: string
   initialProviderShare?: number
+  isCateringService?: boolean
   isVenueCateringPackage?: boolean
   initialPaymentRecordedAt?: string
   paymentStatus: string
