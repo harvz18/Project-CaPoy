@@ -712,6 +712,7 @@ export const App: React.FC = () => {
   const [paymentSettlementContext, setPaymentSettlementContext] =
     React.useState<V14PaymentSettlementContext>()
   const [isLoadingBookingPaymentQuote, setIsLoadingBookingPaymentQuote] = React.useState(false)
+  const [isPreparingBookingPayment, setIsPreparingBookingPayment] = React.useState(false)
   const [isInitiatingBookingPayment, setIsInitiatingBookingPayment] = React.useState(false)
   const [selectedConversation, setSelectedConversation] =
     React.useState<ClientConversation>()
@@ -3975,34 +3976,44 @@ export const App: React.FC = () => {
     const eventId = selectedBooking?.eventId
     if (!eventId || isLoadingBookingPaymentQuote || isInitiatingBookingPayment) return
 
+    setIsBookingPaymentSheetVisible(true)
+    setIsPreparingBookingPayment(true)
     // Re-read the secured quote at the point of payment. This keeps the UI
     // responsive after provider acceptance while the server remains the final
     // authority for acceptance and immutable booking-price snapshots.
-    const [paymentQuote, settlementResult] = await Promise.all([
-      loadBookingPaymentQuote(eventId),
-      fetchPaymentSettlementContextV14(),
-    ])
-    if (!paymentQuote) return
-    if (settlementResult.ok && settlementResult.context) {
-      setPaymentSettlementContext(settlementResult.context)
-    } else {
-      setPaymentSettlementContext(undefined)
-      setToastMessage(settlementResult.message ?? 'Unable to load the current payment settlement instructions.')
-      return
+    try {
+      const [paymentQuote, settlementResult] = await Promise.all([
+        loadBookingPaymentQuote(eventId),
+        fetchPaymentSettlementContextV14(),
+      ])
+      if (!paymentQuote) {
+        setIsBookingPaymentSheetVisible(false)
+        return
+      }
+      if (settlementResult.ok && settlementResult.context) {
+        setPaymentSettlementContext(settlementResult.context)
+      } else {
+        setPaymentSettlementContext(undefined)
+        setToastMessage(settlementResult.message ?? 'Unable to load the current payment settlement instructions.')
+        setIsBookingPaymentSheetVisible(false)
+        return
+      }
+      if (!paymentQuote.paymentEligible) {
+        setToastMessage(paymentQuote.reason ?? 'Payment is not available until all required confirmations are complete.')
+        setIsBookingPaymentSheetVisible(false)
+        return
+      }
+      if (!['not_initiated', 'payment_failed_or_cancelled'].includes(paymentQuote.paymentState)) {
+        setToastMessage(
+          paymentQuote.paymentState === 'payment_initiated'
+            ? 'A payment attempt is already awaiting completion or verification.'
+            : 'Payment is already recorded for this event.'
+        )
+        setIsBookingPaymentSheetVisible(false)
+      }
+    } finally {
+      setIsPreparingBookingPayment(false)
     }
-    if (!paymentQuote.paymentEligible) {
-      setToastMessage(paymentQuote.reason ?? 'Payment is not available until all required confirmations are complete.')
-      return
-    }
-    if (!['not_initiated', 'payment_failed_or_cancelled'].includes(paymentQuote.paymentState)) {
-      setToastMessage(
-        paymentQuote.paymentState === 'payment_initiated'
-          ? 'A payment attempt is already awaiting completion or verification.'
-          : 'Payment is already recorded for this event.'
-      )
-      return
-    }
-    setIsBookingPaymentSheetVisible(true)
   }
 
   const initiateBookingPayment = async (value: PaymentValue) => {
@@ -5690,6 +5701,7 @@ export const App: React.FC = () => {
             isStartingPayment={isInitiatingBookingPayment}
             />
             <BookingPaymentSheet
+              isLoading={isPreparingBookingPayment}
               isProcessing={isInitiatingBookingPayment}
               onClose={() => setIsBookingPaymentSheetVisible(false)}
               onPay={(value) => void initiateBookingPayment(value)}

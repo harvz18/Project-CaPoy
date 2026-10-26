@@ -2791,6 +2791,10 @@ test('V14 Phase 4 starts payment only from Booking Details after the secured acc
     'Pay in Full',
     'Full Payment Due Now',
     'server-authoritative snapshot',
+    'BookingPaymentSheet',
+    'animationType="fade"',
+    'summaryExpanded',
+    'bookingSheetHandle',
   ], 'V14 payment option UI')
   mustContain(merchant, [
     'const hasRecordedPayment',
