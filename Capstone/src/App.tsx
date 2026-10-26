@@ -4038,7 +4038,7 @@ export const App: React.FC = () => {
 
   const openBookingPayment = async () => {
     const eventId = selectedBooking?.eventId
-    if (!eventId || isLoadingBookingPaymentQuote || isInitiatingBookingPayment) return
+    if (!eventId || isInitiatingBookingPayment) return
 
     setIsBookingPaymentSheetVisible(true)
     setIsPreparingBookingPayment(true)

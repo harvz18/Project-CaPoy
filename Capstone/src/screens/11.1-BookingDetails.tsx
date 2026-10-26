@@ -306,6 +306,10 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
   )
   const paymentInitiated = paymentQuote?.paymentState === 'payment_initiated'
   const paymentRecorded = paymentQuote?.paymentState === 'paid_or_verified'
+  // The payment sheet re-reads the server-authoritative quote before it
+  // displays any payment controls. Keep that path available when the local
+  // acceptance snapshot is stale after a provider accepts a booking.
+  const canOpenPayment = Boolean(onStartPayment) && !isStartingPayment && !paymentInitiated && !paymentRecorded
   const paymentFailed = paymentQuote?.paymentState === 'payment_failed_or_cancelled'
   const paymentBlockedMessage = paymentQuote?.reason
     ?? (providerCount > acceptedProviderCount
@@ -1440,12 +1444,12 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
           <Pressable
             accessibilityLabel="Confirm payment"
             accessibilityRole="button"
-            disabled={!paymentReady || isStartingPayment}
+            disabled={!canOpenPayment}
             onPress={onStartPayment}
             style={({ pressed }) => [
               styles.paymentActionButton,
-              (!paymentReady || isStartingPayment) && styles.paymentActionButtonDisabled,
-              pressed && paymentReady && !isStartingPayment && styles.paymentActionButtonPressed,
+              !canOpenPayment && styles.paymentActionButtonDisabled,
+              pressed && canOpenPayment && styles.paymentActionButtonPressed,
             ]}
           >
             <Text style={styles.paymentActionButtonText}>Confirm Payment</Text>

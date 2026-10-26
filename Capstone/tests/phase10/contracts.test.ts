@@ -2816,6 +2816,8 @@ test('V14 Phase 4 starts payment only from Booking Details after the secured acc
     'borderTopLeftRadius: 18',
     'borderTopRightRadius: 18',
     'accessibilityLabel="Confirm payment"',
+    'const canOpenPayment = Boolean(onStartPayment) && !isStartingPayment && !paymentInitiated && !paymentRecorded',
+    'disabled={!canOpenPayment}',
   ], 'Booking Details header, service count, and payment actions')
   mustContain(payment, [
     "const [paymentType, setPaymentType] = React.useState<PaymentType>('deposit')",
