@@ -64,6 +64,7 @@ import {
   type ClientPlanningState,
   type SavedPlanReview,
 } from './lib/planning'
+import type { VenueOptionSelection } from './lib/service-category-details'
 import {
   getActivePlanningCategories,
   getFirstPlanningCategory,
@@ -714,6 +715,23 @@ export const App: React.FC = () => {
   const [isLoadingBookingPaymentQuote, setIsLoadingBookingPaymentQuote] = React.useState(false)
   const [isPreparingBookingPayment, setIsPreparingBookingPayment] = React.useState(false)
   const [isInitiatingBookingPayment, setIsInitiatingBookingPayment] = React.useState(false)
+  const calculateServiceDetailsQuote = React.useCallback((value: {
+    attendeeCount?: number
+    menuItemIds?: string[]
+    optionId?: string
+    packageId?: string
+    quantity?: number
+    service: CatalogService
+    venueSelections?: VenueOptionSelection[]
+  }) => calculateServiceQuote({
+    attendeeCount: value.attendeeCount,
+    menuItemIds: value.menuItemIds,
+    optionId: value.optionId,
+    packageId: value.packageId,
+    quantity: value.quantity,
+    serviceId: value.service.bookingServiceId ?? value.service.id,
+    venueSelections: value.venueSelections,
+  }), [])
   const [selectedConversation, setSelectedConversation] =
     React.useState<ClientConversation>()
   const [chatReturnScreen, setChatReturnScreen] = React.useState<AppScreen>('messages')
@@ -5435,15 +5453,7 @@ export const App: React.FC = () => {
             onAddSelection={handleAddSelection}
             onLoadFoodTastingDraft={handleLoadCateringTastingDraft}
             onSaveFoodTastingDraft={handleSaveCateringTastingDraft}
-            onCalculateQuote={(value) => calculateServiceQuote({
-              attendeeCount: value.attendeeCount,
-              menuItemIds: value.menuItemIds,
-              optionId: value.optionId,
-              packageId: value.packageId,
-              quantity: value.quantity,
-              serviceId: value.service.bookingServiceId ?? value.service.id,
-              venueSelections: value.venueSelections,
-            })}
+            onCalculateQuote={calculateServiceDetailsQuote}
             onBack={() => setScreen('categoryBrowse')}
             onReadAllReviews={() => setScreen('serviceDetails')}
             reviewInsights={serviceReviewInsights}

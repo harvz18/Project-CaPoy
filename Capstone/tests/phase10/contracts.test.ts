@@ -798,6 +798,20 @@ test('V10 Phase 4 guest-count rules remain intact through the V15 catering selec
   ], 'client quote and V15-compatible selection calls')
 })
 
+test('service-detail price quotes keep a stable callback after an option is selected', () => {
+  const app = read('src/App.tsx')
+  const details = read('src/screens/08-ServiceDetails.tsx')
+
+  mustContain(app, [
+    'const calculateServiceDetailsQuote = React.useCallback',
+    'onCalculateQuote={calculateServiceDetailsQuote}',
+  ], 'stable Service Details quote callback')
+  mustContain(details, [
+    'setQuoteLoading(true)',
+    'clearTimeout(timer)',
+  ], 'debounced Service Details quote lifecycle')
+})
+
 test('client home uses live eligible services, resumable drafts, and booking progress', () => {
   const app = read('src/App.tsx')
   const planning = read('src/lib/planning.ts')
