@@ -3298,3 +3298,18 @@ test('V15 Phase 8 makes inclusive catering visible without creating a standalone
     'Venue + Catering package menu',
   ], 'V15 Phase 8 combined booking progress')
 })
+
+test('V15 menu-driven catering keeps legacy style validation without blocking a selected menu', () => {
+  const migration = read('supabase/migrations/20261026000500_v15_catering_style_compatibility.sql')
+  const details = read('src/screens/08-ServiceDetails.tsx')
+
+  mustContain(migration, [
+    'nullif(trim(new.meal_type), \'\') is not null',
+    "new.meal_type = any(coalesce(available_types, '{}'::text[]))",
+    'V15 menu-driven flow',
+  ], 'V15 catering style compatibility')
+  mustContain(details, [
+    "mealType: undefined",
+    'Choose one provider menu and pricing option.',
+  ], 'V15 client menu selection')
+})
