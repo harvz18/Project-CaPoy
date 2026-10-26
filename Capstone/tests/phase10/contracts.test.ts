@@ -3579,12 +3579,15 @@ test('V17 Phase 6 keeps florist fulfillment provider-configured and availability
 test('V17 Phases 7-8 price and persist only provider-configured florist selections', () => {
   const sourceMigration = read('database/103_v17_florist_selection_pricing.sql')
   const deployMigration = read('supabase/migrations/20261026001000_v17_florist_selection_pricing.sql')
+  const validationMigration = read('database/104_v17_florist_selection_validation.sql')
+  const deployValidationMigration = read('supabase/migrations/20261026001100_v17_florist_selection_validation.sql')
   const catalog = read('src/lib/catalog.ts')
   const details = read('src/screens/08-ServiceDetails.tsx')
   const configurator = read('src/components/FloristBookingConfigurator.tsx')
   const planning = read('src/lib/planning.ts')
 
   assert.equal(deployMigration, sourceMigration, 'the deployed V17 florist selection migration must match its reviewed source')
+  assert.equal(deployValidationMigration, validationMigration, 'the deployed V17 florist validation migration must match its reviewed source')
   mustContain(sourceMigration, [
     'calculate_my_florist_service_quote_v17',
     'save_my_florist_service_selection_v17',
@@ -3593,6 +3596,10 @@ test('V17 Phases 7-8 price and persist only provider-configured florist selectio
     'florist_selection_snapshot',
     'Florist package add-ons require a selected package.',
   ], 'V17 server-owned florist pricing and immutable selection persistence')
+  mustContain(validationMigration, [
+    'option_quantity < greatest(group_row.minimum_selections',
+    'exceeds the provider selection limit',
+  ], 'V17 server-side florist customization selection limits')
   mustContain(catalog, [
     'florist_arrangements(',
     'florist_service_fulfillment_options(',
