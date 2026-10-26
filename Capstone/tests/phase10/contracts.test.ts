@@ -3370,3 +3370,21 @@ test('food tasting schedules only for catering after the V15 provider-acceptance
     'isFoodTastingRelevant(service)',
   ], 'food tasting client schedule gate')
 })
+
+test('live data refreshes are coalesced and booking polling stays targeted', () => {
+  const app = read('src/App.tsx')
+
+  mustContain(app, [
+    'const refreshLiveDataInFlightRef',
+    'const inFlightRefresh = refreshLiveDataInFlightRef.current',
+    'if (inFlightRefresh) return inFlightRefresh',
+    'refreshLiveDataInFlightRef.current = refresh',
+    'let conversationRefreshTimer',
+    'const scheduleConversationRefresh',
+    'scheduleConversationRefresh()',
+    'void refreshClientBookings()',
+    '}, 30000)',
+  ], 'coalesced live-data and targeted booking refreshes')
+  assert.doesNotMatch(app, /void refreshLiveData\(\)\s*\r?\n\s*}, 12000\)/,
+    'booking polling must not reload the whole workspace every twelve seconds')
+})

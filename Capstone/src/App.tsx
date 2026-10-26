@@ -590,6 +590,7 @@ export const App: React.FC = () => {
   const budgetAutosaveChainRef = React.useRef(Promise.resolve())
   const budgetAutosaveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingBudgetAutosaveRef = React.useRef<BudgetAllocationValue | undefined>(undefined)
+  const refreshLiveDataInFlightRef = React.useRef<Promise<ClientPlanningState> | null>(null)
 
   const transitionToScreen = React.useCallback((nextScreen: AppScreen) => {
     const currentScreen = screenRef.current
@@ -1837,7 +1838,11 @@ export const App: React.FC = () => {
     )
   }, [])
 
-  const refreshLiveData = React.useCallback(async () => {
+  const refreshLiveData = React.useCallback((): Promise<ClientPlanningState> => {
+    const inFlightRefresh = refreshLiveDataInFlightRef.current
+    if (inFlightRefresh) return inFlightRefresh
+
+    const refresh = (async (): Promise<ClientPlanningState> => {
     const [
       services,
       bookings,
@@ -1894,6 +1899,18 @@ export const App: React.FC = () => {
     if (draft?.pricing) setMerchantServicePricing(draft.pricing)
     setMerchantPackages([])
     return planningState
+    })()
+
+    refreshLiveDataInFlightRef.current = refresh
+    void refresh.then(
+      () => {
+        if (refreshLiveDataInFlightRef.current === refresh) refreshLiveDataInFlightRef.current = null
+      },
+      () => {
+        if (refreshLiveDataInFlightRef.current === refresh) refreshLiveDataInFlightRef.current = null
+      }
+    )
+    return refresh
   }, [hydrateClientPlanningState])
 
   React.useEffect(() => {
@@ -2689,6 +2706,32 @@ export const App: React.FC = () => {
 
     const client = supabase
     const activeConversationId = selectedConversation?.id
+    let active = true
+    let conversationRefreshTimer: ReturnType<typeof setTimeout> | undefined
+    let isRefreshingConversations = false
+    let shouldRefreshConversationsAgain = false
+    const refreshConversationList = () => {
+      if (isRefreshingConversations) {
+        shouldRefreshConversationsAgain = true
+        return
+      }
+      isRefreshingConversations = true
+      void fetchConversations()
+        .then((rows) => {
+          if (active) setConversations(rows)
+        })
+        .finally(() => {
+          isRefreshingConversations = false
+          if (active && shouldRefreshConversationsAgain) {
+            shouldRefreshConversationsAgain = false
+            refreshConversationList()
+          }
+        })
+    }
+    const scheduleConversationRefresh = () => {
+      if (conversationRefreshTimer) clearTimeout(conversationRefreshTimer)
+      conversationRefreshTimer = setTimeout(refreshConversationList, 300)
+    }
     const messageChannel = client
       .channel(`booking-messages-${authenticatedUserId}`)
       .on(
@@ -2704,7 +2747,7 @@ export const App: React.FC = () => {
             ? record.conversation_id
             : ''
 
-          void fetchConversations().then((rows) => setConversations(rows))
+          scheduleConversationRefresh()
 
           if (conversationId && conversationId === activeConversationId) {
             void fetchConversationMessages(conversationId).then(setConversationMessages)
@@ -2714,6 +2757,8 @@ export const App: React.FC = () => {
       .subscribe()
 
     return () => {
+      active = false
+      if (conversationRefreshTimer) clearTimeout(conversationRefreshTimer)
       void client.removeChannel(messageChannel)
     }
   }, [authenticatedUserId, selectedConversation?.id])
@@ -2962,11 +3007,11 @@ export const App: React.FC = () => {
     if (screen !== 'bookings' && screen !== 'bookingDetails') return undefined
 
     const refreshTimer = setInterval(() => {
-      void refreshLiveData()
-    }, 12000)
+      void refreshClientBookings()
+    }, 30000)
 
     return () => clearInterval(refreshTimer)
-  }, [refreshLiveData, screen])
+  }, [refreshClientBookings, screen])
 
   React.useEffect(() => {
     setSelectedBooking((current) =>
