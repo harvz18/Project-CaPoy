@@ -7,6 +7,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  type ScrollViewInstance,
   StyleSheet,
   
   TextInput,
@@ -225,7 +226,7 @@ export const ChatThreadScreen: React.FC<ChatThreadScreenProps> = ({
 }) => {
   const { width } = useWindowDimensions()
   const isWide = width >= 760
-  const scrollViewRef = React.useRef<ScrollView>(null)
+  const scrollViewRef = React.useRef<ScrollViewInstance>(null)
   const [internalDraft, setInternalDraft] = React.useState('')
   const value = { ...defaultParticipant, ...participant }
   const draft = draftValue ?? internalDraft

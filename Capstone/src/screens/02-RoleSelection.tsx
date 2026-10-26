@@ -2,6 +2,7 @@ import { Text } from '../components/AppText'
 import React, { useEffect, useRef, useState } from 'react'
 import {
   Animated,
+  Easing,
   Image,
   Pressable,
   StyleSheet,
@@ -9,15 +10,25 @@ import {
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { BlurView } from 'expo-blur'
 import { colors, radius, spacing } from '../theme/tokens'
 import { typography } from '../theme/typography'
-import { BrandIdentity } from '../components/BrandIdentity'
+import { LoginScreen } from './01.1-Login'
+import { SignupScreen } from './02.1-ClientSignup'
+import { MerchantSignupScreen } from './02.2-MerchantSignup'
 
 export type UserRole = 'client' | 'provider'
 
 interface RoleSelectionScreenProps {
-  onSelectRole: (role: UserRole) => void
+  onClientGoogleSignUp?: () => void
+  onClientSignUp: (email: string, needsVerification: boolean) => void
   onLogIn?: () => void
+  onMerchantSignUp: (
+    email: string,
+    needsVerification: boolean,
+    accountRole: 'service_provider'
+  ) => void
+  onForgotPassword?: () => void
   entranceDelay?: number
 }
 
@@ -37,12 +48,19 @@ const roles = [
 ]
 
 export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
-  onSelectRole,
+  onClientGoogleSignUp,
+  onClientSignUp,
   onLogIn,
+  onMerchantSignUp,
+  onForgotPassword,
   entranceDelay = 0,
 }) => {
   const { height, width } = useWindowDimensions()
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null)
+  const [isLoginSheetVisible, setIsLoginSheetVisible] = useState(false)
+  const [activeAuthSheet, setActiveAuthSheet] = useState<
+    'login' | 'clientSignup' | 'merchantSignup'
+  >('login')
   const hoverAnimations = useRef({
     client: new Animated.Value(0),
     provider: new Animated.Value(0),
@@ -52,8 +70,16 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
     provider: new Animated.Value(1),
   }).current
   const actionsEntranceAnimation = useRef(new Animated.Value(1)).current
+  const loginSheetProgress = useRef(new Animated.Value(0)).current
+  const loginSheetState = useRef<'closed' | 'opening' | 'open' | 'closing'>('closed')
   const isCompact = height < 700
   const isWide = width >= 700
+  const authSheetTop =
+    activeAuthSheet === 'login'
+      ? Math.min(250, height * 0.32)
+      : activeAuthSheet === 'merchantSignup'
+        ? Math.min(32, height * 0.04)
+        : Math.min(72, height * 0.09)
 
   useEffect(() => {
     roles.forEach((role) => {
@@ -87,7 +113,83 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
 
   const handleContinue = () => {
     if (!selectedRole) return
-    onSelectRole(selectedRole)
+    openSignupSheet(selectedRole)
+  }
+
+  const openAuthSheet = (sheet: 'login' | 'clientSignup' | 'merchantSignup') => {
+    if (loginSheetState.current !== 'closed') return
+
+    setActiveAuthSheet(sheet)
+    loginSheetState.current = 'opening'
+    setIsLoginSheetVisible(true)
+    requestAnimationFrame(() => {
+      Animated.timing(loginSheetProgress, {
+        toValue: 1,
+        duration: 360,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished) loginSheetState.current = 'open'
+      })
+    })
+  }
+
+  const openLoginSheet = () => {
+    if (!onLogIn) return
+    if (loginSheetState.current !== 'closed') {
+      setActiveAuthSheet('login')
+      return
+    }
+
+    openAuthSheet('login')
+  }
+
+  const openSignupSheet = (role: UserRole) => {
+    openAuthSheet(role === 'client' ? 'clientSignup' : 'merchantSignup')
+  }
+
+  const closeLoginSheet = () => {
+    if (loginSheetState.current === 'closed' || loginSheetState.current === 'closing') return
+
+    loginSheetState.current = 'closing'
+    Animated.timing(loginSheetProgress, {
+      toValue: 0,
+      duration: 280,
+      easing: Easing.in(Easing.cubic),
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (!finished) return
+      loginSheetState.current = 'closed'
+      setIsLoginSheetVisible(false)
+    })
+  }
+
+  const handleLoginSheetDragStart = () => {
+    if (loginSheetState.current === 'open') {
+      loginSheetProgress.stopAnimation()
+    }
+  }
+
+  const handleLoginSheetDrag = (translationY: number) => {
+    if (loginSheetState.current !== 'open') return
+
+    loginSheetProgress.setValue(Math.max(0, 1 - translationY / height))
+  }
+
+  const handleLoginSheetDragEnd = (translationY: number, velocityY: number) => {
+    if (loginSheetState.current !== 'open') return
+
+    if (translationY > height * 0.2 || velocityY > 1.2) {
+      closeLoginSheet()
+      return
+    }
+
+    Animated.timing(loginSheetProgress, {
+      toValue: 1,
+      duration: 180,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start()
   }
 
   return (
@@ -95,7 +197,7 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
       <View style={styles.screenContent}>
         <View style={[styles.container, isCompact && styles.containerCompact]}>
           <View style={[styles.header, isCompact && styles.headerCompact]}>
-            <BrandIdentity markSize={isCompact ? 40 : 50} style={styles.brandIdentity} />
+            <View style={[styles.brandIdentitySpacer, { height: isCompact ? 40 : 50 }]} />
             <Text style={styles.title}>HOW DO YOU WANT TO USE MULTIVENT?</Text>
             <Text style={styles.subtitle}>
               Choose the experience that fits you best.{'\n'}You can switch later from your profile.
@@ -210,7 +312,7 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
                 accessibilityRole="button"
                 accessibilityLabel="Log in"
                 disabled={!onLogIn}
-                onPress={onLogIn}
+                onPress={openLoginSheet}
                 style={({ pressed }) => pressed && styles.loginPressed}
               >
                 <Text style={styles.loginText}>Sign In</Text>
@@ -219,6 +321,90 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
           </Animated.View>
         </View>
       </View>
+
+      {isLoginSheetVisible && (
+        <View pointerEvents="box-none" style={styles.loginOverlay}>
+          <Animated.View
+            style={[
+              styles.loginBackdrop,
+              {
+                opacity: loginSheetProgress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 1],
+                }),
+              },
+            ]}
+          >
+            <BlurView
+              blurMethod="dimezisBlurViewSdk31Plus"
+              blurReductionFactor={1}
+              intensity={90}
+              tint="dark"
+              style={styles.loginBackdropBlur}
+            >
+              <View style={styles.loginBackdropTint} />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Close sign in"
+                onPress={closeLoginSheet}
+                style={StyleSheet.absoluteFill}
+              />
+            </BlurView>
+          </Animated.View>
+
+          <Animated.View
+            accessibilityViewIsModal
+            style={[
+              styles.loginSheet,
+              { top: authSheetTop },
+              {
+                transform: [
+                  {
+                    translateY: loginSheetProgress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [height, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            {activeAuthSheet === 'login' ? (
+              <LoginScreen
+                onBack={closeLoginSheet}
+                onCreateAccount={closeLoginSheet}
+                onForgotPassword={onForgotPassword ?? closeLoginSheet}
+                onLogIn={onLogIn ?? closeLoginSheet}
+                onSheetDrag={handleLoginSheetDrag}
+                onSheetDragEnd={handleLoginSheetDragEnd}
+                onSheetDragStart={handleLoginSheetDragStart}
+                presentation="sheet"
+              />
+            ) : activeAuthSheet === 'clientSignup' ? (
+              <SignupScreen
+                onBack={closeLoginSheet}
+                onGoogleSignUp={onClientGoogleSignUp}
+                onLogIn={openLoginSheet}
+                onSheetDrag={handleLoginSheetDrag}
+                onSheetDragEnd={handleLoginSheetDragEnd}
+                onSheetDragStart={handleLoginSheetDragStart}
+                onSignUp={onClientSignUp}
+                presentation="sheet"
+              />
+            ) : (
+              <MerchantSignupScreen
+                onBack={closeLoginSheet}
+                onLogIn={openLoginSheet}
+                onSheetDrag={handleLoginSheetDrag}
+                onSheetDragEnd={handleLoginSheetDragEnd}
+                onSheetDragStart={handleLoginSheetDragStart}
+                onSignUp={onMerchantSignUp}
+                presentation="sheet"
+              />
+            )}
+          </Animated.View>
+        </View>
+      )}
 
     </SafeAreaView>
   )
@@ -251,7 +437,7 @@ const styles = StyleSheet.create({
   headerCompact: {
     marginBottom: spacing.lg,
   },
-  brandIdentity: {
+  brandIdentitySpacer: {
     marginBottom: spacing.lg,
   },
   title: {
@@ -428,6 +614,38 @@ const styles = StyleSheet.create({
   },
   loginPressed: {
     opacity: 0.65,
+  },
+  loginOverlay: {
+    ...StyleSheet.absoluteFill,
+    zIndex: 10,
+  },
+  loginBackdrop: {
+    ...StyleSheet.absoluteFill,
+  },
+  loginBackdropBlur: {
+    ...StyleSheet.absoluteFill,
+  },
+  loginBackdropTint: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(28, 11, 18, 0.24)',
+  },
+  loginSheet: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    left: 0,
+    width: '100%',
+    maxWidth: 560,
+    alignSelf: 'center',
+    overflow: 'hidden',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    backgroundColor: colors.background,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 20,
+    elevation: 16,
   },
   videoModalBackdrop: {
     flex: 1,

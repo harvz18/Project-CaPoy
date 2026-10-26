@@ -1792,14 +1792,21 @@ test('mobile sessions persist and push alerts deliver the matching stored notifi
     'Notifications.getExpoPushTokenAsync({ projectId })',
     "supabase.rpc('register_my_push_token'",
     "supabase.rpc('revoke_my_push_token'",
-    "if (Platform.OS !== 'web' && supportsRemotePushNotifications)",
-    "if (Platform.OS === 'web' || !supportsRemotePushNotifications) return",
+    "import type * as ExpoNotifications from 'expo-notifications'",
+    "supportsRemotePushNotifications ? require('expo-notifications') : null",
+    'if (Notifications) {',
+    'Platform.OS === \'web\' || !supportsRemotePushNotifications || !Notifications',
   ], 'native push registration')
+  assert.doesNotMatch(
+    notifications,
+    /import \* as Notifications from 'expo-notifications'/,
+    'Expo Go must not evaluate expo-notifications before compatibility checks run'
+  )
   mustContain(app, [
     'supabase.auth.getSession()',
-    'Notifications.addNotificationReceivedListener',
-    'Notifications.addNotificationResponseReceivedListener',
-    "if (Platform.OS === 'web' || !supportsRemotePushNotifications) return undefined",
+    'notificationModule.addNotificationReceivedListener',
+    'notificationModule.addNotificationResponseReceivedListener',
+    "if (Platform.OS === 'web' || !supportsRemotePushNotifications || !notificationModule)",
     "table: 'notifications'",
   ], 'session restoration and live notification integration')
 })

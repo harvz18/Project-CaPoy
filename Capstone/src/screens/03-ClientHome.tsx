@@ -1,11 +1,13 @@
 import { Text } from '../components/AppText'
 import React from 'react'
 import { MaterialIcons } from '@expo/vector-icons'
-import { LinearGradient } from 'expo-linear-gradient'
 import {
+  Animated,
+  Easing,
   Image,
   Modal,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   
@@ -13,7 +15,10 @@ import {
   View,
 } from 'react-native'
 import { ClientMainTab } from '../components/ClientBottomNavigation'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { AnimatedQuickAccessButton } from '../components/AnimatedQuickAccessButton'
 import { BrandIdentity } from '../components/BrandIdentity'
+import { CardInsetShadow } from '../components/CardInsetShadow'
 import { formatServicePrice } from '../lib/catalog'
 import type { ClientHomeAppearance } from '../lib/client-home-appearance'
 import type { HomeServiceRecommendation } from '../lib/home-recommendations'
@@ -46,14 +51,14 @@ export interface ClientHomeScreenProps {
   hasUnreadBookingUpdates?: boolean
   recommendations?: HomeServiceRecommendation[]
   selectedServiceCount?: number
-  userAvatarUrl?: string
-  userName?: string
+  isRefreshing?: boolean
   searchValue?: string
   onChangeSearch?: (value: string) => void
   onOpenDraft?: (draftId: string) => void
   onOpenSavedPlans?: () => void
   onOpenBookingProgress?: (booking: BookingItem) => void
   onOpenRefunds?: () => void
+  onRefresh?: () => void | Promise<void>
   onStartNewEvent?: () => Promise<boolean | void> | boolean | void
   onOpenProfile?: () => void
   onOpenSupport?: () => void
@@ -174,6 +179,7 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   draftEvents = [],
   bookingProgressEvents = [],
   hasUnreadBookingUpdates = false,
+  isRefreshing = false,
   recommendations = [],
   onOpenDraft,
   onOpenSavedPlans,
@@ -181,17 +187,21 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   onOpenProfile,
   onOpenSupport,
   onOpenRefunds,
+  onRefresh,
   onScrollDirectionChange,
   onSeeAllVenues,
   onSelectRecommendation,
   onSelectTab,
   onStartNewEvent,
-  userAvatarUrl,
-  userName,
 }) => {
+  const safeAreaInsets = useSafeAreaInsets()
   const { width } = useWindowDimensions()
   const isWide = width >= 768
+  const brandMarkSize = width < 375 ? 26 : 30
   const lastScrollY = React.useRef(0)
+  const logoRotation = React.useRef(new Animated.Value(0)).current
+  const logoSpinDirection = React.useRef<1 | -1>(1)
+  const isLogoSpinning = React.useRef(false)
   const [isDraftPromptVisible, setIsDraftPromptVisible] = React.useState(false)
   const [isStartingNewEvent, setIsStartingNewEvent] = React.useState(false)
   const [showAllBookingProgress, setShowAllBookingProgress] = React.useState(false)
@@ -203,6 +213,27 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   const onOpenActiveEvent = () => {
     if (draftEvent) onOpenDraft?.(draftEvent.id)
   }
+
+  const handleLogoPress = () => {
+    if (isLogoSpinning.current) return
+    isLogoSpinning.current = true
+    const direction = logoSpinDirection.current
+    logoSpinDirection.current = direction === 1 ? -1 : 1
+    logoRotation.setValue(0)
+    Animated.timing(logoRotation, {
+      duration: 620,
+      easing: Easing.inOut(Easing.cubic),
+      toValue: direction,
+      useNativeDriver: true,
+    }).start(() => {
+      isLogoSpinning.current = false
+    })
+  }
+
+  const logoRotate = logoRotation.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: ['-360deg', '0deg', '360deg'],
+  })
 
   const handleCreateEventPress = () => {
     if (draftEvents.length > 0) {
@@ -249,10 +280,12 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
           hasUnreadBookingUpdates={hasUnreadBookingUpdates}
           isDraftPromptVisible={isDraftPromptVisible}
           isStartingNewEvent={isStartingNewEvent}
+          isRefreshing={isRefreshing}
           onCreateEvent={handleCreateEventPress}
           onDismissDraftPrompt={() => setIsDraftPromptVisible(false)}
           onOpenBookingProgress={onOpenBookingProgress}
           onOpenProfile={onOpenProfile}
+          onRefresh={onRefresh}
           onOpenSupport={onOpenSupport}
           onQuickAccess={handleQuickAccess}
           onResumeDraft={() => {
@@ -266,8 +299,6 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
           onToggleBookingProgress={() => setShowAllBookingProgress((current) => !current)}
           recommendations={recommendations}
           showAllBookingProgress={showAllBookingProgress}
-          userAvatarUrl={userAvatarUrl}
-          userName={userName}
         />
       </>
     )
@@ -281,6 +312,14 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
           isWide && styles.referenceContentWide,
         ]}
         showsVerticalScrollIndicator={false}
+        refreshControl={onRefresh ? (
+          <RefreshControl
+            colors={['#8A2944']}
+            onRefresh={() => void onRefresh()}
+            refreshing={isRefreshing}
+            tintColor="#8A2944"
+          />
+        ) : undefined}
         onScroll={(event) => {
           const scrollY = Math.max(0, event.nativeEvent.contentOffset.y)
           const delta = scrollY - lastScrollY.current
@@ -292,55 +331,13 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
         }}
         scrollEventThrottle={16}
       >
-        <View style={[styles.referenceTopSurface, isWide && styles.referenceTopSurfaceWide]}>
-          <View style={styles.referenceHeader}>
-            <Pressable
-              accessibilityLabel="Open profile"
-              accessibilityRole="button"
-              onPress={onOpenProfile}
-              style={({ pressed }) => [styles.referenceHeaderControl, pressed && styles.referenceHeaderControlPressed]}
-            >
-              <LinearGradient
-                colors={['#FFFDF8', '#A79D9A', '#F7F4EE', '#827875', '#E8E2DD']}
-                end={{ x: 0.9, y: 1 }}
-                locations={[0, 0.24, 0.46, 0.72, 1]}
-                start={{ x: 0.1, y: 0 }}
-                style={styles.referenceAvatarRim}
-              >
-                <View style={styles.referenceAvatar}>
-                  {userAvatarUrl ? (
-                    <Image
-                      accessibilityLabel={`${userName || 'User'} profile photo`}
-                      resizeMode="cover"
-                      source={{ uri: userAvatarUrl }}
-                      style={styles.referenceAvatarImage}
-                    />
-                  ) : (
-                    <MaterialIcons name="account-circle" size={34} color="#8A2944" />
-                  )}
-                </View>
-              </LinearGradient>
-            </Pressable>
-            <View style={styles.referenceHeaderWordmark}>
-              <View style={styles.referenceWordmarkDepth}>
-                <BrandIdentity
-                  markSize={30}
-                  showName={false}
-                  style={styles.referenceWordmarkShadow}
-                  variant="metallicWordmark"
-                />
-                <BrandIdentity markSize={30} showName={false} variant="metallicWordmark" />
-              </View>
-            </View>
-            <Pressable
-              accessibilityLabel="Contact MULTIVENT Support"
-              accessibilityRole="button"
-              onPress={onOpenSupport}
-              style={({ pressed }) => [styles.referenceHeaderControl, pressed && styles.referenceHeaderControlPressed]}
-            >
-              <MaterialIcons color="#FFFFFF" name="support-agent" size={24} />
-            </Pressable>
-          </View>
+        <View
+          style={[
+            styles.referenceTopSurface,
+            { paddingTop: Math.max(82, safeAreaInsets.top + 66) },
+            isWide && styles.referenceTopSurfaceWide,
+          ]}
+        >
           <View style={styles.referenceHero}>
             <Text style={styles.heroTitle}>LET'S PLAN{`\n`}YOUR BIG DAY!</Text>
             <Text style={styles.heroDescription}>
@@ -362,27 +359,23 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
 
         <View style={[styles.referenceSection, styles.quickAccessSection]}>
           <View style={styles.quickAccessRow}>
-            {QUICK_ACCESS_ITEMS.map((item) => (
-              <Pressable
+            {QUICK_ACCESS_ITEMS.map((item, index) => (
+              <AnimatedQuickAccessButton
                 key={item.id}
                 accessibilityLabel={`Open ${item.label}${item.id === 'bookings' && hasUnreadBookingUpdates ? ', with unread updates' : ''}`}
-                accessibilityRole="button"
+                badgeStyle={styles.quickAccessUnreadDot}
+                entranceDelay={260 + index * 180}
+                iconContainerStyle={styles.quickAccessIconWrap}
+                iconScale={item.iconScale}
+                iconSource={item.image}
+                iconStyle={styles.quickAccessIcon}
+                itemStyle={styles.quickAccessItem}
+                label={item.label}
+                labelStyle={styles.quickAccessLabel}
                 onPress={() => handleQuickAccess(item.id)}
-                style={({ pressed }) => [
-                  styles.quickAccessItem,
-                  pressed && styles.quickAccessItemPressed,
-                ]}
-              >
-                <View style={styles.quickAccessIconWrap}>
-                  <Image
-                    resizeMode="contain"
-                    source={item.image}
-                    style={[styles.quickAccessIcon, { transform: [{ scale: item.iconScale }] }]}
-                  />
-                  {item.id === 'bookings' && hasUnreadBookingUpdates ? <View style={styles.quickAccessUnreadDot} /> : null}
-                </View>
-                <Text numberOfLines={1} style={styles.quickAccessLabel}>{item.label}</Text>
-              </Pressable>
+                pressedStyle={styles.quickAccessItemPressed}
+                showBadge={item.id === 'bookings' && hasUnreadBookingUpdates}
+              />
             ))}
           </View>
         </View>
@@ -419,6 +412,7 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
               onPress={() => onOpenBookingProgress?.(progress.booking)}
               style={({ pressed }) => [styles.bookingProgressCard, pressed && styles.referencePressed]}
             >
+              <CardInsetShadow />
               {progress.hasUnreadUpdate ? <View style={styles.bookingProgressUnreadDot} /> : null}
               <View style={styles.bookingProgressHeading}>
                 <View style={styles.bookingProgressCopy}>
@@ -461,17 +455,16 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
 
         <View style={styles.referenceSection}>
           <View style={styles.referenceSectionHeader}>
-            <View><Text style={styles.referenceSectionTitle}>RECOMMENDED FOR YOU<Text style={styles.sectionDot}></Text></Text><Text style={styles.referenceSectionSubtitle}>Based on confirmed bookings and reliable client reviews</Text></View>
-            <Pressable accessibilityLabel="See all venues" accessibilityRole="button" onPress={onSeeAllVenues}>
+            <View style={styles.referenceSectionTitleCopy}><Text style={styles.referenceSectionTitle}>RECOMMENDED FOR YOU<Text style={styles.sectionDot}></Text></Text><Text style={styles.referenceSectionSubtitle}>Based on confirmed bookings and reliable client reviews</Text></View>
+            <Pressable accessibilityLabel="See all venues" accessibilityRole="button" onPress={onSeeAllVenues} style={styles.exploreAllButton}>
               <Text style={styles.exploreAll}>Explore All →</Text>
             </Pressable>
           </View>
           <ScrollView
             contentContainerStyle={styles.referenceCarousel}
-            decelerationRate="fast"
+            decelerationRate="normal"
             horizontal
             showsHorizontalScrollIndicator={false}
-            snapToInterval={isWide ? 340 : Math.max(252, width - 56) + 12}
           >
             {recommendations.map((recommendation) => (
               <Pressable
@@ -481,6 +474,7 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
                 onPress={() => onSelectRecommendation?.(recommendation.service.id)}
                 style={({ pressed }) => [styles.referenceVenueCard, { width: isWide ? 324 : Math.max(252, width - 56) }, pressed && styles.referencePressed]}
               >
+                <CardInsetShadow />
                 <View style={styles.referenceVenueImageWrap}>
                   {recommendation.service.imageUrl ? (
                     <Image accessibilityLabel={recommendation.service.imageLabel} resizeMode="cover" source={{ uri: recommendation.service.imageUrl }} style={styles.referenceVenueImage} />
@@ -492,7 +486,9 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
                 <Text numberOfLines={1} style={styles.referenceVenueTitle}>{recommendation.service.name}</Text>
                 <Text numberOfLines={1} style={styles.referenceVenueMeta}>{recommendation.service.categoryName} · {recommendation.service.providerName}</Text>
                 <Text numberOfLines={2} style={styles.homeRecommendationDescription}>{recommendation.service.description}</Text>
-                <View style={styles.referenceVenueFooter}><Text style={styles.referenceVenuePrice}>{formatServicePrice(recommendation.service)}</Text><Text style={styles.referenceVenueAction}>{recommendation.service.reviewCount > 0 ? `${recommendation.service.rating} ★ (${recommendation.service.reviewCount})` : 'New'}</Text></View>
+                <Text style={styles.referenceVenueAction}>{recommendation.service.reviewCount > 0 ? `${recommendation.service.rating} ★ (${recommendation.service.reviewCount})` : 'New'}</Text>
+                <View style={styles.referenceVenueFooter} />
+                <Text style={styles.referenceVenuePrice}>{formatServicePrice(recommendation.service)}</Text>
               </Pressable>
             ))}
             {recommendations.length === 0 ? (
@@ -504,6 +500,49 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
           </ScrollView>
         </View>
       </ScrollView>
+
+      <View style={[styles.referenceStickyHeader, { paddingTop: safeAreaInsets.top }]}>
+        <View style={[styles.referenceStickyHeaderContent, isWide && styles.referenceStickyHeaderContentWide]}>
+          <View style={styles.referenceHeader}>
+            <Pressable
+              accessibilityLabel="Animate MULTIVENT logo"
+              accessibilityRole="button"
+              onPress={handleLogoPress}
+              style={({ pressed }) => [styles.referenceLogoButton, pressed && styles.referenceHeaderControlPressed]}
+            >
+              <Animated.View style={[styles.referenceHeaderWordmark, { transform: [{ rotate: logoRotate }] }]}>
+                <View style={styles.referenceWordmarkDepth}>
+                  <BrandIdentity
+                    markSize={brandMarkSize}
+                    showName={false}
+                    style={styles.referenceWordmarkShadow}
+                    variant="metallicWordmark"
+                  />
+                  <BrandIdentity markSize={brandMarkSize} showName={false} variant="metallicWordmark" />
+                </View>
+              </Animated.View>
+            </Pressable>
+            <View style={styles.referenceHeaderControls}>
+              <Pressable
+                accessibilityLabel="Contact MULTIVENT Support"
+                accessibilityRole="button"
+                onPress={onOpenSupport}
+                style={({ pressed }) => [styles.referenceHeaderControl, pressed && styles.referenceHeaderControlPressed]}
+              >
+                <MaterialIcons color="#FFFFFF" name="support-agent" size={23} />
+              </Pressable>
+              <Pressable
+                accessibilityLabel="Open settings"
+                accessibilityRole="button"
+                onPress={onOpenProfile}
+                style={({ pressed }) => [styles.referenceHeaderControl, pressed && styles.referenceHeaderControlPressed]}
+              >
+                <MaterialIcons color="#FFFFFF" name="settings" size={22} />
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </View>
 
       <Modal
         animationType="fade"
@@ -595,12 +634,31 @@ const styles = StyleSheet.create({
     marginHorizontal: -28,
     paddingHorizontal: 28,
   },
+  referenceStickyHeader: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    left: 0,
+    zIndex: 20,
+    backgroundColor: '#701B30',
+    elevation: 20,
+  },
+  referenceStickyHeaderContent: {
+    width: '100%',
+    maxWidth: 760,
+    alignSelf: 'center',
+    paddingHorizontal: 14,
+  },
+  referenceStickyHeaderContentWide: {
+    paddingHorizontal: 28,
+  },
   referenceHeader: {
-    minHeight: 76,
+    minHeight: 52,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    paddingTop: 2,
+    paddingBottom: 4,
   },
   referenceAvatar: {
     width: '100%',
@@ -629,17 +687,31 @@ const styles = StyleSheet.create({
   referenceHeaderControl: {
     alignItems: 'center',
     justifyContent: 'center',
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
   },
   referenceHeaderControlPressed: {
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
     opacity: 0.82,
   },
   referenceHeaderWordmark: {
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    marginTop: -3,
+  },
+  referenceLogoButton: {
+    minWidth: 0,
     flex: 1,
+    minHeight: 42,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    borderRadius: 21,
+  },
+  referenceHeaderControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    marginLeft: 6,
   },
   referenceWordmarkDepth: {
     position: 'relative',
@@ -801,8 +873,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   quickAccessItemPressed: {
-    opacity: 0.84,
-    transform: [{ scale: 0.96 }],
+    opacity: 0.9,
   },
   quickAccessIcon: {
     width: 76,
@@ -812,8 +883,8 @@ const styles = StyleSheet.create({
   quickAccessUnreadDot: { position: 'absolute', top: 3, right: 4, width: 9, height: 9, borderWidth: 1.5, borderColor: '#FFFDF9', borderRadius: 5, backgroundColor: '#C93643' },
   quickAccessLabel: {
     color: '#4A3B3C',
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 13,
+    lineHeight: 18,
     fontWeight: '700',
     marginTop: 6,
     textAlign: 'center',
@@ -885,20 +956,20 @@ const styles = StyleSheet.create({
   compactDraftAction: { color: '#8A2944', fontSize: 12, fontWeight: '700' },
   compactDraftDeleteButton: { padding: 8 },
   bookingDropdown: { flexDirection: 'row', alignItems: 'center', gap: 1 },
-  bookingProgressCard: { position: 'relative', borderWidth: 1, borderColor: '#E4D9D5', borderRadius: 9, backgroundColor: '#FFFFFF', marginBottom: 9, padding: 12, shadowColor: '#5B1B2C', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 1 },
+  bookingProgressCard: { position: 'relative', overflow: 'hidden', borderWidth: 1, borderColor: '#E4D9D5', borderRadius: 32, backgroundColor: '#FFFFFF', marginBottom: 9, padding: 12, shadowColor: '#4E061A', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.1, shadowRadius: 14, elevation: 4 },
   bookingProgressUnreadDot: { position: 'absolute', top: 8, left: 8, zIndex: 1, width: 9, height: 9, borderWidth: 1.5, borderColor: '#FFFFFF', borderRadius: 5, backgroundColor: '#C93643' },
   bookingProgressHeading: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
   bookingProgressCopy: { flex: 1, minWidth: 0 },
   bookingProgressName: { color: '#241E1E', fontSize: 14, lineHeight: 19, fontWeight: '700' },
-  bookingProgressDate: { color: '#7C7271', fontSize: 11, lineHeight: 16, marginTop: 2 },
+  bookingProgressDate: { color: '#7C7271', fontSize: 13, lineHeight: 18, marginTop: 2 },
   bookingProgressBadge: { borderRadius: 11, backgroundColor: '#F8EDEF', paddingHorizontal: 8, paddingVertical: 4 },
-  bookingProgressBadgeText: { color: '#8A2944', fontSize: 10, lineHeight: 13, fontWeight: '700' },
+  bookingProgressBadgeText: { color: '#8A2944', fontSize: 13, lineHeight: 17, fontWeight: '700' },
   bookingProgressMetrics: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginTop: 11 },
-  bookingProgressStatus: { flex: 1, color: '#7C7271', fontSize: 11, lineHeight: 16 },
-  bookingProgressCount: { color: '#8A2944', fontSize: 11, lineHeight: 16, fontWeight: '700', textAlign: 'right' },
+  bookingProgressStatus: { flex: 1, color: '#7C7271', fontSize: 13, lineHeight: 18 },
+  bookingProgressCount: { color: '#8A2944', fontSize: 13, lineHeight: 18, fontWeight: '700', textAlign: 'right' },
   bookingProgressTrack: { height: 5, overflow: 'hidden', borderRadius: 3, backgroundColor: '#E8DDE0', marginTop: 8 },
   bookingProgressFill: { height: '100%', backgroundColor: '#8A2944' },
-  bookingProgressLink: { color: '#8A2944', fontSize: 11, lineHeight: 16, fontWeight: '700', marginTop: 9 },
+  bookingProgressLink: { color: '#8A2944', fontSize: 13, lineHeight: 18, fontWeight: '700', marginTop: 9 },
   emptyDraftState: {
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
@@ -912,7 +983,7 @@ const styles = StyleSheet.create({
   },
   emptyDraftCopy: { flex: 1 },
   emptyDraftTitle: { color: '#2B2323', fontSize: 13, fontWeight: '700', lineHeight: 18 },
-  emptyDraftText: { color: '#7C7271', fontSize: 11, lineHeight: 16, marginTop: 2 },
+  emptyDraftText: { color: '#7C7271', fontSize: 13, lineHeight: 18, marginTop: 2 },
   activeEventHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -923,7 +994,7 @@ const styles = StyleSheet.create({
   },
   activeEventEyebrow: {
     color: '#8A2944',
-    fontSize: 12,
+    fontSize: 13,
     lineHeight: 15,
     fontWeight: '700',
     letterSpacing: 0.5,
@@ -939,7 +1010,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
     flex: 1,
     color: '#7C7271',
-    fontSize: 12,
+    fontSize: 13,
     lineHeight: 16,
   },
   activeEventMetaRow: {
@@ -964,7 +1035,7 @@ const styles = StyleSheet.create({
   },
   daysLabel: {
     color: '#8A2944',
-    fontSize: 12,
+    fontSize: 13,
     lineHeight: 14,
     fontWeight: '700',
   },
@@ -1026,6 +1097,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 10,
     marginBottom: 8,
+  },
+  referenceSectionTitleCopy: {
+    minWidth: 0,
+    flex: 1,
+    paddingRight: 8,
   },
   referenceSectionTitle: {
     color: '#2B2323',
@@ -1136,7 +1212,7 @@ const styles = StyleSheet.create({
     padding: 6,
     borderWidth: 1,
     borderColor: '#E4D9D5',
-    borderRadius: 8,
+    borderRadius: 28,
     backgroundColor: '#FFFFFF',
     shadowColor: '#5B1B2C',
     shadowOffset: { width: 0, height: 2 },
@@ -1222,30 +1298,37 @@ const styles = StyleSheet.create({
   },
   referenceSectionSubtitle: {
     color: '#847977',
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 13,
+    lineHeight: 18,
     marginTop: 2,
   },
   exploreAll: {
     color: '#8A2944',
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 13,
+    lineHeight: 18,
     fontWeight: '700',
+  },
+  exploreAllButton: {
+    flexShrink: 0,
+    minHeight: 32,
+    justifyContent: 'center',
+    paddingLeft: 4,
   },
   referenceCarousel: {
     gap: 12,
+    paddingTop: 8,
+    paddingBottom: 20,
   },
   referenceVenueCard: {
+    position: 'relative',
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#E4D9D5',
-    borderRadius: 8,
+    borderRadius: 28,
     backgroundColor: '#FFFFFF',
-    shadowColor: '#5B1B2C',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowColor: '#4E061A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
+    elevation: 4,
   },
   referenceVenueImageWrap: {
     height: 104,
@@ -1273,51 +1356,58 @@ const styles = StyleSheet.create({
   },
   venueBadgeText: {
     color: '#8A2944',
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
   },
   referenceVenueTitle: {
     color: '#2B2323',
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 13,
+    lineHeight: 18,
     fontWeight: '700',
     paddingHorizontal: 9,
+    paddingRight: 78,
     marginTop: 7,
   },
   referenceVenueMeta: {
     color: '#847977',
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 13,
+    lineHeight: 18,
     paddingHorizontal: 9,
     marginTop: 2,
   },
   homeRecommendationDescription: {
     color: '#6F6463',
-    fontSize: 11,
+    fontSize: 13,
     lineHeight: 15,
     marginTop: 5,
     paddingHorizontal: 9,
   },
   referenceVenueFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: 9,
+    minHeight: 38,
     marginTop: 4,
   },
   referenceVenuePrice: {
+    position: 'absolute',
+    bottom: 12,
+    left: 12,
+    zIndex: 2,
     color: '#847977',
-    fontSize: 12,
+    fontSize: 13,
   },
   referenceVenueAction: {
+    position: 'absolute',
+    top: 115,
+    right: 12,
+    zIndex: 2,
     color: '#8A2944',
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
   },
   emptyRecommendationState: {
     alignItems: 'flex-start',
     backgroundColor: '#FFFFFF',
     borderColor: '#E4D9D5',
-    borderRadius: 8,
+    borderRadius: 24,
     borderStyle: 'dashed',
     borderWidth: 1,
     justifyContent: 'center',

@@ -1,0 +1,24 @@
+{
+  "name": "caang",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "check": "node --check Web/server.js",
+    "dev": "node Web/server.js",
+    "start": "node Web/server.js",
+    "test": "npm run check"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/harvz18/Project-CaPoy.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/harvz18/Project-CaPoy/issues"
+  },
+  "homepage": "https://github.com/harvz18/Project-CaPoy#readme"
+}

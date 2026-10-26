@@ -1,13 +1,16 @@
 import { Text } from '../components/AppText'
-import React, { useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import {
   Image,
+  Keyboard,
   KeyboardAvoidingView,
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
+  type ScrollViewInstance,
   StyleSheet,
-  TextInput as NativeTextInput,
+  type TextInputInstance,
   View,
 } from 'react-native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
@@ -23,6 +26,10 @@ interface LoginScreenProps {
   onLogIn: () => void
   onCreateAccount: () => void
   onForgotPassword: () => void
+  presentation?: 'screen' | 'sheet'
+  onSheetDragStart?: () => void
+  onSheetDrag?: (translationY: number) => void
+  onSheetDragEnd?: (translationY: number, velocityY: number) => void
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({
@@ -30,6 +37,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   onLogIn,
   onCreateAccount,
   onForgotPassword,
+  presentation = 'screen',
+  onSheetDragStart,
+  onSheetDrag,
+  onSheetDragEnd,
 }) => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -38,15 +49,77 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const [isLoading, setIsLoading] = useState(false)
   const [isOAuthLoading, setIsOAuthLoading] = useState(false)
   const [authError, setAuthError] = useState('')
-  const scrollRef = useRef<ScrollView>(null)
-  const emailRef = useRef<NativeTextInput>(null)
-  const passwordRef = useRef<NativeTextInput>(null)
+  const [keyboardHeight, setKeyboardHeight] = useState(0)
+  const scrollRef = useRef<ScrollViewInstance>(null)
+  const emailRef = useRef<TextInputInstance>(null)
+  const passwordRef = useRef<TextInputInstance>(null)
   const formTop = useRef(0)
   const fieldOffsets = useRef<Record<'email' | 'password', number>>({ email: 0, password: 0 })
+  const focusedField = useRef<'email' | 'password' | null>(null)
+  const onBackRef = useRef(onBack)
+  const onSheetDragStartRef = useRef(onSheetDragStart)
+  const onSheetDragRef = useRef(onSheetDrag)
+  const onSheetDragEndRef = useRef(onSheetDragEnd)
+
+  onBackRef.current = onBack
+  onSheetDragStartRef.current = onSheetDragStart
+  onSheetDragRef.current = onSheetDrag
+  onSheetDragEndRef.current = onSheetDragEnd
+  const sheetHandlePanResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_event, gesture) =>
+        gesture.dy > 4 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+      onPanResponderGrant: () => onSheetDragStartRef.current?.(),
+      onPanResponderMove: (_event, gesture) => {
+        onSheetDragRef.current?.(Math.max(0, gesture.dy))
+      },
+      onPanResponderRelease: (_event, gesture) => {
+        const translationY = Math.max(0, gesture.dy)
+        if (onSheetDragEndRef.current) {
+          onSheetDragEndRef.current(translationY, gesture.vy)
+          return
+        }
+
+        if (gesture.dy > 36 || gesture.vy > 0.8) {
+          onBackRef.current()
+        }
+      },
+      onPanResponderTerminate: (_event, gesture) => {
+        const translationY = Math.max(0, gesture.dy)
+        if (onSheetDragEndRef.current) {
+          onSheetDragEndRef.current(translationY, gesture.vy)
+          return
+        }
+
+        if (gesture.dy > 36 || gesture.vy > 0.8) {
+          onBackRef.current()
+        }
+      },
+    })
+  ).current
 
   const normalizedEmail = email.trim()
   const emailIsValid = /^\S+@\S+\.\S+$/.test(normalizedEmail)
   const passwordIsValid = password.length > 0
+  const isSheet = presentation === 'sheet'
+
+  useEffect(() => {
+    const keyboardShowSubscription = Keyboard.addListener('keyboardDidShow', (event) => {
+      setKeyboardHeight(event.endCoordinates.height)
+      const field = focusedField.current
+      if (field) {
+        setTimeout(() => scrollToField(field), 100)
+      }
+    })
+    const keyboardHideSubscription = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardHeight(0)
+    })
+
+    return () => {
+      keyboardShowSubscription.remove()
+      keyboardHideSubscription.remove()
+    }
+  }, [])
 
   const handleLogIn = async () => {
     setSubmitted(true)
@@ -79,14 +152,19 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
 
   function revealField(
     field: 'email' | 'password',
-    inputRef: React.RefObject<NativeTextInput | null>
+    inputRef: React.RefObject<TextInputInstance | null>
   ) {
+    focusedField.current = field
+    scrollToField(field)
+    setTimeout(() => inputRef.current?.focus(), 180)
+  }
+
+  function scrollToField(field: 'email' | 'password') {
     requestAnimationFrame(() => {
       scrollRef.current?.scrollTo({
         y: Math.max(0, formTop.current + fieldOffsets.current[field] - spacing.lg),
         animated: true,
       })
-      setTimeout(() => inputRef.current?.focus(), 180)
     })
   }
 
@@ -112,41 +190,52 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.screen}
+      style={[styles.screen, isSheet && styles.sheetScreen]}
     >
       <ScrollView
         automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          isSheet && styles.sheetContent,
+          keyboardHeight > 0 && { paddingBottom: keyboardHeight + spacing['2xl'] },
+        ]}
         keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
-        keyboardShouldPersistTaps="handled"
+        keyboardShouldPersistTaps="never"
         ref={scrollRef}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.hero}>
-          <Image
-            accessibilityIgnoresInvertColors
-            source={require('../../images/ClientSignupSVG.png')}
-            style={styles.heroImage}
-            resizeMode="cover"
-          />
-          <View style={styles.heroOverlay} />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-            hitSlop={12}
-            onPress={onBack}
-            style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
-          >
-            <MaterialCommunityIcons
-              color={colors.textInverse}
-              name="chevron-left-circle-outline"
-              size={34}
+        {!isSheet && (
+          <View style={styles.hero}>
+            <Image
+              accessibilityIgnoresInvertColors
+              source={require('../../images/ClientSignupSVG.png')}
+              style={styles.heroImage}
+              resizeMode="cover"
             />
-          </Pressable>
-        </View>
+            <View style={styles.heroOverlay} />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+              hitSlop={12}
+              onPress={onBack}
+              style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
+            >
+              <MaterialCommunityIcons
+                color={colors.textInverse}
+                name="chevron-left-circle-outline"
+                size={34}
+              />
+            </Pressable>
+          </View>
+        )}
 
-        <View style={styles.sheet}>
-          <BrandIdentity markSize={42} style={styles.brandIdentity} />
+        <View style={[styles.sheet, isSheet && styles.bottomSheet]}>
+          {isSheet && (
+            <View {...sheetHandlePanResponder.panHandlers} style={styles.sheetTopBar}>
+              <View style={styles.sheetHandle} />
+            </View>
+          )}
+          <BrandIdentity markSize={42} showName={!isSheet} style={styles.brandIdentity} />
           <Text style={styles.title}>Welcome Back!</Text>
           <View style={styles.signupPrompt}>
             <Text style={styles.signupPromptText}>Don't Have An Account? </Text>
@@ -172,6 +261,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               icon={<MaterialCommunityIcons color={colors.primaryDark} name="email-outline" size={18} />}
               onChangeText={setEmail}
               onContainerLayout={(event) => { fieldOffsets.current.email = event.nativeEvent.layout.y }}
+              onFocus={() => {
+                focusedField.current = 'email'
+                scrollToField('email')
+              }}
               onSubmitEditing={() => passwordRef.current?.focus()}
               placeholder="Enter your email address"
               ref={emailRef}
@@ -190,6 +283,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               icon={<MaterialCommunityIcons color={colors.primaryDark} name="lock-outline" size={18} />}
               onChangeText={setPassword}
               onContainerLayout={(event) => { fieldOffsets.current.password = event.nativeEvent.layout.y }}
+              onFocus={() => {
+                focusedField.current = 'password'
+                scrollToField('password')
+              }}
               onSubmitEditing={handleLogIn}
               placeholder="Password"
               ref={passwordRef}
@@ -274,6 +371,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  sheetScreen: {
+    overflow: 'hidden',
+  },
   content: {
     width: '100%',
     maxWidth: 430,
@@ -281,6 +381,11 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     paddingBottom: spacing.xl,
     backgroundColor: colors.background,
+  },
+  sheetContent: {
+    flexGrow: 1,
+    minHeight: 0,
+    paddingBottom: 0,
   },
   topBar: {
     minHeight: 64,
@@ -368,6 +473,24 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
     backgroundColor: colors.background,
+  },
+  bottomSheet: {
+    flex: 1,
+    marginTop: 0,
+    paddingTop: 0,
+  },
+  sheetTopBar: {
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  sheetHandle: {
+    width: 68,
+    height: 4,
+    borderRadius: radius.pill,
+    backgroundColor: colors.grey300,
   },
   signupPrompt: {
     flexDirection: 'row',

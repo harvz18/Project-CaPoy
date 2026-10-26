@@ -17,6 +17,7 @@
     },
     "android": {
       "predictiveBackGestureEnabled": false,
+      "softwareKeyboardLayoutMode": "resize",
       "package": "com.intelink.multivent",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
@@ -53,13 +54,22 @@
           "resizeMode": "contain"
         }
       ],
-      "expo-video"
+      "expo-video",
+      "expo-font",
+      "expo-status-bar",
+      [
+        "expo-navigation-bar",
+        {
+          "enforceContrast": false,
+          "style": "dark"
+        }
+      ]
     ],
+    "owner": "kriegovich",
     "extra": {
       "eas": {
-        "projectId": "0e44b632-3118-4aeb-bb74-017a9d0866b1"
+        "projectId": "e61f0ff3-0365-4564-90ec-4a9627486c57"
       }
-    },
-    "owner": "harvz1827"
+    }
   }
 }

@@ -5,13 +5,17 @@ import {
   Image,
   Keyboard,
   KeyboardAvoidingView,
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
+  type ScrollViewInstance,
   StyleSheet,
-  TextInput as NativeTextInput,
+  type TextInputInstance,
+  TouchableWithoutFeedback,
   useWindowDimensions,
   View,
+  type ViewInstance,
 } from 'react-native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { Button } from '../components/Button'
@@ -29,6 +33,10 @@ interface MerchantSignupScreenProps {
     accountRole: 'service_provider'
   ) => void
   onLogIn?: () => void
+  presentation?: 'screen' | 'sheet'
+  onSheetDragStart?: () => void
+  onSheetDrag?: (translationY: number) => void
+  onSheetDragEnd?: (translationY: number, velocityY: number) => void
 }
 
 type MerchantSignupField = 'businessName' | 'contactName' | 'category' | 'email' | 'phone' | 'password' | 'confirmPassword' | 'terms'
@@ -39,16 +47,21 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
   onBack,
   onSignUp,
   onLogIn,
+  presentation = 'screen',
+  onSheetDragStart,
+  onSheetDrag,
+  onSheetDragEnd,
 }) => {
   const { height } = useWindowDimensions()
-  const sheetEntrance = useRef(new Animated.Value(1)).current
-  const sheetScroll = useRef<ScrollView>(null)
-  const businessNameRef = useRef<NativeTextInput>(null)
-  const contactNameRef = useRef<NativeTextInput>(null)
-  const emailRef = useRef<NativeTextInput>(null)
-  const phoneRef = useRef<NativeTextInput>(null)
-  const passwordRef = useRef<NativeTextInput>(null)
-  const confirmPasswordRef = useRef<NativeTextInput>(null)
+  const isSheet = presentation === 'sheet'
+  const sheetEntrance = useRef(new Animated.Value(presentation === 'sheet' ? 0 : 1)).current
+  const sheetScroll = useRef<ScrollViewInstance>(null)
+  const businessNameRef = useRef<TextInputInstance>(null)
+  const contactNameRef = useRef<TextInputInstance>(null)
+  const emailRef = useRef<TextInputInstance>(null)
+  const phoneRef = useRef<TextInputInstance>(null)
+  const passwordRef = useRef<TextInputInstance>(null)
+  const confirmPasswordRef = useRef<TextInputInstance>(null)
   const fieldOffsets = useRef<Record<MerchantSignupField, number>>({
     businessName: 0,
     contactName: 0,
@@ -59,7 +72,7 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
     confirmPassword: 0,
     terms: 0,
   })
-  const categoryFieldRef = useRef<View>(null)
+  const categoryFieldRef = useRef<ViewInstance>(null)
   const categoryDropdownEntrance = useRef(new Animated.Value(0)).current
   const categoryOptionEntrances = useRef(
     serviceCategories.map(() => new Animated.Value(0))
@@ -79,18 +92,73 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
   const [submitted, setSubmitted] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [authError, setAuthError] = useState('')
+  const [keyboardHeight, setKeyboardHeight] = useState(0)
+  const [formContentHeight, setFormContentHeight] = useState(0)
+  const [formViewportHeight, setFormViewportHeight] = useState(0)
+  const focusedField = useRef<MerchantSignupField | null>(null)
+  const onBackRef = useRef(onBack)
+  const onSheetDragStartRef = useRef(onSheetDragStart)
+  const onSheetDragRef = useRef(onSheetDrag)
+  const onSheetDragEndRef = useRef(onSheetDragEnd)
+
+  onBackRef.current = onBack
+  onSheetDragStartRef.current = onSheetDragStart
+  onSheetDragRef.current = onSheetDrag
+  onSheetDragEndRef.current = onSheetDragEnd
+  const sheetHandlePanResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_event, gesture) =>
+        gesture.dy > 4 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+      onPanResponderGrant: () => onSheetDragStartRef.current?.(),
+      onPanResponderMove: (_event, gesture) => {
+        onSheetDragRef.current?.(Math.max(0, gesture.dy))
+      },
+      onPanResponderRelease: (_event, gesture) => {
+        const translationY = Math.max(0, gesture.dy)
+        if (onSheetDragEndRef.current) {
+          onSheetDragEndRef.current(translationY, gesture.vy)
+          return
+        }
+
+        if (translationY > 36 || gesture.vy > 0.8) onBackRef.current()
+      },
+      onPanResponderTerminate: (_event, gesture) => {
+        const translationY = Math.max(0, gesture.dy)
+        if (onSheetDragEndRef.current) {
+          onSheetDragEndRef.current(translationY, gesture.vy)
+          return
+        }
+
+        if (translationY > 36 || gesture.vy > 0.8) onBackRef.current()
+      },
+    })
+  ).current
 
   useEffect(() => {
+    if (isSheet) {
+      sheetEntrance.setValue(0)
+      return
+    }
+
     sheetEntrance.setValue(1)
     Animated.timing(sheetEntrance, { toValue: 0, duration: 420, useNativeDriver: true }).start()
-  }, [sheetEntrance])
+  }, [isSheet, sheetEntrance])
 
   useEffect(() => {
+    const keyboardShowSubscription = Keyboard.addListener('keyboardDidShow', (event) => {
+      setKeyboardHeight(event.endCoordinates.height)
+      const field = focusedField.current
+      if (field) setTimeout(() => scrollToField(field), 100)
+    })
     const keyboardHideSubscription = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardHeight(0)
       sheetScroll.current?.scrollTo({ y: 0, animated: true })
     })
 
-    return () => keyboardHideSubscription.remove()
+    return () => {
+      keyboardShowSubscription.remove()
+      keyboardHideSubscription.remove()
+    }
   }, [])
 
   useEffect(() => {
@@ -134,6 +202,8 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
     passwordIsValid &&
     confirmPasswordIsValid
   const canSubmit = hasRequiredFields && acceptedTerms
+  const canScrollForm =
+    keyboardHeight > 0 || formContentHeight > formViewportHeight + 1
   const handleSignUp = async () => {
     setSubmitted(true)
     setAuthError('')
@@ -172,16 +242,26 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
 
   function revealField(
     field: MerchantSignupField,
-    inputRef?: React.RefObject<NativeTextInput | null>
+    inputRef?: React.RefObject<TextInputInstance | null>
   ) {
+    focusedField.current = field
+    scrollToField(field)
+    if (field === 'category') setIsCategoryPickerVisible(true)
+    if (inputRef) setTimeout(() => inputRef.current?.focus(), 180)
+  }
+
+  function scrollToField(field: MerchantSignupField) {
     requestAnimationFrame(() => {
       sheetScroll.current?.scrollTo({
         y: Math.max(0, fieldOffsets.current[field] - spacing.lg),
         animated: true,
       })
-      if (field === 'category') setIsCategoryPickerVisible(true)
-      if (inputRef) setTimeout(() => inputRef.current?.focus(), 180)
     })
+  }
+
+  const handleFieldFocus = (field: MerchantSignupField) => {
+    focusedField.current = field
+    scrollToField(field)
   }
 
   const visibilityIcon = (visible: boolean, label: string, onPress: () => void) => (
@@ -198,35 +278,38 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.screen}
+      style={[styles.screen, isSheet && styles.sheetScreen]}
     >
-      <View style={styles.content}>
-        <View style={styles.hero}>
-          <Image
-            accessibilityIgnoresInvertColors
-            source={require('../../images/OfferServices.png')}
-            style={styles.heroImage}
-            resizeMode="cover"
-          />
-          <View style={styles.heroOverlay} />
-          <Pressable
-            accessibilityLabel="Go back"
-            accessibilityRole="button"
-            hitSlop={8}
-            onPress={onBack}
-            style={({ pressed }) => [styles.backButton, pressed && styles.backButtonPressed]}
-          >
-            <MaterialCommunityIcons
-              color={colors.textInverse}
-              name="chevron-left-circle-outline"
-              size={34}
+      <View style={[styles.content, isSheet && styles.sheetContent]}>
+        {!isSheet && (
+          <View style={styles.hero}>
+            <Image
+              accessibilityIgnoresInvertColors
+              source={require('../../images/OfferServices.png')}
+              style={styles.heroImage}
+              resizeMode="cover"
             />
-          </Pressable>
-        </View>
+            <View style={styles.heroOverlay} />
+            <Pressable
+              accessibilityLabel="Go back"
+              accessibilityRole="button"
+              hitSlop={8}
+              onPress={onBack}
+              style={({ pressed }) => [styles.backButton, pressed && styles.backButtonPressed]}
+            >
+              <MaterialCommunityIcons
+                color={colors.textInverse}
+                name="chevron-left-circle-outline"
+                size={34}
+              />
+            </Pressable>
+          </View>
+        )}
 
         <Animated.View
           style={[
             styles.sheet,
+            isSheet && styles.bottomSheet,
             {
               opacity: sheetEntrance.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
               transform: [
@@ -240,7 +323,14 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
             },
           ]}
         >
-          <BrandIdentity markSize={38} style={styles.brandIdentity} />
+          {isSheet && (
+            <View {...sheetHandlePanResponder.panHandlers} style={styles.sheetTopBar}>
+              <View style={styles.sheetHandle} />
+            </View>
+          )}
+          <TouchableWithoutFeedback accessible={false} onPress={Keyboard.dismiss}>
+            <View style={styles.sheetBody}>
+          <BrandIdentity markSize={38} showName={!isSheet} style={styles.brandIdentity} />
           <Text style={styles.title}>Set up Your Business</Text>
           <View style={styles.loginPrompt}>
             <Text style={styles.loginPromptText}>Already Have An Account? </Text>
@@ -251,20 +341,21 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
 
           <ScrollView
             automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
-            contentContainerStyle={styles.form}
-            keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+            contentContainerStyle={[
+              styles.form,
+              keyboardHeight > 0 && {
+                paddingBottom: Math.min(keyboardHeight * 0.35, 120) + spacing['3xl'],
+              },
+            ]}
+            keyboardDismissMode="none"
             keyboardShouldPersistTaps="handled"
+            onContentSizeChange={(_width, contentHeight) => setFormContentHeight(contentHeight)}
+            onLayout={(event) => setFormViewportHeight(event.nativeEvent.layout.height)}
             ref={sheetScroll}
+            scrollEnabled={canScrollForm}
             showsVerticalScrollIndicator={false}
             style={styles.formScroll}
           >
-            <View style={styles.roleSelectorBlock}>
-              <Text style={styles.roleSelectorLabel}>SERVICE PROVIDER APPLICATION</Text>
-              <Text style={styles.roleHelperText}>
-                List your services, manage bookings, and connect with clients.
-              </Text>
-            </View>
-
             <Animated.View
               style={[
                 styles.roleFields,
@@ -278,8 +369,8 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
                 },
               ]}
             >
-            <TextInput autoCapitalize="words" error={submitted && !businessNameIsValid} helperText={submitted && !businessNameIsValid ? 'Business name is required.' : undefined} icon={<MaterialCommunityIcons color={colors.primaryDark} name="office-building-outline" size={20} />} onChangeText={setBusinessName} onContainerLayout={(event) => { fieldOffsets.current.businessName = event.nativeEvent.layout.y }} onSubmitEditing={() => contactNameRef.current?.focus()} placeholder="Business name" ref={businessNameRef} returnKeyType="next" style={[styles.input, styles.inputWithIcon]} value={businessName} />
-            <TextInput autoCapitalize="words" autoComplete="name" error={submitted && !contactNameIsValid} helperText={submitted && !contactNameIsValid ? 'Contact person is required.' : undefined} icon={<MaterialCommunityIcons color={colors.primaryDark} name="account-circle-outline" size={20} />} onChangeText={setContactName} onContainerLayout={(event) => { fieldOffsets.current.contactName = event.nativeEvent.layout.y }} placeholder="Contact person" ref={contactNameRef} returnKeyType="next" style={[styles.input, styles.inputWithIcon]} value={contactName} />
+            <TextInput autoCapitalize="words" error={submitted && !businessNameIsValid} helperText={submitted && !businessNameIsValid ? 'Business name is required.' : undefined} icon={<MaterialCommunityIcons color={colors.primaryDark} name="office-building-outline" size={20} />} onChangeText={setBusinessName} onContainerLayout={(event) => { fieldOffsets.current.businessName = event.nativeEvent.layout.y }} onFocus={() => handleFieldFocus('businessName')} onSubmitEditing={() => contactNameRef.current?.focus()} placeholder="Business name" ref={businessNameRef} returnKeyType="next" style={[styles.input, styles.inputWithIcon]} value={businessName} />
+            <TextInput autoCapitalize="words" autoComplete="name" error={submitted && !contactNameIsValid} helperText={submitted && !contactNameIsValid ? 'Contact person is required.' : undefined} icon={<MaterialCommunityIcons color={colors.primaryDark} name="account-circle-outline" size={20} />} onChangeText={setContactName} onContainerLayout={(event) => { fieldOffsets.current.contactName = event.nativeEvent.layout.y }} onFocus={() => handleFieldFocus('contactName')} placeholder="Contact person" ref={contactNameRef} returnKeyType="next" style={[styles.input, styles.inputWithIcon]} value={contactName} />
             <View onLayout={(event) => { fieldOffsets.current.category = event.nativeEvent.layout.y }} ref={categoryFieldRef} style={styles.dropdownContainer}>
               <Pressable
                 accessibilityLabel="Service category"
@@ -371,10 +462,10 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
               )}
             </View>
             {submitted && !categoryIsValid && <Text accessibilityRole="alert" style={styles.fieldError}>Select a service category.</Text>}
-            <TextInput autoCapitalize="none" autoComplete="email" error={submitted && !emailIsValid} helperText={submitted && !emailIsValid ? 'Enter a valid business email.' : undefined} icon={<MaterialCommunityIcons color={colors.primaryDark} name="at" size={20} />} inputMode="email" keyboardType="email-address" onChangeText={setEmail} onContainerLayout={(event) => { fieldOffsets.current.email = event.nativeEvent.layout.y }} onSubmitEditing={() => phoneRef.current?.focus()} placeholder="Business email" ref={emailRef} returnKeyType="next" style={[styles.input, styles.inputWithIcon]} value={email} />
-            <TextInput autoComplete="tel" error={submitted && !phoneIsValid} helperText={submitted && !phoneIsValid ? 'Phone number is required.' : undefined} icon={<MaterialCommunityIcons color={colors.primaryDark} name="cellphone" size={20} />} inputMode="tel" keyboardType="phone-pad" onChangeText={setPhoneNumber} onContainerLayout={(event) => { fieldOffsets.current.phone = event.nativeEvent.layout.y }} onSubmitEditing={() => passwordRef.current?.focus()} placeholder="Phone number" ref={phoneRef} returnKeyType="next" style={[styles.input, styles.inputWithIcon]} value={phoneNumber} />
-            <TextInput autoCapitalize="none" autoComplete="new-password" error={submitted && !passwordIsValid} helperText={submitted && !passwordIsValid ? 'Password must contain at least 8 characters.' : undefined} icon={<MaterialCommunityIcons color={colors.primaryDark} name="lock-outline" size={20} />} onChangeText={setPassword} onContainerLayout={(event) => { fieldOffsets.current.password = event.nativeEvent.layout.y }} onFocus={() => sheetScroll.current?.scrollTo({ y: Math.max(0, fieldOffsets.current.password - spacing.lg), animated: true })} onSubmitEditing={() => confirmPasswordRef.current?.focus()} placeholder="Password" ref={passwordRef} returnKeyType="next" rightIcon={visibilityIcon(isPasswordVisible, 'password', () => setIsPasswordVisible((visible) => !visible))} secureTextEntry={!isPasswordVisible} style={[styles.input, styles.inputWithIcon]} value={password} />
-            <TextInput autoCapitalize="none" autoComplete="new-password" error={submitted && !confirmPasswordIsValid} helperText={submitted && !confirmPasswordIsValid ? (confirmPassword.length === 0 ? 'Confirm your password.' : 'Passwords do not match.') : undefined} icon={<MaterialCommunityIcons color={colors.primaryDark} name="lock-outline" size={20} />} onChangeText={setConfirmPassword} onContainerLayout={(event) => { fieldOffsets.current.confirmPassword = event.nativeEvent.layout.y }} onFocus={() => sheetScroll.current?.scrollTo({ y: Math.max(0, fieldOffsets.current.confirmPassword - spacing.lg), animated: true })} onSubmitEditing={handleSignUp} placeholder="Confirm password" ref={confirmPasswordRef} returnKeyType="done" rightIcon={visibilityIcon(isConfirmPasswordVisible, 'confirm password', () => setIsConfirmPasswordVisible((visible) => !visible))} secureTextEntry={!isConfirmPasswordVisible} style={[styles.input, styles.inputWithIcon]} value={confirmPassword} />
+            <TextInput autoCapitalize="none" autoComplete="email" error={submitted && !emailIsValid} helperText={submitted && !emailIsValid ? 'Enter a valid business email.' : undefined} icon={<MaterialCommunityIcons color={colors.primaryDark} name="at" size={20} />} inputMode="email" keyboardType="email-address" onChangeText={setEmail} onContainerLayout={(event) => { fieldOffsets.current.email = event.nativeEvent.layout.y }} onFocus={() => handleFieldFocus('email')} onSubmitEditing={() => phoneRef.current?.focus()} placeholder="Business email" ref={emailRef} returnKeyType="next" style={[styles.input, styles.inputWithIcon]} value={email} />
+            <TextInput autoComplete="tel" error={submitted && !phoneIsValid} helperText={submitted && !phoneIsValid ? 'Phone number is required.' : undefined} icon={<MaterialCommunityIcons color={colors.primaryDark} name="cellphone" size={20} />} inputMode="tel" keyboardType="phone-pad" onChangeText={setPhoneNumber} onContainerLayout={(event) => { fieldOffsets.current.phone = event.nativeEvent.layout.y }} onFocus={() => handleFieldFocus('phone')} onSubmitEditing={() => passwordRef.current?.focus()} placeholder="Phone number" ref={phoneRef} returnKeyType="next" style={[styles.input, styles.inputWithIcon]} value={phoneNumber} />
+            <TextInput autoCapitalize="none" autoComplete="new-password" error={submitted && !passwordIsValid} helperText={submitted && !passwordIsValid ? 'Password must contain at least 8 characters.' : undefined} icon={<MaterialCommunityIcons color={colors.primaryDark} name="lock-outline" size={20} />} onChangeText={setPassword} onContainerLayout={(event) => { fieldOffsets.current.password = event.nativeEvent.layout.y }} onFocus={() => handleFieldFocus('password')} onSubmitEditing={() => confirmPasswordRef.current?.focus()} placeholder="Password" ref={passwordRef} returnKeyType="next" rightIcon={visibilityIcon(isPasswordVisible, 'password', () => setIsPasswordVisible((visible) => !visible))} secureTextEntry={!isPasswordVisible} style={[styles.input, styles.inputWithIcon]} value={password} />
+            <TextInput autoCapitalize="none" autoComplete="new-password" error={submitted && !confirmPasswordIsValid} helperText={submitted && !confirmPasswordIsValid ? (confirmPassword.length === 0 ? 'Confirm your password.' : 'Passwords do not match.') : undefined} icon={<MaterialCommunityIcons color={colors.primaryDark} name="lock-outline" size={20} />} onChangeText={setConfirmPassword} onContainerLayout={(event) => { fieldOffsets.current.confirmPassword = event.nativeEvent.layout.y }} onFocus={() => handleFieldFocus('confirmPassword')} onSubmitEditing={handleSignUp} placeholder="Confirm password" ref={confirmPasswordRef} returnKeyType="done" rightIcon={visibilityIcon(isConfirmPasswordVisible, 'confirm password', () => setIsConfirmPasswordVisible((visible) => !visible))} secureTextEntry={!isConfirmPasswordVisible} style={[styles.input, styles.inputWithIcon]} value={confirmPassword} />
 
             {authError.length > 0 && <Text accessibilityRole="alert" style={styles.formError}>{authError}</Text>}
             <View onLayout={(event) => { fieldOffsets.current.terms = event.nativeEvent.layout.y }}>
@@ -382,13 +473,15 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
               <View style={[styles.checkbox, acceptedTerms && styles.checkboxChecked, submitted && !acceptedTerms && styles.checkboxError]}>
                 {acceptedTerms && <MaterialCommunityIcons color={colors.textInverse} name="check" size={14} />}
               </View>
-              <Text style={styles.termsText}>I agree to the Provider Terms, Privacy Policy, and MULTIVENT commission policy. The current 5% service fee is added above my provider price for clients.</Text>
+              <Text style={styles.termsText}>I have read and agree to the MULTIVENT Service Provider Terms and Pricing Policy, and acknowledge the Privacy Policy.</Text>
             </Pressable>
             {submitted && !acceptedTerms && <Text accessibilityRole="alert" style={styles.termsError}>Please accept the Provider Terms and Privacy Policy.</Text>}
             </View>
-            <Button accessibilityLabel="Create service provider account" disabled={isLoading} isFullWidth isLoading={isLoading} onPress={handleSignUp} size="lg" style={styles.submitButton} textStyle={styles.buttonText}>CREATE MERCHANT ACCOUNT</Button>
+            <Button accessibilityLabel="Create service provider account" disabled={isLoading} isFullWidth isLoading={isLoading} onPress={handleSignUp} size="lg" style={styles.submitButton} textStyle={styles.buttonText}>CREATE BUSINESS ACCOUNT</Button>
             </Animated.View>
           </ScrollView>
+            </View>
+          </TouchableWithoutFeedback>
         </Animated.View>
       </View>
 
@@ -402,7 +495,9 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   screen: { flex: 1, backgroundColor: '#F4F4F6' },
+  sheetScreen: { overflow: 'hidden', backgroundColor: colors.background },
   content: { flex: 1, width: '100%', maxWidth: 430, alignSelf: 'center', backgroundColor: colors.background },
+  sheetContent: { maxWidth: undefined },
   hero: { height: 340, overflow: 'hidden', alignItems: 'center', justifyContent: 'flex-end', paddingTop: spacing['4xl'], backgroundColor: colors.primaryDark, position: 'relative' },
   heroImage: { ...StyleSheet.absoluteFill, width: undefined, height: undefined },
   heroOverlay: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(42, 12, 22, 0.48)' },
@@ -412,6 +507,10 @@ const styles = StyleSheet.create({
   heroEyebrow: { color: colors.textInverse, fontSize: typography.caption, fontWeight: '700', letterSpacing: 1.4, marginBottom: spacing.sm },
   heroTitle: { color: colors.textInverse, fontSize: typography.h1, lineHeight: 36, fontWeight: '700' },
   sheet: { flex: 1, marginTop: -180, paddingHorizontal: spacing['2xl'], paddingTop: spacing['2xl'], borderTopLeftRadius: 34, borderTopRightRadius: 34, backgroundColor: colors.background },
+  bottomSheet: { marginTop: 0, paddingTop: 0 },
+  sheetTopBar: { height: 40, alignItems: 'center', justifyContent: 'flex-start', paddingTop: spacing.sm, marginBottom: spacing.sm },
+  sheetHandle: { width: 68, height: 4, borderRadius: radius.pill, backgroundColor: colors.grey300 },
+  sheetBody: { flex: 1 },
   title: { color: colors.primaryDark, fontSize: 24, lineHeight: 29, fontWeight: '700', textAlign: 'center' },
   loginPrompt: { flexDirection: 'row', justifyContent: 'center', marginTop: spacing.sm, marginBottom: spacing['2xl'] },
   loginPromptText: { color: colors.textSecondary, fontSize: 14 },
@@ -419,15 +518,12 @@ const styles = StyleSheet.create({
   subtitle: { color: colors.textSecondary, fontSize: typography.body, lineHeight: 22, textAlign: 'center', marginTop: spacing.sm, marginBottom: spacing['2xl'] },
   form: { gap: spacing.md, paddingBottom: spacing['3xl'] },
   formScroll: { flex: 1 },
-  roleSelectorBlock: { gap: spacing.sm },
-  roleSelectorLabel: { color: colors.textSecondary, fontSize: 11, fontWeight: '700', letterSpacing: 0.8 },
   roleSelector: { position: 'relative', flexDirection: 'row', gap: spacing.sm, padding: 4, borderRadius: radius.xl, backgroundColor: '#F1F2F4' },
   roleSelectionIndicator: { position: 'absolute', top: 4, bottom: 4, left: 4, borderRadius: radius.large, backgroundColor: colors.primaryDark, shadowColor: colors.primaryDark, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.16, shadowRadius: 6, elevation: 2 },
   roleOption: { zIndex: 1, minWidth: 0, minHeight: 42, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: spacing.sm, borderRadius: radius.large },
   roleOptionPressed: { opacity: 0.75 },
   roleOptionText: { minWidth: 0, color: colors.primaryDark, fontSize: 12, fontWeight: '700' },
   roleOptionTextSelected: { color: colors.textInverse },
-  roleHelperText: { color: colors.textSecondary, fontSize: 12, lineHeight: 18, paddingHorizontal: spacing.xs },
   roleFields: { gap: spacing.md },
   input: { height: 52, borderWidth: 0, borderRadius: radius.xl, backgroundColor: '#F1F2F4', paddingHorizontal: spacing.xl, fontSize: 15 },
   inputWithIcon: { paddingLeft: spacing['4xl'] },

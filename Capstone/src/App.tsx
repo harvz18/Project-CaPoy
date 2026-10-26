@@ -178,7 +178,7 @@ import { OnboardingScreen } from './screens/01-Onboarding'
 import { LoginScreen } from './screens/01.1-Login'
 import { ForgotPasswordScreen } from './screens/01.1.1-ForgotPassword'
 import { NewPasswordScreen } from './screens/01.1.2-NewPassword'
-import { RoleSelectionScreen, UserRole } from './screens/02-RoleSelection'
+import { RoleSelectionScreen } from './screens/02-RoleSelection'
 import { SignupScreen } from './screens/02.1-ClientSignup'
 import { MerchantSignupScreen } from './screens/02.2-MerchantSignup'
 import { PendingApprovalScreen } from './screens/02.2.1-PendingApproval'
@@ -356,7 +356,7 @@ type AppScreen =
   | 'guestList'
 
 type LoginReturnScreen = 'roleSelection' | 'clientSignup' | 'merchantSignup'
-type VerificationReturnScreen = 'clientSignup' | 'merchantSignup'
+type VerificationReturnScreen = 'roleSelection' | 'clientSignup' | 'merchantSignup'
 type VerificationNextScreen = 'clientHome' | 'pendingApproval' | 'coordinatorHome'
 type AccountRole =
   | 'client'
@@ -666,6 +666,7 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('popstate', handleBrowserBack)
   }, [goBackInApp])
   const [isClientNavigationVisible, setIsClientNavigationVisible] = React.useState(true)
+  const [isClientHomeRefreshing, setIsClientHomeRefreshing] = React.useState(false)
   const clientNavigationInteractionLockRef = React.useRef(0)
   const keepClientNavigationVisibleForToggle = React.useCallback(() => {
     clientNavigationInteractionLockRef.current = Date.now() + 320
@@ -1854,6 +1855,16 @@ export const App: React.FC = () => {
     return planningState
   }, [hydrateClientPlanningState])
 
+  const refreshClientHome = React.useCallback(async () => {
+    if (isClientHomeRefreshing) return
+    setIsClientHomeRefreshing(true)
+    try {
+      await refreshLiveData()
+    } finally {
+      setIsClientHomeRefreshing(false)
+    }
+  }, [isClientHomeRefreshing, refreshLiveData])
+
   React.useEffect(() => {
     if (!authenticatedUserId) return undefined
 
@@ -2536,10 +2547,12 @@ export const App: React.FC = () => {
   )
 
   React.useEffect(() => {
+    const notificationModule = Notifications
     if (
       !authenticatedUserId
       || Platform.OS === 'web'
       || !supportsRemotePushNotifications
+      || !notificationModule
     ) return undefined
 
     let active = true
@@ -2548,9 +2561,9 @@ export const App: React.FC = () => {
       if (__DEV__) console.warn(`Push registration: ${result.message ?? 'not available'}`)
     })
 
-    let tokenSubscription: ReturnType<typeof Notifications.addPushTokenListener> | undefined
+    let tokenSubscription: { remove: () => void } | undefined
     try {
-      tokenSubscription = Notifications.addPushTokenListener(() => {
+      tokenSubscription = notificationModule.addPushTokenListener(() => {
         void registerCurrentDeviceForPush()
       })
     } catch (error) {
@@ -2568,12 +2581,15 @@ export const App: React.FC = () => {
   }, [authenticatedUserId])
 
   React.useEffect(() => {
-    if (Platform.OS === 'web' || !supportsRemotePushNotifications) return undefined
+    const notificationModule = Notifications
+    if (Platform.OS === 'web' || !supportsRemotePushNotifications || !notificationModule) {
+      return undefined
+    }
 
-    const receivedSubscription = Notifications.addNotificationReceivedListener(() => {
+    const receivedSubscription = notificationModule.addNotificationReceivedListener(() => {
       void refreshLiveData()
     })
-    const responseSubscription = Notifications.addNotificationResponseReceivedListener(
+    const responseSubscription = notificationModule.addNotificationResponseReceivedListener(
       (response) => {
         const route = readNotificationRouteData(response.notification)
         openNotificationDestination(route.resourceType, route.resourceId)
@@ -2582,11 +2598,11 @@ export const App: React.FC = () => {
     )
 
     if (authenticatedUserId && !isAuthRestoring) {
-      void Notifications.getLastNotificationResponseAsync().then((response) => {
+      void notificationModule.getLastNotificationResponseAsync().then((response) => {
         if (!response) return
         const route = readNotificationRouteData(response.notification)
         openNotificationDestination(route.resourceType, route.resourceId)
-        void Notifications.clearLastNotificationResponseAsync()
+        void notificationModule.clearLastNotificationResponseAsync()
       })
     }
 
@@ -2717,21 +2733,6 @@ export const App: React.FC = () => {
     setVerificationReturnScreen(returnScreen)
     setVerificationNextScreen(nextScreen)
     setScreen('verification')
-  }
-
-  const handleRoleSelection = (role: UserRole) => {
-    if (role === 'client') {
-      setScreen('clientSignup')
-      return
-    }
-
-    signupEntrance.setValue(width)
-    setScreen('merchantSignup')
-    Animated.timing(signupEntrance, {
-      toValue: 0,
-      duration: 360,
-      useNativeDriver: true,
-    }).start()
   }
 
   const handleBudgetContinue = async (value: BudgetAllocationValue) => {
@@ -3974,9 +3975,8 @@ export const App: React.FC = () => {
       draftEvents={clientEventDrafts}
       bookingProgressEvents={clientBookingProgress}
       hasUnreadBookingUpdates={hasUnreadBookingUpdates}
+      isRefreshing={isClientHomeRefreshing}
       recommendations={homeRecommendations}
-      userAvatarUrl={userAvatarUrl}
-      userName={userName}
       selectedServiceCount={selectedServices.length}
       onOpenDraft={(draftId) => void resumeClientDraft(draftId)}
       onOpenBookingProgress={(booking) => {
@@ -3996,6 +3996,7 @@ export const App: React.FC = () => {
         setClientRefundsReturnScreen('clientHome')
         setScreen('clientRefunds')
       }}
+      onRefresh={refreshClientHome}
       onOpenSavedPlans={() => setScreen('clientPlans')}
       onScrollDirectionChange={(direction) => {
         handleClientNavigationScrollDirection(direction)
@@ -4185,8 +4186,28 @@ export const App: React.FC = () => {
           >
             <RoleSelectionScreen
               entranceDelay={100}
-              onLogIn={() => openLogin('roleSelection')}
-              onSelectRole={handleRoleSelection}
+              onClientGoogleSignUp={handleAuthenticatedUser}
+              onClientSignUp={(email, needsVerification) => {
+                if (needsVerification) {
+                  openVerification(email, 'roleSelection', 'clientHome')
+                  return
+                }
+
+                handleAuthenticatedUser()
+              }}
+              onForgotPassword={() => {
+                setLoginReturnScreen('roleSelection')
+                setScreen('forgotPassword')
+              }}
+              onLogIn={handleAuthenticatedUser}
+              onMerchantSignUp={(email, needsVerification) => {
+                if (needsVerification) {
+                  openVerification(email, 'roleSelection', 'pendingApproval')
+                  return
+                }
+
+                handleAuthenticatedUser()
+              }}
             />
           </Animated.View>
         )
@@ -5672,13 +5693,16 @@ export const App: React.FC = () => {
   // gestures, so a horizontal interaction inside any screen cannot skip a
   // validation step or change the current plan route.
   const isPlanningNavigationContext = serviceBrowseMode === 'planning'
+  const appSafeAreaEdges = screen === 'clientHome'
+    ? (['right', 'bottom', 'left'] as const)
+    : (['top', 'right', 'bottom', 'left'] as const)
   const renderedScreen = renderScreen()
 
   return (
     <SafeAreaProvider>
       <StatusBar style={screen === 'clientHome' ? 'light' : 'dark'} />
       <SafeAreaView
-        edges={['top', 'right', 'bottom', 'left']}
+        edges={appSafeAreaEdges}
         style={[styles.container, isHome && styles.homeContainer]}
       >
         <ScreenMotionFrame

@@ -11,6 +11,7 @@ import {
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 // `bookings` remains a first-class route in App.tsx. It is intentionally not
 // an action in the V12 floating navigation; clients can still reach it from
@@ -34,6 +35,8 @@ const tabs = [
 ]
 
 const animationDuration = 240
+const activeHighlightWidth = 32
+const logoGapWidth = 84
 
 export const ClientBottomNavigation: React.FC<ClientBottomNavigationProps> = ({
   activeTab,
@@ -43,12 +46,31 @@ export const ClientBottomNavigation: React.FC<ClientBottomNavigationProps> = ({
   onSelectTab,
   onToggleNavigation,
 }) => {
+  const safeAreaInsets = useSafeAreaInsets()
   const [isExpanded, setIsExpanded] = React.useState(false)
   const [reducedMotion, setReducedMotion] = React.useState(false)
   const expansion = React.useRef(new Animated.Value(0)).current
   const navigationTranslateY = React.useRef(new Animated.Value(0)).current
   const logoPressScale = React.useRef(new Animated.Value(1)).current
+  const logoRotation = React.useRef(new Animated.Value(0)).current
+  const logoSpinDirection = React.useRef<1 | -1>(1)
+  const activeIndicatorX = React.useRef(new Animated.Value(0)).current
+  const isActiveIndicatorInitialized = React.useRef(false)
   const isToggleInFlight = React.useRef(false)
+  const isLogoSpinning = React.useRef(false)
+  const [navigationWidth, setNavigationWidth] = React.useState(0)
+  const activeIndex = Math.max(0, tabs.findIndex((tab) => tab.id === activeTab))
+  // Keep the floating center logo entirely above Android gesture and
+  // three-button navigation areas, including devices with no reported inset.
+  const navigationBottomOffset = Math.max(16, safeAreaInsets.bottom + 12)
+
+  const indicatorPosition = (width: number, index: number) => {
+    const tabWidth = (width - logoGapWidth) / tabs.length
+    const tabOffset = index < 2
+      ? index * tabWidth
+      : logoGapWidth + index * tabWidth
+    return tabOffset + (tabWidth - activeHighlightWidth) / 2
+  }
 
   React.useEffect(() => {
     let isMounted = true
@@ -86,6 +108,25 @@ export const ClientBottomNavigation: React.FC<ClientBottomNavigationProps> = ({
     return () => expansion.stopAnimation()
   }, [expansion, isExpanded, reducedMotion])
 
+  React.useEffect(() => {
+    if (!navigationWidth) return
+
+    const targetPosition = indicatorPosition(navigationWidth, activeIndex)
+    activeIndicatorX.stopAnimation()
+    if (!isActiveIndicatorInitialized.current) {
+      activeIndicatorX.setValue(targetPosition)
+      isActiveIndicatorInitialized.current = true
+      return
+    }
+
+    Animated.timing(activeIndicatorX, {
+      toValue: targetPosition,
+      duration: reducedMotion ? 0 : animationDuration,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start()
+  }, [activeIndex, activeIndicatorX, navigationWidth, reducedMotion])
+
   const toggleNavigation = () => {
     if (isToggleInFlight.current) return
     isToggleInFlight.current = true
@@ -94,8 +135,25 @@ export const ClientBottomNavigation: React.FC<ClientBottomNavigationProps> = ({
     // collapsing so the pill cannot slide down as part of this interaction.
     navigationTranslateY.stopAnimation()
     navigationTranslateY.setValue(0)
+    playLogoSpin()
     onToggleNavigation?.()
     setIsExpanded((current) => !current)
+  }
+
+  const playLogoSpin = () => {
+    if (reducedMotion || isLogoSpinning.current) return
+    isLogoSpinning.current = true
+    const direction = logoSpinDirection.current
+    logoSpinDirection.current = direction === 1 ? -1 : 1
+    logoRotation.setValue(0)
+    Animated.timing(logoRotation, {
+      toValue: direction,
+      duration: animationDuration,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start(() => {
+      isLogoSpinning.current = false
+    })
   }
 
   const handleLogoPressIn = () => {
@@ -143,6 +201,15 @@ export const ClientBottomNavigation: React.FC<ClientBottomNavigationProps> = ({
     inputRange: [0, 1],
     outputRange: [0.02, 1],
   })
+  const navigationFadeOpacity = navigationTranslateY.interpolate({
+    inputRange: [0, 116],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  })
+  const logoRotate = logoRotation.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: ['-360deg', '0deg', '360deg'],
+  })
   // While the pill is collapsed, the center M is the only visible way to
   // discover updates in Home or Inbox. Surface one consolidated indicator
   // there; the per-tab indicators remain visible after it expands.
@@ -160,17 +227,17 @@ export const ClientBottomNavigation: React.FC<ClientBottomNavigationProps> = ({
         onPress={() => selectTab(tab.id)}
         style={({ pressed }) => [styles.navItem, pressed && styles.navItemPressed]}
       >
-        <View style={[styles.navIconContainer, isActive && styles.navIconContainerActive]}>
+        <View style={styles.navIconContainer}>
           <MaterialIcons
-            color={palette.iconMuted}
+            color={isActive ? palette.burgundy : palette.iconMuted}
             name={tab.icon}
-            size={21}
+            size={26}
           />
           {hasUnreadUpdate ? <View style={styles.inboxUnreadDot} /> : null}
         </View>
-        <Text numberOfLines={1} style={[styles.navLabel, isActive && styles.navLabelActive]}>
-          {tab.label}
-        </Text>
+        {isActive ? (
+          <Text numberOfLines={1} style={[styles.navLabel, styles.navLabelActive]}>{tab.label}</Text>
+        ) : null}
       </Pressable>
     )
   }
@@ -178,18 +245,34 @@ export const ClientBottomNavigation: React.FC<ClientBottomNavigationProps> = ({
   return (
     <Animated.View
       pointerEvents={isVisible ? 'auto' : 'none'}
-      style={[styles.bottomNavigation, { transform: [{ translateY: navigationTranslateY }] }]}
+      style={[
+        styles.bottomNavigation,
+        {
+          bottom: navigationBottomOffset,
+          transform: [{ translateY: navigationTranslateY }],
+        },
+      ]}
     >
-      <LinearGradient
-        colors={[
-          'rgba(255, 252, 253, 0)',
-          'rgba(236, 208, 217, 0.76)',
-          'rgba(224, 185, 198, 0.98)',
-        ]}
-        locations={[0, 0.55, 1]}
+      <Animated.View
         pointerEvents="none"
-        style={styles.navigationFade}
-      />
+        style={[
+          styles.navigationFade,
+          {
+            height: 164 + navigationBottomOffset,
+            opacity: navigationFadeOpacity,
+          },
+        ]}
+      >
+        <LinearGradient
+          colors={[
+            'rgba(255, 252, 253, 0)',
+            'rgba(236, 208, 217, 0.76)',
+            'rgba(224, 185, 198, 0.98)',
+          ]}
+          locations={[0, 0.55, 1]}
+          style={styles.navigationFadeFill}
+        />
+      </Animated.View>
       <Animated.View
         pointerEvents="none"
         style={[
@@ -201,6 +284,9 @@ export const ClientBottomNavigation: React.FC<ClientBottomNavigationProps> = ({
       />
 
       <Animated.View
+        onLayout={(event) => {
+          setNavigationWidth(event.nativeEvent.layout.width)
+        }}
         pointerEvents={isExpanded ? 'auto' : 'none'}
         style={[
           styles.navigationActions,
@@ -209,13 +295,20 @@ export const ClientBottomNavigation: React.FC<ClientBottomNavigationProps> = ({
           },
         ]}
       >
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.activeIndicator,
+            { opacity: navigationWidth && isExpanded ? 1 : 0 },
+            { transform: [{ translateX: activeIndicatorX }] },
+          ]}
+        />
         <View style={styles.actionSide}>{tabs.slice(0, 2).map(renderTab)}</View>
         <View style={styles.logoGap} />
         <View style={styles.actionSide}>{tabs.slice(2).map(renderTab)}</View>
       </Animated.View>
 
-      <View pointerEvents="none" style={styles.logoGlow} />
-      <Animated.View style={[styles.logoButton, { transform: [{ scale: logoPressScale }] }]}>
+      <Animated.View style={[styles.logoButton, { transform: [{ scale: logoPressScale }, { rotate: logoRotate }] }]}>
         <Pressable
           accessibilityHint={isExpanded ? 'Collapses client navigation' : 'Expands client navigation'}
           accessibilityLabel={isExpanded
@@ -245,8 +338,8 @@ export const ClientBottomNavigation: React.FC<ClientBottomNavigationProps> = ({
             </View>
           </LinearGradient>
         </Pressable>
-        {hasCollapsedNavigationUpdate ? <View pointerEvents="none" style={styles.logoUnreadDot} /> : null}
       </Animated.View>
+      {hasCollapsedNavigationUpdate ? <View pointerEvents="none" style={styles.logoUnreadDot} /> : null}
     </Animated.View>
   )
 }
@@ -262,7 +355,6 @@ const styles = StyleSheet.create({
   bottomNavigation: {
     position: 'absolute',
     right: 16,
-    bottom: 8,
     left: 16,
     zIndex: 50,
     height: 82,
@@ -275,7 +367,10 @@ const styles = StyleSheet.create({
     top: -82,
     right: -16,
     left: -16,
-    height: 172,
+  },
+  navigationFadeFill: {
+    width: '100%',
+    height: '100%',
   },
   navigationSurface: {
     position: 'absolute',
@@ -305,7 +400,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   logoGap: {
-    width: 84,
+    width: logoGapWidth,
   },
   navItem: {
     minWidth: 0,
@@ -327,7 +422,12 @@ const styles = StyleSheet.create({
     borderRadius: 13,
     marginBottom: 1,
   },
-  navIconContainerActive: {
+  activeIndicator: {
+    position: 'absolute',
+    top: 6,
+    width: activeHighlightWidth,
+    height: 26,
+    borderRadius: 13,
     backgroundColor: 'rgba(107, 30, 46, 0.1)',
   },
   inboxUnreadDot: {
@@ -363,11 +463,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 41,
     backgroundColor: palette.burgundyDark,
-    shadowColor: '#3A0814',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.42,
-    shadowRadius: 16,
-    elevation: 18,
   },
   logoPressTarget: {
     width: '100%',
@@ -379,7 +474,8 @@ const styles = StyleSheet.create({
   logoUnreadDot: {
     position: 'absolute',
     top: 4,
-    right: 4,
+    left: '50%',
+    marginLeft: 25,
     width: 12,
     height: 12,
     borderWidth: 2,
@@ -405,17 +501,6 @@ const styles = StyleSheet.create({
     height: 78,
     borderRadius: 39,
     overflow: 'hidden',
-  },
-  logoGlow: {
-    position: 'absolute',
-    width: 94,
-    height: 94,
-    borderRadius: 47,
-    backgroundColor: 'rgba(107, 30, 46, 0.11)',
-    shadowColor: '#6B1E2E',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.22,
-    shadowRadius: 12,
   },
   logo: {
     width: '100%',

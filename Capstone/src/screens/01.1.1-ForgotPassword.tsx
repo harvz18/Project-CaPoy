@@ -5,8 +5,9 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  type ScrollViewInstance,
   StyleSheet,
-  TextInput as NativeTextInput,
+  type TextInputInstance,
   View,
 } from 'react-native'
 import { Button } from '../components/Button'
@@ -29,8 +30,8 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
   const [requestSent, setRequestSent] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [authError, setAuthError] = useState('')
-  const scrollRef = useRef<ScrollView>(null)
-  const contactRef = useRef<NativeTextInput>(null)
+  const scrollRef = useRef<ScrollViewInstance>(null)
+  const contactRef = useRef<TextInputInstance>(null)
   const formTop = useRef(0)
   const contactOffset = useRef(0)
 

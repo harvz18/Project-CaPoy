@@ -257,7 +257,9 @@ export const ClientPlansScreen: React.FC<ClientPlansScreenProps> = ({
 
       <Modal
         animationType="fade"
-        onRequestClose={() => !isDeletingDraft && setDraftPendingDeletion(undefined)}
+        onRequestClose={() => {
+          if (!isDeletingDraft) setDraftPendingDeletion(undefined)
+        }}
         transparent
         visible={Boolean(draftPendingDeletion)}
       >

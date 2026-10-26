@@ -8,6 +8,7 @@ import {
   StyleSheet,
   
   TextInput,
+  type TextInputInstance,
   View,
 } from 'react-native'
 import { Button } from '../components/Button'
@@ -28,7 +29,7 @@ export const VerificationScreen: React.FC<VerificationScreenProps> = ({
   onBack,
   onVerified,
 }) => {
-  const inputRefs = useRef<Array<TextInput | null>>([])
+  const inputRefs = useRef<Array<TextInputInstance | null>>([])
   const [code, setCode] = useState<string[]>(Array(codeLength).fill(''))
   const [submitted, setSubmitted] = useState(false)
   const [resent, setResent] = useState(false)

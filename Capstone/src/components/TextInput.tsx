@@ -7,6 +7,7 @@ import {
   StyleSheet,
   
   TextInput as RNTextInput,
+  type TextInputInstance,
   TextInputProps as RNTextInputProps,
   View,
 } from 'react-native'
@@ -21,7 +22,7 @@ interface TextInputProps extends RNTextInputProps {
   onContainerLayout?: (event: LayoutChangeEvent) => void
 }
 
-export const TextInput = React.forwardRef<RNTextInput, TextInputProps>(
+export const TextInput = React.forwardRef<TextInputInstance, TextInputProps>(
   ({ label, helperText, error = false, icon, rightIcon, onContainerLayout, onBlur, onFocus, style, ...props }, ref) => {
     const [focused, setFocused] = useState(false)
     const translateX = useRef(new Animated.Value(0)).current

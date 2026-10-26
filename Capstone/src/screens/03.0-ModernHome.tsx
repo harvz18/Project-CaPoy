@@ -2,9 +2,12 @@ import { MaterialIcons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
 import React from 'react'
 import {
+  Animated,
+  Easing,
   Image,
   Modal,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   useWindowDimensions,
@@ -12,7 +15,10 @@ import {
 } from 'react-native'
 
 import { Text } from '../components/AppText'
+import { AnimatedQuickAccessButton } from '../components/AnimatedQuickAccessButton'
 import { BrandIdentity } from '../components/BrandIdentity'
+import { CardInsetShadow } from '../components/CardInsetShadow'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { formatServicePrice } from '../lib/catalog'
 import type { HomeServiceRecommendation } from '../lib/home-recommendations'
 import type { ClientBookingProgress } from './03-ClientHome'
@@ -32,11 +38,13 @@ export interface ModernHomeScreenProps {
   hasAdditionalBookingProgress: boolean
   hasUnreadBookingUpdates?: boolean
   isDraftPromptVisible: boolean
+  isRefreshing?: boolean
   isStartingNewEvent: boolean
   onCreateEvent: () => void
   onDismissDraftPrompt: () => void
   onOpenBookingProgress?: (booking: BookingItem) => void
   onOpenProfile?: () => void
+  onRefresh?: () => void | Promise<void>
   onOpenSupport?: () => void
   onQuickAccess: (itemId: QuickAccessId) => void
   onResumeDraft: () => void
@@ -47,8 +55,6 @@ export interface ModernHomeScreenProps {
   onToggleBookingProgress: () => void
   recommendations?: HomeServiceRecommendation[]
   showAllBookingProgress: boolean
-  userAvatarUrl?: string
-  userName?: string
 }
 
 const formatEventDate = (value: string) => {
@@ -76,11 +82,13 @@ export const ModernHomeScreen: React.FC<ModernHomeScreenProps> = ({
   hasAdditionalBookingProgress,
   hasUnreadBookingUpdates = false,
   isDraftPromptVisible,
+  isRefreshing = false,
   isStartingNewEvent,
   onCreateEvent,
   onDismissDraftPrompt,
   onOpenBookingProgress,
   onOpenProfile,
+  onRefresh,
   onOpenSupport,
   onQuickAccess,
   onResumeDraft,
@@ -91,16 +99,39 @@ export const ModernHomeScreen: React.FC<ModernHomeScreenProps> = ({
   onToggleBookingProgress,
   recommendations = [],
   showAllBookingProgress,
-  userAvatarUrl,
-  userName,
 }) => {
+  const safeAreaInsets = useSafeAreaInsets()
   const { width } = useWindowDimensions()
   const isWide = width >= 768
-  const wordmarkSize = width < 375 ? 31 : 35
+  const wordmarkSize = width < 375 ? 26 : 35
   const lastScrollY = React.useRef(0)
+  const logoRotation = React.useRef(new Animated.Value(0)).current
+  const logoSpinDirection = React.useRef<1 | -1>(1)
+  const isLogoSpinning = React.useRef(false)
   const visibleBookingProgress = showAllBookingProgress
     ? bookingProgressEvents
     : bookingProgressEvents.slice(0, 3)
+
+  const handleLogoPress = () => {
+    if (isLogoSpinning.current) return
+    isLogoSpinning.current = true
+    const direction = logoSpinDirection.current
+    logoSpinDirection.current = direction === 1 ? -1 : 1
+    logoRotation.setValue(0)
+    Animated.timing(logoRotation, {
+      duration: 620,
+      easing: Easing.inOut(Easing.cubic),
+      toValue: direction,
+      useNativeDriver: true,
+    }).start(() => {
+      isLogoSpinning.current = false
+    })
+  }
+
+  const logoRotate = logoRotation.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: ['-360deg', '0deg', '360deg'],
+  })
 
   return (
     <View style={styles.screen}>
@@ -115,53 +146,24 @@ export const ModernHomeScreen: React.FC<ModernHomeScreenProps> = ({
         }}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
+        refreshControl={onRefresh ? (
+          <RefreshControl
+            colors={['#8A2944']}
+            onRefresh={() => void onRefresh()}
+            refreshing={isRefreshing}
+            tintColor="#8A2944"
+          />
+        ) : undefined}
       >
         <LinearGradient
           colors={['#4E061A', '#701B30', '#A34E5D', '#E9B8B3']}
           end={{ x: 1, y: 1 }}
           start={{ x: 0.05, y: 0 }}
-          style={styles.hero}
+          style={[styles.hero, { paddingTop: safeAreaInsets.top + 72 }]}
         >
           <View pointerEvents="none" style={styles.heroGlow} />
           <View pointerEvents="none" style={styles.heroCurveOuter} />
           <View pointerEvents="none" style={styles.heroCurveInner} />
-
-          <View style={[styles.header, isWide && styles.headerWide]}>
-            <Pressable
-              accessibilityLabel="Open profile"
-              accessibilityRole="button"
-              onPress={onOpenProfile}
-              style={({ pressed }) => [styles.avatarButton, pressed && styles.headerPressed]}
-            >
-              <View style={styles.avatarRim}>
-                <View style={styles.avatar}>
-                  {userAvatarUrl ? (
-                    <Image
-                      accessibilityLabel={`${userName || 'User'} profile photo`}
-                      resizeMode="cover"
-                      source={{ uri: userAvatarUrl }}
-                      style={styles.avatarImage}
-                    />
-                  ) : (
-                    <MaterialIcons color="#7A233A" name="account-circle" size={35} />
-                  )}
-                </View>
-              </View>
-            </Pressable>
-
-            <View style={styles.wordmarkWrap}>
-              <BrandIdentity markSize={wordmarkSize} showName={false} variant="metallicWordmark" />
-            </View>
-
-            <Pressable
-              accessibilityLabel="Contact MULTIVENT Support"
-              accessibilityRole="button"
-              onPress={onOpenSupport}
-              style={({ pressed }) => [styles.supportButton, pressed && styles.headerPressed]}
-            >
-              <MaterialIcons color="#FFFFFF" name="support-agent" size={26} />
-            </Pressable>
-          </View>
 
           <View style={[styles.heroCopy, isWide && styles.heroCopyWide]}>
             <Text style={styles.heroTitle}>LET&apos;S PLAN{`\n`}YOUR BIG DAY!</Text>
@@ -182,31 +184,26 @@ export const ModernHomeScreen: React.FC<ModernHomeScreenProps> = ({
 
         <View style={[styles.pageContent, isWide && styles.pageContentWide]}>
           <View style={styles.quickAccessPanel}>
+            <CardInsetShadow />
             <Text style={styles.quickAccessTitle}>QUICK ACCESS</Text>
             <View style={styles.quickAccessGrid}>
-              {QUICK_ACCESS_ITEMS.map((item) => (
-                <Pressable
+              {QUICK_ACCESS_ITEMS.map((item, index) => (
+                <AnimatedQuickAccessButton
                   key={item.id}
                   accessibilityLabel={`Open ${item.label}${item.id === 'bookings' && hasUnreadBookingUpdates ? ', with unread updates' : ''}`}
-                  accessibilityRole="button"
+                  badgeStyle={styles.quickAccessUnreadDot}
+                  entranceDelay={260 + index * 180}
+                  iconContainerStyle={styles.quickAccessIconWrap}
+                  iconScale={item.iconScale}
+                  iconSource={item.image}
+                  iconStyle={styles.quickAccessIcon}
+                  itemStyle={styles.quickAccessCard}
+                  label={item.label}
+                  labelStyle={styles.quickAccessLabel}
                   onPress={() => onQuickAccess(item.id)}
-                  style={({ pressed }) => [styles.quickAccessCard, pressed && styles.quickAccessPressed]}
-                >
-                  <View style={styles.quickAccessIconWrap}>
-                    <Image
-                      resizeMode="contain"
-                      source={item.image}
-                      style={[
-                        styles.quickAccessIcon,
-                        { transform: [{ scale: item.iconScale }] },
-                      ]}
-                    />
-                    {item.id === 'bookings' && hasUnreadBookingUpdates ? <View style={styles.quickAccessUnreadDot} /> : null}
-                  </View>
-                  <Text numberOfLines={1} style={styles.quickAccessLabel}>
-                    {item.label}
-                  </Text>
-                </Pressable>
+                  pressedStyle={styles.quickAccessPressed}
+                  showBadge={item.id === 'bookings' && hasUnreadBookingUpdates}
+                />
               ))}
             </View>
           </View>
@@ -245,6 +242,7 @@ export const ModernHomeScreen: React.FC<ModernHomeScreenProps> = ({
                   onPress={() => onOpenBookingProgress?.(progress.booking)}
                   style={({ pressed }) => [styles.bookingCard, pressed && styles.bookingCardPressed]}
                 >
+                  <CardInsetShadow />
                   {progress.hasUnreadUpdate ? <View style={styles.bookingUnreadDot} /> : null}
                   <View style={styles.bookingAccent} />
                   <View style={styles.bookingCardBody}>
@@ -304,10 +302,9 @@ export const ModernHomeScreen: React.FC<ModernHomeScreenProps> = ({
           {recommendations.length ? (
             <ScrollView
               contentContainerStyle={styles.recommendationCarousel}
-              decelerationRate="fast"
+              decelerationRate="normal"
               horizontal
               showsHorizontalScrollIndicator={false}
-              snapToInterval={isWide ? 330 : Math.max(254, width - 72) + 12}
             >
               {recommendations.map((recommendation) => (
                 <Pressable
@@ -321,6 +318,7 @@ export const ModernHomeScreen: React.FC<ModernHomeScreenProps> = ({
                     pressed && styles.bookingCardPressed,
                   ]}
                 >
+                  <CardInsetShadow />
                   {recommendation.service.imageUrl ? (
                     <Image
                       accessibilityLabel={recommendation.service.imageLabel}
@@ -342,14 +340,14 @@ export const ModernHomeScreen: React.FC<ModernHomeScreenProps> = ({
                       {recommendation.service.categoryName} · {recommendation.service.providerName}
                     </Text>
                     <View style={styles.recommendationFooter}>
-                      <Text style={styles.recommendationPrice}>{formatServicePrice(recommendation.service)}</Text>
-                      <Text style={styles.recommendationRating}>
-                        {recommendation.service.reviewCount > 0
-                          ? `${recommendation.service.rating} ★ (${recommendation.service.reviewCount})`
-                          : 'New'}
-                      </Text>
                     </View>
                   </View>
+                  <Text style={styles.recommendationRating}>
+                    {recommendation.service.reviewCount > 0
+                      ? `${recommendation.service.rating} ★ (${recommendation.service.reviewCount})`
+                      : 'New'}
+                  </Text>
+                  <Text style={styles.recommendationPrice}>{formatServicePrice(recommendation.service)}</Text>
                 </Pressable>
               ))}
             </ScrollView>
@@ -361,6 +359,45 @@ export const ModernHomeScreen: React.FC<ModernHomeScreenProps> = ({
           )}
         </View>
       </ScrollView>
+
+      <LinearGradient
+        colors={['#4E061A', '#701B30']}
+        end={{ x: 1, y: 1 }}
+        start={{ x: 0.05, y: 0 }}
+        style={[styles.stickyHeader, { paddingTop: safeAreaInsets.top }]}
+      >
+        <View style={[styles.header, isWide && styles.headerWide]}>
+          <Pressable
+            accessibilityLabel="Animate MULTIVENT logo"
+            accessibilityRole="button"
+            onPress={handleLogoPress}
+            style={({ pressed }) => [styles.logoButton, pressed && styles.headerPressed]}
+          >
+            <Animated.View style={[styles.wordmarkWrap, { transform: [{ rotate: logoRotate }] }]}>
+              <BrandIdentity markSize={wordmarkSize} showName={false} variant="metallicWordmark" />
+            </Animated.View>
+          </Pressable>
+
+          <View style={styles.headerActions}>
+            <Pressable
+              accessibilityLabel="Contact MULTIVENT Support"
+              accessibilityRole="button"
+              onPress={onOpenSupport}
+              style={({ pressed }) => [styles.supportButton, pressed && styles.headerPressed]}
+            >
+              <MaterialIcons color="#FFFFFF" name="support-agent" size={25} />
+            </Pressable>
+            <Pressable
+              accessibilityLabel="Open settings"
+              accessibilityRole="button"
+              onPress={onOpenProfile}
+              style={({ pressed }) => [styles.supportButton, pressed && styles.headerPressed]}
+            >
+              <MaterialIcons color="#FFFFFF" name="settings" size={23} />
+            </Pressable>
+          </View>
+        </View>
+      </LinearGradient>
 
       <Modal
         animationType="fade"
@@ -411,14 +448,13 @@ const styles = StyleSheet.create({
   heroGlow: { position: 'absolute', width: 380, height: 280, right: -178, top: 46, borderRadius: 190, backgroundColor: 'rgba(255, 219, 211, 0.24)', transform: [{ rotate: '-21deg' }] },
   heroCurveOuter: { position: 'absolute', width: 520, height: 235, right: -215, bottom: -135, borderWidth: 1.2, borderColor: 'rgba(255, 239, 225, 0.88)', borderRadius: 260, backgroundColor: 'rgba(255, 234, 224, 0.22)', transform: [{ rotate: '-12deg' }] },
   heroCurveInner: { position: 'absolute', width: 510, height: 188, right: -226, bottom: -157, borderRadius: 255, backgroundColor: '#FBF7F2', transform: [{ rotate: '-12deg' }] },
-  header: { minHeight: 72, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 10 },
+  stickyHeader: { position: 'absolute', top: 0, right: 0, left: 0, zIndex: 20, elevation: 20 },
+  header: { minHeight: 72, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingTop: 5, paddingBottom: 15 },
   headerWide: { width: '100%', maxWidth: 760, alignSelf: 'center', paddingHorizontal: 28 },
-  avatarButton: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 23 },
-  avatarRim: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.9)', borderRadius: 22, backgroundColor: '#FFF7F2', padding: 2, shadowColor: '#26020C', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 4 },
-  avatar: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderRadius: 19, backgroundColor: '#F8EDEF' },
-  avatarImage: { width: '100%', height: '100%', borderRadius: 19 },
-  wordmarkWrap: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
-  supportButton: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 23 },
+  logoButton: { minWidth: 0, flex: 1, alignItems: 'flex-start', justifyContent: 'center', minHeight: 42, borderRadius: 21 },
+  wordmarkWrap: { alignItems: 'flex-start', marginTop: -3 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 2, marginLeft: 6 },
+  supportButton: { width: 40, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 21 },
   headerPressed: { backgroundColor: 'rgba(255,255,255,0.16)', opacity: 0.82 },
   heroCopy: { width: '100%', maxWidth: 760, alignSelf: 'center', paddingHorizontal: 30, paddingTop: 18 },
   heroCopyWide: { paddingHorizontal: 42 },
@@ -429,24 +465,24 @@ const styles = StyleSheet.create({
   createButtonText: { color: '#701B30', fontSize: 16, lineHeight: 22, fontWeight: '700' },
   pageContent: { width: '100%', maxWidth: 760, alignSelf: 'center', paddingHorizontal: 16 },
   pageContentWide: { paddingHorizontal: 28 },
-  quickAccessPanel: { borderWidth: 1, borderColor: 'rgba(255,255,255,0.9)', borderRadius: 24, backgroundColor: '#FFFDF9', marginTop: -28, padding: 16, shadowColor: '#6B1E2E', shadowOffset: { width: 0, height: 9 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 5 },
+  quickAccessPanel: { position: 'relative', overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.9)', borderRadius: 28, backgroundColor: '#FFFDF9', marginTop: -28, padding: 16, shadowColor: '#4E061A', shadowOffset: { width: 0, height: 7 }, shadowOpacity: 0.1, shadowRadius: 16, elevation: 4 },
   quickAccessTitle: { color: '#701B30', fontSize: 17, lineHeight: 23, fontWeight: '800', letterSpacing: 0.3 },
   quickAccessGrid: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginTop: 11 },
   quickAccessCard: { width: '22%', alignItems: 'center', justifyContent: 'flex-start', paddingVertical: 4 },
-  quickAccessPressed: { opacity: 0.84, transform: [{ scale: 0.96 }] },
+  quickAccessPressed: { opacity: 0.9 },
   quickAccessIcon: { width: 76, height: 64 },
   quickAccessIconWrap: { position: 'relative', width: 76, height: 64, alignItems: 'center', justifyContent: 'center' },
   quickAccessUnreadDot: { position: 'absolute', top: 3, right: 4, width: 9, height: 9, borderWidth: 1.5, borderColor: '#FFFDF9', borderRadius: 5, backgroundColor: '#C93643' },
-  quickAccessLabel: { color: '#4A3B3C', fontSize: 12, lineHeight: 16, fontWeight: '700', marginTop: 3, textAlign: 'center' },
+  quickAccessLabel: { color: '#4A3B3C', fontSize: 13, lineHeight: 18, fontWeight: '700', marginTop: 3, textAlign: 'center' },
   sectionHeader: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, marginTop: 32, marginHorizontal: 4 },
   sectionTitleCopy: { minWidth: 0, flex: 1 },
   sectionTitle: { color: '#701B30', fontSize: 18, lineHeight: 24, fontWeight: '800', letterSpacing: 0.2 },
-  sectionSubtitle: { color: '#776C6A', fontSize: 12, lineHeight: 17, marginTop: 2 },
+  sectionSubtitle: { color: '#776C6A', fontSize: 13, lineHeight: 18, marginTop: 2 },
   showAllButton: { minHeight: 32, flexDirection: 'row', alignItems: 'center', gap: 2, marginBottom: -4 },
-  showAllText: { color: '#8A2944', fontSize: 12, lineHeight: 16, fontWeight: '700' },
+  showAllText: { color: '#8A2944', fontSize: 13, lineHeight: 18, fontWeight: '700' },
   textPressed: { opacity: 0.62 },
   bookingList: { gap: 14, marginTop: 14 },
-  bookingCard: { position: 'relative', minHeight: 184, flexDirection: 'row', overflow: 'hidden', borderWidth: 1, borderColor: '#EEE1DD', borderRadius: 21, backgroundColor: '#FFFFFF', shadowColor: '#6B1E2E', shadowOffset: { width: 0, height: 7 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 3 },
+  bookingCard: { position: 'relative', minHeight: 184, flexDirection: 'row', overflow: 'hidden', borderWidth: 1, borderColor: '#EEE1DD', borderRadius: 32, backgroundColor: '#FFFFFF', shadowColor: '#4E061A', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.1, shadowRadius: 14, elevation: 4 },
   bookingUnreadDot: { position: 'absolute', top: 11, left: 11, zIndex: 2, width: 10, height: 10, borderWidth: 1.5, borderColor: '#FFFFFF', borderRadius: 5, backgroundColor: '#C93643' },
   bookingCardPressed: { opacity: 0.86, transform: [{ scale: 0.992 }] },
   bookingAccent: { width: 6, backgroundColor: '#8A2944' },
@@ -456,35 +492,35 @@ const styles = StyleSheet.create({
   bookingName: { color: '#1F1B1B', fontSize: 18, lineHeight: 23, fontWeight: '800' },
   bookingDate: { color: '#776C6A', fontSize: 13, lineHeight: 18, marginTop: 3 },
   countdownBadge: { flexShrink: 0, borderRadius: 999, backgroundColor: '#F9E9EC', paddingHorizontal: 10, paddingVertical: 6 },
-  countdownText: { color: '#8A2944', fontSize: 11, lineHeight: 14, fontWeight: '700' },
+  countdownText: { color: '#8A2944', fontSize: 13, lineHeight: 18, fontWeight: '700' },
   bookingStatusRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginTop: 13 },
-  bookingStatus: { minWidth: 0, flex: 1, color: '#776C6A', fontSize: 12, lineHeight: 17 },
-  bookingCount: { flexShrink: 1, color: '#9D2347', fontSize: 11, lineHeight: 16, fontWeight: '700', textAlign: 'right' },
+  bookingStatus: { minWidth: 0, flex: 1, color: '#776C6A', fontSize: 13, lineHeight: 18 },
+  bookingCount: { flexShrink: 1, color: '#9D2347', fontSize: 13, lineHeight: 18, fontWeight: '700', textAlign: 'right' },
   progressTrack: { height: 7, overflow: 'hidden', borderRadius: 4, backgroundColor: '#F0E3E1', marginTop: 10 },
   progressFill: { height: '100%', borderRadius: 4, backgroundColor: '#9D2347' },
   bookingLinkRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 12 },
-  bookingLink: { color: '#8A2944', fontSize: 12, lineHeight: 17, fontWeight: '800' },
+  bookingLink: { color: '#8A2944', fontSize: 13, lineHeight: 18, fontWeight: '800' },
   cardChevron: { alignSelf: 'flex-end', marginBottom: 15, marginRight: 9 },
-  emptyState: { minHeight: 105, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: '#EEE1DD', borderRadius: 18, backgroundColor: '#FFFFFF', marginTop: 14, padding: 18 },
+  emptyState: { minHeight: 105, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: '#EEE1DD', borderRadius: 28, backgroundColor: '#FFFFFF', marginTop: 14, padding: 18 },
   emptyCopy: { minWidth: 0, flex: 1 },
   emptyTitle: { color: '#3A2B2C', fontSize: 13, lineHeight: 18, fontWeight: '700' },
-  emptyText: { color: '#776C6A', fontSize: 11, lineHeight: 16, marginTop: 3 },
+  emptyText: { color: '#776C6A', fontSize: 13, lineHeight: 18, marginTop: 3 },
   recommendationHeader: { marginTop: 35 },
-  recommendationCarousel: { gap: 12, paddingHorizontal: 4, paddingTop: 14, paddingRight: 14 },
-  recommendationCard: { overflow: 'hidden', borderWidth: 1, borderColor: '#EEE1DD', borderRadius: 18, backgroundColor: '#FFFFFF', shadowColor: '#6B1E2E', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 2 },
+  recommendationCarousel: { gap: 12, paddingHorizontal: 4, paddingTop: 14, paddingRight: 14, paddingBottom: 20 },
+  recommendationCard: { position: 'relative', overflow: 'hidden', borderRadius: 28, backgroundColor: '#FFFFFF', shadowColor: '#4E061A', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.1, shadowRadius: 14, elevation: 4 },
   recommendationImage: { width: '100%', height: 124, backgroundColor: '#F7ECE9' },
   recommendationImageFallback: { alignItems: 'center', justifyContent: 'center' },
   recommendationBadge: { position: 'absolute', top: 10, right: 10, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.93)', paddingHorizontal: 9, paddingVertical: 5 },
-  recommendationBadgeText: { color: '#8A2944', fontSize: 9, lineHeight: 12, fontWeight: '800' },
-  recommendationCopy: { padding: 13 },
-  recommendationName: { color: '#2C2323', fontSize: 14, lineHeight: 19, fontWeight: '800' },
-  recommendationMeta: { color: '#776C6A', fontSize: 10, lineHeight: 14, marginTop: 3 },
-  recommendationFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 11 },
-  recommendationPrice: { color: '#701B30', fontSize: 12, lineHeight: 16, fontWeight: '800' },
-  recommendationRating: { color: '#776C6A', fontSize: 10, lineHeight: 14, fontWeight: '700' },
-  emptyRecommendation: { minHeight: 94, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#EEE1DD', borderRadius: 16, backgroundColor: '#FFFFFF', marginTop: 14, paddingHorizontal: 20 },
+  recommendationBadgeText: { color: '#8A2944', fontSize: 13, lineHeight: 18, fontWeight: '800' },
+  recommendationCopy: { paddingTop: 13, paddingHorizontal: 13, paddingBottom: 42 },
+  recommendationName: { color: '#2C2323', fontSize: 14, lineHeight: 19, fontWeight: '800', paddingRight: 70 },
+  recommendationMeta: { color: '#776C6A', fontSize: 13, lineHeight: 18, marginTop: 3 },
+  recommendationFooter: { minHeight: 1 },
+  recommendationPrice: { position: 'absolute', bottom: 13, left: 13, zIndex: 2, color: '#701B30', fontSize: 13, lineHeight: 18, fontWeight: '800' },
+  recommendationRating: { position: 'absolute', top: 137, right: 14, zIndex: 2, color: '#776C6A', fontSize: 13, lineHeight: 18, fontWeight: '700' },
+  emptyRecommendation: { minHeight: 94, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#EEE1DD', borderRadius: 28, backgroundColor: '#FFFFFF', marginTop: 14, paddingHorizontal: 20 },
   draftPromptBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(48, 7, 18, 0.48)', padding: 24 },
-  draftPromptCard: { width: '100%', maxWidth: 380, alignItems: 'center', borderRadius: 22, backgroundColor: '#FFFFFF', padding: 24, shadowColor: '#360813', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.25, shadowRadius: 22, elevation: 10 },
+  draftPromptCard: { width: '100%', maxWidth: 380, alignItems: 'center', borderRadius: 28, backgroundColor: '#FFFFFF', padding: 24, shadowColor: '#360813', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.25, shadowRadius: 22, elevation: 10 },
   draftPromptIcon: { width: 54, height: 54, alignItems: 'center', justifyContent: 'center', borderRadius: 27, backgroundColor: '#F9E9EC' },
   draftPromptTitle: { color: '#2C2323', fontSize: 18, lineHeight: 24, fontWeight: '800', marginTop: 15, textAlign: 'center' },
   draftPromptCopy: { color: '#776C6A', fontSize: 13, lineHeight: 19, marginTop: 8, textAlign: 'center' },
@@ -493,5 +529,5 @@ const styles = StyleSheet.create({
   draftPromptSecondary: { minHeight: 38, alignItems: 'center', justifyContent: 'center', marginTop: 7, paddingHorizontal: 16 },
   draftPromptSecondaryText: { color: '#701B30', fontSize: 13, lineHeight: 18, fontWeight: '700' },
   draftPromptCancel: { minHeight: 36, alignItems: 'center', justifyContent: 'center', marginTop: 2, paddingHorizontal: 16 },
-  draftPromptCancelText: { color: '#776C6A', fontSize: 12, lineHeight: 17, fontWeight: '600' },
+  draftPromptCancelText: { color: '#776C6A', fontSize: 13, lineHeight: 18, fontWeight: '600' },
 })

@@ -1,6 +1,6 @@
 import Constants from 'expo-constants'
 import * as Device from 'expo-device'
-import * as Notifications from 'expo-notifications'
+import type * as ExpoNotifications from 'expo-notifications'
 import { Platform } from 'react-native'
 
 import { supabase, supabaseConfig } from './supabase'
@@ -27,15 +27,22 @@ export const isRunningInExpoGo =
   || Constants.expoGoConfig != null
   || typeof Constants.expoVersion === 'string'
 
-// Development and production builds still use the complete push-registration
-// flow below.
+// Remote notifications are a development/production-build feature. Avoid even
+// importing expo-notifications in Expo Go: some Android Expo Go releases omit
+// ExpoTopicSubscriptionModule, and the package requires it during import.
 export const supportsRemotePushNotifications =
-  !(Platform.OS === 'android' && isRunningInExpoGo)
+  Platform.OS !== 'web' && !isRunningInExpoGo
+
+type NotificationsModule = typeof ExpoNotifications
+declare const require: (moduleName: 'expo-notifications') => NotificationsModule
+
+export const Notifications: NotificationsModule | null =
+  supportsRemotePushNotifications ? require('expo-notifications') : null
 
 // This app's notification handler is for remote booking and account updates.
 // Do not initialize that native runtime inside Android Expo Go, where the
 // remote-notification module is deliberately unavailable from SDK 53 onward.
-if (Platform.OS !== 'web' && supportsRemotePushNotifications) {
+if (Notifications) {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldPlaySound: true,
@@ -50,7 +57,7 @@ const getProjectId = () =>
   Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId
 
 const ensureAndroidChannel = async () => {
-  if (Platform.OS !== 'android') return
+  if (Platform.OS !== 'android' || !Notifications) return
 
   await Notifications.setNotificationChannelAsync(MULTIVENT_NOTIFICATION_CHANNEL, {
     name: 'MULTIVENT updates',
@@ -67,7 +74,7 @@ export const registerCurrentDeviceForPush = async (): Promise<PushRegistrationRe
   if (Platform.OS === 'web') {
     return { ok: true, message: 'Native push registration is not required on web.' }
   }
-  if (!supportsRemotePushNotifications) {
+  if (!supportsRemotePushNotifications || !Notifications) {
     return {
       ok: false,
       message: 'Remote push notifications require a development build on Android.',
@@ -126,6 +133,7 @@ export const revokeCurrentDevicePushToken = async () => {
   if (
     Platform.OS === 'web'
     || !supportsRemotePushNotifications
+    || !Notifications
     || !supabase
     || !supabaseConfig.isConfigured
   ) return true
@@ -147,7 +155,7 @@ const stringValue = (value: unknown) =>
   typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined
 
 export const readNotificationRouteData = (
-  notification: Notifications.Notification
+  notification: ExpoNotifications.Notification
 ): NotificationRouteData => {
   const data = notification.request.content.data ?? {}
   return {
@@ -158,12 +166,10 @@ export const readNotificationRouteData = (
 }
 
 export const setApplicationBadgeFromUnreadCount = async (unreadCount: number) => {
-  if (Platform.OS === 'web' || !supportsRemotePushNotifications) return
+  if (Platform.OS === 'web' || !supportsRemotePushNotifications || !Notifications) return
   try {
     await Notifications.setBadgeCountAsync(Math.max(0, unreadCount))
   } catch {
     // Some Android launchers do not expose application badge support.
   }
 }
-
-export { Notifications }

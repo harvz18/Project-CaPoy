@@ -11,6 +11,7 @@ import {
   ScrollView,
   StyleSheet,
   TextInput,
+  type TextInputInstance,
   View,
   useWindowDimensions,
 } from 'react-native'
@@ -178,7 +179,7 @@ const AllocationSlider: React.FC<AllocationSliderProps> = ({
   const [amountText, setAmountText] = React.useState(() => formatAmountInput(amount))
   const [isAmountFocused, setIsAmountFocused] = React.useState(false)
   const previousAmountRef = React.useRef(amount)
-  const amountInputRef = React.useRef<TextInput>(null)
+  const amountInputRef = React.useRef<TextInputInstance>(null)
   const step = BUDGET_ALLOCATION_STEP
   const minimum = sanitizeMoney(minimumAmount)
   const maximum = sanitizeMoney(maxAmount)
