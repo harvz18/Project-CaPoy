@@ -2,7 +2,6 @@ import { Text } from '../components/AppText'
 import React from 'react'
 import {
   Animated,
-  LayoutAnimation,
   Modal,
   PanResponder,
   Pressable,
@@ -557,7 +556,9 @@ export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
   const [termsAccepted, setTermsAccepted] = React.useState(false)
   const [showTermsError, setShowTermsError] = React.useState(false)
   const [summaryExpanded, setSummaryExpanded] = React.useState(false)
+  const [receiptHeight, setReceiptHeight] = React.useState(0)
   const sheetTranslateY = React.useRef(new Animated.Value(480)).current
+  const receiptProgress = React.useRef(new Animated.Value(0)).current
   const breakdown = paymentBreakdown ?? calculatePaymentBreakdown([])
   const amountDue = paymentType === 'full' ? breakdown.clientTotal : breakdown.initialPayment
   const selectedSettlement = paymentMethod === 'bankTransfer'
@@ -617,9 +618,25 @@ export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
     onPay({ amount: amountDue, method: paymentMethod, paymentType, termsAccepted })
   }
 
-  const toggleSummary = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)
-    setSummaryExpanded((current) => !current)
+  const toggleSummary = () => setSummaryExpanded((current) => !current)
+
+  React.useEffect(() => {
+    if (!receiptHeight) return
+    Animated.timing(receiptProgress, {
+      toValue: summaryExpanded ? 1 : 0,
+      duration: 240,
+      useNativeDriver: false,
+    }).start()
+  }, [receiptHeight, receiptProgress, summaryExpanded])
+
+  const receiptAnimatedStyle = {
+    height: receiptProgress.interpolate({ inputRange: [0, 1], outputRange: [0, receiptHeight] }),
+    opacity: receiptProgress,
+  }
+  const receiptChevronStyle = {
+    transform: [{
+      rotate: receiptProgress.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] }),
+    }],
   }
 
   return (
@@ -646,11 +663,16 @@ export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
               <Text style={styles.bookingSheetSummaryLabel}>Total event cost</Text>
               <View style={styles.bookingSheetSummaryValue}>
                 <Text style={styles.bookingSheetSummaryAmount}>{formatCurrency(breakdown.clientTotal)}</Text>
-                <MaterialCommunityIcons color={palette.muted} name={summaryExpanded ? 'chevron-up' : 'chevron-down'} size={21} />
+                <Animated.View style={receiptChevronStyle}>
+                  <MaterialCommunityIcons color={palette.muted} name="chevron-down" size={21} />
+                </Animated.View>
               </View>
             </Pressable>
-            {summaryExpanded ? (
-              <View style={styles.bookingSheetReceipt}>
+            <Animated.View style={[styles.bookingSheetReceiptAnimated, receiptAnimatedStyle]}>
+              <View
+                onLayout={(event) => setReceiptHeight(event.nativeEvent.layout.height)}
+                style={styles.bookingSheetReceipt}
+              >
                 <Text style={styles.bookingSheetReceiptTitle}>Payment receipt</Text>
                 <Text style={styles.bookingSheetReceiptCaption}>Booked services</Text>
                 {items.map((item) => (
@@ -666,7 +688,7 @@ export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
                 <BreakdownRow label="Required downpayment" value={formatCurrency(breakdown.initialPayment)} />
                 <BreakdownRow label="Remaining after downpayment" value={formatCurrency(Math.max(0, breakdown.clientTotal - breakdown.initialPayment))} />
               </View>
-            ) : null}
+            </Animated.View>
             {isLoading ? <Text style={styles.bookingSheetLoading}>Preparing your latest secure payment details…</Text> : <>
             <Text style={styles.bookingSheetSectionTitle}>Payment option</Text>
             <View style={styles.bookingSheetOptionRow}>
@@ -1118,6 +1140,7 @@ const styles = StyleSheet.create({
   bookingSheetSummaryLabel: { flex: 1, color: palette.text, fontSize: 16, lineHeight: 22, fontWeight: '600' },
   bookingSheetSummaryValue: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   bookingSheetSummaryAmount: { color: palette.text, fontSize: 16, lineHeight: 22, fontWeight: '700', textAlign: 'right' },
+  bookingSheetReceiptAnimated: { overflow: 'hidden' },
   bookingSheetReceipt: { gap: 8, borderRadius: 10, backgroundColor: palette.surfaceLow, padding: 13 },
   bookingSheetReceiptTitle: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '700', marginBottom: 2 },
   bookingSheetReceiptCaption: { color: palette.muted, fontSize: 11, lineHeight: 16, fontWeight: '700', letterSpacing: 0.4, marginTop: 3 },
