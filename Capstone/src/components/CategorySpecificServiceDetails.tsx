@@ -279,6 +279,7 @@ const CustomCateringMenuBuilder = ({ details, set }: {
   const sections = Array.isArray(details.customMenuSections)
     ? details.customMenuSections.map(asRecord)
     : []
+  const foodTastingEnabled = asRecord(details.tastingSettings).enabled === true
   const updateSection = (index: number, patch: JsonRecord) => set(
     'customMenuSections',
     sections.map((section, sectionIndex) => sectionIndex === index ? { ...section, ...patch } : section)
@@ -310,6 +311,15 @@ const CustomCateringMenuBuilder = ({ details, set }: {
               <NumberField label="Minimum selections" min={0} onChange={(minimumSelections) => updateSection(sectionIndex, { minimumSelections })} value={section.minimumSelections} />
               <NumberField label="Maximum selections (optional)" min={0} onChange={(maximumSelections) => updateSection(sectionIndex, { maximumSelections })} value={section.maximumSelections} />
             </View>
+            {foodTastingEnabled ? <>
+              <Text style={styles.integrationNote}>
+                Food tasting limits are separate from the direct menu. Clients may taste more dishes than will be served at their event.
+              </Text>
+              <View style={styles.twoColumns}>
+                <NumberField label="Food tasting selections" min={1} onChange={(tastingSelectionLimit) => updateSection(sectionIndex, { tastingSelectionLimit })} value={section.tastingSelectionLimit} />
+                <NumberField label="Final menu selections" min={1} onChange={(finalSelectionLimit) => updateSection(sectionIndex, { finalSelectionLimit })} value={section.finalSelectionLimit} />
+              </View>
+            </> : null}
             {items.map((item, itemIndex) => (
               <View key={textValue(item.id) || itemIndex} style={styles.menuItemCard}>
                 <TextField label="Food item" onChange={(name) => updateItem(sectionIndex, itemIndex, { name })} placeholder="e.g., Chicken Cordon Bleu" value={item.name} />
@@ -350,7 +360,7 @@ const CateringTastingSettingsBuilder = ({ details, set }: {
   return (
     <Section
       title="Optional food tasting"
-      description="Food tastings become available only after you accept a catering booking. Slots are checked against your availability calendar and operating hours."
+      description="Clients choose a preliminary tasting menu before requesting this service. Scheduling remains available only after you accept the request; slots are checked against your availability calendar and operating hours."
     >
       <ToggleField
         label="Offer optional food tastings"
@@ -726,7 +736,7 @@ export const CategorySpecificServiceDetails: React.FC<Props> = ({ categoryName, 
 
       {kind === 'catering' ? <>
         <Section title="Catering Offering">
-          <ChoiceField label="Catering Type" multiple onChange={(next) => set('cateringTypes', next)} options={presets.cateringTypes} value={asList(details.cateringTypes)} />
+          <ChoiceField label="Catering Formats Offered" multiple onChange={(next) => set('cateringTypes', next)} options={presets.cateringTypes} value={asList(details.cateringTypes)} />
           {asList(details.cateringTypes).includes('Other') ? <TextField label="Other Catering Type" onChange={(next) => set('cateringTypeOther', next)} value={details.cateringTypeOther} /> : null}
           <TagField label="Cuisine" onChange={(next) => set('cuisines', next)} options={presets.cuisines} value={details.cuisines} />
           <Text style={styles.integrationNote}>Catering is priced per head using the event&apos;s Expected / Anticipated Guests.</Text>

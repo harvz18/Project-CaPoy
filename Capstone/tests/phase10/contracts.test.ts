@@ -760,7 +760,7 @@ test('V10 Phase 5 uses explicit wizard controls and live local budget feedback',
   ], 'live, deferred category budget slider')
 })
 
-test('V10 Phase 4 persists service-specific catering guest counts', () => {
+test('V10 Phase 4 guest-count rules remain intact through the V15 catering selection entry point', () => {
   const migration = read('supabase/migrations/20261021000700_catering_service_guest_count.sql')
   const savedPlanMigration = read('supabase/migrations/20261021000800_catering_saved_plan_guest_count.sql')
   const details = read('src/screens/08-ServiceDetails.tsx')
@@ -793,9 +793,23 @@ test('V10 Phase 4 persists service-specific catering guest counts', () => {
   mustContain(planning, [
     'calculate_catering_menu_quote_v10',
     'calculate_catering_service_quote_v10',
-    'save_my_catering_service_selection_v10',
+    'save_my_catering_service_selection_v15',
     'target_guest_count: cateringGuestCount',
-  ], 'client quote and selection calls')
+  ], 'client quote and V15-compatible selection calls')
+})
+
+test('service-detail price quotes keep a stable callback after an option is selected', () => {
+  const app = read('src/App.tsx')
+  const details = read('src/screens/08-ServiceDetails.tsx')
+
+  mustContain(app, [
+    'const calculateServiceDetailsQuote = React.useCallback',
+    'onCalculateQuote={calculateServiceDetailsQuote}',
+  ], 'stable Service Details quote callback')
+  mustContain(details, [
+    'setQuoteLoading(true)',
+    'clearTimeout(timer)',
+  ], 'debounced Service Details quote lifecycle')
 })
 
 test('client home uses live eligible services, resumable drafts, and booking progress', () => {
@@ -892,7 +906,7 @@ test('provider completion records direct external payments atomically before ser
     'onCompletionPayment',
   ], 'provider completion-payment UI')
   mustContain(clientDetails, [
-    'TOTAL SERVICE AMOUNT',
+    'MARKETPLACE SERVICE PRICE',
     'INITIAL PROVIDER ALLOCATION',
     'REMAINING BALANCE',
     'Awaiting remaining payment',
@@ -913,11 +927,12 @@ test('client booking details consolidate authoritative provider balances without
     'calculateEventPaymentSummary',
     "!['cancelled', 'declined'].includes(service.status)",
     'Event Payment Summary',
-    'TOTAL EVENT SERVICE CHARGES',
+    'TOTAL EVENT COST',
+    'marketplaceEventTotal',
     'RECORDED SERVICE PAYMENTS',
     'TOTAL REMAINING BALANCE',
     'All Provider Balances Cleared',
-    'MULTIVENT platform fees, held funds, and provider payouts',
+    'Marketplace prices shown here already match',
     'External payments are provider-confirmed',
   ], 'client event payment summary')
   mustContain(merchant, [
@@ -2780,18 +2795,42 @@ test('V14 Phase 4 starts payment only from Booking Details after the secured acc
     "client.rpc('initiate_my_event_payment_v14'",
   ], 'V14 client payment API')
   mustContain(details, [
-    'Provider Confirmations',
-    'Payment opens only when every required booking is accepted.',
-    'Pay Now to Reserve',
+    'paymentDock',
+    'paymentDockContent',
+    'acceptedConfirmationCount',
+    'requiredConfirmationCount',
+    'paddingBottom: 24',
+    'Confirm Payment',
+    'setChangeMode(\'cancel\')',
+    '>Cancel</Text>',
     'paymentQuote?.paymentEligible',
     'not financially reserved yet',
   ], 'V14 Booking Details payment UI')
+  assert.doesNotMatch(details, /<DetailRow label="PRICE"/,
+    'the Event Details card must not duplicate marketplace pricing')
+  mustContain(details, [
+    'const bookedServiceCount = bookedServices.length + (hasCoordinatorTracker ? 1 : 0)',
+    "coverage: `${bookedServiceCount} service${bookedServiceCount === 1 ? '' : 's'}`",
+    '>Event Details</Text>',
+    'borderTopLeftRadius: 18',
+    'borderTopRightRadius: 18',
+    'accessibilityLabel="Confirm payment"',
+  ], 'Booking Details header, service count, and payment actions')
   mustContain(payment, [
     "const [paymentType, setPaymentType] = React.useState<PaymentType>('deposit')",
     "onPress={() => setPaymentType('full')}",
     'Pay in Full',
     'Full Payment Due Now',
     'server-authoritative snapshot',
+    'BookingPaymentSheet',
+    'animationType="fade"',
+    'summaryExpanded',
+    'bookingSheetHandle',
+    'receiptProgress.interpolate',
+    'bookingSheetReceiptAnimated',
+    'bookingSheetServiceRow',
+    'bookingSheetFooter',
+    'Confirm Downpayment',
   ], 'V14 payment option UI')
   mustContain(merchant, [
     'const hasRecordedPayment',
@@ -2799,9 +2838,10 @@ test('V14 Phase 4 starts payment only from Booking Details after the secured acc
   ], 'V14 pending payment financial-display boundary')
   mustContain(app, [
     "| 'bookingPayment'",
-    "setScreen('bookingPayment')",
-    '<PaymentScreen',
-    'mode="booking"',
+    'setIsBookingPaymentSheetVisible(true)',
+    '<BookingPaymentSheet',
+    'items={bookingPaymentQuote?.items}',
+    'visible={isBookingPaymentSheetVisible}',
     'onStartPayment={() => void openBookingPayment()}',
   ], 'V14 Booking Details payment routing')
   assert.doesNotMatch(
@@ -3010,4 +3050,348 @@ test('V14 refunds are isolated to the affected payout allocation', () => {
     /where\s+request\.provider_id\s*=\s*ledger_row\.provider_id\s+and\s+request\.status/i,
     'refund eligibility must not treat another booking from the same provider as a payout against this ledger row'
   )
+})
+
+test('V15 Phase 1 makes catering formats informational and requires an explicit tasting preference', () => {
+  const sourceMigration = read('database/95_v15_catering_preference.sql')
+  const deployMigration = read('supabase/migrations/20261025000800_v15_catering_preference.sql')
+  const details = read('src/screens/08-ServiceDetails.tsx')
+  const planning = read('src/lib/planning.ts')
+  const providerDetails = read('src/components/CategorySpecificServiceDetails.tsx')
+
+  assert.equal(
+    deployMigration,
+    sourceMigration,
+    'the deployed V15 catering-preference migration must exactly match the reviewed database source'
+  )
+  mustContain(details, [
+    'CATERING SERVICES OFFERED',
+    'Would you like to have a food tasting?',
+    "Yes, I&apos;d like a food tasting.",
+    "No, I&apos;ll choose my menu directly.",
+    'const [foodTastingPreference, setFoodTastingPreference] = React.useState<boolean>()',
+    'foodTastingPreferenceRequired',
+    'foodTastingMenuSelectionPending',
+    'mealType: undefined',
+  ], 'V15 Phase 1 client catering details')
+  assert.doesNotMatch(details, /const mealTypes\s*=/,
+    'catering formats must no longer be rendered as client booking choices')
+  mustContain(providerDetails, [
+    'Catering Formats Offered',
+  ], 'V15 Phase 1 provider catering configuration')
+  mustContain(planning, [
+    "client.rpc('save_my_catering_service_selection_v15'",
+    'target_food_tasting_preference: value.foodTastingPreference ?? null',
+  ], 'V15 Phase 1 client selection persistence')
+  mustContain(sourceMigration, [
+    'add column if not exists food_tasting_preference boolean',
+    'create or replace function public.save_my_catering_service_selection_v15(',
+    'Choose whether you would like a food tasting.',
+    'public.save_my_catering_service_selection_v10(',
+    "'{foodTastingPreference}'",
+    'sync_v15_booking_food_tasting_preference_trigger',
+  ], 'V15 Phase 1 backend preference persistence')
+})
+
+test('V15 Phase 2 keeps preliminary tasting dishes separate from final catering prices', () => {
+  const sourceMigration = read('database/96_v15_food_tasting_preliminary_menu.sql')
+  const deployMigration = read('supabase/migrations/20261025000900_v15_food_tasting_preliminary_menu.sql')
+  const providerDetails = read('src/components/CategorySpecificServiceDetails.tsx')
+  const categoryDetails = read('src/lib/service-category-details.ts')
+  const serviceDetails = read('src/screens/08-ServiceDetails.tsx')
+  const planning = read('src/lib/planning.ts')
+  const app = read('src/App.tsx')
+
+  assert.equal(
+    deployMigration,
+    sourceMigration,
+    'the deployed V15 preliminary-tasting migration must exactly match the reviewed database source'
+  )
+  mustContain(providerDetails, [
+    'Food tasting selections',
+    'Final menu selections',
+    'Food tasting limits are separate from the direct menu.',
+  ], 'V15 Phase 2 provider course-limit configuration')
+  mustContain(categoryDetails, [
+    'tastingSelectionLimit?: number',
+    'finalSelectionLimit?: number',
+    'getCateringTastingMenu',
+    'Food tasting requires an item-priced menu with course-level dish selections.',
+  ], 'V15 Phase 2 shared catering-menu contract')
+  mustContain(serviceDetails, [
+    'Proposed Food Tasting Menu',
+    'Select {section.tastingSelectionLimit}',
+    'Final catering price will be confirmed after food tasting and menu finalization.',
+    'toggleTastingMenuItem',
+    'Submit Food Tasting Request',
+    'onLoadFoodTastingDraft',
+    'onSaveFoodTastingDraft',
+  ], 'V15 Phase 2 client preliminary-menu UI and draft persistence')
+  mustContain(planning, [
+    "client.rpc('save_my_catering_tasting_draft_v15'",
+    "client.rpc('load_my_catering_tasting_draft_v15'",
+    'target_revision',
+  ], 'V15 Phase 2 client draft RPC integration')
+  mustContain(app, [
+    'handleLoadCateringTastingDraft',
+    'handleSaveCateringTastingDraft',
+  ], 'V15 Phase 2 app-level tasting draft wiring')
+  mustContain(sourceMigration, [
+    'create table if not exists public.catering_food_tasting_drafts',
+    'validate_v15_catering_tasting_course_rules',
+    'build_v15_preliminary_tasting_menu',
+    'save_my_catering_tasting_draft_v15',
+    'load_my_catering_tasting_draft_v15',
+    'selected_count > tasting_limit',
+    'is_complete',
+    'revision <= excluded.revision',
+    'This table never represents a final menu, booking request, or payable price.',
+  ], 'V15 Phase 2 server-side validation and non-financial draft persistence')
+})
+
+test('V15 Phase 3 ties provider acceptance to a seven-day food tasting schedule', () => {
+  const sourceMigration = read('database/97_v15_food_tasting_acceptance_scheduling.sql')
+  const deployMigration = read('supabase/migrations/20261025001000_v15_food_tasting_acceptance_scheduling.sql')
+  const planning = read('src/lib/planning.ts')
+  const merchant = read('src/lib/merchant.ts')
+  const clientDetails = read('src/screens/11.1-BookingDetails.tsx')
+  const providerDetails = read('src/screens/19.1-BookingRequest.tsx')
+
+  assert.equal(
+    deployMigration,
+    sourceMigration,
+    'the deployed V15 food-tasting scheduling migration must exactly match the reviewed database source'
+  )
+  mustContain(sourceMigration, [
+    'create table if not exists public.catering_food_tasting_workflows',
+    'submit_my_catering_food_tasting_request_v15',
+    'start_v15_food_tasting_scheduling_window',
+    "scheduling_window_end_date = accepted_date + 7",
+    'list_my_v15_catering_food_tasting_slots',
+    'schedule_my_v15_catering_food_tasting',
+    'protect_v15_food_tasting_appointments',
+    'Final food tasting menu confirmation is required before payment.',
+    'Food tasting appointment confirmed',
+  ], 'V15 Phase 3 scheduling and payment safety')
+  mustContain(planning, [
+    "client.rpc('submit_my_catering_food_tasting_request_v15'",
+    'foodTastingMenuItemIds',
+  ], 'V15 Phase 3 preliminary-request submission')
+  mustContain(merchant, [
+    "'list_my_v15_catering_food_tasting_slots'",
+    "'schedule_my_v15_catering_food_tasting'",
+    "'list_my_catering_food_tasting_workflows_v15'",
+    'CateringFoodTastingWorkflow',
+  ], 'V15 Phase 3 client and provider workflow projections')
+  mustContain(clientDetails, [
+    'Food Tasting Schedule Required',
+    'Choose Schedule',
+    'Confirm Schedule',
+  ], 'V15 Phase 3 client progress tracker and scheduling action')
+  mustContain(providerDetails, [
+    'Preliminary Food Tasting Menu',
+    'Accept this request to let the client choose an available tasting schedule within seven days.',
+    'Final price pending',
+  ], 'V15 Phase 3 provider request review')
+})
+
+test('V15 Phase 4 enforces attendance, one reschedule, and an explicit direct-menu fallback', () => {
+  const sourceMigration = read('database/98_v15_food_tasting_attendance_rescheduling.sql')
+  const deployMigration = read('supabase/migrations/20261025001100_v15_food_tasting_attendance_rescheduling.sql')
+  const merchant = read('src/lib/merchant.ts')
+  const app = read('src/App.tsx')
+  const clientDetails = read('src/screens/11.1-BookingDetails.tsx')
+  const providerDetails = read('src/screens/19.1-BookingRequest.tsx')
+
+  assert.equal(
+    deployMigration,
+    sourceMigration,
+    'the deployed V15 attendance/rescheduling migration must exactly match the reviewed database source'
+  )
+  mustContain(sourceMigration, [
+    "attendance_status text not null default 'not_required'",
+    'reschedule_attempt_count integer not null default 0',
+    'reschedule_extension_end_date date',
+    'confirm_my_v15_food_tasting_attendance',
+    'reschedule_my_v15_catering_food_tasting',
+    'list_my_v15_catering_food_tasting_reschedule_slots',
+    'activate_my_v15_food_tasting_direct_menu_fallback',
+    'process_v15_food_tasting_deadlines',
+    "'Food Tasting Tomorrow!'",
+    "'Client Has Not Confirmed Attendance'",
+    "'multivent-v15-food-tasting-deadlines'",
+    "'11 * * * *'",
+    'reschedule_attempt_count = 1',
+    "fallback_enabled_at = coalesce(fallback_enabled_at, now())",
+    'The fallback is explicit client action only.',
+    "workflow.status = 'cancelled' and workflow.fallback_enabled_at is not null",
+  ], 'V15 Phase 4 backend attendance, scheduler, and fallback safety')
+  mustContain(merchant, [
+    "'confirm_my_v15_food_tasting_attendance'",
+    "'reschedule_my_v15_catering_food_tasting'",
+    "'list_my_v15_catering_food_tasting_reschedule_slots'",
+    "'activate_my_v15_food_tasting_direct_menu_fallback'",
+    'CateringFoodTastingAttendanceStatus',
+  ], 'V15 Phase 4 RPC client integration')
+  mustContain(app, [
+    'handleClientFoodTastingAttendance',
+    'handleClientFoodTastingReschedule',
+    'handleChooseFinalCateringMenu',
+    'initialFoodTastingPreference',
+  ], 'V15 Phase 4 app-level shared workflow actions')
+  mustContain(clientDetails, [
+    'Food Tasting Tomorrow',
+    'Yes, I&apos;ll Attend',
+    'Request Reschedule',
+    'Reschedule Attempts Used: 1 of 1',
+    'Choose Final Menu Instead',
+    'Confirm Reschedule',
+  ], 'V15 Phase 4 client attendance and fallback UI')
+  mustContain(providerDetails, [
+    'Client Has Not Confirmed Attendance',
+    'Message Client',
+    'requestForService(request, service)',
+  ], 'V15 Phase 4 provider follow-up through existing messaging')
+})
+
+test('V15 Phase 6 keeps direct and tasting final menus in one booking-safe structure', () => {
+  const migration = read('supabase/migrations/20261026000200_v15_direct_menu_integration.sql')
+  const clientBookings = read('src/lib/merchant.ts')
+  const bookingDetails = read('src/screens/11.1-BookingDetails.tsx')
+
+  mustContain(migration, [
+    'final_menu_snapshot',
+    'v15_direct_catering_final_menu_snapshot',
+    "'source', 'direct_selection'",
+    "'source', 'food_tasting'",
+    'sync_v15_direct_catering_final_menu_snapshot',
+    'sync_v15_confirmed_tasting_final_menu_snapshot',
+    'does not alter\n-- payments, provider acceptance, historical booking values, or payout logic',
+  ], 'V15 Phase 6 canonical final-menu snapshots')
+  mustContain(clientBookings, [
+    'final_menu_snapshot',
+    'const finalCateringMenu = finalCateringMenuFrom(record.final_menu_snapshot)',
+    'finalCateringMenu,',
+  ], 'V15 Phase 6 booking projection')
+  mustContain(bookingDetails, [
+    'Selected catering menu',
+    'Final Menu Ready for Review',
+    'Final Menu Confirmed',
+  ], 'V15 Phase 6 client booking visibility and progress states')
+})
+
+test('V15 Phase 7 keeps Venue + Catering packages inclusive and single-booking', () => {
+  const packageMigration = read('supabase/migrations/20261026000300_v15_venue_catering_packages.sql')
+  const selectionMigration = read('supabase/migrations/20261026000400_v15_venue_catering_selection.sql')
+  const planning = read('src/lib/planning.ts')
+  const serviceDetails = read('src/screens/08-ServiceDetails.tsx')
+
+  mustContain(packageMigration, [
+    'venue_catering_package_details',
+    'provider_save_v15_venue_catering_package',
+    "'inclusive_fixed'",
+    'one booking and one payable obligation',
+  ], 'V15 Phase 7 provider package ownership and inclusive price policy')
+  mustContain(selectionMigration, [
+    'save_my_v15_venue_catering_package_selection',
+    'submit_my_v15_venue_catering_food_tasting_request',
+    'one venue-hosted selection and one provider request',
+    'sync_v15_combined_package_final_menu_price',
+  ], 'V15 Phase 7 single booking and fixed package price enforcement')
+  mustContain(planning, [
+    "'save_my_v15_venue_catering_package_selection'",
+    "'submit_my_v15_venue_catering_food_tasting_request'",
+  ], 'V15 Phase 7 client selection routing')
+  mustContain(serviceDetails, [
+    'Venue + Catering included',
+    'isVenueCateringPackage',
+    'combinedCateringServiceId',
+  ], 'V15 Phase 7 venue-screen embedded catering configuration')
+})
+
+test('V15 Phase 8 makes inclusive catering visible without creating a standalone booking', () => {
+  const app = read('src/App.tsx')
+  const planning = read('src/lib/planning.ts')
+  const marketplace = read('src/screens/06-CategoryBrowse.tsx')
+  const bookings = read('src/screens/11.1-BookingDetails.tsx')
+  const bookingProjection = read('src/lib/merchant.ts')
+
+  mustContain(planning, [
+    'package_snapshot',
+    'includesCatering',
+    'packageSnapshot.venueCateringPackage === true',
+  ], 'V15 Phase 8 package-awareness projection')
+  mustContain(app, [
+    'venueCateringPackageSelection',
+    "ids.add('catering')",
+    'venueCateringPackageAllocatedBudget',
+    'includesCatering: Boolean(value.venueCateringPackageId)',
+  ], 'V15 Phase 8 progress and budget accounting')
+  mustContain(marketplace, [
+    'Catering Already Included',
+    'CONTINUE BROWSING',
+    'REVIEW VENUE PACKAGE',
+    'Included in Venue Package',
+    'counted once:',
+    'Over by',
+    'if (isExploreMode || !cateringIncludedInVenuePackage || !isCateringCategory)',
+  ], 'V15 Phase 8 marketplace warning and one-time total')
+  mustContain(bookingProjection, [
+    "source === 'venue_catering_package'",
+    'isVenueCateringPackage',
+  ], 'V15 Phase 8 combined booking projection')
+  mustContain(bookings, [
+    'Venue + Catering package · Catering is included in this one booking.',
+    'Venue + Catering package menu',
+  ], 'V15 Phase 8 combined booking progress')
+})
+
+test('V15 menu-driven catering keeps legacy style validation without blocking a selected menu', () => {
+  const migration = read('supabase/migrations/20261026000500_v15_catering_style_compatibility.sql')
+  const details = read('src/screens/08-ServiceDetails.tsx')
+
+  mustContain(migration, [
+    'nullif(trim(new.meal_type), \'\') is not null',
+    "new.meal_type = any(coalesce(available_types, '{}'::text[]))",
+    'V15 menu-driven flow',
+  ], 'V15 catering style compatibility')
+  mustContain(details, [
+    "mealType: undefined",
+    'Choose one provider menu and pricing option.',
+  ], 'V15 client menu selection')
+})
+
+test('food tasting schedules only for catering after the V15 provider-acceptance gate', () => {
+  const bookingProjection = read('src/lib/merchant.ts')
+  const bookingDetails = read('src/screens/11.1-BookingDetails.tsx')
+
+  mustContain(bookingProjection, [
+    'const isCateringService = /cater/i.test(categoryName)',
+    'const hasCateringComponent = isCateringService || isVenueCateringPackage',
+    'foodTastingEnabled: isCateringService',
+    'foodTastingWorkflow: hasCateringComponent',
+  ], 'food tasting booking projection')
+  mustContain(bookingDetails, [
+    "service.foodTastingWorkflow?.status !== 'scheduling_required'",
+    'isLegacyCateringTasting(service)',
+    'isFoodTastingRelevant(service)',
+  ], 'food tasting client schedule gate')
+})
+
+test('live data refreshes are coalesced and booking polling stays targeted', () => {
+  const app = read('src/App.tsx')
+
+  mustContain(app, [
+    'const refreshLiveDataInFlightRef',
+    'const inFlightRefresh = refreshLiveDataInFlightRef.current',
+    'if (inFlightRefresh) return inFlightRefresh',
+    'refreshLiveDataInFlightRef.current = refresh',
+    'let conversationRefreshTimer',
+    'const scheduleConversationRefresh',
+    'scheduleConversationRefresh()',
+    'void refreshClientBookings()',
+    '}, 30000)',
+  ], 'coalesced live-data and targeted booking refreshes')
+  assert.doesNotMatch(app, /void refreshLiveData\(\)\s*\r?\n\s*}, 12000\)/,
+    'booking polling must not reload the whole workspace every twelve seconds')
 })

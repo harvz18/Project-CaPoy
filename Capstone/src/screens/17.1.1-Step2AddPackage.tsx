@@ -134,6 +134,9 @@ export const Step2AddPackageScreen: React.FC<Step2AddPackageScreenProps> = ({
     const service = availableServices.find((option) => option.id === serviceId)
     return service ? [service] : []
   })
+  const venueCateringPackage = selectedServices.length === 2
+    && selectedServices.some((service) => /venue|estate/i.test(service.categoryName ?? ''))
+    && selectedServices.some((service) => /cater/i.test(service.categoryName ?? ''))
   const subtotal = selectedServices.reduce((sum, service) => sum + service.price, 0)
   const discountValue = discountType === 'none' ? 0 : parseAmount(discountInput)
   const discountAmount = discountType === 'percentage'
@@ -394,6 +397,14 @@ export const Step2AddPackageScreen: React.FC<Step2AddPackageScreenProps> = ({
             </View>
             {servicesMissing ? (
               <Text accessibilityRole="alert" style={styles.errorText}>Select at least one service.</Text>
+            ) : null}
+            {venueCateringPackage ? (
+              <View style={styles.venueCateringNotice}>
+                <Text style={styles.venueCateringTitle}>Venue + Catering Package</Text>
+                <Text style={styles.helperText}>
+                  This is one inclusive package and will appear on the venue listing. Its package price is charged once; catering choices are configuration, not a second standalone charge.
+                </Text>
+              </View>
             ) : null}
           </View>
 
@@ -761,6 +772,8 @@ const styles = StyleSheet.create({
   inputError: { borderColor: palette.error },
   errorText: { color: palette.error, fontSize: 12, lineHeight: 16 },
   helperText: { color: palette.secondary, fontSize: 12, lineHeight: 17 },
+  venueCateringNotice: { gap: 4, borderRadius: 10, backgroundColor: '#F5E8D8', marginTop: 10, padding: 11 },
+  venueCateringTitle: { color: palette.primary, fontSize: 13, fontWeight: '700' },
   amountField: {
     minHeight: 48,
     flexDirection: 'row',

@@ -45,7 +45,9 @@ import {
   fetchPaymentSettlementContextV14,
   removeCoordinatorFromEvent,
   removeServiceSelection,
+  loadCateringTastingDraft,
   saveBudgetPlan,
+  saveCateringTastingDraft,
   saveBookingPlanForLater,
   saveEventFeedback,
   saveEventDraft,
@@ -62,6 +64,7 @@ import {
   type ClientPlanningState,
   type SavedPlanReview,
 } from './lib/planning'
+import type { VenueOptionSelection } from './lib/service-category-details'
 import {
   getActivePlanningCategories,
   getFirstPlanningCategory,
@@ -79,6 +82,8 @@ import {
   deleteMerchantPackageListing,
   deleteMerchantServiceListing,
   emptyMerchantPayoutDashboard,
+  activateV15FoodTastingDirectMenuFallback,
+  confirmV15FoodTastingAttendance,
   fetchClientBookings,
   fetchMerchantBookingRequests,
   fetchMerchantEarningsOverview,
@@ -87,6 +92,7 @@ import {
   loadMerchantServiceDraft,
   loadMerchantServiceForEditing,
   loadCateringFoodTastingSlots,
+  loadV15CateringFoodTastingRescheduleSlots,
   MerchantPackageListing,
   type MerchantEarningsOverview,
   MerchantServiceListing,
@@ -96,8 +102,10 @@ import {
   requestCateringFoodTasting,
   respondToCateringFoodTasting,
   respondToCateringFoodTastingProposal,
+  respondToV15FoodTastingFinalMenu,
   respondToChurchWeddingProposal,
   rescheduleClientEventBookings,
+  rescheduleV15FoodTasting,
   saveAvailabilityCalendar,
   saveBookingDecision,
   saveMerchantServiceDraft,
@@ -108,6 +116,7 @@ import {
   saveNotificationPreferences,
   saveOperatingHours,
   setMerchantServiceAvailability,
+  submitV15FoodTastingFinalMenu,
 } from './lib/merchant'
 import { colors } from './theme/tokens'
 import { ClientBottomNavigation } from './components/ClientBottomNavigation'
@@ -217,7 +226,7 @@ import {
 import { PlanningStepNavigationProvider } from './components/PlanningStepIndicator'
 import { BookingItem, BookingScreen } from './screens/11-BookingScreen'
 import { BookingDetailsScreen } from './screens/11.1-BookingDetails'
-import { PaymentScreen, type PaymentValue } from './screens/12-Payment'
+import { BookingPaymentSheet, PaymentScreen, type PaymentValue } from './screens/12-Payment'
 import {
   EventSummaryScreen,
   type EventSummaryDetails,
@@ -581,6 +590,7 @@ export const App: React.FC = () => {
   const budgetAutosaveChainRef = React.useRef(Promise.resolve())
   const budgetAutosaveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingBudgetAutosaveRef = React.useRef<BudgetAllocationValue | undefined>(undefined)
+  const refreshLiveDataInFlightRef = React.useRef<Promise<ClientPlanningState> | null>(null)
 
   const transitionToScreen = React.useCallback((nextScreen: AppScreen) => {
     const currentScreen = screenRef.current
@@ -701,10 +711,29 @@ export const App: React.FC = () => {
   const [recoveryContact, setRecoveryContact] = React.useState('')
   const [selectedBooking, setSelectedBooking] = React.useState<BookingItem>()
   const [bookingPaymentQuote, setBookingPaymentQuote] = React.useState<EventPaymentQuote>()
+  const [isBookingPaymentSheetVisible, setIsBookingPaymentSheetVisible] = React.useState(false)
   const [paymentSettlementContext, setPaymentSettlementContext] =
     React.useState<V14PaymentSettlementContext>()
   const [isLoadingBookingPaymentQuote, setIsLoadingBookingPaymentQuote] = React.useState(false)
+  const [isPreparingBookingPayment, setIsPreparingBookingPayment] = React.useState(false)
   const [isInitiatingBookingPayment, setIsInitiatingBookingPayment] = React.useState(false)
+  const calculateServiceDetailsQuote = React.useCallback((value: {
+    attendeeCount?: number
+    menuItemIds?: string[]
+    optionId?: string
+    packageId?: string
+    quantity?: number
+    service: CatalogService
+    venueSelections?: VenueOptionSelection[]
+  }) => calculateServiceQuote({
+    attendeeCount: value.attendeeCount,
+    menuItemIds: value.menuItemIds,
+    optionId: value.optionId,
+    packageId: value.packageId,
+    quantity: value.quantity,
+    serviceId: value.service.bookingServiceId ?? value.service.id,
+    venueSelections: value.venueSelections,
+  }), [])
   const [selectedConversation, setSelectedConversation] =
     React.useState<ClientConversation>()
   const [chatReturnScreen, setChatReturnScreen] = React.useState<AppScreen>('messages')
@@ -729,6 +758,7 @@ export const App: React.FC = () => {
     serviceId?: string
   }>()
   const [currentServiceId, setCurrentServiceId] = React.useState('')
+  const [directCateringFallbackServiceId, setDirectCateringFallbackServiceId] = React.useState('')
   const [serviceReviewInsights, setServiceReviewInsights] =
     React.useState<ServiceReviewInsights>()
   const [serviceReviewInsightsLoading, setServiceReviewInsightsLoading] = React.useState(false)
@@ -1511,6 +1541,13 @@ export const App: React.FC = () => {
   const selectedCategoryBudget = planningBudgetAllocations.find(
     (allocation) => allocation.categoryKey === selectedBudgetKey
   )?.amount ?? 0
+  const venueCateringPackageSelection = selectedServices.find((service) => (
+    service.includesCatering
+    && !['cancelled', 'deleted', 'rejected', 'removed'].includes(service.status.trim().toLowerCase())
+  ))
+  const venueCateringPackageAllocatedBudget = planningBudgetAllocations
+    .filter((allocation) => allocation.categoryKey === 'venue' || allocation.categoryKey === 'catering')
+    .reduce((sum, allocation) => sum + allocation.amount, 0)
   const allocatedBudgetTotal = planningBudgetAllocations.reduce(
     (sum, allocation) => sum + allocation.amount, 0
   )
@@ -1519,12 +1556,18 @@ export const App: React.FC = () => {
     selectedCategoryBudget,
     totalBudget - allocatedBudgetTotal + selectedCategoryBudget
   )
-  const selectedPlanningCategoryIds = React.useMemo(
-    () => new Set(selectedServices
+  const selectedPlanningCategoryIds = React.useMemo(() => {
+    const ids = new Set(selectedServices
       .filter((service) => !['cancelled', 'deleted', 'rejected', 'removed'].includes(service.status.trim().toLowerCase()))
-      .map((service) => categoryNameToId(service.category))),
-    [selectedServices]
-  )
+      .map((service) => categoryNameToId(service.category)))
+    // This package is a single venue booking. Mark Catering as fulfilled only
+    // for planning progress; do not add a standalone catering selection.
+    if (selectedServices.some((service) => service.includesCatering
+      && !['cancelled', 'deleted', 'rejected', 'removed'].includes(service.status.trim().toLowerCase()))) {
+      ids.add('catering')
+    }
+    return ids
+  }, [selectedServices])
   const activeServicePlanningCategories = React.useMemo(
     () => activePlanningCategories.filter((category) => category.categoryId !== 'eventOrganizers'),
     [activePlanningCategories]
@@ -1796,7 +1839,11 @@ export const App: React.FC = () => {
     )
   }, [])
 
-  const refreshLiveData = React.useCallback(async () => {
+  const refreshLiveData = React.useCallback((): Promise<ClientPlanningState> => {
+    const inFlightRefresh = refreshLiveDataInFlightRef.current
+    if (inFlightRefresh) return inFlightRefresh
+
+    const refresh = (async (): Promise<ClientPlanningState> => {
     const [
       services,
       bookings,
@@ -1853,6 +1900,18 @@ export const App: React.FC = () => {
     if (draft?.pricing) setMerchantServicePricing(draft.pricing)
     setMerchantPackages([])
     return planningState
+    })()
+
+    refreshLiveDataInFlightRef.current = refresh
+    void refresh.then(
+      () => {
+        if (refreshLiveDataInFlightRef.current === refresh) refreshLiveDataInFlightRef.current = null
+      },
+      () => {
+        if (refreshLiveDataInFlightRef.current === refresh) refreshLiveDataInFlightRef.current = null
+      }
+    )
+    return refresh
   }, [hydrateClientPlanningState])
 
   const refreshClientHome = React.useCallback(async () => {
@@ -2663,6 +2722,32 @@ export const App: React.FC = () => {
 
     const client = supabase
     const activeConversationId = selectedConversation?.id
+    let active = true
+    let conversationRefreshTimer: ReturnType<typeof setTimeout> | undefined
+    let isRefreshingConversations = false
+    let shouldRefreshConversationsAgain = false
+    const refreshConversationList = () => {
+      if (isRefreshingConversations) {
+        shouldRefreshConversationsAgain = true
+        return
+      }
+      isRefreshingConversations = true
+      void fetchConversations()
+        .then((rows) => {
+          if (active) setConversations(rows)
+        })
+        .finally(() => {
+          isRefreshingConversations = false
+          if (active && shouldRefreshConversationsAgain) {
+            shouldRefreshConversationsAgain = false
+            refreshConversationList()
+          }
+        })
+    }
+    const scheduleConversationRefresh = () => {
+      if (conversationRefreshTimer) clearTimeout(conversationRefreshTimer)
+      conversationRefreshTimer = setTimeout(refreshConversationList, 300)
+    }
     const messageChannel = client
       .channel(`booking-messages-${authenticatedUserId}`)
       .on(
@@ -2678,7 +2763,7 @@ export const App: React.FC = () => {
             ? record.conversation_id
             : ''
 
-          void fetchConversations().then((rows) => setConversations(rows))
+          scheduleConversationRefresh()
 
           if (conversationId && conversationId === activeConversationId) {
             void fetchConversationMessages(conversationId).then(setConversationMessages)
@@ -2688,6 +2773,8 @@ export const App: React.FC = () => {
       .subscribe()
 
     return () => {
+      active = false
+      if (conversationRefreshTimer) clearTimeout(conversationRefreshTimer)
       void client.removeChannel(messageChannel)
     }
   }, [authenticatedUserId, selectedConversation?.id])
@@ -2921,11 +3008,11 @@ export const App: React.FC = () => {
     if (screen !== 'bookings' && screen !== 'bookingDetails') return undefined
 
     const refreshTimer = setInterval(() => {
-      void refreshLiveData()
-    }, 12000)
+      void refreshClientBookings()
+    }, 30000)
 
     return () => clearInterval(refreshTimer)
-  }, [refreshLiveData, screen])
+  }, [refreshClientBookings, screen])
 
   React.useEffect(() => {
     setSelectedBooking((current) =>
@@ -2945,6 +3032,13 @@ export const App: React.FC = () => {
     setCurrentServiceId('')
     openPlanningHub('forward', categoryNameToId(service.category))
   }
+
+  const handleLoadCateringTastingDraft = (service: CatalogService) =>
+    loadCateringTastingDraft(service)
+
+  const handleSaveCateringTastingDraft = (
+    value: Parameters<typeof saveCateringTastingDraft>[0]
+  ) => saveCateringTastingDraft(value)
 
   const handleAddSelection = async (value: Parameters<typeof saveServiceSelection>[0]) => {
     if (!supabase) {
@@ -3004,11 +3098,16 @@ export const App: React.FC = () => {
       return
     }
 
+    if (directCateringFallbackServiceId === value.service.id) {
+      setDirectCateringFallbackServiceId('')
+    }
+
     const fallbackProviderPrice = value.service.pricingUnit === 'person' && value.attendeeCount > 0
       ? value.service.providerMinPrice * value.attendeeCount
       : value.service.providerMinPrice
     const providerPrice = result.providerAmount ?? fallbackProviderPrice
     const calculatedAmount = result.calculatedAmount ?? value.estimatedTotal
+    const foodTastingPricePending = value.foodTastingPreference === true
     const nextSelection: SelectedSummaryService = {
       id: value.service.id,
       category: value.service.categoryName.toUpperCase(),
@@ -3016,17 +3115,21 @@ export const App: React.FC = () => {
         Math.max(0, calculatedAmount - providerPrice) * 100
       ) / 100,
       commissionRate: value.service.commissionRate,
-      detail: value.venueOption
+      detail: foodTastingPricePending
+        ? `${value.attendeeCount} Guests - Food tasting request sent`
+        : value.venueOption
         ? `${value.venueOption.name} · ${value.venueBookedHours} hours`
         : value.cateringOption
         ? `${value.cateringOption.name} · ${value.attendeeCount} Guests`
         : value.attendeeCount > 0 ? `${value.attendeeCount} Guests` : value.service.detail,
       imageLabel: value.service.imageLabel,
       imageUrl: value.service.imageUrl,
+      includesCatering: Boolean(value.venueCateringPackageId),
       name: value.service.name,
       price: calculatedAmount,
+      pricePending: foodTastingPricePending,
       providerPrice,
-      status: 'Selected',
+      status: foodTastingPricePending ? 'Requested' : 'Selected',
     }
 
     const nextSelectedServices = (() => {
@@ -3041,7 +3144,10 @@ export const App: React.FC = () => {
     })()
     const nextPlanningCategory = getNextUnselectedServicePlanningCategory(
       planningBudgetAllocations,
-      new Set(nextSelectedServices.map((service) => categoryNameToId(service.category)))
+      new Set([
+        ...nextSelectedServices.map((service) => categoryNameToId(service.category)),
+        ...(nextSelectedServices.some((service) => service.includesCatering) ? ['catering' as const] : []),
+      ])
     )
 
     setSelectedServices(nextSelectedServices)
@@ -3064,9 +3170,11 @@ export const App: React.FC = () => {
       return
     }
 
-    setToastMessage(nextPlanningCategory
-      ? 'Service added. Moving to your next allocated category.'
-      : 'Service added. Your allocated service categories are ready to review.')
+    setToastMessage(foodTastingPricePending
+      ? 'Food tasting request sent. The caterer can now review your preliminary menu and event details.'
+      : nextPlanningCategory
+        ? 'Service added. Moving to your next allocated category.'
+        : 'Service added. Your allocated service categories are ready to review.')
     await refreshLiveData()
     await recheckSavedPlan()
     openPlanningHub(undefined, nextPlanningCategory ?? categoryNameToId(nextSelection.category))
@@ -3568,14 +3676,72 @@ export const App: React.FC = () => {
     note?: string
     scheduledDate: string
     startTime: string
+    useV15?: boolean
   }) => {
     const result = await requestCateringFoodTasting(value)
     if (!result.ok) return result
 
     await refreshLiveData()
-    const message = 'Food tasting request sent to the catering provider.'
+    const message = result.foodTastingScheduled
+      ? 'Food tasting schedule confirmed. Your caterer was notified.'
+      : 'Food tasting request sent to the catering provider.'
     setToastMessage(message)
     return { ok: true, message }
+  }
+
+  const handleClientFoodTastingAttendance = async (bookingId: string) => {
+    const result = await confirmV15FoodTastingAttendance(bookingId)
+    if (!result.ok) return result
+
+    await refreshLiveData()
+    const message = result.foodTastingAttendanceConfirmed
+      ? 'Attendance confirmed. Your caterer was notified.'
+      : 'Food tasting attendance is already confirmed.'
+    setToastMessage(message)
+    return { ok: true, message }
+  }
+
+  const handleClientFoodTastingReschedule = async (value: {
+    bookingId: string
+    note?: string
+    scheduledDate: string
+    startTime: string
+  }) => {
+    const result = await rescheduleV15FoodTasting(value)
+    if (!result.ok) return result
+
+    await refreshLiveData()
+    const message = result.foodTastingRescheduled
+      ? 'Food tasting rescheduled. Your caterer was notified.'
+      : 'Food tasting schedule updated.'
+    setToastMessage(message)
+    return { ok: true, message }
+  }
+
+  const handleChooseFinalCateringMenu = async (
+    service: NonNullable<BookingItem['services']>[number]
+  ) => {
+    const result = await activateV15FoodTastingDirectMenuFallback(service.bookingId)
+    if (!result.ok) {
+      setToastMessage(result.message ?? 'Unable to open final menu selection.')
+      return
+    }
+
+    const targetServiceId = result.foodTastingFallbackServiceId || service.serviceId
+    const targetService = catalogServices.find((candidate) => candidate.id === targetServiceId)
+    if (!targetService) {
+      setToastMessage('The direct catering menu is no longer available. Refresh and try again.')
+      void refreshLiveData()
+      return
+    }
+
+    await refreshLiveData()
+    setDirectCateringFallbackServiceId(targetService.id)
+    setServiceBrowseMode('planning')
+    setSelectedCategory('catering')
+    setCurrentServiceId(targetService.id)
+    setToastMessage('Choose your final catering menu to replace the expired food tasting request.')
+    setScreen('serviceDetails')
   }
 
   const handleClientFoodTastingProposal = async (tastingId: string, acceptProposal: boolean) => {
@@ -3635,6 +3801,33 @@ export const App: React.FC = () => {
       : value.action === 'reject'
         ? 'Food tasting request declined. The client was notified.'
         : 'Alternative food tasting schedule sent to the client.'
+    setToastMessage(message)
+    return { ok: true, message }
+  }
+
+  const handleProviderFoodTastingFinalMenu = async (value: {
+    bookingId: string
+    finalItemIds: string[]
+  }) => {
+    const result = await submitV15FoodTastingFinalMenu(value)
+    if (!result.ok) return result
+    await refreshLiveData()
+    const message = 'Final menu sent to the client for confirmation.'
+    setToastMessage(message)
+    return { ok: true, message }
+  }
+
+  const handleClientFoodTastingFinalMenuResponse = async (value: {
+    acceptMenu: boolean
+    bookingId: string
+    correctionNote?: string
+  }) => {
+    const result = await respondToV15FoodTastingFinalMenu(value)
+    if (!result.ok) return result
+    await refreshLiveData()
+    const message = value.acceptMenu
+      ? 'Final menu confirmed. Your event payment eligibility has been updated.'
+      : 'Your correction request was sent to the caterer.'
     setToastMessage(message)
     return { ok: true, message }
   }
@@ -3847,34 +4040,44 @@ export const App: React.FC = () => {
     const eventId = selectedBooking?.eventId
     if (!eventId || isLoadingBookingPaymentQuote || isInitiatingBookingPayment) return
 
+    setIsBookingPaymentSheetVisible(true)
+    setIsPreparingBookingPayment(true)
     // Re-read the secured quote at the point of payment. This keeps the UI
     // responsive after provider acceptance while the server remains the final
     // authority for acceptance and immutable booking-price snapshots.
-    const [paymentQuote, settlementResult] = await Promise.all([
-      loadBookingPaymentQuote(eventId),
-      fetchPaymentSettlementContextV14(),
-    ])
-    if (!paymentQuote) return
-    if (settlementResult.ok && settlementResult.context) {
-      setPaymentSettlementContext(settlementResult.context)
-    } else {
-      setPaymentSettlementContext(undefined)
-      setToastMessage(settlementResult.message ?? 'Unable to load the current payment settlement instructions.')
-      return
+    try {
+      const [paymentQuote, settlementResult] = await Promise.all([
+        loadBookingPaymentQuote(eventId),
+        fetchPaymentSettlementContextV14(),
+      ])
+      if (!paymentQuote) {
+        setIsBookingPaymentSheetVisible(false)
+        return
+      }
+      if (settlementResult.ok && settlementResult.context) {
+        setPaymentSettlementContext(settlementResult.context)
+      } else {
+        setPaymentSettlementContext(undefined)
+        setToastMessage(settlementResult.message ?? 'Unable to load the current payment settlement instructions.')
+        setIsBookingPaymentSheetVisible(false)
+        return
+      }
+      if (!paymentQuote.paymentEligible) {
+        setToastMessage(paymentQuote.reason ?? 'Payment is not available until all required confirmations are complete.')
+        setIsBookingPaymentSheetVisible(false)
+        return
+      }
+      if (!['not_initiated', 'payment_failed_or_cancelled'].includes(paymentQuote.paymentState)) {
+        setToastMessage(
+          paymentQuote.paymentState === 'payment_initiated'
+            ? 'A payment attempt is already awaiting completion or verification.'
+            : 'Payment is already recorded for this event.'
+        )
+        setIsBookingPaymentSheetVisible(false)
+      }
+    } finally {
+      setIsPreparingBookingPayment(false)
     }
-    if (!paymentQuote.paymentEligible) {
-      setToastMessage(paymentQuote.reason ?? 'Payment is not available until all required confirmations are complete.')
-      return
-    }
-    if (!['not_initiated', 'payment_failed_or_cancelled'].includes(paymentQuote.paymentState)) {
-      setToastMessage(
-        paymentQuote.paymentState === 'payment_initiated'
-          ? 'A payment attempt is already awaiting completion or verification.'
-          : 'Payment is already recorded for this event.'
-      )
-      return
-    }
-    setScreen('bookingPayment')
   }
 
   const initiateBookingPayment = async (value: PaymentValue) => {
@@ -3905,6 +4108,7 @@ export const App: React.FC = () => {
           }
         : current)
       setToastMessage(result.message ?? 'Payment initiated and awaiting completion or verification.')
+      setIsBookingPaymentSheetVisible(false)
       setScreen('bookingDetails')
       void refreshLiveData().catch(() => undefined)
     } finally {
@@ -4686,6 +4890,7 @@ export const App: React.FC = () => {
             }
             onCompletionPayment={handleBookingCompletionPayment}
             onFoodTastingResponse={handleProviderFoodTastingResponse}
+            onSubmitFoodTastingFinalMenu={handleProviderFoodTastingFinalMenu}
           />
         )
       case 'providerBookingDecline':
@@ -5163,6 +5368,12 @@ export const App: React.FC = () => {
             categoryBudget={selectedCategoryBudget}
             categoryBudgetLocked={categoryBudgetLocked}
             categoryBudgetMaximum={categoryBudgetMaximum}
+            cateringIncludedInVenuePackage={Boolean(venueCateringPackageSelection)}
+            venueCateringPackage={venueCateringPackageSelection ? {
+              allocatedBudget: venueCateringPackageAllocatedBudget,
+              name: venueCateringPackageSelection.name,
+              price: venueCateringPackageSelection.price,
+            } : undefined}
             totalEstimatedCost={selectedEstimatedTotal}
             removingServiceId={removingServiceId}
             remainingBudget={unallocatedPlanBudget}
@@ -5246,6 +5457,13 @@ export const App: React.FC = () => {
             onSelectCategory={(category) => {
               setSelectedCategory(categoryNameToId(category.name))
             }}
+            onReviewVenuePackage={() => {
+              if (!venueCateringPackageSelection) return
+              setServiceBrowseMode('planning')
+              setCurrentServiceId(venueCateringPackageSelection.id)
+              setSelectedCategory('venues')
+              setScreen('serviceDetails')
+            }}
             onSelectVendor={(vendorId) => {
               setToastMessage('')
               const selectedVendor = catalogServices.find((service) => service.id === vendorId)
@@ -5295,16 +5513,13 @@ export const App: React.FC = () => {
             mode={serviceBrowseMode}
             service={currentService}
             hasBudget={hasConfiguredPlanningBudget}
+            initialFoodTastingPreference={
+              directCateringFallbackServiceId === currentService?.id ? false : undefined
+            }
             onAddSelection={handleAddSelection}
-            onCalculateQuote={(value) => calculateServiceQuote({
-              attendeeCount: value.attendeeCount,
-              menuItemIds: value.menuItemIds,
-              optionId: value.optionId,
-              packageId: value.packageId,
-              quantity: value.quantity,
-              serviceId: value.service.bookingServiceId ?? value.service.id,
-              venueSelections: value.venueSelections,
-            })}
+            onLoadFoodTastingDraft={handleLoadCateringTastingDraft}
+            onSaveFoodTastingDraft={handleSaveCateringTastingDraft}
+            onCalculateQuote={calculateServiceDetailsQuote}
             onBack={() => setScreen('categoryBrowse')}
             onReadAllReviews={() => setScreen('serviceDetails')}
             reviewInsights={serviceReviewInsights}
@@ -5504,6 +5719,7 @@ export const App: React.FC = () => {
               setSelectedBooking(booking)
               setBookingPaymentQuote(undefined)
               setPaymentSettlementContext(undefined)
+              setIsBookingPaymentSheetVisible(false)
               setScreen('bookingDetails')
               if (booking.eventId) void loadBookingPaymentQuote(booking.eventId)
             }}
@@ -5515,7 +5731,8 @@ export const App: React.FC = () => {
         )
       case 'bookingDetails':
         return (
-          <BookingDetailsScreen
+          <>
+            <BookingDetailsScreen
             booking={selectedBooking}
             details={{
               date: selectedBooking?.date ?? eventDisplayDate,
@@ -5527,7 +5744,10 @@ export const App: React.FC = () => {
                 : eventDisplayDate,
               time: selectedBooking?.requestedTime ?? eventDisplayTime,
             }}
-            onBack={() => setScreen('bookings')}
+            onBack={() => {
+              setIsBookingPaymentSheetVisible(false)
+              setScreen('bookings')
+            }}
             onCancelBooking={handleClientBookingCancellation}
             onFindAlternativeServices={(service) => void handleFindAlternativeServices(service)}
             onMessageProviderForBooking={(bookingId) =>
@@ -5538,9 +5758,14 @@ export const App: React.FC = () => {
             }
             onRespondChurchProposal={handleClientChurchProposalResponse}
             onLoadFoodTastingSlots={loadCateringFoodTastingSlots}
+            onLoadFoodTastingRescheduleSlots={loadV15CateringFoodTastingRescheduleSlots}
             onStartPayment={() => void openBookingPayment()}
+            onChooseFinalCateringMenu={(service) => void handleChooseFinalCateringMenu(service)}
+            onConfirmFoodTastingAttendance={handleClientFoodTastingAttendance}
+            onRespondToFoodTastingFinalMenu={handleClientFoodTastingFinalMenuResponse}
             onRequestFoodTasting={handleClientFoodTastingRequest}
             onRescheduleBooking={handleClientBookingReschedule}
+            onRescheduleFoodTasting={handleClientFoodTastingReschedule}
             onRespondToFoodTastingProposal={handleClientFoodTastingProposal}
             onSubmitReview={
               selectedBooking?.status === 'completed' && !selectedBooking.hasFeedback
@@ -5550,7 +5775,18 @@ export const App: React.FC = () => {
             paymentQuote={bookingPaymentQuote}
             isLoadingPaymentQuote={isLoadingBookingPaymentQuote}
             isStartingPayment={isInitiatingBookingPayment}
-          />
+            />
+            <BookingPaymentSheet
+              isLoading={isPreparingBookingPayment}
+              isProcessing={isInitiatingBookingPayment}
+              onClose={() => setIsBookingPaymentSheetVisible(false)}
+              onPay={(value) => void initiateBookingPayment(value)}
+              items={bookingPaymentQuote?.items}
+              paymentBreakdown={bookingPaymentQuote?.breakdown}
+              paymentSettlementContext={paymentSettlementContext}
+              visible={isBookingPaymentSheetVisible}
+            />
+          </>
         )
       case 'bookingPayment':
         return (

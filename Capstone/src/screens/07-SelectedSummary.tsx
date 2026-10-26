@@ -25,8 +25,11 @@ export interface SelectedSummaryService {
   id: string
   imageLabel: string
   imageUrl: string
+  /** A Venue + Catering package is one venue selection, not a second caterer. */
+  includesCatering?: boolean
   name: string
   price: number
+  pricePending?: boolean
   providerPrice: number
   status: string
 }
@@ -86,6 +89,7 @@ export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
   const allocationPercent = budget > 0
     ? Math.min(100, Math.round((totalEstimatedCost / budget) * 100))
     : 0
+  const hasPendingFoodTastingPrice = selectedServices.some((service) => service.pricePending)
 
   return (
     <View style={styles.screen}>
@@ -105,6 +109,11 @@ export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
             <Text style={[styles.totalValue, isWide && styles.totalValueWide]}>
               {formatCurrency(totalEstimatedCost)}
             </Text>
+            {hasPendingFoodTastingPrice ? (
+              <Text style={styles.pendingPriceCopy}>
+                Food tasting prices are confirmed after the final menu is approved.
+              </Text>
+            ) : null}
           </View>
 
           {hasSetBudget ? (
@@ -270,7 +279,9 @@ export const SelectedSummaryScreen: React.FC<SelectedSummaryScreenProps> = ({
 
                 <View style={styles.serviceFooter}>
                   <Text style={styles.serviceDetail}>{service.detail}</Text>
-                  <Text style={styles.servicePrice}>{formatCurrency(service.price)}</Text>
+                  <Text style={styles.servicePrice}>
+                    {service.pricePending ? 'Final price pending' : formatCurrency(service.price)}
+                  </Text>
                 </View>
               </View>
             </Pressable>
@@ -488,6 +499,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.32,
   },
   totalValueWide: { fontSize: 48, lineHeight: 56 },
+  pendingPriceCopy: { color: palette.secondary, fontSize: 12, lineHeight: 17, marginTop: 4 },
   allocationBlock: { width: '100%', marginTop: 20 },
   allocationBlockWide: { width: '50%', marginTop: 0 },
   actualCostBlock: {

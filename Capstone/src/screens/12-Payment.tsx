@@ -1,7 +1,9 @@
 import { Text } from '../components/AppText'
 import React from 'react'
 import {
+  Animated,
   Modal,
+  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -525,6 +527,255 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
   )
 }
 
+interface BookingPaymentSheetProps {
+  items?: PaymentOrderItem[]
+  isLoading?: boolean
+  isProcessing?: boolean
+  onClose: () => void
+  onPay: (value: PaymentValue) => void
+  paymentBreakdown?: Pick<
+    PaymentBreakdown,
+    'clientTotal' | 'initialPayment' | 'platformFee' | 'providerBalance' | 'providerInitialAllocation' | 'serviceSubtotal'
+  >
+  paymentSettlementContext?: V14PaymentSettlementContext
+  visible: boolean
+}
+
+export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
+  items = [],
+  isLoading = false,
+  isProcessing = false,
+  onClose,
+  onPay,
+  paymentBreakdown,
+  paymentSettlementContext,
+  visible,
+}) => {
+  const [paymentType, setPaymentType] = React.useState<PaymentType>('deposit')
+  const [paymentMethod, setPaymentMethod] = React.useState<PaymentMethod>('eWallet')
+  const [termsAccepted, setTermsAccepted] = React.useState(false)
+  const [showTermsError, setShowTermsError] = React.useState(false)
+  const [summaryExpanded, setSummaryExpanded] = React.useState(false)
+  const [receiptHeight, setReceiptHeight] = React.useState(0)
+  const sheetTranslateY = React.useRef(new Animated.Value(480)).current
+  const receiptProgress = React.useRef(new Animated.Value(0)).current
+  const breakdown = paymentBreakdown ?? calculatePaymentBreakdown([])
+  const amountDue = paymentType === 'full' ? breakdown.clientTotal : breakdown.initialPayment
+  const selectedSettlement = paymentMethod === 'bankTransfer'
+    ? paymentSettlementContext?.manualBankTransfer
+    : paymentSettlementContext?.eWalletCheckout
+  const selectedMethodEnabled = !isLoading && selectedSettlement?.enabled !== false
+
+  const dismiss = React.useCallback(() => {
+    Animated.timing(sheetTranslateY, {
+      toValue: 480,
+      duration: 180,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) onClose()
+    })
+  }, [onClose, sheetTranslateY])
+
+  const sheetPanResponder = React.useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponder: (_, gesture) => gesture.dy > 4 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+    onPanResponderMove: (_, gesture) => sheetTranslateY.setValue(Math.max(0, gesture.dy)),
+    onPanResponderRelease: (_, gesture) => {
+      if (gesture.dy > 84 || gesture.vy > 0.7) dismiss()
+      else Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true }).start()
+    },
+    onPanResponderTerminate: () => Animated.spring(sheetTranslateY, { toValue: 0, useNativeDriver: true }).start(),
+  }), [dismiss, sheetTranslateY])
+
+  React.useEffect(() => {
+    if (!visible) return
+    setShowTermsError(false)
+    sheetTranslateY.setValue(480)
+    Animated.timing(sheetTranslateY, {
+      toValue: 0,
+      duration: 240,
+      useNativeDriver: true,
+    }).start()
+  }, [sheetTranslateY, visible])
+
+  React.useEffect(() => {
+    if (!paymentSettlementContext) return
+    if (paymentMethod === 'eWallet' && !paymentSettlementContext.eWalletCheckout.enabled
+      && paymentSettlementContext.manualBankTransfer.enabled) {
+      setPaymentMethod('bankTransfer')
+    }
+    if (paymentMethod === 'bankTransfer' && !paymentSettlementContext.manualBankTransfer.enabled
+      && paymentSettlementContext.eWalletCheckout.enabled) {
+      setPaymentMethod('eWallet')
+    }
+  }, [paymentMethod, paymentSettlementContext])
+
+  const submit = () => {
+    if (isProcessing || isLoading || !selectedMethodEnabled) return
+    if (!termsAccepted) {
+      setShowTermsError(true)
+      return
+    }
+    onPay({ amount: amountDue, method: paymentMethod, paymentType, termsAccepted })
+  }
+
+  const toggleSummary = () => setSummaryExpanded((current) => !current)
+
+  React.useEffect(() => {
+    if (!receiptHeight) return
+    Animated.timing(receiptProgress, {
+      toValue: summaryExpanded ? 1 : 0,
+      duration: 240,
+      useNativeDriver: false,
+    }).start()
+  }, [receiptHeight, receiptProgress, summaryExpanded])
+
+  const receiptAnimatedStyle = {
+    height: receiptProgress.interpolate({ inputRange: [0, 1], outputRange: [0, receiptHeight] }),
+    opacity: receiptProgress,
+  }
+  const receiptChevronStyle = {
+    transform: [{
+      rotate: receiptProgress.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] }),
+    }],
+  }
+
+  return (
+    <Modal animationType="fade" onRequestClose={dismiss} transparent visible={visible}>
+      <View style={styles.bookingSheetBackdrop}>
+        <Pressable accessibilityLabel="Close payment details" onPress={dismiss} style={styles.bookingSheetDismissArea} />
+        <Animated.View accessibilityViewIsModal style={[styles.bookingSheet, { transform: [{ translateY: sheetTranslateY }] }]}>
+          <View accessibilityLabel="Drag down to close payment details" accessibilityRole="adjustable" {...sheetPanResponder.panHandlers} style={styles.bookingSheetHandleTouchArea}>
+            <View style={styles.bookingSheetHandle} />
+          </View>
+          <View style={styles.bookingSheetHeader}>
+            <View>
+              <Text style={styles.bookingSheetTitle}>Complete your booking</Text>
+              <Text style={styles.bookingSheetSubtitle}>Review your payment without leaving this booking.</Text>
+            </View>
+          </View>
+          <ScrollView contentContainerStyle={styles.bookingSheetContent} showsVerticalScrollIndicator={false} style={styles.bookingSheetScroll}>
+            <Pressable
+              accessibilityLabel={`${summaryExpanded ? 'Hide' : 'Show'} payment receipt`}
+              accessibilityRole="button"
+              onPress={toggleSummary}
+              style={styles.bookingSheetSummaryTrigger}
+            >
+              <Text style={styles.bookingSheetSummaryLabel}>Total event cost</Text>
+              <View style={styles.bookingSheetSummaryValue}>
+                <Text style={styles.bookingSheetSummaryAmount}>{formatCurrency(breakdown.clientTotal)}</Text>
+                <Animated.View style={receiptChevronStyle}>
+                  <MaterialCommunityIcons color={palette.muted} name="chevron-down" size={21} />
+                </Animated.View>
+              </View>
+            </Pressable>
+            <Animated.View style={[styles.bookingSheetReceiptAnimated, receiptAnimatedStyle]}>
+              <View
+                onLayout={(event) => setReceiptHeight(event.nativeEvent.layout.height)}
+                style={styles.bookingSheetReceipt}
+              >
+                <Text style={styles.bookingSheetReceiptTitle}>Payment receipt</Text>
+                <Text style={styles.bookingSheetReceiptCaption}>Booked services</Text>
+                {items.map((item) => (
+                  <View key={item.id} style={styles.bookingSheetServiceRow}>
+                    <View style={styles.bookingSheetServiceCopy}>
+                      <Text numberOfLines={1} style={styles.bookingSheetServiceName}>{item.name}</Text>
+                      {item.description ? <Text numberOfLines={1} style={styles.bookingSheetServiceDescription}>{item.description}</Text> : null}
+                    </View>
+                    <Text style={styles.bookingSheetServicePrice}>{formatCurrency(item.price)}</Text>
+                  </View>
+                ))}
+                <BreakdownRow label="Total event cost" value={formatCurrency(breakdown.clientTotal)} />
+                <BreakdownRow label="Required downpayment" value={formatCurrency(breakdown.initialPayment)} />
+                <BreakdownRow label="Remaining after downpayment" value={formatCurrency(Math.max(0, breakdown.clientTotal - breakdown.initialPayment))} />
+              </View>
+            </Animated.View>
+            {isLoading ? <Text style={styles.bookingSheetLoading}>Preparing your latest secure payment details…</Text> : <>
+            <Text style={styles.bookingSheetSectionTitle}>Payment option</Text>
+            <View style={styles.bookingSheetOptionRow}>
+              <Pressable
+                accessibilityRole="radio"
+                accessibilityState={{ checked: paymentType === 'deposit' }}
+                onPress={() => setPaymentType('deposit')}
+                style={[styles.bookingSheetOption, paymentType === 'deposit' && styles.bookingSheetOptionSelected]}
+              >
+                <Text style={styles.bookingSheetOptionLabel}>Required downpayment</Text>
+                <Text style={styles.bookingSheetOptionValue}>{formatCurrency(breakdown.initialPayment)}</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="radio"
+                accessibilityState={{ checked: paymentType === 'full' }}
+                onPress={() => setPaymentType('full')}
+                style={[styles.bookingSheetOption, paymentType === 'full' && styles.bookingSheetOptionSelected]}
+              >
+                <Text style={styles.bookingSheetOptionLabel}>Pay in full</Text>
+                <Text style={styles.bookingSheetOptionValue}>{formatCurrency(breakdown.clientTotal)}</Text>
+              </Pressable>
+            </View>
+            <Text style={styles.bookingSheetSectionTitle}>Payment method</Text>
+            <View style={styles.bookingSheetMethodRow}>
+              {paymentMethods.map((method) => {
+                const selected = paymentMethod === method.id
+                const enabled = paymentSettlementContext
+                  ? method.id === 'bankTransfer'
+                    ? paymentSettlementContext.manualBankTransfer.enabled
+                    : paymentSettlementContext.eWalletCheckout.enabled
+                  : true
+                return (
+                  <Pressable
+                    key={method.id}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: selected, disabled: !enabled }}
+                    disabled={!enabled}
+                    onPress={() => setPaymentMethod(method.id)}
+                    style={[styles.bookingSheetMethod, selected && styles.bookingSheetMethodSelected, !enabled && styles.bookingSheetMethodDisabled]}
+                  >
+                    <MaterialCommunityIcons color={palette.burgundy} name={method.icon} size={20} />
+                    <Text style={styles.bookingSheetMethodText}>{method.label}</Text>
+                  </Pressable>
+                )
+              })}
+            </View>
+            {paymentSettlementContext ? <SettlementInstructions context={paymentSettlementContext} method={paymentMethod} /> : null}
+            </>}
+          </ScrollView>
+          <View style={styles.bookingSheetFooter}>
+            <Pressable
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: termsAccepted }}
+              onPress={() => {
+                setTermsAccepted((current) => !current)
+                setShowTermsError(false)
+              }}
+              style={styles.bookingSheetTerms}
+            >
+              <View style={[styles.checkbox, termsAccepted && styles.checkboxChecked]}>
+                {termsAccepted ? <Text style={styles.checkboxMark}>{'\u2713'}</Text> : null}
+              </View>
+              <Text style={styles.bookingSheetTermsText}>I agree to the cancellation policy and terms of service.</Text>
+            </Pressable>
+            {showTermsError ? <Text accessibilityRole="alert" style={styles.termsError}>Please accept the policies and terms before continuing.</Text> : null}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ disabled: isProcessing || isLoading || !selectedMethodEnabled }}
+              disabled={isProcessing || isLoading || !selectedMethodEnabled}
+              onPress={submit}
+              style={({ pressed }) => [styles.payButton, (isProcessing || isLoading || !selectedMethodEnabled) && styles.payButtonDisabled, pressed && styles.payButtonPressed]}
+            >
+              <Text style={styles.payButtonText}>
+                {isProcessing
+                  ? 'Starting payment...'
+                  : paymentType === 'full'
+                    ? `Pay Full · ${formatCurrency(amountDue)}`
+                    : `Confirm Downpayment · ${formatCurrency(amountDue)}`}
+              </Text>
+            </Pressable>
+          </View>
+        </Animated.View>
+      </View>
+    </Modal>
+  )
+}
+
 interface EventDetailProps {
   label: string
   value: string
@@ -870,6 +1121,54 @@ const styles = StyleSheet.create({
   payButtonText: { color: palette.surface, fontSize: 18, lineHeight: 28, fontWeight: '700', textAlign: 'center' },
   payButtonDisabled: { opacity: 0.6 },
   payButtonPressed: { backgroundColor: '#7B2B3A', transform: [{ scale: 0.98 }] },
+  bookingSheetBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(26, 28, 28, 0.28)' },
+  bookingSheetDismissArea: { flex: 1 },
+  bookingSheet: {
+    width: '100%',
+    maxHeight: '78%',
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    backgroundColor: palette.background,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 20,
+  },
+  bookingSheetHandleTouchArea: { alignSelf: 'center', width: 64, height: 24, alignItems: 'center', justifyContent: 'center' },
+  bookingSheetHandle: { width: 42, height: 4, borderRadius: 2, backgroundColor: '#B7B1B2' },
+  bookingSheetHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, paddingTop: 15, paddingBottom: 12 },
+  bookingSheetTitle: { color: palette.text, fontSize: 20, lineHeight: 27, fontWeight: '700' },
+  bookingSheetSubtitle: { color: palette.muted, fontSize: 12, lineHeight: 17, marginTop: 2 },
+  bookingSheetScroll: { flexShrink: 1 },
+  bookingSheetContent: { gap: 14, paddingBottom: 16 },
+  bookingSheetSummaryTrigger: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderTopWidth: 1, borderBottomWidth: 1, borderColor: palette.border, paddingVertical: 12 },
+  bookingSheetSummaryLabel: { flex: 1, color: palette.text, fontSize: 16, lineHeight: 22, fontWeight: '600' },
+  bookingSheetSummaryValue: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  bookingSheetSummaryAmount: { color: palette.text, fontSize: 16, lineHeight: 22, fontWeight: '700', textAlign: 'right' },
+  bookingSheetReceiptAnimated: { overflow: 'hidden' },
+  bookingSheetReceipt: { gap: 8, borderRadius: 10, backgroundColor: palette.surfaceLow, padding: 13 },
+  bookingSheetReceiptTitle: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '700', marginBottom: 2 },
+  bookingSheetReceiptCaption: { color: palette.muted, fontSize: 11, lineHeight: 16, fontWeight: '700', letterSpacing: 0.4, marginTop: 3 },
+  bookingSheetServiceRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, borderBottomWidth: 1, borderBottomColor: palette.border, paddingBottom: 8 },
+  bookingSheetServiceCopy: { flex: 1, minWidth: 0 },
+  bookingSheetServiceName: { color: palette.text, fontSize: 12, lineHeight: 17, fontWeight: '600' },
+  bookingSheetServiceDescription: { color: palette.muted, fontSize: 10, lineHeight: 15, marginTop: 1 },
+  bookingSheetServicePrice: { color: palette.text, fontSize: 12, lineHeight: 17, fontWeight: '700', textAlign: 'right' },
+  bookingSheetLoading: { color: palette.muted, fontSize: 13, lineHeight: 19, paddingVertical: 12, textAlign: 'center' },
+  bookingSheetSectionTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '700', marginTop: 2 },
+  bookingSheetOptionRow: { flexDirection: 'row', gap: 10 },
+  bookingSheetOption: { flex: 1, borderWidth: 1, borderColor: palette.border, borderRadius: 10, backgroundColor: palette.surface, padding: 12 },
+  bookingSheetOptionSelected: { borderColor: palette.burgundy, backgroundColor: '#FCF5F6' },
+  bookingSheetOptionLabel: { color: palette.text, fontSize: 12, lineHeight: 17, fontWeight: '700' },
+  bookingSheetOptionValue: { color: palette.burgundy, fontSize: 13, lineHeight: 18, fontWeight: '700', marginTop: 5 },
+  bookingSheetMethodRow: { flexDirection: 'row', gap: 10 },
+  bookingSheetMethod: { flex: 1, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderWidth: 1, borderColor: palette.border, borderRadius: 10, backgroundColor: palette.surface, paddingHorizontal: 8 },
+  bookingSheetMethodSelected: { borderColor: palette.burgundy, backgroundColor: '#FCF5F6' },
+  bookingSheetMethodDisabled: { opacity: 0.48 },
+  bookingSheetMethodText: { color: palette.text, fontSize: 12, lineHeight: 17, fontWeight: '600' },
+  bookingSheetTerms: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 2 },
+  bookingSheetTermsText: { flex: 1, color: palette.muted, fontSize: 12, lineHeight: 17 },
+  bookingSheetFooter: { gap: 10, borderTopWidth: 1, borderTopColor: palette.border, backgroundColor: palette.background, paddingTop: 12 },
+  bookingSheetPayButton: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: palette.burgundy, marginTop: 2, paddingHorizontal: 16, paddingVertical: 12 },
   cardPressed: { opacity: 0.88, transform: [{ scale: 0.99 }] },
   pressed: { opacity: 0.58 },
   savePlanModalBackdrop: {

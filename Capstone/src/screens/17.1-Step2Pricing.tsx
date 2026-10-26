@@ -379,7 +379,7 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
           {isCatering && !cateringTypesManagedInDetails ? (
             <MultiSelectField
               error={cateringTypesMissing ? 'Select at least one catering style.' : undefined}
-              helper="Clients can only choose the styles enabled here."
+              helper="These formats are shown to clients as information when they view this catering service."
               label="Available Catering Styles"
               onApply={(values) => {
                 setSubmitted(false)
@@ -398,7 +398,7 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
                 <Text style={styles.quoteNoticeIconText}>i</Text>
               </View>
               <Text style={styles.quoteNoticeText}>
-                Catering styles are already configured in Service Information: {configuredCateringTypes
+                Catering formats are already configured in Service Information: {configuredCateringTypes
                   .map((item) => item.charAt(0).toUpperCase() + item.slice(1))
                   .join(', ')}.
               </Text>
