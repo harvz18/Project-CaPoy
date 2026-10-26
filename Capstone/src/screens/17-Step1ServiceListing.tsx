@@ -14,6 +14,9 @@ import {
   View,
 } from 'react-native'
 import { CategorySpecificServiceDetails } from '../components/CategorySpecificServiceDetails'
+import { FloristArrangementsEditor } from '../components/FloristArrangementsEditor'
+import { FloristPackagesEditor } from '../components/FloristPackagesEditor'
+import { FloristFulfillmentEditor } from '../components/FloristFulfillmentEditor'
 import type { ServiceCategoryOption } from '../lib/catalog'
 import { fallbackServiceCategories } from '../lib/catalog'
 import {
@@ -24,12 +27,16 @@ import {
   validateCategoryDetails,
   type ServiceCategoryDetails,
 } from '../lib/service-category-details'
+import type { FloristArrangementDraft, FloristFulfillmentDraft, FloristPackageDraft } from '../lib/florist'
 
 export interface ServiceInformationValue {
   category: string
   categoryDetails: ServiceCategoryDetails
   categoryId?: string
   description: string
+  floristArrangements?: FloristArrangementDraft[]
+  floristPackages?: FloristPackageDraft[]
+  floristFulfillmentOptions?: FloristFulfillmentDraft[]
   photos: string[]
   serviceName: string
 }
@@ -114,6 +121,11 @@ export const Step1ServiceListingScreen: React.FC<Step1ServiceListingScreenProps>
   const [submitted, setSubmitted] = React.useState(false)
   const [isAddingPhoto, setIsAddingPhoto] = React.useState(false)
   const [categoryErrors, setCategoryErrors] = React.useState<string[]>([])
+  const [floristArrangements, setFloristArrangements] = React.useState<FloristArrangementDraft[]>(
+    initialValue?.floristArrangements ?? []
+  )
+  const [floristPackages, setFloristPackages] = React.useState<FloristPackageDraft[]>(initialValue?.floristPackages ?? [])
+  const [floristFulfillmentOptions, setFloristFulfillmentOptions] = React.useState<FloristFulfillmentDraft[]>(initialValue?.floristFulfillmentOptions ?? [])
 
   const normalizedName = serviceName.trim()
   const normalizedDescription = description.trim()
@@ -174,6 +186,9 @@ export const Step1ServiceListingScreen: React.FC<Step1ServiceListingScreenProps>
       categoryDetails: normalizeCategoryDetails(selectedCategory, categoryDetails),
       categoryId: selectedCategoryId,
       description: normalizedDescription,
+      floristArrangements,
+      floristPackages,
+      floristFulfillmentOptions,
       photos,
       serviceName: normalizedName,
     })
@@ -185,6 +200,9 @@ export const Step1ServiceListingScreen: React.FC<Step1ServiceListingScreenProps>
       categoryDetails: normalizeCategoryDetails(selectedCategory, categoryDetails),
       categoryId: selectedCategoryId,
       description: normalizedDescription,
+      floristArrangements,
+      floristPackages,
+      floristFulfillmentOptions,
       photos,
       serviceName: normalizedName,
     })
@@ -380,6 +398,9 @@ export const Step1ServiceListingScreen: React.FC<Step1ServiceListingScreenProps>
             }}
             value={categoryDetails}
           />
+          {serviceCategoryKind(selectedCategory) === 'florists' ? <FloristArrangementsEditor onAddPhoto={onAddPhoto} onChange={setFloristArrangements} value={floristArrangements} /> : null}
+          {serviceCategoryKind(selectedCategory) === 'florists' ? <FloristPackagesEditor arrangements={floristArrangements} onChange={setFloristPackages} value={floristPackages} /> : null}
+          {serviceCategoryKind(selectedCategory) === 'florists' ? <FloristFulfillmentEditor onChange={setFloristFulfillmentOptions} value={floristFulfillmentOptions} /> : null}
 
           <View style={styles.photosSection}>
             <View style={styles.photosHeader}>

@@ -286,9 +286,15 @@ export const Step3ReviewListingsScreen: React.FC<Step3ReviewListingsScreenProps>
               ))}
             </View>
             <View style={styles.packageNote}>
-              <Text style={styles.packageNoteTitle}>Packages are optional</Text>
+              <Text style={styles.packageNoteTitle}>
+                {information.category.toLowerCase().includes('flor')
+                  ? 'Bookable floral offerings are required before publishing'
+                  : 'Packages are optional'}
+              </Text>
               <Text style={styles.packageNoteCopy}>
-                Submit this service on its own. You can create or edit bundles later from Your Listings under the Packages tab.
+                {information.category.toLowerCase().includes('flor')
+                  ? 'You can save this florist listing as a draft while you configure it. Before it can be submitted for review, add at least one active floral arrangement or an active floral package using the existing provider listings workflow.'
+                  : 'Submit this service on its own. You can create or edit bundles later from Your Listings under the Packages tab.'}
               </Text>
             </View>
             {cateringOptionsMissing ? (

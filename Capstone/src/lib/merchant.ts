@@ -11,6 +11,7 @@ import {
   type ServiceCategoryDetails,
 } from './service-category-details'
 import { venueBookingConfigurationFrom } from './venue-booking'
+import type { FloristArrangementDraft, FloristFulfillmentDraft, FloristPackageDraft } from './florist'
 import type {
   AvailabilityCalendarValue,
   BookingItem,
@@ -450,6 +451,98 @@ const uploadListingPhoto = async (uri: string) => {
   return uploadMerchantServicePhoto(uri)
 }
 
+const saveFloristCustomizationGroups = async (
+  context: NonNullable<Awaited<ReturnType<typeof getMerchantContext>>>, arrangementId: string, groups: FloristArrangementDraft['customizationGroups']
+) => {
+  for (let position = 0; position < groups.length; position += 1) {
+    const group = groups[position]
+    const payload = { arrangement_id: arrangementId, display_order: position, is_active: group.isActive, is_required: group.isRequired, maximum_selections: group.maximumSelections, minimum_selections: group.minimumSelections, name: group.name.trim(), selection_type: group.selectionType, updated_at: new Date().toISOString() }
+    const { data, error } = group.id
+      ? await context.client.from('florist_arrangement_option_groups').update(payload).eq('id', group.id).eq('arrangement_id', arrangementId).select('id').single()
+      : await context.client.from('florist_arrangement_option_groups').insert(payload).select('id').single()
+    if (error) return error
+    const groupId = String((data as { id?: string } | null)?.id ?? group.id ?? '')
+    for (let optionPosition = 0; optionPosition < group.options.length; optionPosition += 1) {
+      const option = group.options[optionPosition]
+      const optionPayload = { display_order: optionPosition, is_active: option.isActive, name: option.name.trim(), option_group_id: groupId, price_modifier: option.priceModifier, price_modifier_type: option.priceModifierType, updated_at: new Date().toISOString() }
+      const { error: optionError } = option.id
+        ? await context.client.from('florist_arrangement_options').update(optionPayload).eq('id', option.id).eq('option_group_id', groupId)
+        : await context.client.from('florist_arrangement_options').insert(optionPayload)
+      if (optionError) return optionError
+    }
+  }
+  return null
+}
+
+const saveFloristArrangements = async (
+  context: NonNullable<Awaited<ReturnType<typeof getMerchantContext>>>,
+  serviceId: string,
+  arrangements: FloristArrangementDraft[]
+) => {
+  const { data: existing, error: existingError } = await context.client
+    .from('florist_arrangements').select('id').eq('service_id', serviceId)
+  if (existingError) return existingError
+  const retainedIds: string[] = []
+  for (let position = 0; position < arrangements.length; position += 1) {
+    const arrangement = arrangements[position]
+    const imageUrls = (await Promise.all(arrangement.imageUrls.map(uploadListingPhoto))).filter(Boolean)
+    const payload = { base_price: arrangement.basePrice, category: arrangement.category.trim(), description: arrangement.description.trim() || null, display_order: position, image_urls: imageUrls, is_active: arrangement.isActive, maximum_quantity: arrangement.maximumQuantity, minimum_quantity: arrangement.minimumQuantity, name: arrangement.name.trim(), pricing_unit: arrangement.pricingUnit, service_id: serviceId, updated_at: new Date().toISOString() }
+    const write = arrangement.id
+      ? context.client.from('florist_arrangements').update(payload).eq('id', arrangement.id).eq('service_id', serviceId)
+      : context.client.from('florist_arrangements').insert(payload).select('id').single()
+    const { data, error } = await write
+    if (error) return error
+    const arrangementId = arrangement.id ?? String((data as { id?: string } | null)?.id ?? '')
+    const customizationError = await saveFloristCustomizationGroups(context, arrangementId, arrangement.customizationGroups)
+    if (customizationError) return customizationError
+    retainedIds.push(arrangementId)
+  }
+  const removedIds = (existing ?? []).map((row) => String((row as { id?: string }).id ?? '')).filter((id) => id && !retainedIds.includes(id))
+  if (removedIds.length) {
+    const { error } = await context.client.from('florist_arrangements').update({ is_active: false, updated_at: new Date().toISOString() }).in('id', removedIds)
+    if (error) return error
+  }
+  return null
+}
+
+const saveFloristPackages = async (
+  context: NonNullable<Awaited<ReturnType<typeof getMerchantContext>>>, serviceId: string, packages: FloristPackageDraft[]
+) => {
+  for (const pkg of packages) {
+    const payload = { description: pkg.description.trim() || null, inclusions: pkg.inclusions, is_active: pkg.isActive, name: pkg.name.trim(), price: pkg.price, pricing_unit: 'event', service_id: serviceId, updated_at: new Date().toISOString() }
+    const { data, error } = pkg.id
+      ? await context.client.from('service_packages').update(payload).eq('id', pkg.id).eq('service_id', serviceId).select('id').single()
+      : await context.client.from('service_packages').insert(payload).select('id').single()
+    if (error) return error
+    const packageId = String((data as { id?: string } | null)?.id ?? pkg.id ?? '')
+    for (let position = 0; position < pkg.items.length; position += 1) {
+      const item = pkg.items[position]
+      const { error: itemError } = await context.client.from('florist_package_arrangements').upsert({ arrangement_id: item.arrangementId, customization_allowed: item.customizationAllowed, display_order: position, included_quantity: item.quantity, package_id: packageId }, { onConflict: 'package_id,arrangement_id' })
+      if (itemError) return itemError
+    }
+    for (let position = 0; position < pkg.addOns.length; position += 1) {
+      const addOn = pkg.addOns[position]
+      const { error: addOnError } = await context.client.from('florist_package_add_ons').upsert({ arrangement_id: addOn.arrangementId ?? null, display_order: position, is_active: addOn.isActive, name: addOn.name.trim(), package_id: packageId, price: addOn.price, pricing_unit: addOn.pricingUnit }, { onConflict: 'id' })
+      if (addOnError) return addOnError
+    }
+  }
+  return null
+}
+
+const saveFloristFulfillmentOptions = async (
+  context: NonNullable<Awaited<ReturnType<typeof getMerchantContext>>>, serviceId: string, options: FloristFulfillmentDraft[]
+) => {
+  for (let position = 0; position < options.length; position += 1) {
+    const option = options[position]
+    const payload = { coverage_details: option.coverageDetails?.trim() || null, description: option.description?.trim() || null, display_order: position, fulfillment_kind: option.fulfillmentKind, is_active: option.isActive, name: option.name.trim(), price: option.price, service_id: serviceId, updated_at: new Date().toISOString() }
+    const { error } = option.id
+      ? await context.client.from('florist_service_fulfillment_options').update(payload).eq('id', option.id).eq('service_id', serviceId)
+      : await context.client.from('florist_service_fulfillment_options').insert(payload)
+    if (error) return error
+  }
+  return null
+}
+
 const mapMerchantServiceRow = (row: unknown, fallbackCategoryName = 'Service') => {
   const record = row as Record<string, unknown>
   const category = nested(record.service_categories) as Record<string, unknown> | undefined
@@ -721,11 +814,19 @@ export const saveMerchantServiceListing = async (
     }
 
     const isCatering = value.information.category.toLowerCase().includes('cater')
+    const isFlorist = value.information.category.toLowerCase().includes('flor')
     const cateringServiceTypes = value.pricing.cateringServiceTypes ?? []
     if (status === 'active' && isCatering && cateringServiceTypes.length === 0) {
       return {
         ok: false,
         message: 'Select at least one available catering style before publishing this listing.',
+      }
+    }
+    if (status === 'active' && isFlorist) {
+      const activeArrangements = (value.information.floristArrangements ?? [])
+        .filter((arrangement) => arrangement.isActive)
+      if (activeArrangements.some((arrangement) => !arrangement.name.trim() || !arrangement.category.trim() || arrangement.minimumQuantity < 1 || arrangement.basePrice < 0)) {
+        return { ok: false, message: 'Complete the name, category, price, and quantity for every active floral arrangement.' }
       }
     }
     const uploadedPhotos = await Promise.all(
@@ -743,7 +844,7 @@ export const saveMerchantServiceListing = async (
       description: value.information.description,
       provider_id: context.providerId,
       name: value.information.serviceName,
-      status: submittedStatus,
+      status: isFlorist && status === 'active' && !existingServiceId ? 'draft' : submittedStatus,
       updated_at: now,
     }
     const detailedServicePayload = {
@@ -791,6 +892,25 @@ export const saveMerchantServiceListing = async (
         message: error.message.toLowerCase().includes('category_details')
           ? 'Category-specific service details are not installed yet. Apply database/51_category_specific_service_details.sql, then try again.'
           : error.message,
+      }
+    }
+
+    if (isFlorist) {
+      const arrangementError = await saveFloristArrangements(
+        context,
+        serviceId,
+        value.information.floristArrangements ?? []
+      )
+      if (arrangementError) return { ok: false, message: arrangementError.message }
+      const packageError = await saveFloristPackages(context, serviceId, value.information.floristPackages ?? [])
+      if (packageError) return { ok: false, message: packageError.message }
+      const fulfillmentError = await saveFloristFulfillmentOptions(context, serviceId, value.information.floristFulfillmentOptions ?? [])
+      if (fulfillmentError) return { ok: false, message: fulfillmentError.message }
+      if (status === 'active' && !existingServiceId) {
+        const { error: submitError } = await context.client.from('services')
+          .update({ status: 'pending_review', updated_at: new Date().toISOString() })
+          .eq('id', serviceId).eq('provider_id', context.providerId)
+        if (submitError) return { ok: false, message: submitError.message }
       }
     }
 
@@ -1516,7 +1636,7 @@ export const loadMerchantServiceForEditing = async (
   const { data, error } = await context.client
     .from('services')
     .select(
-      'id, name, description, base_price, cover_image_url, gallery_urls, pricing_model, pricing_unit, pricing_details, catering_service_types, category_details, category_id, service_categories(name), service_packages(id, name, description, price, inclusions, pricing_unit, pricing_mode, subtotal, discount_type, discount_value, discount_amount, service_package_items(service_id, position, services(id, name, base_price, pricing_unit)))'
+      'id, name, description, base_price, cover_image_url, gallery_urls, pricing_model, pricing_unit, pricing_details, catering_service_types, category_details, category_id, service_categories(name), florist_service_fulfillment_options(id, fulfillment_kind, name, description, coverage_details, price, is_active, display_order), florist_arrangements(id, name, category, description, image_urls, base_price, pricing_unit, minimum_quantity, maximum_quantity, is_active, display_order, florist_arrangement_option_groups(id, name, selection_type, is_required, minimum_selections, maximum_selections, is_active, display_order, florist_arrangement_options(id, name, price_modifier, price_modifier_type, is_active, display_order))), service_packages(id, name, description, price, inclusions, pricing_unit, pricing_mode, subtotal, discount_type, discount_value, discount_amount, service_package_items(service_id, position, services(id, name, base_price, pricing_unit)))'
     )
     .eq('id', serviceId)
     .eq('provider_id', context.providerId)
@@ -1534,6 +1654,17 @@ export const loadMerchantServiceForEditing = async (
   const pricingUnit = textFrom(record.pricing_unit, 'event')
   const packageRows = Array.isArray(record.service_packages)
     ? (record.service_packages as Array<Record<string, unknown>>)
+    : []
+  const floristArrangements = Array.isArray(record.florist_arrangements)
+    ? (record.florist_arrangements as Array<Record<string, unknown>>).map((item) => ({
+        basePrice: numberFrom(item.base_price), category: textFrom(item.category), customizationGroups: Array.isArray(item.florist_arrangement_option_groups) ? (item.florist_arrangement_option_groups as Array<Record<string, unknown>>).map((group) => ({ id: textFrom(group.id) || undefined, isActive: group.is_active !== false, isRequired: group.is_required === true, maximumSelections: optionalNumber(group.maximum_selections), minimumSelections: Math.max(0, numberFrom(group.minimum_selections)), name: textFrom(group.name), options: Array.isArray(group.florist_arrangement_options) ? (group.florist_arrangement_options as Array<Record<string, unknown>>).map((option) => ({ id: textFrom(option.id) || undefined, isActive: option.is_active !== false, name: textFrom(option.name), priceModifier: numberFrom(option.price_modifier), priceModifierType: (['fixed', 'per_unit', 'per_selection', 'included'].includes(textFrom(option.price_modifier_type)) ? textFrom(option.price_modifier_type) : 'included') as FloristArrangementDraft['customizationGroups'][number]['options'][number]['priceModifierType'] })) : [], selectionType: (['single', 'multiple', 'quantity', 'text', 'image'].includes(textFrom(group.selection_type)) ? textFrom(group.selection_type) : 'single') as FloristArrangementDraft['customizationGroups'][number]['selectionType'] })) : [], description: textFrom(item.description),
+        id: textFrom(item.id) || undefined, imageUrls: Array.isArray(item.image_urls) ? item.image_urls.filter((url): url is string => typeof url === 'string') : [],
+        isActive: item.is_active !== false, maximumQuantity: optionalNumber(item.maximum_quantity), minimumQuantity: Math.max(1, numberFrom(item.minimum_quantity, 1)), name: textFrom(item.name),
+        pricingUnit: (['piece', 'pair', 'set', 'table', 'installation', 'fixed'].includes(textFrom(item.pricing_unit)) ? textFrom(item.pricing_unit) : 'piece') as FloristArrangementDraft['pricingUnit'],
+      })).sort((left, right) => Number(left.id?.localeCompare(right.id ?? '')))
+    : []
+  const floristFulfillmentOptions = Array.isArray(record.florist_service_fulfillment_options)
+    ? (record.florist_service_fulfillment_options as Array<Record<string, unknown>>).map((item) => ({ coverageDetails: textFrom(item.coverage_details) || undefined, description: textFrom(item.description) || undefined, fulfillmentKind: (['pickup', 'delivery', 'delivery_with_setup', 'installation', 'post_event_removal'].includes(textFrom(item.fulfillment_kind)) ? textFrom(item.fulfillment_kind) : 'pickup') as FloristFulfillmentDraft['fulfillmentKind'], id: textFrom(item.id) || undefined, isActive: item.is_active !== false, name: textFrom(item.name), price: numberFrom(item.price) }))
     : []
   const cateringServiceTypes = Array.isArray(record.catering_service_types)
     ? record.catering_service_types.filter(
@@ -1553,6 +1684,8 @@ export const loadMerchantServiceForEditing = async (
           ),
       categoryId: textFrom(record.category_id),
       description: textFrom(record.description),
+      floristArrangements,
+      floristFulfillmentOptions,
       photos: Array.from(new Set([coverImage, ...gallery].filter(Boolean))),
       serviceName: textFrom(record.name),
     },

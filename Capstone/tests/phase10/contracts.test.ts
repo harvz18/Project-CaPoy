@@ -3398,3 +3398,180 @@ test('live data refreshes are coalesced and booking polling stays targeted', () 
   assert.doesNotMatch(app, /void refreshLiveData\(\)\s*\r?\n\s*}, 12000\)/,
     'booking polling must not reload the whole workspace every twelve seconds')
 })
+
+test('V17 Phase 1 adds an isolated, provider-owned florist configuration foundation', () => {
+  const sourceMigration = read('database/99_v17_florist_service_structure.sql')
+  const deployMigration = read('supabase/migrations/20261026000600_v17_florist_service_structure.sql')
+  const floristContract = read('src/lib/florist.ts')
+
+  assert.equal(
+    deployMigration,
+    sourceMigration,
+    'the deployed V17 florist migration must exactly match the reviewed database source'
+  )
+  mustContain(sourceMigration, [
+    'florist_arrangements',
+    'florist_arrangement_option_groups',
+    'florist_arrangement_options',
+    'florist_package_arrangements',
+    'florist_package_add_ons',
+    'florist_service_fulfillment_options',
+    'florist_selection_snapshot',
+    "'piece', 'pair', 'set', 'table', 'installation', 'fixed'",
+    "'fixed', 'per_unit', 'per_selection', 'included'",
+    'validate_v17_florist_package_arrangement',
+    'Providers manage own florist arrangements',
+    'Public view published florist arrangements',
+    'No predefined arrangements are seeded.',
+  ], 'V17 Phase 1 florist schema, ownership, and published-offering safeguards')
+  mustContain(floristContract, [
+    'FloristSelectionSnapshot',
+    'FloristArrangementSelectionSnapshot',
+    'FloristPriceModifierType',
+    'isFloristSelectionSnapshot',
+  ], 'V17 Phase 1 shared florist selection contract')
+})
+
+test('V17 Phase 2 keeps florist creation in the existing provider flow and blocks empty publication', () => {
+  const sourceMigration = read('database/100_v17_florist_service_creation.sql')
+  const deployMigration = read('supabase/migrations/20261026000700_v17_florist_service_creation.sql')
+  const categoryDetails = read('src/components/CategorySpecificServiceDetails.tsx')
+  const review = read('src/screens/17.2-Step3ReviewListings.tsx')
+
+  assert.equal(
+    deployMigration,
+    sourceMigration,
+    'the deployed V17 florist publication migration must exactly match the reviewed database source'
+  )
+  mustContain(sourceMigration, [
+    'validate_v17_florist_service_publication',
+    "new.status::text not in ('pending_review', 'active')",
+    'florist_arrangements',
+    'florist_package_arrangements',
+    'active floral arrangement or active floral package',
+  ], 'V17 Phase 2 server-side florist publication guard')
+  mustContain(categoryDetails, [
+    'Florist Service Capabilities',
+    'Bridal and Entourage Flowers',
+    'Wedding Ceremony Decorations',
+    'Service Area / Coverage Location',
+    'Service Inclusions',
+    'Additional Service Information',
+    'existing Availability screen',
+  ], 'V17 Phase 2 florist-only provider form extensions')
+  mustContain(review, [
+    'Bookable floral offerings are required before publishing',
+    'active floral arrangement or an active floral package',
+  ], 'V17 Phase 2 draft-friendly florist review guidance')
+})
+
+test('V17 Phase 3 keeps provider-defined floral arrangements in the existing listing flow', () => {
+  const editor = read('src/components/FloristArrangementsEditor.tsx')
+  const listing = read('src/screens/17-Step1ServiceListing.tsx')
+  const merchant = read('src/lib/merchant.ts')
+
+  mustContain(editor, [
+    'Bridal and Entourage Flowers',
+    'Wedding Ceremony Flowers',
+    'Reception Flowers',
+    'Custom Arrangement',
+    'Add photos',
+    'Active offering',
+    "'piece', 'pair', 'set', 'table', 'installation', 'fixed'",
+  ], 'V17 Phase 3 arrangement editor controls')
+  mustContain(listing, [
+    'FloristArrangementsEditor',
+    'floristArrangements',
+  ], 'V17 Phase 3 existing service listing integration')
+  mustContain(merchant, [
+    'saveFloristArrangements',
+    "from('florist_arrangements')",
+    'is_active: false',
+    'uploadListingPhoto',
+  ], 'V17 Phase 3 provider-owned persistence and historical safety')
+})
+
+test('V17 Phase 4 saves arrangement-specific customization rules and modifier semantics', () => {
+  const editor = read('src/components/FloristCustomizationEditor.tsx')
+  const merchant = read('src/lib/merchant.ts')
+  const florist = read('src/lib/florist.ts')
+
+  mustContain(editor, [
+    'Arrangement Customization',
+    "'single', 'multiple', 'quantity', 'text', 'image'",
+    "'included', 'fixed', 'per_unit', 'per_selection'",
+    'Minimum selections',
+    'Maximum selections',
+    'Add customization group',
+    'Add choice',
+  ], 'V17 Phase 4 provider customization editor')
+  mustContain(merchant, [
+    'saveFloristCustomizationGroups',
+    "from('florist_arrangement_option_groups')",
+    "from('florist_arrangement_options')",
+    'price_modifier_type',
+  ], 'V17 Phase 4 provider-owned customization persistence')
+  mustContain(florist, [
+    'FloristCustomizationGroupDraft',
+    'FloristCustomizationOptionDraft',
+    'FloristPriceModifierType',
+  ], 'V17 Phase 4 shared customization contract')
+})
+
+test('V17 Phase 5 composes florist packages from provider-owned arrangement inventory', () => {
+  const editor = read('src/components/FloristPackagesEditor.tsx')
+  const listing = read('src/screens/17-Step1ServiceListing.tsx')
+  const merchant = read('src/lib/merchant.ts')
+
+  mustContain(editor, [
+    'Wedding Floral Packages',
+    'Included arrangements',
+    'Package base price',
+    'Optional add-ons',
+    'Add optional upgrade',
+    'already includes its listed arrangements',
+  ], 'V17 Phase 5 provider florist package editor')
+  mustContain(listing, [
+    'FloristPackagesEditor',
+    'floristPackages',
+  ], 'V17 Phase 5 existing listing integration')
+  mustContain(merchant, [
+    'saveFloristPackages',
+    "from('service_packages')",
+    "from('florist_package_arrangements')",
+    "from('florist_package_add_ons')",
+    "pricing_unit: 'event'",
+  ], 'V17 Phase 5 package persistence')
+})
+
+test('V17 Phase 6 keeps florist fulfillment provider-configured and availability-aware', () => {
+  const sourceMigration = read('database/101_v17_florist_fulfillment_options.sql')
+  const deployMigration = read('supabase/migrations/20261026000800_v17_florist_fulfillment_options.sql')
+  const editor = read('src/components/FloristFulfillmentEditor.tsx')
+  const merchant = read('src/lib/merchant.ts')
+  const categoryDetails = read('src/components/CategorySpecificServiceDetails.tsx')
+
+  assert.equal(deployMigration, sourceMigration, 'the deployed V17 fulfillment migration must match its reviewed source')
+  mustContain(sourceMigration, [
+    "'delivery_with_setup'",
+    "'post_event_removal'",
+    'Existing pickup, delivery, and installation rows remain valid.',
+  ], 'V17 Phase 6 additive fulfillment migration')
+  mustContain(editor, [
+    'Standard Delivery',
+    'Delivery with Setup',
+    'Full Floral Installation',
+    'Post-Event Removal',
+    'existing Availability Calendar',
+  ], 'V17 Phase 6 provider fulfillment editor')
+  mustContain(merchant, [
+    'saveFloristFulfillmentOptions',
+    "from('florist_service_fulfillment_options')",
+    'coverage_details',
+  ], 'V17 Phase 6 provider-owned fulfillment persistence')
+  mustContain(categoryDetails, [
+    'Flower Substitution Policy',
+    'Ask for approval before substitution',
+    'Do not substitute without approval',
+  ], 'V17 Phase 6 provider substitution policy')
+})

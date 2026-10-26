@@ -30,7 +30,7 @@ const presets = {
   intendedFor: ['Bride', 'Groom', 'Bridesmaid', 'Groomsman', 'Entourage', 'Guest', 'Other'],
   attireSizes: ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'Custom Size'],
   attireInclusions: ['Veil', 'Tie', 'Bow Tie', 'Belt', 'Accessories', 'Other'],
-  floralTypes: ['Bouquet', 'Boutonniere', 'Corsage', 'Ceremony Flowers', 'Reception Flowers', 'Table Centerpieces', 'Stage Flowers', 'Full Event Floral Styling', 'Other'],
+  floralTypes: ['Bridal and Entourage Flowers', 'Wedding Ceremony Decorations', 'Church Floral Decorations', 'Outdoor Wedding Decorations', 'Reception Floral Decorations', 'Custom Floral Arrangements', 'Floral Installations', 'Delivery and Setup', 'Other'],
   flowers: ['Roses', 'Tulips', 'Sunflowers', 'Orchids', 'Mixed Flowers', 'Seasonal Flowers', 'Other'],
   floralCoverage: ['Bridal Bouquet', 'Bridesmaids', 'Groom', 'Entourage', 'Ceremony', 'Reception', 'Tables', 'Stage', 'Other'],
   cateringTypes: ['Buffet', 'Plated', 'Packed Meals', 'Food Stations', 'Cocktail', 'Family Style', 'Other'],
@@ -718,19 +718,23 @@ export const CategorySpecificServiceDetails: React.FC<Props> = ({ categoryName, 
       </> : null}
 
       {kind === 'florists' ? <>
-        <Section title="Floral Offering">
-          <ChoiceField label="Floral Service Type" multiple onChange={(next) => set('serviceTypes', next)} options={presets.floralTypes} value={asList(details.serviceTypes)} />
+        <Section title="Florist Service Capabilities" description="These describe the services you offer. Add the actual client-bookable arrangements separately; selecting a capability never creates an arrangement or price.">
+          <ChoiceField label="Services Offered" multiple onChange={(next) => set('serviceTypes', next)} options={presets.floralTypes} value={asList(details.serviceTypes)} />
           {asList(details.serviceTypes).includes('Other') ? <TextField label="Other Floral Service" onChange={(next) => set('serviceTypeOther', next)} value={details.serviceTypeOther} /> : null}
           <TagField label="Flower Options" onChange={(next) => set('flowerOptions', next)} options={presets.flowers} value={details.flowerOptions} />
           <TagField label="Color / Theme Options" onChange={(next) => set('themeOptions', next)} value={details.themeOptions} />
           <ChoiceField label="Coverage" multiple onChange={(next) => set('coverage', next)} options={presets.floralCoverage} value={asList(details.coverage)} />
         </Section>
-        <Section title="Fulfillment">
+        <Section title="Coverage, Fulfillment & Inclusions">
+          <TextField label="Service Area / Coverage Location" onChange={(next) => set('serviceArea', next)} placeholder="e.g., Iloilo City and nearby municipalities" value={details.serviceArea} />
+          <TagField label="Service Inclusions" onChange={(next) => set('inclusions', next)} value={details.inclusions} />
           <ToggleField label="Customization Available" onChange={(next) => set('customizationAvailable', next)} value={details.customizationAvailable} />
           <ToggleField label="Setup Included" onChange={(next) => set('setupIncluded', next)} value={details.setupIncluded} />
           <ToggleField label="Delivery Included" onChange={(next) => set('deliveryIncluded', next)} value={details.deliveryIncluded} />
           {details.deliveryIncluded === true ? <TextField label="Delivery / Service Area" onChange={(next) => set('deliveryArea', next)} value={details.deliveryArea} /> : null}
           <DurationField amount={details.leadTime} amountLabel="Lead Time" onAmountChange={(next) => set('leadTime', next)} onUnitChange={(next) => set('leadTimeUnit', next)} unit={details.leadTimeUnit || 'days'} units={['days', 'weeks']} />
+          <ChoiceField label="Flower Substitution Policy" onChange={(next) => set('substitutionPolicy', next)} options={['Allow similar flowers', 'Ask for approval before substitution', 'Do not substitute without approval']} value={textValue(details.substitutionPolicy)} />
+          <TextField label="Additional Service Information" multiline onChange={(next) => set('additionalServiceInformation', next)} placeholder="Optional details clients should know before requesting your service." value={details.additionalServiceInformation} />
         </Section>
       </> : null}
 

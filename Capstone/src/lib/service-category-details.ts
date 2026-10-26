@@ -817,10 +817,12 @@ export const summarizeCategoryDetails = (
     add('Lead time', duration(detail.leadTime, detail.leadTimeUnit))
     add('Inclusions', joined(detail.inclusions))
   } else if (detail.kind === 'florists') {
-    add('Floral services', joined(detail.serviceTypes))
+    add('Services offered', joined(detail.serviceTypes))
     add('Flower options', joined(detail.flowerOptions))
     add('Colors / themes', joined(detail.themeOptions))
     add('Coverage', joined(detail.coverage))
+    add('Service area', detail.serviceArea)
+    add('Service inclusions', joined(detail.inclusions))
     add('Customization', yesNo(detail.customizationAvailable))
     add('Setup included', yesNo(detail.setupIncluded))
     add('Delivery included', yesNo(detail.deliveryIncluded))
