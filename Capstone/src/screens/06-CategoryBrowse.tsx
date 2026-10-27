@@ -1410,11 +1410,17 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
           {visibleVendors.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyTitle}>
-                {replacementContext ? 'No alternate providers available' : 'No services found'}
+                {replacementContext
+                  ? 'No alternate providers available'
+                  : services.length > 0
+                    ? 'No services match your current plan'
+                    : 'No services found'}
               </Text>
               <Text style={styles.emptyCopy}>
                 {replacementContext
                   ? 'Another published provider in this category is required before this service can be changed.'
+                  : services.length > 0
+                    ? 'Try clearing filters, adjusting this category budget, or selecting another category.'
                   : categoryName.toLowerCase().includes('venue') && categoryBudget > 0
                     ? 'No available venue configuration fits this category budget. Adjust the budget or try another category.'
                     : 'Services will appear here after providers publish them.'}

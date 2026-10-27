@@ -187,6 +187,14 @@ export interface CatalogService {
   tags: string[]
 }
 
+// Keep the last successfully read marketplace list in memory.  A temporary
+// connectivity or PostgREST error must not replace a populated marketplace
+// with an indistinguishable empty array while a client is selecting services.
+// This cache is deliberately session-only: a successful empty response still
+// clears it, so genuinely empty categories remain truthful.
+let lastSuccessfulCatalogServices: CatalogService[] | undefined
+let lastSuccessfulClientCatalogServices: CatalogService[] | undefined
+
 export const categoryNameToId = (name: string): CatalogCategoryId => {
   const normalized = name.toLowerCase()
 
@@ -436,8 +444,9 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
   const data = (fallbackResult?.data ?? detailedResult.data) as unknown[] | null
   const error = fallbackResult?.error ?? detailedResult.error
 
-  if (error || !data || data.length === 0) {
-    return []
+  if (error || !data) {
+    console.warn('Unable to fetch marketplace services:', error?.message ?? 'No service response received.')
+    return lastSuccessfulCatalogServices ?? []
   }
 
   const services = data.map((row, index) => {
@@ -590,7 +599,7 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
     } satisfies CatalogService
   })
 
-  return services.sort((left, right) => {
+  const sortedServices = services.sort((left, right) => {
     const leftRating = Number.parseFloat(left.rating) || 0
     const rightRating = Number.parseFloat(right.rating) || 0
 
@@ -600,6 +609,9 @@ export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
       left.name.localeCompare(right.name)
     )
   })
+
+  lastSuccessfulCatalogServices = sortedServices
+  return sortedServices
 }
 
 export const fetchAvailableCoordinators = async (): Promise<CatalogService[]> => {
@@ -796,37 +808,48 @@ export const fetchServiceDecisionSignals = async (): Promise<
 }
 
 export const loadClientCatalogServices = async (): Promise<CatalogService[]> => {
-  const [services, coordinators, recommendations, decisionSignals] = await Promise.all([
-    fetchCatalogServices(),
-    fetchAvailableCoordinators(),
-    fetchBudgetAwareRecommendations(),
-    fetchServiceDecisionSignals(),
-  ])
+  try {
+    const [services, coordinators, recommendations, decisionSignals] = await Promise.all([
+      fetchCatalogServices(),
+      fetchAvailableCoordinators(),
+      fetchBudgetAwareRecommendations(),
+      fetchServiceDecisionSignals(),
+    ])
 
-  const coordinatorUserIds = new Set(
-    coordinators.flatMap((coordinator) =>
-      coordinator.coordinatorUserId ? [coordinator.coordinatorUserId] : []
+    const coordinatorUserIds = new Set(
+      coordinators.flatMap((coordinator) =>
+        coordinator.coordinatorUserId ? [coordinator.coordinatorUserId] : []
+      )
     )
-  )
-  const marketplaceServices = services.filter((service) => !(
-    service.categoryId === 'eventOrganizers'
-    && service.providerUserId
-    && coordinatorUserIds.has(service.providerUserId)
-  ))
+    const marketplaceServices = services.filter((service) => !(
+      service.categoryId === 'eventOrganizers'
+      && service.providerUserId
+      && coordinatorUserIds.has(service.providerUserId)
+    ))
 
-  return [...marketplaceServices, ...coordinators].map((service) => {
-    const decisionSignal = decisionSignals.get(service.bookingServiceId ?? service.id)
+    const clientCatalogServices = [...marketplaceServices, ...coordinators].map((service) => {
+      const decisionSignal = decisionSignals.get(service.bookingServiceId ?? service.id)
 
-    return {
-      ...service,
-      bookingCount: decisionSignal?.bookingCount ?? 0,
-      budgetRecommendation: recommendations.get(service.bookingServiceId ?? service.id),
-      isMostBooked: decisionSignal?.isMostBooked ?? false,
-      popularityRank: decisionSignal?.popularityRank,
-      rating: decisionSignal && decisionSignal.reviewCount > 0
-        ? decisionSignal.averageRating.toFixed(1)
-        : service.rating,
-      reviewCount: decisionSignal?.reviewCount ?? service.reviewCount,
-    }
-  })
+      return {
+        ...service,
+        bookingCount: decisionSignal?.bookingCount ?? 0,
+        budgetRecommendation: recommendations.get(service.bookingServiceId ?? service.id),
+        isMostBooked: decisionSignal?.isMostBooked ?? false,
+        popularityRank: decisionSignal?.popularityRank,
+        rating: decisionSignal && decisionSignal.reviewCount > 0
+          ? decisionSignal.averageRating.toFixed(1)
+          : service.rating,
+        reviewCount: decisionSignal?.reviewCount ?? service.reviewCount,
+      }
+    })
+
+    lastSuccessfulClientCatalogServices = clientCatalogServices
+    return clientCatalogServices
+  } catch (error) {
+    console.warn(
+      'Unable to refresh the client marketplace catalog:',
+      error instanceof Error ? error.message : error
+    )
+    return lastSuccessfulClientCatalogServices ?? lastSuccessfulCatalogServices ?? []
+  }
 }
