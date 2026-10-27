@@ -273,6 +273,21 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
     </Pressable>
   )
 
+  const registrationActions = (
+    <View style={[styles.actionFooter, isSheet && styles.stickyActionFooter]}>
+      <View onLayout={(event) => { fieldOffsets.current.terms = event.nativeEvent.layout.y }}>
+        <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: acceptedTerms }} onPress={() => setAcceptedTerms((accepted) => !accepted)} style={styles.termsRow}>
+          <View style={[styles.checkbox, acceptedTerms && styles.checkboxChecked, submitted && !acceptedTerms && styles.checkboxError]}>
+            {acceptedTerms && <MaterialCommunityIcons color={colors.textInverse} name="check" size={14} />}
+          </View>
+          <Text style={styles.termsText}>I have read and agree to the MULTIVENT Service Provider Terms and Pricing Policy, and acknowledge the Privacy Policy.</Text>
+        </Pressable>
+        {submitted && !acceptedTerms && <Text accessibilityRole="alert" style={styles.termsError}>Please accept the Provider Terms and Privacy Policy.</Text>}
+      </View>
+      <Button accessibilityLabel="Create service provider account" disabled={isLoading} isFullWidth isLoading={isLoading} onPress={handleSignUp} size="lg" style={styles.submitButton} textStyle={styles.buttonText}>CREATE BUSINESS ACCOUNT</Button>
+    </View>
+  )
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -465,18 +480,10 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
             <TextInput autoCapitalize="none" autoComplete="new-password" error={submitted && !confirmPasswordIsValid} helperText={submitted && !confirmPasswordIsValid ? (confirmPassword.length === 0 ? 'Confirm your password.' : 'Passwords do not match.') : undefined} icon={<MaterialCommunityIcons color={colors.primaryDark} name="lock-outline" size={20} />} onChangeText={setConfirmPassword} onContainerLayout={(event) => { fieldOffsets.current.confirmPassword = event.nativeEvent.layout.y }} onFocus={() => handleFieldFocus('confirmPassword')} onSubmitEditing={handleSignUp} placeholder="Confirm password" ref={confirmPasswordRef} returnKeyType="done" rightIcon={visibilityIcon(isConfirmPasswordVisible, 'confirm password', () => setIsConfirmPasswordVisible((visible) => !visible))} secureTextEntry={!isConfirmPasswordVisible} style={[styles.input, styles.inputWithIcon]} value={confirmPassword} />
 
             {authError.length > 0 && <Text accessibilityRole="alert" style={styles.formError}>{authError}</Text>}
-            <View onLayout={(event) => { fieldOffsets.current.terms = event.nativeEvent.layout.y }}>
-            <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: acceptedTerms }} onPress={() => setAcceptedTerms((accepted) => !accepted)} style={styles.termsRow}>
-              <View style={[styles.checkbox, acceptedTerms && styles.checkboxChecked, submitted && !acceptedTerms && styles.checkboxError]}>
-                {acceptedTerms && <MaterialCommunityIcons color={colors.textInverse} name="check" size={14} />}
-              </View>
-              <Text style={styles.termsText}>I have read and agree to the MULTIVENT Service Provider Terms and Pricing Policy, and acknowledge the Privacy Policy.</Text>
-            </Pressable>
-            {submitted && !acceptedTerms && <Text accessibilityRole="alert" style={styles.termsError}>Please accept the Provider Terms and Privacy Policy.</Text>}
-            </View>
-            <Button accessibilityLabel="Create service provider account" disabled={isLoading} isFullWidth isLoading={isLoading} onPress={handleSignUp} size="lg" style={styles.submitButton} textStyle={styles.buttonText}>CREATE BUSINESS ACCOUNT</Button>
             </Animated.View>
+            {!isSheet && registrationActions}
           </ScrollView>
+          {isSheet && registrationActions}
           </View>
         </Animated.View>
       </View>
@@ -514,6 +521,8 @@ const styles = StyleSheet.create({
   subtitle: { color: colors.textSecondary, fontSize: typography.body, lineHeight: 22, textAlign: 'center', marginTop: spacing.sm, marginBottom: spacing['2xl'] },
   form: { gap: spacing.md, paddingBottom: spacing['3xl'] },
   formScroll: { flex: 1 },
+  actionFooter: { gap: spacing.md },
+  stickyActionFooter: { borderTopWidth: 1, borderTopColor: colors.divider, backgroundColor: colors.background, paddingTop: spacing.md, paddingBottom: spacing.sm },
   roleSelector: { position: 'relative', flexDirection: 'row', gap: spacing.sm, padding: 4, borderRadius: radius.xl, backgroundColor: '#F1F2F4' },
   roleSelectionIndicator: { position: 'absolute', top: 4, bottom: 4, left: 4, borderRadius: radius.large, backgroundColor: colors.primaryDark, shadowColor: colors.primaryDark, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.16, shadowRadius: 6, elevation: 2 },
   roleOption: { zIndex: 1, minWidth: 0, minHeight: 42, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: spacing.sm, borderRadius: radius.large },

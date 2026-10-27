@@ -228,6 +228,23 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({
     </Pressable>
   )
 
+  const registrationActions = (
+    <View style={[styles.actionFooter, isSheet && styles.stickyActionFooter]}>
+      <View onLayout={(event) => { fieldOffsets.current.terms = event.nativeEvent.layout.y }}>
+        <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: acceptedTerms }} onPress={() => setAcceptedTerms((accepted) => !accepted)} style={styles.termsRow}>
+          <View style={[styles.checkbox, acceptedTerms && styles.checkboxChecked, submitted && !acceptedTerms && styles.checkboxError]}>
+            {acceptedTerms && <MaterialCommunityIcons color={colors.textInverse} name="check" size={14} />}
+          </View>
+          <Text style={styles.termsText}>I agree to the Terms of Service and Privacy Policy.</Text>
+        </Pressable>
+        {submitted && !acceptedTerms && <Text accessibilityRole="alert" style={styles.termsError}>Please accept the Terms of Service and Privacy Policy.</Text>}
+      </View>
+      <Button accessibilityLabel="Create client account" disabled={isLoading} isFullWidth isLoading={isLoading} onPress={handleSignUp} size="lg" style={styles.submitButton} textStyle={styles.buttonText}>CREATE CLIENT ACCOUNT</Button>
+      <View style={styles.dividerRow}><View style={styles.dividerLine} /><Text style={styles.dividerText}>or</Text><View style={styles.dividerLine} /></View>
+      <Button accessibilityLabel="Sign up with Google" disabled={isLoading || !onGoogleSignUp} isFullWidth isLoading={isOAuthLoading} onPress={handleGoogleSignUp} size="lg" style={styles.googleButton} textStyle={[styles.buttonText, styles.googleButtonText]} variant="secondary">Google</Button>
+    </View>
+  )
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -316,20 +333,9 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({
 
           {authError.length > 0 && <Text accessibilityRole="alert" style={styles.formError}>{authError}</Text>}
 
-          <View onLayout={(event) => { fieldOffsets.current.terms = event.nativeEvent.layout.y }}>
-          <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: acceptedTerms }} onPress={() => setAcceptedTerms((accepted) => !accepted)} style={styles.termsRow}>
-            <View style={[styles.checkbox, acceptedTerms && styles.checkboxChecked, submitted && !acceptedTerms && styles.checkboxError]}>
-              {acceptedTerms && <MaterialCommunityIcons color={colors.textInverse} name="check" size={14} />}
-            </View>
-            <Text style={styles.termsText}>I agree to the Terms of Service and Privacy Policy.</Text>
-          </Pressable>
-          {submitted && !acceptedTerms && <Text accessibilityRole="alert" style={styles.termsError}>Please accept the Terms of Service and Privacy Policy.</Text>}
-          </View>
-
-          <Button accessibilityLabel="Create client account" disabled={isLoading} isFullWidth isLoading={isLoading} onPress={handleSignUp} size="lg" style={styles.submitButton} textStyle={styles.buttonText}>CREATE CLIENT ACCOUNT</Button>
-          <View style={styles.dividerRow}><View style={styles.dividerLine} /><Text style={styles.dividerText}>or</Text><View style={styles.dividerLine} /></View>
-          <Button accessibilityLabel="Sign up with Google" disabled={isLoading || !onGoogleSignUp} isFullWidth isLoading={isOAuthLoading} onPress={handleGoogleSignUp} size="lg" style={styles.googleButton} textStyle={[styles.buttonText, styles.googleButtonText]} variant="secondary">Google</Button>
+          {!isSheet && registrationActions}
           </ScrollView>
+          {isSheet && registrationActions}
           </View>
         </Animated.View>
       </View>
@@ -361,6 +367,8 @@ const styles = StyleSheet.create({
   loginText: { color: colors.primaryDark, fontSize: 14, fontWeight: '700' },
   form: { gap: spacing.md, paddingBottom: spacing['3xl'] },
   formScroll: { flex: 1, marginBottom: spacing.md },
+  actionFooter: { gap: spacing.md },
+  stickyActionFooter: { borderTopWidth: 1, borderTopColor: colors.divider, backgroundColor: colors.background, paddingTop: spacing.md, paddingBottom: spacing.sm },
   input: { height: 52, borderWidth: 0, borderRadius: radius.xl, backgroundColor: '#F1F2F4', paddingHorizontal: spacing.xl, fontSize: 15 },
   inputWithIcon: { paddingLeft: spacing['4xl'] },
   dividerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: 0 },

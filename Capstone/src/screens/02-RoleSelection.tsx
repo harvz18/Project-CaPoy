@@ -82,9 +82,7 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
   const authSheetTop =
     activeAuthSheet === 'login'
       ? Math.min(250, height * 0.32)
-      : activeAuthSheet === 'merchantSignup'
-        ? Math.min(32, height * 0.04)
-        : Math.min(72, height * 0.09)
+      : Math.min(360, Math.max(220, height * 0.42))
 
   useEffect(() => {
     roles.forEach((role) => {
