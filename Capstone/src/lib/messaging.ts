@@ -76,7 +76,9 @@ export const mapNotificationRecord = (
   category: toNotificationCategory(row.resource_type),
   createdAt: textFrom(row.created_at, new Date().toISOString()),
   id: textFrom(row.id),
-  isRead: textFrom(row.status) === 'read',
+  // Older notification rows can contain differently-cased terminal statuses.
+  // Normalize before deriving badges so a "Read" record never keeps Inbox lit.
+  isRead: textFrom(row.status).trim().toLowerCase() === 'read',
   message: textFrom(row.body),
   resourceId: textFrom(row.resource_id) || undefined,
   resourceType: textFrom(row.resource_type) || undefined,
