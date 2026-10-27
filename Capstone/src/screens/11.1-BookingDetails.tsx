@@ -317,10 +317,12 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
   )
   const paymentInitiated = paymentQuote?.paymentState === 'payment_initiated'
   const paymentRecorded = paymentQuote?.paymentState === 'paid_or_verified'
-  // The payment sheet re-reads the server-authoritative quote before it
-  // displays any payment controls. Keep that path available when the local
-  // acceptance snapshot is stale after a provider accepts a booking.
   const canOpenPayment = Boolean(onStartPayment) && !isStartingPayment && !paymentInitiated && !paymentRecorded
+  // Do not allow the dock to bypass the quote's authoritative event gate.
+  // `paymentReady` is calculated from the latest server quote and includes
+  // every required provider/coordinator acceptance (plus any food-tasting
+  // requirement), so a pending request can never open checkout.
+  const canConfirmPayment = canOpenPayment && paymentReady
   const paymentFailed = paymentQuote?.paymentState === 'payment_failed_or_cancelled'
   const paymentBlockedMessage = paymentQuote?.reason
     ?? (providerCount > acceptedProviderCount
@@ -1472,12 +1474,12 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
           <Pressable
             accessibilityLabel="Confirm payment"
             accessibilityRole="button"
-            disabled={!canOpenPayment}
+            disabled={!canConfirmPayment}
             onPress={onStartPayment}
             style={({ pressed }) => [
               styles.paymentActionButton,
-              !canOpenPayment && styles.paymentActionButtonDisabled,
-              pressed && canOpenPayment && styles.paymentActionButtonPressed,
+              !canConfirmPayment && styles.paymentActionButtonDisabled,
+              pressed && canConfirmPayment && styles.paymentActionButtonPressed,
             ]}
           >
             <Text style={styles.paymentActionButtonText}>Confirm Payment</Text>

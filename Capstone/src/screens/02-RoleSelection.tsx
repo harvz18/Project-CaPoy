@@ -4,6 +4,7 @@ import {
   Animated,
   Easing,
   Image,
+  Platform,
   Pressable,
   StyleSheet,
   useWindowDimensions,
@@ -72,6 +73,10 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
   const actionsEntranceAnimation = useRef(new Animated.Value(1)).current
   const loginSheetProgress = useRef(new Animated.Value(0)).current
   const loginSheetState = useRef<'closed' | 'opening' | 'open' | 'closing'>('closed')
+  // React Native Web's native Animated driver can leave a transformed view
+  // off-screen in Mobile Safari. Let web use the JS driver; native apps keep
+  // the native driver for the same animation.
+  const useSheetNativeDriver = Platform.OS !== 'web'
   const isCompact = height < 700
   const isWide = width >= 700
   const authSheetTop =
@@ -120,6 +125,7 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
     if (loginSheetState.current !== 'closed') return
 
     setActiveAuthSheet(sheet)
+    loginSheetProgress.setValue(0)
     loginSheetState.current = 'opening'
     setIsLoginSheetVisible(true)
     requestAnimationFrame(() => {
@@ -127,7 +133,7 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
         toValue: 1,
         duration: 360,
         easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
+        useNativeDriver: useSheetNativeDriver,
       }).start(({ finished }) => {
         if (finished) loginSheetState.current = 'open'
       })
@@ -156,7 +162,7 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
       toValue: 0,
       duration: 280,
       easing: Easing.in(Easing.cubic),
-      useNativeDriver: true,
+      useNativeDriver: useSheetNativeDriver,
     }).start(({ finished }) => {
       if (!finished) return
       loginSheetState.current = 'closed'
@@ -188,7 +194,7 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
       toValue: 1,
       duration: 180,
       easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
+      useNativeDriver: useSheetNativeDriver,
     }).start()
   }
 
