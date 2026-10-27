@@ -73,10 +73,11 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
   const actionsEntranceAnimation = useRef(new Animated.Value(1)).current
   const loginSheetProgress = useRef(new Animated.Value(0)).current
   const loginSheetState = useRef<'closed' | 'opening' | 'open' | 'closing'>('closed')
-  // React Native Web's native Animated driver can leave a transformed view
-  // off-screen in Mobile Safari. Let web use the JS driver; native apps keep
-  // the native driver for the same animation.
-  const useSheetNativeDriver = Platform.OS !== 'web'
+  // An off-screen entrance transform relies on an animation frame. Mobile
+  // Safari can defer that frame, leaving the whole sign-in/sign-up sheet
+  // invisible. Web therefore renders the sheet in its open position first;
+  // native apps retain the animated transition.
+  const shouldAnimateSheet = Platform.OS !== 'web'
   const isCompact = height < 700
   const isWide = width >= 700
   const authSheetTop =
@@ -125,15 +126,17 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
     if (loginSheetState.current !== 'closed') return
 
     setActiveAuthSheet(sheet)
-    loginSheetProgress.setValue(0)
-    loginSheetState.current = 'opening'
+    loginSheetProgress.setValue(shouldAnimateSheet ? 0 : 1)
+    loginSheetState.current = shouldAnimateSheet ? 'opening' : 'open'
     setIsLoginSheetVisible(true)
+    if (!shouldAnimateSheet) return
+
     requestAnimationFrame(() => {
       Animated.timing(loginSheetProgress, {
         toValue: 1,
         duration: 360,
         easing: Easing.out(Easing.cubic),
-        useNativeDriver: useSheetNativeDriver,
+        useNativeDriver: true,
       }).start(({ finished }) => {
         if (finished) loginSheetState.current = 'open'
       })
@@ -157,12 +160,19 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
   const closeLoginSheet = () => {
     if (loginSheetState.current === 'closed' || loginSheetState.current === 'closing') return
 
+    if (!shouldAnimateSheet) {
+      loginSheetProgress.setValue(0)
+      loginSheetState.current = 'closed'
+      setIsLoginSheetVisible(false)
+      return
+    }
+
     loginSheetState.current = 'closing'
     Animated.timing(loginSheetProgress, {
       toValue: 0,
       duration: 280,
       easing: Easing.in(Easing.cubic),
-      useNativeDriver: useSheetNativeDriver,
+      useNativeDriver: true,
     }).start(({ finished }) => {
       if (!finished) return
       loginSheetState.current = 'closed'
@@ -190,11 +200,16 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
       return
     }
 
+    if (!shouldAnimateSheet) {
+      loginSheetProgress.setValue(1)
+      return
+    }
+
     Animated.timing(loginSheetProgress, {
       toValue: 1,
       duration: 180,
       easing: Easing.out(Easing.cubic),
-      useNativeDriver: useSheetNativeDriver,
+      useNativeDriver: true,
     }).start()
   }
 
