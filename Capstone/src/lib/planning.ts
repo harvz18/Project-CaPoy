@@ -2420,8 +2420,21 @@ export const saveServiceSelection = async (
           }
         }
         const result = data && typeof data === 'object' ? data as Record<string, unknown> : {}
+        const bookingId = typeof result.bookingId === 'string' ? result.bookingId : undefined
+        if (bookingId && result.alreadySubmitted !== true) {
+          const { error: continuationError } = await client.rpc(
+            'continue_my_event_planning_after_v15_food_tasting_request',
+            {
+              target_booking_id: bookingId,
+              target_event_id: event.eventId,
+            }
+          )
+          if (continuationError) {
+            return { ok: false, message: continuationError.message }
+          }
+        }
         return {
-          bookingId: typeof result.bookingId === 'string' ? result.bookingId : undefined,
+          bookingId,
           calculatedAmount: 0,
           ok: true,
           providerAmount: 0,

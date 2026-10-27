@@ -3198,6 +3198,50 @@ test('V15 Phase 3 ties provider acceptance to a seven-day food tasting schedule'
   ], 'V15 Phase 3 provider request review')
 })
 
+test('provisional V15 tasting requests preserve planning until normal V14 submission', () => {
+  const continuity = read('database/117_v15_food_tasting_planning_continuity.sql')
+  const deployedContinuity = read(
+    'supabase/migrations/20261027000100_v15_food_tasting_planning_continuity.sql'
+  )
+  const validation = read('database/118_v15_food_tasting_submission_validation.sql')
+  const deployedValidation = read(
+    'supabase/migrations/20261027000200_v15_food_tasting_submission_validation.sql'
+  )
+  const venueDuration = read('database/119_v8_venue_duration_persistence.sql')
+  const deployedVenueDuration = read(
+    'supabase/migrations/20261027000300_v8_venue_duration_persistence.sql'
+  )
+  const planning = read('src/lib/planning.ts')
+
+  assert.equal(deployedContinuity, continuity,
+    'the deployed V15 planning-continuity migration must match its reviewed source')
+  assert.equal(deployedValidation, validation,
+    'the deployed V15 submission-validation migration must match its reviewed source')
+  assert.equal(deployedVenueDuration, venueDuration,
+    'the deployed V8 venue-duration migration must match its reviewed source')
+  mustContain(continuity, [
+    'continue_my_event_planning_after_v15_food_tasting_request',
+    'not exists (',
+    "set status = 'planning'",
+    'normal V14 booking lifecycle',
+  ], 'V15 provisional request planning continuity')
+  mustContain(validation, [
+    "selection.status = 'selected'",
+    'Requested rows already have a provider-facing booking snapshot',
+    'validate_my_phase9_selections',
+  ], 'V15 requested-selection submission validation')
+  mustContain(venueDuration, [
+    'persist_v8_selected_venue_duration',
+    "new.venue_option_snapshot ->> 'includedDurationHours'",
+    'selection.status = \'selected\'',
+  ], 'V8 venue-duration persistence')
+  mustContain(planning, [
+    "client.rpc('submit_my_catering_food_tasting_request_v15'",
+    "'continue_my_event_planning_after_v15_food_tasting_request'",
+    'result.alreadySubmitted !== true',
+  ], 'V15 client planning continuity integration')
+})
+
 test('V15 Phase 4 enforces attendance, one reschedule, and an explicit direct-menu fallback', () => {
   const sourceMigration = read('database/98_v15_food_tasting_attendance_rescheduling.sql')
   const deployMigration = read('supabase/migrations/20261025001100_v15_food_tasting_attendance_rescheduling.sql')
