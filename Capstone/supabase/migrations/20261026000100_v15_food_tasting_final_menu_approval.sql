@@ -197,6 +197,10 @@ begin
     and client_id = workflow_row.client_id and status not in ('declined', 'cancelled');
 
   select provider.user_id into provider_user_id from public.provider_profiles provider where provider.id = workflow_row.provider_id;
+  -- Completing the appointment is an internal part of this provider-only
+  -- final-menu workflow.  The V15 appointment trigger otherwise correctly
+  -- rejects direct schedule/status changes.
+  perform set_config('app.v15_food_tasting_schedule_authorized', 'true', true);
   update public.catering_food_tastings set status = 'completed', updated_at = now()
   where id = tasting_row.id and status = 'confirmed';
   insert into public.notifications (user_id, title, body, resource_type, resource_id)
