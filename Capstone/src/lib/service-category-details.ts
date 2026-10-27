@@ -944,6 +944,7 @@ export const validateCategoryDetails = (
       if (!hasCustomMenu) {
         errors.push('Food tasting requires an item-priced menu with course-level dish selections.')
       }
+      let totalTastingSelections = 0
       rawCustomSections.forEach((section, sectionIndex) => {
         const label = `Food tasting course ${sectionIndex + 1}`
         const tastingSelectionLimit = number(section.tastingSelectionLimit)
@@ -956,13 +957,19 @@ export const validateCategoryDetails = (
           errors.push(`${label} needs a tasting selection limit.`)
         } else if (tastingSelectionLimit > activeItemCount) {
           errors.push(`${label} tasting selections cannot exceed available food items.`)
+        } else if (tastingSelectionLimit > 5) {
+          errors.push(`${label} may offer at most 5 food tasting selections.`)
         }
+        totalTastingSelections += Math.max(0, tastingSelectionLimit)
         if (finalSelectionLimit <= 0) {
           errors.push(`${label} needs a final menu selection limit.`)
         } else if (tastingSelectionLimit > 0 && finalSelectionLimit > tastingSelectionLimit) {
           errors.push(`${label} final menu selections cannot exceed tasting selections.`)
         }
       })
+      if (totalTastingSelections > 10) {
+        errors.push('Food tastings may include at most 10 selections across all courses.')
+      }
       const tastingSlots = list(tasting.tastingTimeSlots)
       if (tastingSlots.length === 0) errors.push('Add at least one food tasting start time.')
       if (tastingSlots.some((slot) => !/^([01]\d|2[0-3]):[0-5]\d$/.test(slot))) {

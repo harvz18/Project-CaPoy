@@ -182,7 +182,7 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
               <Text style={styles.ratingCount}>{reviewInsights.totalRatings} {reviewInsights.totalRatings === 1 ? 'review' : 'reviews'}</Text>
             </View>
           </View>
-          <ReviewFeedbackSummary insights={reviewInsights} isWide={isWide} showReviewComments={false} />
+          <ReviewFeedbackSummary insights={reviewInsights} isWide={isWide} showReviewComments />
         </View>
       </ScrollView>
 

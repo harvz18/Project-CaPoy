@@ -961,17 +961,11 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
 
   const canAddVenueOption = (candidate: VenueBookingOption) => {
     if (selectedVenueHours[candidate.id] !== undefined) return true
-    if (selectedVenueOptions.length === 0) return true
-    if (!candidate.allowsCombination || selectedVenueOptions.some((option) => !option.allowsCombination)) {
-      return false
-    }
-    if (candidate.resourceIds.some((resourceId) => selectedVenueOptions.some((option) =>
-      option.resourceIds.includes(resourceId)
-    ))) return false
-    if (candidate.mutuallyExclusiveOptionIds.some((id) =>
-      selectedVenueOptions.some((option) => option.id === id)
-    )) return false
-    return !selectedVenueOptions.some((option) => option.mutuallyExclusiveOptionIds.includes(candidate.id))
+    // A provider publishes each room, hall, and provider-defined combination
+    // as one complete bookable option.  Clients must choose exactly one of
+    // those options; assembling rooms ad hoc can create unavailable or
+    // incorrectly priced combinations.
+    return selectedVenueOptions.length === 0
   }
 
   const toggleVenueOption = (option: VenueBookingOption) => {
@@ -983,7 +977,6 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
       }
       if (!canAddVenueOption(option)) return current
       return {
-        ...current,
         [option.id]: isHourlyVenueOption(option)
           ? String(optionMinimumHours(option))
           : '',
