@@ -10,7 +10,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  TouchableWithoutFeedback,
   useWindowDimensions,
   View,
 } from 'react-native'
@@ -327,8 +326,7 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
               <View style={styles.sheetHandle} />
             </View>
           )}
-          <TouchableWithoutFeedback accessible={false} onPress={Keyboard.dismiss}>
-            <View style={styles.sheetBody}>
+          <View style={styles.sheetBody}>
           <BrandIdentity markSize={38} showName={!isSheet} style={styles.brandIdentity} />
           <Text style={styles.title}>Set up Your Business</Text>
           <View style={styles.loginPrompt}>
@@ -479,8 +477,7 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
             <Button accessibilityLabel="Create service provider account" disabled={isLoading} isFullWidth isLoading={isLoading} onPress={handleSignUp} size="lg" style={styles.submitButton} textStyle={styles.buttonText}>CREATE BUSINESS ACCOUNT</Button>
             </Animated.View>
           </ScrollView>
-            </View>
-          </TouchableWithoutFeedback>
+          </View>
         </Animated.View>
       </View>
 

@@ -10,7 +10,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  TouchableWithoutFeedback,
   useWindowDimensions,
   View,
 } from 'react-native'
@@ -282,8 +281,7 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({
               <View style={styles.sheetHandle} />
             </View>
           )}
-          <TouchableWithoutFeedback accessible={false} onPress={Keyboard.dismiss}>
-            <View style={styles.sheetBody}>
+          <View style={styles.sheetBody}>
           <BrandIdentity markSize={38} showName={!isSheet} style={styles.brandIdentity} />
           <Text style={styles.title}>Create Your Account</Text>
           <View style={styles.loginPrompt}>
@@ -332,8 +330,7 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({
           <View style={styles.dividerRow}><View style={styles.dividerLine} /><Text style={styles.dividerText}>or</Text><View style={styles.dividerLine} /></View>
           <Button accessibilityLabel="Sign up with Google" disabled={isLoading || !onGoogleSignUp} isFullWidth isLoading={isOAuthLoading} onPress={handleGoogleSignUp} size="lg" style={styles.googleButton} textStyle={[styles.buttonText, styles.googleButtonText]} variant="secondary">Google</Button>
           </ScrollView>
-            </View>
-          </TouchableWithoutFeedback>
+          </View>
         </Animated.View>
       </View>
     </KeyboardAvoidingView>

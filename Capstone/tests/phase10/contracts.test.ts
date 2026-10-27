@@ -1932,6 +1932,22 @@ test('existing account, listing, image, availability, booking, review, notificat
   requiredFiles.forEach((path) => assert.doesNotThrow(() => read(path), `${path} must exist`))
 })
 
+test('registration fields retain focus on mobile web', () => {
+  for (const path of [
+    'src/screens/02.1-ClientSignup.tsx',
+    'src/screens/02.2-MerchantSignup.tsx',
+  ]) {
+    const screen = read(path)
+    assert.doesNotMatch(
+      screen,
+      /TouchableWithoutFeedback[^>]*onPress=\{Keyboard\.dismiss\}/,
+      `${path} must not dismiss the keyboard from the same tap that focuses a registration field`
+    )
+    assert.match(screen, /keyboardShouldPersistTaps="handled"/,
+      `${path} must preserve form-control taps while the keyboard is open`)
+  }
+})
+
 test('payment gateway boundary stays explicitly labeled instead of implying live PayMongo processing', () => {
   const planning = read('src/lib/planning.ts')
   const features = read('docs/MULTIVENT_FEATURES.md')
