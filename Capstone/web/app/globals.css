@@ -1399,8 +1399,24 @@ body { background: var(--canvas); }
 .phase-three-category-panel > header > svg { flex: 0 0 auto; color: var(--wine-600); }
 .phase-three-chart-header { display: flex; align-items: flex-start; justify-content: space-between; }
 .phase-three-chart-controls { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; }
-.chart-period-filter { flex-wrap: nowrap; background: rgba(243, 238, 239, .88); }
-.chart-period-filter button { min-width: 47px; padding-inline: 9px; }
+.chart-date-range-wrap { position: relative; }
+.chart-date-range-button { display: grid; grid-template-columns: auto auto; align-items: center; column-gap: 6px; min-height: 46px; padding: 6px 10px; border: 1px solid #e4dddd; border-radius: 8px; background: #fff; color: #4a4143; font: inherit; text-align: left; cursor: pointer; }
+.chart-date-range-button > svg { grid-row: 1 / span 2; color: var(--wine-700); }
+.chart-date-range-button > span { color: var(--soft); font-size: 10px; font-weight: 750; letter-spacing: .03em; text-transform: uppercase; }
+.chart-date-range-button > strong { color: #4a4143; font-size: 12px; white-space: nowrap; }
+.chart-date-range-button:hover, .chart-date-range-button:focus-visible { border-color: var(--wine-600); box-shadow: 0 0 0 3px rgba(133,49,67,.08); outline: 0; }
+.chart-date-range-popover { position: absolute; z-index: 14; top: calc(100% + 8px); right: 0; display: grid; min-width: 286px; gap: 10px; padding: 13px; border: 1px solid #eadedd; border-radius: 12px; box-shadow: 0 14px 32px rgba(63,30,37,.16); background: #fff; }
+.chart-date-range-popover__heading { display: grid; gap: 2px; }
+.chart-date-range-popover__heading strong { color: var(--wine-800); font-size: 13px; }
+.chart-date-range-popover__heading span { color: var(--muted); font-size: 11px; line-height: 1.35; }
+.chart-date-range-popover > label { display: grid; gap: 4px; color: #63585a; font-size: 11px; font-weight: 750; }
+.chart-date-range-popover input { width: 100%; min-height: 37px; padding: 0 8px; border: 1px solid #e4dddd; border-radius: 7px; color: #443a3c; font: inherit; font-size: 12px; }
+.chart-date-range-popover input:focus { border-color: var(--wine-600); box-shadow: 0 0 0 3px rgba(133,49,67,.08); outline: 0; }
+.chart-date-range-popover__error { margin: 0; color: #9d263b; font-size: 11px; line-height: 1.35; }
+.chart-date-range-popover__actions { display: flex; justify-content: flex-end; gap: 7px; padding-top: 2px; }
+.chart-date-range-popover__actions button { min-height: 32px; padding: 0 10px; border: 1px solid #dfd2d3; border-radius: 7px; background: #fff; color: #6b5558; font: inherit; font-size: 11px; font-weight: 750; cursor: pointer; }
+.chart-date-range-popover__actions button:last-child { border-color: var(--wine-700); background: var(--wine-700); color: #fff; }
+.chart-date-range-popover__actions button:hover, .chart-date-range-popover__actions button:focus-visible { filter: brightness(.96); outline: 0; }
 .chart-year-select { display: grid; gap: 3px; color: var(--soft); font-size: 11px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; }
 .chart-year-select select { min-width: 103px; height: 34px; padding: 0 26px 0 9px; border: 1px solid #e4dddd; border-radius: 8px; outline: 0; background: #fff; color: #4a4143; font-size: 12px; font-weight: 700; }
 .chart-year-select select:focus { border-color: var(--wine-600); box-shadow: 0 0 0 3px rgba(133,49,67,.08); }
@@ -1454,7 +1470,8 @@ body { background: var(--canvas); }
 }
 
 @media (max-width: 520px) {
-  .chart-period-filter button { min-width: 44px; padding-inline: 7px; }
+  .chart-date-range-wrap, .chart-date-range-button { width: 100%; }
+  .chart-date-range-popover { right: auto; left: 0; width: min(286px, calc(100vw - 42px)); }
   .chart-year-select { width: 100%; grid-template-columns: auto minmax(0, 1fr); align-items: center; }
   .chart-year-select select { width: 100%; }
   .revenue-booking-chart { padding-inline: 13px; }
@@ -1471,6 +1488,9 @@ body { background: var(--canvas); }
 .phase-four-reviews-panel > header > a svg { width: 15px; height: 15px; }
 .phase-four-provider-header { display: flex; align-items: flex-start; justify-content: space-between; }
 .phase-four-provider-header > div { min-width: 0; }
+.phase-four-provider-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 12px; }
+.phase-four-provider-actions > a { display: inline-flex; align-items: center; gap: 4px; color: var(--wine-700); font-size: 12px; font-weight: 750; white-space: nowrap; }
+.phase-four-provider-actions > a svg { width: 15px; height: 15px; }
 .phase-four-review-list { display: grid; padding: 2px 18px 15px; }
 .phase-four-review-list > article { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 10px; padding: 12px 0; border-top: 1px solid #efe9e7; }
 .phase-four-review-list > article:first-child { border-top: 0; }
@@ -1513,6 +1533,7 @@ body { background: var(--canvas); }
 
 @media (max-width: 620px) {
   .phase-four-provider-header { flex-direction: column; }
+  .phase-four-provider-actions { width: 100%; flex-wrap: wrap; justify-content: space-between; }
   .phase-four-provider-header .inline-select-wrap { width: 100%; justify-content: space-between; }
   .phase-four-provider-header .inline-select-wrap select { flex: 1; }
   .phase-four-review-list { padding-inline: 14px; }

@@ -151,13 +151,6 @@ const dateRangeOptions: ReadonlyArray<readonly [DateRange, string]> = [
   ['month', '1 Month'],
 ]
 
-const chartPeriodOptions: ReadonlyArray<readonly [ChartPeriod, string]> = [
-  ['daily', 'Daily'],
-  ['weekly', 'Weekly'],
-  ['monthly', 'Monthly'],
-  ['yearly', 'Yearly'],
-]
-
 const emptyActions: ActionCounts = {
   pending_providers: 0,
   pending_services: 0,
@@ -180,8 +173,13 @@ export function OverviewScreen() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [refreshKey, setRefreshKey] = useState(0)
-  const [chartPeriod, setChartPeriod] = useState<ChartPeriod>('monthly')
   const [chartYear, setChartYear] = useState(() => new Date().getFullYear())
+  const [chartFromDate, setChartFromDate] = useState(() => startOfYear(new Date().getFullYear()))
+  const [chartToDate, setChartToDate] = useState(() => endOfAvailableYear(new Date().getFullYear()))
+  const [draftChartFromDate, setDraftChartFromDate] = useState(() => startOfYear(new Date().getFullYear()))
+  const [draftChartToDate, setDraftChartToDate] = useState(() => endOfAvailableYear(new Date().getFullYear()))
+  const [isChartDatePickerOpen, setIsChartDatePickerOpen] = useState(false)
+  const [chartDateError, setChartDateError] = useState('')
   const [chartAnalytics, setChartAnalytics] = useState<ChartAnalytics | null>(null)
   const [chartLoading, setChartLoading] = useState(false)
   const [chartError, setChartError] = useState('')
@@ -313,10 +311,11 @@ export function OverviewScreen() {
 
       setChartLoading(true)
       setChartError('')
-      const { data, error: chartRequestError } = await supabase.rpc('get_admin_dashboard_chart_analytics', {
-        p_period: chartPeriod,
+      const { data, error: chartRequestError } = await supabase.rpc('get_admin_dashboard_chart_range_analytics', {
         p_year: chartYear,
         p_event_type: eventType === 'all' ? null : eventType,
+        p_from_date: chartFromDate,
+        p_to_date: chartToDate,
       })
       if (!active) return
       if (chartRequestError) {
@@ -336,7 +335,7 @@ export function OverviewScreen() {
 
     void loadCharts()
     return () => { active = false }
-  }, [chartPeriod, chartYear, eventType, hasAnalytics, hasWorkspaceOverview, liveDataVersion, refreshKey])
+  }, [chartFromDate, chartToDate, chartYear, eventType, hasAnalytics, hasWorkspaceOverview, liveDataVersion, refreshKey])
 
   useEffect(() => {
     const supabase = getSupabase()
@@ -482,6 +481,41 @@ export function OverviewScreen() {
     return [...years].sort((left, right) => right - left)
   }, [chartAnalytics?.available_years, chartYear])
   const selectedProviderCategory = phaseFour?.categories.find((category) => category.id === providerCategoryId)?.name || 'All categories'
+  const chartYearStart = startOfYear(chartYear)
+  const chartYearEnd = endOfAvailableYear(chartYear)
+
+  function openChartDatePicker() {
+    setDraftChartFromDate(chartFromDate)
+    setDraftChartToDate(chartToDate)
+    setChartDateError('')
+    setIsChartDatePickerOpen(true)
+  }
+
+  function applyChartDateRange() {
+    if (!isDateWithinYear(draftChartFromDate, chartYear) || !isDateWithinYear(draftChartToDate, chartYear)) {
+      setChartDateError(`Choose dates within ${chartYear}.`)
+      return
+    }
+    if (draftChartFromDate > draftChartToDate) {
+      setChartDateError('From date must be on or before the To date.')
+      return
+    }
+    setChartFromDate(draftChartFromDate)
+    setChartToDate(draftChartToDate)
+    setChartDateError('')
+    setIsChartDatePickerOpen(false)
+  }
+
+  function changeChartYear(nextYear: number) {
+    setChartYear(nextYear)
+    const nextFrom = startOfYear(nextYear)
+    const nextTo = endOfAvailableYear(nextYear)
+    setChartFromDate(nextFrom)
+    setChartToDate(nextTo)
+    setDraftChartFromDate(nextFrom)
+    setDraftChartToDate(nextTo)
+    setChartDateError('')
+  }
 
   if (!hasWorkspaceOverview) return <GovernanceHomeScreen />
 
@@ -527,10 +561,27 @@ export function OverviewScreen() {
                 <p>Bars show recognized MULTIVENT platform revenue from paid or verified ledger entries. The line shows valid booking requests on its own scale.</p>
               </div>
               <div className="phase-three-chart-controls">
-                <SegmentedFilter ariaLabel="Revenue chart aggregation" options={chartPeriodOptions} value={chartPeriod} onChange={(value) => setChartPeriod(value as ChartPeriod)} className="chart-period-filter" />
+                <div className="chart-date-range-wrap">
+                  <button className="chart-date-range-button" type="button" onClick={openChartDatePicker} aria-expanded={isChartDatePickerOpen} aria-haspopup="dialog">
+                    <MdiIcon path={mdiCalendarCheckOutline} size={0.8} />
+                    <span>Date range</span>
+                    <strong>{formatChartDateRange(chartFromDate, chartToDate)}</strong>
+                  </button>
+                  {isChartDatePickerOpen && <section className="chart-date-range-popover" role="dialog" aria-label="Revenue report date range">
+                    <div className="chart-date-range-popover__heading"><strong>Select date range</strong><span>From date must be on or before To date.</span></div>
+                    <label>From
+                      <input type="date" value={draftChartFromDate} min={chartYearStart} max={chartYearEnd} onChange={(event) => { setDraftChartFromDate(event.target.value); setChartDateError('') }} />
+                    </label>
+                    <label>To
+                      <input type="date" value={draftChartToDate} min={draftChartFromDate || chartYearStart} max={chartYearEnd} onChange={(event) => { setDraftChartToDate(event.target.value); setChartDateError('') }} />
+                    </label>
+                    {chartDateError && <p className="chart-date-range-popover__error" role="alert">{chartDateError}</p>}
+                    <div className="chart-date-range-popover__actions"><button type="button" onClick={() => setIsChartDatePickerOpen(false)}>Cancel</button><button type="button" onClick={applyChartDateRange}>Apply range</button></div>
+                  </section>}
+                </div>
                 <label className="chart-year-select">Year
-                  <select aria-label="Revenue chart year" value={chartYear} onChange={(event) => setChartYear(Number(event.target.value))}>
-                    {chartYears.map((year) => <option key={year} value={year}>{chartPeriod === 'yearly' ? `Through ${year}` : year}</option>)}
+                  <select aria-label="Revenue chart year" value={chartYear} onChange={(event) => changeChartYear(Number(event.target.value))}>
+                    {chartYears.map((year) => <option key={year} value={year}>{year}</option>)}
                   </select>
                 </label>
               </div>
@@ -568,7 +619,10 @@ export function OverviewScreen() {
           <article className="panel phase-four-provider-panel">
             <header className="phase-four-provider-header">
               <div><span className="eyebrow">TOP SERVICE PROVIDERS</span><h2>{selectedProviderCategory}</h2><p>{phaseFour?.ranking_method || 'Loading the established provider ranking rule…'}</p></div>
-              <label className="inline-select-wrap"><span>Category</span><select aria-label="Filter top providers by category" value={providerCategoryId} onChange={(event) => setProviderCategoryId(event.target.value)}><option value="all">All categories</option>{phaseFour?.categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+              <div className="phase-four-provider-actions">
+                {can('providers.view') && <Link href="/dashboard/providers">View all providers <MdiIcon path={mdiArrowRight} /></Link>}
+                <label className="inline-select-wrap"><span>Category</span><select aria-label="Filter top providers by category" value={providerCategoryId} onChange={(event) => setProviderCategoryId(event.target.value)}><option value="all">All categories</option>{phaseFour?.categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+              </div>
             </header>
             {phaseFourError && <div className="chart-inline-error" role="alert">{phaseFourError}</div>}
             {phaseFourLoading && !phaseFour ? <div className="chart-empty">Loading provider performance…</div> : <ProviderLeaderboard providers={phaseFour?.top_providers || []} canViewProfiles={can('providers.view')} />}
@@ -873,6 +927,36 @@ function formatAxisMoney(value: number) {
   if (value >= 1_000_000) return `₱${(value / 1_000_000).toFixed(value % 1_000_000 ? 1 : 0)}M`
   if (value >= 1_000) return `₱${(value / 1_000).toFixed(value % 1_000 ? 1 : 0)}k`
   return `₱${Math.round(value)}`
+}
+
+function startOfYear(year: number) {
+  return `${year}-01-01`
+}
+
+function endOfAvailableYear(year: number) {
+  const now = new Date()
+  const currentYear = now.getFullYear()
+  if (year !== currentYear) return `${year}-12-31`
+  return toLocalIsoDate(now)
+}
+
+function toLocalIsoDate(value: Date) {
+  const offset = value.getTimezoneOffset() * 60_000
+  return new Date(value.getTime() - offset).toISOString().slice(0, 10)
+}
+
+function isDateWithinYear(value: string, year: number) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) && Number(value.slice(0, 4)) === year
+}
+
+function formatChartDateRange(from: string, to: string) {
+  const fromDate = new Date(`${from}T00:00:00`)
+  const toDate = new Date(`${to}T00:00:00`)
+  if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) return 'Select dates'
+  const format = new Intl.DateTimeFormat('en-PH', { month: 'short', day: 'numeric' })
+  const fromLabel = format.format(fromDate)
+  const toLabel = format.format(toDate)
+  return from === to ? `${fromLabel}, ${fromDate.getFullYear()}` : `${fromLabel} – ${toLabel}, ${toDate.getFullYear()}`
 }
 
 function categoryColor(id: string, fallbackIndex: number) {
