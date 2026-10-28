@@ -16,12 +16,6 @@ import type { FloristArrangementDraft, FloristFulfillmentDraft, FloristPackageDr
 import { photoVideoPreEventPlanFrom } from './photo-video-pre-event'
 import { photoVideoEventDayLogFrom } from './photo-video-event-day'
 import { photoVideoDeliverableTrackingFrom } from './photo-video-deliverables'
-import {
-  isPhotoVideoPackageConfiguration,
-  photoVideoPackageConfigurationFrom,
-  photoVideoPackageDraftsFrom,
-  type PhotoVideoPackageDraft,
-} from './photo-video'
 import type {
   AvailabilityCalendarValue,
   BookingItem,
@@ -556,59 +550,6 @@ const saveFloristFulfillmentOptions = async (
   return null
 }
 
-const savePhotoVideoPackages = async (
-  context: NonNullable<Awaited<ReturnType<typeof getMerchantContext>>>,
-  serviceId: string,
-  packages: PhotoVideoPackageDraft[],
-  publishPackages: boolean
-) => {
-  const { data: existing, error: existingError } = await context.client
-    .from('service_packages')
-    .select('id, configuration')
-    .eq('service_id', serviceId)
-  if (existingError) return existingError
-
-  const retainedIds: string[] = []
-  for (const pkg of packages) {
-    const imageUrls = (await Promise.all(pkg.imageUrls.map(uploadListingPhoto))).filter(Boolean)
-    const payload = {
-      configuration: photoVideoPackageConfigurationFrom(pkg),
-      description: pkg.description || null,
-      image_urls: imageUrls,
-      inclusions: pkg.deliverableIds,
-      is_active: publishPackages ? pkg.isActive : false,
-      name: pkg.name,
-      price: pkg.price,
-      pricing_mode: 'legacy',
-      pricing_unit: 'event',
-      service_id: serviceId,
-      updated_at: new Date().toISOString(),
-    }
-    const { data, error } = isUuid(pkg.id)
-      ? await context.client.from('service_packages').update(payload).eq('id', pkg.id).eq('service_id', serviceId).select('id').single()
-      : await context.client.from('service_packages').insert(payload).select('id').single()
-    if (error) return error
-    const packageId = textFrom((data as { id?: string } | null)?.id, pkg.id ?? '')
-    if (packageId) retainedIds.push(packageId)
-  }
-
-  const removedIds = (existing ?? []).flatMap((item) => {
-    const row = item as Record<string, unknown>
-    return isPhotoVideoPackageConfiguration(row.configuration) && !retainedIds.includes(textFrom(row.id))
-      ? [textFrom(row.id)]
-      : []
-  }).filter(Boolean)
-  if (removedIds.length) {
-    const { error } = await context.client
-      .from('service_packages')
-      .update({ is_active: false, updated_at: new Date().toISOString() })
-      .in('id', removedIds)
-      .eq('service_id', serviceId)
-    if (error) return error
-  }
-  return null
-}
-
 const mapMerchantServiceRow = (row: unknown, fallbackCategoryName = 'Service') => {
   const record = row as Record<string, unknown>
   const category = nested(record.service_categories) as Record<string, unknown> | undefined
@@ -989,16 +930,6 @@ export const saveMerchantServiceListing = async (
           .eq('id', serviceId).eq('provider_id', context.providerId)
         if (submitError) return { ok: false, message: submitError.message }
       }
-    }
-
-    if (isPhotoVideo) {
-      const packageError = await savePhotoVideoPackages(
-        context,
-        serviceId,
-        photoVideoPackageDraftsFrom(value.information.categoryDetails),
-        status === 'active'
-      )
-      if (packageError) return { ok: false, message: packageError.message }
     }
 
     if (value.packages.length > 0) {
@@ -1769,24 +1700,7 @@ export const loadMerchantServiceForEditing = async (
   const normalizedCategoryDetails = isLegacyCategoryDetails(record.category_details)
     ? {} as ServiceCategoryDetails
     : normalizeCategoryDetails(categoryName, record.category_details)
-  const photoVideoPackages = categoryName.toLowerCase().includes('photo')
-    ? packageRows.flatMap((item) => {
-        if (!isPhotoVideoPackageConfiguration(item.configuration)) return []
-        return photoVideoPackageDraftsFrom({
-          photoVideoPackages: [{
-            ...(item.configuration as Record<string, unknown>),
-            id: textFrom(item.id) || undefined,
-            imageUrls: Array.isArray(item.image_urls)
-              ? item.image_urls.filter((url): url is string => typeof url === 'string')
-              : [],
-          }],
-        })
-      })
-    : []
-  const categoryDetails = categoryName.toLowerCase().includes('photo')
-    && normalizedCategoryDetails.kind === 'photography'
-    ? { ...normalizedCategoryDetails, photoVideoPackages }
-    : normalizedCategoryDetails
+  const categoryDetails = normalizedCategoryDetails
 
   return {
     information: {

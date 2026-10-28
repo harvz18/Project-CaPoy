@@ -3691,7 +3691,7 @@ test('V17 Phases 7-8 price and persist only provider-configured florist selectio
   ], 'V17 existing planning and event-selection integration')
 })
 
-test('V18 Phase 2 keeps Photo/Video creation in the existing provider flow with server-side publication checks', () => {
+test('Photo/Video package-only mode keeps the earlier provider form with server-side publication checks', () => {
   const sourceMigration = read('database/106_v18_photo_video_provider_creation.sql')
   const deployMigration = read('supabase/migrations/20261026001300_v18_photo_video_provider_creation.sql')
   const categoryDetails = read('src/components/CategorySpecificServiceDetails.tsx')
@@ -3713,17 +3713,14 @@ test('V18 Phase 2 keeps Photo/Video creation in the existing provider flow with 
     'Listings created before V18 retain the original validation behaviour.',
   ], 'V18 Phase 2 backward-compatible server-side Photo/Video publication guard')
   mustContain(categoryDetails, [
-    'Photo / Video Service',
-    'Photography Only',
-    'Videography Only',
-    'Photography + Videography',
-    'Photography Styles',
-    'Videography Styles',
-    'Operating Location',
-    'Coverage Areas',
-    'Minimum Booking Notice',
-    'existing Availability screen',
-  ], 'V18 Phase 2 existing provider listing form extensions')
+    'Section title="Coverage"',
+    'Coverage Type',
+    'Number of Photographers',
+    'Photo Coverage',
+    'Video Coverage',
+    'Service Area',
+  ], 'package-only Photo/Video provider form')
+  assert.equal(categoryDetails.includes('PhotoVideoCoverageEditor'), false, 'package-only mode must not restore the V18 configuration editors')
   mustContain(detailsContract, [
     'photoVideoServiceType',
     'Select at least one supported event type.',
@@ -3783,7 +3780,7 @@ test('V18 Phase 3 keeps Photo/Video coverage, crew, capacity, and overtime provi
   ], 'V18 Phase 3 marketplace starting-price integration')
 })
 
-test('V18 Phase 4 keeps Photo/Video deliverables and add-ons provider-defined and crew-supported', () => {
+test('Photo/Video preset packages retain server-validated deliverables and add-ons without provider configurators', () => {
   const sourceMigration = read('database/108_v18_photo_video_deliverables.sql')
   const deployMigration = read('supabase/migrations/20261026001500_v18_photo_video_deliverables.sql')
   const detailsContract = read('src/lib/service-category-details.ts')
@@ -3819,13 +3816,11 @@ test('V18 Phase 4 keeps Photo/Video deliverables and add-ons provider-defined an
     'Add at least one promised deliverable.',
     'requires an unavailable crew role',
   ], 'V18 Phase 4 provider configuration contract')
-  mustContain(categoryDetails, [
-    'PhotoVideoDeliverablesEditor',
-    'PhotoVideoCoverageEditor',
-  ], 'V18 Phase 4 existing Photo/Video provider listing integration')
+  assert.equal(categoryDetails.includes('PhotoVideoDeliverablesEditor'), false, 'package-only mode must remove the V18 deliverable editor from provider listing details')
+  assert.equal(categoryDetails.includes('PhotoVideoCoverageEditor'), false, 'package-only mode must remove the V18 coverage editor from provider listing details')
 })
 
-test('V18 Phase 5 reuses service packages for structured provider-owned Photo/Video packages', () => {
+test('Photo/Video preset packages reuse validated service packages without exposing the V18 package builder', () => {
   const sourceMigration = read('database/109_v18_photo_video_packages.sql')
   const deployMigration = read('supabase/migrations/20261026001600_v18_photo_video_packages.sql')
   const packageEditor = read('src/components/PhotoVideoPackagesEditor.tsx')
@@ -3864,12 +3859,14 @@ test('V18 Phase 5 reuses service packages for structured provider-owned Photo/Vi
     'photoVideoPackageConfigurationFrom',
     'isPhotoVideoPackageConfiguration',
   ], 'V18 Phase 5 package configuration contract')
-  mustContain(merchant, [
-    'savePhotoVideoPackages',
-    'photoVideoPackageConfigurationFrom',
-    'configuration, image_urls',
-    'isPhotoVideoPackageConfiguration',
-  ], 'V18 Phase 5 existing service-package persistence and edit loading')
+  mustContain(read('supabase/migrations/20261028001100_simplify_photo_video_to_preset_packages.sql'), [
+    'photoVideoBookingMode',
+    'Essential coverage',
+    'Extended celebration coverage',
+    'priority-editing',
+    'validate_v18_photo_video_package_jsonb',
+  ], 'package-only Photo/Video preset migration')
+  assert.equal(merchant.includes('savePhotoVideoPackages'), false, 'provider edits must not overwrite or deactivate the preset package catalog')
   mustContain(detailsContract, [
     'photoVideoPackages',
     'Package records are persisted in the established service_packages table.',
@@ -3877,7 +3874,7 @@ test('V18 Phase 5 reuses service packages for structured provider-owned Photo/Vi
   ], 'V18 Phase 5 package validation inside the existing provider form')
 })
 
-test('V18 Phase 6 keeps Photo/Video post-production commitments provider-owned and immutable at booking', () => {
+test('Photo/Video post-production commitments remain immutable while their V18 editor stays removed', () => {
   const sourceMigration = read('database/110_v18_photo_video_postproduction.sql')
   const deployMigration = read('supabase/migrations/20261026001700_v18_photo_video_postproduction.sql')
   const editor = read('src/components/PhotoVideoPostProductionEditor.tsx')
@@ -3918,13 +3915,11 @@ test('V18 Phase 6 keeps Photo/Video post-production commitments provider-owned a
     'Every delivery method needs a unique ID.',
     'Explain and agree the alternate post-production starting point.',
   ], 'V18 Phase 6 shared deadline and validation contract')
-  mustContain(categoryDetails, [
-    'PhotoVideoPostProductionEditor',
-    'PhotoVideoDeliverablesEditor',
-  ], 'V18 Phase 6 existing provider listing integration')
+  assert.equal(categoryDetails.includes('PhotoVideoPostProductionEditor'), false, 'package-only mode must remove the V18 post-production editor from provider listing details')
+  assert.equal(categoryDetails.includes('PhotoVideoDeliverablesEditor'), false, 'package-only mode must remove the V18 deliverable editor from provider listing details')
 })
 
-test('V18 Phase 7 renders provider-owned Photo/Video options and a resumable client draft', () => {
+test('Photo/Video package-only mode renders preset packages, paid inclusions, and a resumable client draft', () => {
   const configurator = read('src/components/PhotoVideoBookingConfigurator.tsx')
   const bookingContract = read('src/lib/photo-video-booking.ts')
   const details = read('src/screens/08-ServiceDetails.tsx')
@@ -3932,17 +3927,17 @@ test('V18 Phase 7 renders provider-owned Photo/Video options and a resumable cli
   const app = read('src/App.tsx')
 
   mustContain(configurator, [
-    'Select a package',
-    'Customize my coverage',
-    'Coverage duration & team',
-    'Additional crew',
-    'Deliverables',
-    'Additional services',
-    'Rush editing',
-    'Requested coverage schedule',
-    'Instruction Module',
+    'Photo / Video packages',
+    'Choose one package',
+    'Available packages',
+    'Package inclusions and optional upgrades',
+    'Optional services',
+    'Additional coverage hours',
+    'selectionMethod: \'package\'',
+    'selected package and optional inclusions are saved',
     'Current marketplace price',
-  ], 'V18 Phase 7 existing service-details configurator')
+  ], 'package-only Photo/Video service-details configurator')
+  assert.equal(configurator.includes('Customize my coverage'), false, 'package-only mode must not expose custom coverage selection')
   mustContain(bookingContract, [
     'PhotoVideoSelectionSnapshot',
     'photoVideoBookingConfigurationFrom',

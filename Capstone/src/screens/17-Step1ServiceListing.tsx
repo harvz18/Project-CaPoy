@@ -392,7 +392,6 @@ export const Step1ServiceListingScreen: React.FC<Step1ServiceListingScreenProps>
           <CategorySpecificServiceDetails
             categoryName={selectedCategory}
             errors={categoryErrors}
-            onAddPackagePhoto={onAddPhoto}
             onChange={(next) => {
               setCategoryDetails(next)
               if (categoryErrors.length) setCategoryErrors([])
