@@ -1574,7 +1574,10 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                       </Pressable>
                       {expanded ? section.items.map((item) => {
                         const selected = selectedCateringMenuItemIds.includes(item.id)
-                        const disabled = !item.isActive || item.isRequired
+                        const selectionLimitReached = !selected
+                          && section.maximumSelections !== undefined
+                          && selectedCount >= section.maximumSelections
+                        const disabled = !item.isActive || item.isRequired || selectionLimitReached
                         return (
                           <Pressable
                             key={item.id}
