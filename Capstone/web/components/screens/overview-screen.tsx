@@ -7,13 +7,14 @@ import {
   mdiArrowRight,
   mdiCakeVariantOutline,
   mdiCalendarCheckOutline,
+  mdiChevronLeft,
+  mdiChevronRight,
   mdiCameraOutline,
   mdiCashMultiple,
   mdiChartDonutVariant,
   mdiCheckDecagramOutline,
   mdiClipboardTextOutline,
   mdiClipboardTextClockOutline,
-  mdiCogOutline,
   mdiEyeOutline,
   mdiFlowerOutline,
   mdiFormatListBulletedType,
@@ -25,7 +26,6 @@ import {
   mdiPaletteOutline,
   mdiRefresh,
   mdiShieldAccountOutline,
-  mdiShieldCrownOutline,
   mdiSilverwareForkKnife,
   mdiStarOutline,
   mdiStorefrontCheckOutline,
@@ -38,6 +38,7 @@ import { formatDate, formatMoney, SegmentedFilter, StatusBadge } from '@/compone
 import { useDashboardControls, useStaff } from '@/components/dashboard-shell'
 import { getSupabase } from '@/lib/supabase'
 import { InsightCards, type DashboardInsights } from './insights-screen'
+import { SuperadminDashboardScreen } from './superadmin-dashboard-screen'
 
 type DateRange = 'day' | '3days' | 'week' | 'month'
 type PeriodMetric = { current: number; previous: number }
@@ -176,10 +177,8 @@ export function OverviewScreen() {
   const [chartYear, setChartYear] = useState(() => new Date().getFullYear())
   const [chartFromDate, setChartFromDate] = useState(() => startOfYear(new Date().getFullYear()))
   const [chartToDate, setChartToDate] = useState(() => endOfAvailableYear(new Date().getFullYear()))
-  const [draftChartFromDate, setDraftChartFromDate] = useState(() => startOfYear(new Date().getFullYear()))
-  const [draftChartToDate, setDraftChartToDate] = useState(() => endOfAvailableYear(new Date().getFullYear()))
-  const [isChartDatePickerOpen, setIsChartDatePickerOpen] = useState(false)
-  const [chartDateError, setChartDateError] = useState('')
+  const [openChartCalendar, setOpenChartCalendar] = useState<'from' | 'to' | null>(null)
+  const [chartCalendarMonth, setChartCalendarMonth] = useState(() => `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`)
   const [chartAnalytics, setChartAnalytics] = useState<ChartAnalytics | null>(null)
   const [chartLoading, setChartLoading] = useState(false)
   const [chartError, setChartError] = useState('')
@@ -484,26 +483,24 @@ export function OverviewScreen() {
   const chartYearStart = startOfYear(chartYear)
   const chartYearEnd = endOfAvailableYear(chartYear)
 
-  function openChartDatePicker() {
-    setDraftChartFromDate(chartFromDate)
-    setDraftChartToDate(chartToDate)
-    setChartDateError('')
-    setIsChartDatePickerOpen(true)
+  function toggleChartCalendar(target: 'from' | 'to') {
+    if (openChartCalendar === target) {
+      setOpenChartCalendar(null)
+      return
+    }
+    setChartCalendarMonth((target === 'from' ? chartFromDate : chartToDate).slice(0, 7))
+    setOpenChartCalendar(target)
   }
 
-  function applyChartDateRange() {
-    if (!isDateWithinYear(draftChartFromDate, chartYear) || !isDateWithinYear(draftChartToDate, chartYear)) {
-      setChartDateError(`Choose dates within ${chartYear}.`)
-      return
+  function selectChartDate(value: string) {
+    if (!openChartCalendar || !isDateWithinYear(value, chartYear)) return
+    if (openChartCalendar === 'from') {
+      setChartFromDate(value)
+      if (value > chartToDate) setChartToDate(value)
+    } else if (value >= chartFromDate) {
+      setChartToDate(value)
     }
-    if (draftChartFromDate > draftChartToDate) {
-      setChartDateError('From date must be on or before the To date.')
-      return
-    }
-    setChartFromDate(draftChartFromDate)
-    setChartToDate(draftChartToDate)
-    setChartDateError('')
-    setIsChartDatePickerOpen(false)
+    setOpenChartCalendar(null)
   }
 
   function changeChartYear(nextYear: number) {
@@ -512,12 +509,11 @@ export function OverviewScreen() {
     const nextTo = endOfAvailableYear(nextYear)
     setChartFromDate(nextFrom)
     setChartToDate(nextTo)
-    setDraftChartFromDate(nextFrom)
-    setDraftChartToDate(nextTo)
-    setChartDateError('')
+    setChartCalendarMonth(nextFrom.slice(0, 7))
+    setOpenChartCalendar(null)
   }
 
-  if (!hasWorkspaceOverview) return <GovernanceHomeScreen />
+  if (!hasWorkspaceOverview) return <SuperadminDashboardScreen />
 
   const isAdminWorkspace = profile.default_role === 'admin'
 
@@ -561,24 +557,8 @@ export function OverviewScreen() {
                 <p>Bars show recognized MULTIVENT platform revenue from paid or verified ledger entries. The line shows valid booking requests on its own scale.</p>
               </div>
               <div className="phase-three-chart-controls">
-                <div className="chart-date-range-wrap">
-                  <button className="chart-date-range-button" type="button" onClick={openChartDatePicker} aria-expanded={isChartDatePickerOpen} aria-haspopup="dialog">
-                    <MdiIcon path={mdiCalendarCheckOutline} size={0.8} />
-                    <span>Date range</span>
-                    <strong>{formatChartDateRange(chartFromDate, chartToDate)}</strong>
-                  </button>
-                  {isChartDatePickerOpen && <section className="chart-date-range-popover" role="dialog" aria-label="Revenue report date range">
-                    <div className="chart-date-range-popover__heading"><strong>Select date range</strong><span>From date must be on or before To date.</span></div>
-                    <label>From
-                      <input type="date" value={draftChartFromDate} min={chartYearStart} max={chartYearEnd} onChange={(event) => { setDraftChartFromDate(event.target.value); setChartDateError('') }} />
-                    </label>
-                    <label>To
-                      <input type="date" value={draftChartToDate} min={draftChartFromDate || chartYearStart} max={chartYearEnd} onChange={(event) => { setDraftChartToDate(event.target.value); setChartDateError('') }} />
-                    </label>
-                    {chartDateError && <p className="chart-date-range-popover__error" role="alert">{chartDateError}</p>}
-                    <div className="chart-date-range-popover__actions"><button type="button" onClick={() => setIsChartDatePickerOpen(false)}>Cancel</button><button type="button" onClick={applyChartDateRange}>Apply range</button></div>
-                  </section>}
-                </div>
+                <ChartDateControl label="From" value={chartFromDate} min={chartYearStart} max={chartYearEnd} isOpen={openChartCalendar === 'from'} month={chartCalendarMonth} onToggle={() => toggleChartCalendar('from')} onMonthChange={setChartCalendarMonth} onSelect={selectChartDate} />
+                <ChartDateControl label="To" value={chartToDate} min={chartFromDate} max={chartYearEnd} isOpen={openChartCalendar === 'to'} month={chartCalendarMonth} onToggle={() => toggleChartCalendar('to')} onMonthChange={setChartCalendarMonth} onSelect={selectChartDate} />
                 <label className="chart-year-select">Year
                   <select aria-label="Revenue chart year" value={chartYear} onChange={(event) => changeChartYear(Number(event.target.value))}>
                     {chartYears.map((year) => <option key={year} value={year}>{year}</option>)}
@@ -688,28 +668,6 @@ export function OverviewScreen() {
   )
 }
 
-function GovernanceHomeScreen() {
-  const items = [
-    { href: '/dashboard/users', icon: mdiAccountGroupOutline, title: 'User management', copy: 'Review user accounts, role assignments, and account standing.' },
-    { href: '/dashboard/permissions', icon: mdiShieldCrownOutline, title: 'Staff permissions', copy: 'Set staff roles and feature permissions for internal workspaces.' },
-    { href: '/dashboard/audit', icon: mdiClipboardTextClockOutline, title: 'Audit logs', copy: 'Trace privileged actions and system changes across the platform.' },
-    { href: '/dashboard/settings', icon: mdiCogOutline, title: 'System settings', copy: 'Manage controlled, platform-wide configuration.' },
-  ]
-
-  return (
-    <div className="screen-stack governance-home">
-      <section className="page-heading">
-        <div><span className="eyebrow">SUPERADMIN WORKSPACE</span><h1>Governance</h1><p>Manage the people, permissions, and platform controls entrusted to Superadmin.</p></div>
-      </section>
-      <section className="governance-home-grid">
-        {items.map((item) => <Link key={item.href} className="governance-home-card" href={item.href}>
-          <span><MdiIcon path={item.icon} /></span><div><h2>{item.title}</h2><p>{item.copy}</p></div><MdiIcon path={mdiArrowRight} />
-        </Link>)}
-      </section>
-    </div>
-  )
-}
-
 function RecentReviewsPanel({ reviews }: { reviews: DashboardReview[] }) {
   if (!reviews.length) return <div className="chart-empty">No completed-booking service reviews are available for this scope.</div>
   return <div className="phase-four-review-list">{reviews.map((review) => <article key={review.id}>
@@ -801,6 +759,47 @@ function truncateCopy(value: string, limit: number) {
   return text.length > limit ? `${text.slice(0, limit - 1).trimEnd()}…` : text
 }
 
+function ChartDateControl({ label, value, min, max, isOpen, month, onToggle, onMonthChange, onSelect }: {
+  label: 'From' | 'To'
+  value: string
+  min: string
+  max: string
+  isOpen: boolean
+  month: string
+  onToggle: () => void
+  onMonthChange: (value: string) => void
+  onSelect: (value: string) => void
+}) {
+  const [year, monthIndex] = month.split('-').map(Number)
+  const firstDay = new Date(year, monthIndex - 1, 1).getDay()
+  const daysInMonth = new Date(year, monthIndex, 0).getDate()
+  const previousMonth = monthKey(year, monthIndex - 1)
+  const nextMonth = monthKey(year, monthIndex + 1)
+  const canMovePrevious = previousMonth >= min.slice(0, 7)
+  const canMoveNext = nextMonth <= max.slice(0, 7)
+  const title = new Intl.DateTimeFormat('en-PH', { month: 'long', year: 'numeric' }).format(new Date(year, monthIndex - 1, 1))
+  const days = Array.from({ length: firstDay + daysInMonth }, (_, index) => index < firstDay ? null : index - firstDay + 1)
+
+  return <div className="chart-date-control">
+    <button className={isOpen ? 'chart-date-control__button is-open' : 'chart-date-control__button'} type="button" onClick={onToggle} aria-expanded={isOpen} aria-haspopup="dialog">
+      <MdiIcon path={mdiCalendarCheckOutline} size={0.76} />
+      <span>{label}</span>
+      <strong>{formatChartDate(value)}</strong>
+    </button>
+    {isOpen && <section className="chart-calendar" role="dialog" aria-label={`Select ${label.toLowerCase()} date`}>
+      <header><button type="button" onClick={() => onMonthChange(previousMonth)} disabled={!canMovePrevious} aria-label="Previous month"><MdiIcon path={mdiChevronLeft} /></button><strong>{title}</strong><button type="button" onClick={() => onMonthChange(nextMonth)} disabled={!canMoveNext} aria-label="Next month"><MdiIcon path={mdiChevronRight} /></button></header>
+      <div className="chart-calendar__weekdays">{['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => <span key={`${day}:${index}`}>{day}</span>)}</div>
+      <div className="chart-calendar__days">{days.map((day, index) => {
+        if (day === null) return <span key={`empty:${index}`} aria-hidden="true" />
+        const date = `${month}-${String(day).padStart(2, '0')}`
+        const disabled = date < min || date > max
+        return <button key={date} type="button" disabled={disabled} className={date === value ? 'is-selected' : ''} onClick={() => onSelect(date)} aria-label={formatChartDate(date)} aria-pressed={date === value}>{day}</button>
+      })}</div>
+      <footer><span>{label === 'From' ? 'Selecting a later date also moves To forward.' : 'To date cannot be before From.'}</span></footer>
+    </section>}
+  </div>
+}
+
 function RevenueBookingChart({ analytics }: { analytics: ChartAnalytics | null }) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
   if (!analytics) return <div className="chart-empty">Live chart data is unavailable right now.</div>
@@ -832,6 +831,7 @@ function RevenueBookingChart({ analytics }: { analytics: ChartAnalytics | null }
       {tooltip && <div className="chart-tooltip" role="status"><strong>{tooltip.label}</strong><span>Platform revenue: {formatMoney(tooltip.platform_revenue)}</span><span>Gross payment volume: {formatMoney(tooltip.gross_transaction_volume)}</span><span>Valid bookings: {tooltip.bookings.toLocaleString()}</span></div>}
       <div className="revenue-booking-chart__scroll">
         <svg viewBox={`0 0 ${width} 238`} style={{ minWidth: `${width}px` }} role="img" aria-label="Recognized platform revenue bars and valid booking request trend line">
+          <defs><linearGradient id="revenue-bar-gradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#bd7a86" /><stop offset="100%" stopColor="#741d33" /></linearGradient></defs>
           {revenueTicks.map((tick) => {
             const y = plot.bottom - tick * plotHeight
             return <g key={tick}><line x1={plot.left} x2={plot.right} y1={y} y2={y} className="revenue-booking-chart__grid" /><text x={plot.left - 8} y={y + 4} textAnchor="end" className="revenue-booking-chart__axis-label">{formatAxisMoney(revenueMaximum * tick)}</text><text x={plot.right + 8} y={y + 4} className="revenue-booking-chart__axis-label">{Math.round(bookingMaximum * tick)}</text></g>
@@ -949,14 +949,15 @@ function isDateWithinYear(value: string, year: number) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value) && Number(value.slice(0, 4)) === year
 }
 
-function formatChartDateRange(from: string, to: string) {
-  const fromDate = new Date(`${from}T00:00:00`)
-  const toDate = new Date(`${to}T00:00:00`)
-  if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) return 'Select dates'
-  const format = new Intl.DateTimeFormat('en-PH', { month: 'short', day: 'numeric' })
-  const fromLabel = format.format(fromDate)
-  const toLabel = format.format(toDate)
-  return from === to ? `${fromLabel}, ${fromDate.getFullYear()}` : `${fromLabel} – ${toLabel}, ${toDate.getFullYear()}`
+function formatChartDate(value: string) {
+  const date = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(date.getTime())) return 'Select date'
+  return new Intl.DateTimeFormat('en-PH', { month: 'short', day: 'numeric' }).format(date)
+}
+
+function monthKey(year: number, month: number) {
+  const date = new Date(year, month - 1, 1)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
 }
 
 function categoryColor(id: string, fallbackIndex: number) {
