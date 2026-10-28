@@ -953,6 +953,9 @@ export const validateCategoryDetails = (
           .map(asObject)
           .filter((item) => item.isActive !== false)
           .length
+        if (activeItemCount > 10) {
+          errors.push(`${label} may offer at most 10 active dishes.`)
+        }
         if (tastingSelectionLimit <= 0) {
           errors.push(`${label} needs a tasting selection limit.`)
         } else if (tastingSelectionLimit > activeItemCount) {
@@ -967,8 +970,8 @@ export const validateCategoryDetails = (
           errors.push(`${label} final menu selections cannot exceed tasting selections.`)
         }
       })
-      if (totalTastingSelections > 10) {
-        errors.push('Food tastings may include at most 10 selections across all courses.')
+      if (totalTastingSelections > 25) {
+        errors.push('Food tastings may include at most 25 selections across all courses.')
       }
       const tastingSlots = list(tasting.tastingTimeSlots)
       if (tastingSlots.length === 0) errors.push('Add at least one food tasting start time.')
