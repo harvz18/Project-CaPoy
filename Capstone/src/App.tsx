@@ -601,6 +601,7 @@ export const App: React.FC = () => {
   const budgetAutosaveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingBudgetAutosaveRef = React.useRef<BudgetAllocationValue | undefined>(undefined)
   const refreshLiveDataInFlightRef = React.useRef<Promise<ClientPlanningState> | null>(null)
+  const clientBookingsRequestRef = React.useRef<ReturnType<typeof fetchClientBookings> | null>(null)
 
   const transitionToScreen = React.useCallback((nextScreen: AppScreen) => {
     const currentScreen = screenRef.current
@@ -902,6 +903,14 @@ export const App: React.FC = () => {
     else await eventAutosaveChainRef.current.catch(() => undefined)
   }, [enqueueEventAutosave])
 
+  const discardPendingEventAutosave = React.useCallback(() => {
+    if (eventAutosaveTimerRef.current) {
+      clearTimeout(eventAutosaveTimerRef.current)
+      eventAutosaveTimerRef.current = null
+    }
+    pendingEventAutosaveRef.current = undefined
+  }, [])
+
   const enqueueBudgetAutosave = React.useCallback((value: BudgetAllocationValue) => {
     budgetAutosaveChainRef.current = budgetAutosaveChainRef.current
       .catch(() => undefined)
@@ -934,6 +943,14 @@ export const App: React.FC = () => {
     if (pending) await enqueueBudgetAutosave(pending)
     else await budgetAutosaveChainRef.current.catch(() => undefined)
   }, [enqueueBudgetAutosave])
+
+  const discardPendingBudgetAutosave = React.useCallback(() => {
+    if (budgetAutosaveTimerRef.current) {
+      clearTimeout(budgetAutosaveTimerRef.current)
+      budgetAutosaveTimerRef.current = null
+    }
+    pendingBudgetAutosaveRef.current = undefined
+  }, [])
 
   const handleInstructionDraftChange = React.useCallback((value: InstructionModuleValue) => {
     setInstructionDraft(value)
@@ -1161,6 +1178,13 @@ export const App: React.FC = () => {
   const [coordinatorHomeView, setCoordinatorHomeView] = React.useState<CoordinatorView>('overview')
   const coordinatorHomeScrollOffsetRef = React.useRef(0)
   const coordinatorWorkspaceSessionRef = React.useRef('')
+  const coordinatorWorkspaceRequestRef = React.useRef<Promise<void> | null>(null)
+  const merchantPayoutRequestRef = React.useRef<{
+    id: number
+    period: PayoutEarningsPeriod
+    request: Promise<void>
+  } | null>(null)
+  const merchantPayoutRequestIdRef = React.useRef(0)
   const [coordinatorError, setCoordinatorError] = React.useState('')
   const [isCoordinatorLoading, setIsCoordinatorLoading] = React.useState(false)
   const [isCoordinatorRefreshing, setIsCoordinatorRefreshing] = React.useState(false)
@@ -1829,6 +1853,23 @@ export const App: React.FC = () => {
     )
   }, [])
 
+  const loadClientBookings = React.useCallback(() => {
+    const inFlightRequest = clientBookingsRequestRef.current
+    if (inFlightRequest) return inFlightRequest
+
+    const request = fetchClientBookings()
+    clientBookingsRequestRef.current = request
+    void request.then(
+      () => {
+        if (clientBookingsRequestRef.current === request) clientBookingsRequestRef.current = null
+      },
+      () => {
+        if (clientBookingsRequestRef.current === request) clientBookingsRequestRef.current = null
+      }
+    )
+    return request
+  }, [])
+
   const refreshLiveData = React.useCallback((): Promise<ClientPlanningState> => {
     const inFlightRefresh = refreshLiveDataInFlightRef.current
     if (inFlightRefresh) return inFlightRefresh
@@ -1848,7 +1889,7 @@ export const App: React.FC = () => {
       savedPlans,
     ] = await Promise.all([
       loadClientCatalogServices(),
-      fetchClientBookings(),
+      loadClientBookings(),
       fetchMerchantBookingRequests(),
       fetchMerchantServices(),
       loadMerchantServiceDraft(),
@@ -1902,7 +1943,7 @@ export const App: React.FC = () => {
       }
     )
     return refresh
-  }, [hydrateClientPlanningState])
+  }, [hydrateClientPlanningState, loadClientBookings])
 
   const refreshClientHome = React.useCallback(async () => {
     if (isClientHomeRefreshing) return
@@ -1925,7 +1966,7 @@ export const App: React.FC = () => {
   }, [authenticatedUserId, refreshLiveData])
 
   const refreshClientBookings = React.useCallback(async () => {
-    const bookings = await fetchClientBookings()
+    const bookings = await loadClientBookings()
     setClientBookings(bookings)
     setSelectedBooking((current) => {
       if (!current) return current
@@ -1933,7 +1974,7 @@ export const App: React.FC = () => {
         item.id === current.id || Boolean(item.eventId && current.eventId && item.eventId === current.eventId)
       ) ?? current
     })
-  }, [])
+  }, [loadClientBookings])
 
   const restoreClientPlanningResume = React.useCallback(async (
     userId: string,
@@ -2029,23 +2070,41 @@ export const App: React.FC = () => {
     refreshing = false,
     silent = false
   ) => {
-    if (!silent) {
-      if (refreshing) setIsCoordinatorRefreshing(true)
-      else setIsCoordinatorLoading(true)
+    if (coordinatorWorkspaceRequestRef.current) {
+      await coordinatorWorkspaceRequestRef.current
+      return
     }
 
-    const result = await fetchCoordinatorDashboard()
-    if (result.ok && result.data) {
-      setCoordinatorDashboard(result.data)
-      setCoordinatorError('')
-      coordinatorWorkspaceSessionRef.current = authenticatedUserId || 'authenticated'
-    } else {
-      setCoordinatorError(result.message ?? 'Unable to load the coordinator workspace.')
-    }
+    const request = (async () => {
+      if (!silent) {
+        if (refreshing) setIsCoordinatorRefreshing(true)
+        else setIsCoordinatorLoading(true)
+      }
 
-    if (!silent) {
-      setIsCoordinatorLoading(false)
-      setIsCoordinatorRefreshing(false)
+      try {
+        const result = await fetchCoordinatorDashboard()
+        if (result.ok && result.data) {
+          setCoordinatorDashboard(result.data)
+          setCoordinatorError('')
+          coordinatorWorkspaceSessionRef.current = authenticatedUserId || 'authenticated'
+        } else {
+          setCoordinatorError(result.message ?? 'Unable to load the coordinator workspace.')
+        }
+      } finally {
+        if (!silent) {
+          setIsCoordinatorLoading(false)
+          setIsCoordinatorRefreshing(false)
+        }
+      }
+    })()
+
+    coordinatorWorkspaceRequestRef.current = request
+    try {
+      await request
+    } finally {
+      if (coordinatorWorkspaceRequestRef.current === request) {
+        coordinatorWorkspaceRequestRef.current = null
+      }
     }
   }, [authenticatedUserId])
 
@@ -2090,27 +2149,50 @@ export const App: React.FC = () => {
     refreshing = false,
     silent = false
   ) => {
+    const inFlightRequest = merchantPayoutRequestRef.current
+    if (inFlightRequest?.period === period) {
+      await inFlightRequest.request
+      return
+    }
+
     if (!silent) {
       if (refreshing) setIsMerchantPayoutRefreshing(true)
       else setIsMerchantPayoutLoading(true)
     }
 
-    const result = await fetchMerchantPayoutDashboard(period)
-    if (result.ok && result.data) {
-      setMerchantPayoutDashboard(result.data)
-      setMerchantHomeEarnings({
-        currency: result.data.summary.currency,
-        periodEarnings: result.data.summary.periodEarnings,
-        trend: result.data.earningsTrend,
-      })
-      setMerchantPayoutError('')
-    } else {
-      setMerchantPayoutError(result.message ?? 'Unable to load recorded earnings.')
-    }
+    const requestId = merchantPayoutRequestIdRef.current + 1
+    merchantPayoutRequestIdRef.current = requestId
+    const request = (async () => {
+      try {
+        const result = await fetchMerchantPayoutDashboard(period)
+        if (merchantPayoutRequestIdRef.current !== requestId) return
 
-    if (!silent) {
-      setIsMerchantPayoutLoading(false)
-      setIsMerchantPayoutRefreshing(false)
+        if (result.ok && result.data) {
+          setMerchantPayoutDashboard(result.data)
+          setMerchantHomeEarnings({
+            currency: result.data.summary.currency,
+            periodEarnings: result.data.summary.periodEarnings,
+            trend: result.data.earningsTrend,
+          })
+          setMerchantPayoutError('')
+        } else {
+          setMerchantPayoutError(result.message ?? 'Unable to load recorded earnings.')
+        }
+      } finally {
+        if (!silent && merchantPayoutRequestIdRef.current === requestId) {
+          setIsMerchantPayoutLoading(false)
+          setIsMerchantPayoutRefreshing(false)
+        }
+      }
+    })()
+
+    merchantPayoutRequestRef.current = { id: requestId, period, request }
+    try {
+      await request
+    } finally {
+      if (merchantPayoutRequestRef.current?.id === requestId) {
+        merchantPayoutRequestRef.current = null
+      }
     }
   }, [])
 
@@ -2814,7 +2896,10 @@ export const App: React.FC = () => {
   }
 
   const handleBudgetContinue = async (value: BudgetAllocationValue) => {
-    await flushBudgetAutosave()
+    // The explicit next-step save below is authoritative. Drop only a queued
+    // duplicate autosave, while waiting for an earlier write already in flight.
+    discardPendingBudgetAutosave()
+    await budgetAutosaveChainRef.current.catch(() => undefined)
     await runOnce('save-budget-plan', async () => {
       const result = await saveBudgetPlan(value)
 
@@ -2827,8 +2912,6 @@ export const App: React.FC = () => {
       setBudgetAllocations(value.allocations)
       setTotalBudget(value.budget)
       setMaxPlanningStep((current) => Math.max(current, 3))
-      const refreshedCatalog = await loadClientCatalogServices()
-      setCatalogServices(refreshedCatalog)
       const hasCoordinatorAllocation = coordinatorPlanningEnabled && value.allocations.some(
         (allocation) => allocation.categoryKey === 'eventOrganizer' && allocation.amount > 0
       )
@@ -2842,11 +2925,17 @@ export const App: React.FC = () => {
         ?? getFirstPlanningCategory(value.allocations)
         ?? 'catering'
       openPlanningHub('forward', nextCategory)
+      void loadClientCatalogServices()
+        .then(setCatalogServices)
+        .catch(() => undefined)
     })
   }
 
   const handleEventContinue = async (value: EventCreationValue, nextScreen: AppScreen) => {
-    await flushEventAutosave()
+    // The explicit next-step save below is authoritative. Drop only a queued
+    // duplicate autosave, while waiting for an earlier write already in flight.
+    discardPendingEventAutosave()
+    await eventAutosaveChainRef.current.catch(() => undefined)
     await runOnce('save-event-details', async () => {
       if (value.wantsCoordinator === false && assignedCoordinator) {
         const confirmed = await confirmDestructiveAction(
@@ -2884,7 +2973,6 @@ export const App: React.FC = () => {
       }
 
       if (nextScreen === 'budgetAllocation') {
-        setCatalogServices(await loadClientCatalogServices())
         setMaxPlanningStep((current) => Math.min(4, Math.max(current, 2)))
         budgetAllocationEntrance.setValue(width)
         setScreen(nextScreen)
@@ -2894,6 +2982,9 @@ export const App: React.FC = () => {
           easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }).start()
+        void loadClientCatalogServices()
+          .then(setCatalogServices)
+          .catch(() => undefined)
         return
       }
 

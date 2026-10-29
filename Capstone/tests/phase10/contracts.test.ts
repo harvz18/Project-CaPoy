@@ -2178,6 +2178,32 @@ test('new events and resumed drafts do not wait for a whole-workspace refresh', 
     'Draft navigation must not wait for a whole-workspace refresh.')
 })
 
+test('planning next-step saves do not wait for duplicate autosaves or catalog reads', () => {
+  const app = read('src/App.tsx')
+  const budgetStart = app.indexOf('const handleBudgetContinue = async')
+  const eventStart = app.indexOf('const handleEventContinue = async')
+  const eventEnd = app.indexOf('const handlePlanningStepPress')
+  assert.ok(budgetStart >= 0 && eventStart > budgetStart && eventEnd > eventStart,
+    'Planning next-step handlers must remain in their expected order.')
+  const budgetContinue = app.slice(budgetStart, eventStart)
+  const eventContinue = app.slice(eventStart, eventEnd)
+
+  mustContain(eventContinue, [
+    'discardPendingEventAutosave()',
+    'await eventAutosaveChainRef.current.catch(() => undefined)',
+    'void loadClientCatalogServices()',
+  ], 'event next-step responsiveness')
+  mustContain(budgetContinue, [
+    'discardPendingBudgetAutosave()',
+    'await budgetAutosaveChainRef.current.catch(() => undefined)',
+    'void loadClientCatalogServices()',
+  ], 'budget next-step responsiveness')
+  assert.doesNotMatch(eventContinue, /await flushEventAutosave\(\)/,
+    'Event Details must not wait for a duplicate queued autosave before its explicit save.')
+  assert.doesNotMatch(budgetContinue, /await flushBudgetAutosave\(\)/,
+    'Budget must not wait for a duplicate queued autosave before its explicit save.')
+})
+
 test('V11 Phase 1 keeps paid initial allocations as non-withdrawable receivables', () => {
   const foundation = read('database/79_held_receivables_foundation.sql')
   const deployMigration = read(
@@ -2589,73 +2615,51 @@ test('V12 Phase 2 unifies client messages and notifications without duplicating 
   ], 'V12 Phase 2 Inbox routing and unread refresh')
 })
 
-test('client home uses a unified MULTIVENT top surface and routes its headset control to support', () => {
+test('redesigned client home keeps branded live navigation and booking actions', () => {
   const home = read('src/screens/03-ClientHome.tsx')
   const app = read('src/App.tsx')
 
   mustContain(home, [
     "import { AnimatedQuickAccessButton } from '../components/AnimatedQuickAccessButton'",
-    "import { CardInsetShadow } from '../components/CardInsetShadow'",
+    "import { CardInsetShadow, NeumorphicRaised } from '../components/CardInsetShadow'",
     "import { BrandIdentity } from '../components/BrandIdentity'",
-    'referenceTopSurface',
+    'referenceStickyHeader',
     'styles.heroButton',
     'styles.quickAccessRow',
-    'accessibilityLabel="Contact MULTIVENT Support"',
-    'name="support-agent"',
-    'referenceAvatarRim',
+    'accessibilityLabel="Begin setup"',
+    'handleStartNewEvent',
+    'handleQuickAccess',
     'referenceWordmarkDepth',
     'referenceHeaderWordmark',
-  ], 'client home branded support header')
+    'onOpenBookingProgress?.(progress.booking)',
+    'onSelectRecommendation?.(recommendation.service.id)',
+  ], 'redesigned client home')
   mustContain(app, [
-    "setSupportReturnScreen('clientHome')",
-    "setScreen('support')",
-    '<SupportScreen onBack={() => setScreen(supportReturnScreen)} />',
-  ], 'client home support return route')
+    'bookingProgressEvents={clientBookingProgress}',
+    'onOpenDraft={(draftId) => void resumeClientDraft(draftId)}',
+    'onStartNewEvent={startNewClientEvent}',
+    'onSelectTab={openClientTab}',
+  ], 'redesigned client home routing')
 })
 
-test('client home appearance keeps Classic as the default while Modern reuses the same client data and actions', () => {
-  const app = read('src/App.tsx')
-  const account = read('src/screens/24-AccountProfile.tsx')
+test('redesigned client home preserves drafts, bookings, search, and marketplace entry points', () => {
   const home = read('src/screens/03-ClientHome.tsx')
-  const modernHome = read('src/screens/03.0-ModernHome.tsx')
-  const appearance = read('src/lib/client-home-appearance.ts')
 
   mustContain(home, [
-    "appearance = 'classic'",
-    "appearance === 'modern'",
-    '<ModernHomeScreen',
-    'styles.referenceTopSurface',
-    'bookingProgressEvents={bookingProgressEvents}',
-    'onQuickAccess={handleQuickAccess}',
-  ], 'dual home controller')
-  mustContain(modernHome, [
-    'bookingProgressEvents?: ClientBookingProgress[]',
+    'draftEvents?: ClientEventDraftSummary[]',
+    'bookingProgressEvents = [],',
     'recommendations?: HomeServiceRecommendation[]',
+    'const onOpenActiveEvent = () =>',
+    'onOpenDraft?.(draftEvent.id)',
     'onOpenBookingProgress?: (booking: BookingItem) => void',
-    'onQuickAccess: (itemId: QuickAccessId) => void',
+    'onSeeAllVenues?: () => void',
     'onSelectRecommendation?: (serviceId: string) => void',
-    'QUICK_ACCESS_ITEMS',
-  ], 'modern home shared presentation')
-  mustContain(account, [
-    'Home Screen Appearance',
-    'Choose your preferred home screen design.',
-    'Classic UI',
-    'Modern UI',
-    'onHomeAppearanceChange?: (appearance: ClientHomeAppearance) => void',
-  ], 'client appearance preference')
-  mustContain(appearance, [
-    "export type ClientHomeAppearance = 'classic' | 'modern'",
-    'AsyncStorage.getItem',
-    'AsyncStorage.setItem',
-    "value === 'modern' ? 'modern' : 'classic'",
-  ], 'client appearance persistence')
-  mustContain(app, [
-    'loadClientHomeAppearance(authenticatedUserId)',
-    'saveClientHomeAppearance(authenticatedUserId, appearance)',
-    'clientHomeAppearanceRevisionRef',
-    'appearance={clientHomeAppearance}',
-    'onHomeAppearanceChange={changeClientHomeAppearance}',
-  ], 'appearance routing without a data reload')
+    'onSelectTab?: (tab: ClientHomeTab) => void',
+    'accessibilityLabel="Search"',
+    'accessibilityLabel="See all venues"',
+  ], 'redesigned client-home data and action contract')
+  assert.doesNotMatch(home, /ModernHomeScreen|client-home-appearance/,
+    'The redesigned home must not retain the removed Classic/Modern appearance switch.')
 })
 
 test('V14 Phase 1 asks for coordinator planning before conditionally asking about a church wedding', () => {
@@ -3450,11 +3454,24 @@ test('live data refreshes are coalesced and booking polling stays targeted', () 
     'const inFlightRefresh = refreshLiveDataInFlightRef.current',
     'if (inFlightRefresh) return inFlightRefresh',
     'refreshLiveDataInFlightRef.current = refresh',
+    'const clientBookingsRequestRef',
+    'const loadClientBookings = React.useCallback',
+    'const inFlightRequest = clientBookingsRequestRef.current',
+    'if (inFlightRequest) return inFlightRequest',
+    'clientBookingsRequestRef.current = request',
     'let conversationRefreshTimer',
     'const scheduleConversationRefresh',
     'scheduleConversationRefresh()',
     'void refreshClientBookings()',
     '}, 30000)',
+    'const coordinatorWorkspaceRequestRef',
+    'if (coordinatorWorkspaceRequestRef.current)',
+    'coordinatorWorkspaceRequestRef.current = request',
+    'coordinatorWorkspaceRequestRef.current = null',
+    'const merchantPayoutRequestRef',
+    'if (inFlightRequest?.period === period)',
+    'merchantPayoutRequestRef.current = { id: requestId, period, request }',
+    'merchantPayoutRequestIdRef.current !== requestId',
   ], 'coalesced live-data and targeted booking refreshes')
   assert.doesNotMatch(app, /void refreshLiveData\(\)\s*\r?\n\s*}, 12000\)/,
     'booking polling must not reload the whole workspace every twelve seconds')

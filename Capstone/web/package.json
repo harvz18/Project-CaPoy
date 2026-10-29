@@ -15,9 +15,12 @@
     "@mdi/react": "^1.6.1",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.57.4",
-    "next": "^16.3.6",
+    "next": "^16.4.3",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
+  },
+  "overrides": {
+    "source-map-js": "1.2.2"
   },
   "devDependencies": {
     "@types/node": "^22.18.6",
