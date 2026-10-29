@@ -3003,10 +3003,14 @@ export const markMerchantNotificationRead = async (
     return { ok: false, message: notReady }
   }
 
+  const { data: authData } = await client.auth.getUser()
+  if (!authData.user?.id) return { ok: false, message: notReady }
+
   const { error } = await client
     .from('notifications')
     .update({ status: 'read' })
     .eq('id', notification.id)
+    .eq('user_id', authData.user.id)
 
   return { ok: !error, message: error?.message }
 }
@@ -3020,10 +3024,14 @@ export const markMerchantNotificationsRead = async (
     return { ok: Boolean(client), message: client ? undefined : notReady }
   }
 
+  const { data: authData } = await client.auth.getUser()
+  if (!authData.user?.id) return { ok: false, message: notReady }
+
   const { error } = await client
     .from('notifications')
     .update({ status: 'read' })
     .in('id', notificationIds)
+    .eq('user_id', authData.user.id)
 
   return { ok: !error, message: error?.message }
 }

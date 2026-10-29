@@ -18,6 +18,13 @@ export const isMessageUpdate = (notification: UpdateNotificationLike) =>
   normalized(notification.category) === 'message'
   || hasResourceFragment(notification, ['message', 'conversation'])
 
+// Client message notifications mirror a conversation's unread messages and
+// are deliberately not shown in the client Notifications feed. Count the
+// conversation once, rather than allowing a hidden duplicate alert to keep
+// the Inbox red dot visible after the conversation has been read.
+export const isUnreadInboxNotification = (notification: UpdateNotificationLike) =>
+  isUnreadUpdate(notification) && !isMessageUpdate(notification)
+
 export const isBookingUpdate = (notification: UpdateNotificationLike) =>
   hasResourceFragment(notification, [
     'booking',

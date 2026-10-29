@@ -317,6 +317,10 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
   )
   const paymentInitiated = paymentQuote?.paymentState === 'payment_initiated'
   const paymentRecorded = paymentQuote?.paymentState === 'paid_or_verified'
+  // The payment quote comes from the secured V14 server RPC. A recorded
+  // payment is not necessarily verified, so only the explicit verified state
+  // can be presented as confirmed to the client.
+  const paymentVerified = paymentRecorded && paymentQuote?.paymentStatus === 'verified'
   const canOpenPayment = Boolean(onStartPayment) && !isStartingPayment && !paymentInitiated && !paymentRecorded
   // Do not allow the dock to bypass the quote's authoritative event gate.
   // `paymentReady` is calculated from the latest server quote and includes
@@ -324,6 +328,36 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
   // requirement), so a pending request can never open checkout.
   const canConfirmPayment = canOpenPayment && paymentReady
   const paymentFailed = paymentQuote?.paymentState === 'payment_failed_or_cancelled'
+  const canShareEventExperience = isCompleted && !booking?.hasFeedback && Boolean(onSubmitReview)
+  const primaryBookingAction = isCompleted
+    ? canShareEventExperience
+      ? 'shareExperience'
+      : 'experienceShared'
+    : paymentVerified
+      ? 'paymentConfirmed'
+      : paymentRecorded
+        ? 'paymentRecorded'
+        : isLoadingPaymentQuote
+          ? 'checkingPayment'
+          : canConfirmPayment
+            ? 'confirmPayment'
+            : paymentInitiated
+              ? 'paymentPending'
+              : 'paymentLocked'
+  const primaryBookingActionLabel = {
+    checkingPayment: 'Checking Payment',
+    confirmPayment: paymentFailed ? 'Try Payment Again' : 'Confirm Payment',
+    experienceShared: 'Experience Shared',
+    paymentConfirmed: 'Payment Confirmed',
+    paymentLocked: 'Awaiting Confirmations',
+    paymentPending: 'Payment Pending',
+    paymentRecorded: 'Payment Recorded',
+    shareExperience: 'Share Event Experience',
+  }[primaryBookingAction]
+  const primaryBookingActionEnabled = (
+    primaryBookingAction === 'confirmPayment'
+    || primaryBookingAction === 'shareExperience'
+  )
   const paymentBlockedMessage = paymentQuote?.reason
     ?? (providerCount > acceptedProviderCount
       ? 'Payment will become available once all selected service providers have accepted your booking requests.'
@@ -1440,8 +1474,8 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
           )}
         </View>
 
-        <View style={styles.actions}>
-          {isCompleted && booking?.hasFeedback ? (
+        {isCompleted && booking?.hasFeedback ? (
+          <View style={styles.actions}>
             <View style={styles.feedbackSubmittedCard}>
               <View style={styles.feedbackSubmittedIcon}>
                 <Text style={styles.feedbackSubmittedCheck}>{'\u2713'}</Text>
@@ -1453,36 +1487,28 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                 </Text>
               </View>
             </View>
-          ) : null}
-          {onSubmitReview && (
-            <Pressable
-              accessibilityRole="button"
-              onPress={onSubmitReview}
-              style={({ pressed }) => [
-                styles.reviewButton,
-                pressed && styles.reviewButtonPressed,
-              ]}
-            >
-              <Text style={styles.reviewButtonText}>Share Event Experience</Text>
-            </Pressable>
-          )}
-        </View>
+          </View>
+        ) : null}
       </ScrollView>
 
+      {!isCancelled ? (
       <View style={styles.paymentDock}>
         <View style={styles.paymentDockContent}>
           <Pressable
-            accessibilityLabel="Confirm payment"
+            accessibilityLabel={primaryBookingAction === 'confirmPayment'
+              ? 'Confirm payment'
+              : primaryBookingActionLabel}
             accessibilityRole="button"
-            disabled={!canConfirmPayment}
-            onPress={onStartPayment}
+            disabled={!primaryBookingActionEnabled}
+            onPress={primaryBookingAction === 'shareExperience' ? onSubmitReview : onStartPayment}
             style={({ pressed }) => [
               styles.paymentActionButton,
-              !canConfirmPayment && styles.paymentActionButtonDisabled,
-              pressed && canConfirmPayment && styles.paymentActionButtonPressed,
+              primaryBookingAction === 'paymentConfirmed' && styles.paymentActionButtonConfirmed,
+              !primaryBookingActionEnabled && styles.paymentActionButtonDisabled,
+              pressed && primaryBookingActionEnabled && styles.paymentActionButtonPressed,
             ]}
           >
-            <Text style={styles.paymentActionButtonText}>Confirm Payment</Text>
+            <Text style={styles.paymentActionButtonText}>{primaryBookingActionLabel}</Text>
           </Pressable>
           <View style={styles.hiddenPaymentDockContent}>
             <View style={styles.paymentCardHeading}>
@@ -1552,6 +1578,7 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
           ) : null}
         </View>
       </View>
+      ) : null}
 
       <Modal
         animationType="fade"
@@ -2351,6 +2378,7 @@ const styles = StyleSheet.create({
   paymentReadyText: { color: '#145133', flex: 1, fontSize: 12, lineHeight: 17, fontWeight: '700' },
   paymentNotice: { color: palette.muted, fontSize: 11, lineHeight: 17 },
   paymentActionButton: { minHeight: 56, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: palette.burgundy, paddingHorizontal: 16, paddingVertical: 14 },
+  paymentActionButtonConfirmed: { backgroundColor: '#145133', opacity: 1 },
   paymentActionButtonDisabled: { opacity: 0.62 },
   paymentActionButtonPressed: { opacity: 0.9, transform: [{ scale: 0.98 }] },
   paymentActionButtonText: { color: palette.surface, fontSize: 15, lineHeight: 20, fontWeight: '800' },

@@ -1,4 +1,5 @@
 import { supabase, supabaseConfig } from './supabase'
+import { fetchMyInboxItemStates } from './inbox-trash'
 import type { ClientConversation } from '../screens/03.1-Messages'
 import type { ChatMessage } from '../screens/03.2-ChatThread'
 import type {
@@ -128,6 +129,40 @@ export const fetchConversations = async (): Promise<ClientConversation[]> => {
       client.rpc('get_my_coordinator_booking_statuses'),
     ])
 
+  const incomingMessageIds = (messageRows ?? []).flatMap((message) => (
+    message.sender_id !== userId && typeof message.id === 'string' ? [message.id] : []
+  ))
+  // Read receipts are user-owned. Retain the legacy read_at fallback until
+  // the additive receipt migration has been applied everywhere.
+  const { data: receiptRows, error: receiptError } = incomingMessageIds.length
+    ? await client
+      .from('message_read_receipts')
+      .select('message_id')
+      .eq('user_id', userId)
+      .in('message_id', incomingMessageIds)
+    : { data: [], error: null }
+  const readMessageIds = new Set(
+    (receiptRows ?? []).flatMap((receipt) => (
+      typeof receipt.message_id === 'string' ? [receipt.message_id] : []
+    ))
+  )
+  const hasUserScopedReadReceipts = !receiptError
+  const inboxStateResult = await fetchMyInboxItemStates()
+  const trashedConversationIds = new Set(
+    inboxStateResult.ok
+      ? inboxStateResult.states
+        .filter((state) => state.itemType === 'conversation' && Boolean(state.trashedAt))
+        .map((state) => state.itemId)
+      : []
+  )
+  const trashedMessageIds = new Set(
+    inboxStateResult.ok
+      ? inboxStateResult.states
+        .filter((state) => state.itemType === 'message' && Boolean(state.trashedAt))
+        .map((state) => state.itemId)
+      : []
+  )
+
   const participantUserIds = (participantRows ?? []).map((row) => row.user_id as string)
   const { data: providerRows } = participantUserIds.length
     ? await client
@@ -154,6 +189,7 @@ export const fetchConversations = async (): Promise<ClientConversation[]> => {
   }
 
   return (conversationRows ?? [])
+    .filter((row) => !trashedConversationIds.has(textFrom((row as Record<string, unknown>).id)))
     .map((row) => {
       const record = row as Record<string, unknown>
       const conversationId = textFrom(record.id)
@@ -181,6 +217,7 @@ export const fetchConversations = async (): Promise<ClientConversation[]> => {
       const bookingReadOnly = bookingStatus ? !canSendBookingMessages(bookingStatus) : true
       const messages = (messageRows ?? []).filter(
         (message) => message.conversation_id === conversationId
+          && !trashedMessageIds.has(textFrom(message.id))
       )
       const lastMessage = messages[messages.length - 1]
       const participantName = textFrom(
@@ -225,7 +262,10 @@ export const fetchConversations = async (): Promise<ClientConversation[]> => {
           ? 'Event coordinator'
           : textFrom(service?.name, textFrom(record.title, 'Service inquiry')),
         unreadCount: messages.filter(
-          (message) => message.sender_id !== userId && !message.read_at
+          (message) => message.sender_id !== userId
+            && (hasUserScopedReadReceipts
+              ? !readMessageIds.has(textFrom(message.id))
+              : !message.read_at)
         ).length,
       } satisfies ClientConversation
     })
@@ -316,7 +356,16 @@ export const fetchConversationMessages = async (
 
   if (error || !data) return []
 
-  return data.map((row) => ({
+  const inboxStateResult = await fetchMyInboxItemStates()
+  const trashedMessageIds = new Set(
+    inboxStateResult.ok
+      ? inboxStateResult.states
+        .filter((state) => state.itemType === 'message' && Boolean(state.trashedAt))
+        .map((state) => state.itemId)
+      : []
+  )
+
+  return data.filter((row) => !trashedMessageIds.has(textFrom(row.id))).map((row) => ({
     createdAt: row.created_at,
     id: row.id,
     sender: row.sender_id === userId ? 'currentUser' : 'participant',
@@ -332,6 +381,25 @@ export const markConversationRead = async (conversationId: string) => {
   const { error } = await client.rpc('mark_booking_conversation_read', {
     target_conversation_id: conversationId,
   })
+
+  return !error
+}
+
+export const markConversationMessageNotificationsRead = async (conversationId: string) => {
+  const client = getClient()
+  const userId = await getCurrentUserId()
+  if (!client || !userId || !conversationId) return false
+
+  // A conversation read only clears the matching recipient's duplicate
+  // message alerts. Booking, payment, and every other notification remain
+  // untouched for this and all other users.
+  const { error } = await client
+    .from('notifications')
+    .update({ status: 'read' })
+    .eq('user_id', userId)
+    .eq('resource_id', conversationId)
+    .in('resource_type', ['message', 'conversation'])
+    .neq('status', 'read')
 
   return !error
 }
@@ -391,5 +459,16 @@ export const fetchNotifications = async (): Promise<MerchantNotification[]> => {
 
   if (error || !data) return []
 
-  return data.map((row) => mapNotificationRecord(row))
+  const inboxStateResult = await fetchMyInboxItemStates()
+  const trashedNotificationIds = new Set(
+    inboxStateResult.ok
+      ? inboxStateResult.states
+        .filter((state) => state.itemType === 'notification' && Boolean(state.trashedAt))
+        .map((state) => state.itemId)
+      : []
+  )
+
+  return data
+    .filter((row) => !trashedNotificationIds.has(textFrom(row.id)))
+    .map((row) => mapNotificationRecord(row))
 }

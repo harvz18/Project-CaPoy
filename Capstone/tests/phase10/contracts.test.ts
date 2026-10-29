@@ -653,6 +653,126 @@ test('planning categories, progression, and budget re-entry share one allocation
   ], 'planning budget guidance')
 })
 
+test('service changes use the in-app comparison confirmation before preserving the existing save flow', () => {
+  const app = read('src/App.tsx')
+
+  mustContain(app, [
+    'ServiceChangeConfirmationModal',
+    'requestServiceChangeConfirmation',
+    'currentProviderName',
+    'nextProviderName',
+    'Price Difference:',
+    'KEEP CURRENT',
+    'Confirm Change',
+    'const confirmed = await requestServiceChangeConfirmation(',
+    'let result = await saveServiceSelection({',
+  ], 'service-change confirmation flow')
+  assert.doesNotMatch(app, /confirmServiceChange/, 'service changes must not use the browser/native generic confirmation')
+})
+
+test('standalone service changes keep budget edits provisional until the replacement is confirmed', () => {
+  const app = read('src/App.tsx')
+  const browse = read('src/screens/06-CategoryBrowse.tsx')
+  const details = read('src/screens/08-ServiceDetails.tsx')
+
+  mustContain(app, [
+    "setToastMessage('Service change cancelled. Your current selection is unchanged.')",
+    "setToastMessage('Your budget remains unchanged while you compare a replacement service.')",
+    'isChangingSelection={Boolean(changingServiceSelection)}',
+  ], 'standalone service-change state')
+  mustContain(browse, [
+    ') : isChangingService ? (',
+    'CHANGE SERVICE',
+    '!isChangingService && hasSetBudget',
+    '!isChangingService',
+    'vendor.budgetRecommendation',
+  ], 'standalone service-change browse UI')
+  mustContain(details, [
+    'isChangingSelection?: boolean',
+    'Available for this change',
+    'Review Service Change',
+    'current service remains unchanged until a valid replacement is confirmed.',
+  ], 'provisional service-change details UI')
+})
+
+test('completed service selection has a contained celebration and still opens the existing review flow', () => {
+  const browse = read('src/screens/06-CategoryBrowse.tsx')
+
+  mustContain(browse, [
+    'SelectionCompletionConfetti',
+    'completionConfettiPieces',
+    'selectionCompletionVisible',
+    'useNativeDriver: true',
+    '<SelectionCompletionConfetti visible={selectionCompletionVisible} />',
+    'revealSelectedServicesAfterCompletion',
+    "You're All Set!",
+  ], 'selection-completion celebration')
+})
+
+test('client home refresh keeps live data in place and only bounces Bookings for unread booking updates', () => {
+  const app = read('src/App.tsx')
+  const home = read('src/screens/03-ClientHome.tsx')
+  const quickAccess = read('src/components/AnimatedQuickAccessButton.tsx')
+
+  mustContain(app, [
+    'const refreshClientHome',
+    'await refreshLiveData()',
+    'You appear to be offline. Check your connection and pull to refresh again.',
+    'setIsClientHomeRefreshing(false)',
+  ], 'client-home refresh safeguards')
+  mustContain(home, [
+    '<RefreshControl',
+    'onRefresh={() => void onRefresh()}',
+    "shouldBounce={item.id === 'bookings' && hasUnreadBookingUpdates}",
+  ], 'client-home pull refresh and booking notification')
+  mustContain(quickAccess, [
+    'AccessibilityInfo.isReduceMotionEnabled()',
+    'shouldBounce = false',
+    'Animated.loop(Animated.sequence([',
+    'Animated.delay(5000)',
+    'notificationBounceScale.setValue(1)',
+  ], 'booking notification bounce safeguards')
+})
+
+test('booking details prioritizes completed-event feedback and verified payment states without rerunning payment', () => {
+  const details = read('src/screens/11.1-BookingDetails.tsx')
+
+  mustContain(details, [
+    "const paymentVerified = paymentRecorded && paymentQuote?.paymentStatus === 'verified'",
+    "? 'shareExperience'",
+    "? 'paymentConfirmed'",
+    "paymentConfirmed: 'Payment Confirmed'",
+    "shareExperience: 'Share Event Experience'",
+    "primaryBookingAction === 'shareExperience' ? onSubmitReview : onStartPayment",
+    "!isCancelled ? (",
+    'paymentActionButtonConfirmed',
+  ], 'booking-details payment and completion action priority')
+  assert.doesNotMatch(
+    details,
+    /onPress=\{onStartPayment\}[\s\S]{0,250}<Text style=\{styles\.paymentActionButtonText\}>Confirm Payment<\/Text>/,
+    'the confirmation dock must not keep an unconditional payment handler'
+  )
+})
+
+test('declined-provider replacements stay on the existing event and submit one pending request', () => {
+  const app = read('src/App.tsx')
+  const planning = read('src/lib/planning.ts')
+
+  mustContain(app, [
+    "variant: 'replacement'",
+    'Replace Declined Service?',
+    'submitBookingReplacementRequest(selectedBooking?.eventId ?? \'\')',
+    'Replacement booking request sent. The new provider must accept before payment becomes available.',
+    "setScreen('bookings')",
+    'setReplacementBooking(undefined)',
+  ], 'direct replacement client flow')
+  mustContain(planning, [
+    'export const submitBookingReplacementRequest',
+    "client.rpc('submit_my_event_booking_requests_v14'",
+    'Do not use ensureDraftEvent here',
+  ], 'existing-event replacement request submission')
+})
+
 test('V9 Phase 5 category tags count eligible services and mark active selections', () => {
   const app = read('src/App.tsx')
   const browse = read('src/screens/06-CategoryBrowse.tsx')
@@ -2835,10 +2955,11 @@ test('V14 Phase 4 starts payment only from Booking Details after the secured acc
     '>Event Details</Text>',
     'borderTopLeftRadius: 18',
     'borderTopRightRadius: 18',
-    'accessibilityLabel="Confirm payment"',
+    "primaryBookingAction === 'confirmPayment'",
+    "? 'Confirm payment'",
     'const canOpenPayment = Boolean(onStartPayment) && !isStartingPayment && !paymentInitiated && !paymentRecorded',
     'const canConfirmPayment = canOpenPayment && paymentReady',
-    'disabled={!canConfirmPayment}',
+    'disabled={!primaryBookingActionEnabled}',
   ], 'Booking Details header, service count, and payment actions')
   mustContain(payment, [
     "const [paymentType, setPaymentType] = React.useState<PaymentType>('deposit')",
@@ -4133,4 +4254,143 @@ test('V18 Phase 12 regression matrix preserves Photo/Video safeguards and existi
   mustContain(eventDay, ['overtime_request', 'pending_client_approval', "'restriction'", 'never amend booking prices, payment state, or booking completion'], 'Phase 12 drone restriction and overtime safeguards')
   mustContain(postEvent, ['supportEscalationSuggested', 'additionalPaidRevisionRequested', 'The agreed revision request period has ended.', 'does not write booking amount, payment state, payout state, or booking status'], 'Phase 12 delay, revision, and payout-isolation scenarios')
   mustContain(merchant, ['florist_selection_snapshot', 'catering_option_snapshot', 'venue_booking_snapshot', 'photo_video_selection_snapshot'], 'Phase 12 existing-category and historical-booking compatibility')
+})
+
+test('V20 Phase 9 saves client marketplace services without changing booking selections', () => {
+  const migration = read('supabase/migrations/20261030000100_client_service_favorites.sql')
+  const favorites = read('src/lib/favorites.ts')
+  const home = read('src/screens/03-ClientHome.tsx')
+  const browse = read('src/screens/06-CategoryBrowse.tsx')
+  const app = read('src/App.tsx')
+
+  mustContain(migration, [
+    'create table if not exists public.client_favorite_services',
+    'primary key (client_id, service_id)',
+    'create or replace function public.toggle_my_favorite_service(target_service_id uuid)',
+    'service.status = \'active\'',
+    'service.is_available = true',
+    'grant execute on function public.toggle_my_favorite_service(uuid) to authenticated',
+  ], 'V20 favorite persistence migration')
+  assert.doesNotMatch(migration, /event_service_selections\s+set\s+favorite/i,
+    'marketplace favorites must not rewrite event selections')
+  mustContain(favorites, [
+    'fetchFavoriteServiceIds',
+    'toggleFavoriteService',
+    "supabase.rpc('toggle_my_favorite_service'",
+  ], 'favorite client data contract')
+  mustContain(home, [
+    'favoriteServiceIds?: ReadonlySet<string>',
+    "name={isFavorited ? 'favorite' : 'favorite-border'}",
+    'event.stopPropagation()',
+  ], 'home recommendation favorite action')
+  mustContain(browse, [
+    'favoritePendingServiceIds?: ReadonlySet<string>',
+    'styles.favoriteButton',
+    "name={isFavorited ? 'favorite' : 'favorite-border'}",
+    'event.stopPropagation()',
+  ], 'marketplace favorite action')
+  mustContain(app, [
+    'fetchFavoriteServiceIds()',
+    'handleToggleFavorite',
+    'toggleFavoriteService(serviceId)',
+    'favoriteTogglesInFlightRef',
+  ], 'favorite optimistic state and duplicate-tap guard')
+})
+
+test('V20 Phase 10 derives the client Inbox dot from user-scoped unread sources', () => {
+  const migration = read('supabase/migrations/20261030000200_user_scoped_message_read_receipts.sql')
+  const messaging = read('src/lib/messaging.ts')
+  const unreadUpdates = read('src/lib/unread-updates.ts')
+  const app = read('src/App.tsx')
+  const merchant = read('src/lib/merchant.ts')
+
+  mustContain(migration, [
+    'create table if not exists public.message_read_receipts',
+    'primary key (message_id, user_id)',
+    'participant.user_id <> message.sender_id',
+    'create or replace function public.mark_booking_conversation_read(target_conversation_id uuid)',
+    'insert into public.message_read_receipts (message_id, user_id)',
+    'message.sender_id <> auth.uid()',
+    'grant execute on function public.mark_booking_conversation_read(uuid) to authenticated',
+  ], 'user-scoped message receipt migration')
+  mustContain(messaging, [
+    "from('message_read_receipts')",
+    'hasUserScopedReadReceipts',
+    'markConversationMessageNotificationsRead',
+    ".eq('resource_id', conversationId)",
+    ".in('resource_type', ['message', 'conversation'])",
+  ], 'inbox data source and exact message-notification acknowledgement')
+  mustContain(unreadUpdates, [
+    'export const isUnreadInboxNotification',
+    'isUnreadUpdate(notification) && !isMessageUpdate(notification)',
+  ], 'deduplicated Inbox notification helper')
+  mustContain(app, [
+    'markConversationInboxRead',
+    'markConversationMessageNotificationsRead(conversationId)',
+    'notifications.filter(isUnreadInboxNotification)',
+    'const hasUnreadClientInbox = hasUnreadMessageUpdates || unreadInboxNotifications.length > 0',
+  ], 'client Inbox dot and application-badge calculation')
+  mustContain(merchant, [
+    ".eq('user_id', authData.user.id)",
+  ], 'notification read ownership guard')
+})
+
+test('V20 Phase 11 keeps Inbox trash user-specific and reversible', () => {
+  const migration = read('supabase/migrations/20261030000300_user_inbox_trash.sql')
+  const inboxTrash = read('src/lib/inbox-trash.ts')
+  const messaging = read('src/lib/messaging.ts')
+  const messages = read('src/screens/03.1-Messages.tsx')
+  const thread = read('src/screens/03.2-ChatThread.tsx')
+  const notifications = read('src/screens/22.5-Notification.tsx')
+  const app = read('src/App.tsx')
+
+  mustContain(migration, [
+    'create table if not exists public.user_inbox_item_states',
+    "item_type in ('conversation', 'message', 'notification')",
+    'create or replace function public.move_my_inbox_items_to_trash(',
+    'create or replace function public.restore_my_inbox_items(',
+    'create or replace function public.clear_my_inbox_items(',
+    'public.can_view_booking_conversation(item_id)',
+    'notification.user_id = auth.uid()',
+    'permanently_hidden_at = now()',
+  ], 'user-owned Inbox trash migration')
+  assert.doesNotMatch(migration, /delete\s+from\s+public\.(messages|conversations|notifications)/i,
+    'Inbox clearing must not delete shared messages, conversations, or notifications')
+  mustContain(inboxTrash, [
+    'moveMyInboxItemsToTrash',
+    'restoreMyInboxItems',
+    'clearMyInboxItems',
+    'loadMyInboxTrash',
+  ], 'client trash data contract')
+  mustContain(messaging, [
+    'fetchMyInboxItemStates',
+    'trashedConversationIds',
+    'trashedMessageIds',
+    'trashedNotificationIds',
+  ], 'visible Inbox and unread-source filtering')
+  mustContain(messages, [
+    'onLongPress',
+    'onMoveConversationsToTrash',
+    'onMoveNotificationsToTrash',
+    'Open Inbox Trash',
+    'All events',
+    'eventCardList: { borderTopWidth: 1',
+  ], 'edge-to-edge conversation list and Inbox selection controls')
+  mustContain(thread, [
+    'onMoveMessagesToTrash',
+    'onLongPress={() => message.sender !== \'system\'',
+    'Move selected messages to Trash',
+  ], 'individual message selection and trash action')
+  mustContain(notifications, [
+    'onMoveToTrash',
+    'Move selected notifications to Trash',
+    'Open Inbox Trash',
+  ], 'notification selection and trash action')
+  mustContain(app, [
+    'InboxTrashModal',
+    'mutateInboxTrash',
+    "mutateInboxTrash('trash'",
+    "mutateInboxTrash('restore'",
+    "mutateInboxTrash('clear'",
+  ], 'trash, restore, and user-only permanent hiding integration')
 })

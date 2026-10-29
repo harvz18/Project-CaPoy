@@ -782,6 +782,34 @@ export const submitPlanningBookingRequests = async (): Promise<PlanningResult> =
   }
 }
 
+// A declined-provider replacement belongs to an already-submitted event.
+// Do not use ensureDraftEvent here: its normal draft-only lookup would create
+// a second event when the original is correctly in the booking state.
+export const submitBookingReplacementRequest = async (
+  eventId: string
+): Promise<PlanningResult> => {
+  try {
+    const client = getClient()
+    const userId = await getCurrentUserId()
+    if (!client || !userId || !isUuid(eventId)) {
+      return { ok: false, message: 'This replacement is no longer available.' }
+    }
+
+    const { data, error } = await client.rpc('submit_my_event_booking_requests_v14', {
+      target_event_id: eventId,
+    })
+    if (error) return { ok: false, message: error.message }
+
+    const result = data && typeof data === 'object' ? data as Record<string, unknown> : {}
+    return {
+      bookingId: typeof result.booking_id === 'string' ? result.booking_id : undefined,
+      ok: true,
+    }
+  } catch (error) {
+    return { ok: false, message: toMessage(error) }
+  }
+}
+
 const paymentMethodFrom = (value: unknown): 'bankTransfer' | 'eWallet' => {
   if (value === 'bankTransfer') return value
   return 'eWallet'

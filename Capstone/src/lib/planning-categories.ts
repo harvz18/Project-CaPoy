@@ -43,6 +43,18 @@ export const getActivePlanningCategories = (
   hasPositiveCategoryAllocation(allocations, category.categoryKey)
 )
 
+/**
+ * Categories explicitly added from Choose Services remain part of the plan
+ * even before the client assigns them money.  A zero-value row is therefore
+ * meaningful here (unlike the positive-only list used for initial planning
+ * progression).
+ */
+export const getConfiguredPlanningCategories = (
+  allocations: ReadonlyArray<CategoryBudgetAllocation>
+) => PLANNING_CATEGORY_PRIORITY.filter((category) =>
+  allocations.some((allocation) => allocation.categoryKey === category.categoryKey)
+)
+
 export const getFirstPlanningCategory = (
   allocations: ReadonlyArray<CategoryBudgetAllocation>
 ) => getActivePlanningCategories(allocations)[0]?.categoryId
@@ -64,5 +76,5 @@ export const getNextUnselectedServicePlanningCategory = (
 export const getUnallocatedPlanningCategoryCount = (
   allocations: ReadonlyArray<CategoryBudgetAllocation>
 ) => PLANNING_CATEGORY_PRIORITY.filter(
-  (category) => !hasPositiveCategoryAllocation(allocations, category.categoryKey)
+  (category) => !allocations.some((allocation) => allocation.categoryKey === category.categoryKey)
 ).length

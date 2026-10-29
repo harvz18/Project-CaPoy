@@ -47,6 +47,8 @@ interface NotificationScreenProps {
   onFilterChange?: (filter: MerchantNotificationFilter) => void
   onMarkAllRead?: (notificationIds: string[]) => void
   onMarkRead?: (notification: MerchantNotification) => void
+  onMoveToTrash?: (notificationIds: string[]) => Promise<boolean> | boolean
+  onOpenTrash?: () => void
   onPreferencesChange?: (preferences: MerchantNotificationPreferences) => void
   onScrollDirectionChange?: (direction: 'down' | 'up') => void
   onSelectNotification?: (notification: MerchantNotification) => void
@@ -226,6 +228,8 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({
   onFilterChange,
   onMarkAllRead,
   onMarkRead,
+  onMoveToTrash,
+  onOpenTrash,
   onPreferencesChange,
   onScrollDirectionChange,
   onSelectNotification,
@@ -237,6 +241,7 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({
   const [readIds, setReadIds] = React.useState(
     () => new Set(notifications.filter((item) => item.isRead).map((item) => item.id))
   )
+  const [selectedIds, setSelectedIds] = React.useState<ReadonlySet<string>>(() => new Set())
   const [preferences, setPreferences] = React.useState<MerchantNotificationPreferences>({
     ...defaultPreferences,
     ...initialPreferences,
@@ -274,6 +279,22 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({
     else groups.push({ items: [notification], label })
     return groups
   }, [])
+  const selectionMode = selectedIds.size > 0
+  const allSelected = visibleNotifications.length > 0
+    && visibleNotifications.every((notification) => selectedIds.has(notification.id))
+  const someSelected = selectedIds.size > 0 && !allSelected
+  const toggleSelection = (id: string) => setSelectedIds((current) => {
+    const next = new Set(current)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    return next
+  })
+  const toggleAll = () => setSelectedIds(allSelected ? new Set() : new Set(visibleNotifications.map((item) => item.id)))
+  const moveSelectedToTrash = async () => {
+    if (!onMoveToTrash || !selectedIds.size) return
+    const moved = await onMoveToTrash?.(Array.from(selectedIds))
+    if (moved !== false) setSelectedIds(new Set())
+  }
 
   const selectFilter = (nextFilter: MerchantNotificationFilter) => {
     setFilter(nextFilter)
@@ -322,22 +343,15 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({
             <BackIcon />
           </Pressable>
           <Text numberOfLines={1} style={styles.headerTitle}>
-            Notifications
+            {selectionMode ? `${selectedIds.size} selected` : 'Notifications'}
           </Text>
-          <Pressable
-            accessibilityLabel="Mark all notifications as read"
-            accessibilityRole="button"
-            disabled={!unreadNotifications.length}
-            hitSlop={8}
-            onPress={markAllRead}
-            style={({ pressed }) => [
-              styles.headerAction,
-              !unreadNotifications.length && styles.headerActionDisabled,
-              pressed && styles.pressedSurface,
-            ]}
-          >
-            <Text style={styles.headerActionText}>Read all</Text>
-          </Pressable>
+          {selectionMode ? <View style={styles.selectionActions}>
+            <Pressable accessibilityLabel={allSelected ? 'Deselect all notifications' : someSelected ? 'Select all remaining notifications' : 'Select all notifications'} accessibilityRole="checkbox" accessibilityState={{ checked: allSelected ? true : someSelected ? 'mixed' : false }} onPress={toggleAll} style={styles.iconAction}><Text style={styles.selectionGlyph}>{allSelected ? '☑' : someSelected ? '▣' : '☐'}</Text></Pressable>
+            <Pressable accessibilityLabel="Move selected notifications to Trash" accessibilityRole="button" onPress={() => void moveSelectedToTrash()} style={styles.iconAction}><Text style={styles.trashGlyph}>🗑</Text></Pressable>
+          </View> : <View style={styles.selectionActions}>
+            <Pressable accessibilityLabel="Open Inbox Trash" accessibilityRole="button" onPress={onOpenTrash} style={styles.iconAction}><Text style={styles.trashGlyph}>🗑</Text></Pressable>
+            <Pressable accessibilityLabel="Mark all notifications as read" accessibilityRole="button" disabled={!unreadNotifications.length} hitSlop={8} onPress={markAllRead} style={({ pressed }) => [styles.headerAction, !unreadNotifications.length && styles.headerActionDisabled, pressed && styles.pressedSurface]}><Text style={styles.headerActionText}>Read all</Text></Pressable>
+          </View>}
         </View>
       </View> : null}
 
@@ -415,20 +429,15 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({
                 })}
               </View>
               {embedded ? (
-                <Pressable
-                  accessibilityLabel="Mark all notifications as read"
-                  accessibilityRole="button"
-                  disabled={!unreadNotifications.length}
-                  hitSlop={8}
-                  onPress={markAllRead}
-                  style={({ pressed }) => [
-                    styles.embeddedReadAll,
-                    !unreadNotifications.length && styles.headerActionDisabled,
-                    pressed && styles.pressedSurface,
-                  ]}
-                >
-                  <Text style={styles.embeddedReadAllText}>Read all</Text>
-                </Pressable>
+                <View style={styles.selectionActions}>
+                  {selectionMode ? <>
+                    <Pressable accessibilityLabel={allSelected ? 'Deselect all notifications' : someSelected ? 'Select all remaining notifications' : 'Select all notifications'} accessibilityRole="checkbox" accessibilityState={{ checked: allSelected ? true : someSelected ? 'mixed' : false }} onPress={toggleAll} style={styles.iconAction}><Text style={styles.inlineSelectionGlyph}>{allSelected ? '☑' : someSelected ? '▣' : '☐'}</Text></Pressable>
+                    <Pressable accessibilityLabel="Move selected notifications to Trash" accessibilityRole="button" onPress={() => void moveSelectedToTrash()} style={styles.iconAction}><Text style={styles.trashGlyph}>🗑</Text></Pressable>
+                  </> : <>
+                    <Pressable accessibilityLabel="Open Inbox Trash" accessibilityRole="button" onPress={onOpenTrash} style={styles.iconAction}><Text style={styles.trashGlyph}>🗑</Text></Pressable>
+                    <Pressable accessibilityLabel="Mark all notifications as read" accessibilityRole="button" disabled={!unreadNotifications.length} hitSlop={8} onPress={markAllRead} style={({ pressed }) => [styles.embeddedReadAll, !unreadNotifications.length && styles.headerActionDisabled, pressed && styles.pressedSurface]}><Text style={styles.embeddedReadAllText}>Read all</Text></Pressable>
+                  </>}
+                </View>
               ) : null}
             </View>
 
@@ -444,7 +453,11 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({
                           key={notification.id}
                           last={index === group.items.length - 1}
                           notification={notification}
+                          selected={selectedIds.has(notification.id)}
+                          selectionMode={selectionMode}
+                          onLongPress={() => toggleSelection(notification.id)}
                           onPress={selectNotification}
+                          onToggleSelection={() => toggleSelection(notification.id)}
                         />
                       ))}
                     </View>
@@ -504,12 +517,20 @@ const NotificationRow = ({
   isRead,
   last,
   notification,
+  onLongPress,
   onPress,
+  onToggleSelection,
+  selected = false,
+  selectionMode = false,
 }: {
   isRead: boolean
   last: boolean
   notification: MerchantNotification
+  onLongPress?: () => void
   onPress: (notification: MerchantNotification) => void
+  onToggleSelection?: () => void
+  selected?: boolean
+  selectionMode?: boolean
 }) => {
   const category = categoryContent[notification.category]
 
@@ -517,14 +538,18 @@ const NotificationRow = ({
     <Pressable
       accessibilityLabel={`${isRead ? '' : 'Unread. '}${notification.title}. ${notification.message}`}
       accessibilityRole="button"
-      onPress={() => onPress(notification)}
+      accessibilityState={{ selected }}
+      onLongPress={onLongPress}
+      onPress={() => selectionMode ? onToggleSelection?.() : onPress(notification)}
       style={({ pressed }) => [
         styles.notificationRow,
         !isRead && styles.notificationRowUnread,
+        selected && styles.notificationRowSelected,
         !last && styles.notificationRowBorder,
         pressed && styles.notificationRowPressed,
       ]}
     >
+      {selectionMode ? <Text style={styles.rowCheckbox}>{selected ? '☑' : '☐'}</Text> : null}
       <View style={[styles.categoryIcon, { backgroundColor: category.backgroundColor }]}>
         <Text style={[styles.categoryGlyph, { color: category.color }]}>{category.glyph}</Text>
       </View>
@@ -631,6 +656,11 @@ const styles = StyleSheet.create({
   headerAction: { minWidth: 58, minHeight: 40, alignItems: 'flex-end', justifyContent: 'center', borderRadius: 8, paddingHorizontal: 4 },
   headerActionDisabled: { opacity: 0.42 },
   headerActionText: { color: palette.primaryContainer, fontSize: 12, lineHeight: 16, fontWeight: '700' },
+  selectionActions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  iconAction: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19 },
+  selectionGlyph: { color: palette.primaryContainer, fontSize: 20, lineHeight: 24 },
+  inlineSelectionGlyph: { color: palette.primaryContainer, fontSize: 20, lineHeight: 24 },
+  trashGlyph: { fontSize: 17, lineHeight: 21 },
   content: { width: '100%', maxWidth: 940, alignSelf: 'center' },
   contentMobile: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 48 },
   contentWide: { paddingHorizontal: 32, paddingTop: 30, paddingBottom: 56 },
@@ -665,8 +695,10 @@ const styles = StyleSheet.create({
   notificationCard: { overflow: 'hidden', borderWidth: 1, borderColor: palette.border, borderRadius: 10, backgroundColor: palette.white },
   notificationRow: { minHeight: 94, flexDirection: 'row', alignItems: 'flex-start', gap: 11, padding: 14 },
   notificationRowUnread: { backgroundColor: '#FCF8F9' },
+  notificationRowSelected: { backgroundColor: '#F7ECEE' },
   notificationRowBorder: { borderBottomWidth: 1, borderBottomColor: palette.border },
   notificationRowPressed: { opacity: 0.68 },
+  rowCheckbox: { color: palette.primaryContainer, fontSize: 20, lineHeight: 24, marginTop: 5 },
   categoryIcon: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18 },
   categoryGlyph: { fontSize: 14, lineHeight: 19, fontWeight: '700' },
   notificationCopy: { minWidth: 0, flex: 1 },

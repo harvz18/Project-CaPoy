@@ -47,6 +47,8 @@ export interface ClientBookingProgress {
 export interface ClientHomeScreenProps {
   draftEvents?: ClientEventDraftSummary[]
   bookingProgressEvents?: ClientBookingProgress[]
+  favoritePendingServiceIds?: ReadonlySet<string>
+  favoriteServiceIds?: ReadonlySet<string>
   hasUnreadBookingUpdates?: boolean
   recommendations?: HomeServiceRecommendation[]
   selectedServiceCount?: number
@@ -54,6 +56,7 @@ export interface ClientHomeScreenProps {
   searchValue?: string
   onChangeSearch?: (value: string) => void
   onOpenDraft?: (draftId: string) => void
+  onOpenFavorites?: () => void
   onOpenSavedPlans?: () => void
   onOpenBookingProgress?: (booking: BookingItem) => void
   onOpenRefunds?: () => void
@@ -63,6 +66,7 @@ export interface ClientHomeScreenProps {
   onSeeAllVenues?: () => void
   onSelectRecommendation?: (serviceId: string) => void
   onSelectTab?: (tab: ClientHomeTab) => void
+  onToggleFavorite?: (serviceId: string) => void
 }
 
 const QUICK_ACCESS_ITEMS = [
@@ -184,10 +188,13 @@ export const getClientBookingProgress = (
 export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   draftEvents = [],
   bookingProgressEvents = [],
+  favoritePendingServiceIds = new Set(),
+  favoriteServiceIds = new Set(),
   hasUnreadBookingUpdates = false,
   isRefreshing = false,
   recommendations = [],
   onOpenDraft,
+  onOpenFavorites,
   onOpenSavedPlans,
   onOpenBookingProgress,
   onOpenRefunds,
@@ -197,6 +204,7 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   onSelectRecommendation,
   onSelectTab,
   onStartNewEvent,
+  onToggleFavorite,
 }) => {
   const safeAreaInsets = useSafeAreaInsets()
   const { width } = useWindowDimensions()
@@ -358,7 +366,7 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
     }
 
     if (itemId === 'favourites') {
-      onSelectTab?.('explore')
+      onOpenFavorites?.()
       return
     }
 
@@ -435,6 +443,7 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
                 labelStyle={styles.quickAccessLabel}
                 onPress={() => handleQuickAccess(item.id)}
                 pressedStyle={styles.quickAccessItemPressed}
+                shouldBounce={item.id === 'bookings' && hasUnreadBookingUpdates}
                 showBadge={item.id === 'bookings' && hasUnreadBookingUpdates}
               />
             ))}
@@ -550,10 +559,31 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
                 style={({ pressed }) => [styles.referenceVenueCard, { width: isWide ? 324 : Math.max(252, width - 56) }, pressed && styles.referencePressed]}
               >
                 <CardInsetShadow />
-                <View pointerEvents="none" style={styles.referenceServiceHeart}>
-                  <BlurView intensity={22} pointerEvents="none" tint="light" style={styles.referenceServiceHeartGlass} />
-                  <MaterialIcons color="#701B30" name="favorite-border" size={19} style={styles.referenceServiceHeartIcon} />
-                </View>
+                {recommendation.service.kind !== 'coordinator' && !recommendation.service.isMock ? (() => {
+                  const isFavorited = favoriteServiceIds.has(recommendation.service.id)
+                  const isPending = favoritePendingServiceIds.has(recommendation.service.id)
+                  return (
+                    <Pressable
+                      accessibilityLabel={`${isFavorited ? 'Remove' : 'Save'} ${recommendation.service.name} ${isFavorited ? 'from' : 'to'} favorites`}
+                      accessibilityRole="button"
+                      accessibilityState={{ busy: isPending, selected: isFavorited }}
+                      disabled={isPending}
+                      onPress={(event) => {
+                        event.stopPropagation()
+                        onToggleFavorite?.(recommendation.service.id)
+                      }}
+                      style={({ pressed }) => [
+                        styles.referenceServiceHeart,
+                        isFavorited && styles.referenceServiceHeartSelected,
+                        isPending && styles.referenceServiceHeartPending,
+                        pressed && styles.referenceServiceHeartPressed,
+                      ]}
+                    >
+                      <BlurView intensity={22} pointerEvents="none" tint="light" style={styles.referenceServiceHeartGlass} />
+                      <MaterialIcons color="#701B30" name={isFavorited ? 'favorite' : 'favorite-border'} size={19} style={styles.referenceServiceHeartIcon} />
+                    </Pressable>
+                  )
+                })() : null}
                 <View style={styles.referenceVenueImageWrap}>
                   {recommendation.service.imageUrl ? (
                     <Image accessibilityLabel={recommendation.service.imageLabel} resizeMode="cover" source={{ uri: recommendation.service.imageUrl }} style={styles.referenceVenueImage} />
@@ -1538,6 +1568,9 @@ const styles = StyleSheet.create({
   referenceServiceHeart: { position: 'absolute', top: 8, right: 8, zIndex: 3, width: 30, height: 30, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.46)', borderRadius: 15, backgroundColor: 'rgba(255, 255, 255, 0.2)' },
   referenceServiceHeartGlass: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   referenceServiceHeartIcon: { transform: [{ translateY: 1 }] },
+  referenceServiceHeartPending: { opacity: 0.58 },
+  referenceServiceHeartPressed: { transform: [{ scale: 0.92 }] },
+  referenceServiceHeartSelected: { borderColor: 'rgba(112, 27, 48, 0.35)', backgroundColor: 'rgba(255, 245, 247, 0.84)' },
   referenceVenueImageWrap: {
     height: 104,
     overflow: 'hidden',

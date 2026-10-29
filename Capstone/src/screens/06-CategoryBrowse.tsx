@@ -4,6 +4,7 @@ import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons'
 import { BlurView } from 'expo-blur'
 import {
   Animated,
+  Easing,
   Image,
   Modal,
   PanResponder,
@@ -39,6 +40,10 @@ interface CategoryBrowseScreenProps {
   categoryBudgets?: Partial<Record<CatalogCategoryId, number>>
   categoryName?: string
   categories?: ServiceCategoryOption[]
+  favoritePendingServiceIds?: ReadonlySet<string>
+  favoriteServiceIds?: ReadonlySet<string>
+  showFavoritesOnly?: boolean
+  addableCategories?: ServiceCategoryOption[]
   eventGuestCount?: number
   hasBudget?: boolean
   mode?: 'explore' | 'planning'
@@ -83,7 +88,7 @@ interface CategoryBrowseScreenProps {
   onCategoryBudgetChange?: (amount: number) => Promise<boolean> | boolean
   onChangeService?: (service: SelectedSummaryService) => void
   onContinueSelectedServices?: () => void
-  onAddCategory?: () => void
+  onAddCategory?: (category: ServiceCategoryOption) => Promise<boolean> | boolean
   onAddService?: () => void
   onRemoveCoordinator?: () => void
   onRemoveService?: (service: SelectedSummaryService) => void
@@ -97,6 +102,8 @@ interface CategoryBrowseScreenProps {
   onSelectTab?: (tab: CategoryBrowseTab) => void
   onSelectVendor?: (vendor: CategoryBrowseVendor) => void
   onScrollDirectionChange?: (direction: 'down' | 'up') => void
+  onClearFavoritesFilter?: () => void
+  onToggleFavorite?: (serviceId: string) => void
 }
 
 const filters = [
@@ -116,6 +123,17 @@ const sortOptions: ReadonlyArray<{ id: CategoryBrowseSort; label: string }> = [
 
 const HIGH_RATING_THRESHOLD = 4
 const CATEGORY_BUDGET_STEP = 500
+const completionConfettiPieces = [
+  { color: '#6B1E2E', drift: -54, left: 8, rotate: -110 },
+  { color: '#D99A44', drift: 42, left: 18, rotate: 96 },
+  { color: '#287A49', drift: -30, left: 29, rotate: -84 },
+  { color: '#EE8594', drift: 56, left: 39, rotate: 126 },
+  { color: '#6B1E2E', drift: -46, left: 49, rotate: -132 },
+  { color: '#D99A44', drift: 32, left: 58, rotate: 78 },
+  { color: '#287A49', drift: -56, left: 67, rotate: -118 },
+  { color: '#EE8594', drift: 44, left: 78, rotate: 102 },
+  { color: '#6B1E2E', drift: -28, left: 88, rotate: -90 },
+] as const
 
 export const categoryBrowseNavigationTabs = [
   { id: 'explore' as const, icon: '◎', label: 'Explore' },
@@ -397,7 +415,7 @@ const CategoryBudgetSlider = React.memo<CategoryBudgetSliderProps>(({
         </View>
       </View>
       <View style={styles.categoryBudgetFooter}>
-        <Text style={styles.categoryBudgetHint}>Remaining overall budget: {formatCurrency(remainingBudget)}</Text>
+        <Text style={styles.categoryBudgetHint}>Unallocated budget: {formatCurrency(remainingBudget)}</Text>
         {!categoryBudgetLocked ? (
           <View style={styles.categoryBudgetButtons}>
             <Pressable disabled={isSavingCategoryBudget} onPress={() => void commitCategoryBudget(draftCategoryBudget - CATEGORY_BUDGET_STEP)} style={styles.categoryBudgetStep}><Text style={styles.categoryBudgetStepText}>-500</Text></Pressable>
@@ -409,11 +427,78 @@ const CategoryBudgetSlider = React.memo<CategoryBudgetSliderProps>(({
   )
 })
 
+const SelectionCompletionConfetti: React.FC<{ visible: boolean }> = ({ visible }) => {
+  const progress = React.useRef(new Animated.Value(0)).current
+
+  React.useEffect(() => {
+    if (!visible) {
+      progress.stopAnimation()
+      progress.setValue(0)
+      return undefined
+    }
+
+    progress.setValue(0)
+    const animation = Animated.timing(progress, {
+      duration: 900,
+      easing: Easing.out(Easing.cubic),
+      toValue: 1,
+      useNativeDriver: true,
+    })
+    animation.start()
+    return () => animation.stop()
+  }, [progress, visible])
+
+  if (!visible) return null
+
+  return (
+    <View pointerEvents="none" style={styles.completionConfetti}>
+      {completionConfettiPieces.map((piece, index) => {
+        const delay = index / completionConfettiPieces.length
+        const translateY = progress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [-32 - (index % 3) * 12, 118 + (index % 2) * 22],
+        })
+        const translateX = progress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, piece.drift],
+        })
+        const rotate = progress.interpolate({
+          inputRange: [0, 1],
+          outputRange: ['0deg', `${piece.rotate}deg`],
+        })
+        const opacity = progress.interpolate({
+          inputRange: [0, Math.min(0.2 + delay, 0.8), 1],
+          outputRange: [0, 1, 0],
+        })
+
+        return (
+          <Animated.View
+            key={`${piece.left}-${piece.color}`}
+            style={[
+              styles.completionConfettiPiece,
+              {
+                backgroundColor: piece.color,
+                left: `${piece.left}%`,
+                opacity,
+                transform: [{ translateX }, { translateY }, { rotate }],
+              },
+            ]}
+          />
+        )
+      })}
+    </View>
+  )
+}
+
 export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   categoryCountServices,
   categoryBudgets = {},
   categoryName = 'Services',
   categories = [],
+  favoritePendingServiceIds = new Set(),
+  favoriteServiceIds = new Set(),
+  showFavoritesOnly = false,
+  addableCategories = [],
   eventGuestCount = 0,
   hasBudget,
   mode = 'planning',
@@ -459,6 +544,8 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   onSelectTab,
   onSelectVendor,
   onScrollDirectionChange,
+  onClearFavoritesFilter,
+  onToggleFavorite,
 }) => {
   const { width } = useWindowDimensions()
   const isWide = width >= 768
@@ -484,6 +571,8 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   const [isReplacing, setIsReplacing] = React.useState(false)
   const lastScrollY = React.useRef(0)
   const [isSelectedServicesOpen, setIsSelectedServicesOpen] = React.useState(false)
+  const [isAddCategoryOpen, setIsAddCategoryOpen] = React.useState(false)
+  const [isAddingCategory, setIsAddingCategory] = React.useState(false)
   const selectedServicesSheetOffset = React.useRef(new Animated.Value(480)).current
   const query = searchValue ?? internalSearch
   const servicesForCategoryCounts = categoryCountServices ?? services
@@ -616,6 +705,14 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
 
     if (
       isExploreMode
+      && showFavoritesOnly
+      && (vendor.kind === 'coordinator' || !favoriteServiceIds.has(vendor.id))
+    ) {
+      return false
+    }
+
+    if (
+      isExploreMode
       && !ignoreExploreCategory
       &&
       selectedExploreCategory !== 'All' &&
@@ -634,6 +731,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     // below as a disabled, clearly labelled result.
     if (
       !isExploreMode
+      && !isChangingService
       && vendor.budgetRecommendation
       && vendor.budgetRecommendation.categoryBudget > 0
       && !vendor.budgetRecommendation.isWithinBudget
@@ -778,7 +876,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     true
   )
   const orderedPlanningCategoryTags = orderCategoryTags(categories, activePlanningCategoryId)
-  const hasCategoryRecommendationBudget = !isExploreMode && visibleVendors.some(
+  const hasCategoryRecommendationBudget = !isExploreMode && !isChangingService && visibleVendors.some(
     (vendor) => (vendor.budgetRecommendation?.categoryBudget ?? 0) > 0
   )
   const vendorSections = hasCategoryRecommendationBudget
@@ -857,6 +955,14 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     }
   }, [assignedCoordinator, coordinatorAssignmentStatus, selectedServices.length])
 
+  const wasChangingServiceRef = React.useRef(isChangingService)
+  React.useEffect(() => {
+    if (wasChangingServiceRef.current && !isChangingService) {
+      setIsSelectedServicesOpen(true)
+    }
+    wasChangingServiceRef.current = isChangingService
+  }, [isChangingService])
+
   const closeSelectedServices = () => {
     Animated.timing(selectedServicesSheetOffset, {
       duration: 260,
@@ -871,6 +977,10 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     onSelectionCompletionDismissed?.()
     setIsSelectedServicesOpen(true)
   }
+  const selectionCompletionVisible = !isExploreMode
+    && !replacementContext
+    && !isChangingService
+    && showSelectionCompletionModal
 
   return (
     <View style={styles.screen}>
@@ -887,6 +997,22 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
               <Text style={styles.backIcon}>{'\u2039'}</Text>
             </Pressable>
             <Text style={styles.headerTitle}>EXPLORE SERVICES</Text>
+            <View style={styles.headerButton} />
+          </View>
+        </View>
+      ) : isChangingService ? (
+        <View style={styles.topAppBar}>
+          <View style={[styles.topAppBarContent, isWide && styles.horizontalPaddingWide]}>
+            <Pressable
+              accessibilityLabel="Cancel changing this service"
+              accessibilityRole="button"
+              hitSlop={8}
+              onPress={onBack}
+              style={({ pressed }) => [styles.headerButton, pressed && styles.headerButtonPressed]}
+            >
+              <Text style={styles.backIcon}>{'‹'}</Text>
+            </Pressable>
+            <Text style={styles.headerTitle}>CHANGE SERVICE</Text>
             <View style={styles.headerButton} />
           </View>
         </View>
@@ -946,14 +1072,14 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
           <View
             accessibilityLabel={
               hasSetBudget
-                ? `Remaining budget: ${formatCurrency(remainingBudget)} Philippine pesos`
+                ? `Unallocated budget: ${formatCurrency(remainingBudget)} Philippine pesos`
                 : 'No budget set. Pay actual service costs'
             }
             style={styles.budgetPill}
           >
             <Text style={styles.budgetText}>
               {hasSetBudget
-                ? `Remaining Budget: ${formatCurrency(remainingBudget)}`
+                ? `Unallocated Budget: ${formatCurrency(remainingBudget)}`
                 : 'Pay actual service costs'}
             </Text>
           </View>
@@ -970,13 +1096,13 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
               <Text style={styles.unallocatedBudgetText}>
                 {remainingBudget > 0
                   ? 'Assign it to an additional service category whenever you are ready.'
-                  : 'Reallocate funds from an unlocked category before adding another one.'}
+                  : 'You can browse it now, then reallocate funds before selecting a service.'}
               </Text>
             </View>
             <Pressable
               accessibilityLabel="Add another budget category"
               accessibilityRole="button"
-              onPress={onAddCategory}
+              onPress={() => setIsAddCategoryOpen(true)}
               style={({ pressed }) => [styles.addCategoryButton, pressed && styles.pressed]}
             >
               <Text style={styles.addCategoryButtonText}>+ Add More Category</Text>
@@ -996,11 +1122,21 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
         <View style={styles.categoryHeader}>
           {!isExploreMode ? <Text style={styles.categoryIcon}>♨</Text> : null}
           <Text style={styles.categoryTitle}>
-            {isExploreMode ? 'All Services' : categoryName}
+            {isExploreMode ? (showFavoritesOnly ? 'Saved Services' : 'All Services') : categoryName}
           </Text>
+          {isExploreMode && showFavoritesOnly ? (
+            <Pressable
+              accessibilityLabel="Show all services"
+              accessibilityRole="button"
+              onPress={onClearFavoritesFilter}
+              style={({ pressed }) => [styles.clearFavoritesFilter, pressed && styles.chipPressed]}
+            >
+              <Text style={styles.clearFavoritesFilterText}>Show all</Text>
+            </Pressable>
+          ) : null}
         </View>
 
-        {!isExploreMode && !replacementContext && hasSetBudget ? (
+        {!isExploreMode && !replacementContext && !isChangingService && hasSetBudget ? (
           <CategoryBudgetSlider
             key={categoryName}
             categoryBudget={categoryBudget}
@@ -1219,6 +1355,30 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                 pressed && styles.cardPressed,
               ]}
             >
+              {vendor.kind !== 'coordinator' && !vendor.isMock ? (() => {
+                const isFavorited = favoriteServiceIds.has(vendor.id)
+                const isPending = favoritePendingServiceIds.has(vendor.id)
+                return (
+                  <Pressable
+                    accessibilityLabel={`${isFavorited ? 'Remove' : 'Save'} ${vendor.name} ${isFavorited ? 'from' : 'to'} favorites`}
+                    accessibilityRole="button"
+                    accessibilityState={{ busy: isPending, selected: isFavorited }}
+                    disabled={isPending}
+                    onPress={(event) => {
+                      event.stopPropagation()
+                      onToggleFavorite?.(vendor.id)
+                    }}
+                    style={({ pressed }) => [
+                      styles.favoriteButton,
+                      isFavorited && styles.favoriteButtonSelected,
+                      isPending && styles.favoriteButtonPending,
+                      pressed && styles.favoriteButtonPressed,
+                    ]}
+                  >
+                    <MaterialIcons color="#701B30" name={isFavorited ? 'favorite' : 'favorite-border'} size={20} />
+                  </Pressable>
+                )
+              })() : null}
                 <View
                 style={[
                   styles.imagePanel,
@@ -1313,6 +1473,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                 })() : null}
 
                 {!isExploreMode
+                  && !isChangingService
                   && vendor.budgetRecommendation
                   && vendor.budgetRecommendation.categoryBudget > 0 ? (
                   <View style={styles.recommendationBlock}>
@@ -1432,6 +1593,65 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
 
       <Modal
         animationType="fade"
+        onRequestClose={() => {
+          if (!isAddingCategory) setIsAddCategoryOpen(false)
+        }}
+        transparent
+        visible={isAddCategoryOpen}
+      >
+        <View style={styles.confirmationOverlay}>
+          <View accessibilityViewIsModal style={styles.confirmationCard}>
+            <View style={styles.confirmationIcon}>
+              <MaterialCommunityIcons color={palette.primaryContainer} name="shape-plus" size={25} />
+            </View>
+            <Text style={styles.confirmationTitle}>Add a service category</Text>
+            <Text style={styles.confirmationCopy}>
+              Choose a category to add to this event. You can browse it now and set its budget when you are ready.
+            </Text>
+            <View style={styles.addCategoryOptions}>
+              {addableCategories.map((category) => (
+                <Pressable
+                  key={category.id}
+                  accessibilityLabel={`Add ${category.name} to this event`}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: isAddingCategory }}
+                  disabled={isAddingCategory}
+                  onPress={async () => {
+                    if (isAddingCategory) return
+                    setIsAddingCategory(true)
+                    try {
+                      const added = await onAddCategory?.(category)
+                      if (added !== false) setIsAddCategoryOpen(false)
+                    } finally {
+                      setIsAddingCategory(false)
+                    }
+                  }}
+                  style={({ pressed }) => [
+                    styles.addCategoryOption,
+                    isAddingCategory && styles.confirmationDisabled,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Text style={styles.addCategoryOptionText}>{category.name}</Text>
+                  <MaterialIcons color={palette.primaryContainer} name="add-circle-outline" size={20} />
+                </Pressable>
+              ))}
+            </View>
+            <Pressable
+              accessibilityLabel="Cancel adding a category"
+              accessibilityRole="button"
+              disabled={isAddingCategory}
+              onPress={() => setIsAddCategoryOpen(false)}
+              style={({ pressed }) => [styles.confirmationCancel, pressed && styles.pressed]}
+            >
+              <Text style={styles.confirmationCancelText}>CANCEL</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        animationType="fade"
         onRequestClose={() => setIsSortOpen(false)}
         transparent
         visible={isSortOpen}
@@ -1524,10 +1744,11 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
         animationType="fade"
         onRequestClose={revealSelectedServicesAfterCompletion}
         transparent
-        visible={!isExploreMode && !replacementContext && !isChangingService && showSelectionCompletionModal}
+        visible={selectionCompletionVisible}
       >
         <View style={styles.completionOverlay}>
           <View accessibilityViewIsModal style={styles.completionModalCard}>
+            <SelectionCompletionConfetti visible={selectionCompletionVisible} />
             <View style={styles.completionIcon}>
               <MaterialCommunityIcons color={palette.onPrimary} name="check" size={27} />
             </View>
@@ -2371,12 +2592,27 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   completionModalCard: {
+    overflow: 'hidden',
     width: '100%',
     maxWidth: 420,
     alignItems: 'center',
     borderRadius: 22,
     backgroundColor: '#FFFFFF',
     padding: 24,
+  },
+  completionConfetti: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+  },
+  completionConfettiPiece: {
+    position: 'absolute',
+    top: 0,
+    width: 8,
+    height: 13,
+    borderRadius: 2,
   },
   completionIcon: {
     width: 54,
@@ -2818,12 +3054,42 @@ const styles = StyleSheet.create({
     backgroundColor: '#F2E7E9',
   },
   vendorCard: {
+    position: 'relative',
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: palette.surfaceVariant,
     borderRadius: 8,
     backgroundColor: palette.surfaceHighest,
   },
+  favoriteButton: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    zIndex: 4,
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(112, 27, 48, 0.16)',
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+  },
+  favoriteButtonPending: { opacity: 0.58 },
+  favoriteButtonPressed: { transform: [{ scale: 0.92 }] },
+  favoriteButtonSelected: { borderColor: 'rgba(112, 27, 48, 0.35)', backgroundColor: '#FFF4F6' },
+  clearFavoritesFilter: {
+    marginLeft: 'auto',
+    minHeight: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: palette.outlineVariant,
+    borderRadius: 15,
+    backgroundColor: palette.surfaceHighest,
+    paddingHorizontal: 11,
+  },
+  clearFavoritesFilterText: { color: palette.primaryContainer, fontSize: 12, fontWeight: '800' },
   vendorCardUnavailable: {
     opacity: 0.52,
   },
@@ -3098,6 +3364,29 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     textAlign: 'center',
     marginTop: 8,
+  },
+  addCategoryOptions: {
+    width: '100%',
+    gap: 8,
+    marginTop: 20,
+    marginBottom: 16,
+  },
+  addCategoryOption: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: palette.outlineVariant,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 14,
+  },
+  addCategoryOptionText: {
+    color: palette.text,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '700',
   },
   confirmationActions: { width: '100%', flexDirection: 'row', gap: 10, marginTop: 24 },
   confirmationCancel: {

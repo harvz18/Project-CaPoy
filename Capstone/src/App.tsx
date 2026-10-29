@@ -1,6 +1,6 @@
 import React from 'react'
 import type { RealtimeChannel } from '@supabase/supabase-js'
-import { ActivityIndicator, Alert, Animated, AppState, BackHandler, Easing, Image, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
+import { ActivityIndicator, Alert, Animated, AppState, BackHandler, Easing, Image, Modal, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
@@ -15,6 +15,15 @@ import {
 } from '@expo-google-fonts/inter'
 
 import { supabase } from './lib/supabase'
+import { fetchFavoriteServiceIds, toggleFavoriteService } from './lib/favorites'
+import {
+  clearMyInboxItems,
+  type InboxItemType,
+  type InboxTrashItem,
+  loadMyInboxTrash,
+  moveMyInboxItemsToTrash,
+  restoreMyInboxItems,
+} from './lib/inbox-trash'
 import { calculatePaymentBreakdown, DEFAULT_COMMISSION_RATE } from './lib/pricing'
 import {
   fetchServiceReviewInsights,
@@ -57,6 +66,7 @@ import {
   setCategoryBudgetAllocation,
   fetchMyEventPaymentQuoteV14,
   initiateMyEventPaymentV14,
+  submitBookingReplacementRequest,
   submitPlanningBookingRequests,
   type EventPaymentQuote,
   type V14PaymentSettlementContext,
@@ -77,13 +87,17 @@ import { respondToPhotoVideoEventDayRequest, savePhotoVideoEventDayUpdate } from
 import { respondToPhotoVideoDeliverable, savePhotoVideoDeliverableUpdate } from './lib/photo-video-deliverables'
 import {
   getActivePlanningCategories,
+  getConfiguredPlanningCategories,
   getFirstPlanningCategory,
   getFirstServicePlanningCategory,
   getNextUnselectedServicePlanningCategory,
-  getUnallocatedPlanningCategoryCount,
   hasConfiguredCategoryBudgets,
   PLANNING_CATEGORY_PRIORITY,
 } from './lib/planning-categories'
+import {
+  calculateCategoryBudgetMaximum,
+  calculateUnallocatedPlanningBudget,
+} from './lib/planning-budget'
 import { rankHomeRecommendations } from './lib/home-recommendations'
 import {
   cancelClientEventBookings,
@@ -130,6 +144,7 @@ import {
 } from './lib/merchant'
 import { colors } from './theme/tokens'
 import { ClientBottomNavigation } from './components/ClientBottomNavigation'
+import { InboxTrashModal } from './components/InboxTrashModal'
 import type { CoordinatorMainTab } from './components/CoordinatorBottomNavigation'
 import { MerchantBottomNavigation } from './components/MerchantBottomNavigation'
 import { NonBlockingActivityBar, ScreenMotionFrame } from './components/MotionFeedback'
@@ -255,6 +270,7 @@ import {
   fetchNotifications,
   mapNotificationRecord,
   markConversationRead,
+  markConversationMessageNotificationsRead,
   openBookingConversation,
   openCoordinatorProviderConversation,
   openEventCoordinatorConversation,
@@ -273,6 +289,7 @@ import {
   isEventUpdate,
   isMessageUpdate,
   isTaskUpdate,
+  isUnreadInboxNotification,
   isUnreadUpdate,
   unreadBookingTrackerResourceIds,
 } from './lib/unread-updates'
@@ -558,8 +575,129 @@ const confirmDestructiveAction = (title: string, message: string, actionLabel: s
   })
 }
 
-const confirmServiceChange = (message: string) =>
-  confirmDestructiveAction('Change Selected Service?', message, 'Confirm Change')
+type ServiceChangeConfirmation = {
+  currentName: string
+  currentConfiguration?: string
+  currentPrice: number
+  currentProviderName: string
+  nextName: string
+  nextConfiguration?: string
+  nextPrice: number
+  nextProviderName: string
+  variant?: 'replacement'
+}
+
+const serviceChangeLabels = {
+  confirm: 'Confirm Change',
+  current: 'Current Service:',
+  difference: 'Price Difference:',
+  next: 'New Service:',
+  title: 'Change Selected Service?',
+} as const
+
+const ServiceChangeConfirmationModal: React.FC<{
+  confirmation?: ServiceChangeConfirmation
+  onCancel: () => void
+  onConfirm: () => void
+}> = ({ confirmation, onCancel, onConfirm }) => {
+  if (!confirmation) return null
+
+  const isReplacement = confirmation.variant === 'replacement'
+  const labels = isReplacement
+    ? {
+        cancel: 'CANCEL',
+        confirm: 'Send Request',
+        current: 'Declined Service:',
+        next: 'Replacement Service:',
+        title: 'Replace Declined Service?',
+      }
+    : {
+        cancel: 'KEEP CURRENT',
+        confirm: serviceChangeLabels.confirm,
+        current: serviceChangeLabels.current,
+        next: serviceChangeLabels.next,
+        title: serviceChangeLabels.title,
+      }
+  const difference = Math.round((confirmation.nextPrice - confirmation.currentPrice) * 100) / 100
+  const differenceLabel = difference === 0
+    ? 'No price difference'
+    : difference > 0
+      ? `${formatPeso(difference)} higher`
+      : `${formatPeso(Math.abs(difference))} lower`
+
+  return (
+    <Modal
+      animationType="fade"
+      onRequestClose={onCancel}
+      transparent
+      visible
+    >
+      <View style={styles.serviceChangeOverlay}>
+        <View accessibilityViewIsModal style={styles.serviceChangeCard}>
+          <View style={styles.serviceChangeIcon}>
+            <Text style={styles.serviceChangeIconText}>↔</Text>
+          </View>
+          <Text style={styles.serviceChangeTitle}>{labels.title}</Text>
+          <Text style={styles.serviceChangeCopy}>
+            {isReplacement
+              ? 'Your declined booking stays in its history. The replacement provider will receive a new request and must respond before payment is available.'
+              : 'Your current service will be replaced only after you confirm this change.'}
+          </Text>
+
+          <View style={styles.serviceChangeComparison}>
+            <View style={styles.serviceChangeServiceRow}>
+              <Text style={styles.serviceChangeLabel}>{labels.current}</Text>
+              <Text numberOfLines={1} style={styles.serviceChangeName}>{confirmation.currentName}</Text>
+              <Text numberOfLines={1} style={styles.serviceChangeProvider}>{confirmation.currentProviderName}</Text>
+              {confirmation.currentConfiguration ? (
+                <Text numberOfLines={2} style={styles.serviceChangeConfiguration}>{confirmation.currentConfiguration}</Text>
+              ) : null}
+              <Text style={styles.serviceChangePrice}>{formatPeso(confirmation.currentPrice)}</Text>
+            </View>
+            <View style={styles.serviceChangeDivider} />
+            <View style={styles.serviceChangeServiceRow}>
+              <Text style={styles.serviceChangeLabel}>{labels.next}</Text>
+              <Text numberOfLines={1} style={styles.serviceChangeName}>{confirmation.nextName}</Text>
+              <Text numberOfLines={1} style={styles.serviceChangeProvider}>{confirmation.nextProviderName}</Text>
+              {confirmation.nextConfiguration ? (
+                <Text numberOfLines={2} style={styles.serviceChangeConfiguration}>{confirmation.nextConfiguration}</Text>
+              ) : null}
+              <Text style={styles.serviceChangePrice}>{formatPeso(confirmation.nextPrice)}</Text>
+            </View>
+          </View>
+
+          <View style={styles.serviceChangeDifference}>
+            <Text style={styles.serviceChangeDifferenceLabel}>{serviceChangeLabels.difference}</Text>
+            <Text style={[
+              styles.serviceChangeDifferenceValue,
+              difference > 0 && styles.serviceChangeDifferenceHigher,
+              difference < 0 && styles.serviceChangeDifferenceLower,
+            ]}>{differenceLabel}</Text>
+          </View>
+
+          <View style={styles.serviceChangeActions}>
+            <Pressable
+              accessibilityLabel={isReplacement ? 'Cancel replacement' : 'Keep the current service'}
+              accessibilityRole="button"
+              onPress={onCancel}
+              style={({ pressed }) => [styles.serviceChangeCancel, pressed && styles.serviceChangePressed]}
+            >
+              <Text style={styles.serviceChangeCancelText}>{labels.cancel}</Text>
+            </Pressable>
+            <Pressable
+              accessibilityLabel={isReplacement ? 'Send replacement booking request' : 'Confirm changing the selected service'}
+              accessibilityRole="button"
+              onPress={onConfirm}
+              style={({ pressed }) => [styles.serviceChangeConfirm, pressed && styles.serviceChangePressed]}
+            >
+              <Text style={styles.serviceChangeConfirmText}>{labels.confirm}</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  )
+}
 
 const outcomeMessageForCompletionPayment = (
   type: ProviderCompletionPaymentValue['type'],
@@ -755,19 +893,32 @@ export const App: React.FC = () => {
   const [conversations, setConversations] = React.useState<ClientConversation[]>([])
   const [conversationMessages, setConversationMessages] = React.useState<ChatMessage[]>([])
   const [notifications, setNotifications] = React.useState<MerchantNotification[]>([])
+  const [inboxTrashItems, setInboxTrashItems] = React.useState<InboxTrashItem[]>([])
+  const [isInboxTrashVisible, setIsInboxTrashVisible] = React.useState(false)
+  const [isInboxTrashLoading, setIsInboxTrashLoading] = React.useState(false)
+  const [isInboxTrashMutating, setIsInboxTrashMutating] = React.useState(false)
   const [isLoadingConversationMessages, setIsLoadingConversationMessages] = React.useState(false)
   const [isSendingMessage, setIsSendingMessage] = React.useState(false)
   const [catalogServices, setCatalogServices] = React.useState<CatalogService[]>([])
+  const [favoriteServiceIds, setFavoriteServiceIds] = React.useState<ReadonlySet<string>>(
+    () => new Set()
+  )
+  const [favoritePendingServiceIds, setFavoritePendingServiceIds] = React.useState<ReadonlySet<string>>(
+    () => new Set()
+  )
+  const favoriteTogglesInFlightRef = React.useRef(new Set<string>())
   const [serviceCategories, setServiceCategories] =
     React.useState<ServiceCategoryOption[]>(fallbackServiceCategories)
   const [serviceBrowseMode, setServiceBrowseMode] =
     React.useState<'explore' | 'planning'>('planning')
+  const [exploreFavoritesOnly, setExploreFavoritesOnly] = React.useState(false)
   const [selectedCategory, setSelectedCategory] =
     React.useState<CatalogCategoryId>('catering')
   const [replacementBooking, setReplacementBooking] = React.useState<{
     baselineAmount: number
     bookingId: string
     category: string
+    configuration?: string
     providerName: string
     serviceName: string
     serviceId?: string
@@ -779,6 +930,11 @@ export const App: React.FC = () => {
   const [serviceReviewInsightsLoading, setServiceReviewInsightsLoading] = React.useState(false)
   const [selectedServices, setSelectedServices] = React.useState<SelectedSummaryService[]>([])
   const [changingServiceSelection, setChangingServiceSelection] = React.useState<SelectedSummaryService>()
+  const [serviceChangeConfirmation, setServiceChangeConfirmation] =
+    React.useState<ServiceChangeConfirmation>()
+  const serviceChangeConfirmationResolverRef = React.useRef<
+    ((confirmed: boolean) => void) | undefined
+  >(undefined)
   const [selectionCompletionAcknowledged, setSelectionCompletionAcknowledged] = React.useState(false)
   const [assignedCoordinator, setAssignedCoordinator] =
     React.useState<AssignedCoordinatorSummary>()
@@ -1073,6 +1229,12 @@ export const App: React.FC = () => {
     () => getActivePlanningCategories(planningBudgetAllocations),
     [planningBudgetAllocations]
   )
+  const configuredPlanningCategories = React.useMemo(() => {
+    const configured = getConfiguredPlanningCategories(planningBudgetAllocations)
+    // Positive allocations always have a persisted row. The fallback retains
+    // the established allocation-driven path for legacy planning snapshots.
+    return configured.length > 0 ? configured : activePlanningCategories
+  }, [activePlanningCategories, planningBudgetAllocations])
   const firstPlanningCategory = React.useMemo(
     () => getFirstPlanningCategory(planningBudgetAllocations),
     [planningBudgetAllocations]
@@ -1083,13 +1245,13 @@ export const App: React.FC = () => {
   )
   const planningCategoryIds = React.useMemo(() => {
     if (hasConfiguredPlanningBudget) {
-      return activePlanningCategories.map((category) => category.categoryId)
+      return configuredPlanningCategories.map((category) => category.categoryId)
     }
 
     return PLANNING_CATEGORY_PRIORITY
       .filter((category) => coordinatorPlanningEnabled || category.categoryId !== 'eventOrganizers')
       .map((category) => category.categoryId)
-  }, [activePlanningCategories, coordinatorPlanningEnabled, hasConfiguredPlanningBudget])
+  }, [configuredPlanningCategories, coordinatorPlanningEnabled, hasConfiguredPlanningBudget])
   const planningServiceCategories = React.useMemo(() => {
     const categoriesById = new Map(
       serviceCategories.map((category) => [categoryNameToId(category.name), category])
@@ -1109,20 +1271,33 @@ export const App: React.FC = () => {
     ?? planningCategoryIds[0]
     ?? 'catering'
   const planningCategoryBudgets = React.useMemo<Partial<Record<CatalogCategoryId, number>>>(() => (
-    Object.fromEntries(activePlanningCategories.map((category) => [
+    Object.fromEntries(configuredPlanningCategories.map((category) => [
       category.categoryId,
       planningBudgetAllocations.find((allocation) => (
         allocation.categoryKey === category.categoryKey
       ))?.amount ?? 0,
     ]))
-  ), [activePlanningCategories, planningBudgetAllocations])
+  ), [configuredPlanningCategories, planningBudgetAllocations])
   const planningCatalogServices = React.useMemo(
     () => catalogServices.filter((service) => planningMarketplaceCategoryIds.has(service.categoryId)),
     [catalogServices, planningMarketplaceCategoryIds]
   )
+  const addablePlanningServiceCategories = React.useMemo(() => {
+    const categoriesById = new Map(
+      serviceCategories.map((category) => [categoryNameToId(category.name), category])
+    )
+    const configuredCategoryIds = new Set(planningCategoryIds)
+
+    return PLANNING_CATEGORY_PRIORITY
+      .filter((category) => category.categoryId !== 'eventOrganizers')
+      .filter((category) => !configuredCategoryIds.has(category.categoryId))
+      .map((category) => categoriesById.get(category.categoryId)
+        ?? fallbackServiceCategories.find((fallback) => fallback.id === category.categoryId))
+      .filter((category): category is ServiceCategoryOption => Boolean(category))
+  }, [planningCategoryIds, serviceCategories])
   const unallocatedPlanningCategoryCount = React.useMemo(
-    () => getUnallocatedPlanningCategoryCount(planningBudgetAllocations),
-    [planningBudgetAllocations]
+    () => addablePlanningServiceCategories.length,
+    [addablePlanningServiceCategories]
   )
   const [lastPayment, setLastPayment] = React.useState<PaymentValue>()
   const [merchantServiceInfo, setMerchantServiceInfo] =
@@ -1485,6 +1660,7 @@ export const App: React.FC = () => {
     setHomeReturnScreen('clientHome')
     if (tab === 'home') setScreen('clientHome')
     if (tab === 'explore') {
+      setExploreFavoritesOnly(false)
       setServiceBrowseMode('explore')
       setScreen('categoryBrowse')
     }
@@ -1562,13 +1738,31 @@ export const App: React.FC = () => {
   const venueCateringPackageAllocatedBudget = planningBudgetAllocations
     .filter((allocation) => allocation.categoryKey === 'venue' || allocation.categoryKey === 'catering')
     .reduce((sum, allocation) => sum + allocation.amount, 0)
-  const allocatedBudgetTotal = planningBudgetAllocations.reduce(
-    (sum, allocation) => sum + allocation.amount, 0
+  const activePlanningSelectionAmounts = React.useMemo(() => {
+    const selections = selectedServices
+      .filter((service) => !['cancelled', 'deleted', 'rejected', 'removed'].includes(service.status.trim().toLowerCase()))
+      .map((service) => ({
+        categoryId: categoryNameToId(service.category),
+        price: service.price,
+      }))
+
+    if (assignedCoordinator) {
+      selections.push({ categoryId: 'eventOrganizers', price: assignedCoordinator.price })
+    }
+
+    return selections
+  }, [assignedCoordinator, selectedServices])
+  const unallocatedPlanBudget = React.useMemo(
+    () => calculateUnallocatedPlanningBudget(
+      totalBudget,
+      planningBudgetAllocations,
+      activePlanningSelectionAmounts
+    ),
+    [activePlanningSelectionAmounts, planningBudgetAllocations, totalBudget]
   )
-  const unallocatedPlanBudget = Math.max(0, totalBudget - allocatedBudgetTotal)
-  const categoryBudgetMaximum = Math.max(
+  const categoryBudgetMaximum = calculateCategoryBudgetMaximum(
     selectedCategoryBudget,
-    totalBudget - allocatedBudgetTotal + selectedCategoryBudget
+    unallocatedPlanBudget
   )
   const selectedPlanningCategoryIds = React.useMemo(() => {
     const ids = new Set(selectedServices
@@ -1582,9 +1776,32 @@ export const App: React.FC = () => {
     }
     return ids
   }, [selectedServices])
+  const selectableServicePlanningCategories = React.useMemo(
+    () => (hasConfiguredPlanningBudget
+      ? configuredPlanningCategories
+      : PLANNING_CATEGORY_PRIORITY
+    ).filter((category) => category.categoryId !== 'eventOrganizers'),
+    [configuredPlanningCategories, hasConfiguredPlanningBudget]
+  )
+  const getNextPlanningServiceCategory = React.useCallback(
+    (selectedCategoryIds: ReadonlySet<CatalogCategoryId>) => {
+      if (!hasConfiguredPlanningBudget) {
+        return getNextUnselectedServicePlanningCategory(
+          planningBudgetAllocations,
+          selectedCategoryIds
+        ) ?? selectableServicePlanningCategories.find(
+          (category) => !selectedCategoryIds.has(category.categoryId)
+        )?.categoryId
+      }
+      return selectableServicePlanningCategories.find(
+        (category) => !selectedCategoryIds.has(category.categoryId)
+      )?.categoryId
+    },
+    [hasConfiguredPlanningBudget, planningBudgetAllocations, selectableServicePlanningCategories]
+  )
   const activeServicePlanningCategories = React.useMemo(
-    () => activePlanningCategories.filter((category) => category.categoryId !== 'eventOrganizers'),
-    [activePlanningCategories]
+    () => configuredPlanningCategories.filter((category) => category.categoryId !== 'eventOrganizers'),
+    [configuredPlanningCategories]
   )
   const requiresCoordinatorSelection = eventDetails.wantsCoordinator === true && hasEventOrganizerBudget
   const planningSelectionsComplete = (
@@ -1887,6 +2104,7 @@ export const App: React.FC = () => {
       categories,
       eventDrafts,
       savedPlans,
+      favorites,
     ] = await Promise.all([
       loadClientCatalogServices(),
       loadClientBookings(),
@@ -1899,6 +2117,7 @@ export const App: React.FC = () => {
       fetchServiceCategories(),
       fetchClientEventDrafts(),
       fetchClientSavedPlans(),
+      fetchFavoriteServiceIds(),
     ])
 
     setCatalogServices(services)
@@ -1922,6 +2141,7 @@ export const App: React.FC = () => {
     setConversations(conversationRows)
     setNotifications(notificationRows)
     setServiceCategories(categories)
+    if (favorites.ok) setFavoriteServiceIds(favorites.ids)
     hydrateClientPlanningState(planningState, services)
     setClientEventDrafts(eventDrafts)
     setClientSavedPlans(savedPlans)
@@ -1945,15 +2165,112 @@ export const App: React.FC = () => {
     return refresh
   }, [hydrateClientPlanningState, loadClientBookings])
 
+  const handleToggleFavorite = React.useCallback(async (serviceId: string) => {
+    if (favoriteTogglesInFlightRef.current.has(serviceId)) return
+
+    const wasFavorited = favoriteServiceIds.has(serviceId)
+    favoriteTogglesInFlightRef.current.add(serviceId)
+    setFavoritePendingServiceIds((current) => new Set(current).add(serviceId))
+    setFavoriteServiceIds((current) => {
+      const next = new Set(current)
+      if (wasFavorited) next.delete(serviceId)
+      else next.add(serviceId)
+      return next
+    })
+
+    try {
+      const result = await toggleFavoriteService(serviceId)
+      if (!result.ok) {
+        setFavoriteServiceIds((current) => {
+          const next = new Set(current)
+          if (wasFavorited) next.add(serviceId)
+          else next.delete(serviceId)
+          return next
+        })
+        setToastMessage(result.message ?? 'Unable to update this saved service.')
+        return
+      }
+
+      setFavoriteServiceIds((current) => {
+        const next = new Set(current)
+        if (result.isFavorited) next.add(serviceId)
+        else next.delete(serviceId)
+        return next
+      })
+    } finally {
+      favoriteTogglesInFlightRef.current.delete(serviceId)
+      setFavoritePendingServiceIds((current) => {
+        const next = new Set(current)
+        next.delete(serviceId)
+        return next
+      })
+    }
+  }, [favoriteServiceIds])
+
   const refreshClientHome = React.useCallback(async () => {
     if (isClientHomeRefreshing) return
     setIsClientHomeRefreshing(true)
     try {
       await refreshLiveData()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : ''
+      setToastMessage(/network|fetch|offline|internet/i.test(message)
+        ? 'You appear to be offline. Check your connection and pull to refresh again.'
+        : 'Unable to refresh your home data. Please try again.')
     } finally {
       setIsClientHomeRefreshing(false)
     }
   }, [isClientHomeRefreshing, refreshLiveData])
+
+  const openInboxTrash = React.useCallback(async () => {
+    if (isInboxTrashLoading) return
+    setIsInboxTrashVisible(true)
+    setIsInboxTrashLoading(true)
+    const result = await loadMyInboxTrash()
+    setIsInboxTrashLoading(false)
+    if (!result.ok) {
+      setToastMessage(result.message ?? 'Unable to load Inbox Trash.')
+      return
+    }
+    setInboxTrashItems(result.items ?? [])
+  }, [isInboxTrashLoading])
+
+  const mutateInboxTrash = React.useCallback(async (
+    operation: 'clear' | 'restore' | 'trash',
+    itemsByType: Array<{ ids: string[]; itemType: InboxItemType }>
+  ) => {
+    if (isInboxTrashMutating || !itemsByType.length) return false
+    setIsInboxTrashMutating(true)
+    try {
+      const results = await Promise.all(itemsByType.map(({ ids, itemType }) => (
+        operation === 'trash'
+          ? moveMyInboxItemsToTrash(itemType, ids)
+          : operation === 'restore'
+            ? restoreMyInboxItems(itemType, ids)
+            : clearMyInboxItems(itemType, ids)
+      )))
+      const failed = results.find((result) => !result.ok)
+      if (failed) {
+        setToastMessage(failed.message ?? 'Unable to update the selected Inbox items.')
+        await refreshLiveData().catch(() => undefined)
+        return false
+      }
+
+      await refreshLiveData().catch(() => undefined)
+      if (operation !== 'trash') {
+        const trashResult = await loadMyInboxTrash()
+        if (trashResult.ok) setInboxTrashItems(trashResult.items ?? [])
+      }
+      setToastMessage(operation === 'trash'
+        ? 'Selected items moved to Trash.'
+        : operation === 'restore'
+          ? 'Selected Inbox items restored.'
+          : 'Selected items were permanently cleared from your view.')
+      return true
+    } finally {
+      setIsInboxTrashMutating(false)
+    }
+  }, [isInboxTrashMutating, refreshLiveData])
 
   React.useEffect(() => {
     if (!authenticatedUserId) return undefined
@@ -2335,6 +2652,28 @@ export const App: React.FC = () => {
     [busyCoordinatorInvitationId, loadCoordinatorWorkspace, refreshLiveData]
   )
 
+  const markConversationInboxRead = React.useCallback((conversationId: string) => {
+    setConversations((current) =>
+      current.map((item) =>
+        item.id === conversationId ? { ...item, unreadCount: 0 } : item
+      )
+    )
+    setNotifications((current) => current.map((notification) => (
+      notification.resourceId === conversationId && isMessageUpdate(notification)
+        ? { ...notification, isRead: true }
+        : notification
+    )))
+
+    void Promise.all([
+      markConversationRead(conversationId),
+      markConversationMessageNotificationsRead(conversationId),
+    ]).then(([conversationUpdated, notificationsUpdated]) => {
+      if (!conversationUpdated || !notificationsUpdated) {
+        void refreshLiveData().catch(() => undefined)
+      }
+    })
+  }, [refreshLiveData])
+
   const openExistingConversation = React.useCallback(
     async (conversation: ClientConversation, returnScreen: AppScreen = 'messages') => {
       setSelectedConversation(conversation)
@@ -2345,18 +2684,13 @@ export const App: React.FC = () => {
 
       const [messages] = await Promise.all([
         fetchConversationMessages(conversation.id),
-        markConversationRead(conversation.id),
+        markConversationInboxRead(conversation.id),
       ])
 
       setConversationMessages(messages)
-      setConversations((current) =>
-        current.map((item) =>
-          item.id === conversation.id ? { ...item, unreadCount: 0 } : item
-        )
-      )
       setIsLoadingConversationMessages(false)
     },
-    [setScreen]
+    [markConversationInboxRead, setScreen]
   )
 
   const openBookingConversationFor = React.useCallback(
@@ -2855,7 +3189,7 @@ export const App: React.FC = () => {
   React.useEffect(() => {
     void setApplicationBadgeFromUnreadCount(
       conversations.reduce((total, conversation) => total + conversation.unreadCount, 0)
-      + notifications.filter((notification) => !notification.isRead).length
+      + notifications.filter(isUnreadInboxNotification).length
     )
   }, [conversations, notifications])
 
@@ -3122,6 +3456,20 @@ export const App: React.FC = () => {
     value: Parameters<typeof saveCateringTastingDraft>[0]
   ) => saveCateringTastingDraft(value)
 
+  const requestServiceChangeConfirmation = React.useCallback((confirmation: ServiceChangeConfirmation) => (
+    new Promise<boolean>((resolve) => {
+      serviceChangeConfirmationResolverRef.current = resolve
+      setServiceChangeConfirmation(confirmation)
+    })
+  ), [])
+
+  const resolveServiceChangeConfirmation = React.useCallback((confirmed: boolean) => {
+    const resolve = serviceChangeConfirmationResolverRef.current
+    serviceChangeConfirmationResolverRef.current = undefined
+    setServiceChangeConfirmation(undefined)
+    resolve?.(confirmed)
+  }, [])
+
   const handleAddSelection = async (value: Parameters<typeof saveServiceSelection>[0]) => {
     if (!supabase) {
       setToastMessage('Supabase is not configured. Check the app environment settings.')
@@ -3143,16 +3491,35 @@ export const App: React.FC = () => {
       service.category.toLowerCase() === value.service.categoryName.toLowerCase()
         && service.id !== value.service.id
     )
-    if (existingCategorySelection && existingCategorySelection.id !== value.service.id) {
-      const difference = Math.round((value.estimatedTotal - existingCategorySelection.price) * 100) / 100
-      const priceDifference = difference === 0
-        ? 'No price difference'
-        : difference > 0
-          ? `${formatPeso(difference)} Higher`
-          : `${formatPeso(Math.abs(difference))} Lower`
-      const confirmed = await confirmServiceChange(
-        `Current Service:\n${existingCategorySelection.name}\n${formatPeso(existingCategorySelection.price)}\n\nNew Service:\n${value.service.name}\n${formatPeso(value.estimatedTotal)}\n\nPrice Difference:\n${priceDifference}`
-      )
+    if (replacementBooking) {
+      const replacementConfiguration = value.venueOption?.name
+        ?? value.cateringOption?.name
+        ?? value.service.detail
+      const confirmed = await requestServiceChangeConfirmation({
+        currentConfiguration: replacementBooking.configuration,
+        currentName: replacementBooking.serviceName,
+        currentPrice: replacementBooking.baselineAmount,
+        currentProviderName: replacementBooking.providerName,
+        nextConfiguration: replacementConfiguration,
+        nextName: value.service.name,
+        nextPrice: value.estimatedTotal,
+        nextProviderName: value.service.providerName || 'New provider',
+        variant: 'replacement',
+      })
+      if (!confirmed) return
+    } else if (existingCategorySelection && existingCategorySelection.id !== value.service.id) {
+      const currentProviderName = catalogServices.find((service) => (
+        service.id === existingCategorySelection.id
+        || service.bookingServiceId === existingCategorySelection.id
+      ))?.providerName ?? 'Current provider'
+      const confirmed = await requestServiceChangeConfirmation({
+        currentName: existingCategorySelection.name,
+        currentPrice: existingCategorySelection.price,
+        currentProviderName,
+        nextName: value.service.name,
+        nextPrice: value.estimatedTotal,
+        nextProviderName: value.service.providerName || 'New provider',
+      })
       if (!confirmed) return
     }
 
@@ -3224,8 +3591,7 @@ export const App: React.FC = () => {
           )
         : [...selectedServices, nextSelection]
     })()
-    const nextPlanningCategory = getNextUnselectedServicePlanningCategory(
-      planningBudgetAllocations,
+    const nextPlanningCategory = getNextPlanningServiceCategory(
       new Set([
         ...nextSelectedServices.map((service) => categoryNameToId(service.category)),
         ...(nextSelectedServices.some((service) => service.includesCatering) ? ['catering' as const] : []),
@@ -3236,10 +3602,18 @@ export const App: React.FC = () => {
     setMaxPlanningStep((current) => Math.min(current, 4))
 
     if (replacementBooking) {
-      setToastMessage('Alternative selected. Confirm its schedule, then complete a separate payment request. The declined provider will not receive these funds.')
+      const replacementSubmission = await submitBookingReplacementRequest(selectedBooking?.eventId ?? '')
+      if (!replacementSubmission.ok) {
+        setToastMessage(replacementSubmission.message ?? 'Unable to send the replacement booking request.')
+        return
+      }
+      setReplacementBooking(undefined)
+      setCurrentServiceId('')
+      setToastMessage('Replacement booking request sent. The new provider must accept before payment becomes available.')
       await refreshLiveData()
-      await recheckSavedPlan()
-      setScreen('instructionModule')
+      setBookingPaymentQuote(undefined)
+      setPaymentSettlementContext(undefined)
+      setScreen('bookings')
       return
     }
 
@@ -3277,6 +3651,7 @@ export const App: React.FC = () => {
       baselineAmount: service.amount,
       bookingId: service.bookingId,
       category: service.category,
+      configuration: service.clientNotes || undefined,
       providerName: service.providerName,
       serviceId: service.serviceId,
       serviceName: service.serviceName,
@@ -3372,6 +3747,12 @@ export const App: React.FC = () => {
     }
 
     setSelectedServices((current) => current.filter((item) => item.id !== service.id))
+    const removedCategoryKey = budgetKeyByCategory[categoryNameToId(service.category)]
+    setBudgetAllocations((current) => current.map((allocation) => (
+      allocation.categoryKey === removedCategoryKey
+        ? { ...allocation, amount: 0, locked: false }
+        : allocation
+    )))
     setMaxPlanningStep((current) =>
       Math.min(current, selectedServices.length === 1 ? 3 : 4)
     )
@@ -4297,6 +4678,10 @@ export const App: React.FC = () => {
     () => notifications.filter(isUnreadUpdate),
     [notifications]
   )
+  const unreadInboxNotifications = React.useMemo(
+    () => notifications.filter(isUnreadInboxNotification),
+    [notifications]
+  )
   const unreadBookingResourceIds = React.useMemo(
     () => unreadBookingTrackerResourceIds(notifications),
     [notifications]
@@ -4314,9 +4699,8 @@ export const App: React.FC = () => {
     [unreadNotifications]
   )
   const hasUnreadMessageUpdates = React.useMemo(
-    () => conversations.some((conversation) => conversation.unreadCount > 0)
-      || unreadNotifications.some(isMessageUpdate),
-    [conversations, unreadNotifications]
+    () => conversations.some((conversation) => conversation.unreadCount > 0),
+    [conversations]
   )
   const clientBookingProgress = React.useMemo(
     () => getClientBookingProgress(clientBookings, new Date(), unreadBookingResourceIds),
@@ -4327,11 +4711,18 @@ export const App: React.FC = () => {
     <ClientHomeScreen
       draftEvents={clientEventDrafts}
       bookingProgressEvents={clientBookingProgress}
+      favoritePendingServiceIds={favoritePendingServiceIds}
+      favoriteServiceIds={favoriteServiceIds}
       hasUnreadBookingUpdates={hasUnreadBookingUpdates}
       isRefreshing={isClientHomeRefreshing}
       recommendations={homeRecommendations}
       selectedServiceCount={selectedServices.length}
       onOpenDraft={(draftId) => void resumeClientDraft(draftId)}
+      onOpenFavorites={() => {
+        setExploreFavoritesOnly(true)
+        setServiceBrowseMode('explore')
+        setScreen('categoryBrowse')
+      }}
       onOpenBookingProgress={(booking) => {
         setSelectedBooking(booking)
         setBookingPaymentQuote(undefined)
@@ -4360,6 +4751,7 @@ export const App: React.FC = () => {
         }
       }}
       onSelectTab={openClientTab}
+      onToggleFavorite={(serviceId) => void handleToggleFavorite(serviceId)}
     />
   )
 
@@ -4396,7 +4788,9 @@ export const App: React.FC = () => {
       clientBookings={messageWorkspace === 'client' ? clientBookings : []}
       coordinatorEvents={messageWorkspace === 'coordinator' ? coordinatorDashboard.events : []}
       conversations={conversations}
-      hasUnreadNotifications={notifications.some((notification) => !notification.isRead)}
+      hasUnreadNotifications={messageWorkspace === 'client'
+        ? unreadInboxNotifications.length > 0
+        : notifications.some((notification) => !notification.isRead)}
       initialInboxTab={messageWorkspace === 'client' ? initialInboxTab : 'messages'}
       navigationVariant={messageWorkspace}
       notifications={messageWorkspace === 'client' ? notifications : []}
@@ -4413,20 +4807,21 @@ export const App: React.FC = () => {
         )))
         void markMerchantNotificationsRead(ids).then(() => refreshLiveData())
       } : undefined}
-      onMarkRead={(conversation) => {
-        setConversations((current) =>
-          current.map((item) =>
-            item.id === conversation.id ? { ...item, unreadCount: 0 } : item
-          )
-        )
-        void markConversationRead(conversation.id)
-      }}
       onMarkNotificationRead={messageWorkspace === 'client' ? (notification) => {
         setNotifications((current) => current.map((item) => (
           item.id === notification.id ? { ...item, isRead: true } : item
         )))
         void markMerchantNotificationRead(notification).then(() => refreshLiveData())
       } : undefined}
+      onMoveConversationsToTrash={async (conversationIds) => {
+        const moved = await mutateInboxTrash('trash', [{ ids: conversationIds, itemType: 'conversation' }])
+        if (moved && selectedConversation && conversationIds.includes(selectedConversation.id)) {
+          setSelectedConversation(undefined)
+        }
+        return moved
+      }}
+      onMoveNotificationsToTrash={(notificationIds) =>
+        mutateInboxTrash('trash', [{ ids: notificationIds, itemType: 'notification' }])}
       onOpenNotifications={() => setScreen(
         messageWorkspace === 'coordinator' ? 'coordinatorNotifications' : 'notifications'
       )}
@@ -4435,6 +4830,7 @@ export const App: React.FC = () => {
           ? openProviderProfile()
           : openAccountProfile('messages')
       }
+      onOpenTrash={() => void openInboxTrash()}
       onOpenEventCoordinatorForEvent={(eventId) =>
         void openEventCoordinatorConversationFor(eventId, 'messages')
       }
@@ -5211,6 +5607,9 @@ export const App: React.FC = () => {
             onMarkRead={(notification) => {
               void markMerchantNotificationRead(notification).then(() => refreshLiveData())
             }}
+            onMoveToTrash={(notificationIds) =>
+              mutateInboxTrash('trash', [{ ids: notificationIds, itemType: 'notification' }])}
+            onOpenTrash={() => void openInboxTrash()}
             onPreferencesChange={(preferences) =>
               void saveNotificationPreferences(preferences)
             }
@@ -5329,6 +5728,9 @@ export const App: React.FC = () => {
             onMarkRead={(notification) => {
               void markMerchantNotificationRead(notification).then(() => refreshLiveData())
             }}
+            onMoveToTrash={(notificationIds) =>
+              mutateInboxTrash('trash', [{ ids: notificationIds, itemType: 'notification' }])}
+            onOpenTrash={() => void openInboxTrash()}
             onSelectNotification={(notification) => {
               void markMerchantNotificationRead(notification).then(() => refreshLiveData())
               if (notification.category === 'message') {
@@ -5483,6 +5885,12 @@ export const App: React.FC = () => {
               serviceBrowseMode === 'planning' ? planningCatalogServices : catalogServices
             }
             categoryBudgets={planningCategoryBudgets}
+            favoritePendingServiceIds={favoritePendingServiceIds}
+            favoriteServiceIds={favoriteServiceIds}
+            showFavoritesOnly={serviceBrowseMode === 'explore' && exploreFavoritesOnly}
+            addableCategories={serviceBrowseMode === 'planning' && !changingServiceSelection
+              ? addablePlanningServiceCategories
+              : []}
             categories={serviceBrowseMode === 'planning'
               ? changingServiceSelection
                 ? planningServiceCategories.filter((category) => (
@@ -5541,12 +5949,22 @@ export const App: React.FC = () => {
             onScrollDirectionChange={serviceBrowseMode === 'explore'
               ? handleClientNavigationScrollDirection
               : undefined}
+            onClearFavoritesFilter={() => setExploreFavoritesOnly(false)}
             onBack={() => {
-              if (changingServiceSelection) setChangingServiceSelection(undefined)
+              if (changingServiceSelection) {
+                setChangingServiceSelection(undefined)
+                setCurrentServiceId('')
+                setToastMessage('Service change cancelled. Your current selection is unchanged.')
+                return
+              }
               if (serviceBrowseMode === 'planning') openBudgetAllocationFromServices()
               else setScreen('clientHome')
             }}
             onCategoryBudgetChange={async (amount) => {
+              if (changingServiceSelection) {
+                setToastMessage('Your budget remains unchanged while you compare a replacement service.')
+                return false
+              }
               const result = await setCategoryBudgetAllocation(selectedBudgetKey, amount)
               if (!result.ok) {
                 await refreshLiveData()
@@ -5570,18 +5988,38 @@ export const App: React.FC = () => {
               setMaxPlanningStep((current) => Math.max(current, 4))
               setScreen('instructionModule')
             }}
-            onAddCategory={() => {
-              if (unallocatedPlanBudget <= 0) {
-                setToastMessage('All funds are allocated. Reallocate an unlocked category budget before adding another one.')
-                return
+            onAddCategory={async (category) => {
+              const categoryId = categoryNameToId(category.name)
+              const planningCategory = PLANNING_CATEGORY_PRIORITY.find(
+                (item) => item.categoryId === categoryId
+              )
+              if (!planningCategory || planningCategory.categoryId === 'eventOrganizers') {
+                setToastMessage('This category cannot be added to the service marketplace.')
+                return false
               }
-              openBudgetAllocationFromServices()
+
+              const result = await setCategoryBudgetAllocation(planningCategory.categoryKey, 0)
+              if (!result.ok) {
+                await refreshLiveData()
+                setToastMessage(result.message ?? 'Unable to add this service category.')
+                return false
+              }
+
+              setBudgetAllocations((current) => {
+                if (current.some((item) => item.categoryKey === planningCategory.categoryKey)) {
+                  return current
+                }
+                return [
+                  ...current,
+                  { amount: 0, categoryKey: planningCategory.categoryKey, label: category.name },
+                ]
+              })
+              setSelectedCategory(categoryId)
+              setCatalogServices(await loadClientCatalogServices())
+              return true
             }}
             onAddService={() => {
-              const nextCategory = getNextUnselectedServicePlanningCategory(
-                planningBudgetAllocations,
-                selectedPlanningCategoryIds
-              )
+              const nextCategory = getNextPlanningServiceCategory(selectedPlanningCategoryIds)
               openPlanningHub(undefined, nextCategory ?? selectedCategory)
             }}
             onRemoveCoordinator={() => void handleRemoveCoordinator()}
@@ -5603,6 +6041,7 @@ export const App: React.FC = () => {
             onSelectCategory={(category) => {
               setSelectedCategory(categoryNameToId(category.name))
             }}
+            onToggleFavorite={(serviceId) => void handleToggleFavorite(serviceId)}
             onReviewVenuePackage={() => {
               if (!venueCateringPackageSelection) return
               setServiceBrowseMode('planning')
@@ -5659,6 +6098,7 @@ export const App: React.FC = () => {
             mode={serviceBrowseMode}
             service={currentService}
             hasBudget={hasConfiguredPlanningBudget}
+            isChangingSelection={Boolean(changingServiceSelection)}
             initialFoodTastingPreference={
               directCateringFallbackServiceId === currentService?.id ? false : undefined
             }
@@ -5741,6 +6181,14 @@ export const App: React.FC = () => {
             isReadOnly={selectedConversation?.isReadOnly}
             isSending={isSendingMessage}
             messages={conversationMessages}
+            onMoveMessagesToTrash={async (messageIds) => {
+              const moved = await mutateInboxTrash('trash', [{ ids: messageIds, itemType: 'message' }])
+              if (moved) {
+                setConversationMessages((current) => current.filter((message) => !messageIds.includes(message.id)))
+              }
+              return moved
+            }}
+            onOpenTrash={() => void openInboxTrash()}
             participant={
               selectedConversation
                 ? {
@@ -5994,7 +6442,7 @@ export const App: React.FC = () => {
 
   const isHome =
     screen === 'clientHome' || screen === 'providerHome' || screen === 'providerServices'
-  const hasUnreadClientInbox = hasUnreadMessageUpdates || unreadNotifications.length > 0
+  const hasUnreadClientInbox = hasUnreadMessageUpdates || unreadInboxNotifications.length > 0
   const clientMainTab: ClientHomeTab | null =
     screen === 'clientHome'
       ? 'home'
@@ -6144,6 +6592,27 @@ export const App: React.FC = () => {
             onSelectTab={openMerchantTab}
           />
         ) : null}
+        <InboxTrashModal
+          busy={isInboxTrashLoading || isInboxTrashMutating}
+          items={inboxTrashItems}
+          onClear={(items) => {
+            const groups = new Map<InboxItemType, string[]>()
+            items.forEach((item) => groups.set(item.itemType, [...(groups.get(item.itemType) ?? []), item.id]))
+            void mutateInboxTrash('clear', Array.from(groups, ([itemType, ids]) => ({ ids, itemType })))
+          }}
+          onClose={() => setIsInboxTrashVisible(false)}
+          onRestore={(items) => {
+            const groups = new Map<InboxItemType, string[]>()
+            items.forEach((item) => groups.set(item.itemType, [...(groups.get(item.itemType) ?? []), item.id]))
+            void mutateInboxTrash('restore', Array.from(groups, ([itemType, ids]) => ({ ids, itemType })))
+          }}
+          visible={isInboxTrashVisible}
+        />
+        <ServiceChangeConfirmationModal
+          confirmation={serviceChangeConfirmation}
+          onCancel={() => resolveServiceChangeConfirmation(false)}
+          onConfirm={() => resolveServiceChangeConfirmation(true)}
+        />
       </SafeAreaView>
     </SafeAreaProvider>
   )
@@ -6281,5 +6750,176 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     lineHeight: 20,
     textAlign: 'center',
+  },
+  serviceChangeOverlay: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(26, 10, 15, 0.58)',
+    padding: 24,
+  },
+  serviceChangeCard: {
+    width: '100%',
+    maxWidth: 440,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#DAC0C2',
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    padding: 24,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  serviceChangeIcon: {
+    width: 52,
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 26,
+    backgroundColor: '#F8EDEF',
+    marginBottom: 14,
+  },
+  serviceChangeIconText: {
+    color: '#6B1E2E',
+    fontSize: 27,
+    fontWeight: '800',
+    lineHeight: 30,
+  },
+  serviceChangeTitle: {
+    color: '#4E061A',
+    fontSize: 21,
+    fontWeight: '700',
+    lineHeight: 28,
+    textAlign: 'center',
+  },
+  serviceChangeCopy: {
+    color: '#5E5E5E',
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  serviceChangeComparison: {
+    width: '100%',
+    borderWidth: 1,
+    borderColor: '#E8E8E8',
+    borderRadius: 14,
+    backgroundColor: '#FCFAFA',
+    marginTop: 20,
+    overflow: 'hidden',
+  },
+  serviceChangeServiceRow: {
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+  },
+  serviceChangeDivider: {
+    height: 1,
+    backgroundColor: '#E8E8E8',
+  },
+  serviceChangeLabel: {
+    color: '#6B1E2E',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.9,
+    lineHeight: 14,
+  },
+  serviceChangeName: {
+    color: '#1A1C1C',
+    fontSize: 15,
+    fontWeight: '700',
+    lineHeight: 21,
+    marginTop: 3,
+  },
+  serviceChangeProvider: {
+    color: '#5E5E5E',
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 1,
+  },
+  serviceChangeConfiguration: {
+    color: '#5E5E5E',
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 4,
+  },
+  serviceChangePrice: {
+    color: '#4E061A',
+    fontSize: 15,
+    fontWeight: '800',
+    lineHeight: 21,
+    marginTop: 6,
+  },
+  serviceChangeDifference: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 10,
+    backgroundColor: '#F8EDEF',
+    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+  },
+  serviceChangeDifferenceLabel: {
+    color: '#5E5E5E',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    lineHeight: 14,
+  },
+  serviceChangeDifferenceValue: {
+    color: '#1A1C1C',
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 18,
+  },
+  serviceChangeDifferenceHigher: { color: '#B3261E' },
+  serviceChangeDifferenceLower: { color: '#16794A' },
+  serviceChangeActions: {
+    width: '100%',
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 22,
+  },
+  serviceChangeCancel: {
+    minHeight: 48,
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#DAC0C2',
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+  },
+  serviceChangeCancelText: {
+    color: '#6B1E2E',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.7,
+    lineHeight: 15,
+  },
+  serviceChangeConfirm: {
+    minHeight: 48,
+    flex: 1.28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 24,
+    backgroundColor: '#6B1E2E',
+    paddingHorizontal: 12,
+  },
+  serviceChangeConfirmText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.65,
+    lineHeight: 15,
+  },
+  serviceChangePressed: {
+    opacity: 0.86,
+    transform: [{ scale: 0.985 }],
   },
 })

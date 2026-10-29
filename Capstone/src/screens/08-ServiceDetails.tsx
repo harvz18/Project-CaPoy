@@ -81,6 +81,7 @@ interface ServiceDetailsScreenProps {
   eventDate?: string
   eventTime?: string
   hasBudget?: boolean
+  isChangingSelection?: boolean
   initialFoodTastingPreference?: boolean
   initialPhotoVideoSelection?: PhotoVideoSelectionSnapshot
   mode?: 'explore' | 'planning'
@@ -179,6 +180,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   eventDate = '',
   eventTime = '',
   hasBudget,
+  isChangingSelection = false,
   initialFoodTastingPreference,
   initialPhotoVideoSelection,
   mode = 'planning',
@@ -1106,7 +1108,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
               <MaterialCommunityIcons color={palette.primary} name="wallet-outline" size={19} />
               <Text style={styles.heroBudgetText}>
                 {hasSetBudget
-                  ? `Available for ${service.categoryName}: ${formatPeso(availableCategoryBudget)}`
+                  ? `${isChangingSelection ? 'Available for this change' : `Available for ${service.categoryName}`}: ${formatPeso(availableCategoryBudget)}`
                   : 'Pay actual service costs'}
                 </Text>
             </View>
@@ -1118,9 +1120,13 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
             <View style={styles.budgetOverageNotice}>
               <MaterialCommunityIcons color={palette.primary} name="alert-circle-outline" size={20} />
               <Text style={styles.budgetOverageNoticeText}>
-                This configuration is {formatPeso(categoryBudgetOverage)} over the available {service.categoryName} budget. {isVenue
-                  ? 'Adjust the venue options or rental duration, or return to update the category budget.'
-                  : 'Adjust the service selection or return to update the category budget.'}
+                {isChangingSelection ? (
+                  <>This configuration is {formatPeso(categoryBudgetOverage)} over the available amount for this change. Your current service remains unchanged until a valid replacement is confirmed.</>
+                ) : (
+                  <>This configuration is {formatPeso(categoryBudgetOverage)} over the available {service.categoryName} budget. {isVenue
+                    ? 'Adjust the venue options or rental duration, or return to update the category budget.'
+                    : 'Adjust the service selection or return to update the category budget.'}</>
+                )}
               </Text>
             </View>
           ) : null}
@@ -2055,7 +2061,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                 {!isFoodTastingFlow && quoteError ? <Text style={styles.quoteError}>{quoteError}</Text> : null}
                 {exceedsAvailableCategoryBudget ? (
                   <Text style={styles.quoteError}>
-                    {formatPeso(categoryBudgetOverage)} over the available category budget. Adjust the selection or budget before continuing.
+                    {formatPeso(categoryBudgetOverage)} over the available {isChangingSelection ? 'amount for this change' : 'category budget'}. Adjust the selection before continuing.
                   </Text>
                 ) : null}
               </View>
@@ -2069,7 +2075,9 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                   ? 'Photo and video coverage draft saved'
                   : requiresQuote
                   ? 'Add custom quote service to selection'
-                  : `Add to selection for ${formatPeso(estimatedTotal)} Philippine pesos`
+                  : isChangingSelection
+                    ? `Review service change for ${formatPeso(estimatedTotal)} Philippine pesos`
+                    : `Add to selection for ${formatPeso(estimatedTotal)} Philippine pesos`
               }
               accessibilityRole="button"
               accessibilityState={{ disabled: currentActionDisabled }}
@@ -2113,7 +2121,9 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                         ? 'Over Available Category Budget'
                     : scheduleUnavailable
                       ? 'Unavailable on Your Schedule'
-                    : 'Add to Selection'}
+                    : isChangingSelection
+                      ? 'Review Service Change'
+                      : 'Add to Selection'}
               </Text>
               {!isWide ? <Text style={styles.addDivider}>|</Text> : null}
               {!isWide ? (

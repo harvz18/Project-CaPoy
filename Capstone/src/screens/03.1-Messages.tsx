@@ -63,9 +63,12 @@ interface MessagesScreenProps {
   onMarkAllNotificationsRead?: (notificationIds: string[]) => void
   onMarkRead?: (conversation: ClientConversation) => void
   onMarkNotificationRead?: (notification: MerchantNotification) => void
+  onMoveConversationsToTrash?: (conversationIds: string[]) => Promise<boolean> | boolean
+  onMoveNotificationsToTrash?: (notificationIds: string[]) => Promise<boolean> | boolean
   onBack?: () => void
   onNewMessage?: () => void
   onOpenNotifications?: () => void
+  onOpenTrash?: () => void
   onOpenProfile?: () => void
   onOpenEventCoordinatorForEvent?: (eventId: string) => void
   onSelectCoordinatorTab?: (tab: CoordinatorMainTab) => void
@@ -166,8 +169,11 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
   onMarkAllNotificationsRead,
   onMarkRead,
   onMarkNotificationRead,
+  onMoveConversationsToTrash,
+  onMoveNotificationsToTrash,
   onNewMessage,
   onOpenNotifications,
+  onOpenTrash,
   onOpenProfile,
   onOpenEventCoordinatorForEvent,
   onSelectCoordinatorTab,
@@ -189,6 +195,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
   const [internalSearch, setInternalSearch] = React.useState('')
   const lastScrollY = React.useRef(0)
   const [selectedEventId, setSelectedEventId] = React.useState<string>()
+  const [selectedConversationIds, setSelectedConversationIds] = React.useState<ReadonlySet<string>>(
+    () => new Set()
+  )
   const [readIds, setReadIds] = React.useState(
     () => new Set(conversations.filter((item) => item.unreadCount === 0).map((item) => item.id))
   )
@@ -370,11 +379,40 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
       )
     return matchesFilter && matchesSearch
   })
+  const selectableConversationIds = (selectedEvent
+    ? visibleConversations
+    : visibleEventGroups.flatMap((group) => group.conversations)
+  ).filter((conversation) => !conversation.isVirtualCoordinator).map((conversation) => conversation.id)
+  const selectedConversationCount = selectedConversationIds.size
+  const isConversationSelectionMode = selectedConversationCount > 0
+  const allConversationsSelected = selectableConversationIds.length > 0
+    && selectableConversationIds.every((id) => selectedConversationIds.has(id))
+  const someConversationsSelected = selectedConversationCount > 0 && !allConversationsSelected
+  const toggleConversationSelection = (ids: string[]) => setSelectedConversationIds((current) => {
+    const next = new Set(current)
+    const shouldSelect = ids.some((id) => !next.has(id))
+    ids.forEach((id) => shouldSelect ? next.add(id) : next.delete(id))
+    return next
+  })
+  const toggleAllConversations = () => setSelectedConversationIds(
+    allConversationsSelected ? new Set() : new Set(selectableConversationIds)
+  )
+  const moveSelectedConversationsToTrash = async () => {
+    if (!onMoveConversationsToTrash || !selectedConversationIds.size) return
+    const moved = await onMoveConversationsToTrash?.(Array.from(selectedConversationIds))
+    if (moved !== false) setSelectedConversationIds(new Set())
+  }
 
   return (
     <View style={styles.screen}>
       {navigationVariant === 'merchant' ? (
-        <MerchantWorkspaceHeader
+        isConversationSelectionMode ? (
+          <View style={styles.merchantSelectionHeader}>
+            <Text style={styles.merchantSelectionTitle}>{selectedConversationCount} selected</Text>
+            <Pressable accessibilityLabel={allConversationsSelected ? 'Deselect all conversations' : someConversationsSelected ? 'Select all remaining conversations' : 'Select all conversations'} accessibilityRole="checkbox" accessibilityState={{ checked: allConversationsSelected ? true : someConversationsSelected ? 'mixed' : false }} onPress={toggleAllConversations} style={styles.clientHeaderButton}><Text style={styles.merchantSelectionGlyph}>{allConversationsSelected ? '☑' : someConversationsSelected ? '▣' : '☐'}</Text></Pressable>
+            <Pressable accessibilityLabel="Move selected conversations to Trash" accessibilityRole="button" onPress={() => void moveSelectedConversationsToTrash()} style={styles.clientHeaderButton}><Text style={styles.trashGlyph}>🗑</Text></Pressable>
+          </View>
+        ) : <MerchantWorkspaceHeader
           hasUnreadNotifications={hasUnreadNotifications}
           onOpenNotifications={onOpenNotifications}
         />
@@ -398,9 +436,22 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                 </Pressable>
               ) : <View style={styles.clientHeaderButton} />}
               <Text style={styles.clientHeaderTitle}>
-                {navigationVariant === 'client' ? 'INBOX' : 'MESSAGES'}
+                {isConversationSelectionMode ? `${selectedConversationCount} SELECTED` : (
+                  <>{navigationVariant === 'client' ? 'INBOX' : 'MESSAGES'}</>
+                )}
               </Text>
-              {navigationVariant === 'coordinator' ? (
+              {isConversationSelectionMode ? (
+                <View style={styles.selectionHeaderActions}>
+                  <Pressable
+                    accessibilityLabel={allConversationsSelected ? 'Deselect all conversations' : someConversationsSelected ? 'Select all remaining conversations' : 'Select all conversations'}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: allConversationsSelected ? true : someConversationsSelected ? 'mixed' : false }}
+                    onPress={toggleAllConversations}
+                    style={({ pressed }) => [styles.clientHeaderButton, pressed && styles.surfacePressed]}
+                  ><Text style={styles.selectionGlyph}>{allConversationsSelected ? '☑' : someConversationsSelected ? '▣' : '☐'}</Text></Pressable>
+                  <Pressable accessibilityLabel="Move selected conversations to Trash" accessibilityRole="button" onPress={() => void moveSelectedConversationsToTrash()} style={({ pressed }) => [styles.clientHeaderButton, pressed && styles.surfacePressed]}><Text style={styles.trashGlyph}>🗑</Text></Pressable>
+                </View>
+              ) : navigationVariant === 'coordinator' ? (
                 <Pressable
                   accessibilityLabel="Open notifications"
                   accessibilityRole="button"
@@ -411,7 +462,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                   <BellIcon />
                   {hasUnreadNotifications ? <View style={styles.notificationDot} /> : null}
                 </Pressable>
-              ) : <View style={styles.clientHeaderButton} />}
+              ) : (
+                <Pressable accessibilityLabel="Open Inbox Trash" accessibilityRole="button" onPress={onOpenTrash} style={({ pressed }) => [styles.clientHeaderButton, pressed && styles.surfacePressed]}><Text style={styles.trashGlyph}>🗑</Text></Pressable>
+              )}
             </>
           ) : (
             <>
@@ -484,6 +537,8 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
         <NotificationScreen
           embedded
           notifications={notifications}
+          onMoveToTrash={onMoveNotificationsToTrash}
+          onOpenTrash={onOpenTrash}
           onMarkAllRead={onMarkAllNotificationsRead}
           onMarkRead={onMarkNotificationRead}
           onScrollDirectionChange={onScrollDirectionChange}
@@ -631,9 +686,13 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                     accessibilityLabel={`Open ${group.name} messages`}
                     accessibilityRole="button"
                     key={group.id}
-                    onPress={() => setSelectedEventId(group.id)}
-                    style={({ pressed }) => [styles.eventCard, pressed && styles.conversationRowPressed]}
+                    onLongPress={() => toggleConversationSelection(group.conversations.filter((item) => !item.isVirtualCoordinator).map((item) => item.id))}
+                    onPress={() => isConversationSelectionMode
+                      ? toggleConversationSelection(group.conversations.filter((item) => !item.isVirtualCoordinator).map((item) => item.id))
+                      : setSelectedEventId(group.id)}
+                    style={({ pressed }) => [styles.eventCard, isConversationSelectionMode && group.conversations.some((item) => selectedConversationIds.has(item.id)) && styles.rowSelected, pressed && styles.conversationRowPressed]}
                   >
+                    {isConversationSelectionMode ? <Text style={styles.rowCheckbox}>{group.conversations.every((item) => item.isVirtualCoordinator || selectedConversationIds.has(item.id)) ? '☑' : '☐'}</Text> : null}
                     <View style={styles.eventCardCopy}>
                       <Text numberOfLines={1} style={styles.eventName}>{group.name}</Text>
                       <Text style={styles.eventDate}>{formatEventDate(group.date)}</Text>
@@ -665,7 +724,11 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                 isRead={readIds.has(conversation.id)}
                 key={conversation.id}
                 last={index === visibleConversations.length - 1}
+                selected={selectedConversationIds.has(conversation.id)}
+                selectionMode={isConversationSelectionMode}
+                onLongPress={() => toggleConversationSelection([conversation.id])}
                 onPress={selectConversation}
+                onToggleSelection={() => toggleConversationSelection([conversation.id])}
               />
             ))}
           </View>
@@ -742,13 +805,21 @@ const ConversationRow = ({
   isCompact,
   isRead,
   last,
+  onLongPress,
   onPress,
+  onToggleSelection,
+  selected = false,
+  selectionMode = false,
 }: {
   conversation: ClientConversation
   isCompact: boolean
   isRead: boolean
   last: boolean
+  onLongPress?: () => void
   onPress: (conversation: ClientConversation) => void
+  onToggleSelection?: () => void
+  selected?: boolean
+  selectionMode?: boolean
 }) => {
   const isUnread = !isRead && conversation.unreadCount > 0
 
@@ -756,14 +827,18 @@ const ConversationRow = ({
     <Pressable
       accessibilityLabel={`${isUnread ? `${conversation.unreadCount} unread. ` : ''}${conversation.participantName}. ${conversation.lastMessage}`}
       accessibilityRole="button"
-      onPress={() => onPress(conversation)}
+      accessibilityState={{ selected }}
+      onLongPress={onLongPress}
+      onPress={() => selectionMode ? onToggleSelection?.() : onPress(conversation)}
       style={({ pressed }) => [
         styles.conversationRow,
         isUnread && styles.conversationRowUnread,
+        selected && styles.rowSelected,
         !last && styles.conversationRowBorder,
         pressed && styles.conversationRowPressed,
       ]}
     >
+      {selectionMode ? <Text style={styles.rowCheckbox}>{selected ? '☑' : '☐'}</Text> : null}
       <View style={styles.avatarContainer}>
         {conversation.avatarUrl ? (
           <Image
@@ -841,6 +916,9 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.background },
   topAppBar: { zIndex: 30, minHeight: 64, justifyContent: 'center', borderBottomWidth: 1, borderBottomColor: palette.border, backgroundColor: palette.background },
   clientTopAppBar: { borderBottomColor: palette.primary, backgroundColor: palette.primaryContainer },
+  merchantSelectionHeader: { minHeight: 64, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: palette.border, backgroundColor: palette.white, paddingHorizontal: 14 },
+  merchantSelectionTitle: { minWidth: 0, flex: 1, color: palette.text, fontSize: 15, lineHeight: 20, fontWeight: '800' },
+  merchantSelectionGlyph: { color: palette.primaryContainer, fontSize: 20, lineHeight: 24 },
   topAppBarContent: { width: '100%', maxWidth: 1200, minHeight: 64, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 8 },
   horizontalPaddingWide: { paddingHorizontal: 64 },
   inboxTabs: { width: '100%', flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: palette.border, backgroundColor: palette.white, paddingHorizontal: 20 },
@@ -866,7 +944,7 @@ const styles = StyleSheet.create({
   bellClapper: { position: 'absolute', width: 6, height: 2, bottom: 1, borderRadius: 1, backgroundColor: palette.primary },
   notificationDot: { position: 'absolute', width: 9, height: 9, top: 5, right: 5, borderWidth: 2, borderColor: palette.background, borderRadius: 5, backgroundColor: palette.primaryContainer },
   content: { width: '100%', maxWidth: 820, alignSelf: 'center' },
-  contentMobile: { paddingHorizontal: 20, paddingTop: 25, paddingBottom: 108 },
+  contentMobile: { paddingTop: 16, paddingBottom: 108 },
   contentWide: { paddingHorizontal: 32, paddingTop: 32, paddingBottom: 112 },
   headingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 },
   headingCopy: { minWidth: 0, flex: 1 },
@@ -879,7 +957,7 @@ const styles = StyleSheet.create({
   primaryPressed: { opacity: 0.86, transform: [{ scale: 0.985 }] },
   newMessagePlus: { color: palette.onPrimary, fontSize: 19, lineHeight: 21, fontWeight: '400' },
   newMessageText: { color: palette.onPrimary, fontSize: 10, lineHeight: 15, fontWeight: '700' },
-  eventBackButton: { minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14, paddingHorizontal: 4 },
+  eventBackButton: { minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8, paddingHorizontal: 20 },
   eventBackText: { color: palette.primaryContainer, fontSize: 11, lineHeight: 16, fontWeight: '700' },
   eventBackName: { minWidth: 0, flex: 1, color: palette.secondary, fontSize: 10, lineHeight: 15 },
   searchShell: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: palette.border, borderRadius: 9, backgroundColor: palette.white, paddingHorizontal: 14, marginTop: 20 },
@@ -895,8 +973,8 @@ const styles = StyleSheet.create({
   filterButtonPressed: { opacity: 0.65 },
   filterButtonText: { color: palette.secondary, fontSize: 9, lineHeight: 14, fontWeight: '600' },
   filterButtonTextSelected: { color: palette.primaryContainer },
-  eventCardList: { gap: 10 },
-  eventCard: { minHeight: 106, flexDirection: 'row', alignItems: 'center', gap: 14, borderWidth: 1, borderColor: palette.border, borderRadius: 10, backgroundColor: palette.white, paddingHorizontal: 16, paddingVertical: 15 },
+  eventCardList: { borderTopWidth: 1, borderTopColor: palette.border, backgroundColor: palette.white },
+  eventCard: { minHeight: 84, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: 1, borderBottomColor: palette.border, backgroundColor: palette.white, paddingHorizontal: 20, paddingVertical: 13 },
   eventCardCopy: { minWidth: 0, flex: 1 },
   eventName: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '700' },
   eventDate: { color: palette.secondary, fontSize: 10, lineHeight: 15, marginTop: 3 },
@@ -905,8 +983,13 @@ const styles = StyleSheet.create({
   eventOpenText: { color: palette.primaryContainer, fontSize: 10, lineHeight: 15, fontWeight: '700' },
   eventUnreadBadge: { minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: palette.primaryContainer, paddingHorizontal: 5 },
   eventUnreadText: { color: palette.onPrimary, fontSize: 8, lineHeight: 11, fontWeight: '700' },
-  conversationCard: { overflow: 'hidden', borderWidth: 1, borderColor: palette.border, borderRadius: 10, backgroundColor: palette.white },
-  conversationRow: { minHeight: 94, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 13 },
+  conversationCard: { backgroundColor: palette.white, borderTopWidth: 1, borderTopColor: palette.border },
+  conversationRow: { minHeight: 82, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingVertical: 12 },
+  rowSelected: { backgroundColor: '#F7ECEE' },
+  rowCheckbox: { color: palette.primaryContainer, fontSize: 20, lineHeight: 24 },
+  selectionHeaderActions: { flexDirection: 'row', alignItems: 'center' },
+  selectionGlyph: { color: '#FFFFFF', fontSize: 20, lineHeight: 24 },
+  trashGlyph: { fontSize: 18, lineHeight: 22 },
   conversationRowUnread: { backgroundColor: '#FCF8F9' },
   conversationRowBorder: { borderBottomWidth: 1, borderBottomColor: palette.border },
   conversationRowPressed: { opacity: 0.66 },
