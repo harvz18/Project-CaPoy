@@ -11,6 +11,7 @@ import {
   Inter_500Medium,
   Inter_600SemiBold,
   Inter_700Bold,
+  Inter_900Black,
 } from '@expo-google-fonts/inter'
 
 import { supabase } from './lib/supabase'
@@ -303,11 +304,6 @@ import {
   emptyClientRefundOverview,
   fetchClientRefundOverview,
 } from './lib/client-wallet'
-import {
-  ClientHomeAppearance,
-  loadClientHomeAppearance,
-  saveClientHomeAppearance,
-} from './lib/client-home-appearance'
 
 type AppScreen =
   | 'onboarding'
@@ -583,6 +579,7 @@ export const App: React.FC = () => {
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
+    Inter_900Black,
   })
   const { height, width } = useWindowDimensions()
   const [screen, commitScreen] = React.useState<AppScreen>('onboarding')
@@ -1191,8 +1188,6 @@ export const App: React.FC = () => {
   const [isSigningOut, setIsSigningOut] = React.useState(false)
   const [isUploadingProfilePhoto, setIsUploadingProfilePhoto] = React.useState(false)
   const [profileReturnScreen, setProfileReturnScreen] = React.useState<AppScreen>('clientHome')
-  const [clientHomeAppearance, setClientHomeAppearance] = React.useState<ClientHomeAppearance>('classic')
-  const clientHomeAppearanceRevisionRef = React.useRef(0)
   const [supportReturnScreen, setSupportReturnScreen] = React.useState<AppScreen>('accountProfile')
   const [clientRefundsReturnScreen, setClientRefundsReturnScreen] = React.useState<AppScreen>('accountProfile')
   const [clientRefundOverview, setClientRefundOverview] = React.useState<ClientRefundOverview>(emptyClientRefundOverview())
@@ -1219,34 +1214,6 @@ export const App: React.FC = () => {
   React.useEffect(() => {
     setIsClientNavigationVisible(true)
   }, [screen])
-
-  React.useEffect(() => {
-    let active = true
-    const revision = clientHomeAppearanceRevisionRef.current
-
-    if (!authenticatedUserId) {
-      setClientHomeAppearance('classic')
-      return () => {
-        active = false
-      }
-    }
-
-    void loadClientHomeAppearance(authenticatedUserId).then((appearance) => {
-      if (active && clientHomeAppearanceRevisionRef.current === revision) {
-        setClientHomeAppearance(appearance)
-      }
-    })
-
-    return () => {
-      active = false
-    }
-  }, [authenticatedUserId])
-
-  const changeClientHomeAppearance = React.useCallback((appearance: ClientHomeAppearance) => {
-    clientHomeAppearanceRevisionRef.current += 1
-    setClientHomeAppearance(appearance)
-    void saveClientHomeAppearance(authenticatedUserId, appearance)
-  }, [authenticatedUserId])
 
   const openRoleSelectionFromOnboarding = () => {
     roleSelectionEntrance.setValue(width)
@@ -4267,7 +4234,6 @@ export const App: React.FC = () => {
 
   const renderClientHome = () => (
     <ClientHomeScreen
-      appearance={clientHomeAppearance}
       draftEvents={clientEventDrafts}
       bookingProgressEvents={clientBookingProgress}
       hasUnreadBookingUpdates={hasUnreadBookingUpdates}
@@ -4283,11 +4249,6 @@ export const App: React.FC = () => {
         if (booking.eventId) void loadBookingPaymentQuote(booking.eventId)
       }}
       onStartNewEvent={startNewClientEvent}
-      onOpenProfile={() => openAccountProfile('clientHome')}
-      onOpenSupport={() => {
-        setSupportReturnScreen('clientHome')
-        setScreen('support')
-      }}
       onOpenRefunds={() => {
         setClientRefundsReturnScreen('clientHome')
         setScreen('clientRefunds')
@@ -5057,14 +5018,12 @@ export const App: React.FC = () => {
         return (
           <AccountProfileScreen
             error={accountProfileError}
-            homeAppearance={clientHomeAppearance}
             isLoading={isLoadingAccountProfile}
             isSaving={isSavingAccountProfile}
             isSigningOut={isSigningOut}
             isUploadingPhoto={isUploadingProfilePhoto}
             onBack={() => setScreen(profileReturnScreen)}
             onChoosePhoto={chooseAccountProfilePhoto}
-            onHomeAppearanceChange={changeClientHomeAppearance}
             onOpenSupport={() => {
               setSupportReturnScreen('accountProfile')
               setScreen('support')

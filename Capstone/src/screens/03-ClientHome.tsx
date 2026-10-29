@@ -1,6 +1,8 @@
 import { Text } from '../components/AppText'
 import React from 'react'
 import { MaterialIcons } from '@expo/vector-icons'
+import { BlurView } from 'expo-blur'
+import { LinearGradient } from 'expo-linear-gradient'
 import {
   Animated,
   Easing,
@@ -10,7 +12,7 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
-  
+  TextInput,
   useWindowDimensions,
   View,
 } from 'react-native'
@@ -18,13 +20,11 @@ import { ClientMainTab } from '../components/ClientBottomNavigation'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { AnimatedQuickAccessButton } from '../components/AnimatedQuickAccessButton'
 import { BrandIdentity } from '../components/BrandIdentity'
-import { CardInsetShadow } from '../components/CardInsetShadow'
+import { CardInsetShadow, NeumorphicRaised } from '../components/CardInsetShadow'
 import { formatServicePrice } from '../lib/catalog'
-import type { ClientHomeAppearance } from '../lib/client-home-appearance'
 import type { HomeServiceRecommendation } from '../lib/home-recommendations'
 import type { ClientEventDraftSummary } from '../lib/planning'
 import { colors } from '../theme/tokens'
-import { ModernHomeScreen } from './03.0-ModernHome'
 import type { BookingItem } from './11-BookingScreen'
 
 export type ClientHomeAction = 'newEvent' | 'vendors' | 'tasks'
@@ -45,7 +45,6 @@ export interface ClientBookingProgress {
 }
 
 export interface ClientHomeScreenProps {
-  appearance?: ClientHomeAppearance
   draftEvents?: ClientEventDraftSummary[]
   bookingProgressEvents?: ClientBookingProgress[]
   hasUnreadBookingUpdates?: boolean
@@ -60,8 +59,6 @@ export interface ClientHomeScreenProps {
   onOpenRefunds?: () => void
   onRefresh?: () => void | Promise<void>
   onStartNewEvent?: () => Promise<boolean | void> | boolean | void
-  onOpenProfile?: () => void
-  onOpenSupport?: () => void
   onScrollDirectionChange?: (direction: 'down' | 'up') => void
   onSeeAllVenues?: () => void
   onSelectRecommendation?: (serviceId: string) => void
@@ -73,6 +70,16 @@ const QUICK_ACCESS_ITEMS = [
   { id: 'savedPlans', label: 'Saved Plans', image: require('../../images/Plans.png'), iconScale: 1.5 },
   { id: 'favourites', label: 'Favourites', image: require('../../images/Favourites.png'), iconScale: 1.48 },
   { id: 'refunds', label: 'Refunds', image: require('../../images/Wallet.png'), iconScale: 1.45 },
+] as const
+
+const SEARCH_PROMPT = 'Search....'
+
+const ADVERTISEMENTS = [
+  { colors: ['#7B1E37', '#C65B76'] as const, id: 'ad-1' },
+  { colors: ['#2B5268', '#6097B1'] as const, id: 'ad-2' },
+  { colors: ['#76512E', '#C49A66'] as const, id: 'ad-3' },
+  { colors: ['#4A3D76', '#9382C1'] as const, id: 'ad-4' },
+  { colors: ['#2E6258', '#6EB19E'] as const, id: 'ad-5' },
 ] as const
 
 type QuickAccessId = (typeof QUICK_ACCESS_ITEMS)[number]['id']
@@ -175,7 +182,6 @@ export const getClientBookingProgress = (
 })
 
 export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
-  appearance = 'classic',
   draftEvents = [],
   bookingProgressEvents = [],
   hasUnreadBookingUpdates = false,
@@ -184,8 +190,6 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   onOpenDraft,
   onOpenSavedPlans,
   onOpenBookingProgress,
-  onOpenProfile,
-  onOpenSupport,
   onOpenRefunds,
   onRefresh,
   onScrollDirectionChange,
@@ -197,43 +201,133 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   const safeAreaInsets = useSafeAreaInsets()
   const { width } = useWindowDimensions()
   const isWide = width >= 768
-  const brandMarkSize = width < 375 ? 26 : 30
+  const brandMarkSize = width < 375 ? 18 : 20
   const lastScrollY = React.useRef(0)
-  const logoRotation = React.useRef(new Animated.Value(0)).current
-  const logoSpinDirection = React.useRef<1 | -1>(1)
-  const isLogoSpinning = React.useRef(false)
+  const searchInputRef = React.useRef<React.ComponentRef<typeof TextInput>>(null)
+  const searchExpansion = React.useRef(new Animated.Value(0)).current
+  const searchPromptCharacters = React.useRef(
+    Array.from(SEARCH_PROMPT, () => new Animated.Value(0))
+  ).current
   const [isDraftPromptVisible, setIsDraftPromptVisible] = React.useState(false)
   const [isStartingNewEvent, setIsStartingNewEvent] = React.useState(false)
   const [showAllBookingProgress, setShowAllBookingProgress] = React.useState(false)
+  const [isSearchExpanded, setIsSearchExpanded] = React.useState(false)
+  const [isSearchFieldEngaged, setIsSearchFieldEngaged] = React.useState(false)
+  const [searchQuery, setSearchQuery] = React.useState('')
+  const [searchActivityVersion, setSearchActivityVersion] = React.useState(0)
+  const [activeAdvertisementIndex, setActiveAdvertisementIndex] = React.useState(0)
   const visibleBookingProgress = showAllBookingProgress
     ? bookingProgressEvents
     : bookingProgressEvents.slice(0, 3)
+  const featuredBusinesses = React.useMemo(() => {
+    const providerIds = new Set<string>()
+    return recommendations.flatMap((recommendation) => {
+      const { service } = recommendation
+      const providerId = service.providerId || service.providerName
+      if (providerIds.has(providerId)) return []
+      providerIds.add(providerId)
+      return [{
+        categoryName: service.categoryName,
+        id: providerId,
+        imageLabel: service.imageLabel,
+        imageUrl: service.imageUrl,
+        name: service.providerName,
+        rating: service.rating,
+        reviewCount: service.reviewCount,
+        serviceId: service.id,
+      }]
+    }).slice(0, 6)
+  }, [recommendations])
   const hasAdditionalBookingProgress = bookingProgressEvents.length > 3
   const draftEvent = draftEvents[0]
   const onOpenActiveEvent = () => {
     if (draftEvent) onOpenDraft?.(draftEvent.id)
   }
 
-  const handleLogoPress = () => {
-    if (isLogoSpinning.current) return
-    isLogoSpinning.current = true
-    const direction = logoSpinDirection.current
-    logoSpinDirection.current = direction === 1 ? -1 : 1
-    logoRotation.setValue(0)
-    Animated.timing(logoRotation, {
-      duration: 620,
+  const searchWidth = searchExpansion.interpolate({
+    inputRange: [0, 1],
+    outputRange: [40, Math.max(126, Math.min(240, width - Math.round(brandMarkSize * 6.8) - 46))],
+  })
+  React.useEffect(() => {
+    if (!isSearchExpanded || isSearchFieldEngaged || searchQuery) {
+      searchPromptCharacters.forEach((character) => {
+        character.stopAnimation()
+        character.setValue(0)
+      })
+      return undefined
+    }
+
+    const wave = Animated.loop(Animated.sequence([
+      Animated.stagger(90, searchPromptCharacters.map((character) => Animated.timing(character, {
+        toValue: 1,
+        duration: 180,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }))),
+      Animated.delay(3000),
+      Animated.parallel(searchPromptCharacters.map((character) => Animated.timing(character, {
+        toValue: 0,
+        duration: 150,
+        useNativeDriver: true,
+      }))),
+      Animated.delay(180),
+    ]))
+    wave.start()
+    return () => wave.stop()
+  }, [isSearchExpanded, isSearchFieldEngaged, searchPromptCharacters, searchQuery])
+
+  const handleSearchPress = () => {
+    if (isSearchExpanded) {
+      setIsSearchFieldEngaged(true)
+      setSearchActivityVersion((current) => current + 1)
+      searchInputRef.current?.focus()
+      return
+    }
+
+    setIsSearchExpanded(true)
+    Animated.timing(searchExpansion, {
+      duration: 390,
       easing: Easing.inOut(Easing.cubic),
-      toValue: direction,
-      useNativeDriver: true,
-    }).start(() => {
-      isLogoSpinning.current = false
-    })
+      toValue: 1,
+      useNativeDriver: false,
+    }).start()
   }
 
-  const logoRotate = logoRotation.interpolate({
-    inputRange: [-1, 0, 1],
-    outputRange: ['-360deg', '0deg', '360deg'],
-  })
+  const collapseSearch = React.useCallback(() => {
+    searchInputRef.current?.blur()
+    setIsSearchExpanded(false)
+    setIsSearchFieldEngaged(false)
+    setSearchQuery('')
+    Animated.timing(searchExpansion, {
+      duration: 390,
+      easing: Easing.inOut(Easing.cubic),
+      toValue: 0,
+      useNativeDriver: false,
+    }).start()
+  }, [searchExpansion])
+
+  React.useEffect(() => {
+    if (!isSearchExpanded || isSearchFieldEngaged) return undefined
+    const timeout = setTimeout(collapseSearch, 10000)
+    return () => clearTimeout(timeout)
+  }, [collapseSearch, isSearchExpanded, isSearchFieldEngaged, searchActivityVersion])
+
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      setActiveAdvertisementIndex((current) => (current + 1) % ADVERTISEMENTS.length)
+    }, 5000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const handleSearchFocus = () => {
+    setIsSearchFieldEngaged(true)
+    setSearchActivityVersion((current) => current + 1)
+  }
+  const handleSearchBlur = () => setIsSearchFieldEngaged(false)
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value)
+    setSearchActivityVersion((current) => current + 1)
+  }
 
   const handleCreateEventPress = () => {
     if (draftEvents.length > 0) {
@@ -269,39 +363,6 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
     }
 
     onOpenRefunds?.()
-  }
-
-  if (appearance === 'modern') {
-    return (
-      <>
-        <ModernHomeScreen
-          bookingProgressEvents={bookingProgressEvents}
-          hasAdditionalBookingProgress={hasAdditionalBookingProgress}
-          hasUnreadBookingUpdates={hasUnreadBookingUpdates}
-          isDraftPromptVisible={isDraftPromptVisible}
-          isStartingNewEvent={isStartingNewEvent}
-          isRefreshing={isRefreshing}
-          onCreateEvent={handleCreateEventPress}
-          onDismissDraftPrompt={() => setIsDraftPromptVisible(false)}
-          onOpenBookingProgress={onOpenBookingProgress}
-          onOpenProfile={onOpenProfile}
-          onRefresh={onRefresh}
-          onOpenSupport={onOpenSupport}
-          onQuickAccess={handleQuickAccess}
-          onResumeDraft={() => {
-            setIsDraftPromptVisible(false)
-            onOpenActiveEvent()
-          }}
-          onScrollDirectionChange={onScrollDirectionChange}
-          onSeeAllVenues={onSeeAllVenues}
-          onSelectRecommendation={onSelectRecommendation}
-          onStartNewEvent={() => void handleStartNewEvent()}
-          onToggleBookingProgress={() => setShowAllBookingProgress((current) => !current)}
-          recommendations={recommendations}
-          showAllBookingProgress={showAllBookingProgress}
-        />
-      </>
-    )
   }
 
   return (
@@ -383,7 +444,7 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
         <View style={styles.referenceSection}>
           <View style={styles.referenceSectionHeader}>
             <View>
-              <Text style={styles.referenceSectionTitle}>UPCOMING EVENTS</Text>
+              <Text style={[styles.referenceSectionTitle, styles.referenceRecommendedTitle]}>UPCOMING EVENTS</Text>
               <Text style={styles.referenceSectionSubtitle}>Active booking confirmation progress</Text>
             </View>
             {hasAdditionalBookingProgress ? (
@@ -412,7 +473,7 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
               onPress={() => onOpenBookingProgress?.(progress.booking)}
               style={({ pressed }) => [styles.bookingProgressCard, pressed && styles.referencePressed]}
             >
-              <CardInsetShadow />
+              <NeumorphicRaised surfaceColor="#F8F6F3" />
               {progress.hasUnreadUpdate ? <View style={styles.bookingProgressUnreadDot} /> : null}
               <View style={styles.bookingProgressHeading}>
                 <View style={styles.bookingProgressCopy}>
@@ -444,18 +505,31 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
             </Pressable>
           )) : (
             <View style={styles.emptyDraftState}>
-              <MaterialIcons name="event-available" size={24} color="#8A2944" />
-              <View style={styles.emptyDraftCopy}>
-                <Text style={styles.emptyDraftTitle}>No active bookings yet</Text>
-                <Text style={styles.emptyDraftText}>Provider and coordinator confirmations for your active events will appear here.</Text>
+              <LinearGradient
+                colors={['#F8F6F3', '#F8F6F3']}
+                end={{ x: 1, y: 1 }}
+                pointerEvents="none"
+                start={{ x: 0, y: 0 }}
+                style={styles.emptyDraftInset}
+              />
+              <LinearGradient colors={['rgba(0, 0, 0, 0.1)', 'rgba(0, 0, 0, 0)']} end={{ x: 0, y: 1 }} pointerEvents="none" start={{ x: 0, y: 0 }} style={styles.emptyDraftInsetTop} />
+              <LinearGradient colors={['rgba(0, 0, 0, 0.12)', 'rgba(0, 0, 0, 0)']} end={{ x: 1, y: 0 }} pointerEvents="none" start={{ x: 0, y: 0 }} style={styles.emptyDraftInsetLeft} />
+              <LinearGradient colors={['rgba(255, 255, 255, 0)', 'rgba(255, 255, 255, 0.56)']} end={{ x: 0, y: 1 }} pointerEvents="none" start={{ x: 0, y: 0 }} style={styles.emptyDraftInsetBottom} />
+              <LinearGradient colors={['rgba(255, 255, 255, 0)', 'rgba(255, 255, 255, 0.48)']} end={{ x: 1, y: 0 }} pointerEvents="none" start={{ x: 0, y: 0 }} style={styles.emptyDraftInsetRight} />
+              <View style={styles.emptyDraftContent}>
+                <MaterialIcons name="event-available" size={24} color="#8A2944" />
+                <View style={styles.emptyDraftCopy}>
+                  <Text style={styles.emptyDraftTitle}>No active bookings yet</Text>
+                  <Text style={styles.emptyDraftText}>Provider and coordinator confirmations for your active events will appear here.</Text>
+                </View>
               </View>
             </View>
           )}
         </View>
 
         <View style={styles.referenceSection}>
-          <View style={styles.referenceSectionHeader}>
-            <View style={styles.referenceSectionTitleCopy}><Text style={styles.referenceSectionTitle}>RECOMMENDED FOR YOU<Text style={styles.sectionDot}></Text></Text><Text style={styles.referenceSectionSubtitle}>Based on confirmed bookings and reliable client reviews</Text></View>
+          <View style={[styles.referenceSectionHeader, styles.referenceRecommendationHeader]}>
+            <View style={styles.referenceSectionTitleCopy}><Text style={[styles.referenceSectionTitle, styles.referenceRecommendedTitle]}>RECOMMENDED FOR YOU<Text style={styles.sectionDot}></Text></Text></View>
             <Pressable accessibilityLabel="See all venues" accessibilityRole="button" onPress={onSeeAllVenues} style={styles.exploreAllButton}>
               <Text style={styles.exploreAll}>Explore All →</Text>
             </Pressable>
@@ -465,6 +539,7 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
             decelerationRate="normal"
             horizontal
             showsHorizontalScrollIndicator={false}
+            style={[styles.carouselViewport, isWide && styles.carouselViewportWide]}
           >
             {recommendations.map((recommendation) => (
               <Pressable
@@ -475,6 +550,10 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
                 style={({ pressed }) => [styles.referenceVenueCard, { width: isWide ? 324 : Math.max(252, width - 56) }, pressed && styles.referencePressed]}
               >
                 <CardInsetShadow />
+                <View pointerEvents="none" style={styles.referenceServiceHeart}>
+                  <BlurView intensity={22} pointerEvents="none" tint="light" style={styles.referenceServiceHeartGlass} />
+                  <MaterialIcons color="#701B30" name="favorite-border" size={19} style={styles.referenceServiceHeartIcon} />
+                </View>
                 <View style={styles.referenceVenueImageWrap}>
                   {recommendation.service.imageUrl ? (
                     <Image accessibilityLabel={recommendation.service.imageLabel} resizeMode="cover" source={{ uri: recommendation.service.imageUrl }} style={styles.referenceVenueImage} />
@@ -499,18 +578,69 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
             ) : null}
           </ScrollView>
         </View>
+
+        <View style={[styles.referenceSection, styles.featuredBusinessSection]}>
+          <Text style={[styles.referenceSectionTitle, styles.referenceRecommendedTitle]}>FEATURED BUSINESSES</Text>
+          <ScrollView
+            contentContainerStyle={styles.featuredBusinessCarousel}
+            decelerationRate="normal"
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={[styles.carouselViewport, isWide && styles.carouselViewportWide]}
+          >
+            {featuredBusinesses.map((business) => (
+              <Pressable
+                key={business.id}
+                accessibilityLabel={`Open ${business.name}`}
+                accessibilityRole="button"
+                onPress={() => onSelectRecommendation?.(business.serviceId)}
+                style={({ pressed }) => [styles.featuredBusinessCard, { width: isWide ? 180 : 150 }, pressed && styles.referencePressed]}
+              >
+                {business.imageUrl ? (
+                  <Image accessibilityLabel={business.imageLabel} resizeMode="cover" source={{ uri: business.imageUrl }} style={styles.featuredBusinessImage} />
+                ) : (
+                  <View style={[styles.featuredBusinessImage, styles.recommendationImageFallback]}><MaterialIcons name="storefront" size={34} color="#FFFFFF" /></View>
+                )}
+                <LinearGradient colors={['rgba(15, 8, 10, 0)', 'rgba(15, 8, 10, 0.5)', 'rgba(15, 8, 10, 0.98)']} end={{ x: 0, y: 1 }} locations={[0, 0.62, 1]} pointerEvents="none" start={{ x: 0, y: 0.28 }} style={styles.featuredBusinessShade} />
+                <LinearGradient colors={['#C9CCD1', '#F1F2F4']} end={{ x: 1, y: 1 }} pointerEvents="none" start={{ x: 0, y: 0 }} style={styles.featuredBusinessLogo} />
+                <View style={styles.featuredBusinessCopy}>
+                  <Text numberOfLines={2} style={styles.featuredBusinessName}>{business.name}</Text>
+                </View>
+              </Pressable>
+            ))}
+            {Array.from({ length: 5 }, (_, index) => (
+              <View key={`featured-business-placeholder-${index}`} style={[styles.featuredBusinessCard, styles.featuredBusinessPlaceholder, { width: isWide ? 180 : 150 }]}>
+                <NeumorphicRaised surfaceColor="#F8F6F3" />
+              </View>
+            ))}
+            {featuredBusinesses.length === 0 ? (
+              <View style={styles.featuredBusinessEmpty}><Text style={styles.emptyDraftTitle}>Featured businesses will appear here</Text></View>
+            ) : null}
+          </ScrollView>
+        </View>
+
+        <View style={styles.advertisementSection}>
+          <LinearGradient
+            colors={ADVERTISEMENTS[activeAdvertisementIndex].colors}
+            end={{ x: 1, y: 1 }}
+            style={styles.advertisementCard}
+            start={{ x: 0, y: 0 }}
+          >
+            <Text style={styles.advertisementText}>ADS HERE</Text>
+          </LinearGradient>
+          <View style={styles.advertisementIndicators}>
+            {ADVERTISEMENTS.map((advertisement, index) => (
+              <View key={advertisement.id} style={[styles.advertisementIndicator, index === activeAdvertisementIndex && styles.advertisementIndicatorActive]} />
+            ))}
+          </View>
+        </View>
       </ScrollView>
 
       <View style={[styles.referenceStickyHeader, { paddingTop: safeAreaInsets.top }]}>
         <View style={[styles.referenceStickyHeaderContent, isWide && styles.referenceStickyHeaderContentWide]}>
           <View style={styles.referenceHeader}>
-            <Pressable
-              accessibilityLabel="Animate MULTIVENT logo"
-              accessibilityRole="button"
-              onPress={handleLogoPress}
-              style={({ pressed }) => [styles.referenceLogoButton, pressed && styles.referenceHeaderControlPressed]}
-            >
-              <Animated.View style={[styles.referenceHeaderWordmark, { transform: [{ rotate: logoRotate }] }]}>
+            <View accessibilityLabel="MULTIVENT" style={styles.referenceLogoButton}>
+              <View style={styles.referenceHeaderWordmark}>
                 <View style={styles.referenceWordmarkDepth}>
                   <BrandIdentity
                     markSize={brandMarkSize}
@@ -520,26 +650,52 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
                   />
                   <BrandIdentity markSize={brandMarkSize} showName={false} variant="metallicWordmark" />
                 </View>
-              </Animated.View>
-            </Pressable>
-            <View style={styles.referenceHeaderControls}>
-              <Pressable
-                accessibilityLabel="Contact MULTIVENT Support"
-                accessibilityRole="button"
-                onPress={onOpenSupport}
-                style={({ pressed }) => [styles.referenceHeaderControl, pressed && styles.referenceHeaderControlPressed]}
-              >
-                <MaterialIcons color="#FFFFFF" name="support-agent" size={23} />
-              </Pressable>
-              <Pressable
-                accessibilityLabel="Open settings"
-                accessibilityRole="button"
-                onPress={onOpenProfile}
-                style={({ pressed }) => [styles.referenceHeaderControl, pressed && styles.referenceHeaderControlPressed]}
-              >
-                <MaterialIcons color="#FFFFFF" name="settings" size={22} />
-              </Pressable>
+              </View>
             </View>
+            <Animated.View style={[styles.referenceSearch, { width: searchWidth }]}>
+              <BlurView intensity={28} pointerEvents="none" tint="light" style={styles.referenceSearchGlass} />
+              <Pressable
+                accessibilityLabel={isSearchExpanded ? 'Focus search' : 'Open search'}
+                accessibilityRole="button"
+                onPress={handleSearchPress}
+                style={({ pressed }) => [styles.referenceHeaderControl, pressed && styles.referenceHeaderControlPressed]}
+              >
+                <MaterialIcons color="#FFFFFF" name="search" size={22} />
+              </Pressable>
+              {isSearchExpanded ? (
+                <View style={styles.referenceSearchInputWrap}>
+                  <TextInput
+                    ref={searchInputRef}
+                    accessibilityLabel="Search"
+                    onChangeText={handleSearchChange}
+                    onBlur={handleSearchBlur}
+                    onFocus={handleSearchFocus}
+                    placeholder=""
+                    placeholderTextColor="#FFFFFF"
+                    style={styles.referenceSearchInput}
+                    value={searchQuery}
+                  />
+                  {!isSearchFieldEngaged && !searchQuery ? (
+                    <Animated.View pointerEvents="none" style={styles.referenceSearchPrompt}>
+                      {SEARCH_PROMPT.split('').map((character, index) => (
+                        <Animated.Text
+                          key={`${character}-${index}`}
+                          style={[
+                            styles.referenceSearchPromptCharacter,
+                            {
+                              opacity: searchPromptCharacters[index].interpolate({ inputRange: [0, 0.01, 1], outputRange: [0, 1, 1] }),
+                              transform: [{ translateY: searchPromptCharacters[index].interpolate({ inputRange: [0, 1], outputRange: [5, 0] }) }],
+                            },
+                          ]}
+                        >
+                          {character}
+                        </Animated.Text>
+                      ))}
+                    </Animated.View>
+                  ) : null}
+                </View>
+              ) : null}
+            </Animated.View>
           </View>
         </View>
       </View>
@@ -655,7 +811,7 @@ const styles = StyleSheet.create({
   referenceHeader: {
     minHeight: 52,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     justifyContent: 'space-between',
     paddingTop: 2,
     paddingBottom: 4,
@@ -707,12 +863,37 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 21,
   },
-  referenceHeaderControls: {
-    flexDirection: 'row',
+  referenceSearch: {
     alignItems: 'center',
-    gap: 2,
+    flexDirection: 'row',
+    height: 40,
+    overflow: 'hidden',
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.16)',
+    borderColor: 'rgba(255, 255, 255, 0.38)',
+    borderWidth: 1,
     marginLeft: 6,
   },
+  referenceSearchGlass: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+  referenceSearchInputWrap: {
+    flex: 1,
+    height: '100%',
+    justifyContent: 'center',
+    minWidth: 0,
+  },
+  referenceSearchInput: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    height: '100%',
+    paddingHorizontal: 2,
+    paddingRight: 13,
+  },
+  referenceSearchPrompt: {
+    flexDirection: 'row',
+    left: 2,
+    position: 'absolute',
+  },
+  referenceSearchPromptCharacter: { color: '#FFFFFF', fontSize: 14 },
   referenceWordmarkDepth: {
     position: 'relative',
   },
@@ -956,7 +1137,7 @@ const styles = StyleSheet.create({
   compactDraftAction: { color: '#8A2944', fontSize: 12, fontWeight: '700' },
   compactDraftDeleteButton: { padding: 8 },
   bookingDropdown: { flexDirection: 'row', alignItems: 'center', gap: 1 },
-  bookingProgressCard: { position: 'relative', overflow: 'hidden', borderWidth: 1, borderColor: '#E4D9D5', borderRadius: 32, backgroundColor: '#FFFFFF', marginBottom: 9, padding: 12, shadowColor: '#4E061A', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.1, shadowRadius: 14, elevation: 4 },
+  bookingProgressCard: { position: 'relative', overflow: 'hidden', borderWidth: 1, borderColor: '#FFFFFF', borderRadius: 32, backgroundColor: '#F8F6F3', marginBottom: 12, padding: 12, shadowColor: '#8F939D', shadowOffset: { width: 4, height: 5 }, shadowOpacity: 0.28, shadowRadius: 10, elevation: 6 },
   bookingProgressUnreadDot: { position: 'absolute', top: 8, left: 8, zIndex: 1, width: 9, height: 9, borderWidth: 1.5, borderColor: '#FFFFFF', borderRadius: 5, backgroundColor: '#C93643' },
   bookingProgressHeading: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
   bookingProgressCopy: { flex: 1, minWidth: 0 },
@@ -971,16 +1152,19 @@ const styles = StyleSheet.create({
   bookingProgressFill: { height: '100%', backgroundColor: '#8A2944' },
   bookingProgressLink: { color: '#8A2944', fontSize: 13, lineHeight: 18, fontWeight: '700', marginTop: 9 },
   emptyDraftState: {
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderColor: '#E4D9D5',
-    borderRadius: 9,
-    borderStyle: 'dashed',
+    backgroundColor: '#F8F6F3',
+    borderColor: '#FFFFFF',
+    borderRadius: 22,
     borderWidth: 1,
-    flexDirection: 'row',
-    gap: 10,
-    padding: 14,
+    overflow: 'hidden',
+    padding: 2,
   },
+  emptyDraftInset: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+  emptyDraftInsetTop: { position: 'absolute', top: 0, right: 0, left: 0, height: 8 },
+  emptyDraftInsetLeft: { position: 'absolute', top: 0, bottom: 0, left: 0, width: 5 },
+  emptyDraftInsetBottom: { position: 'absolute', right: 0, bottom: 0, left: 0, height: 13 },
+  emptyDraftInsetRight: { position: 'absolute', top: 0, right: 0, bottom: 0, width: 13 },
+  emptyDraftContent: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, zIndex: 1 },
   emptyDraftCopy: { flex: 1 },
   emptyDraftTitle: { color: '#2B2323', fontSize: 13, fontWeight: '700', lineHeight: 18 },
   emptyDraftText: { color: '#7C7271', fontSize: 13, lineHeight: 18, marginTop: 2 },
@@ -1093,7 +1277,7 @@ const styles = StyleSheet.create({
   },
   referenceSectionHeader: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     justifyContent: 'space-between',
     gap: 10,
     marginBottom: 8,
@@ -1103,6 +1287,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingRight: 8,
   },
+  referenceRecommendationHeader: { alignItems: 'center', marginBottom: 0 },
   referenceSectionTitle: {
     color: '#2B2323',
     fontSize: 14,
@@ -1110,6 +1295,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.3,
   },
+  referenceRecommendedTitle: { fontFamily: 'Inter_900Black', fontSize: 17, lineHeight: 22, fontWeight: '900', letterSpacing: 0.1 },
   sectionDot: {
     color: '#8A2944',
   },
@@ -1316,9 +1502,28 @@ const styles = StyleSheet.create({
   },
   referenceCarousel: {
     gap: 12,
-    paddingTop: 8,
+    paddingHorizontal: 12,
+    paddingTop: 12,
     paddingBottom: 20,
   },
+  carouselViewport: { marginHorizontal: -14 },
+  carouselViewportWide: { marginHorizontal: -28 },
+  featuredBusinessSection: { marginTop: 8 },
+  featuredBusinessCarousel: { gap: 14, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 12 },
+  featuredBusinessCard: { height: 306, overflow: 'hidden', position: 'relative', borderRadius: 26, backgroundColor: '#6E3C48' },
+  featuredBusinessPlaceholder: { backgroundColor: '#F8F6F3', borderColor: '#FFFFFF', borderWidth: 1, shadowColor: '#929299', shadowOffset: { width: 4, height: 5 }, shadowOpacity: 0.24, shadowRadius: 10, elevation: 5 },
+  featuredBusinessImage: { width: '100%', height: '100%' },
+  featuredBusinessShade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+  featuredBusinessLogo: { position: 'absolute', top: 10, left: 10, width: 42, height: 42, overflow: 'hidden', borderRadius: 11, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.7)' },
+  featuredBusinessCopy: { position: 'absolute', right: 12, bottom: 12, left: 12 },
+  featuredBusinessName: { color: '#FFFFFF', fontFamily: 'Inter_900Black', fontSize: 18, lineHeight: 22 },
+  featuredBusinessEmpty: { width: 220, minHeight: 140, justifyContent: 'center', borderRadius: 24, backgroundColor: '#F2E8E7', padding: 16 },
+  advertisementSection: { marginTop: 12, marginBottom: 4 },
+  advertisementCard: { height: 168, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderRadius: 28 },
+  advertisementText: { color: '#FFFFFF', fontFamily: 'Inter_900Black', fontSize: 22, letterSpacing: 1.4 },
+  advertisementIndicators: { flexDirection: 'row', alignSelf: 'center', gap: 6, marginTop: 10 },
+  advertisementIndicator: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#D8CECC' },
+  advertisementIndicatorActive: { width: 20, backgroundColor: '#701B30' },
   referenceVenueCard: {
     position: 'relative',
     overflow: 'hidden',
@@ -1330,6 +1535,9 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     elevation: 4,
   },
+  referenceServiceHeart: { position: 'absolute', top: 8, right: 8, zIndex: 3, width: 30, height: 30, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.46)', borderRadius: 15, backgroundColor: 'rgba(255, 255, 255, 0.2)' },
+  referenceServiceHeartGlass: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+  referenceServiceHeartIcon: { transform: [{ translateY: 1 }] },
   referenceVenueImageWrap: {
     height: 104,
     overflow: 'hidden',

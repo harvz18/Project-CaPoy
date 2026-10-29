@@ -13,20 +13,17 @@ import {
 } from 'react-native'
 import { Text } from '../components/AppText'
 import { BrandIdentity } from '../components/BrandIdentity'
-import type { ClientHomeAppearance } from '../lib/client-home-appearance'
 import type { EditableAccountProfile } from '../lib/profile'
 import { colors } from '../theme/tokens'
 
 type AccountProfileScreenProps = {
   error?: string
-  homeAppearance?: ClientHomeAppearance
   isLoading?: boolean
   isSaving?: boolean
   isSigningOut?: boolean
   isUploadingPhoto?: boolean
   onBack: () => void
   onChoosePhoto?: () => Promise<string | undefined>
-  onHomeAppearanceChange?: (appearance: ClientHomeAppearance) => void
   onOpenSupport?: () => void
   onSave: (value: EditableAccountProfile) => void
   onScrollDirectionChange?: (direction: 'down' | 'up') => void
@@ -49,14 +46,12 @@ const fallbackProfile: EditableAccountProfile = {
 
 export const AccountProfileScreen: React.FC<AccountProfileScreenProps> = ({
   error,
-  homeAppearance = 'classic',
   isLoading = false,
   isSaving = false,
   isSigningOut = false,
   isUploadingPhoto = false,
   onBack,
   onChoosePhoto,
-  onHomeAppearanceChange,
   onOpenSupport,
   onSave,
   onScrollDirectionChange,
@@ -71,7 +66,6 @@ export const AccountProfileScreen: React.FC<AccountProfileScreenProps> = ({
   }, [profile])
 
   const isProvider = value.role === 'service_provider'
-  const isClient = value.role === 'client'
   const initials = (isProvider ? value.businessName : value.fullName)
     .split(/\s+/)
     .filter(Boolean)
@@ -187,44 +181,6 @@ export const AccountProfileScreen: React.FC<AccountProfileScreenProps> = ({
             >
               {isSaving ? <ActivityIndicator color={colors.textInverse} /> : <Text style={styles.saveText}>Save changes</Text>}
             </Pressable>
-            {isClient && onHomeAppearanceChange ? (
-              <View style={styles.appearancePreference}>
-                <Text style={styles.appearanceTitle}>Home Screen Appearance</Text>
-                <Text style={styles.appearanceDescription}>Choose your preferred home screen design.</Text>
-                <View style={styles.appearanceOptions}>
-                  {([
-                    { value: 'classic' as const, label: 'Classic UI', description: 'Original MULTIVENT design.' },
-                    { value: 'modern' as const, label: 'Modern UI', description: 'New premium MULTIVENT design.' },
-                  ]).map((option) => {
-                    const selected = homeAppearance === option.value
-                    return (
-                      <Pressable
-                        key={option.value}
-                        accessibilityLabel={`Use ${option.label} home screen`}
-                        accessibilityRole="radio"
-                        accessibilityState={{ selected }}
-                        onPress={() => onHomeAppearanceChange(option.value)}
-                        style={({ pressed }) => [
-                          styles.appearanceOption,
-                          selected && styles.appearanceOptionSelected,
-                          pressed && styles.appearanceOptionPressed,
-                        ]}
-                      >
-                        <MaterialIcons
-                          color={selected ? colors.primary : colors.textMuted}
-                          name={selected ? 'radio-button-checked' : 'radio-button-unchecked'}
-                          size={21}
-                        />
-                        <View style={styles.appearanceOptionCopy}>
-                          <Text style={styles.appearanceOptionLabel}>{option.label}</Text>
-                          <Text style={styles.appearanceOptionDescription}>{option.description}</Text>
-                        </View>
-                      </Pressable>
-                    )
-                  })}
-                </View>
-              </View>
-            ) : null}
             {onOpenSupport ? (
               <Pressable accessibilityRole="button" onPress={onOpenSupport} style={styles.supportButton}>
                 <Text style={styles.supportText}>Contact MULTIVENT Support</Text>
@@ -280,16 +236,6 @@ const Field: React.FC<FieldProps> = ({ helper, label, multiline, style, ...props
 )
 
 const styles = StyleSheet.create({
-  appearanceDescription: { color: colors.textSecondary, fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 17, marginTop: 3 },
-  appearanceOption: { alignItems: 'center', borderColor: colors.border, borderRadius: 10, borderWidth: 1, flexDirection: 'row', gap: 10, minHeight: 58, paddingHorizontal: 12, paddingVertical: 9 },
-  appearanceOptionCopy: { flex: 1, minWidth: 0 },
-  appearanceOptionDescription: { color: colors.textSecondary, fontFamily: 'Inter_400Regular', fontSize: 11, lineHeight: 15, marginTop: 2 },
-  appearanceOptionLabel: { color: colors.textPrimary, fontFamily: 'Inter_700Bold', fontSize: 13 },
-  appearanceOptionPressed: { backgroundColor: '#FAF0F2', opacity: 0.84 },
-  appearanceOptionSelected: { backgroundColor: '#FFF7F8', borderColor: colors.primary },
-  appearanceOptions: { gap: 8, marginTop: 12 },
-  appearancePreference: { borderTopColor: colors.divider, borderTopWidth: 1, marginTop: 20, paddingTop: 18 },
-  appearanceTitle: { color: colors.primaryDark, fontFamily: 'Inter_700Bold', fontSize: 15 },
   avatar: { alignItems: 'center', alignSelf: 'center', backgroundColor: '#F1E2E3', borderColor: '#E4C8CB', borderRadius: 44, borderWidth: 1, height: 88, justifyContent: 'center', width: 88 },
   avatarButton: { alignSelf: 'center', position: 'relative' },
   avatarButtonPressed: { opacity: 0.72 },
