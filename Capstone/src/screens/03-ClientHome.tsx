@@ -416,8 +416,10 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
               Make every moment of your special day unforgettable.
             </Text>
             <View style={styles.heroFooter}>
-              <Text style={styles.heroPlanText}>Plan Wedding</Text>
-              <MaterialIcons color="#FFFFFF" name="arrow-forward" size={20} />
+              <View style={styles.heroPlanAction}>
+                <Text style={styles.heroPlanText}>Plan Wedding</Text>
+                <MaterialIcons color="#FFFFFF" name="trending-flat" size={31} />
+              </View>
             </View>
           </Pressable>
         </View>
@@ -1046,6 +1048,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     fontWeight: '600',
+  },
+  heroPlanAction: {
+    alignItems: 'flex-end',
   },
   referenceSection: {
     marginBottom: 18,
