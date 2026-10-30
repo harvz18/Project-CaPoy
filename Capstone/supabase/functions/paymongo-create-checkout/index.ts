@@ -94,7 +94,7 @@ Deno.serve(async (request) => {
   })
   if (preparedError) return json({ error: preparedError.message }, 409)
   const prepared = preparedData as CheckoutPreparation | null
-  if (!prepared?.attemptId || !prepared.checkoutReference || !Number.isInteger(prepared.amountCentavos) || prepared.amountCentavos <= 0) {
+  if (!prepared?.attemptId || !prepared.checkoutReference) {
     return json({ error: 'The server returned an invalid payment attempt.' }, 500)
   }
   if (prepared.status === 'checkout_created' && prepared.checkoutUrl) {
@@ -102,6 +102,9 @@ Deno.serve(async (request) => {
   }
   if (prepared.status === 'creating_checkout') {
     return json({ error: 'Your checkout is being prepared. Please try again shortly.' }, 409)
+  }
+  if (!Number.isInteger(prepared.amountCentavos) || prepared.amountCentavos <= 0) {
+    return json({ error: 'The server returned an invalid payment attempt.' }, 500)
   }
 
   const { data: claimed, error: claimError } = await userClient.rpc('claim_my_paymongo_checkout_v16', {
