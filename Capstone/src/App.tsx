@@ -6552,9 +6552,18 @@ export const App: React.FC = () => {
   // gestures, so a horizontal interaction inside any screen cannot skip a
   // validation step or change the current plan route.
   const isPlanningNavigationContext = serviceBrowseMode === 'planning'
+  const usesFloatingBottomNavigation = Boolean(clientMainTab || providerMainTab)
+    || screen === 'coordinatorHome'
+    || (screen === 'messages' && messageWorkspace === 'coordinator')
+  // The floating navigation owns its own bottom inset. Keeping the root
+  // bottom edge on these screens shortens every ScrollView above Android's
+  // system bar, leaving the horizontal cutoff shown on three-button devices.
+  // Fixed-footer and wizard screens deliberately retain the root bottom inset.
   const appSafeAreaEdges = screen === 'clientHome'
-    ? (['right', 'bottom', 'left'] as const)
-    : (['top', 'right', 'bottom', 'left'] as const)
+    ? (['right', 'left'] as const)
+    : usesFloatingBottomNavigation
+      ? (['top', 'right', 'left'] as const)
+      : (['top', 'right', 'bottom', 'left'] as const)
   const renderedScreen = renderScreen()
 
   return (

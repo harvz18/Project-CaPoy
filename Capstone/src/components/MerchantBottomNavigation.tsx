@@ -1,6 +1,7 @@
 import { MaterialIcons } from '@expo/vector-icons'
 import React from 'react'
 import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { MerchantHomeTab } from '../screens/16-MerchantHome'
 import { Text } from './AppText'
 
@@ -29,10 +30,12 @@ export const MerchantBottomNavigation: React.FC<MerchantBottomNavigationProps> =
   hasUnreadMessages = false,
   onSelectTab,
 }) => {
+  const safeAreaInsets = useSafeAreaInsets()
   const activeIndex = Math.max(0, tabs.findIndex((tab) => tab.id === activeTab))
   const activeIndicatorX = React.useRef(new Animated.Value(0)).current
   const initialized = React.useRef(false)
   const [contentWidth, setContentWidth] = React.useState(0)
+  const navigationBottomOffset = Math.max(20, safeAreaInsets.bottom + 12)
 
   const indicatorPosition = (width: number, index: number) => {
     const slotWidth = width / tabs.length
@@ -51,7 +54,7 @@ export const MerchantBottomNavigation: React.FC<MerchantBottomNavigationProps> =
   }, [activeIndex, activeIndicatorX, contentWidth])
 
   return (
-    <View style={styles.bottomNavigation}>
+    <View style={[styles.bottomNavigation, { bottom: navigationBottomOffset }]}>
       <View
         onLayout={(event) => {
           const width = event.nativeEvent.layout.width
@@ -114,7 +117,6 @@ const styles = StyleSheet.create({
   bottomNavigation: {
     position: 'absolute',
     right: 20,
-    bottom: 20,
     left: 20,
     zIndex: 50,
     height: 60,

@@ -3,6 +3,8 @@ import React from 'react'
 import { MaterialIcons } from '@expo/vector-icons'
 import { BlurView } from 'expo-blur'
 import { LinearGradient } from 'expo-linear-gradient'
+import { VideoView, useVideoPlayer } from 'expo-video'
+import weddingHeroVideo from '../../Website/videos/MULTIVENT Ad Wedding Hero - Loop.mp4'
 import {
   Animated,
   Easing,
@@ -216,6 +218,11 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   const searchPromptCharacters = React.useRef(
     Array.from(SEARCH_PROMPT, () => new Animated.Value(0))
   ).current
+  const weddingHeroPlayer = useVideoPlayer(weddingHeroVideo, (player) => {
+    player.loop = true
+    player.muted = true
+    player.play()
+  })
   const [isDraftPromptVisible, setIsDraftPromptVisible] = React.useState(false)
   const [isStartingNewEvent, setIsStartingNewEvent] = React.useState(false)
   const [showAllBookingProgress, setShowAllBookingProgress] = React.useState(false)
@@ -411,14 +418,30 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
             onPress={handleCreateEventPress}
             style={({ pressed }) => [styles.referenceHero, pressed && styles.referencePressed]}
           >
-            <Text style={styles.heroTitle}>YOUR DREAM WEDDING{`\n`}STARTS HERE!</Text>
-            <Text style={styles.heroDescription}>
-              Make every moment of your special day unforgettable.
-            </Text>
-            <View style={styles.heroFooter}>
-              <View style={styles.heroPlanAction}>
-                <Text style={styles.heroPlanText}>Plan Wedding</Text>
-                <MaterialIcons color="#FFFFFF" name="trending-flat" size={31} />
+            <VideoView
+              contentFit="cover"
+              nativeControls={false}
+              player={weddingHeroPlayer}
+              pointerEvents="none"
+              surfaceType="textureView"
+              style={styles.heroVideo}
+            />
+            <LinearGradient
+              colors={['rgba(12, 4, 7, 0.64)', 'rgba(93, 16, 37, 0.26)', 'rgba(12, 4, 7, 0.7)']}
+              locations={[0, 0.48, 1]}
+              pointerEvents="none"
+              style={styles.heroVideoOverlay}
+            />
+            <View pointerEvents="none" style={styles.heroContent}>
+              <Text style={styles.heroTitle}>YOUR DREAM WEDDING{`\n`}STARTS HERE!</Text>
+              <Text style={styles.heroDescription}>
+                Make every moment of your special day unforgettable.
+              </Text>
+              <View style={styles.heroFooter}>
+                <View style={styles.heroPlanAction}>
+                  <Text style={styles.heroPlanText}>Plan Wedding</Text>
+                  <MaterialIcons color="#FFFFFF" name="trending-flat" size={31} />
+                </View>
               </View>
             </View>
           </Pressable>
@@ -994,11 +1017,30 @@ const styles = StyleSheet.create({
   },
   referenceHero: {
     minHeight: 158,
+    position: 'relative',
     overflow: 'hidden',
-    padding: 16,
     borderTopLeftRadius: 12,
     borderTopRightRadius: 12,
     backgroundColor: colors.primaryLight,
+  },
+  heroVideo: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+  },
+  heroVideoOverlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+  },
+  heroContent: {
+    minHeight: 158,
+    justifyContent: 'space-between',
+    padding: 16,
   },
   heroTopRow: {
     flexDirection: 'row',
@@ -1023,6 +1065,9 @@ const styles = StyleSheet.create({
     fontSize: 24,
     lineHeight: 28,
     fontWeight: '700',
+    textShadowColor: 'rgba(0, 0, 0, 0.86)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 5,
   },
   heroDescription: {
     maxWidth: 260,
@@ -1030,6 +1075,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     marginTop: 7,
+    textShadowColor: 'rgba(0, 0, 0, 0.82)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   heroFooter: {
     flexDirection: 'row',
@@ -1048,6 +1096,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     fontWeight: '600',
+    textShadowColor: 'rgba(0, 0, 0, 0.86)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   heroPlanAction: {
     alignItems: 'flex-end',

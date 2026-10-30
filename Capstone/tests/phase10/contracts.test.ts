@@ -2164,6 +2164,9 @@ test('V10 Phase 6 keeps the mobile brand and navigation treatment consistent', (
   ], 'client bottom navigation')
   ;[merchantNavigation, coordinatorNavigation].forEach((navigation) => {
     mustContain(navigation, [
+      'useSafeAreaInsets',
+      'navigationBottomOffset',
+      'bottom: navigationBottomOffset',
       'size={21}',
       'fontSize: 12',
       'lineHeight: 16',
@@ -2650,17 +2653,24 @@ test('V12 Phase 1 keeps client navigation floating, expandable, and booking-rout
     "backgroundColor: 'rgba(107, 30, 46, 0.1)'",
     "import { LinearGradient } from 'expo-linear-gradient'",
     'styles.navigationFade',
-    "'rgba(224, 185, 198, 0.98)'",
+    "'rgba(224, 185, 198, 0.52)'",
+    'navigationHeight',
+    'hiddenNavigationTranslateY',
+    'onLayout={handleNavigationLayout}',
   ], 'V12 Phase 1 client navigation')
   assert.doesNotMatch(navigation, /id: 'bookings' as const/,
     'Bookings must not remain an expandable navigation action')
   assert.doesNotMatch(navigation, /navigationBackdrop/,
     'The expanded white navigation bar must not add a translucent background extension')
+  assert.doesNotMatch(navigation, /rgba\(224, 185, 198, 0\.98\)/,
+    'The persistent navigation fade must remain subtle enough to preserve scrolling content')
   mustContain(app, [
     "if (tab === 'bookings') setScreen('bookings')",
     "screen === 'bookings'",
     '<ClientBottomNavigation',
     '<SafeAreaView',
+    'usesFloatingBottomNavigation',
+    "? (['top', 'right', 'left'] as const)",
     "profileReturnScreen === 'clientHome'",
     'handleClientNavigationScrollDirection',
     'onToggleNavigation={keepClientNavigationVisibleForToggle}',

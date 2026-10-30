@@ -59,10 +59,17 @@ export const ClientBottomNavigation: React.FC<ClientBottomNavigationProps> = ({
   const isToggleInFlight = React.useRef(false)
   const isLogoSpinning = React.useRef(false)
   const [navigationWidth, setNavigationWidth] = React.useState(0)
+  const [navigationHeight, setNavigationHeight] = React.useState(0)
   const activeIndex = Math.max(0, tabs.findIndex((tab) => tab.id === activeTab))
   // Keep the floating center logo entirely above Android gesture and
   // three-button navigation areas, including devices with no reported inset.
   const navigationBottomOffset = Math.max(16, safeAreaInsets.bottom + 12)
+  // Move the measured navigation bounds past the physical screen edge when it
+  // is hidden. The bottom inset is part of the visible placement, so omitting
+  // it is what previously left the lower edge of the centre M visible.
+  const hiddenNavigationTranslateY = navigationHeight > 0
+    ? navigationHeight + navigationBottomOffset + 1
+    : 0
 
   const indicatorPosition = (width: number, index: number) => {
     const tabWidth = (width - logoGapWidth) / tabs.length
@@ -87,12 +94,23 @@ export const ClientBottomNavigation: React.FC<ClientBottomNavigationProps> = ({
 
   React.useEffect(() => {
     Animated.timing(navigationTranslateY, {
-      toValue: isVisible ? 0 : 116,
+      toValue: isVisible ? 0 : hiddenNavigationTranslateY,
       duration: reducedMotion ? 0 : 220,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start()
-  }, [isVisible, navigationTranslateY, reducedMotion])
+  }, [hiddenNavigationTranslateY, isVisible, navigationTranslateY, reducedMotion])
+
+  const handleNavigationLayout = (event: { nativeEvent: { layout: { height: number } } }) => {
+    const measuredHeight = event.nativeEvent.layout.height
+    if (measuredHeight === navigationHeight) return
+    setNavigationHeight(measuredHeight)
+    // A navigation bar that begins hidden must begin outside the viewport too;
+    // otherwise the first layout frame can expose the bottom of the M button.
+    if (!isVisible) {
+      navigationTranslateY.setValue(measuredHeight + navigationBottomOffset + 1)
+    }
+  }
 
   React.useEffect(() => {
     expansion.stopAnimation()
@@ -201,11 +219,6 @@ export const ClientBottomNavigation: React.FC<ClientBottomNavigationProps> = ({
     inputRange: [0, 1],
     outputRange: [0.02, 1],
   })
-  const navigationFadeOpacity = navigationTranslateY.interpolate({
-    inputRange: [0, 116],
-    outputRange: [1, 0],
-    extrapolate: 'clamp',
-  })
   const logoRotate = logoRotation.interpolate({
     inputRange: [-1, 0, 1],
     outputRange: ['-360deg', '0deg', '360deg'],
@@ -243,104 +256,102 @@ export const ClientBottomNavigation: React.FC<ClientBottomNavigationProps> = ({
   }
 
   return (
-    <Animated.View
-      pointerEvents={isVisible ? 'auto' : 'none'}
-      style={[
-        styles.bottomNavigation,
-        {
-          bottom: navigationBottomOffset,
-          transform: [{ translateY: navigationTranslateY }],
-        },
-      ]}
-    >
+    <>
       <Animated.View
         pointerEvents="none"
-        style={[
-          styles.navigationFade,
-          {
-            height: 164 + navigationBottomOffset,
-            opacity: navigationFadeOpacity,
-          },
-        ]}
+        style={[styles.navigationFade, { height: 132 + safeAreaInsets.bottom }]}
       >
         <LinearGradient
           colors={[
             'rgba(255, 252, 253, 0)',
-            'rgba(236, 208, 217, 0.76)',
-            'rgba(224, 185, 198, 0.98)',
+            'rgba(236, 208, 217, 0.2)',
+            'rgba(224, 185, 198, 0.52)',
           ]}
-          locations={[0, 0.55, 1]}
+          locations={[0, 0.5, 1]}
           style={styles.navigationFadeFill}
         />
       </Animated.View>
       <Animated.View
-        pointerEvents="none"
+        onLayout={handleNavigationLayout}
+        pointerEvents={isVisible ? 'auto' : 'none'}
         style={[
-          styles.navigationSurface,
+          styles.bottomNavigation,
           {
-            transform: [{ scaleX: barScaleX }],
-          },
-        ]}
-      />
-
-      <Animated.View
-        onLayout={(event) => {
-          setNavigationWidth(event.nativeEvent.layout.width)
-        }}
-        pointerEvents={isExpanded ? 'auto' : 'none'}
-        style={[
-          styles.navigationActions,
-          {
-            transform: [{ scaleX: barScaleX }],
+            bottom: navigationBottomOffset,
+            opacity: !isVisible && navigationHeight === 0 ? 0 : 1,
+            transform: [{ translateY: navigationTranslateY }],
           },
         ]}
       >
         <Animated.View
           pointerEvents="none"
           style={[
-            styles.activeIndicator,
-            { opacity: navigationWidth && isExpanded ? 1 : 0 },
-            { transform: [{ translateX: activeIndicatorX }] },
+            styles.navigationSurface,
+            {
+              transform: [{ scaleX: barScaleX }],
+            },
           ]}
         />
-        <View style={styles.actionSide}>{tabs.slice(0, 2).map(renderTab)}</View>
-        <View style={styles.logoGap} />
-        <View style={styles.actionSide}>{tabs.slice(2).map(renderTab)}</View>
-      </Animated.View>
 
-      <Animated.View style={[styles.logoButton, { transform: [{ scale: logoPressScale }, { rotate: logoRotate }] }]}>
-        <Pressable
-          accessibilityHint={isExpanded ? 'Collapses client navigation' : 'Expands client navigation'}
-          accessibilityLabel={isExpanded
-            ? 'Collapse navigation'
-            : `Expand navigation${hasCollapsedNavigationUpdate ? ', with unread updates' : ''}`}
-          accessibilityRole="button"
-          onPress={toggleNavigation}
-          onPressIn={handleLogoPressIn}
-          onPressOut={handleLogoPressOut}
-          style={styles.logoPressTarget}
+        <Animated.View
+          onLayout={(event) => {
+            setNavigationWidth(event.nativeEvent.layout.width)
+          }}
+          pointerEvents={isExpanded ? 'auto' : 'none'}
+          style={[
+            styles.navigationActions,
+            {
+              transform: [{ scaleX: barScaleX }],
+            },
+          ]}
         >
-          <LinearGradient
-            colors={['#FFFDF8', '#A79D9A', '#F7F4EE', '#827875', '#E8E2DD']}
-            end={{ x: 0.9, y: 1 }}
-            locations={[0, 0.24, 0.46, 0.72, 1]}
+          <Animated.View
             pointerEvents="none"
-            start={{ x: 0.1, y: 0 }}
-            style={styles.logoRim}
+            style={[
+              styles.activeIndicator,
+              { opacity: navigationWidth && isExpanded ? 1 : 0 },
+              { transform: [{ translateX: activeIndicatorX }] },
+            ]}
+          />
+          <View style={styles.actionSide}>{tabs.slice(0, 2).map(renderTab)}</View>
+          <View style={styles.logoGap} />
+          <View style={styles.actionSide}>{tabs.slice(2).map(renderTab)}</View>
+        </Animated.View>
+
+        <Animated.View style={[styles.logoButton, { transform: [{ scale: logoPressScale }, { rotate: logoRotate }] }]}>
+          <Pressable
+            accessibilityHint={isExpanded ? 'Collapses client navigation' : 'Expands client navigation'}
+            accessibilityLabel={isExpanded
+              ? 'Collapse navigation'
+              : `Expand navigation${hasCollapsedNavigationUpdate ? ', with unread updates' : ''}`}
+            accessibilityRole="button"
+            onPress={toggleNavigation}
+            onPressIn={handleLogoPressIn}
+            onPressOut={handleLogoPressOut}
+            style={styles.logoPressTarget}
           >
-            <View style={styles.logoMask}>
-              <Image
-                accessibilityIgnoresInvertColors
-                resizeMode="cover"
-                source={require('../../assets/Metallic LOGO.png')}
-                style={styles.logo}
-              />
-            </View>
-          </LinearGradient>
-        </Pressable>
+            <LinearGradient
+              colors={['#FFFDF8', '#A79D9A', '#F7F4EE', '#827875', '#E8E2DD']}
+              end={{ x: 0.9, y: 1 }}
+              locations={[0, 0.24, 0.46, 0.72, 1]}
+              pointerEvents="none"
+              start={{ x: 0.1, y: 0 }}
+              style={styles.logoRim}
+            >
+              <View style={styles.logoMask}>
+                <Image
+                  accessibilityIgnoresInvertColors
+                  resizeMode="cover"
+                  source={require('../../assets/Metallic LOGO.png')}
+                  style={styles.logo}
+                />
+              </View>
+            </LinearGradient>
+          </Pressable>
+        </Animated.View>
+        {hasCollapsedNavigationUpdate ? <View pointerEvents="none" style={styles.logoUnreadDot} /> : null}
       </Animated.View>
-      {hasCollapsedNavigationUpdate ? <View pointerEvents="none" style={styles.logoUnreadDot} /> : null}
-    </Animated.View>
+    </>
   )
 }
 
@@ -364,9 +375,10 @@ const styles = StyleSheet.create({
   },
   navigationFade: {
     position: 'absolute',
-    top: -82,
-    right: -16,
-    left: -16,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 49,
   },
   navigationFadeFill: {
     width: '100%',
