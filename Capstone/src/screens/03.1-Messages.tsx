@@ -21,8 +21,11 @@ import type { ClientHomeTab } from './03-ClientHome'
 import type { MerchantHomeTab } from './16-MerchantHome'
 import type { BookingItem } from './11-BookingScreen'
 import type { CoordinatorEvent } from '../lib/coordinator'
-import { NotificationScreen } from './22.5-Notification'
-import type { MerchantNotification } from './22.5-Notification'
+import {
+  NotificationScreen,
+  type InboxSelectionToolbar,
+  type MerchantNotification,
+} from './22.5-Notification'
 import type { InboxTrashScope } from '../lib/inbox-trash'
 
 export type ClientConversationFilter = 'all' | 'unread' | 'bookings'
@@ -48,6 +51,7 @@ export interface ClientConversation {
   participantName: string
   participantRole: string
   participantUserId?: string
+  serviceCategory?: string
   serviceName?: string
   unreadCount: number
   isVirtualCoordinator?: boolean
@@ -200,6 +204,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
   const [selectedConversationIds, setSelectedConversationIds] = React.useState<ReadonlySet<string>>(
     () => new Set()
   )
+  const [notificationSelectionToolbar, setNotificationSelectionToolbar] = React.useState<InboxSelectionToolbar>()
   const [readIds, setReadIds] = React.useState(
     () => new Set(conversations.filter((item) => item.unreadCount === 0).map((item) => item.id))
   )
@@ -280,6 +285,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
           participantName: booking.coordinatorName || 'Event Coordinator',
           participantRole: 'Event coordinator',
           participantUserId: booking.coordinatorUserId,
+          serviceCategory: 'Coordinator',
           serviceName: 'Event coordinator',
           unreadCount: 0,
         })
@@ -312,6 +318,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
           lastMessageAt: event.date || new Date(0).toISOString(),
           participantName: event.clientName || 'Event client',
           participantRole: 'Client',
+          serviceCategory: 'Coordinator',
           serviceName: 'Event client',
           unreadCount: 0,
         })
@@ -329,7 +336,13 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
   const conversationSource = usesEventGroups
     ? selectedEvent?.conversations ?? []
     : conversations
-  const visibleConversations = conversationSource.filter((conversation) => {
+  const orderedConversationSource = [...conversationSource].sort((left, right) => {
+    const leftIsCoordinator = left.conversationKind === 'event_coordinator'
+    const rightIsCoordinator = right.conversationKind === 'event_coordinator'
+    if (leftIsCoordinator !== rightIsCoordinator) return leftIsCoordinator ? -1 : 1
+    return new Date(right.lastMessageAt).getTime() - new Date(left.lastMessageAt).getTime()
+  })
+  const visibleConversations = orderedConversationSource.filter((conversation) => {
     const matchesFilter =
       filter === 'all' ||
       (filter === 'unread' && !readIds.has(conversation.id) && conversation.unreadCount > 0) ||
@@ -404,6 +417,16 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
     const moved = await onMoveConversationsToTrash?.(Array.from(selectedConversationIds))
     if (moved !== false) setSelectedConversationIds(new Set())
   }
+  const activeSelectionToolbar = isClientInbox && inboxTab === 'notifications'
+    ? notificationSelectionToolbar
+    : undefined
+  const activeSelectedCount = activeSelectionToolbar?.count ?? selectedConversationCount
+  const isInboxSelectionMode = Boolean(activeSelectionToolbar) || isConversationSelectionMode
+  const activeAllSelected = activeSelectionToolbar?.allSelected ?? allConversationsSelected
+  const activeSomeSelected = activeSelectionToolbar?.someSelected ?? someConversationsSelected
+  const toggleAllInboxItems = activeSelectionToolbar?.toggleAll ?? toggleAllConversations
+  const moveSelectedInboxItemsToTrash = activeSelectionToolbar?.moveToTrash
+    ?? (() => { void moveSelectedConversationsToTrash() })
 
   return (
     <View style={styles.screen}>
@@ -438,20 +461,20 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                 </Pressable>
               ) : <View style={styles.clientHeaderButton} />}
               <Text style={styles.clientHeaderTitle}>
-                {isConversationSelectionMode ? `${selectedConversationCount} SELECTED` : (
+                {isInboxSelectionMode ? `${activeSelectedCount} selected` : (
                   <>{navigationVariant === 'client' ? 'INBOX' : 'MESSAGES'}</>
                 )}
               </Text>
-              {isConversationSelectionMode ? (
+              {isInboxSelectionMode ? (
                 <View style={styles.selectionHeaderActions}>
                   <Pressable
-                    accessibilityLabel={allConversationsSelected ? 'Deselect all conversations' : someConversationsSelected ? 'Select all remaining conversations' : 'Select all conversations'}
+                    accessibilityLabel={activeAllSelected ? 'Deselect all Inbox items' : activeSomeSelected ? 'Select all remaining Inbox items' : 'Select all Inbox items'}
                     accessibilityRole="checkbox"
-                    accessibilityState={{ checked: allConversationsSelected ? true : someConversationsSelected ? 'mixed' : false }}
-                    onPress={toggleAllConversations}
+                    accessibilityState={{ checked: activeAllSelected ? true : activeSomeSelected ? 'mixed' : false }}
+                    onPress={toggleAllInboxItems}
                     style={({ pressed }) => [styles.clientHeaderButton, pressed && styles.surfacePressed]}
-                  ><InboxSelectionBox color="#FFFFFF" state={allConversationsSelected ? 'checked' : someConversationsSelected ? 'mixed' : 'unchecked'} /></Pressable>
-                  <InboxTrashButton accessibilityLabel="Move selected conversations to Trash" color="#FFFFFF" onPress={() => void moveSelectedConversationsToTrash()} />
+                  ><InboxSelectionBox color="#FFFFFF" state={activeAllSelected ? 'checked' : activeSomeSelected ? 'mixed' : 'unchecked'} /></Pressable>
+                  <InboxTrashButton accessibilityLabel="Move selected Inbox items to Trash" color="#FFFFFF" onPress={moveSelectedInboxItemsToTrash} />
                 </View>
               ) : navigationVariant === 'coordinator' ? (
                 <Pressable
@@ -542,6 +565,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
           onMoveToTrash={onMoveNotificationsToTrash}
           showTrashShortcut={false}
           onMarkAllRead={onMarkAllNotificationsRead}
+          onEmbeddedSelectionChange={setNotificationSelectionToolbar}
           onMarkRead={onMarkNotificationRead}
           onScrollDirectionChange={onScrollDirectionChange}
           onSelectNotification={(notification) => {
@@ -722,7 +746,6 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
             {visibleConversations.map((conversation, index) => (
               <ConversationRow
                 conversation={conversation}
-                isCompact={isCompact}
                 isRead={readIds.has(conversation.id)}
                 key={conversation.id}
                 last={index === visibleConversations.length - 1}
@@ -804,7 +827,6 @@ const MessageEmptyState = ({
 
 const ConversationRow = ({
   conversation,
-  isCompact,
   isRead,
   last,
   onLongPress,
@@ -814,7 +836,6 @@ const ConversationRow = ({
   selectionMode = false,
 }: {
   conversation: ClientConversation
-  isCompact: boolean
   isRead: boolean
   last: boolean
   onLongPress?: () => void
@@ -824,6 +845,8 @@ const ConversationRow = ({
   selectionMode?: boolean
 }) => {
   const isUnread = !isRead && conversation.unreadCount > 0
+  const categoryLabel = conversation.serviceCategory
+    ?? (conversation.conversationKind === 'event_coordinator' ? 'Coordinator' : 'Service')
 
   return (
     <Pressable
@@ -864,6 +887,9 @@ const ConversationRow = ({
           >
             {conversation.participantName}
           </Text>
+          <View style={styles.serviceCategoryBadge}>
+            <Text numberOfLines={1} style={styles.serviceCategoryBadgeText}>{categoryLabel}</Text>
+          </View>
           <Text style={[styles.conversationTime, isUnread && styles.conversationTimeUnread]}>
             {formatConversationTime(conversation.lastMessageAt)}
           </Text>
@@ -873,13 +899,6 @@ const ConversationRow = ({
             {conversation.participantRole}
           </Text>
           {conversation.isPinned ? <Text style={styles.pinGlyph}>{'\u25C6'}</Text> : null}
-          {!isCompact && conversation.bookingReference ? (
-            <View style={styles.bookingBadge}>
-              <Text numberOfLines={1} style={styles.bookingBadgeText}>
-                {conversation.bookingReference}
-              </Text>
-            </View>
-          ) : null}
         </View>
         <View style={styles.previewRow}>
           <Text
@@ -998,15 +1017,15 @@ const styles = StyleSheet.create({
   onlineDot: { position: 'absolute', width: 12, height: 12, right: 0, bottom: 0, borderWidth: 2, borderColor: palette.white, borderRadius: 6, backgroundColor: palette.positive },
   conversationCopy: { minWidth: 0, flex: 1 },
   conversationTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  participantName: { minWidth: 0, flex: 1, color: palette.text, fontSize: 12, lineHeight: 17, fontWeight: '600' },
+  participantName: { minWidth: 0, flexShrink: 1, color: palette.text, fontSize: 12, lineHeight: 17, fontWeight: '600' },
   participantNameUnread: { fontWeight: '700' },
+  serviceCategoryBadge: { maxWidth: 84, borderRadius: 999, backgroundColor: palette.primarySoft, paddingHorizontal: 6, paddingVertical: 2 },
+  serviceCategoryBadgeText: { color: palette.primaryContainer, fontSize: 7, lineHeight: 10, fontWeight: '800', textTransform: 'uppercase' },
   conversationTime: { color: palette.muted, fontSize: 8, lineHeight: 12 },
   conversationTimeUnread: { color: palette.primaryContainer, fontWeight: '700' },
   roleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 1 },
   participantRole: { color: palette.muted, fontSize: 8, lineHeight: 12 },
   pinGlyph: { color: palette.primaryContainer, fontSize: 6, lineHeight: 9 },
-  bookingBadge: { minWidth: 0, maxWidth: 150, borderRadius: 999, backgroundColor: palette.surfaceContainerLow, paddingHorizontal: 6, paddingVertical: 2 },
-  bookingBadgeText: { color: palette.secondary, fontSize: 7, lineHeight: 10 },
   previewRow: { flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 5 },
   lastMessage: { minWidth: 0, flex: 1, color: palette.secondary, fontSize: 10, lineHeight: 15 },
   lastMessageUnread: { color: palette.text, fontWeight: '500' },

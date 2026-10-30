@@ -5,6 +5,7 @@ import { Pressable, type StyleProp, StyleSheet, View, type ViewStyle } from 'rea
 export type InboxSelectionState = 'checked' | 'mixed' | 'unchecked'
 
 interface InboxSelectionBoxProps {
+  checkColor?: string
   color?: string
   size?: number
   state: InboxSelectionState
@@ -20,12 +21,14 @@ interface InboxTrashButtonProps {
 }
 
 export const InboxSelectionBox: React.FC<InboxSelectionBoxProps> = ({
+  checkColor,
   color = '#6B1E2E',
   size = 18,
   state,
 }) => {
   const isChecked = state === 'checked'
   const isMixed = state === 'mixed'
+  const resolvedCheckColor = checkColor ?? (color.toUpperCase() === '#FFFFFF' ? '#6B1E2E' : '#FFFFFF')
   return (
     <View
       pointerEvents="none"
@@ -35,7 +38,7 @@ export const InboxSelectionBox: React.FC<InboxSelectionBoxProps> = ({
         isChecked && { backgroundColor: color },
       ]}
     >
-      {isChecked ? <View style={[styles.checkedMark, { borderColor: '#FFFFFF' }]} /> : null}
+      {isChecked ? <View style={[styles.checkedMark, { borderColor: resolvedCheckColor }]} /> : null}
       {isMixed ? <View style={[styles.mixedMark, { backgroundColor: color }]} /> : null}
     </View>
   )

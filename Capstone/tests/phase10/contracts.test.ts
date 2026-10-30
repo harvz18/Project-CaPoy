@@ -4401,7 +4401,18 @@ test('V20 Phase 11 keeps Inbox trash user-specific and reversible', () => {
   mustContain(messages, [
     'showTrashShortcut={false}',
     "inboxTab === 'notifications' ? 'notifications' : 'messages'",
+    'onEmbeddedSelectionChange={setNotificationSelectionToolbar}',
+    'orderedConversationSource',
+    'leftIsCoordinator',
+    'serviceCategoryBadge',
   ], 'single contextual client Inbox Trash shortcut')
+  mustContain(notifications, [
+    'InboxSelectionToolbar',
+    'onEmbeddedSelectionChange',
+  ], 'embedded notification selection uses the shared Inbox header')
+  mustContain(inboxControls, [
+    'resolvedCheckColor',
+  ], 'white selection controls retain an inverted check mark')
   assert.doesNotMatch(`${messages}\n${thread}\n${notifications}`, /🗑/,
     'Inbox actions must not fall back to emoji Trash glyphs')
   mustContain(app, [
@@ -4415,5 +4426,7 @@ test('V20 Phase 11 keeps Inbox trash user-specific and reversible', () => {
     'animationType="none"',
     'sheetProgress.interpolate',
     'overlayOpacity',
+    'overlayTouchTarget',
+    'const dismiss',
   ], 'Trash sheet and dim overlay animate independently')
 })

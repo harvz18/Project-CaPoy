@@ -40,12 +40,21 @@ export interface MerchantNotificationPreferences {
   reviews: boolean
 }
 
+export interface InboxSelectionToolbar {
+  allSelected: boolean
+  count: number
+  moveToTrash: () => void
+  someSelected: boolean
+  toggleAll: () => void
+}
+
 interface NotificationScreenProps {
   embedded?: boolean
   initialFilter?: MerchantNotificationFilter
   initialPreferences?: Partial<MerchantNotificationPreferences>
   notifications?: MerchantNotification[]
   onBack?: () => void
+  onEmbeddedSelectionChange?: (toolbar?: InboxSelectionToolbar) => void
   onFilterChange?: (filter: MerchantNotificationFilter) => void
   onMarkAllRead?: (notificationIds: string[]) => void
   onMarkRead?: (notification: MerchantNotification) => void
@@ -228,6 +237,7 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({
   initialPreferences,
   notifications = defaultNotifications,
   onBack,
+  onEmbeddedSelectionChange,
   onFilterChange,
   onMarkAllRead,
   onMarkRead,
@@ -293,12 +303,27 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({
     else next.add(id)
     return next
   })
-  const toggleAll = () => setSelectedIds(allSelected ? new Set() : new Set(visibleNotifications.map((item) => item.id)))
-  const moveSelectedToTrash = async () => {
+  const toggleAll = React.useCallback(() => setSelectedIds(
+    allSelected ? new Set() : new Set(visibleNotifications.map((item) => item.id))
+  ), [allSelected, visibleNotifications])
+  const moveSelectedToTrash = React.useCallback(async () => {
     if (!onMoveToTrash || !selectedIds.size) return
     const moved = await onMoveToTrash?.(Array.from(selectedIds))
     if (moved !== false) setSelectedIds(new Set())
-  }
+  }, [onMoveToTrash, selectedIds])
+
+  React.useEffect(() => {
+    if (!embedded || !onEmbeddedSelectionChange) return
+    onEmbeddedSelectionChange(selectionMode ? {
+      allSelected,
+      count: selectedIds.size,
+      moveToTrash: () => { void moveSelectedToTrash() },
+      someSelected,
+      toggleAll,
+    } : undefined)
+  }, [allSelected, embedded, moveSelectedToTrash, onEmbeddedSelectionChange, selectedIds.size, selectionMode, someSelected, toggleAll])
+
+  React.useEffect(() => () => onEmbeddedSelectionChange?.(undefined), [onEmbeddedSelectionChange])
 
   const selectFilter = (nextFilter: MerchantNotificationFilter) => {
     setFilter(nextFilter)
@@ -432,7 +457,7 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({
                   )
                 })}
               </View>
-              {embedded ? (
+              {embedded && !onEmbeddedSelectionChange ? (
                 <View style={styles.selectionActions}>
                   {selectionMode ? <>
                     <Pressable accessibilityLabel={allSelected ? 'Deselect all notifications' : someSelected ? 'Select all remaining notifications' : 'Select all notifications'} accessibilityRole="checkbox" accessibilityState={{ checked: allSelected ? true : someSelected ? 'mixed' : false }} onPress={toggleAll} style={styles.iconAction}><InboxSelectionBox color={palette.primaryContainer} state={allSelected ? 'checked' : someSelected ? 'mixed' : 'unchecked'} /></Pressable>

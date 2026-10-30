@@ -36,6 +36,7 @@ export const InboxTrashModal: React.FC<InboxTrashModalProps> = ({
   const [selectedIds, setSelectedIds] = React.useState<ReadonlySet<string>>(() => new Set())
   const sheetProgress = React.useRef(new Animated.Value(0)).current
   const overlayOpacity = React.useRef(new Animated.Value(0)).current
+  const isDismissing = React.useRef(false)
   const visibleItems = React.useMemo(() => items.filter((item) => (
     scope === 'all'
       || (scope === 'notifications' && item.itemType === 'notification')
@@ -52,7 +53,11 @@ export const InboxTrashModal: React.FC<InboxTrashModalProps> = ({
     overlayOpacity.stopAnimation()
     sheetProgress.setValue(0)
     overlayOpacity.setValue(0)
-    if (!visible) return undefined
+    if (!visible) {
+      isDismissing.current = false
+      return undefined
+    }
+    isDismissing.current = false
 
     const sheet = Animated.timing(sheetProgress, {
       duration: 320,
@@ -91,11 +96,36 @@ export const InboxTrashModal: React.FC<InboxTrashModalProps> = ({
     return next
   })
   const toggleAll = () => setSelectedIds(allSelected ? new Set() : new Set(visibleItems.map((item) => item.id)))
+  const dismiss = React.useCallback(() => {
+    if (isDismissing.current || !visible) return
+    isDismissing.current = true
+    sheetProgress.stopAnimation()
+    overlayOpacity.stopAnimation()
+    Animated.parallel([
+      Animated.timing(sheetProgress, {
+        duration: 240,
+        easing: Easing.in(Easing.cubic),
+        toValue: 0,
+        useNativeDriver: Platform.OS !== 'web',
+      }),
+      Animated.timing(overlayOpacity, {
+        duration: 120,
+        easing: Easing.in(Easing.cubic),
+        toValue: 0,
+        useNativeDriver: Platform.OS !== 'web',
+      }),
+    ]).start(() => {
+      isDismissing.current = false
+      onClose?.()
+    })
+  }, [onClose, overlayOpacity, sheetProgress, visible])
 
   return (
-    <Modal animationType="none" onRequestClose={onClose} transparent visible={visible}>
+    <Modal animationType="none" onRequestClose={dismiss} transparent visible={visible}>
       <View style={styles.modalRoot}>
-        <Animated.View pointerEvents="none" style={[styles.overlay, { opacity: overlayOpacity }]} />
+        <Pressable accessibilityLabel="Close Trash" accessibilityRole="button" onPress={dismiss} style={styles.overlayTouchTarget}>
+          <Animated.View pointerEvents="none" style={[styles.overlay, { opacity: overlayOpacity }]} />
+        </Pressable>
         <Animated.View
           accessibilityViewIsModal
           style={[
@@ -105,10 +135,10 @@ export const InboxTrashModal: React.FC<InboxTrashModalProps> = ({
         >
           <View style={styles.handle} />
           <View style={styles.header}>
-            <Pressable accessibilityLabel="Close Trash" accessibilityRole="button" disabled={busy} onPress={onClose} style={styles.headerButton}>
+            <Pressable accessibilityLabel="Close Trash" accessibilityRole="button" disabled={busy} onPress={dismiss} style={styles.headerCloseButton}>
               <Text style={styles.headerButtonText}>‹</Text>
             </Pressable>
-            <Text style={styles.title}>{title}</Text>
+            <Text style={styles.title}>{selectedItems.length ? `${selectedItems.length} selected` : title}</Text>
             <Pressable
               accessibilityLabel={allSelected ? 'Deselect all trashed items' : someSelected ? 'Select all remaining trashed items' : 'Select all trashed items'}
               accessibilityRole="checkbox"
@@ -172,11 +202,13 @@ export const InboxTrashModal: React.FC<InboxTrashModalProps> = ({
 
 const styles = StyleSheet.create({
   modalRoot: { flex: 1, justifyContent: 'flex-end' },
+  overlayTouchTarget: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   overlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(24, 13, 16, 0.38)' },
   sheet: { maxHeight: '84%', borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: '#FAF9F9', paddingTop: 9 },
   handle: { width: 40, height: 4, alignSelf: 'center', borderRadius: 2, backgroundColor: '#A7A1A2' },
   header: { minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14 },
   headerButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 21 },
+  headerCloseButton: { display: 'none' },
   headerButtonText: { color: '#6B1E2E', fontSize: 34, lineHeight: 36, fontWeight: '400' },
   title: { color: '#1B1C1C', fontSize: 18, lineHeight: 24, fontWeight: '800' },
   subtitle: { color: '#5D5F5F', fontSize: 12, lineHeight: 17, paddingHorizontal: 20, paddingBottom: 9 },

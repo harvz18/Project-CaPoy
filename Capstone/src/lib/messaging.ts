@@ -109,7 +109,7 @@ export const fetchConversations = async (): Promise<ClientConversation[]> => {
       client
         .from('conversations')
         .select(
-          'id, title, booking_id, conversation_kind, updated_at, bookings(id, status, requested_date, services(name)), events(id, name, status, event_date, coordinator_id, coordinator_assignment_status, is_church_wedding)'
+          'id, title, booking_id, conversation_kind, updated_at, bookings(id, status, requested_date, services(name, service_categories(name))), events(id, name, status, event_date, coordinator_id, coordinator_assignment_status, is_church_wedding)'
         )
         .in('id', conversationIds),
       client
@@ -202,6 +202,7 @@ export const fetchConversations = async (): Promise<ClientConversation[]> => {
       const booking = nested(record.bookings) as Record<string, unknown> | undefined
       const event = nested(record.events) as Record<string, unknown> | undefined
       const service = nested(booking?.services) as Record<string, unknown> | undefined
+      const serviceCategory = nested(service?.service_categories) as Record<string, unknown> | undefined
       const bookingId = textFrom(booking?.id, textFrom(record.booking_id))
       const bookingStatus = textFrom(
         booking?.status,
@@ -258,6 +259,9 @@ export const fetchConversations = async (): Promise<ClientConversation[]> => {
           textFrom(profile?.default_role, 'Service provider').replaceAll('_', ' ')
         ),
         participantUserId: textFrom(participant?.user_id) || undefined,
+        serviceCategory: isEventCoordinatorConversation
+          ? 'Coordinator'
+          : textFrom(serviceCategory?.name) || undefined,
         serviceName: isEventCoordinatorConversation
           ? 'Event coordinator'
           : textFrom(service?.name, textFrom(record.title, 'Service inquiry')),
