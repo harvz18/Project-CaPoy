@@ -1,5 +1,5 @@
 import React from 'react'
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native'
+import { Animated, Easing, Modal, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native'
 import { Text } from './AppText'
 import { InboxSelectionBox } from './InboxControls'
 import type { InboxTrashItem, InboxTrashScope } from '../lib/inbox-trash'
@@ -32,7 +32,10 @@ export const InboxTrashModal: React.FC<InboxTrashModalProps> = ({
   scope = 'all',
   visible,
 }) => {
+  const { height } = useWindowDimensions()
   const [selectedIds, setSelectedIds] = React.useState<ReadonlySet<string>>(() => new Set())
+  const sheetProgress = React.useRef(new Animated.Value(0)).current
+  const overlayOpacity = React.useRef(new Animated.Value(0)).current
   const visibleItems = React.useMemo(() => items.filter((item) => (
     scope === 'all'
       || (scope === 'notifications' && item.itemType === 'notification')
@@ -43,6 +46,36 @@ export const InboxTrashModal: React.FC<InboxTrashModalProps> = ({
   React.useEffect(() => {
     if (!visible) setSelectedIds(new Set())
   }, [visible])
+
+  React.useEffect(() => {
+    sheetProgress.stopAnimation()
+    overlayOpacity.stopAnimation()
+    sheetProgress.setValue(0)
+    overlayOpacity.setValue(0)
+    if (!visible) return undefined
+
+    const sheet = Animated.timing(sheetProgress, {
+      duration: 320,
+      easing: Easing.out(Easing.cubic),
+      toValue: 1,
+      useNativeDriver: Platform.OS !== 'web',
+    })
+    sheet.start(({ finished }) => {
+      if (!finished) return
+      Animated.timing(overlayOpacity, {
+        duration: 150,
+        easing: Easing.out(Easing.cubic),
+        toValue: 1,
+        useNativeDriver: Platform.OS !== 'web',
+      }).start()
+    })
+
+    return () => {
+      sheet.stop()
+      sheetProgress.stopAnimation()
+      overlayOpacity.stopAnimation()
+    }
+  }, [overlayOpacity, sheetProgress, visible])
 
   React.useEffect(() => {
     setSelectedIds((current) => new Set([...current].filter((id) => visibleItems.some((item) => item.id === id))))
@@ -60,9 +93,16 @@ export const InboxTrashModal: React.FC<InboxTrashModalProps> = ({
   const toggleAll = () => setSelectedIds(allSelected ? new Set() : new Set(visibleItems.map((item) => item.id)))
 
   return (
-    <Modal animationType="slide" onRequestClose={onClose} transparent visible={visible}>
-      <View style={styles.overlay}>
-        <View accessibilityViewIsModal style={styles.sheet}>
+    <Modal animationType="none" onRequestClose={onClose} transparent visible={visible}>
+      <View style={styles.modalRoot}>
+        <Animated.View pointerEvents="none" style={[styles.overlay, { opacity: overlayOpacity }]} />
+        <Animated.View
+          accessibilityViewIsModal
+          style={[
+            styles.sheet,
+            { transform: [{ translateY: sheetProgress.interpolate({ inputRange: [0, 1], outputRange: [height, 0] }) }] },
+          ]}
+        >
           <View style={styles.handle} />
           <View style={styles.header}>
             <Pressable accessibilityLabel="Close Trash" accessibilityRole="button" disabled={busy} onPress={onClose} style={styles.headerButton}>
@@ -124,14 +164,15 @@ export const InboxTrashModal: React.FC<InboxTrashModalProps> = ({
               </Pressable>
             </View>
           ) : null}
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   )
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(24, 13, 16, 0.38)' },
+  modalRoot: { flex: 1, justifyContent: 'flex-end' },
+  overlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(24, 13, 16, 0.38)' },
   sheet: { maxHeight: '84%', borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: '#FAF9F9', paddingTop: 9 },
   handle: { width: 40, height: 4, alignSelf: 'center', borderRadius: 2, backgroundColor: '#A7A1A2' },
   header: { minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14 },

@@ -4411,4 +4411,9 @@ test('V20 Phase 11 keeps Inbox trash user-specific and reversible', () => {
     "mutateInboxTrash('restore'",
     "mutateInboxTrash('clear'",
   ], 'trash, restore, and user-only permanent hiding integration')
+  mustContain(read('src/components/InboxTrashModal.tsx'), [
+    'animationType="none"',
+    'sheetProgress.interpolate',
+    'overlayOpacity',
+  ], 'Trash sheet and dim overlay animate independently')
 })
