@@ -312,7 +312,9 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
   )
   const paymentReady = Boolean(
     paymentQuote?.paymentEligible
-      && ['not_initiated', 'payment_failed_or_cancelled'].includes(paymentQuote.paymentState)
+      // A pending V14 record can safely resume through V16. The server maps
+      // it to one PayMongo attempt instead of creating a second payment.
+      && ['not_initiated', 'payment_failed_or_cancelled', 'payment_initiated'].includes(paymentQuote.paymentState)
       && onStartPayment
   )
   const paymentInitiated = paymentQuote?.paymentState === 'payment_initiated'
@@ -321,7 +323,7 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
   // payment is not necessarily verified, so only the explicit verified state
   // can be presented as confirmed to the client.
   const paymentVerified = paymentRecorded && paymentQuote?.paymentStatus === 'verified'
-  const canOpenPayment = Boolean(onStartPayment) && !isStartingPayment && !paymentInitiated && !paymentRecorded
+  const canOpenPayment = Boolean(onStartPayment) && !isStartingPayment && !paymentRecorded
   // Do not allow the dock to bypass the quote's authoritative event gate.
   // `paymentReady` is calculated from the latest server quote and includes
   // every required provider/coordinator acceptance (plus any food-tasting
@@ -346,7 +348,7 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
               : 'paymentLocked'
   const primaryBookingActionLabel = {
     checkingPayment: 'Checking Payment',
-    confirmPayment: paymentFailed ? 'Try Payment Again' : 'Confirm Payment',
+    confirmPayment: paymentInitiated ? 'Resume Payment' : paymentFailed ? 'Try Payment Again' : 'Confirm Payment',
     experienceShared: 'Experience Shared',
     paymentConfirmed: 'Payment Confirmed',
     paymentLocked: 'Awaiting Confirmations',
@@ -1457,7 +1459,7 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                 ]}
               >
                 <Text style={styles.paymentActionButtonText}>
-                  {isStartingPayment ? 'Loading payment…' : paymentFailed ? 'Try Payment Again' : 'Pay Now to Reserve'}
+                  {isStartingPayment ? 'Loading payment…' : paymentInitiated ? 'Resume Secure Payment' : paymentFailed ? 'Try Payment Again' : 'Pay Now to Reserve'}
                 </Text>
               </Pressable>
             </>
@@ -1551,7 +1553,7 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                 ]}
               >
                 <Text style={styles.paymentActionButtonText}>
-                  {isStartingPayment ? 'Loading payment…' : paymentFailed ? 'Try Payment Again' : 'Pay Now to Reserve'}
+                {isStartingPayment ? 'Loading payment…' : paymentInitiated ? 'Resume Secure Payment' : paymentFailed ? 'Try Payment Again' : 'Pay Now to Reserve'}
                 </Text>
               </Pressable>
             </>

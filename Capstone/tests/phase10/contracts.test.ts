@@ -2971,7 +2971,7 @@ test('V14 Phase 4 starts payment only from Booking Details after the secured acc
     'borderTopRightRadius: 18',
     "primaryBookingAction === 'confirmPayment'",
     "? 'Confirm payment'",
-    'const canOpenPayment = Boolean(onStartPayment) && !isStartingPayment && !paymentInitiated && !paymentRecorded',
+    'const canOpenPayment = Boolean(onStartPayment) && !isStartingPayment && !paymentRecorded',
     'const canConfirmPayment = canOpenPayment && paymentReady',
     'disabled={!primaryBookingActionEnabled}',
   ], 'Booking Details header, service count, and payment actions')
@@ -4447,6 +4447,7 @@ test('V16 keeps PayMongo collection server-owned, webhook-verified, and idempote
   const webhook = read('supabase/functions/paymongo-webhook/index.ts')
   const planning = read('src/lib/planning.ts')
   const app = read('src/App.tsx')
+  const bookingDetails = read('src/screens/11.1-BookingDetails.tsx')
 
   mustContain(migration, [
     'paymongo_payment_attempts',
@@ -4487,4 +4488,8 @@ test('V16 keeps PayMongo collection server-owned, webhook-verified, and idempote
     'WebBrowser.openBrowserAsync(result.checkoutUrl)',
     'usePaymongoCheckout',
   ], 'V16 app browser launch without client-side payment verification')
+  mustContain(bookingDetails, [
+    "'payment_failed_or_cancelled', 'payment_initiated'",
+    'Resume Secure Payment',
+  ], 'V16 migration of existing pending payment records into hosted checkout')
 })
