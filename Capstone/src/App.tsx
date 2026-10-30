@@ -4,6 +4,7 @@ import { ActivityIndicator, Alert, Animated, AppState, BackHandler, Easing, Imag
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
+import * as WebBrowser from 'expo-web-browser'
 import * as ImagePicker from 'expo-image-picker'
 import { useFonts } from 'expo-font'
 import {
@@ -53,7 +54,6 @@ import {
   fetchClientEventDrafts,
   fetchClientSavedPlans,
   fetchClientPlanningState,
-  fetchPaymentSettlementContextV14,
   removeCoordinatorFromEvent,
   removeServiceSelection,
   loadCateringTastingDraft,
@@ -66,7 +66,7 @@ import {
   saveServiceSelection,
   setCategoryBudgetAllocation,
   fetchMyEventPaymentQuoteV14,
-  initiateMyEventPaymentV14,
+  createMyPaymongoCheckoutV16,
   submitBookingReplacementRequest,
   submitPlanningBookingRequests,
   type EventPaymentQuote,
@@ -4591,22 +4591,12 @@ export const App: React.FC = () => {
     // responsive after provider acceptance while the server remains the final
     // authority for acceptance and immutable booking-price snapshots.
     try {
-      const [paymentQuote, settlementResult] = await Promise.all([
-        loadBookingPaymentQuote(eventId),
-        fetchPaymentSettlementContextV14(),
-      ])
+      const paymentQuote = await loadBookingPaymentQuote(eventId)
       if (!paymentQuote) {
         setIsBookingPaymentSheetVisible(false)
         return
       }
-      if (settlementResult.ok && settlementResult.context) {
-        setPaymentSettlementContext(settlementResult.context)
-      } else {
-        setPaymentSettlementContext(undefined)
-        setToastMessage(settlementResult.message ?? 'Unable to load the current payment settlement instructions.')
-        setIsBookingPaymentSheetVisible(false)
-        return
-      }
+      setPaymentSettlementContext(undefined)
       if (!paymentQuote.paymentEligible) {
         setToastMessage(paymentQuote.reason ?? 'Payment is not available until all required confirmations are complete.')
         setIsBookingPaymentSheetVisible(false)
@@ -4631,30 +4621,29 @@ export const App: React.FC = () => {
 
     setIsInitiatingBookingPayment(true)
     try {
-      const result = await initiateMyEventPaymentV14({
+      const result = await createMyPaymongoCheckoutV16({
         eventId,
-        method: value.method,
         paymentType: value.paymentType,
         termsAccepted: value.termsAccepted,
       })
-      if (!result.ok || !result.paymentQuote) {
+      if (!result.ok || !result.checkoutUrl) {
         setToastMessage(result.message ?? 'Unable to start payment for this booking.')
         return
       }
 
-      setBookingPaymentQuote(result.paymentQuote)
+      const refreshedQuote = await loadBookingPaymentQuote(eventId)
+      if (refreshedQuote) setBookingPaymentQuote(refreshedQuote)
       setSelectedBooking((current) => current && current.eventId === eventId
         ? {
             ...current,
-            paymentState: result.paymentQuote!.paymentState,
-            paymentStatus: result.paymentQuote!.paymentState === 'payment_initiated'
-              ? 'Payment initiated — awaiting verification'
-              : current.paymentStatus,
+            paymentState: 'payment_initiated',
+            paymentStatus: 'Secure PayMongo checkout started — awaiting verification',
           }
         : current)
-      setToastMessage(result.message ?? 'Payment initiated and awaiting completion or verification.')
       setIsBookingPaymentSheetVisible(false)
       setScreen('bookingDetails')
+      setToastMessage('Complete payment in PayMongo. Your booking updates only after PayMongo verifies it.')
+      await WebBrowser.openBrowserAsync(result.checkoutUrl)
       void refreshLiveData().catch(() => undefined)
     } finally {
       setIsInitiatingBookingPayment(false)
@@ -6407,6 +6396,7 @@ export const App: React.FC = () => {
               items={bookingPaymentQuote?.items}
               paymentBreakdown={bookingPaymentQuote?.breakdown}
               paymentSettlementContext={paymentSettlementContext}
+              usePaymongoCheckout
               visible={isBookingPaymentSheetVisible}
             />
           </>
@@ -6427,6 +6417,7 @@ export const App: React.FC = () => {
             onPay={(value) => void initiateBookingPayment(value)}
             paymentBreakdown={bookingPaymentQuote?.breakdown}
             paymentSettlementContext={paymentSettlementContext}
+            usePaymongoCheckout
           />
         )
       case 'eventFeedback':

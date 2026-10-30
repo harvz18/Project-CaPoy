@@ -98,6 +98,13 @@ export type EventPaymentQuoteResult = {
   paymentQuote?: EventPaymentQuote
 }
 
+export type PaymongoCheckoutResult = {
+  attemptId?: string
+  checkoutUrl?: string
+  message?: string
+  ok: boolean
+}
+
 export type V14PaymentSettlementContext = {
   eWalletCheckout: {
     configured: boolean
@@ -1851,6 +1858,39 @@ export const initiateMyEventPaymentV14 = async (value: {
       message: textFromPaymentQuote(record.message) || undefined,
       ok: true,
       paymentQuote,
+    }
+  } catch (error) {
+    return { ok: false, message: toMessage(error) }
+  }
+}
+
+// V16 intentionally delegates amount calculation, acceptance revalidation,
+// payment-record creation, and PayMongo communication to the backend. The
+// app receives only a hosted checkout URL; it never handles a secret key or
+// decides that a redirect means a payment succeeded.
+export const createMyPaymongoCheckoutV16 = async (value: {
+  eventId: string
+  paymentType: 'deposit' | 'full'
+  termsAccepted: boolean
+}): Promise<PaymongoCheckoutResult> => {
+  try {
+    const client = getClient()
+    if (!client || !isUuid(value.eventId)) {
+      return { ok: false, message: 'This booking is no longer available for payment.' }
+    }
+    const { data, error } = await client.functions.invoke('paymongo-create-checkout', {
+      body: value,
+    })
+    if (error) return { ok: false, message: error.message }
+    const record = recordFromPaymentContext(data)
+    const checkoutUrl = textFromPaymentQuote(record.checkoutUrl)
+    if (!checkoutUrl || !/^https:\/\/checkout\.paymongo\.com\//i.test(checkoutUrl)) {
+      return { ok: false, message: textFromPaymentQuote(record.error) || 'Unable to start secure checkout.' }
+    }
+    return {
+      attemptId: textFromPaymentQuote(record.attemptId) || undefined,
+      checkoutUrl,
+      ok: true,
     }
   } catch (error) {
     return { ok: false, message: toMessage(error) }

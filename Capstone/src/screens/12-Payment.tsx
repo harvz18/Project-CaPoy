@@ -56,6 +56,7 @@ interface PaymentScreenProps {
     'clientTotal' | 'initialPayment' | 'platformFee' | 'providerBalance' | 'providerInitialAllocation' | 'serviceSubtotal'
   >
   paymentSettlementContext?: V14PaymentSettlementContext
+  usePaymongoCheckout?: boolean
   onBack?: () => void
   onOpenCancellationPolicy?: () => void
   onOpenTerms?: () => void
@@ -117,6 +118,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
   mode = 'planning',
   paymentBreakdown,
   paymentSettlementContext,
+  usePaymongoCheckout = false,
   onBack,
   onOpenCancellationPolicy,
   onOpenTerms,
@@ -157,7 +159,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
   const selectedSettlement = paymentMethod === 'bankTransfer'
     ? paymentSettlementContext?.manualBankTransfer
     : paymentSettlementContext?.eWalletCheckout
-  const selectedMethodEnabled = selectedSettlement?.enabled !== false
+  const selectedMethodEnabled = usePaymongoCheckout || selectedSettlement?.enabled !== false
   const canSavePlan = mode === 'planning' && Boolean(onSavePlan)
   const needsSavedPlanReview = Boolean(
     savedPlanReview?.hasPriceChanges || savedPlanReview?.hasUnavailableServices
@@ -353,7 +355,8 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Select Payment Method</Text>
+          <Text style={styles.sectionTitle}>{usePaymongoCheckout ? 'Secure Checkout' : 'Select Payment Method'}</Text>
+          {usePaymongoCheckout ? <PaymongoCheckoutNotice /> : <>
           <View style={styles.methodList}>
             {paymentMethods.map((method) => {
               const selected = paymentMethod === method.id
@@ -397,6 +400,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
               method={paymentMethod}
             />
           ) : null}
+          </>}
         </View>
 
         <View style={styles.termsSection}>
@@ -479,6 +483,8 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
                     ? 'Payment method unavailable'
                     : needsSavedPlanReview
                     ? 'Review Changes Before Payment'
+                  : usePaymongoCheckout
+                    ? `Continue to PayMongo Â· ${formatCurrency(amountDue)}`
                     : isFullPayment
                       ? `Pay in Full · ${formatCurrency(amountDue)}`
                       : `Pay 35% Downpayment · ${formatCurrency(amountDue)}`}
@@ -538,6 +544,7 @@ interface BookingPaymentSheetProps {
     'clientTotal' | 'initialPayment' | 'platformFee' | 'providerBalance' | 'providerInitialAllocation' | 'serviceSubtotal'
   >
   paymentSettlementContext?: V14PaymentSettlementContext
+  usePaymongoCheckout?: boolean
   visible: boolean
 }
 
@@ -549,6 +556,7 @@ export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
   onPay,
   paymentBreakdown,
   paymentSettlementContext,
+  usePaymongoCheckout = false,
   visible,
 }) => {
   const [paymentType, setPaymentType] = React.useState<PaymentType>('deposit')
@@ -564,7 +572,7 @@ export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
   const selectedSettlement = paymentMethod === 'bankTransfer'
     ? paymentSettlementContext?.manualBankTransfer
     : paymentSettlementContext?.eWalletCheckout
-  const selectedMethodEnabled = !isLoading && selectedSettlement?.enabled !== false
+  const selectedMethodEnabled = !isLoading && (usePaymongoCheckout || selectedSettlement?.enabled !== false)
 
   const dismiss = React.useCallback(() => {
     Animated.timing(sheetTranslateY, {
@@ -711,6 +719,7 @@ export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
                 <Text style={styles.bookingSheetOptionValue}>{formatCurrency(breakdown.clientTotal)}</Text>
               </Pressable>
             </View>
+            {usePaymongoCheckout ? <PaymongoCheckoutNotice compact /> : <>
             <Text style={styles.bookingSheetSectionTitle}>Payment method</Text>
             <View style={styles.bookingSheetMethodRow}>
               {paymentMethods.map((method) => {
@@ -736,6 +745,7 @@ export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
               })}
             </View>
             {paymentSettlementContext ? <SettlementInstructions context={paymentSettlementContext} method={paymentMethod} /> : null}
+            </>}
             </>}
           </ScrollView>
           <View style={styles.bookingSheetFooter}>
@@ -764,7 +774,9 @@ export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
               <Text style={styles.payButtonText}>
                 {isProcessing
                   ? 'Starting payment...'
-                  : paymentType === 'full'
+                  : usePaymongoCheckout
+                    ? `Continue to PayMongo Â· ${formatCurrency(amountDue)}`
+                    : paymentType === 'full'
                     ? `Pay Full · ${formatCurrency(amountDue)}`
                     : `Confirm Downpayment · ${formatCurrency(amountDue)}`}
               </Text>
@@ -889,6 +901,20 @@ const SettlementInstructions = ({
         Payment remains pending until MULTIVENT receives authoritative bank or processor confirmation. A screenshot or client-entered reference is not verification.
       </Text>
     </View>
+  )
+}
+
+function PaymongoCheckoutNotice({ compact = false }: { compact?: boolean }) {
+  return (
+  <View style={[styles.settlementCard, compact && styles.paymongoCheckoutCompact]}>
+    <View style={styles.settlementHeading}>
+      <MaterialCommunityIcons color={palette.burgundy} name="shield-check-outline" size={20} />
+      <Text style={styles.settlementTitle}>Secure PayMongo checkout</Text>
+    </View>
+    <Text style={styles.settlementCopy}>
+      You will choose an available payment method on PayMongo&apos;s secure checkout page. Returning here does not confirm payment; MULTIVENT updates this booking only after PayMongo verifies it.
+    </Text>
+  </View>
   )
 }
 
@@ -1062,6 +1088,7 @@ const styles = StyleSheet.create({
   settlementTitle: { color: palette.burgundy, fontSize: 14, fontWeight: '700', lineHeight: 20 },
   settlementCopy: { color: palette.muted, fontSize: 13, lineHeight: 19, marginTop: 8 },
   settlementNote: { color: palette.muted, fontSize: 12, lineHeight: 18, marginTop: 10 },
+  paymongoCheckoutCompact: { marginTop: 8 },
   bankDetails: { backgroundColor: palette.surface, borderColor: '#E8D0D4', borderRadius: 8, borderWidth: 1, marginTop: 12, padding: 11 },
   bankDetailLabel: { color: palette.burgundy, fontSize: 12, fontWeight: '700', lineHeight: 17, marginBottom: 3 },
   bankDetailValue: { color: palette.text, fontSize: 13, lineHeight: 19 },

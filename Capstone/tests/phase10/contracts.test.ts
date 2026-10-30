@@ -4440,3 +4440,51 @@ test('V20 Phase 11 keeps Inbox trash user-specific and reversible', () => {
     'const dismiss',
   ], 'Trash sheet and dim overlay animate independently')
 })
+
+test('V16 keeps PayMongo collection server-owned, webhook-verified, and idempotent', () => {
+  const migration = read('supabase/migrations/20261031000100_v16_paymongo_collection.sql')
+  const checkout = read('supabase/functions/paymongo-create-checkout/index.ts')
+  const webhook = read('supabase/functions/paymongo-webhook/index.ts')
+  const planning = read('src/lib/planning.ts')
+  const app = read('src/App.tsx')
+
+  mustContain(migration, [
+    'paymongo_payment_attempts',
+    'paymongo_payment_attempt_items',
+    'paymongo_webhook_events',
+    'prepare_my_paymongo_checkout_v16',
+    'claim_my_paymongo_checkout_v16',
+    'process_paymongo_checkout_webhook_v16',
+    'checkout_session.payment.paid',
+    "status = 'verified'",
+    'auth.role() <> \'service_role\'',
+    'collectFullPayment',
+  ], 'V16 server-authoritative PayMongo ledger migration')
+  mustContain(checkout, [
+    "Deno.env.get('PAYMONGO_SECRET_KEY')",
+    'https://api.paymongo.com/v2/checkout_sessions',
+    'prepare_my_paymongo_checkout_v16',
+    'claim_my_paymongo_checkout_v16',
+    'record_paymongo_checkout_session_v16',
+    'paymongoSecret',
+    'reference_number',
+    'checkout\\.paymongo\\.com',
+  ], 'V16 server-only hosted checkout creation')
+  assert.doesNotMatch(checkout, /EXPO_PUBLIC_PAYMONGO|PAYMONGO_SECRET_KEY[^\n]*return/i,
+    'PayMongo secret material must not be returned to the application')
+  mustContain(webhook, [
+    "request.headers.get('Paymongo-Signature')",
+    "crypto.subtle.sign('HMAC'",
+    'constantTimeEqual',
+    'process_paymongo_checkout_webhook_v16',
+  ], 'V16 signed and idempotent webhook intake')
+  mustContain(planning, [
+    'createMyPaymongoCheckoutV16',
+    "client.functions.invoke('paymongo-create-checkout'",
+  ], 'V16 mobile checkout handoff')
+  mustContain(app, [
+    'createMyPaymongoCheckoutV16',
+    'WebBrowser.openBrowserAsync(result.checkoutUrl)',
+    'usePaymongoCheckout',
+  ], 'V16 app browser launch without client-side payment verification')
+})
