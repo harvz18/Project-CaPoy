@@ -4342,6 +4342,7 @@ test('V20 Phase 11 keeps Inbox trash user-specific and reversible', () => {
   const messages = read('src/screens/03.1-Messages.tsx')
   const thread = read('src/screens/03.2-ChatThread.tsx')
   const notifications = read('src/screens/22.5-Notification.tsx')
+  const inboxControls = read('src/components/InboxControls.tsx')
   const app = read('src/App.tsx')
 
   mustContain(migration, [
@@ -4386,6 +4387,17 @@ test('V20 Phase 11 keeps Inbox trash user-specific and reversible', () => {
     'Move selected notifications to Trash',
     'Open Inbox Trash',
   ], 'notification selection and trash action')
+  mustContain(inboxControls, [
+    "MaterialCommunityIcons",
+    'trash-can-outline',
+    'InboxSelectionBox',
+  ], 'shared vector Trash control and simple selection box')
+  mustContain(messages, [
+    'showTrashShortcut={false}',
+    "inboxTab === 'notifications' ? 'notifications' : 'messages'",
+  ], 'single contextual client Inbox Trash shortcut')
+  assert.doesNotMatch(`${messages}\n${thread}\n${notifications}`, /🗑/,
+    'Inbox actions must not fall back to emoji Trash glyphs')
   mustContain(app, [
     'InboxTrashModal',
     'mutateInboxTrash',

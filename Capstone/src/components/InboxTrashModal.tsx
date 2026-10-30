@@ -1,7 +1,8 @@
 import React from 'react'
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { Text } from './AppText'
-import type { InboxTrashItem } from '../lib/inbox-trash'
+import { InboxSelectionBox } from './InboxControls'
+import type { InboxTrashItem, InboxTrashScope } from '../lib/inbox-trash'
 
 interface InboxTrashModalProps {
   busy?: boolean
@@ -9,6 +10,7 @@ interface InboxTrashModalProps {
   onClear?: (items: InboxTrashItem[]) => void
   onClose?: () => void
   onRestore?: (items: InboxTrashItem[]) => void
+  scope?: InboxTrashScope
   visible: boolean
 }
 
@@ -27,20 +29,27 @@ export const InboxTrashModal: React.FC<InboxTrashModalProps> = ({
   onClear,
   onClose,
   onRestore,
+  scope = 'all',
   visible,
 }) => {
   const [selectedIds, setSelectedIds] = React.useState<ReadonlySet<string>>(() => new Set())
+  const visibleItems = React.useMemo(() => items.filter((item) => (
+    scope === 'all'
+      || (scope === 'notifications' && item.itemType === 'notification')
+      || (scope === 'messages' && item.itemType !== 'notification')
+  )), [items, scope])
+  const title = scope === 'notifications' ? 'Notifications Trash' : scope === 'messages' ? 'Messages Trash' : 'Inbox Trash'
 
   React.useEffect(() => {
     if (!visible) setSelectedIds(new Set())
   }, [visible])
 
   React.useEffect(() => {
-    setSelectedIds((current) => new Set([...current].filter((id) => items.some((item) => item.id === id))))
-  }, [items])
+    setSelectedIds((current) => new Set([...current].filter((id) => visibleItems.some((item) => item.id === id))))
+  }, [visibleItems])
 
-  const selectedItems = items.filter((item) => selectedIds.has(item.id))
-  const allSelected = items.length > 0 && selectedItems.length === items.length
+  const selectedItems = visibleItems.filter((item) => selectedIds.has(item.id))
+  const allSelected = visibleItems.length > 0 && selectedItems.length === visibleItems.length
   const someSelected = selectedItems.length > 0 && !allSelected
   const toggle = (id: string) => setSelectedIds((current) => {
     const next = new Set(current)
@@ -48,7 +57,7 @@ export const InboxTrashModal: React.FC<InboxTrashModalProps> = ({
     else next.add(id)
     return next
   })
-  const toggleAll = () => setSelectedIds(allSelected ? new Set() : new Set(items.map((item) => item.id)))
+  const toggleAll = () => setSelectedIds(allSelected ? new Set() : new Set(visibleItems.map((item) => item.id)))
 
   return (
     <Modal animationType="slide" onRequestClose={onClose} transparent visible={visible}>
@@ -59,16 +68,16 @@ export const InboxTrashModal: React.FC<InboxTrashModalProps> = ({
             <Pressable accessibilityLabel="Close Trash" accessibilityRole="button" disabled={busy} onPress={onClose} style={styles.headerButton}>
               <Text style={styles.headerButtonText}>‹</Text>
             </Pressable>
-            <Text style={styles.title}>Inbox Trash</Text>
+            <Text style={styles.title}>{title}</Text>
             <Pressable
               accessibilityLabel={allSelected ? 'Deselect all trashed items' : someSelected ? 'Select all remaining trashed items' : 'Select all trashed items'}
               accessibilityRole="checkbox"
               accessibilityState={{ checked: allSelected ? true : someSelected ? 'mixed' : false, disabled: busy }}
-              disabled={busy || !items.length}
+              disabled={busy || !visibleItems.length}
               onPress={toggleAll}
-              style={[styles.headerButton, (!items.length || busy) && styles.disabled]}
+              style={[styles.headerButton, (!visibleItems.length || busy) && styles.disabled]}
             >
-              <Text style={styles.checkbox}>{allSelected ? '☑' : someSelected ? '▣' : '☐'}</Text>
+              <InboxSelectionBox state={allSelected ? 'checked' : someSelected ? 'mixed' : 'unchecked'} />
             </Pressable>
           </View>
           <Text style={styles.subtitle}>
@@ -76,7 +85,7 @@ export const InboxTrashModal: React.FC<InboxTrashModalProps> = ({
           </Text>
 
           <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
-            {items.length ? items.map((item) => {
+            {visibleItems.length ? visibleItems.map((item) => {
               const selected = selectedIds.has(item.id)
               return (
                 <Pressable
@@ -89,7 +98,7 @@ export const InboxTrashModal: React.FC<InboxTrashModalProps> = ({
                   onPress={() => toggle(item.id)}
                   style={({ pressed }) => [styles.row, selected && styles.rowSelected, pressed && styles.pressed]}
                 >
-                  <Text style={styles.rowCheckbox}>{selected ? '☑' : '☐'}</Text>
+                  <InboxSelectionBox state={selected ? 'checked' : 'unchecked'} />
                   <View style={styles.copy}>
                     <View style={styles.rowTitleLine}>
                       <Text numberOfLines={1} style={styles.rowTitle}>{item.title}</Text>
@@ -101,7 +110,7 @@ export const InboxTrashModal: React.FC<InboxTrashModalProps> = ({
                 </Pressable>
               )
             }) : (
-              <View style={styles.empty}><Text style={styles.emptyTitle}>Trash is empty</Text><Text style={styles.emptyText}>Items you remove from your Inbox will appear here.</Text></View>
+              <View style={styles.empty}><Text style={styles.emptyTitle}>Trash is empty</Text><Text style={styles.emptyText}>Items you remove from this section will appear here.</Text></View>
             )}
           </ScrollView>
 
@@ -130,11 +139,9 @@ const styles = StyleSheet.create({
   headerButtonText: { color: '#6B1E2E', fontSize: 34, lineHeight: 36, fontWeight: '400' },
   title: { color: '#1B1C1C', fontSize: 18, lineHeight: 24, fontWeight: '800' },
   subtitle: { color: '#5D5F5F', fontSize: 12, lineHeight: 17, paddingHorizontal: 20, paddingBottom: 9 },
-  checkbox: { color: '#6B1E2E', fontSize: 22, lineHeight: 25 },
   list: { paddingBottom: 18 },
   row: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 10, borderTopWidth: 1, borderTopColor: '#E8E3E4', paddingHorizontal: 18, paddingVertical: 10 },
   rowSelected: { backgroundColor: '#F7ECEE' },
-  rowCheckbox: { color: '#6B1E2E', fontSize: 20, lineHeight: 24 },
   copy: { minWidth: 0, flex: 1 },
   rowTitleLine: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   rowTitle: { minWidth: 0, flex: 1, color: '#1B1C1C', fontSize: 13, lineHeight: 18, fontWeight: '700' },

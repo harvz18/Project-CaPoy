@@ -46,8 +46,9 @@ export const AnimatedQuickAccessButton: React.FC<AnimatedQuickAccessButtonProps>
   const entranceProgress = React.useRef(new Animated.Value(entranceDelay === undefined ? 1 : 0)).current
   const pulseScale = React.useRef(new Animated.Value(1)).current
   const notificationBounceScale = React.useRef(new Animated.Value(1)).current
+  const notificationLift = React.useRef(new Animated.Value(0)).current
   const isAnimating = React.useRef(false)
-  const [reducedMotion, setReducedMotion] = React.useState(true)
+  const [reducedMotion, setReducedMotion] = React.useState(false)
 
   React.useEffect(() => {
     if (!shouldBounce) {
@@ -56,9 +57,13 @@ export const AnimatedQuickAccessButton: React.FC<AnimatedQuickAccessButtonProps>
     }
 
     let isMounted = true
-    void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
-      if (isMounted) setReducedMotion(enabled)
-    })
+    void AccessibilityInfo.isReduceMotionEnabled()
+      .then((enabled) => {
+        if (isMounted) setReducedMotion(enabled)
+      })
+      .catch(() => {
+        if (isMounted) setReducedMotion(false)
+      })
     const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReducedMotion)
     return () => {
       isMounted = false
@@ -89,45 +94,41 @@ export const AnimatedQuickAccessButton: React.FC<AnimatedQuickAccessButtonProps>
 
   React.useEffect(() => {
     notificationBounceScale.stopAnimation()
+    notificationLift.stopAnimation()
     notificationBounceScale.setValue(1)
+    notificationLift.setValue(0)
     if (!shouldBounce || reducedMotion) return undefined
 
     const bounce = Animated.loop(Animated.sequence([
-      // A restrained two-second double-bounce, followed by a five-second rest.
+      // A restrained double-hop, followed by a five-second rest.
       Animated.delay(700),
-      Animated.timing(notificationBounceScale, {
-        duration: 360,
-        easing: Easing.out(Easing.cubic),
-        toValue: 1.075,
-        useNativeDriver: Platform.OS !== 'web',
-      }),
-      Animated.timing(notificationBounceScale, {
-        duration: 360,
-        easing: Easing.inOut(Easing.cubic),
-        toValue: 0.98,
-        useNativeDriver: Platform.OS !== 'web',
-      }),
-      Animated.timing(notificationBounceScale, {
-        duration: 280,
-        easing: Easing.out(Easing.cubic),
-        toValue: 1.035,
-        useNativeDriver: Platform.OS !== 'web',
-      }),
-      Animated.timing(notificationBounceScale, {
-        duration: 300,
-        easing: Easing.inOut(Easing.cubic),
-        toValue: 1,
-        useNativeDriver: Platform.OS !== 'web',
-      }),
+      Animated.parallel([
+        Animated.timing(notificationBounceScale, { duration: 210, easing: Easing.out(Easing.cubic), toValue: 1.055, useNativeDriver: Platform.OS !== 'web' }),
+        Animated.timing(notificationLift, { duration: 210, easing: Easing.out(Easing.cubic), toValue: -5, useNativeDriver: Platform.OS !== 'web' }),
+      ]),
+      Animated.parallel([
+        Animated.timing(notificationBounceScale, { duration: 210, easing: Easing.in(Easing.cubic), toValue: 1, useNativeDriver: Platform.OS !== 'web' }),
+        Animated.timing(notificationLift, { duration: 210, easing: Easing.in(Easing.cubic), toValue: 0, useNativeDriver: Platform.OS !== 'web' }),
+      ]),
+      Animated.parallel([
+        Animated.timing(notificationBounceScale, { duration: 160, easing: Easing.out(Easing.cubic), toValue: 1.03, useNativeDriver: Platform.OS !== 'web' }),
+        Animated.timing(notificationLift, { duration: 160, easing: Easing.out(Easing.cubic), toValue: -3, useNativeDriver: Platform.OS !== 'web' }),
+      ]),
+      Animated.parallel([
+        Animated.timing(notificationBounceScale, { duration: 180, easing: Easing.in(Easing.cubic), toValue: 1, useNativeDriver: Platform.OS !== 'web' }),
+        Animated.timing(notificationLift, { duration: 180, easing: Easing.in(Easing.cubic), toValue: 0, useNativeDriver: Platform.OS !== 'web' }),
+      ]),
       Animated.delay(5000),
     ]))
     bounce.start()
     return () => {
       bounce.stop()
       notificationBounceScale.stopAnimation()
+      notificationLift.stopAnimation()
       notificationBounceScale.setValue(1)
+      notificationLift.setValue(0)
     }
-  }, [notificationBounceScale, reducedMotion, shouldBounce])
+  }, [notificationBounceScale, notificationLift, reducedMotion, shouldBounce])
 
   const handlePress = () => {
     if (isAnimating.current) return
@@ -169,12 +170,13 @@ export const AnimatedQuickAccessButton: React.FC<AnimatedQuickAccessButtonProps>
             {
               opacity: entranceProgress,
               transform: [
-                {
-                  translateY: entranceProgress.interpolate({
+                { translateY: Animated.add(
+                  entranceProgress.interpolate({
                     inputRange: [0, 0.62, 1],
                     outputRange: [14, -7, 0],
                   }),
-                },
+                  notificationLift
+                ) },
                 { scale: notificationBounceScale },
                 { scale: pulseScale },
               ],

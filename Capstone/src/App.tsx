@@ -20,6 +20,7 @@ import {
   clearMyInboxItems,
   type InboxItemType,
   type InboxTrashItem,
+  type InboxTrashScope,
   loadMyInboxTrash,
   moveMyInboxItemsToTrash,
   restoreMyInboxItems,
@@ -894,6 +895,7 @@ export const App: React.FC = () => {
   const [conversationMessages, setConversationMessages] = React.useState<ChatMessage[]>([])
   const [notifications, setNotifications] = React.useState<MerchantNotification[]>([])
   const [inboxTrashItems, setInboxTrashItems] = React.useState<InboxTrashItem[]>([])
+  const [inboxTrashScope, setInboxTrashScope] = React.useState<InboxTrashScope>('all')
   const [isInboxTrashVisible, setIsInboxTrashVisible] = React.useState(false)
   const [isInboxTrashLoading, setIsInboxTrashLoading] = React.useState(false)
   const [isInboxTrashMutating, setIsInboxTrashMutating] = React.useState(false)
@@ -2222,8 +2224,9 @@ export const App: React.FC = () => {
     }
   }, [isClientHomeRefreshing, refreshLiveData])
 
-  const openInboxTrash = React.useCallback(async () => {
+  const openInboxTrash = React.useCallback(async (scope: InboxTrashScope = 'all') => {
     if (isInboxTrashLoading) return
+    setInboxTrashScope(scope)
     setIsInboxTrashVisible(true)
     setIsInboxTrashLoading(true)
     const result = await loadMyInboxTrash()
@@ -4830,7 +4833,7 @@ export const App: React.FC = () => {
           ? openProviderProfile()
           : openAccountProfile('messages')
       }
-      onOpenTrash={() => void openInboxTrash()}
+      onOpenTrash={(scope) => void openInboxTrash(scope)}
       onOpenEventCoordinatorForEvent={(eventId) =>
         void openEventCoordinatorConversationFor(eventId, 'messages')
       }
@@ -5609,7 +5612,7 @@ export const App: React.FC = () => {
             }}
             onMoveToTrash={(notificationIds) =>
               mutateInboxTrash('trash', [{ ids: notificationIds, itemType: 'notification' }])}
-            onOpenTrash={() => void openInboxTrash()}
+            onOpenTrash={(scope) => void openInboxTrash(scope)}
             onPreferencesChange={(preferences) =>
               void saveNotificationPreferences(preferences)
             }
@@ -5730,7 +5733,7 @@ export const App: React.FC = () => {
             }}
             onMoveToTrash={(notificationIds) =>
               mutateInboxTrash('trash', [{ ids: notificationIds, itemType: 'notification' }])}
-            onOpenTrash={() => void openInboxTrash()}
+            onOpenTrash={(scope) => void openInboxTrash(scope)}
             onSelectNotification={(notification) => {
               void markMerchantNotificationRead(notification).then(() => refreshLiveData())
               if (notification.category === 'message') {
@@ -6188,7 +6191,7 @@ export const App: React.FC = () => {
               }
               return moved
             }}
-            onOpenTrash={() => void openInboxTrash()}
+            onOpenTrash={(scope) => void openInboxTrash(scope)}
             participant={
               selectedConversation
                 ? {
@@ -6595,6 +6598,7 @@ export const App: React.FC = () => {
         <InboxTrashModal
           busy={isInboxTrashLoading || isInboxTrashMutating}
           items={inboxTrashItems}
+          scope={inboxTrashScope}
           onClear={(items) => {
             const groups = new Map<InboxItemType, string[]>()
             items.forEach((item) => groups.set(item.itemType, [...(groups.get(item.itemType) ?? []), item.id]))

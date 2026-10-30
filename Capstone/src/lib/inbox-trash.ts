@@ -1,6 +1,7 @@
 import { supabase, supabaseConfig } from './supabase'
 
 export type InboxItemType = 'conversation' | 'message' | 'notification'
+export type InboxTrashScope = 'all' | 'messages' | 'notifications'
 
 export interface InboxItemState {
   itemId: string

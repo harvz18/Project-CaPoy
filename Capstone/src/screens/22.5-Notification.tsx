@@ -1,4 +1,6 @@
 import { Text } from '../components/AppText'
+import { InboxSelectionBox, InboxTrashButton } from '../components/InboxControls'
+import type { InboxTrashScope } from '../lib/inbox-trash'
 import React from 'react'
 import {
   Pressable,
@@ -48,10 +50,11 @@ interface NotificationScreenProps {
   onMarkAllRead?: (notificationIds: string[]) => void
   onMarkRead?: (notification: MerchantNotification) => void
   onMoveToTrash?: (notificationIds: string[]) => Promise<boolean> | boolean
-  onOpenTrash?: () => void
+  onOpenTrash?: (scope?: InboxTrashScope) => void
   onPreferencesChange?: (preferences: MerchantNotificationPreferences) => void
   onScrollDirectionChange?: (direction: 'down' | 'up') => void
   onSelectNotification?: (notification: MerchantNotification) => void
+  showTrashShortcut?: boolean
   variant?: 'client' | 'coordinator' | 'merchant'
 }
 
@@ -233,6 +236,7 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({
   onPreferencesChange,
   onScrollDirectionChange,
   onSelectNotification,
+  showTrashShortcut = true,
   variant = 'merchant',
 }) => {
   const { width } = useWindowDimensions()
@@ -346,10 +350,10 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({
             {selectionMode ? `${selectedIds.size} selected` : 'Notifications'}
           </Text>
           {selectionMode ? <View style={styles.selectionActions}>
-            <Pressable accessibilityLabel={allSelected ? 'Deselect all notifications' : someSelected ? 'Select all remaining notifications' : 'Select all notifications'} accessibilityRole="checkbox" accessibilityState={{ checked: allSelected ? true : someSelected ? 'mixed' : false }} onPress={toggleAll} style={styles.iconAction}><Text style={styles.selectionGlyph}>{allSelected ? '☑' : someSelected ? '▣' : '☐'}</Text></Pressable>
-            <Pressable accessibilityLabel="Move selected notifications to Trash" accessibilityRole="button" onPress={() => void moveSelectedToTrash()} style={styles.iconAction}><Text style={styles.trashGlyph}>🗑</Text></Pressable>
+            <Pressable accessibilityLabel={allSelected ? 'Deselect all notifications' : someSelected ? 'Select all remaining notifications' : 'Select all notifications'} accessibilityRole="checkbox" accessibilityState={{ checked: allSelected ? true : someSelected ? 'mixed' : false }} onPress={toggleAll} style={styles.iconAction}><InboxSelectionBox color={palette.primaryContainer} state={allSelected ? 'checked' : someSelected ? 'mixed' : 'unchecked'} /></Pressable>
+            <InboxTrashButton accessibilityLabel="Move selected notifications to Trash" color={palette.primaryContainer} onPress={() => void moveSelectedToTrash()} />
           </View> : <View style={styles.selectionActions}>
-            <Pressable accessibilityLabel="Open Inbox Trash" accessibilityRole="button" onPress={onOpenTrash} style={styles.iconAction}><Text style={styles.trashGlyph}>🗑</Text></Pressable>
+            {showTrashShortcut ? <InboxTrashButton accessibilityLabel="Open Inbox Trash" color={palette.primaryContainer} onPress={() => onOpenTrash?.('notifications')} /> : null}
             <Pressable accessibilityLabel="Mark all notifications as read" accessibilityRole="button" disabled={!unreadNotifications.length} hitSlop={8} onPress={markAllRead} style={({ pressed }) => [styles.headerAction, !unreadNotifications.length && styles.headerActionDisabled, pressed && styles.pressedSurface]}><Text style={styles.headerActionText}>Read all</Text></Pressable>
           </View>}
         </View>
@@ -431,10 +435,10 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({
               {embedded ? (
                 <View style={styles.selectionActions}>
                   {selectionMode ? <>
-                    <Pressable accessibilityLabel={allSelected ? 'Deselect all notifications' : someSelected ? 'Select all remaining notifications' : 'Select all notifications'} accessibilityRole="checkbox" accessibilityState={{ checked: allSelected ? true : someSelected ? 'mixed' : false }} onPress={toggleAll} style={styles.iconAction}><Text style={styles.inlineSelectionGlyph}>{allSelected ? '☑' : someSelected ? '▣' : '☐'}</Text></Pressable>
-                    <Pressable accessibilityLabel="Move selected notifications to Trash" accessibilityRole="button" onPress={() => void moveSelectedToTrash()} style={styles.iconAction}><Text style={styles.trashGlyph}>🗑</Text></Pressable>
+                    <Pressable accessibilityLabel={allSelected ? 'Deselect all notifications' : someSelected ? 'Select all remaining notifications' : 'Select all notifications'} accessibilityRole="checkbox" accessibilityState={{ checked: allSelected ? true : someSelected ? 'mixed' : false }} onPress={toggleAll} style={styles.iconAction}><InboxSelectionBox color={palette.primaryContainer} state={allSelected ? 'checked' : someSelected ? 'mixed' : 'unchecked'} /></Pressable>
+                    <InboxTrashButton accessibilityLabel="Move selected notifications to Trash" color={palette.primaryContainer} onPress={() => void moveSelectedToTrash()} />
                   </> : <>
-                    <Pressable accessibilityLabel="Open Inbox Trash" accessibilityRole="button" onPress={onOpenTrash} style={styles.iconAction}><Text style={styles.trashGlyph}>🗑</Text></Pressable>
+                    {showTrashShortcut ? <InboxTrashButton accessibilityLabel="Open Inbox Trash" color={palette.primaryContainer} onPress={() => onOpenTrash?.('notifications')} /> : null}
                     <Pressable accessibilityLabel="Mark all notifications as read" accessibilityRole="button" disabled={!unreadNotifications.length} hitSlop={8} onPress={markAllRead} style={({ pressed }) => [styles.embeddedReadAll, !unreadNotifications.length && styles.headerActionDisabled, pressed && styles.pressedSurface]}><Text style={styles.embeddedReadAllText}>Read all</Text></Pressable>
                   </>}
                 </View>
@@ -549,7 +553,7 @@ const NotificationRow = ({
         pressed && styles.notificationRowPressed,
       ]}
     >
-      {selectionMode ? <Text style={styles.rowCheckbox}>{selected ? '☑' : '☐'}</Text> : null}
+      {selectionMode ? <InboxSelectionBox color={palette.primaryContainer} state={selected ? 'checked' : 'unchecked'} /> : null}
       <View style={[styles.categoryIcon, { backgroundColor: category.backgroundColor }]}>
         <Text style={[styles.categoryGlyph, { color: category.color }]}>{category.glyph}</Text>
       </View>
@@ -658,9 +662,6 @@ const styles = StyleSheet.create({
   headerActionText: { color: palette.primaryContainer, fontSize: 12, lineHeight: 16, fontWeight: '700' },
   selectionActions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   iconAction: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19 },
-  selectionGlyph: { color: palette.primaryContainer, fontSize: 20, lineHeight: 24 },
-  inlineSelectionGlyph: { color: palette.primaryContainer, fontSize: 20, lineHeight: 24 },
-  trashGlyph: { fontSize: 17, lineHeight: 21 },
   content: { width: '100%', maxWidth: 940, alignSelf: 'center' },
   contentMobile: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 48 },
   contentWide: { paddingHorizontal: 32, paddingTop: 30, paddingBottom: 56 },
@@ -698,7 +699,6 @@ const styles = StyleSheet.create({
   notificationRowSelected: { backgroundColor: '#F7ECEE' },
   notificationRowBorder: { borderBottomWidth: 1, borderBottomColor: palette.border },
   notificationRowPressed: { opacity: 0.68 },
-  rowCheckbox: { color: palette.primaryContainer, fontSize: 20, lineHeight: 24, marginTop: 5 },
   categoryIcon: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18 },
   categoryGlyph: { fontSize: 14, lineHeight: 19, fontWeight: '700' },
   notificationCopy: { minWidth: 0, flex: 1 },

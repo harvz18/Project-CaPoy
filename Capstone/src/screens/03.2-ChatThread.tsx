@@ -1,4 +1,6 @@
 import { Text } from '../components/AppText'
+import { InboxSelectionBox, InboxTrashButton } from '../components/InboxControls'
+import type { InboxTrashScope } from '../lib/inbox-trash'
 import React from 'react'
 import {
   ActivityIndicator,
@@ -73,7 +75,7 @@ interface ChatThreadScreenProps {
   onOpenBooking?: (booking: ChatBookingContext) => void
   onOpenInfo?: (participant: ChatParticipant) => void
   onMoveMessagesToTrash?: (messageIds: string[]) => Promise<boolean> | boolean
-  onOpenTrash?: () => void
+  onOpenTrash?: (scope?: InboxTrashScope) => void
   onRemovePendingAttachment?: (attachment: ChatAttachment) => void
   onRetryMessage?: (message: ChatMessage) => void
   onSend?: (value: ChatSendValue) => void
@@ -301,10 +303,10 @@ export const ChatThreadScreen: React.FC<ChatThreadScreenProps> = ({
 
           <View style={styles.headerActions}>
             {selectionMode ? <>
-              <Pressable accessibilityLabel={allMessagesSelected ? 'Deselect all messages' : someMessagesSelected ? 'Select all remaining messages' : 'Select all messages'} accessibilityRole="checkbox" accessibilityState={{ checked: allMessagesSelected ? true : someMessagesSelected ? 'mixed' : false }} onPress={() => setSelectedMessageIds(allMessagesSelected ? new Set() : new Set(selectableMessageIds))} style={styles.iconButton}><Text style={styles.selectionGlyph}>{allMessagesSelected ? '☑' : someMessagesSelected ? '▣' : '☐'}</Text></Pressable>
-              <Pressable accessibilityLabel="Move selected messages to Trash" accessibilityRole="button" onPress={() => void moveSelectedMessagesToTrash()} style={styles.iconButton}><Text style={styles.trashGlyph}>🗑</Text></Pressable>
+              <Pressable accessibilityLabel={allMessagesSelected ? 'Deselect all messages' : someMessagesSelected ? 'Select all remaining messages' : 'Select all messages'} accessibilityRole="checkbox" accessibilityState={{ checked: allMessagesSelected ? true : someMessagesSelected ? 'mixed' : false }} onPress={() => setSelectedMessageIds(allMessagesSelected ? new Set() : new Set(selectableMessageIds))} style={styles.iconButton}><InboxSelectionBox color={palette.primaryContainer} state={allMessagesSelected ? 'checked' : someMessagesSelected ? 'mixed' : 'unchecked'} /></Pressable>
+              <InboxTrashButton accessibilityLabel="Move selected messages to Trash" color={palette.primaryContainer} onPress={() => void moveSelectedMessagesToTrash()} />
             </> : <>
-              <Pressable accessibilityLabel="Open Inbox Trash" accessibilityRole="button" onPress={onOpenTrash} style={styles.iconButton}><Text style={styles.trashGlyph}>🗑</Text></Pressable>
+              <InboxTrashButton accessibilityLabel="Open Inbox Trash" color={palette.primaryContainer} onPress={() => onOpenTrash?.('messages')} />
             <Pressable
               accessibilityLabel={`Call ${value.name}`}
               accessibilityRole="button"
@@ -604,7 +606,7 @@ const MessageBubble = ({
       onPress={() => selectionMode ? onToggleSelection?.() : undefined}
       style={[styles.messageRow, isCurrentUser && styles.messageRowCurrentUser, selected && styles.messageRowSelected]}
     >
-      {selectionMode ? <Text style={styles.messageCheckbox}>{selected ? '☑' : '☐'}</Text> : null}
+      {selectionMode ? <InboxSelectionBox color={palette.primaryContainer} state={selected ? 'checked' : 'unchecked'} /> : null}
       {!isCurrentUser ? (
         showParticipantAvatar ? (
           <Avatar participant={participant} size="tiny" />
@@ -759,8 +761,6 @@ const styles = StyleSheet.create({
   participantCopy: { minWidth: 0, flex: 1 },
   selectionTitle: { minWidth: 0, flex: 1, justifyContent: 'center', paddingHorizontal: 8 },
   selectionTitleText: { color: palette.text, fontSize: 14, lineHeight: 19, fontWeight: '800' },
-  selectionGlyph: { color: palette.primaryContainer, fontSize: 20, lineHeight: 24 },
-  trashGlyph: { fontSize: 17, lineHeight: 21 },
   participantName: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '700' },
   presenceText: { color: palette.positive, fontSize: 8, lineHeight: 12, marginTop: 1 },
   headerActions: { flexDirection: 'row' },
@@ -803,7 +803,6 @@ const styles = StyleSheet.create({
   messageRow: { maxWidth: '84%', alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'flex-end', gap: 7, marginVertical: 3 },
   messageRowCurrentUser: { alignSelf: 'flex-end', justifyContent: 'flex-end' },
   messageRowSelected: { borderRadius: 12, backgroundColor: '#F1E0E4' },
-  messageCheckbox: { color: palette.primaryContainer, fontSize: 19, lineHeight: 23, alignSelf: 'center' },
   avatarTinySpacer: { width: 26 },
   messageStack: { minWidth: 0, alignItems: 'flex-start' },
   messageStackCurrentUser: { alignItems: 'flex-end' },
