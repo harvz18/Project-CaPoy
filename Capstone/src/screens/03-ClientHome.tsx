@@ -286,9 +286,7 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
 
   const handleSearchPress = () => {
     if (isSearchExpanded) {
-      setIsSearchFieldEngaged(true)
-      setSearchActivityVersion((current) => current + 1)
-      searchInputRef.current?.focus()
+      collapseSearch()
       return
     }
 
@@ -407,23 +405,21 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
             isWide && styles.referenceTopSurfaceWide,
           ]}
         >
-          <View style={styles.referenceHero}>
-            <Text style={styles.heroTitle}>LET'S PLAN{`\n`}YOUR BIG DAY!</Text>
+          <Pressable
+            accessibilityLabel="Plan your wedding"
+            accessibilityRole="button"
+            onPress={handleCreateEventPress}
+            style={({ pressed }) => [styles.referenceHero, pressed && styles.referencePressed]}
+          >
+            <Text style={styles.heroTitle}>YOUR DREAM WEDDING{`\n`}STARTS HERE!</Text>
             <Text style={styles.heroDescription}>
-              Deploy planning tools, manage budget & vendors{`\n`}in one workspace.
+              Make every moment of your special day unforgettable.
             </Text>
             <View style={styles.heroFooter}>
-              <Pressable
-                accessibilityLabel="Begin setup"
-                accessibilityRole="button"
-                onPress={handleCreateEventPress}
-                style={({ pressed }) => [styles.heroButton, pressed && styles.referencePressed]}
-              >
-                <Text style={styles.heroButtonText}>Create Event</Text>
-                <Text style={styles.heroButtonArrow}>+</Text>
-              </Pressable>
+              <Text style={styles.heroPlanText}>Plan Wedding</Text>
+              <MaterialIcons color="#FFFFFF" name="arrow-forward" size={20} />
             </View>
-          </View>
+          </Pressable>
         </View>
 
         <View style={[styles.referenceSection, styles.quickAccessSection]}>
@@ -915,6 +911,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     height: '100%',
+    outlineWidth: 0,
     paddingHorizontal: 2,
     paddingRight: 13,
   },
@@ -1044,26 +1041,11 @@ const styles = StyleSheet.create({
     lineHeight: 15,
     fontWeight: '600',
   },
-  heroButton: {
-    minWidth: 108,
-    height: 28,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingHorizontal: 12,
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
-  },
-  heroButtonText: {
-    color: '#701B30',
+  heroPlanText: {
+    color: '#FFFFFF',
     fontSize: 12,
+    lineHeight: 16,
     fontWeight: '600',
-  },
-  heroButtonArrow: {
-    color: '#701B30',
-    fontSize: 14,
-    lineHeight: 14,
   },
   referenceSection: {
     marginBottom: 18,

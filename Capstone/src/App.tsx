@@ -909,6 +909,7 @@ export const App: React.FC = () => {
     () => new Set()
   )
   const favoriteTogglesInFlightRef = React.useRef(new Set<string>())
+  const favoriteStateRevisionRef = React.useRef(0)
   const [serviceCategories, setServiceCategories] =
     React.useState<ServiceCategoryOption[]>(fallbackServiceCategories)
   const [serviceBrowseMode, setServiceBrowseMode] =
@@ -2094,6 +2095,7 @@ export const App: React.FC = () => {
     if (inFlightRefresh) return inFlightRefresh
 
     const refresh = (async (): Promise<ClientPlanningState> => {
+    const favoriteStateRevisionAtStart = favoriteStateRevisionRef.current
     const [
       services,
       bookings,
@@ -2143,7 +2145,9 @@ export const App: React.FC = () => {
     setConversations(conversationRows)
     setNotifications(notificationRows)
     setServiceCategories(categories)
-    if (favorites.ok) setFavoriteServiceIds(favorites.ids)
+    if (favorites.ok && favoriteStateRevisionAtStart === favoriteStateRevisionRef.current) {
+      setFavoriteServiceIds(favorites.ids)
+    }
     hydrateClientPlanningState(planningState, services)
     setClientEventDrafts(eventDrafts)
     setClientSavedPlans(savedPlans)
@@ -2171,6 +2175,7 @@ export const App: React.FC = () => {
     if (favoriteTogglesInFlightRef.current.has(serviceId)) return
 
     const wasFavorited = favoriteServiceIds.has(serviceId)
+    favoriteStateRevisionRef.current += 1
     favoriteTogglesInFlightRef.current.add(serviceId)
     setFavoritePendingServiceIds((current) => new Set(current).add(serviceId))
     setFavoriteServiceIds((current) => {
@@ -2183,6 +2188,7 @@ export const App: React.FC = () => {
     try {
       const result = await toggleFavoriteService(serviceId)
       if (!result.ok) {
+        favoriteStateRevisionRef.current += 1
         setFavoriteServiceIds((current) => {
           const next = new Set(current)
           if (wasFavorited) next.add(serviceId)
@@ -2199,6 +2205,11 @@ export const App: React.FC = () => {
         else next.delete(serviceId)
         return next
       })
+      const completedRevision = ++favoriteStateRevisionRef.current
+      const refreshedFavorites = await fetchFavoriteServiceIds()
+      if (refreshedFavorites.ok && favoriteStateRevisionRef.current === completedRevision) {
+        setFavoriteServiceIds(refreshedFavorites.ids)
+      }
     } finally {
       favoriteTogglesInFlightRef.current.delete(serviceId)
       setFavoritePendingServiceIds((current) => {

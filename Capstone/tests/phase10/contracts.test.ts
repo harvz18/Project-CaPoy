@@ -2744,9 +2744,12 @@ test('redesigned client home keeps branded live navigation and booking actions',
     "import { CardInsetShadow, NeumorphicRaised } from '../components/CardInsetShadow'",
     "import { BrandIdentity } from '../components/BrandIdentity'",
     'referenceStickyHeader',
-    'styles.heroButton',
+    'accessibilityLabel="Plan your wedding"',
+    'YOUR DREAM WEDDING',
+    'Make every moment of your special day unforgettable.',
+    'name="arrow-forward"',
     'styles.quickAccessRow',
-    'accessibilityLabel="Begin setup"',
+    'collapseSearch()',
     'handleStartNewEvent',
     'handleQuickAccess',
     'referenceWordmarkDepth',
@@ -4294,6 +4297,8 @@ test('V20 Phase 9 saves client marketplace services without changing booking sel
     'handleToggleFavorite',
     'toggleFavoriteService(serviceId)',
     'favoriteTogglesInFlightRef',
+    'favoriteStateRevisionRef',
+    'const refreshedFavorites = await fetchFavoriteServiceIds()',
   ], 'favorite optimistic state and duplicate-tap guard')
 })
 
