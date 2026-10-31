@@ -49,7 +49,9 @@ const parseMethods = (environment: 'test' | 'live') => {
 type ClientPaymentMethod = 'eWallet' | 'bankTransfer'
 
 const methodsForClientSelection = (method: ClientPaymentMethod, environment: 'test' | 'live') => {
-  if (method === 'bankTransfer') return ['dob', 'brankas']
+  // `bankTransfer` is retained only as the mobile app's legacy value.  The
+  // hosted PayMongo experience labels it Card and opens the card channel.
+  if (method === 'bankTransfer') return ['card']
   // QR Ph test codes may still be payable.  Test e-wallet demos use only
   // PayMongo's simulated redirect channels; QR Ph remains available in live
   // checkout once the merchant intentionally enables it.

@@ -4478,7 +4478,7 @@ test('V16 keeps PayMongo collection server-owned, webhook-verified, and idempote
     "paymongoSecret.startsWith('sk_live_')",
     'methodsForClientSelection',
     "['gcash', 'paymaya']",
-    "['dob', 'brankas']",
+    "if (method === 'bankTransfer') return ['card']",
     "['gcash', 'paymaya', 'qrph']",
     'reference_number',
     'checkout\\.paymongo\\.com',
@@ -4511,6 +4511,8 @@ test('V16 keeps PayMongo collection server-owned, webhook-verified, and idempote
   ], 'V16 migration of existing pending payment records into hosted checkout')
   mustContain(paymentScreen, [
     'Choose checkout method',
+    'const paymongoPaymentMethods',
+    "label: 'Card'",
     'usePaymongoCheckout || (paymentSettlementContext',
   ], 'V16 method choice remains available before hosted checkout')
 })

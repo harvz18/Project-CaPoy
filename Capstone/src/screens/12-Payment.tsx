@@ -108,6 +108,13 @@ const paymentMethods = [
   { id: 'bankTransfer' as const, icon: 'bank-outline' as const, label: 'Bank Transfer' },
 ]
 
+// V16 uses PayMongo-hosted payment channels.  Keep the established internal
+// value for compatibility while presenting the actual client-facing channel.
+const paymongoPaymentMethods = [
+  { id: 'eWallet' as const, icon: 'wallet-outline' as const, label: 'E-Wallets' },
+  { id: 'bankTransfer' as const, icon: 'credit-card-outline' as const, label: 'Card' },
+]
+
 const formatCurrency = formatPeso
 
 export const PaymentScreen: React.FC<PaymentScreenProps> = ({
@@ -159,6 +166,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
   const selectedSettlement = paymentMethod === 'bankTransfer'
     ? paymentSettlementContext?.manualBankTransfer
     : paymentSettlementContext?.eWalletCheckout
+  const visiblePaymentMethods = usePaymongoCheckout ? paymongoPaymentMethods : paymentMethods
   const selectedMethodEnabled = usePaymongoCheckout || selectedSettlement?.enabled !== false
   const canSavePlan = mode === 'planning' && Boolean(onSavePlan)
   const needsSavedPlanReview = Boolean(
@@ -358,7 +366,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
           <Text style={styles.sectionTitle}>{usePaymongoCheckout ? 'Choose checkout method' : 'Select Payment Method'}</Text>
           {usePaymongoCheckout ? <PaymongoCheckoutNotice /> : null}
           <View style={styles.methodList}>
-            {paymentMethods.map((method) => {
+            {visiblePaymentMethods.map((method) => {
               const selected = paymentMethod === method.id
               const methodEnabled = usePaymongoCheckout || (paymentSettlementContext
                 ? method.id === 'bankTransfer'
@@ -721,7 +729,7 @@ export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
             {usePaymongoCheckout ? <PaymongoCheckoutNotice compact /> : null}
             <Text style={styles.bookingSheetSectionTitle}>Payment method</Text>
             <View style={styles.bookingSheetMethodRow}>
-              {paymentMethods.map((method) => {
+              {(usePaymongoCheckout ? paymongoPaymentMethods : paymentMethods).map((method) => {
                 const selected = paymentMethod === method.id
                 const enabled = usePaymongoCheckout || (paymentSettlementContext
                   ? method.id === 'bankTransfer'
@@ -910,7 +918,7 @@ function PaymongoCheckoutNotice({ compact = false }: { compact?: boolean }) {
       <Text style={styles.settlementTitle}>Secure PayMongo checkout</Text>
     </View>
     <Text style={styles.settlementCopy}>
-      You will choose an available payment method on PayMongo&apos;s secure checkout page. Returning here does not confirm payment; MULTIVENT updates this booking only after PayMongo verifies it.
+      Your selection opens the matching secure PayMongo checkout. Returning here does not confirm payment; MULTIVENT updates this booking only after PayMongo verifies it.
     </Text>
   </View>
   )
