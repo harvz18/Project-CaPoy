@@ -67,14 +67,22 @@ Deno.serve(async (request) => {
     return json({ error: 'Webhook payload is not valid JSON.' }, 400)
   }
   const event = getRecord(payload.data)
-  const attributes = getRecord(event.attributes)
-  const checkout = getRecord(attributes.data)
-  const checkoutAttributes = getRecord(checkout.attributes)
+  // V2 Checkout webhooks place the event type/livemode directly on
+  // `data`, with the Checkout Session under `data.data`.  Retain the
+  // attributes fallback so an older queued payload cannot be rejected.
+  const legacyAttributes = getRecord(event.attributes)
+  const checkout = getRecord(event.data)
+  const legacyCheckout = getRecord(legacyAttributes.data)
+  const checkoutPayload = Object.keys(checkout).length > 0 ? checkout : legacyCheckout
+  const checkoutAttributes = getRecord(checkoutPayload.attributes)
   const payment = paymentFromCheckout(checkoutAttributes)
-  const externalEventId = getString(event.id)
-  const eventType = getString(attributes.type)
-  const checkoutSessionId = getString(checkout.id)
-  const livemode = attributes.livemode === true
+  const checkoutSessionId = getString(checkoutPayload.id)
+  // A Checkout Session permits only one successful payment.  Its ID is a
+  // safe idempotency key when a webhook delivery does not expose a separate
+  // event ID (the current V2 payload shape).
+  const externalEventId = getString(event.id) || `checkout_session.payment.paid:${checkoutSessionId}`
+  const eventType = getString(event.type) || getString(legacyAttributes.type)
+  const livemode = event.livemode === true || legacyAttributes.livemode === true
   if (!externalEventId || !checkoutSessionId) return json({ error: 'Webhook event is missing checkout identifiers.' }, 400)
 
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } })

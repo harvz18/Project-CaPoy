@@ -123,7 +123,12 @@ const governanceNavigation: NavigationItem[] = [
   { href: '/dashboard/settings', label: 'System settings', icon: mdiCogOutline, permission: 'system.settings', route: 'settings' },
 ]
 
-const superadminRoutes = new Set<SectionKey>(['users', 'permissions', 'audit', 'settings'])
+// Superadmins retain their governance boundary, with one tightly scoped
+// operational exception: Financial Overview. The screen itself still uses the
+// existing remittance.verify checks and database-enforced transition rules, so
+// this only gives the accountable platform owner access to review/record an
+// already-authorized external refund outcome.
+const superadminRoutes = new Set<SectionKey>(['users', 'financial', 'permissions', 'audit', 'settings'])
 const adminRoutes = new Set<SectionKey>(['overview', 'clients', 'providers', 'categories', 'bookings', 'financial', 'reports', 'revenue', 'cashflow', 'reviews', 'insights'])
 
 export function canAccessWorkspaceRoute(role: StaffRole, route: SectionKey) {

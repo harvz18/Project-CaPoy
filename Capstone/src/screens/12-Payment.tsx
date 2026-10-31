@@ -355,16 +355,16 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{usePaymongoCheckout ? 'Secure Checkout' : 'Select Payment Method'}</Text>
-          {usePaymongoCheckout ? <PaymongoCheckoutNotice /> : <>
+          <Text style={styles.sectionTitle}>{usePaymongoCheckout ? 'Choose checkout method' : 'Select Payment Method'}</Text>
+          {usePaymongoCheckout ? <PaymongoCheckoutNotice /> : null}
           <View style={styles.methodList}>
             {paymentMethods.map((method) => {
               const selected = paymentMethod === method.id
-              const methodEnabled = paymentSettlementContext
+              const methodEnabled = usePaymongoCheckout || (paymentSettlementContext
                 ? method.id === 'bankTransfer'
                   ? paymentSettlementContext.manualBankTransfer.enabled
                   : paymentSettlementContext.eWalletCheckout.enabled
-                : true
+                : true)
               return (
                 <Pressable
                   key={method.id}
@@ -394,13 +394,12 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
               )
             })}
           </View>
-          {mode === 'booking' && paymentSettlementContext ? (
+          {!usePaymongoCheckout && mode === 'booking' && paymentSettlementContext ? (
             <SettlementInstructions
               context={paymentSettlementContext}
               method={paymentMethod}
             />
           ) : null}
-          </>}
         </View>
 
         <View style={styles.termsSection}>
@@ -719,16 +718,16 @@ export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
                 <Text style={styles.bookingSheetOptionValue}>{formatCurrency(breakdown.clientTotal)}</Text>
               </Pressable>
             </View>
-            {usePaymongoCheckout ? <PaymongoCheckoutNotice compact /> : <>
+            {usePaymongoCheckout ? <PaymongoCheckoutNotice compact /> : null}
             <Text style={styles.bookingSheetSectionTitle}>Payment method</Text>
             <View style={styles.bookingSheetMethodRow}>
               {paymentMethods.map((method) => {
                 const selected = paymentMethod === method.id
-                const enabled = paymentSettlementContext
+                const enabled = usePaymongoCheckout || (paymentSettlementContext
                   ? method.id === 'bankTransfer'
                     ? paymentSettlementContext.manualBankTransfer.enabled
                     : paymentSettlementContext.eWalletCheckout.enabled
-                  : true
+                  : true)
                 return (
                   <Pressable
                     key={method.id}
@@ -744,8 +743,7 @@ export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
                 )
               })}
             </View>
-            {paymentSettlementContext ? <SettlementInstructions context={paymentSettlementContext} method={paymentMethod} /> : null}
-            </>}
+            {!usePaymongoCheckout && paymentSettlementContext ? <SettlementInstructions context={paymentSettlementContext} method={paymentMethod} /> : null}
             </>}
           </ScrollView>
           <View style={styles.bookingSheetFooter}>

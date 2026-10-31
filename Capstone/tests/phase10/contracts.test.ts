@@ -3111,6 +3111,7 @@ test('V14 Phase 7 exposes permission-gated financial operations and preserves au
   const sourceMigration = read('database/91_v14_admin_financial_operations.sql')
   const deployMigration = read('supabase/migrations/20261025000400_v14_admin_financial_operations.sql')
   const financialScreen = read('web/components/screens/financial-reporting-screen.tsx')
+  const dashboardShell = read('web/components/dashboard-shell.tsx')
 
   assert.equal(
     deployMigration,
@@ -3150,6 +3151,10 @@ test('V14 Phase 7 exposes permission-gated financial operations and preserves au
     'Provider payout operations',
     'Client refund operations',
   ], 'web financial operations UI')
+  mustContain(dashboardShell, [
+    "const superadminRoutes = new Set<SectionKey>(['users', 'financial', 'permissions', 'audit', 'settings'])",
+    "currentRole === 'superadmin' || permissions.includes(permission)",
+  ], 'Superadmin financial-operation route access')
 })
 
 test('V14 settlement verification is retry-safe without rewriting a verified payment snapshot', () => {
@@ -4448,6 +4453,7 @@ test('V16 keeps PayMongo collection server-owned, webhook-verified, and idempote
   const planning = read('src/lib/planning.ts')
   const app = read('src/App.tsx')
   const bookingDetails = read('src/screens/11.1-BookingDetails.tsx')
+  const paymentScreen = read('src/screens/12-Payment.tsx')
 
   mustContain(migration, [
     'paymongo_payment_attempts',
@@ -4468,6 +4474,12 @@ test('V16 keeps PayMongo collection server-owned, webhook-verified, and idempote
     'claim_my_paymongo_checkout_v16',
     'record_paymongo_checkout_session_v16',
     'paymongoSecret',
+    "paymongoSecret.startsWith('sk_test_')",
+    "paymongoSecret.startsWith('sk_live_')",
+    'methodsForClientSelection',
+    "['gcash', 'paymaya']",
+    "['dob', 'brankas']",
+    "['gcash', 'paymaya', 'qrph']",
     'reference_number',
     'checkout\\.paymongo\\.com',
   ], 'V16 server-only hosted checkout creation')
@@ -4477,14 +4489,19 @@ test('V16 keeps PayMongo collection server-owned, webhook-verified, and idempote
     "request.headers.get('Paymongo-Signature')",
     "crypto.subtle.sign('HMAC'",
     'constantTimeEqual',
+    'const checkout = getRecord(event.data)',
+    'getString(event.type)',
+    'event.livemode === true',
     'process_paymongo_checkout_webhook_v16',
   ], 'V16 signed and idempotent webhook intake')
   mustContain(planning, [
     'createMyPaymongoCheckoutV16',
     "client.functions.invoke('paymongo-create-checkout'",
+    'paymentMethod: \'bankTransfer\' | \'eWallet\'',
   ], 'V16 mobile checkout handoff')
   mustContain(app, [
     'createMyPaymongoCheckoutV16',
+    'paymentMethod: value.method',
     'WebBrowser.openBrowserAsync(result.checkoutUrl)',
     'usePaymongoCheckout',
   ], 'V16 app browser launch without client-side payment verification')
@@ -4492,4 +4509,37 @@ test('V16 keeps PayMongo collection server-owned, webhook-verified, and idempote
     "'payment_failed_or_cancelled', 'payment_initiated'",
     'Resume Secure Payment',
   ], 'V16 migration of existing pending payment records into hosted checkout')
+  mustContain(paymentScreen, [
+    'Choose checkout method',
+    'usePaymongoCheckout || (paymentSettlementContext',
+  ], 'V16 method choice remains available before hosted checkout')
+})
+
+test('V16 reconciles a returned hosted checkout only through PayMongo server verification', () => {
+  const migration = read('supabase/migrations/20261031000200_v16_paymongo_api_reconciliation.sql')
+  const reconciliation = read('supabase/functions/paymongo-reconcile-checkout/index.ts')
+  const planning = read('src/lib/planning.ts')
+  const app = read('src/App.tsx')
+
+  mustContain(migration, [
+    'reconcile_paymongo_checkout_v16',
+    "auth.role() <> 'service_role'",
+    "'paymongo_api_reconciliation'",
+    "status = 'verified'",
+  ], 'V16 server-only reconciliation ledger')
+  mustContain(reconciliation, [
+    'https://api.paymongo.com/v2/checkout_sessions/${checkoutId}',
+    'https://api.paymongo.com/v1/checkout_sessions/${checkoutId}',
+    "paymentAttributes.status === 'paid'",
+    "admin.rpc('reconcile_paymongo_checkout_v16'",
+    'authData.user.id',
+  ], 'V16 direct PayMongo reconciliation function')
+  mustContain(planning, [
+    'reconcileMyPaymongoCheckoutV16',
+    "client.functions.invoke('paymongo-reconcile-checkout'",
+  ], 'V16 client reconciliation handoff')
+  mustContain(app, [
+    'await WebBrowser.openBrowserAsync(result.checkoutUrl)',
+    'await reconcileMyPaymongoCheckoutV16(eventId)',
+  ], 'V16 post-browser reconciliation')
 })

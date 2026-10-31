@@ -105,6 +105,12 @@ export type PaymongoCheckoutResult = {
   ok: boolean
 }
 
+export type PaymongoReconciliationResult = {
+  message?: string
+  ok: boolean
+  verified: boolean
+}
+
 export type V14PaymentSettlementContext = {
   eWalletCheckout: {
     configured: boolean
@@ -1870,6 +1876,7 @@ export const initiateMyEventPaymentV14 = async (value: {
 // decides that a redirect means a payment succeeded.
 export const createMyPaymongoCheckoutV16 = async (value: {
   eventId: string
+  paymentMethod: 'bankTransfer' | 'eWallet'
   paymentType: 'deposit' | 'full'
   termsAccepted: boolean
 }): Promise<PaymongoCheckoutResult> => {
@@ -1894,6 +1901,30 @@ export const createMyPaymongoCheckoutV16 = async (value: {
     }
   } catch (error) {
     return { ok: false, message: toMessage(error) }
+  }
+}
+
+// A signed webhook remains the primary payment signal.  This authenticated
+// server-side check is a narrow fallback after the hosted browser returns: it
+// asks PayMongo directly and never accepts a client redirect as proof.
+export const reconcileMyPaymongoCheckoutV16 = async (eventId: string): Promise<PaymongoReconciliationResult> => {
+  try {
+    const client = getClient()
+    if (!client || !isUuid(eventId)) {
+      return { ok: false, verified: false, message: 'This booking is no longer available for verification.' }
+    }
+    const { data, error } = await client.functions.invoke('paymongo-reconcile-checkout', {
+      body: { eventId },
+    })
+    if (error) return { ok: false, verified: false, message: error.message }
+    const record = recordFromPaymentContext(data)
+    return {
+      ok: true,
+      verified: record.verified === true,
+      message: textFromPaymentQuote(record.error) || undefined,
+    }
+  } catch (error) {
+    return { ok: false, verified: false, message: toMessage(error) }
   }
 }
 

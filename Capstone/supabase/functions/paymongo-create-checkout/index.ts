@@ -29,9 +29,9 @@ const messageFrom = (value: unknown, fallback: string) =>
     ? (value as { message: string }).message
     : fallback
 
-const parseMethods = () => {
+const parseMethods = (environment: 'test' | 'live') => {
   const configured = Deno.env.get('PAYMONGO_PAYMENT_METHOD_TYPES')
-  if (!configured) return ['qrph']
+  if (!configured) return environment === 'test' ? ['card'] : ['qrph']
   try {
     const parsed = JSON.parse(configured)
     if (Array.isArray(parsed) && parsed.length > 0 && parsed.every((item) => typeof item === 'string')) {
@@ -40,7 +40,20 @@ const parseMethods = () => {
   } catch {
     // The safe QR Ph default is supported by PayMongo's hosted-checkout quick start.
   }
-  return ['qrph']
+  // QR Ph's test-mode QR can still be payable.  Keep a sandbox checkout
+  // safely card-only whenever the optional method configuration is absent or
+  // malformed; production retains the established QR Ph fallback.
+  return environment === 'test' ? ['card'] : ['qrph']
+}
+
+type ClientPaymentMethod = 'eWallet' | 'bankTransfer'
+
+const methodsForClientSelection = (method: ClientPaymentMethod, environment: 'test' | 'live') => {
+  if (method === 'bankTransfer') return ['dob', 'brankas']
+  // QR Ph test codes may still be payable.  Test e-wallet demos use only
+  // PayMongo's simulated redirect channels; QR Ph remains available in live
+  // checkout once the merchant intentionally enables it.
+  return environment === 'test' ? ['gcash', 'paymaya'] : ['gcash', 'paymaya', 'qrph']
 }
 
 const configuredReturnUrl = (name: string) => {
@@ -63,6 +76,12 @@ Deno.serve(async (request) => {
   if (!supabaseUrl || !anonKey || !serviceRoleKey || !paymongoSecret) {
     return json({ error: 'PayMongo checkout is not configured.' }, 503)
   }
+  if (environment === 'test' && !paymongoSecret.startsWith('sk_test_')) {
+    return json({ error: 'PayMongo test mode requires a sk_test_ secret key.' }, 503)
+  }
+  if (environment === 'live' && !paymongoSecret.startsWith('sk_live_')) {
+    return json({ error: 'PayMongo live mode requires a sk_live_ secret key.' }, 503)
+  }
   if (!authorization.startsWith('Bearer ')) return json({ error: 'Authentication is required.' }, 401)
 
   const userClient = createClient(supabaseUrl, anonKey, {
@@ -72,7 +91,7 @@ Deno.serve(async (request) => {
   const { data: authData, error: authError } = await userClient.auth.getUser()
   if (authError || !authData.user) return json({ error: 'Invalid session.' }, 401)
 
-  let body: { eventId?: unknown; paymentType?: unknown; termsAccepted?: unknown }
+  let body: { eventId?: unknown; paymentMethod?: unknown; paymentType?: unknown; termsAccepted?: unknown }
   try {
     body = await request.json()
   } catch {
@@ -83,6 +102,9 @@ Deno.serve(async (request) => {
   }
   if (body.paymentType !== 'deposit' && body.paymentType !== 'full') {
     return json({ error: 'A valid payment type is required.' }, 400)
+  }
+  if (body.paymentMethod !== undefined && body.paymentMethod !== 'eWallet' && body.paymentMethod !== 'bankTransfer') {
+    return json({ error: 'A valid payment method is required.' }, 400)
   }
   if (body.termsAccepted !== true) return json({ error: 'Accept the booking and cancellation terms first.' }, 400)
 
@@ -138,8 +160,11 @@ Deno.serve(async (request) => {
               multivent_attempt_id: prepared.attemptId,
               multivent_checkout_reference: prepared.checkoutReference,
               multivent_event_id: body.eventId,
+              multivent_requested_payment_method: body.paymentMethod ?? 'legacy',
             },
-            payment_method_types: parseMethods(),
+            payment_method_types: body.paymentMethod
+              ? methodsForClientSelection(body.paymentMethod as ClientPaymentMethod, environment)
+              : parseMethods(environment),
             reference_number: prepared.checkoutReference,
             success_url: configuredReturnUrl('PAYMONGO_SUCCESS_URL'),
           },

@@ -67,6 +67,7 @@ import {
   setCategoryBudgetAllocation,
   fetchMyEventPaymentQuoteV14,
   createMyPaymongoCheckoutV16,
+  reconcileMyPaymongoCheckoutV16,
   submitBookingReplacementRequest,
   submitPlanningBookingRequests,
   type EventPaymentQuote,
@@ -4623,6 +4624,7 @@ export const App: React.FC = () => {
     try {
       const result = await createMyPaymongoCheckoutV16({
         eventId,
+        paymentMethod: value.method,
         paymentType: value.paymentType,
         termsAccepted: value.termsAccepted,
       })
@@ -4644,6 +4646,10 @@ export const App: React.FC = () => {
       setScreen('bookingDetails')
       setToastMessage('Complete payment in PayMongo. Your booking updates only after PayMongo verifies it.')
       await WebBrowser.openBrowserAsync(result.checkoutUrl)
+      const reconciliation = await reconcileMyPaymongoCheckoutV16(eventId)
+      if (reconciliation.verified) {
+        setToastMessage('PayMongo payment verified. Your booking has been updated.')
+      }
       void refreshLiveData().catch(() => undefined)
     } finally {
       setIsInitiatingBookingPayment(false)
