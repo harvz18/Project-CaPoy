@@ -4648,9 +4648,40 @@ export const App: React.FC = () => {
       await WebBrowser.openBrowserAsync(result.checkoutUrl)
       const reconciliation = await reconcileMyPaymongoCheckoutV16(eventId)
       if (reconciliation.verified) {
+        // Reconciliation is server-authoritative. Clear the local pending
+        // action immediately, even if the follow-up quote request is briefly
+        // delayed by a mobile connection.
+        setBookingPaymentQuote((current) => current && current.eventId === eventId
+          ? { ...current, paymentState: 'paid_or_verified', paymentStatus: 'verified' }
+          : current)
+        // The quote loaded before opening the hosted checkout represents the
+        // pending payment. Re-read it after the server-side reconciliation so
+        // Booking Details cannot keep rendering a disabled “Resume Payment”
+        // action (or the pre-payment zero allocation projection) after
+        // PayMongo has authorized the transaction.
+        const verifiedQuote = await loadBookingPaymentQuote(eventId)
+        if (verifiedQuote) {
+          setSelectedBooking((current) => current && current.eventId === eventId
+            ? {
+                ...current,
+                paymentState: verifiedQuote.paymentState,
+                paymentStatus: verifiedQuote.paymentStatus === 'verified'
+                  ? 'Payment verified'
+                  : current.paymentStatus,
+              }
+            : current)
+        }
+        // Wait for the booking relation (including per-service payment
+        // snapshots) before returning control to the client. This refreshes
+        // the initial provider allocation displayed in Booking Details.
+        await refreshLiveData().catch(() => undefined)
         setToastMessage('PayMongo payment verified. Your booking has been updated.')
+      } else {
+        // Preserve the pending state when the checkout was closed before a
+        // successful authorization, while still refreshing any terminal
+        // PayMongo status the server may have observed.
+        await refreshLiveData().catch(() => undefined)
       }
-      void refreshLiveData().catch(() => undefined)
     } finally {
       setIsInitiatingBookingPayment(false)
     }
