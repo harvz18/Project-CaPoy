@@ -491,7 +491,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
                     : needsSavedPlanReview
                     ? 'Review Changes Before Payment'
                   : usePaymongoCheckout
-                    ? `Continue to PayMongo Â· ${formatCurrency(amountDue)}`
+                    ? `${paymentType === 'full' ? 'Pay in Full' : 'Confirm Downpayment'} Â· ${formatCurrency(amountDue)}`
                     : isFullPayment
                       ? `Pay in Full · ${formatCurrency(amountDue)}`
                       : `Pay 35% Downpayment · ${formatCurrency(amountDue)}`}
@@ -726,7 +726,6 @@ export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
                 <Text style={styles.bookingSheetOptionValue}>{formatCurrency(breakdown.clientTotal)}</Text>
               </Pressable>
             </View>
-            {usePaymongoCheckout ? <PaymongoCheckoutNotice compact /> : null}
             <Text style={styles.bookingSheetSectionTitle}>Payment method</Text>
             <View style={styles.bookingSheetMethodRow}>
               {(usePaymongoCheckout ? paymongoPaymentMethods : paymentMethods).map((method) => {
@@ -751,6 +750,7 @@ export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
                 )
               })}
             </View>
+            {usePaymongoCheckout ? <PaymongoCheckoutNotice compact /> : null}
             {!usePaymongoCheckout && paymentSettlementContext ? <SettlementInstructions context={paymentSettlementContext} method={paymentMethod} /> : null}
             </>}
           </ScrollView>
@@ -781,7 +781,7 @@ export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
                 {isProcessing
                   ? 'Starting payment...'
                   : usePaymongoCheckout
-                    ? `Continue to PayMongo Â· ${formatCurrency(amountDue)}`
+                    ? `${paymentType === 'full' ? 'Pay in Full' : 'Confirm Downpayment'} Â· ${formatCurrency(amountDue)}`
                     : paymentType === 'full'
                     ? `Pay Full · ${formatCurrency(amountDue)}`
                     : `Confirm Downpayment · ${formatCurrency(amountDue)}`}
