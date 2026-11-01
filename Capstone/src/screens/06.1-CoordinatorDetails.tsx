@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native'
 import { Text } from '../components/AppText'
+import { PublishedBusinessPolicies } from '../components/BusinessPolicies'
 import { ReviewFeedbackSummary } from '../components/ReviewFeedbackSummary'
 import { formatPeso, type CatalogService } from '../lib/catalog'
 import { summarizeRatingFeedback } from '../lib/reviews'
@@ -182,6 +183,8 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
           </Text>
           {service?.coordinatorAvailabilityNotes ? <Text style={styles.sectionCopy}>{service.coordinatorAvailabilityNotes}</Text> : null}
         </View>
+
+        <PublishedBusinessPolicies ownerId={service?.coordinatorUserId} />
 
         <View style={styles.privacyCard}>
           <MaterialCommunityIcons color={palette.success} name="shield-check-outline" size={22} />

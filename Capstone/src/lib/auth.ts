@@ -1,6 +1,7 @@
 import { supabase, supabaseConfig } from './supabase'
 import * as AuthSession from 'expo-auth-session'
 import * as WebBrowser from 'expo-web-browser'
+import { composeProfileFullName } from './profile-name'
 
 type UserRole = 'client' | 'service_provider'
 
@@ -13,7 +14,8 @@ type AuthResult = {
 }
 
 type ClientSignupInput = {
-  fullName: string
+  firstName: string
+  lastName: string
   email: string
   phoneNumber: string
   password: string
@@ -113,12 +115,16 @@ const requestVerificationOtp = async (email: string) => {
 
 const syncProfile = async ({
   userId,
+  firstName,
+  lastName,
   fullName,
   email,
   phone,
   role,
 }: {
   userId: string
+  firstName?: string
+  lastName?: string
   fullName: string
   email: string
   phone?: string
@@ -130,7 +136,7 @@ const syncProfile = async ({
     return
   }
 
-  await client.from('profiles').upsert({
+  const profile = {
     id: userId,
     full_name: fullName,
     email,
@@ -138,7 +144,14 @@ const syncProfile = async ({
     default_role: role,
     account_status: role === 'service_provider' ? 'pending' : 'active',
     updated_at: new Date().toISOString(),
-  })
+  }
+  const normalizedFirstName = firstName?.trim()
+  const normalizedLastName = lastName?.trim()
+  const structuredProfile = normalizedFirstName && normalizedLastName
+    ? { ...profile, first_name: normalizedFirstName, last_name: normalizedLastName }
+    : profile
+
+  await client.from('profiles').upsert(structuredProfile)
 }
 
 const syncProviderProfile = async ({
@@ -193,6 +206,12 @@ const syncOAuthProfile = async () => {
   }
 
   const metadata = user.user_metadata
+  const firstName = typeof metadata.first_name === 'string'
+    ? metadata.first_name.trim()
+    : typeof metadata.given_name === 'string' ? metadata.given_name.trim() : ''
+  const lastName = typeof metadata.last_name === 'string'
+    ? metadata.last_name.trim()
+    : typeof metadata.family_name === 'string' ? metadata.family_name.trim() : ''
   const fullName =
     typeof metadata.full_name === 'string' && metadata.full_name.trim().length > 0
       ? metadata.full_name.trim()
@@ -205,6 +224,8 @@ const syncOAuthProfile = async () => {
 
   await syncProfile({
     userId: user.id,
+    firstName,
+    lastName,
     fullName,
     email: user.email ?? '',
     role,
@@ -254,18 +275,25 @@ export const signInWithEmail = async (
 }
 
 export const signUpClient = async ({
-  fullName,
+  firstName,
+  lastName,
   email,
   phoneNumber,
   password,
 }: ClientSignupInput): Promise<AuthResult> => {
   const client = requireSupabase()
   const normalizedEmail = email.trim().toLowerCase()
-  const normalizedName = fullName.trim()
+  const normalizedFirstName = firstName.trim()
+  const normalizedLastName = lastName.trim()
+  const normalizedName = composeProfileFullName(normalizedFirstName, normalizedLastName)
   const normalizedPhone = phoneNumber.trim()
 
   if (!client) {
     return { ok: false, message: notConfiguredMessage }
+  }
+
+  if (!normalizedFirstName || !normalizedLastName) {
+    return { ok: false, message: 'Enter your first and last name.' }
   }
 
   try {
@@ -275,6 +303,8 @@ export const signUpClient = async ({
       options: {
         emailRedirectTo,
         data: {
+          first_name: normalizedFirstName,
+          last_name: normalizedLastName,
           full_name: normalizedName,
           default_role: 'client',
           phone: normalizedPhone,
@@ -289,6 +319,8 @@ export const signUpClient = async ({
     if (data.session && data.user) {
       await syncProfile({
         userId: data.user.id,
+        firstName: normalizedFirstName,
+        lastName: normalizedLastName,
         fullName: normalizedName,
         email: normalizedEmail,
         phone: normalizedPhone,

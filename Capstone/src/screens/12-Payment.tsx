@@ -491,7 +491,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
                     : needsSavedPlanReview
                     ? 'Review Changes Before Payment'
                   : usePaymongoCheckout
-                    ? `${paymentType === 'full' ? 'Pay in Full' : 'Confirm Downpayment'} Â· ${formatCurrency(amountDue)}`
+                    ? `${paymentType === 'full' ? 'Pay in Full' : 'Confirm Downpayment'} \u00B7 ${formatCurrency(amountDue)}`
                     : isFullPayment
                       ? `Pay in Full · ${formatCurrency(amountDue)}`
                       : `Pay 35% Downpayment · ${formatCurrency(amountDue)}`}
@@ -781,7 +781,7 @@ export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
                 {isProcessing
                   ? 'Starting payment...'
                   : usePaymongoCheckout
-                    ? `${paymentType === 'full' ? 'Pay in Full' : 'Confirm Downpayment'} Â· ${formatCurrency(amountDue)}`
+                    ? `${paymentType === 'full' ? 'Pay in Full' : 'Confirm Downpayment'} \u00B7 ${formatCurrency(amountDue)}`
                     : paymentType === 'full'
                     ? `Pay Full · ${formatCurrency(amountDue)}`
                     : `Confirm Downpayment · ${formatCurrency(amountDue)}`}

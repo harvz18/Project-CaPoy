@@ -53,6 +53,8 @@ interface EventCreationScreenProps {
   onClose?: () => void
   onContinue?: (value: EventCreationValue) => void
   onValueChange?: (value: EventCreationValue) => void
+  presentation?: 'planning' | 'savedPlan'
+  timeGuidance?: string
 }
 
 const venueOptions = [
@@ -210,6 +212,8 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
   onClose,
   onContinue,
   onValueChange,
+  presentation = 'planning',
+  timeGuidance,
 }) => {
   const { width } = useWindowDimensions()
   const isWide = width >= 768
@@ -219,7 +223,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
   const [time, setTime] = React.useState(initialValue?.time ?? '')
   const [dateTimeError, setDateTimeError] = React.useState('')
   const [isEventNameFocused, setIsEventNameFocused] = React.useState(false)
-  const [activePicker, setActivePicker] = React.useState<'date' | 'time' | null>(null)
+  const [activePicker, setActivePicker] = React.useState<'date' | 'calendar' | 'time' | null>(null)
   const [venueStatus, setVenueStatus] = React.useState<VenueStatus>(
     initialValue?.venueStatus ?? 'searching'
   )
@@ -382,12 +386,13 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
     <View style={styles.screen}>
       <PlanningScreenHeader
         currentStep={1}
-        label="Basics"
+        label={presentation === 'savedPlan' ? 'Saved Plan' : 'Basics'}
         nextEnabled={isStepComplete && !isProcessing}
         onBack={isProcessing ? undefined : onClose}
         onNext={handleContinue}
+        showProgress={presentation !== 'savedPlan'}
         showBackButton
-        title="Create Event"
+        title={presentation === 'savedPlan' ? 'Edit Event Details' : 'Create Event'}
       />
 
       <ScrollView
@@ -596,6 +601,8 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                   />
                 }
                 label="DATE"
+                onAccessoryPress={() => setActivePicker('calendar')}
+                accessoryAccessibilityLabel="Open event calendar"
                 onPress={() => setActivePicker('date')}
                 placeholder="MM/DD/YYYY"
                 value={date}
@@ -620,6 +627,12 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                 {dateTimeError}
               </Text>
             ) : null}
+            <View accessibilityLiveRegion="polite" style={styles.timeGuidanceNotice}>
+              <MaterialIcons color={palette.burgundy} name="info-outline" size={18} />
+              <Text style={styles.timeGuidanceText}>
+                {timeGuidance ?? 'Service operating hours may vary depending on the provider and selected package.'}
+              </Text>
+            </View>
 
             <View style={styles.fieldGroup}>
               <Text style={styles.fieldLabel}>VENUE STATUS</Text>
@@ -813,6 +826,13 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
 
       {activePicker === 'date' ? (
         <DatePickerModal
+          onChange={handleDateChange}
+          onClose={() => setActivePicker(null)}
+          value={date}
+        />
+      ) : null}
+      {activePicker === 'calendar' ? (
+        <CalendarPickerModal
           onChange={handleDateChange}
           onClose={() => setActivePicker(null)}
           value={date}
@@ -1083,34 +1103,51 @@ const VenueMapSurface: React.FC<VenueMapSurfaceProps> = ({
 }
 
 interface PickerFieldProps {
+  accessoryAccessibilityLabel?: string
   icon: React.ReactNode
   label: string
+  onAccessoryPress?: () => void
   onPress: () => void
   placeholder: string
   value: string
 }
 
 const PickerField: React.FC<PickerFieldProps> = ({
+  accessoryAccessibilityLabel,
   icon,
   label,
+  onAccessoryPress,
   onPress,
   placeholder,
   value,
 }) => (
   <View style={styles.dateTimeField}>
     <Text style={styles.fieldLabel}>{label}</Text>
-    <Pressable
-      accessibilityLabel={`Pick ${label.toLowerCase()}`}
-      accessibilityRole="button"
-      onPress={onPress}
-      style={({ pressed }) => [styles.iconInputShell, pressed && styles.cardPressed]}
-    >
-      {typeof icon === 'string' ? <Text style={styles.inputIcon}>{icon}</Text> : icon}
-      <Text style={[styles.pickerValue, !value && styles.pickerPlaceholder]}>
-        {value || placeholder}
-      </Text>
-      <Text style={styles.pickerChevron}>{'\u2304'}</Text>
-    </Pressable>
+    <View style={styles.iconInputShell}>
+      <Pressable
+        accessibilityLabel={`Pick ${label.toLowerCase()} with the wheel`}
+        accessibilityRole="button"
+        onPress={onPress}
+        style={({ pressed }) => [styles.pickerMainButton, pressed && styles.cardPressed]}
+      >
+        {typeof icon === 'string' ? <Text style={styles.inputIcon}>{icon}</Text> : icon}
+        <Text style={[styles.pickerValue, !value && styles.pickerPlaceholder]}>
+          {value || placeholder}
+        </Text>
+        <Text style={styles.pickerChevron}>{'\u2304'}</Text>
+      </Pressable>
+      {onAccessoryPress ? (
+        <Pressable
+          accessibilityLabel={accessoryAccessibilityLabel ?? `Open ${label.toLowerCase()} calendar`}
+          accessibilityRole="button"
+          hitSlop={8}
+          onPress={onAccessoryPress}
+          style={({ pressed }) => [styles.calendarShortcutButton, pressed && styles.pressed]}
+        >
+          <MaterialIcons color={palette.burgundy} name="calendar-today" size={19} />
+        </Pressable>
+      ) : null}
+    </View>
   </View>
 )
 
@@ -1437,6 +1474,207 @@ const DatePickerModal: React.FC<DatePickerModalProps> = ({ onChange, onClose, va
   )
 }
 
+interface CalendarPickerModalProps {
+  onChange: (value: string) => void
+  onClose: () => void
+  value: string
+}
+
+const CalendarPickerModal: React.FC<CalendarPickerModalProps> = ({ onChange, onClose, value }) => {
+  const now = React.useRef(new Date()).current
+  const minimumDate = React.useMemo(() => {
+    const today = startOfLocalDay(now)
+    return validTimePartsForDate(formatDateValue(today), now).length > 0
+      ? today
+      : addLocalDays(today, 1)
+  }, [now])
+  const maximumYear = minimumDate.getFullYear() + 7
+  const maximumDate = React.useMemo(
+    () => new Date(maximumYear, 11, 31),
+    [maximumYear]
+  )
+  const parsedValue = parseDateValue(value)
+  const initialDate = parsedValue && parsedValue >= minimumDate && parsedValue <= maximumDate
+    ? parsedValue
+    : minimumDate
+  const [draftDate, setDraftDate] = React.useState(initialDate)
+  const [visibleMonth, setVisibleMonth] = React.useState(
+    () => new Date(initialDate.getFullYear(), initialDate.getMonth(), 1)
+  )
+  const firstAvailableMonth = new Date(minimumDate.getFullYear(), minimumDate.getMonth(), 1)
+  const lastAvailableMonth = new Date(maximumDate.getFullYear(), maximumDate.getMonth(), 1)
+  const visibleYear = visibleMonth.getFullYear()
+  const visibleMonthIndex = visibleMonth.getMonth()
+  const daysInVisibleMonth = new Date(visibleYear, visibleMonthIndex + 1, 0).getDate()
+  const leadingBlankDays = new Date(visibleYear, visibleMonthIndex, 1).getDay()
+  const calendarCellCount = Math.ceil((leadingBlankDays + daysInVisibleMonth) / 7) * 7
+  const yearOptions = Array.from({ length: 8 }, (_, index) => minimumDate.getFullYear() + index)
+  const weekdayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+  const isAllowedDate = React.useCallback(
+    (candidate: Date) => candidate >= minimumDate && candidate <= maximumDate,
+    [maximumDate, minimumDate]
+  )
+  const setCalendarMonth = (year: number, monthIndex: number) => {
+    const requested = new Date(year, monthIndex, 1)
+    if (requested < firstAvailableMonth) {
+      setVisibleMonth(firstAvailableMonth)
+      return
+    }
+    if (requested > lastAvailableMonth) {
+      setVisibleMonth(lastAvailableMonth)
+      return
+    }
+    setVisibleMonth(requested)
+  }
+
+  return (
+    <Modal animationType="fade" onRequestClose={onClose} transparent visible>
+      <View style={styles.modalOverlay}>
+        <Pressable
+          accessibilityLabel="Close event calendar"
+          accessibilityRole="button"
+          onPress={onClose}
+          style={styles.modalScrim}
+        />
+        <View accessibilityViewIsModal style={[styles.pickerSheet, styles.calendarSheet]}>
+          <View style={styles.pickerHeader}>
+            <Text style={styles.pickerTitle}>Select event date</Text>
+            <Pressable
+              accessibilityLabel="Confirm event calendar date"
+              accessibilityRole="button"
+              onPress={() => {
+                onChange(formatDateValue(draftDate))
+                onClose()
+              }}
+              style={({ pressed }) => [styles.modalCloseButton, pressed && styles.pressed]}
+            >
+              <Text style={styles.modalCloseText}>DONE</Text>
+            </Pressable>
+          </View>
+
+          <ScrollView
+            contentContainerStyle={styles.calendarContent}
+            showsVerticalScrollIndicator={false}
+            style={styles.calendarScroll}
+          >
+            <View style={styles.calendarMonthHeader}>
+            <Pressable
+              accessibilityLabel="Previous calendar month"
+              accessibilityRole="button"
+              accessibilityState={{ disabled: visibleMonth <= firstAvailableMonth }}
+              disabled={visibleMonth <= firstAvailableMonth}
+              onPress={() => setCalendarMonth(visibleYear, visibleMonthIndex - 1)}
+              style={({ pressed }) => [
+                styles.calendarNavigationButton,
+                visibleMonth <= firstAvailableMonth && styles.calendarNavigationDisabled,
+                pressed && visibleMonth > firstAvailableMonth && styles.pressed,
+              ]}
+            >
+              <MaterialIcons color={palette.burgundy} name="chevron-left" size={24} />
+            </Pressable>
+            <Text accessibilityRole="header" style={styles.calendarMonthLabel}>
+              {`${monthNames[visibleMonthIndex]} ${visibleYear}`}
+            </Text>
+            <Pressable
+              accessibilityLabel="Next calendar month"
+              accessibilityRole="button"
+              accessibilityState={{ disabled: visibleMonth >= lastAvailableMonth }}
+              disabled={visibleMonth >= lastAvailableMonth}
+              onPress={() => setCalendarMonth(visibleYear, visibleMonthIndex + 1)}
+              style={({ pressed }) => [
+                styles.calendarNavigationButton,
+                visibleMonth >= lastAvailableMonth && styles.calendarNavigationDisabled,
+                pressed && visibleMonth < lastAvailableMonth && styles.pressed,
+              ]}
+            >
+              <MaterialIcons color={palette.burgundy} name="chevron-right" size={24} />
+            </Pressable>
+            </View>
+
+            <ScrollView
+              contentContainerStyle={styles.calendarYearList}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+            >
+              {yearOptions.map((year) => {
+                const selected = year === visibleYear
+                return (
+                  <Pressable
+                    key={year}
+                    accessibilityLabel={`Show calendar year ${year}`}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    onPress={() => setCalendarMonth(year, visibleMonthIndex)}
+                    style={({ pressed }) => [
+                      styles.calendarYearButton,
+                      selected && styles.calendarYearButtonSelected,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <Text style={[styles.calendarYearText, selected && styles.calendarYearTextSelected]}>
+                      {year}
+                    </Text>
+                  </Pressable>
+                )
+              })}
+            </ScrollView>
+
+            <View style={styles.calendarWeekdays}>
+              {weekdayLabels.map((weekday) => (
+                <Text key={weekday} style={styles.calendarWeekday}>{weekday}</Text>
+              ))}
+            </View>
+            <View style={styles.calendarGrid}>
+              {Array.from({ length: calendarCellCount }, (_, index) => {
+                const day = index - leadingBlankDays + 1
+                if (day < 1 || day > daysInVisibleMonth) {
+                  return <View key={`blank-${index}`} style={styles.calendarDayCell} />
+                }
+
+                const candidate = new Date(visibleYear, visibleMonthIndex, day)
+                const allowed = isAllowedDate(candidate)
+                const selected = isSameLocalDay(candidate, draftDate)
+                const today = isSameLocalDay(candidate, now)
+
+                return (
+                  <View key={formatDateValue(candidate)} style={styles.calendarDayCell}>
+                    <Pressable
+                      accessibilityLabel={`${monthNames[visibleMonthIndex]} ${day}, ${visibleYear}`}
+                      accessibilityRole="button"
+                      accessibilityState={{ disabled: !allowed, selected }}
+                      disabled={!allowed}
+                      onPress={() => setDraftDate(candidate)}
+                      style={({ pressed }) => [
+                        styles.calendarDayButton,
+                        today && styles.calendarDayButtonToday,
+                        selected && styles.calendarDayButtonSelected,
+                        !allowed && styles.calendarDayButtonDisabled,
+                        pressed && allowed && styles.pressed,
+                      ]}
+                    >
+                      <Text style={[
+                        styles.calendarDayText,
+                        selected && styles.calendarDayTextSelected,
+                        !allowed && styles.calendarDayTextDisabled,
+                      ]}>
+                        {day}
+                      </Text>
+                    </Pressable>
+                  </View>
+                )
+              })}
+            </View>
+            <Text style={styles.calendarHelper}>
+              Your selected date stays synchronized with the date wheel.
+            </Text>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  )
+}
+
 interface TimePickerModalProps {
   dateValue: string
   onChange: (value: string) => void
@@ -1692,6 +1930,15 @@ const styles = StyleSheet.create({
   dateTimeGridWide: { flexDirection: 'row' },
   dateTimeError: { color: '#BA1A1A', fontSize: 13, lineHeight: 19, marginTop: -32 },
   dateTimeField: { flex: 1, gap: 12 },
+  timeGuidanceNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    borderRadius: 12,
+    backgroundColor: '#F8EDEF',
+    padding: 12,
+  },
+  timeGuidanceText: { flex: 1, color: palette.burgundy, fontSize: 12, lineHeight: 18 },
   iconInputShell: {
     minHeight: 52,
     flexDirection: 'row',
@@ -1701,6 +1948,16 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: '#F1F2F4',
     paddingHorizontal: 16,
+  },
+  pickerMainButton: { minWidth: 0, flex: 1, flexDirection: 'row', alignItems: 'center' },
+  calendarShortcutButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 18,
+    backgroundColor: '#F8EDEF',
+    marginLeft: 4,
   },
   inputIcon: { color: palette.burgundy, fontSize: 20, lineHeight: 23, marginRight: 12 },
   iconTextInput: { flex: 1, minHeight: 56, color: palette.text, fontSize: 16, lineHeight: 24, paddingVertical: 14 },
@@ -1747,6 +2004,7 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 28,
   },
+  calendarSheet: { maxWidth: 480, maxHeight: '86%' },
   pickerHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1774,6 +2032,78 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     fontWeight: '800',
     letterSpacing: 1.1,
+  },
+  calendarMonthHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: 12,
+  },
+  calendarNavigationButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 20,
+    backgroundColor: '#F8EDEF',
+  },
+  calendarNavigationDisabled: { opacity: 0.38 },
+  calendarMonthLabel: {
+    flex: 1,
+    color: palette.burgundy,
+    fontSize: 17,
+    lineHeight: 24,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  calendarScroll: { flexShrink: 1 },
+  calendarContent: { paddingBottom: 2 },
+  calendarYearList: { gap: 8, paddingBottom: 14 },
+  calendarYearButton: {
+    minWidth: 62,
+    minHeight: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 16,
+    backgroundColor: palette.surface,
+    paddingHorizontal: 10,
+  },
+  calendarYearButtonSelected: { borderColor: palette.burgundy, backgroundColor: palette.burgundy },
+  calendarYearText: { color: palette.muted, fontSize: 11, lineHeight: 15, fontWeight: '700' },
+  calendarYearTextSelected: { color: palette.surface },
+  calendarWeekdays: { flexDirection: 'row', marginBottom: 5 },
+  calendarWeekday: {
+    width: '14.2857%',
+    color: palette.muted,
+    fontSize: 10,
+    lineHeight: 15,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  calendarDayCell: { width: '14.2857%', aspectRatio: 1, alignItems: 'center', justifyContent: 'center' },
+  calendarDayButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 18,
+  },
+  calendarDayButtonToday: { borderWidth: 1, borderColor: '#C99AA4' },
+  calendarDayButtonSelected: { backgroundColor: palette.burgundy },
+  calendarDayButtonDisabled: { opacity: 0.32 },
+  calendarDayText: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '600' },
+  calendarDayTextSelected: { color: palette.surface, fontWeight: '800' },
+  calendarDayTextDisabled: { color: palette.muted },
+  calendarHelper: {
+    marginTop: 12,
+    color: palette.muted,
+    fontSize: 11,
+    lineHeight: 16,
+    textAlign: 'center',
   },
   pickerHelper: {
     color: palette.muted,

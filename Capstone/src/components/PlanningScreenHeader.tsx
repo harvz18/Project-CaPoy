@@ -11,6 +11,7 @@ interface PlanningScreenHeaderProps {
   nextEnabled?: boolean
   onBack?: () => void
   onNext?: () => void | Promise<void>
+  showProgress?: boolean
   showBackButton?: boolean
   title: string
 }
@@ -22,6 +23,7 @@ export const PlanningScreenHeader: React.FC<PlanningScreenHeaderProps> = ({
   nextEnabled,
   onBack,
   onNext,
+  showProgress = true,
   showBackButton,
   title,
 }) => {
@@ -83,9 +85,11 @@ export const PlanningScreenHeader: React.FC<PlanningScreenHeaderProps> = ({
         </View>
       </View>
 
-      <View style={[styles.progressWrapper, isWide && styles.progressWrapperWide]}>
-        <PlanningStepIndicator currentStep={currentStep} label={label} />
-      </View>
+      {showProgress ? (
+        <View style={[styles.progressWrapper, isWide && styles.progressWrapperWide]}>
+          <PlanningStepIndicator currentStep={currentStep} label={label} />
+        </View>
+      ) : null}
     </>
   )
 }

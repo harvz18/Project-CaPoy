@@ -69,8 +69,11 @@ export interface EventPaymentQuoteItem {
 export interface EventPaymentQuote {
   acceptance: {
     acceptedProviderCount: number
+    cancelledProviderCount: number
     coordinatorAccepted: boolean
     coordinatorRequired: boolean
+    declinedProviderCount: number
+    pendingProviderCount: number
     providerCount: number
   }
   breakdown: {
@@ -773,8 +776,37 @@ export const submitPlanningBookingRequests = async (): Promise<PlanningResult> =
       return { ok: false, message: 'Unable to load this event plan.' }
     }
 
+    let targetEventId = event.eventId
+    const { data: activeEvent, error: activeEventError } = await client
+      .from('events')
+      .select('id, saved_plan_at')
+      .eq('id', event.eventId)
+      .eq('client_id', event.userId)
+      .maybeSingle()
+
+    if (activeEventError) return { ok: false, message: activeEventError.message }
+    if (!activeEvent?.id) return { ok: false, message: 'This event plan is no longer available.' }
+
+    // Saved plans are reusable templates. Clone the editable planning data to
+    // a fresh event before provider requests are created, so a booking never
+    // consumes the client’s saved plan or shares payment/acceptance state.
+    if (activeEvent.saved_plan_at) {
+      const { data: clonedEventId, error: cloneError } = await client.rpc(
+        'start_my_booking_from_saved_plan_v22',
+        { target_saved_plan_id: event.eventId }
+      )
+      if (cloneError || typeof clonedEventId !== 'string') {
+        return {
+          ok: false,
+          message: cloneError?.message ?? 'Unable to prepare this saved plan for booking.',
+        }
+      }
+      targetEventId = clonedEventId
+      activePlanningEventId = clonedEventId
+    }
+
     const { data, error } = await client.rpc('submit_my_event_booking_requests_v14', {
-      target_event_id: event.eventId,
+      target_event_id: targetEventId,
     })
     if (error) {
       return {
@@ -1527,6 +1559,36 @@ export const deleteClientEventDraft = async (eventId: string): Promise<PlanningR
   }
 }
 
+// A saved plan is never hard-deleted. Marking only its unbooked template event
+// as cancelled keeps all independently-created bookings, payments, reviews,
+// and refund records intact.
+export const deleteClientSavedPlan = async (eventId: string): Promise<PlanningResult> => {
+  try {
+    const client = getClient()
+    const userId = await getCurrentUserId()
+    if (!client || !userId || !isUuid(eventId)) {
+      return { ok: false, message: 'This saved plan is no longer available.' }
+    }
+
+    const { data, error } = await client
+      .from('events')
+      .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+      .eq('id', eventId)
+      .eq('client_id', userId)
+      .in('status', ['draft', 'planning'])
+      .not('saved_plan_at', 'is', null)
+      .select('id')
+      .maybeSingle()
+
+    if (error) return { ok: false, message: error.message }
+    if (!data?.id) return { ok: false, message: 'Only an unbooked saved plan can be deleted.' }
+    if (activePlanningEventId === eventId) activePlanningEventId = ''
+    return { ok: true }
+  } catch (error) {
+    return { ok: false, message: toMessage(error) }
+  }
+}
+
 export const activateBookingReplacement = async (
   eventId: string,
   rejectedBookingId: string
@@ -1735,8 +1797,11 @@ const parseEventPaymentQuote = (value: unknown): EventPaymentQuote | undefined =
   return {
     acceptance: {
       acceptedProviderCount: numberFromPaymentQuote(acceptance.accepted_provider_count),
+      cancelledProviderCount: numberFromPaymentQuote(acceptance.cancelled_provider_count),
       coordinatorAccepted: acceptance.coordinator_accepted === true,
       coordinatorRequired: acceptance.coordinator_required === true,
+      declinedProviderCount: numberFromPaymentQuote(acceptance.declined_provider_count),
+      pendingProviderCount: numberFromPaymentQuote(acceptance.pending_provider_count),
       providerCount: numberFromPaymentQuote(acceptance.provider_count),
     },
     breakdown: {

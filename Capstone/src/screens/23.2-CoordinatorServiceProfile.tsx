@@ -2,6 +2,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons'
 import React, { useEffect, useState } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native'
 import { Text } from '../components/AppText'
+import { BusinessPoliciesEditor } from '../components/BusinessPolicies'
 import { CoordinatorServiceProfile, fetchCoordinatorServiceProfile, saveCoordinatorServiceProfile } from '../lib/coordinator'
 
 interface Props { onBack?: () => void; onSaved?: (message: string) => void }
@@ -115,6 +116,7 @@ export const CoordinatorServiceProfileScreen: React.FC<Props> = ({ onBack, onSav
               <View style={styles.toggleCopy}><Text style={styles.toggleTitle}>Accept booking requests</Text><Text style={styles.toggleHint}>Your profile becomes visible to clients when a positive fee is set.</Text></View>
               <Switch onValueChange={(isAcceptingBookings) => setProfile((current) => ({ ...current, isAcceptingBookings }))} value={profile.isAcceptingBookings} />
             </View>
+            <BusinessPoliciesEditor audience="coordinator" />
             {error ? <Text style={styles.error}>{error}</Text> : null}
             <Pressable disabled={saving} onPress={() => void save()} style={[styles.save, saving && styles.disabled]}>
               {saving ? <ActivityIndicator color="#FFFFFF" /> : <MaterialCommunityIcons color="#FFFFFF" name="content-save-outline" size={20} />}

@@ -254,6 +254,37 @@ const getCoordinatorTrackerStatus = (status?: string) => {
   return { kind: 'requested' as const, label: 'REQUESTED' }
 }
 
+export interface ProviderConfirmationProgress {
+  accepted: number
+  cancelled: number
+  declined: number
+  pending: number
+  total: number
+}
+
+/**
+ * A BookingServiceItem represents one submitted provider booking request.
+ * Deduping by bookingId intentionally prevents a service's selected options
+ * from appearing as separate confirmations in the client progress tracker.
+ */
+export const getLocalProviderConfirmationProgress = (
+  services: NonNullable<BookingItem['services']>
+): ProviderConfirmationProgress => {
+  const statuses = new Map<string, NonNullable<BookingItem['services']>[number]['status']>()
+  services.forEach((service) => {
+    if (service.bookingId) statuses.set(service.bookingId, service.status)
+  })
+
+  return Array.from(statuses.values()).reduce<ProviderConfirmationProgress>((progress, status) => {
+    progress.total += 1
+    if (status === 'confirmed' || status === 'completed') progress.accepted += 1
+    else if (status === 'declined') progress.declined += 1
+    else if (status === 'cancelled') progress.cancelled += 1
+    else progress.pending += 1
+    return progress
+  }, { accepted: 0, cancelled: 0, declined: 0, pending: 0, total: 0 })
+}
+
 export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
   booking,
   details,
@@ -292,19 +323,50 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
       && booking?.coordinatorAssignmentStatus === 'accepted'
   )
   const bookedServices = booking?.services ?? emptyBookedServices
-  const localAcceptedProviderCount = bookedServices.filter(
-    (service) => service.status === 'confirmed' || service.status === 'completed'
-  ).length
-  const providerCount = paymentQuote?.acceptance.providerCount ?? bookedServices.length
-  const acceptedProviderCount = paymentQuote?.acceptance.acceptedProviderCount ?? localAcceptedProviderCount
-  const coordinatorRequired = paymentQuote?.acceptance.coordinatorRequired ?? Boolean(booking?.coordinatorRequired)
-  const coordinatorAccepted = paymentQuote?.acceptance.coordinatorAccepted
-    ?? (!coordinatorRequired || booking?.coordinatorAssignmentStatus === 'accepted')
+  const localProviderConfirmation = getLocalProviderConfirmationProgress(bookedServices)
+  // Booking records refresh through the live client data subscription. Prefer
+  // them while present so this small tracker never waits on a previously
+  // fetched payment quote; the quote remains the server authority for payment.
+  const hasLocalProviderRecords = localProviderConfirmation.total > 0
+  const providerCount = hasLocalProviderRecords
+    ? localProviderConfirmation.total
+    : paymentQuote?.acceptance.providerCount ?? 0
+  const acceptedProviderCount = hasLocalProviderRecords
+    ? localProviderConfirmation.accepted
+    : paymentQuote?.acceptance.acceptedProviderCount ?? 0
+  const declinedProviderCount = hasLocalProviderRecords
+    ? localProviderConfirmation.declined
+    : paymentQuote?.acceptance.declinedProviderCount ?? 0
+  const cancelledProviderCount = hasLocalProviderRecords
+    ? localProviderConfirmation.cancelled
+    : paymentQuote?.acceptance.cancelledProviderCount ?? 0
+  const pendingProviderCount = hasLocalProviderRecords
+    ? localProviderConfirmation.pending
+    : Math.max(providerCount - acceptedProviderCount - declinedProviderCount - cancelledProviderCount, 0)
+  const coordinatorRequired = booking?.coordinatorRequired ?? paymentQuote?.acceptance.coordinatorRequired ?? false
+  const coordinatorAccepted = booking?.coordinatorRequired != null
+    ? booking.coordinatorAssignmentStatus === 'accepted'
+    : paymentQuote?.acceptance.coordinatorAccepted ?? !coordinatorRequired
   const requiredConfirmationCount = providerCount + (coordinatorRequired ? 1 : 0)
   const acceptedConfirmationCount = acceptedProviderCount + (coordinatorRequired && coordinatorAccepted ? 1 : 0)
   const coordinatorTrackerStatus = getCoordinatorTrackerStatus(booking?.coordinatorAssignmentStatus)
-  const hasCoordinatorTracker = Boolean(booking?.coordinatorRequired)
+  const hasCoordinatorTracker = coordinatorRequired
   const bookedServiceCount = bookedServices.length + (hasCoordinatorTracker ? 1 : 0)
+  const providerConfirmationSummary = providerCount > 0
+    ? `${acceptedProviderCount} of ${providerCount} provider request${providerCount === 1 ? '' : 's'} accepted`
+    : 'No provider requests yet'
+  const providerConfirmationDetails = [
+    pendingProviderCount > 0 ? `${pendingProviderCount} pending` : '',
+    declinedProviderCount > 0 ? `${declinedProviderCount} declined` : '',
+    cancelledProviderCount > 0 ? `${cancelledProviderCount} cancelled` : '',
+  ].filter(Boolean).join(' · ')
+  const coordinatorConfirmationSummary = coordinatorRequired
+    ? `Coordinator: ${coordinatorAccepted ? 'accepted' : coordinatorTrackerStatus.label.toLowerCase()}`
+    : ''
+  const confirmedTimelineCaption = [
+    [providerConfirmationSummary, providerConfirmationDetails].filter(Boolean).join(' · '),
+    coordinatorConfirmationSummary,
+  ].filter(Boolean).join('\n')
   const canMessageEventCoordinator = Boolean(
     booking?.eventId
       && booking?.coordinatorAssignmentStatus === 'accepted'
@@ -733,7 +795,10 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
               <TimelineStep
                 complete={isConfirmed}
                 date={isConfirmed ? value.confirmedDate : undefined}
-                label="Confirmed"
+                caption={confirmedTimelineCaption}
+                label={providerCount > 0
+                  ? `Confirmed · ${acceptedProviderCount}/${providerCount}`
+                  : 'Confirmed'}
               />
               <TimelineStep complete={isCompleted} label="Completed" />
             </>
@@ -2033,12 +2098,13 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
 }
 
 interface TimelineStepProps {
+  caption?: string
   complete?: boolean
   date?: string
   label: string
 }
 
-const TimelineStep: React.FC<TimelineStepProps> = ({ complete = false, date, label }) => (
+const TimelineStep: React.FC<TimelineStepProps> = ({ caption, complete = false, date, label }) => (
   <View style={styles.timelineStep}>
     <View style={[styles.stepOuter, !complete && styles.stepOuterPending]}>
       {complete ? (
@@ -2052,6 +2118,7 @@ const TimelineStep: React.FC<TimelineStepProps> = ({ complete = false, date, lab
     <View style={styles.stepCopy}>
       <Text style={[styles.stepLabel, !complete && styles.stepLabelPending]}>{label}</Text>
       {date && <Text style={styles.stepDate}>{date}</Text>}
+      {caption && <Text style={styles.stepCaption}>{caption}</Text>}
     </View>
   </View>
 )
@@ -2192,6 +2259,7 @@ const styles = StyleSheet.create({
   stepLabel: { color: palette.text, fontSize: 16, lineHeight: 24, fontWeight: '700' },
   stepLabelPending: { color: palette.muted },
   stepDate: { color: palette.muted, fontSize: 14, lineHeight: 20 },
+  stepCaption: { color: palette.muted, fontSize: 13, lineHeight: 18, marginTop: 2 },
   detailsCard: {
     borderWidth: 1,
     borderColor: palette.border,

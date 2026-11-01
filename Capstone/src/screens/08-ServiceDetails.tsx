@@ -1,4 +1,5 @@
 import { Text } from '../components/AppText'
+import { PublishedBusinessPolicies } from '../components/BusinessPolicies'
 import { FloristBookingConfigurator } from '../components/FloristBookingConfigurator'
 import { PhotoVideoBookingConfigurator } from '../components/PhotoVideoBookingConfigurator'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
@@ -1173,6 +1174,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                 </View>
               ))}
             </View>
+            <PublishedBusinessPolicies ownerId={service.providerUserId} />
           </View>
 
           <View style={styles.packagesSection}>

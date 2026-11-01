@@ -41,10 +41,13 @@ export interface EventSummaryOrderItem {
 
 interface EventSummaryScreenProps {
   event: EventSummaryDetails
+  isSavedPlan?: boolean
   isSavingPlan?: boolean
   isSubmittingRequests?: boolean
   items: EventSummaryOrderItem[]
   onBack?: () => void
+  onEditEventDetails?: () => void
+  onModifyServices?: () => void
   onReviewSavedPlan?: () => void
   onSavePlan?: () => void
   onSubmitRequests?: () => void
@@ -55,10 +58,13 @@ const formatCurrency = formatPeso
 
 export const EventSummaryScreen: React.FC<EventSummaryScreenProps> = ({
   event,
+  isSavedPlan = false,
   isSavingPlan = false,
   isSubmittingRequests = false,
   items,
   onBack,
+  onEditEventDetails,
+  onModifyServices,
   onReviewSavedPlan,
   onSavePlan,
   onSubmitRequests,
@@ -68,6 +74,7 @@ export const EventSummaryScreen: React.FC<EventSummaryScreenProps> = ({
   const isWide = width >= 640
   const [isSavePlanConfirmationVisible, setIsSavePlanConfirmationVisible] = React.useState(false)
   const [isSubmitConfirmationVisible, setIsSubmitConfirmationVisible] = React.useState(false)
+  const [isServiceChooserVisible, setIsServiceChooserVisible] = React.useState(false)
   const breakdown = calculatePaymentBreakdown(items)
   const needsSavedPlanReview = Boolean(
     savedPlanReview?.hasPriceChanges || savedPlanReview?.hasUnavailableServices
@@ -103,20 +110,30 @@ export const EventSummaryScreen: React.FC<EventSummaryScreenProps> = ({
         label="Event Summary"
         nextAccessibilityLabel="Event summary is the final planning step"
         onBack={onBack}
+        showProgress={!isSavedPlan}
         title="Event Summary"
       />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.intro}>
-          <Text style={styles.eyebrow}>STEP 5 OF 5</Text>
-          <Text style={styles.heading}>Review your event plan</Text>
+          <Text style={styles.eyebrow}>{isSavedPlan ? 'SAVED PLAN' : 'STEP 5 OF 5'}</Text>
+          <Text style={styles.heading}>{isSavedPlan ? 'Review your saved plan' : 'Review your event plan'}</Text>
           <Text style={styles.introCopy}>
-            Submitting sends booking requests only. Payment becomes available after every required provider accepts.
+            {isSavedPlan
+              ? 'This plan remains saved after booking. Current availability and prices are rechecked before requests are sent.'
+              : 'Submitting sends booking requests only. Payment becomes available after every required provider accepts.'}
           </Text>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Event details</Text>
+          <View style={styles.sectionTitleRow}>
+            <Text style={styles.cardTitle}>Event details</Text>
+            {isSavedPlan ? (
+              <Pressable accessibilityRole="button" onPress={onEditEventDetails} style={({ pressed }) => [styles.modifyButton, pressed && styles.buttonPressed]}>
+                <Text style={styles.modifyButtonText}>Edit</Text>
+              </Pressable>
+            ) : null}
+          </View>
           <View style={styles.eventGrid}>
             <EventDetail label="EVENT" value={event.name} wide />
             <EventDetail label="TYPE" value={event.eventType} />
@@ -145,7 +162,14 @@ export const EventSummaryScreen: React.FC<EventSummaryScreenProps> = ({
                 {items.length === 1 ? '1 booking request will be sent.' : `${items.length} booking requests will be sent.`}
               </Text>
             </View>
-            <MaterialCommunityIcons color={palette.burgundy} name="clipboard-check-outline" size={24} />
+            <View style={styles.selectionActions}>
+              {isSavedPlan ? (
+                <Pressable accessibilityRole="button" onPress={() => setIsServiceChooserVisible(true)} style={({ pressed }) => [styles.modifyButton, pressed && styles.buttonPressed]}>
+                  <Text style={styles.modifyButtonText}>Modify</Text>
+                </Pressable>
+              ) : null}
+              <MaterialCommunityIcons color={palette.burgundy} name="clipboard-check-outline" size={24} />
+            </View>
           </View>
           {items.length ? items.map((item, index) => (
             <View key={item.id} style={[styles.orderItem, index > 0 && styles.orderItemBorder]}>
@@ -201,7 +225,7 @@ export const EventSummaryScreen: React.FC<EventSummaryScreenProps> = ({
               pressed && styles.buttonPressed,
             ]}
           >
-            <Text style={styles.saveButtonText}>{isSavingPlan ? 'Saving…' : 'Save for Later'}</Text>
+            <Text style={styles.saveButtonText}>{isSavingPlan ? 'Saving…' : isSavedPlan ? 'Save Changes' : 'Save for Later'}</Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
@@ -247,6 +271,45 @@ export const EventSummaryScreen: React.FC<EventSummaryScreenProps> = ({
             />
           </View>
         </View>
+      </Modal>
+
+      <Modal
+        animationType="slide"
+        onRequestClose={() => setIsServiceChooserVisible(false)}
+        transparent
+        visible={isServiceChooserVisible}
+      >
+        <Pressable
+          accessibilityLabel="Close service chooser"
+          onPress={() => setIsServiceChooserVisible(false)}
+          style={styles.serviceChooserBackdrop}
+        >
+          <Pressable accessibilityViewIsModal onPress={(event) => event.stopPropagation()} style={styles.serviceChooserSheet}>
+            <View style={styles.serviceChooserHandle} />
+            <Text style={styles.serviceChooserTitle}>Modify selected services</Text>
+            <Text style={styles.serviceChooserCopy}>
+              Choose a service to update its package or options. Your current selections remain until you save changes.
+            </Text>
+            <ScrollView contentContainerStyle={styles.serviceChooserList} showsVerticalScrollIndicator={false}>
+              {items.map((item) => (
+                <View key={item.id} style={styles.serviceChooserItem}>
+                  <Text numberOfLines={1} style={styles.serviceChooserItemName}>{item.name}</Text>
+                  <Text numberOfLines={1} style={styles.serviceChooserItemMeta}>{item.category}</Text>
+                </View>
+              ))}
+            </ScrollView>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                setIsServiceChooserVisible(false)
+                onModifyServices?.()
+              }}
+              style={({ pressed }) => [styles.serviceChooserButton, pressed && styles.buttonPressed]}
+            >
+              <Text style={styles.serviceChooserButtonText}>Choose Services</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
       </Modal>
 
       <Modal
@@ -363,8 +426,12 @@ const styles = StyleSheet.create({
   introCopy: { color: palette.muted, fontSize: 14, lineHeight: 21, marginTop: 5 },
   card: { borderWidth: 1, borderColor: palette.border, borderRadius: 16, backgroundColor: palette.surface, padding: 18, marginBottom: 14 },
   cardHeading: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 4 },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   cardTitle: { color: palette.text, fontSize: 17, lineHeight: 24, fontWeight: '800' },
   cardSubtitle: { color: palette.muted, fontSize: 13, lineHeight: 19, marginTop: 2 },
+  selectionActions: { alignItems: 'center', flexDirection: 'row', gap: 12 },
+  modifyButton: { minHeight: 30, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  modifyButtonText: { color: palette.burgundy, fontSize: 13, lineHeight: 18, fontWeight: '800' },
   eventGrid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 16 },
   eventDetail: { width: '50%', paddingRight: 12, marginBottom: 16 },
   eventDetailWide: { width: '100%' },
@@ -415,4 +482,15 @@ const styles = StyleSheet.create({
   modalCancelText: { color: palette.burgundy, fontSize: 14, lineHeight: 20, fontWeight: '800' },
   modalConfirmButton: { minHeight: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 21, backgroundColor: palette.burgundy, paddingHorizontal: 18 },
   modalConfirmText: { color: palette.surface, fontSize: 14, lineHeight: 20, fontWeight: '800' },
+  serviceChooserBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(32, 17, 22, 0.42)' },
+  serviceChooserSheet: { maxHeight: '78%', borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: palette.surface, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 30 },
+  serviceChooserHandle: { width: 38, height: 4, alignSelf: 'center', borderRadius: 2, backgroundColor: '#C9BEC1', marginBottom: 17 },
+  serviceChooserTitle: { color: palette.text, fontSize: 20, lineHeight: 28, fontWeight: '800' },
+  serviceChooserCopy: { color: palette.muted, fontSize: 13, lineHeight: 19, marginTop: 5 },
+  serviceChooserList: { gap: 8, paddingTop: 16, paddingBottom: 16 },
+  serviceChooserItem: { borderWidth: 1, borderColor: palette.border, borderRadius: 12, backgroundColor: palette.surfaceMuted, paddingHorizontal: 13, paddingVertical: 10 },
+  serviceChooserItemName: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '700' },
+  serviceChooserItemMeta: { color: palette.muted, fontSize: 12, lineHeight: 17, marginTop: 1 },
+  serviceChooserButton: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 26, backgroundColor: palette.burgundy },
+  serviceChooserButtonText: { color: palette.surface, fontSize: 16, lineHeight: 22, fontWeight: '800' },
 })

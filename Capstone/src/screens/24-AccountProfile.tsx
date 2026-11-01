@@ -13,6 +13,7 @@ import {
 } from 'react-native'
 import { Text } from '../components/AppText'
 import { BrandIdentity } from '../components/BrandIdentity'
+import { BusinessPoliciesEditor } from '../components/BusinessPolicies'
 import type { EditableAccountProfile } from '../lib/profile'
 import { colors } from '../theme/tokens'
 
@@ -39,7 +40,10 @@ const fallbackProfile: EditableAccountProfile = {
   contactEmail: '',
   contactPhone: '',
   email: '',
+  firstName: '',
   fullName: '',
+  hasStructuredName: false,
+  lastName: '',
   phone: '',
   role: 'client',
 }
@@ -156,7 +160,18 @@ export const AccountProfileScreen: React.FC<AccountProfileScreenProps> = ({
           <View style={styles.loading}><ActivityIndicator color={colors.primary} /><Text style={styles.loadingText}>Loading profile...</Text></View>
         ) : (
           <View style={styles.card}>
-            <Field label="Full name" onChangeText={(text) => update('fullName', text)} value={value.fullName} />
+            {value.hasStructuredName ? (
+              <View style={styles.nameRow}>
+                <View style={styles.nameInput}>
+                  <Field autoCapitalize="words" autoComplete="name-given" label="First name" onChangeText={(text) => update('firstName', text)} value={value.firstName} />
+                </View>
+                <View style={styles.nameInput}>
+                  <Field autoCapitalize="words" autoComplete="name-family" label="Last name" onChangeText={(text) => update('lastName', text)} value={value.lastName} />
+                </View>
+              </View>
+            ) : (
+              <Field autoCapitalize="words" autoComplete="name" label="Full name" onChangeText={(text) => update('fullName', text)} value={value.fullName} />
+            )}
             <Field label="Email" editable={false} helper="Email changes require account verification." value={value.email} />
             <Field keyboardType="phone-pad" label="Phone number" onChangeText={(text) => update('phone', text)} placeholder="e.g. +63 917 123 4567" value={value.phone} />
 
@@ -169,6 +184,7 @@ export const AccountProfileScreen: React.FC<AccountProfileScreenProps> = ({
                 <Field keyboardType="email-address" label="Public contact email" onChangeText={(text) => update('contactEmail', text)} value={value.contactEmail} />
                 <Field keyboardType="phone-pad" label="Public contact phone" onChangeText={(text) => update('contactPhone', text)} value={value.contactPhone} />
                 <Field label="Business location" onChangeText={(text) => update('businessLocation', text)} value={value.businessLocation} />
+                <BusinessPoliciesEditor audience="provider" />
               </>
             ) : null}
 
@@ -260,6 +276,8 @@ const styles = StyleSheet.create({
   label: { color: colors.textPrimary, fontFamily: 'Inter_600SemiBold', fontSize: 13, marginBottom: 7 },
   loading: { alignItems: 'center', gap: 12, paddingVertical: 50 },
   loadingText: { color: colors.textSecondary, fontFamily: 'Inter_400Regular', fontSize: 13 },
+  nameInput: { flex: 1, minWidth: 0 },
+  nameRow: { flexDirection: 'row', gap: 10 },
   logoutButton: { alignItems: 'center', borderColor: colors.error, borderRadius: 11, borderWidth: 1, flexDirection: 'row', gap: 8, justifyContent: 'center', marginTop: 10, minHeight: 48 },
   logoutButtonDisabled: { opacity: 0.55 },
   logoutButtonPressed: { backgroundColor: '#FFF0F0' },

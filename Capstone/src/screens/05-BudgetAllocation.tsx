@@ -5,6 +5,7 @@ import {
   KeyboardAvoidingView,
   LayoutChangeEvent,
   LayoutAnimation,
+  Modal,
   PanResponder,
   Platform,
   Pressable,
@@ -39,6 +40,12 @@ export type CategoryBudgetAllocation = {
   locked?: boolean
 }
 
+export type CategoryBudgetMinimum = {
+  amount: number
+  isEstimate: boolean
+  pricingBasis?: string
+}
+
 export interface BudgetAllocationValue {
   allocations: CategoryBudgetAllocation[]
   budget: number
@@ -46,12 +53,14 @@ export interface BudgetAllocationValue {
 }
 
 interface BudgetAllocationScreenProps {
+  categoryMinimums?: Partial<Record<BudgetPriority, CategoryBudgetMinimum>>
   coordinatorCost?: number
   includeCoordinator?: boolean
   initialAllocations?: CategoryBudgetAllocation[]
   initialBudget?: number
   initialPriorities?: BudgetPriority[]
   isProcessing?: boolean
+  isMarketplacePricingLoading?: boolean
   onBack?: () => void
   onBudgetChange?: (budget: number) => void
   onContinue?: (value: BudgetAllocationValue) => void
@@ -357,12 +366,14 @@ const AllocationSlider: React.FC<AllocationSliderProps> = ({
 }
 
 export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
+  categoryMinimums = {},
   coordinatorCost = 0,
   includeCoordinator = true,
   initialAllocations = [],
   initialBudget,
   initialPriorities = [],
   isProcessing = false,
+  isMarketplacePricingLoading = false,
   onBack,
   onBudgetChange,
   onContinue,
@@ -409,6 +420,13 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
       )
   )
   const [categoryNotice, setCategoryNotice] = React.useState('')
+  const [pendingRemoval, setPendingRemoval] = React.useState<{
+    categoryKey: BudgetPriority
+    label: string
+  }>()
+  const [removedCategories, setRemovedCategories] = React.useState<
+    Partial<Record<BudgetPriority, { previousAmount: number }>>
+  >({})
   const budget = hasBudgetInput && budgetDigits ? sanitizeMoney(Number(budgetDigits)) : 0
   const totalAllocated = Object.values(allocations).reduce((sum, amount) => sum + amount, 0)
   const remainingBudget = Math.max(budget - totalAllocated, 0)
@@ -420,6 +438,13 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
   const lockedCategories = React.useMemo(
     () => new Set(initialAllocations.filter((item) => item.locked).map((item) => item.categoryKey)),
     [initialAllocations]
+  )
+  const minimumForCategory = React.useCallback(
+    (categoryKey: BudgetPriority) => {
+      if (categoryKey === 'eventOrganizer') return coordinatorMinimum
+      return sanitizeMoney(categoryMinimums[categoryKey]?.amount ?? 0)
+    },
+    [categoryMinimums, coordinatorMinimum]
   )
 
   React.useEffect(() => {
@@ -450,7 +475,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
           (sum, [key, amount]) => sum + (key === categoryKey ? 0 : amount),
           0
         )
-        const minimum = categoryKey === 'eventOrganizer' ? coordinatorMinimum : 0
+        const minimum = minimumForCategory(categoryKey)
         const allowed = Math.max(budget - otherTotal, 0)
 
         return {
@@ -459,7 +484,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
         }
       })
     },
-    [budget, coordinatorMinimum, lockedCategories]
+    [budget, lockedCategories, minimumForCategory]
   )
 
   const handleAllocationValidationMessage = React.useCallback(
@@ -497,22 +522,46 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
         return
       }
 
-      const available = Math.max(budget - totalAllocated, 0)
-      const minimum = categoryKey === 'eventOrganizer' ? coordinatorMinimum : 0
-      const startingAmount = Math.max(minimum, Math.min(BUDGET_ALLOCATION_STEP, available))
-
       if (budget <= 0) {
         setCategoryNotice('Enter an event budget before selecting a service category.')
         return
       }
 
-      if (startingAmount <= 0 || startingAmount > available) {
-        setCategoryNotice('No budget remains for another category. Reduce an unlocked allocation first.')
+      if (isMarketplacePricingLoading && categoryKey !== 'eventOrganizer') {
+        setCategoryNotice('Marketplace prices are still loading. Please try this category again in a moment.')
         return
       }
 
+      const available = Math.max(budget - totalAllocated, 0)
+      const minimum = minimumForCategory(categoryKey)
+
+      if (minimum <= 0) {
+        setCategoryNotice(
+          `No eligible ${categoryOptions.find((item) => item.id === categoryKey)?.label ?? 'service'} price can be calculated for this event. Adjust the event details or choose another category.`
+        )
+        return
+      }
+
+      if (minimum > available) {
+        setCategoryNotice(
+          `At least ${formatMoney(minimum)} remains available to add this category.`
+        )
+        return
+      }
+
+      const startingAmount = minimum
       handleAllocationChange(categoryKey, startingAmount)
-      setCategoryNotice('')
+      setCategoryNotice(
+        categoryMinimums[categoryKey]?.isEstimate
+          ? 'This allocation uses a marketplace estimate until the provider confirms availability.'
+          : ''
+      )
+      setRemovedCategories((current) => {
+        if (!current[categoryKey]) return current
+        const next = { ...current }
+        delete next[categoryKey]
+        return next
+      })
       animateCategoryLayout()
       setExpandedCategories((current) => new Set(current).add(categoryKey))
     },
@@ -520,14 +569,16 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
       allocations,
       animateCategoryLayout,
       budget,
-      coordinatorMinimum,
+      categoryMinimums,
       handleAllocationChange,
+      isMarketplacePricingLoading,
       lockedCategories,
+      minimumForCategory,
       totalAllocated,
     ]
   )
 
-  const handleCategoryRemove = React.useCallback(
+  const requestCategoryRemoval = React.useCallback(
     (categoryKey: BudgetPriority, label: string) => {
       if (lockedCategories.has(categoryKey)) {
         setCategoryNotice(`${label} cannot be removed while it has a selected service.`)
@@ -542,9 +593,49 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
         return
       }
 
+      setPendingRemoval({ categoryKey, label })
+    },
+    [coordinatorMinimum, lockedCategories, onRemoveCommittedCoordinator]
+  )
+
+  const confirmCategoryRemoval = React.useCallback(() => {
+    if (!pendingRemoval) return
+
+    const { categoryKey, label } = pendingRemoval
+    const previousAmount = allocations[categoryKey]
+    animateCategoryLayout()
+    setCategoryNotice(`${label} was removed. You can undo it while this budget plan is open.`)
+    setRemovedCategories((current) => ({ ...current, [categoryKey]: { previousAmount } }))
+    setAllocations((current) => ({ ...current, [categoryKey]: 0 }))
+    setAllocationValidationMessages((current) => {
+      if (!current[categoryKey]) return current
+      const next = { ...current }
+      delete next[categoryKey]
+      return next
+    })
+    setExpandedCategories((current) => {
+      const next = new Set(current)
+      next.delete(categoryKey)
+      return next
+    })
+    setPendingRemoval(undefined)
+  }, [allocations, animateCategoryLayout, pendingRemoval])
+
+  const handleUndoCategoryRemoval = React.useCallback(
+    (categoryKey: BudgetPriority, label: string) => {
+      const removed = removedCategories[categoryKey]
+      if (!removed) return
+
+      const available = Math.max(budget - totalAllocated, 0)
+      if (removed.previousAmount > available) {
+        setCategoryNotice(
+          `Undo is unavailable because restoring ${formatMoney(removed.previousAmount)} for ${label} would exceed the remaining budget.`
+        )
+        return
+      }
+
       animateCategoryLayout()
-      setCategoryNotice('')
-      setAllocations((current) => ({ ...current, [categoryKey]: 0 }))
+      setAllocations((current) => ({ ...current, [categoryKey]: removed.previousAmount }))
       setAllocationValidationMessages((current) => {
         if (!current[categoryKey]) return current
         const next = { ...current }
@@ -553,11 +644,17 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
       })
       setExpandedCategories((current) => {
         const next = new Set(current)
-        next.delete(categoryKey)
+        next.add(categoryKey)
         return next
       })
+      setRemovedCategories((current) => {
+        const next = { ...current }
+        delete next[categoryKey]
+        return next
+      })
+      setCategoryNotice(`${label} was restored with its previous allocation.`)
     },
-    [animateCategoryLayout, coordinatorMinimum, lockedCategories, onRemoveCommittedCoordinator]
+    [animateCategoryLayout, budget, removedCategories, totalAllocated]
   )
 
   const draftValue = React.useMemo<BudgetAllocationValue>(() => {
@@ -745,9 +842,10 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
               const amount = allocations[category.id]
               const otherTotal = totalAllocated - amount
               const maximum = Math.max(budget - otherTotal, 0)
-              const minimum = category.id === 'eventOrganizer' ? coordinatorMinimum : 0
+              const minimum = minimumForCategory(category.id)
               const locked = lockedCategories.has(category.id)
               const selected = amount > 0 || locked
+              const wasRemoved = Boolean(removedCategories[category.id])
               const expanded = expandedCategories.has(category.id)
               const canRemove = !locked && !(category.id === 'eventOrganizer' && minimum > 0)
               const canRequestCoordinatorRemoval =
@@ -766,11 +864,16 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
                     accessibilityLabel={
                       selected
                         ? `${expanded ? 'Collapse' : 'Expand'} ${category.label} budget allocation`
+                        : wasRemoved
+                          ? `Undo removal of ${category.label} category`
                         : `Select ${category.label} category`
                     }
                     accessibilityRole="button"
                     accessibilityState={{ expanded, selected }}
-                    onPress={() => handleCategoryPress(category.id)}
+                    onPress={() => {
+                      if (wasRemoved) handleUndoCategoryRemoval(category.id, category.label)
+                      else handleCategoryPress(category.id)
+                    }}
                     style={({ pressed }) => [styles.categoryHeader, pressed && styles.categoryHeaderPressed]}
                   >
                     <View style={styles.categoryIdentity}>
@@ -788,7 +891,9 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
                             ? locked
                               ? 'Selected · locked to service'
                               : `Selected · ${formatMoney(amount)}`
-                            : legacyPriorities.has(category.id)
+                            : wasRemoved
+                              ? 'Removed from this budget plan'
+                              : legacyPriorities.has(category.id)
                               ? 'Previously marked as a priority'
                               : 'Not selected'}
                         </Text>
@@ -796,11 +901,11 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
                     </View>
                     <View style={[styles.categoryAction, selected && styles.categoryActionSelected]}>
                       <Text style={[styles.categoryActionText, selected && styles.categoryActionTextSelected]}>
-                        {selected ? (expanded ? 'HIDE' : 'SHOW') : 'SELECT'}
+                        {selected ? (expanded ? 'HIDE' : 'SHOW') : wasRemoved ? 'UNDO' : 'SELECT'}
                       </Text>
                       <MaterialIcons
                         color={selected ? palette.white : palette.primaryContainer}
-                        name={selected && expanded ? 'expand-less' : selected ? 'expand-more' : 'add'}
+                        name={selected && expanded ? 'expand-less' : selected ? 'expand-more' : wasRemoved ? 'undo' : 'add'}
                         size={18}
                       />
                     </View>
@@ -823,6 +928,16 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
                         }
                         validationMessage={allocationValidationMessages[category.id]}
                       />
+                      {category.id !== 'eventOrganizer' && minimum > 0 ? (
+                        <Text style={styles.marketplacePriceNote}>
+                          {categoryMinimums[category.id]?.isEstimate
+                            ? `Marketplace estimate: ${formatMoney(minimum)}`
+                            : `Lowest available marketplace price: ${formatMoney(minimum)}`}
+                          {categoryMinimums[category.id]?.pricingBasis
+                            ? ` · ${categoryMinimums[category.id]?.pricingBasis}`
+                            : ''}
+                        </Text>
+                      ) : null}
                       <Pressable
                         accessibilityLabel={
                           canRequestCoordinatorRemoval
@@ -831,7 +946,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
                         }
                         accessibilityRole="button"
                         disabled={!canRemoveCategory}
-                        onPress={() => handleCategoryRemove(category.id, category.label)}
+                        onPress={() => requestCategoryRemoval(category.id, category.label)}
                         style={({ pressed }) => [
                           styles.removeCategoryButton,
                           !canRemoveCategory && styles.removeCategoryDisabled,
@@ -861,6 +976,50 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
           </View>
         </View>
       </ScrollView>
+
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setPendingRemoval(undefined)}
+        transparent
+        visible={Boolean(pendingRemoval)}
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Cancel category removal"
+          onPress={() => setPendingRemoval(undefined)}
+          style={styles.removalBackdrop}
+        >
+          <Pressable
+            accessibilityViewIsModal
+            onPress={(event) => event.stopPropagation()}
+            style={styles.removalDialog}
+          >
+            <MaterialIcons color={palette.error} name="remove-circle-outline" size={28} />
+            <Text style={styles.removalTitle}>Remove This Category?</Text>
+            <Text style={styles.removalBody}>
+              {pendingRemoval
+                ? `${pendingRemoval.label} will be removed from this budget plan. You can undo the removal while you stay on this screen.`
+                : ''}
+            </Text>
+            <View style={styles.removalActions}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setPendingRemoval(undefined)}
+                style={({ pressed }) => [styles.removalCancelButton, pressed && styles.pressed]}
+              >
+                <Text style={styles.removalCancelText}>CANCEL</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={confirmCategoryRemoval}
+                style={({ pressed }) => [styles.removalConfirmButton, pressed && styles.pressed]}
+              >
+                <Text style={styles.removalConfirmText}>REMOVE CATEGORY</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <View style={styles.footer}>
         <View style={styles.footerContent}>
@@ -1132,6 +1291,7 @@ const styles = StyleSheet.create({
   allocationLabel: { color: palette.text, fontSize: 12, lineHeight: 17, fontWeight: '700' },
   reservedLabel: { marginTop: 2, color: palette.primaryContainer, fontSize: 10, lineHeight: 14 },
   legacyLabel: { marginTop: 2, color: palette.secondary, fontSize: 10, lineHeight: 14 },
+  marketplacePriceNote: { marginTop: 9, color: palette.secondary, fontSize: 10, lineHeight: 14 },
   amountInputShell: {
     width: 140,
     height: 42,
@@ -1194,6 +1354,50 @@ const styles = StyleSheet.create({
   removeCategoryDisabled: { opacity: 0.68 },
   removeCategoryText: { color: palette.error, fontSize: 10, fontWeight: '700', letterSpacing: 0.7 },
   removeCategoryTextDisabled: { color: palette.secondaryFixedDim },
+  removalBackdrop: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(26, 8, 13, 0.5)',
+    padding: 24,
+  },
+  removalDialog: {
+    width: '100%',
+    maxWidth: 390,
+    alignItems: 'center',
+    borderRadius: 20,
+    backgroundColor: palette.white,
+    padding: 24,
+  },
+  removalTitle: { marginTop: 12, color: palette.primaryContainer, fontSize: 21, fontWeight: '700' },
+  removalBody: {
+    marginTop: 9,
+    color: palette.secondary,
+    fontSize: 13,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+  removalActions: { width: '100%', flexDirection: 'row', gap: 10, marginTop: 22 },
+  removalCancelButton: {
+    minHeight: 46,
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: palette.outline,
+    borderRadius: 23,
+  },
+  removalCancelText: { color: palette.primaryContainer, fontSize: 11, fontWeight: '800', letterSpacing: 0.6 },
+  removalConfirmButton: {
+    minHeight: 46,
+    flex: 1.35,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 23,
+    backgroundColor: palette.error,
+    paddingHorizontal: 8,
+  },
+  removalConfirmText: { color: palette.white, fontSize: 10, fontWeight: '800', letterSpacing: 0.35 },
   footer: {
     position: 'absolute',
     right: 0,

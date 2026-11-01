@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { composeProfileFullName, resolveProfileDisplayName } from './profile-name'
 
 export type EditableAccountProfile = {
   avatarUrl: string
@@ -8,7 +9,10 @@ export type EditableAccountProfile = {
   contactEmail: string
   contactPhone: string
   email: string
+  firstName: string
   fullName: string
+  hasStructuredName: boolean
+  lastName: string
   phone: string
   role: 'client' | 'service_provider' | 'event_coordinator'
 }
@@ -39,7 +43,10 @@ const emptyProfile: EditableAccountProfile = {
   contactEmail: '',
   contactPhone: '',
   email: '',
+  firstName: '',
   fullName: '',
+  hasStructuredName: false,
+  lastName: '',
   phone: '',
   role: 'client',
 }
@@ -56,13 +63,16 @@ export async function loadEditableAccountProfile(): Promise<ProfileResult> {
 
   const { data: account, error: accountError } = await supabase
     .from('profiles')
-    .select('full_name, email, phone, avatar_url, default_role')
+    .select('first_name, last_name, full_name, email, phone, avatar_url, default_role')
     .eq('id', authData.user.id)
     .maybeSingle()
 
   if (accountError) return { message: accountError.message, ok: false }
 
   const role = normalizeEditableRole(account?.default_role)
+  const firstName = account?.first_name?.trim() ?? ''
+  const lastName = account?.last_name?.trim() ?? ''
+  const hasStructuredName = Boolean(firstName && lastName)
   let provider: Record<string, string | null> | null = null
 
   if (role === 'service_provider') {
@@ -87,7 +97,10 @@ export async function loadEditableAccountProfile(): Promise<ProfileResult> {
       contactEmail: provider?.contact_email ?? authData.user.email ?? '',
       contactPhone: provider?.contact_phone ?? account?.phone ?? '',
       email: account?.email ?? authData.user.email ?? '',
-      fullName: account?.full_name ?? '',
+      firstName,
+      fullName: resolveProfileDisplayName({ firstName, lastName, fullName: account?.full_name }),
+      hasStructuredName,
+      lastName,
       phone: account?.phone ?? '',
       role,
     },
@@ -114,23 +127,36 @@ export async function saveEditableAccountProfile(
     contactEmail: value.contactEmail.trim(),
     contactPhone: value.contactPhone.trim(),
     email: value.email.trim(),
+    firstName: value.firstName.trim(),
     fullName: value.fullName.trim(),
+    hasStructuredName: value.hasStructuredName,
+    lastName: value.lastName.trim(),
     phone: value.phone.trim(),
   }
 
-  if (!cleaned.fullName) return { message: 'Enter your full name.', ok: false }
+  if (cleaned.hasStructuredName && (!cleaned.firstName || !cleaned.lastName)) {
+    return { message: 'Enter your first and last name.', ok: false }
+  }
+  if (!cleaned.hasStructuredName && !cleaned.fullName) return { message: 'Enter your full name.', ok: false }
   if (cleaned.role === 'service_provider' && !cleaned.businessName) {
     return { message: 'Enter your business name.', ok: false }
   }
 
+  const resolvedFullName = cleaned.hasStructuredName
+    ? composeProfileFullName(cleaned.firstName, cleaned.lastName)
+    : cleaned.fullName
+  const profileUpdate = {
+    avatar_url: cleaned.avatarUrl || null,
+    full_name: resolvedFullName,
+    phone: cleaned.phone || null,
+    updated_at: new Date().toISOString(),
+    ...(cleaned.hasStructuredName
+      ? { first_name: cleaned.firstName, last_name: cleaned.lastName }
+      : {}),
+  }
   const { error: accountError } = await supabase
     .from('profiles')
-    .update({
-      avatar_url: cleaned.avatarUrl || null,
-      full_name: cleaned.fullName,
-      phone: cleaned.phone || null,
-      updated_at: new Date().toISOString(),
-    })
+    .update(profileUpdate)
     .eq('id', authData.user.id)
 
   if (accountError) return { message: accountError.message, ok: false }
@@ -154,7 +180,10 @@ export async function saveEditableAccountProfile(
   const { error: metadataError } = await supabase.auth.updateUser({
     data: {
       business_name: cleaned.role === 'service_provider' ? cleaned.businessName : undefined,
-      full_name: cleaned.fullName,
+      ...(cleaned.hasStructuredName
+        ? { first_name: cleaned.firstName, last_name: cleaned.lastName }
+        : {}),
+      full_name: resolvedFullName,
     },
   })
 
@@ -162,11 +191,11 @@ export async function saveEditableAccountProfile(
     return {
       message: 'Your profile was saved, but the sign-in display name will refresh next time.',
       ok: true,
-      profile: cleaned,
+      profile: { ...cleaned, fullName: resolvedFullName },
     }
   }
 
-  return { ok: true, profile: cleaned }
+  return { ok: true, profile: { ...cleaned, fullName: resolvedFullName } }
 }
 
 export async function uploadEditableAccountPhoto(

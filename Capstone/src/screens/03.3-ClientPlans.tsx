@@ -19,6 +19,7 @@ type ClientPlansScreenProps = {
   savedPlans?: ClientSavedPlanSummary[]
   onBack: () => void
   onDeleteDraft?: (draftId: string) => Promise<boolean | void> | boolean | void
+  onDeleteSavedPlan?: (savedPlanId: string) => Promise<boolean | void> | boolean | void
   onOpenDraft?: (draftId: string) => void
   onOpenSavedPlan?: (savedPlanId: string) => void
   onScrollDirectionChange?: (direction: 'down' | 'up') => void
@@ -54,12 +55,14 @@ export const ClientPlansScreen: React.FC<ClientPlansScreenProps> = ({
   savedPlans = [],
   onBack,
   onDeleteDraft,
+  onDeleteSavedPlan,
   onOpenDraft,
   onOpenSavedPlan,
   onScrollDirectionChange,
   onStartNewEvent,
 }) => {
   const [draftPendingDeletion, setDraftPendingDeletion] = React.useState<ClientEventDraftSummary>()
+  const [savedPlanPendingDeletion, setSavedPlanPendingDeletion] = React.useState<ClientSavedPlanSummary>()
   const [isDeletingDraft, setIsDeletingDraft] = React.useState(false)
   const [isStartingNewEvent, setIsStartingNewEvent] = React.useState(false)
   const lastScrollY = React.useRef(0)
@@ -80,6 +83,14 @@ export const ClientPlansScreen: React.FC<ClientPlansScreenProps> = ({
     setIsStartingNewEvent(true)
     await onStartNewEvent?.()
     setIsStartingNewEvent(false)
+  }
+
+  const handleDeleteSavedPlan = async () => {
+    if (!savedPlanPendingDeletion || isDeletingDraft) return
+    setIsDeletingDraft(true)
+    const deleted = await onDeleteSavedPlan?.(savedPlanPendingDeletion.id)
+    setIsDeletingDraft(false)
+    if (deleted !== false) setSavedPlanPendingDeletion(undefined)
   }
 
   return (
@@ -214,12 +225,12 @@ export const ClientPlansScreen: React.FC<ClientPlansScreenProps> = ({
           </View>
 
           {savedPlans.length ? savedPlans.map((savedPlan) => (
+            <View key={savedPlan.id} style={styles.savedPlanCard}>
             <Pressable
-              key={savedPlan.id}
               accessibilityLabel={`Resume booking for saved plan ${savedPlan.name}`}
               accessibilityRole="button"
               onPress={() => onOpenSavedPlan?.(savedPlan.id)}
-              style={({ pressed }) => [styles.savedPlanCard, pressed && styles.pressed]}
+              style={({ pressed }) => [styles.savedPlanPressTarget, pressed && styles.pressed]}
             >
               <View style={styles.cardTopRow}>
                 <View style={styles.cardCopy}>
@@ -241,6 +252,16 @@ export const ClientPlansScreen: React.FC<ClientPlansScreenProps> = ({
                 <Text style={styles.resumeLabel}>Resume booking</Text>
               </View>
             </Pressable>
+            <Pressable
+              accessibilityLabel={`Delete saved plan ${savedPlan.name}`}
+              accessibilityRole="button"
+              onPress={() => setSavedPlanPendingDeletion(savedPlan)}
+              style={({ pressed }) => [styles.deleteButton, pressed && styles.pressed]}
+            >
+              <MaterialIcons color="#8A2944" name="delete-outline" size={17} />
+              <Text style={styles.deleteButtonText}>Delete plan</Text>
+            </Pressable>
+            </View>
           )) : (
             <View style={styles.emptyState}>
               <View style={styles.emptyIcon}>
@@ -287,6 +308,33 @@ export const ClientPlansScreen: React.FC<ClientPlansScreenProps> = ({
               style={styles.modalSecondaryButton}
             >
               <Text style={styles.modalSecondaryText}>Keep draft</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        animationType="fade"
+        onRequestClose={() => {
+          if (!isDeletingDraft) setSavedPlanPendingDeletion(undefined)
+        }}
+        transparent
+        visible={Boolean(savedPlanPendingDeletion)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View accessibilityViewIsModal style={styles.modalCard}>
+            <View style={styles.modalIcon}>
+              <MaterialIcons color="#8A2944" name="delete-outline" size={25} />
+            </View>
+            <Text style={styles.modalTitle}>Delete Saved Plan?</Text>
+            <Text style={styles.modalCopy}>
+              Are you sure you want to delete this saved plan? This action won't affect any bookings already created from it.
+            </Text>
+            <Pressable accessibilityRole="button" disabled={isDeletingDraft} onPress={() => void handleDeleteSavedPlan()} style={({ pressed }) => [styles.modalPrimaryButton, pressed && styles.pressed]}>
+              <Text style={styles.modalPrimaryText}>{isDeletingDraft ? 'Deleting...' : 'Delete Plan'}</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" disabled={isDeletingDraft} onPress={() => setSavedPlanPendingDeletion(undefined)} style={styles.modalSecondaryButton}>
+              <Text style={styles.modalSecondaryText}>Cancel</Text>
             </Pressable>
           </View>
         </View>
@@ -464,18 +512,19 @@ const styles = StyleSheet.create({
   },
   deleteButtonText: { color: '#8A2944', fontSize: 11, fontWeight: '700', lineHeight: 15 },
   savedPlanCard: {
+    overflow: 'hidden',
     borderColor: '#DCC4C9',
     borderRadius: 10,
     borderWidth: 1,
     backgroundColor: '#FFFDFD',
     marginBottom: 10,
-    padding: 13,
     shadowColor: '#5B1B2C',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 5,
     elevation: 1,
   },
+  savedPlanPressTarget: { padding: 13 },
   estimateBlock: { alignItems: 'flex-end', flexShrink: 0 },
   estimateLabel: { color: '#7C7271', fontSize: 9, fontWeight: '700', letterSpacing: 0.5, lineHeight: 12 },
   estimateValue: { color: '#8A2944', fontSize: 13, fontWeight: '700', lineHeight: 18, marginTop: 1 },

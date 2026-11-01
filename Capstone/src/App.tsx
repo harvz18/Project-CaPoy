@@ -33,6 +33,7 @@ import {
   fetchServiceReviewSummaries,
   ServiceReviewInsights,
 } from './lib/reviews'
+import { fetchMyReviewedServices, type ReviewedService } from './lib/reviewed-services'
 import {
   CatalogCategoryId,
   CatalogService,
@@ -52,6 +53,7 @@ import {
   ClientSavedPlanSummary,
   createClientEventDraft,
   deleteClientEventDraft,
+  deleteClientSavedPlan,
   fetchClientEventDrafts,
   fetchClientSavedPlans,
   fetchClientPlanningState,
@@ -226,6 +228,7 @@ import type {
   BudgetAllocationValue,
   BudgetPriority,
   CategoryBudgetAllocation,
+  CategoryBudgetMinimum,
 } from './screens/05-BudgetAllocation'
 import {
   EventCreationScreen,
@@ -241,6 +244,7 @@ import {
   cateringCustomMenuStartingPrice,
   getCateringCustomMenu,
   getCateringPricingOptions,
+  getVenueBookingRules,
   isLegacyCategoryDetails,
   normalizeCategoryDetails,
   validateCategoryDetails,
@@ -320,6 +324,7 @@ import {
   saveEditableAccountProfile,
   uploadEditableAccountPhoto,
 } from './lib/profile'
+import { resolveProfileDisplayName } from './lib/profile-name'
 import {
   ClientRefundOverview,
   emptyClientRefundOverview,
@@ -486,8 +491,21 @@ type UserMetadata = {
   business_name?: unknown
   default_role?: unknown
   email?: unknown
+  first_name?: unknown
   full_name?: unknown
+  last_name?: unknown
   name?: unknown
+}
+
+const budgetKeyByCategory: Record<CatalogCategoryId, BudgetPriority> = {
+  attire: 'gownRental',
+  catering: 'catering',
+  eventOrganizers: 'eventOrganizer',
+  florists: 'floral',
+  hosts: 'hostEmcee',
+  photography: 'photoVideo',
+  soundLights: 'soundLights',
+  venues: 'venue',
 }
 
 const DEFAULT_BUDGET = 0
@@ -546,12 +564,11 @@ const DEFAULT_SERVICE_PRICING: ServicePricingValue = {
 const ledgerColors = ['#6B1E2E', '#994251', '#DAC0C2', '#544244', '#C7C6C6']
 
 const getMetadataName = (metadata: UserMetadata) => {
-  const possibleName =
-    typeof metadata.full_name === 'string' && metadata.full_name.trim().length > 0
-      ? metadata.full_name
-      : typeof metadata.name === 'string' && metadata.name.trim().length > 0
-        ? metadata.name
-        : ''
+  const possibleName = resolveProfileDisplayName({
+    firstName: metadata.first_name,
+    fullName: metadata.full_name ?? metadata.name,
+    lastName: metadata.last_name,
+  })
 
   if (possibleName.length > 0) {
     return possibleName.trim()
@@ -562,6 +579,15 @@ const getMetadataName = (metadata: UserMetadata) => {
   }
 
   return ''
+}
+
+const formatConfiguredOperatingTime = (value: string) => {
+  const match = /^(?:0?)(\d{1,2}):([0-5]\d)$/.exec(value.trim())
+  if (!match) return value.trim()
+
+  const hour = Number(match[1])
+  if (!Number.isInteger(hour) || hour < 0 || hour > 23) return value.trim()
+  return `${hour % 12 || 12}:${match[2]} ${hour >= 12 ? 'PM' : 'AM'}`
 }
 
 const confirmDestructiveAction = (title: string, message: string, actionLabel: string) => {
@@ -909,6 +935,8 @@ export const App: React.FC = () => {
   const [isLoadingConversationMessages, setIsLoadingConversationMessages] = React.useState(false)
   const [isSendingMessage, setIsSendingMessage] = React.useState(false)
   const [catalogServices, setCatalogServices] = React.useState<CatalogService[]>([])
+  const [reviewedServices, setReviewedServices] = React.useState<ReviewedService[]>([])
+  const [isBudgetMarketplacePricingLoading, setIsBudgetMarketplacePricingLoading] = React.useState(true)
   const [favoriteServiceIds, setFavoriteServiceIds] = React.useState<ReadonlySet<string>>(
     () => new Set()
   )
@@ -968,6 +996,8 @@ export const App: React.FC = () => {
     React.useState<ClientSavedPlanSummary[]>([])
   const [savedPlanReview, setSavedPlanReview] = React.useState<SavedPlanReview>()
   const [isSavingPlanForLater, setIsSavingPlanForLater] = React.useState(false)
+  const [isEditingSavedPlanDetails, setIsEditingSavedPlanDetails] = React.useState(false)
+  const [isModifyingSavedPlanServices, setIsModifyingSavedPlanServices] = React.useState(false)
   const [clientBookings, setClientBookings] = React.useState<BookingItem[]>([])
   const [merchantRequests, setMerchantRequests] = React.useState<MerchantBookingRequest[]>([])
   const [merchantServices, setMerchantServices] = React.useState<MerchantServiceListing[]>([])
@@ -1293,6 +1323,29 @@ export const App: React.FC = () => {
     () => catalogServices.filter((service) => planningMarketplaceCategoryIds.has(service.categoryId)),
     [catalogServices, planningMarketplaceCategoryIds]
   )
+  const eventTimeGuidance = React.useMemo(() => {
+    const selectedServiceIds = new Set(selectedServices.map((service) => service.id))
+    const accessWindows = catalogServices.flatMap((service) => {
+      if (
+        service.categoryId !== 'venues'
+        || (!selectedServiceIds.has(service.id)
+          && !selectedServiceIds.has(service.bookingServiceId ?? ''))
+      ) return []
+
+      const rules = getVenueBookingRules(service.categoryDetails)
+      if (!rules.openingTime || !rules.closingTime) return []
+      return [`${formatConfiguredOperatingTime(rules.openingTime)}–${formatConfiguredOperatingTime(rules.closingTime)}`]
+    })
+    const uniqueAccessWindows = [...new Set(accessWindows)]
+
+    if (uniqueAccessWindows.length === 1) {
+      return `A selected venue's configured access window is ${uniqueAccessWindows[0]}. This is a service access window; booking availability is confirmed separately.`
+    }
+    if (uniqueAccessWindows.length > 1) {
+      return 'Selected venues have different configured access windows. Please review each provider’s availability.'
+    }
+    return undefined
+  }, [catalogServices, selectedServices])
   const addablePlanningServiceCategories = React.useMemo(() => {
     const categoriesById = new Map(
       serviceCategories.map((category) => [categoryNameToId(category.name), category])
@@ -1728,16 +1781,48 @@ export const App: React.FC = () => {
     0
   ) + (assignedCoordinator?.price ?? 0)
   const remainingBudget = Math.max(0, totalBudget - selectedEstimatedTotal)
-  const budgetKeyByCategory: Record<CatalogCategoryId, BudgetPriority> = {
-    attire: 'gownRental',
-    catering: 'catering',
-    eventOrganizers: 'eventOrganizer',
-    florists: 'floral',
-    hosts: 'hostEmcee',
-    photography: 'photoVideo',
-    soundLights: 'soundLights',
-    venues: 'venue',
-  }
+  const categoryBudgetMinimums = React.useMemo<Partial<Record<BudgetPriority, CategoryBudgetMinimum>>>(() => {
+    const candidates: Partial<Record<BudgetPriority, CategoryBudgetMinimum[]>> = {}
+
+    catalogServices.forEach((service) => {
+      const recommendation = service.budgetRecommendation
+      const categoryKey = recommendation?.categoryKey as BudgetPriority | undefined
+        ?? budgetKeyByCategory[service.categoryId]
+      const amount = recommendation?.calculatedAmount
+
+      // The recommendation RPC is the authoritative price projection. It
+      // already includes mandatory choices, guest count, duration, the client
+      // price, and event availability, so a generic card price would be unsafe.
+      if (
+        !categoryKey
+        || categoryKey === 'eventOrganizer'
+        || !recommendation?.guestRequirementMet
+        || recommendation.availabilityStatus === 'unavailable'
+        || !Number.isFinite(amount)
+        || (amount ?? 0) <= 0
+      ) return
+
+      const candidate: CategoryBudgetMinimum = {
+        amount: Math.round((amount ?? 0) * 100) / 100,
+        isEstimate: recommendation.availabilityStatus === 'schedule_required',
+        pricingBasis: recommendation.pricingBasis || undefined,
+      }
+      const categoryCandidates = candidates[categoryKey] ?? []
+      categoryCandidates.push(candidate)
+      candidates[categoryKey] = categoryCandidates
+    })
+
+    return Object.fromEntries(
+      Object.entries(candidates).flatMap(([categoryKey, values]) => {
+        const eligible = values ?? []
+        const confirmed = eligible.filter((item) => !item.isEstimate)
+        const lowest = (confirmed.length > 0 ? confirmed : eligible).reduce(
+          (current, item) => item.amount < current.amount ? item : current
+        )
+        return [[categoryKey, lowest]]
+      })
+    ) as Partial<Record<BudgetPriority, CategoryBudgetMinimum>>
+  }, [catalogServices])
   const selectedBudgetKey = budgetKeyByCategory[selectedCategory]
   const selectedCategoryBudget = planningBudgetAllocations.find(
     (allocation) => allocation.categoryKey === selectedBudgetKey
@@ -2038,7 +2123,9 @@ export const App: React.FC = () => {
         services.some((service) => service.id === current) ? current : services[0]?.id ?? ''
       )
       }
-    )
+    ).finally(() => {
+      if (isMounted) setIsBudgetMarketplacePricingLoading(false)
+    })
 
     return () => {
       isMounted = false
@@ -2117,6 +2204,7 @@ export const App: React.FC = () => {
       eventDrafts,
       savedPlans,
       favorites,
+      myReviewedServices,
     ] = await Promise.all([
       loadClientCatalogServices(),
       loadClientBookings(),
@@ -2130,9 +2218,11 @@ export const App: React.FC = () => {
       fetchClientEventDrafts(),
       fetchClientSavedPlans(),
       fetchFavoriteServiceIds(),
+      fetchMyReviewedServices(),
     ])
 
     setCatalogServices(services)
+    setReviewedServices(myReviewedServices)
     setClientBookings(bookings)
     setSelectedBooking((current) => {
       if (!current) return current
@@ -2858,7 +2948,7 @@ export const App: React.FC = () => {
 
       const { data } = await supabase
         .from('profiles')
-        .select('full_name, avatar_url, default_role, account_status')
+        .select('first_name, last_name, full_name, avatar_url, default_role, account_status')
         .eq('id', userId)
         .maybeSingle()
 
@@ -2873,7 +2963,11 @@ export const App: React.FC = () => {
         return undefined
       }
 
-      const profileName = data?.full_name?.trim()
+      const profileName = resolveProfileDisplayName({
+        firstName: data?.first_name,
+        fullName: data?.full_name,
+        lastName: data?.last_name,
+      })
       const metadataName = getMetadataName(metadata)
       const resolvedRole = data?.default_role ?? String(metadata.default_role ?? '')
 
@@ -3338,9 +3432,11 @@ export const App: React.FC = () => {
           easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }).start()
+        setIsBudgetMarketplacePricingLoading(true)
         void loadClientCatalogServices()
           .then(setCatalogServices)
           .catch(() => undefined)
+          .finally(() => setIsBudgetMarketplacePricingLoading(false))
         return
       }
 
@@ -4505,6 +4601,8 @@ export const App: React.FC = () => {
     setSavedPlanReview(result.savedPlanReview)
     await refreshLiveData()
     setServiceBrowseMode('planning')
+    setIsEditingSavedPlanDetails(false)
+    setIsModifyingSavedPlanServices(false)
     persistClientPlanningResume({
       eventId: savedPlanId,
       savedPlanId,
@@ -4529,6 +4627,7 @@ export const App: React.FC = () => {
     await runOnce('save-booking-plan-for-later', async () => {
       setIsSavingPlanForLater(true)
       try {
+        const isUpdatingSavedPlan = Boolean(savedPlanReview?.eventId)
         const result = await saveBookingPlanForLater()
         if (!result.ok) {
           setToastMessage(result.message ?? 'Unable to save this event plan.')
@@ -4537,6 +4636,11 @@ export const App: React.FC = () => {
 
         setSavedPlanReview(result.savedPlanReview)
         await refreshLiveData()
+        if (isUpdatingSavedPlan) {
+          setToastMessage('Saved plan changes updated. No provider booking request was created.')
+          setScreen('payment')
+          return
+        }
         clearClientPlanningResume()
         setToastMessage('Event plan saved. No payment or provider booking request was created.')
         setScreen('clientHome')
@@ -4738,6 +4842,66 @@ export const App: React.FC = () => {
     openPlanningHub('forward', category)
   }
 
+  const openSavedPlanDetailsEditor = () => {
+    if (!savedPlanReview?.eventId) return
+    setIsEditingSavedPlanDetails(true)
+    setScreen('eventCreation')
+  }
+
+  const saveSavedPlanDetails = async (value: EventCreationValue) => {
+    if (!savedPlanReview?.eventId) return
+    discardPendingEventAutosave()
+    await eventAutosaveChainRef.current.catch(() => undefined)
+
+    await runOnce('save-saved-plan-details', async () => {
+      if (value.wantsCoordinator === false && assignedCoordinator) {
+        const confirmed = await confirmDestructiveAction(
+          'Remove coordinator booking?',
+          'Choosing No removes your currently selected coordinator. This does not affect other services or payments.',
+          'Remove coordinator'
+        )
+        if (!confirmed) return
+
+        const removal = await removeCoordinatorFromEvent()
+        if (!removal.ok) {
+          setToastMessage(removal.message ?? 'Unable to remove this coordinator booking.')
+          return
+        }
+        setAssignedCoordinator(undefined)
+        setCoordinatorBudgetCost(0)
+        setCoordinatorAssignmentStatus(undefined)
+        setSelectedCoordinatorPackage(undefined)
+      }
+
+      setEventDetails(value)
+      const result = await saveEventDraft(value, 5)
+      if (!result.ok) {
+        setToastMessage(result.message ?? 'Unable to save this saved plan.')
+        return
+      }
+
+      eventDetailsDirtyRef.current = false
+      if (value.wantsCoordinator === true && !assignedCoordinator) setCoordinatorPreferenceState('undecided')
+      else if (value.wantsCoordinator === false) setCoordinatorPreferenceState('skipped')
+
+      const rechecked = await recheckSavedPlan()
+      if (!rechecked) return
+      await refreshLiveData()
+      setIsEditingSavedPlanDetails(false)
+      setToastMessage('Saved plan details updated. Availability and prices were rechecked.')
+      setScreen('payment')
+    })
+  }
+
+  const openSavedPlanServices = () => {
+    if (!savedPlanReview?.eventId) return
+    setIsModifyingSavedPlanServices(true)
+    setServiceBrowseMode('planning')
+    setChangingServiceSelection(undefined)
+    setCurrentServiceId('')
+    openPlanningHub('forward', defaultPlanningCategory)
+  }
+
   const deleteClientDraft = async (draftId: string) => {
     const result = await deleteClientEventDraft(draftId)
     if (!result.ok) {
@@ -4748,6 +4912,22 @@ export const App: React.FC = () => {
     setClientEventDrafts((current) => current.filter((draft) => draft.id !== draftId))
     if (clientPlanningResumeRef.current.eventId === draftId) clearClientPlanningResume()
     setToastMessage('Event draft deleted.')
+    return true
+  }
+
+  const deleteSavedPlan = async (savedPlanId: string) => {
+    const result = await deleteClientSavedPlan(savedPlanId)
+    if (!result.ok) {
+      setToastMessage(result.message ?? 'Unable to delete this saved plan.')
+      return false
+    }
+
+    setClientSavedPlans((current) => current.filter((plan) => plan.id !== savedPlanId))
+    if (savedPlanReview?.eventId === savedPlanId) {
+      setSavedPlanReview(undefined)
+      clearClientPlanningResume()
+    }
+    setToastMessage('Saved plan deleted. Existing bookings were not changed.')
     return true
   }
 
@@ -4855,6 +5035,7 @@ export const App: React.FC = () => {
       savedPlans={clientSavedPlans}
       onBack={() => setScreen('clientHome')}
       onDeleteDraft={deleteClientDraft}
+      onDeleteSavedPlan={deleteSavedPlan}
       onOpenDraft={(draftId) => void resumeClientDraft(draftId)}
       onOpenSavedPlan={(savedPlanId) => void resumeSavedPlan(savedPlanId)}
       onScrollDirectionChange={handleClientNavigationScrollDirection}
@@ -5166,9 +5347,16 @@ export const App: React.FC = () => {
                 <EventCreationScreen
                   initialValue={eventDetails}
                   isProcessing={activeGuardedActionCount > 0}
-                  onClose={closeEventCreation}
-                  onContinue={(value) => handleEventContinue(value, 'budgetAllocation')}
-                  onValueChange={handleEventDetailsChange}
+                  onClose={isEditingSavedPlanDetails ? () => {
+                    setIsEditingSavedPlanDetails(false)
+                    setScreen('payment')
+                  } : closeEventCreation}
+                  onContinue={(value) => isEditingSavedPlanDetails
+                    ? void saveSavedPlanDetails(value)
+                    : handleEventContinue(value, 'budgetAllocation')}
+                  onValueChange={isEditingSavedPlanDetails ? undefined : handleEventDetailsChange}
+                  presentation={isEditingSavedPlanDetails ? 'savedPlan' : 'planning'}
+                  timeGuidance={eventTimeGuidance}
                 />
               </Animated.View>
             </View>
@@ -5184,9 +5372,16 @@ export const App: React.FC = () => {
             <EventCreationScreen
               initialValue={eventDetails}
               isProcessing={activeGuardedActionCount > 0}
-              onClose={closeEventCreation}
-              onContinue={(value) => handleEventContinue(value, 'budgetAllocation')}
-              onValueChange={handleEventDetailsChange}
+              onClose={isEditingSavedPlanDetails ? () => {
+                setIsEditingSavedPlanDetails(false)
+                setScreen('payment')
+              } : closeEventCreation}
+              onContinue={(value) => isEditingSavedPlanDetails
+                ? void saveSavedPlanDetails(value)
+                : handleEventContinue(value, 'budgetAllocation')}
+              onValueChange={isEditingSavedPlanDetails ? undefined : handleEventDetailsChange}
+              presentation={isEditingSavedPlanDetails ? 'savedPlan' : 'planning'}
+              timeGuidance={eventTimeGuidance}
             />
           </Animated.View>
         )
@@ -5946,12 +6141,14 @@ export const App: React.FC = () => {
             style={[styles.screenTransition, { transform: [{ translateX: budgetAllocationEntrance }] }]}
           >
             <BudgetAllocationScreen
+              categoryMinimums={categoryBudgetMinimums}
               coordinatorCost={coordinatorBudgetCost}
               includeCoordinator={coordinatorPlanningEnabled}
               initialAllocations={planningBudgetAllocations}
               initialBudget={totalBudget}
               initialPriorities={budgetPriorities}
               isProcessing={activeGuardedActionCount > 0}
+              isMarketplacePricingLoading={isBudgetMarketplacePricingLoading}
               onBack={openEventCreationFromBudget}
               onContinue={handleBudgetContinue}
               onDraftChange={queueBudgetAutosave}
@@ -6069,15 +6266,32 @@ export const App: React.FC = () => {
               serviceName: replacementBooking.serviceName,
             } : undefined}
             showBottomNavigation={false}
+            reviewedServices={reviewedServices}
+            reviewedServicesLoading={isAuthRestoring}
             onScrollDirectionChange={serviceBrowseMode === 'explore'
               ? handleClientNavigationScrollDirection
               : undefined}
             onClearFavoritesFilter={() => setExploreFavoritesOnly(false)}
+            onSelectReviewedService={(serviceId) => {
+              const service = catalogServices.find((item) => item.id === serviceId && !item.isMock)
+              if (!service) {
+                setToastMessage('This service is no longer available. Your review is still available in Reviewed Services.')
+                return
+              }
+              setCurrentServiceId(service.id)
+              setServiceBrowseMode('explore')
+              setScreen('serviceDetails')
+            }}
             onBack={() => {
               if (changingServiceSelection) {
                 setChangingServiceSelection(undefined)
                 setCurrentServiceId('')
                 setToastMessage('Service change cancelled. Your current selection is unchanged.')
+                return
+              }
+              if (isModifyingSavedPlanServices) {
+                setIsModifyingSavedPlanServices(false)
+                setScreen('payment')
                 return
               }
               if (serviceBrowseMode === 'planning') openBudgetAllocationFromServices()
@@ -6108,6 +6322,10 @@ export const App: React.FC = () => {
               return true
             }}
             onContinueSelectedServices={() => {
+              if (isModifyingSavedPlanServices) {
+                setScreen('instructionModule')
+                return
+              }
               setMaxPlanningStep((current) => Math.max(current, 4))
               setScreen('instructionModule')
             }}
@@ -6250,7 +6468,13 @@ export const App: React.FC = () => {
         return (
           <InstructionModuleScreen
             initialValue={instructionDraft}
-            onBack={() => openPlanningHub('back')}
+            onBack={() => {
+              if (isModifyingSavedPlanServices) {
+                openPlanningHub('back', selectedCategory)
+                return
+              }
+              openPlanningHub('back')
+            }}
             onDraftChange={handleInstructionDraftChange}
             services={instructionServices}
             onSaveContinue={async (value) => {
@@ -6280,6 +6504,12 @@ export const App: React.FC = () => {
 
               setInstructionDraft(undefined)
               persistClientPlanningResume({ instructionDraft: undefined })
+              if (isModifyingSavedPlanServices) {
+                setIsModifyingSavedPlanServices(false)
+                await recheckSavedPlan()
+                setScreen('payment')
+                return
+              }
               setMaxPlanningStep((current) => Math.max(current, 5))
               setScreen(selectedServices.length > 0 || assignedCoordinator ? 'payment' : 'categoryBrowse')
             }}
@@ -6402,10 +6632,13 @@ export const App: React.FC = () => {
         return (
           <EventSummaryScreen
             event={eventSummary}
+            isSavedPlan={Boolean(savedPlanReview?.eventId)}
             isSavingPlan={isSavingPlanForLater}
             isSubmittingRequests={isSubmittingBookingRequests}
             items={summaryItems}
-            onBack={() => setScreen('instructionModule')}
+            onBack={() => savedPlanReview?.eventId ? setScreen('clientPlans') : setScreen('instructionModule')}
+            onEditEventDetails={openSavedPlanDetailsEditor}
+            onModifyServices={openSavedPlanServices}
             onReviewSavedPlan={reviewSavedPlanChanges}
             onSavePlan={() => void savePlanForLater()}
             onSubmitRequests={() => void submitBookingRequests()}

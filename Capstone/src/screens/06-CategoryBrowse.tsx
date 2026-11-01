@@ -16,6 +16,7 @@ import {
   View,
 } from 'react-native'
 import { PlanningScreenHeader } from '../components/PlanningScreenHeader'
+import { ReviewedServicesTab } from '../components/ReviewedServicesTab'
 import { ClientBottomNavigation, ClientMainTab } from '../components/ClientBottomNavigation'
 import {
   categoryNameToId,
@@ -28,6 +29,7 @@ import {
 } from '../lib/catalog'
 import { customerPriceFromProviderPrice } from '../lib/pricing'
 import { calculateCateringPrice, getCateringPricingOptions, getVenueBookingOptions } from '../lib/service-category-details'
+import type { ReviewedService } from '../lib/reviewed-services'
 import type { AssignedCoordinatorSummary, SelectedSummaryService } from './07-SelectedSummary'
 
 export type CategoryBrowseFilter = string
@@ -81,6 +83,8 @@ interface CategoryBrowseScreenProps {
     serviceName: string
   }
   showBottomNavigation?: boolean
+  reviewedServices?: ReviewedService[]
+  reviewedServicesLoading?: boolean
   searchValue?: string
   sortLabel?: string
   onBack?: () => void
@@ -104,6 +108,7 @@ interface CategoryBrowseScreenProps {
   onScrollDirectionChange?: (direction: 'down' | 'up') => void
   onClearFavoritesFilter?: () => void
   onToggleFavorite?: (serviceId: string) => void
+  onSelectReviewedService?: (serviceId: string) => void
 }
 
 const filters = [
@@ -523,6 +528,8 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   changeServiceContext,
   replacementContext,
   showBottomNavigation = true,
+  reviewedServices = [],
+  reviewedServicesLoading = false,
   searchValue,
   sortLabel = 'Recommended',
   onBack,
@@ -545,6 +552,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   onSelectVendor,
   onScrollDirectionChange,
   onClearFavoritesFilter,
+  onSelectReviewedService,
   onToggleFavorite,
 }) => {
   const { width } = useWindowDimensions()
@@ -565,6 +573,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   const [sortMode, setSortMode] = React.useState<CategoryBrowseSort>('recommended')
   const [isSortOpen, setIsSortOpen] = React.useState(false)
   const [selectedExploreCategory, setSelectedExploreCategory] = React.useState('All')
+  const [activeExploreTab, setActiveExploreTab] = React.useState<'explore' | 'reviewed'>('explore')
   const [pendingReplacement, setPendingReplacement] = React.useState<CatalogService>()
   const [cateringWarningAction, setCateringWarningAction] = React.useState<(() => void)>()
   const cateringWarningShownForCategoryRef = React.useRef(false)
@@ -606,6 +615,9 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     setCateringWarningAction(() => action)
   }, [cateringIncludedInVenuePackage])
   React.useEffect(() => setSelectedFilters(new Set()), [categoryName])
+  React.useEffect(() => {
+    if (!isExploreMode) setActiveExploreTab('explore')
+  }, [isExploreMode])
   React.useEffect(() => {
     const isCateringCategory = categoryNameToId(categoryName) === 'catering'
     // Explore opens on "All Services" while App retains the last planning
@@ -1119,12 +1131,37 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
           </View>
         ) : null}
 
+        {isExploreMode ? (
+          <View style={styles.exploreTabs}>
+            <Pressable
+              accessibilityRole="tab"
+              accessibilityState={{ selected: activeExploreTab === 'explore' }}
+              onPress={() => setActiveExploreTab('explore')}
+              style={[styles.exploreTab, activeExploreTab === 'explore' && styles.exploreTabActive]}
+            >
+              <Text style={[styles.exploreTabText, activeExploreTab === 'explore' && styles.exploreTabTextActive]}>Explore</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="tab"
+              accessibilityState={{ selected: activeExploreTab === 'reviewed' }}
+              onPress={() => setActiveExploreTab('reviewed')}
+              style={[styles.exploreTab, activeExploreTab === 'reviewed' && styles.exploreTabActive]}
+            >
+              <Text style={[styles.exploreTabText, activeExploreTab === 'reviewed' && styles.exploreTabTextActive]}>Reviewed</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
         <View style={styles.categoryHeader}>
           {!isExploreMode ? <Text style={styles.categoryIcon}>♨</Text> : null}
           <Text style={styles.categoryTitle}>
-            {isExploreMode ? (showFavoritesOnly ? 'Saved Services' : 'All Services') : categoryName}
+            {isExploreMode
+              ? activeExploreTab === 'reviewed'
+                ? 'Reviewed Services'
+                : showFavoritesOnly ? 'Saved Services' : 'All Services'
+              : categoryName}
           </Text>
-          {isExploreMode && showFavoritesOnly ? (
+          {isExploreMode && activeExploreTab === 'explore' && showFavoritesOnly ? (
             <Pressable
               accessibilityLabel="Show all services"
               accessibilityRole="button"
@@ -1148,7 +1185,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
           />
         ) : null}
 
-        {isExploreMode ? (
+        {isExploreMode && activeExploreTab === 'explore' ? (
           <ScrollView
             contentContainerStyle={styles.exploreCategoryContent}
             horizontal
@@ -1267,7 +1304,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
           </ScrollView>
         )}
 
-        <View style={styles.searchField}>
+        {!isExploreMode || activeExploreTab === 'explore' ? <View style={styles.searchField}>
           <Text style={styles.searchIcon}>⌕</Text>
           <TextInput
             accessibilityLabel={
@@ -1280,7 +1317,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
             style={styles.searchInput}
             value={query}
           />
-        </View>
+        </View> : null}
 
         {!isExploreMode ? (
           <>
@@ -1329,7 +1366,15 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
           </>
         ) : null}
 
-        <View style={styles.resultsList}>
+        {isExploreMode && activeExploreTab === 'reviewed' ? (
+          <View style={styles.resultsList}>
+            <ReviewedServicesTab
+              isLoading={reviewedServicesLoading}
+              items={reviewedServices}
+              onOpenAvailableService={onSelectReviewedService}
+            />
+          </View>
+        ) : <View style={styles.resultsList}>
           {vendorSections.map((section) => (
             <View key={section.id} style={styles.recommendationSection}>
               {section.label ? (
@@ -1588,7 +1633,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
               </Text>
             </View>
           ) : null}
-        </View>
+        </View>}
       </ScrollView>
 
       <Modal
@@ -2762,6 +2807,25 @@ const styles = StyleSheet.create({
     marginTop: 24,
     marginBottom: 24,
   },
+  exploreTabs: {
+    alignSelf: 'stretch',
+    borderBottomColor: palette.surfaceContainerHigh,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    gap: 22,
+    marginTop: 18,
+  },
+  exploreTab: {
+    alignItems: 'center',
+    borderBottomColor: 'transparent',
+    borderBottomWidth: 2,
+    minHeight: 42,
+    paddingHorizontal: 3,
+    paddingTop: 5,
+  },
+  exploreTabActive: { borderBottomColor: palette.primaryContainer },
+  exploreTabText: { color: palette.secondary, fontSize: 14, fontWeight: '600' },
+  exploreTabTextActive: { color: palette.primaryContainer, fontWeight: '800' },
   categoryIcon: {
     color: palette.primaryContainer,
     fontSize: 29,

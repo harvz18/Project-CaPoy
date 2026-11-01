@@ -11,7 +11,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  TouchableWithoutFeedback,
   useWindowDimensions,
   View,
 } from 'react-native'
@@ -191,7 +190,6 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({
   const emailIsValid = /^\S+@\S+\.\S+$/.test(normalizedEmail)
   const firstNameIsValid = firstName.trim().length > 0
   const lastNameIsValid = lastName.trim().length > 0
-  const fullName = `${firstName.trim()} ${lastName.trim()}`.trim()
   const phoneIsValid = phoneNumber.trim().length > 0
   const passwordIsValid = password.length >= 8
   const confirmPasswordIsValid = confirmPassword.length > 0 && password === confirmPassword
@@ -219,7 +217,7 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({
     if (!acceptedTerms) return revealField('terms')
     if (!canSubmit) return
     setIsLoading(true)
-    const result = await signUpClient({ fullName, email: normalizedEmail, phoneNumber: `${countryCode} ${phoneNumber.trim()}`, password })
+    const result = await signUpClient({ firstName, lastName, email: normalizedEmail, phoneNumber: `${countryCode} ${phoneNumber.trim()}`, password })
     setIsLoading(false)
     if (result.ok) {
       onSignUp(normalizedEmail, result.needsVerification ?? true)
@@ -353,7 +351,6 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({
               <View style={styles.sheetHandle} />
             </View>
           )}
-          <TouchableWithoutFeedback accessible={false} onPress={Keyboard.dismiss}>
           <View style={styles.sheetBody}>
           <BrandIdentity markSize={38} showName={!isSheet} style={styles.brandIdentity} />
           <Text style={styles.title}>Create Your Account</Text>
@@ -381,8 +378,14 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({
             showsVerticalScrollIndicator={false}
             style={styles.formScroll}
           >
-            <TextInput autoCapitalize="words" autoComplete="name-given" error={submitted && !firstNameIsValid} helperText={submitted && !firstNameIsValid ? 'First name is required.' : undefined} icon={<MaterialCommunityIcons color={colors.primaryDark} name="account-circle-outline" size={20} />} onChangeText={setFirstName} onContainerLayout={(event) => { fieldOffsets.current.firstName = event.nativeEvent.layout.y }} onFocus={() => handleFieldFocus('firstName')} onSubmitEditing={() => lastNameRef.current?.focus()} placeholder="First name" ref={firstNameRef} returnKeyType="next" style={[styles.input, styles.inputWithIcon]} value={firstName} />
-            <TextInput autoCapitalize="words" autoComplete="name-family" error={submitted && !lastNameIsValid} helperText={submitted && !lastNameIsValid ? 'Last name is required.' : undefined} icon={<MaterialCommunityIcons color={colors.primaryDark} name="account-circle-outline" size={20} />} onChangeText={setLastName} onContainerLayout={(event) => { fieldOffsets.current.lastName = event.nativeEvent.layout.y }} onFocus={() => handleFieldFocus('lastName')} onSubmitEditing={() => emailRef.current?.focus()} placeholder="Last name" ref={lastNameRef} returnKeyType="next" style={[styles.input, styles.inputWithIcon]} value={lastName} />
+            <View style={styles.nameRow}>
+              <View onLayout={(event) => { fieldOffsets.current.firstName = event.nativeEvent.layout.y }} style={styles.nameInput}>
+                <TextInput autoCapitalize="words" autoComplete="name-given" error={submitted && !firstNameIsValid} helperText={submitted && !firstNameIsValid ? 'First name is required.' : undefined} icon={<MaterialCommunityIcons color={colors.primaryDark} name="account-circle-outline" size={20} />} onChangeText={setFirstName} onFocus={() => handleFieldFocus('firstName')} onSubmitEditing={() => lastNameRef.current?.focus()} placeholder="First name" ref={firstNameRef} returnKeyType="next" style={[styles.input, styles.inputWithIcon]} value={firstName} />
+              </View>
+              <View onLayout={(event) => { fieldOffsets.current.lastName = event.nativeEvent.layout.y }} style={styles.nameInput}>
+                <TextInput autoCapitalize="words" autoComplete="name-family" error={submitted && !lastNameIsValid} helperText={submitted && !lastNameIsValid ? 'Last name is required.' : undefined} icon={<MaterialCommunityIcons color={colors.primaryDark} name="account-circle-outline" size={20} />} onChangeText={setLastName} onFocus={() => handleFieldFocus('lastName')} onSubmitEditing={() => emailRef.current?.focus()} placeholder="Last name" ref={lastNameRef} returnKeyType="next" style={[styles.input, styles.inputWithIcon]} value={lastName} />
+              </View>
+            </View>
             <TextInput autoCapitalize="none" autoComplete="email" error={submitted && !emailIsValid} helperText={submitted && !emailIsValid ? 'Enter a valid email address.' : undefined} icon={<MaterialCommunityIcons color={colors.primaryDark} name="at" size={20} />} inputMode="email" keyboardType="email-address" onChangeText={setEmail} onContainerLayout={(event) => { fieldOffsets.current.email = event.nativeEvent.layout.y }} onFocus={() => handleFieldFocus('email')} onSubmitEditing={() => phoneRef.current?.focus()} placeholder="Enter your email address" ref={emailRef} returnKeyType="next" style={[styles.input, styles.inputWithIcon]} value={email} />
             <View onLayout={(event) => { fieldOffsets.current.phone = event.nativeEvent.layout.y }} style={styles.phoneRow}>
               <Pressable accessibilityLabel="Select country calling code" accessibilityRole="button" onPress={() => setShowCountryCodes(true)} style={styles.countryCodeButton}>
@@ -402,7 +405,6 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({
           </ScrollView>
           {isSheet && registrationActions}
           </View>
-          </TouchableWithoutFeedback>
         </Animated.View>
       </BlurTargetView>
       <Modal animationType="fade" onRequestClose={() => setShowCountryCodes(false)} transparent visible={showCountryCodes}>
@@ -455,6 +457,8 @@ const styles = StyleSheet.create({
   loginPromptText: { color: colors.textSecondary, fontSize: 14 },
   loginText: { color: colors.primaryDark, fontSize: 14, fontWeight: '800' },
   form: { gap: spacing.md, paddingBottom: spacing['3xl'] },
+  nameRow: { flexDirection: 'row', gap: spacing.sm },
+  nameInput: { flex: 1, minWidth: 0 },
   formScroll: { flex: 1, marginBottom: spacing.md },
   actionFooter: { gap: spacing.md },
   stickyActionFooter: { borderTopWidth: 1, borderTopColor: neo.edge, backgroundColor: neo.surface, paddingTop: spacing.md, paddingBottom: spacing.sm },
