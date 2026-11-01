@@ -4605,6 +4605,40 @@ export const App: React.FC = () => {
         return
       }
       setPaymentSettlementContext(undefined)
+      // A hosted checkout can finish after the client has already returned to
+      // the app (for example while a signed webhook is still in transit).
+      // Before presenting the pending-payment message again, ask the
+      // server-owned reconciliation endpoint to verify the checkout directly
+      // with PayMongo, then re-read the quote it updates.
+      if (paymentQuote.paymentState === 'payment_initiated') {
+        const reconciliation = await reconcileMyPaymongoCheckoutV16(eventId)
+        const refreshedQuote = await loadBookingPaymentQuote(eventId)
+        const paymentVerified = reconciliation.verified
+          || refreshedQuote?.paymentState === 'paid_or_verified'
+
+        if (paymentVerified) {
+          setBookingPaymentQuote((current) => current && current.eventId === eventId
+            ? {
+                ...current,
+                paymentState: 'paid_or_verified',
+                paymentStatus: refreshedQuote?.paymentStatus ?? 'verified',
+              }
+            : current)
+          setSelectedBooking((current) => current && current.eventId === eventId
+            ? {
+                ...current,
+                paymentState: 'paid_or_verified',
+                paymentStatus: refreshedQuote?.paymentStatus === 'verified'
+                  ? 'Payment verified'
+                  : 'Payment recorded',
+              }
+            : current)
+          await refreshLiveData().catch(() => undefined)
+          setToastMessage('PayMongo payment verified. Your booking has been updated.')
+          setIsBookingPaymentSheetVisible(false)
+          return
+        }
+      }
       if (!paymentQuote.paymentEligible) {
         setToastMessage(paymentQuote.reason ?? 'Payment is not available until all required confirmations are complete.')
         setIsBookingPaymentSheetVisible(false)
