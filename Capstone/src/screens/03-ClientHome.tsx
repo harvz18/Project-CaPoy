@@ -10,6 +10,7 @@ import {
   Easing,
   Image,
   Modal,
+  PanResponder,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -23,7 +24,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { AnimatedQuickAccessButton } from '../components/AnimatedQuickAccessButton'
 import { BrandIdentity } from '../components/BrandIdentity'
 import { CardInsetShadow, NeumorphicRaised } from '../components/CardInsetShadow'
-import { formatServicePrice } from '../lib/catalog'
+import { LuminousPillButton } from '../components/LuminousPillButton'
+import { formatServicePrice, type CatalogService } from '../lib/catalog'
 import type { HomeServiceRecommendation } from '../lib/home-recommendations'
 import type { ClientEventDraftSummary } from '../lib/planning'
 import { colors } from '../theme/tokens'
@@ -53,6 +55,7 @@ export interface ClientHomeScreenProps {
   favoriteServiceIds?: ReadonlySet<string>
   hasUnreadBookingUpdates?: boolean
   recommendations?: HomeServiceRecommendation[]
+  coordinators?: CatalogService[]
   selectedServiceCount?: number
   isRefreshing?: boolean
   searchValue?: string
@@ -63,6 +66,7 @@ export interface ClientHomeScreenProps {
   onOpenBookingProgress?: (booking: BookingItem) => void
   onOpenRefunds?: () => void
   onRefresh?: () => void | Promise<void>
+  onSelectCoordinator?: (serviceId: string) => void
   onStartNewEvent?: () => Promise<boolean | void> | boolean | void
   onScrollDirectionChange?: (direction: 'down' | 'up') => void
   onSeeAllVenues?: () => void
@@ -79,6 +83,11 @@ const QUICK_ACCESS_ITEMS = [
 ] as const
 
 const SEARCH_PROMPT = 'Search....'
+const HERO_PLAN_FADE_END = 76
+const WORDMARK_EXIT_START = 82
+const WORDMARK_EXIT_END = 148
+const HEADER_PLAN_FADE_START = 164
+const HEADER_PLAN_FADE_END = 252
 
 const ADVERTISEMENTS = [
   { colors: ['#7B1E37', '#C65B76'] as const, id: 'ad-1' },
@@ -190,6 +199,7 @@ export const getClientBookingProgress = (
 export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   draftEvents = [],
   bookingProgressEvents = [],
+  coordinators = [],
   favoritePendingServiceIds = new Set(),
   favoriteServiceIds = new Set(),
   hasUnreadBookingUpdates = false,
@@ -201,6 +211,7 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   onOpenBookingProgress,
   onOpenRefunds,
   onRefresh,
+  onSelectCoordinator,
   onScrollDirectionChange,
   onSeeAllVenues,
   onSelectRecommendation,
@@ -215,9 +226,14 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   const lastScrollY = React.useRef(0)
   const searchInputRef = React.useRef<React.ComponentRef<typeof TextInput>>(null)
   const searchExpansion = React.useRef(new Animated.Value(0)).current
+  const scrollY = React.useRef(new Animated.Value(0)).current
+  const heroPlanCtaInteractiveRef = React.useRef(true)
+  const headerPlanCtaInteractiveRef = React.useRef(false)
   const searchPromptCharacters = React.useRef(
     Array.from(SEARCH_PROMPT, () => new Animated.Value(0))
   ).current
+  const advertisementFade = React.useRef(new Animated.Value(1)).current
+  const isAdvertisementFading = React.useRef(false)
   const weddingHeroPlayer = useVideoPlayer(weddingHeroVideo, (player) => {
     player.loop = true
     player.muted = true
@@ -231,6 +247,8 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   const [searchQuery, setSearchQuery] = React.useState('')
   const [searchActivityVersion, setSearchActivityVersion] = React.useState(0)
   const [activeAdvertisementIndex, setActiveAdvertisementIndex] = React.useState(0)
+  const [isHeroPlanCtaInteractive, setIsHeroPlanCtaInteractive] = React.useState(true)
+  const [isHeaderPlanCtaInteractive, setIsHeaderPlanCtaInteractive] = React.useState(false)
   const visibleBookingProgress = showAllBookingProgress
     ? bookingProgressEvents
     : bookingProgressEvents.slice(0, 3)
@@ -253,15 +271,67 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
       }]
     }).slice(0, 6)
   }, [recommendations])
+  const featuredCoordinators = React.useMemo(
+    () => coordinators.filter((coordinator) => (
+      coordinator.kind === 'coordinator' && coordinator.isMock !== true
+    )).slice(0, 8),
+    [coordinators]
+  )
+  const expertPlaceholderCount = Math.max(0, 6 - featuredCoordinators.length)
   const hasAdditionalBookingProgress = bookingProgressEvents.length > 3
   const draftEvent = draftEvents[0]
   const onOpenActiveEvent = () => {
     if (draftEvent) onOpenDraft?.(draftEvent.id)
   }
 
+  const headerViewportWidth = Math.min(width, 760)
+  const headerHorizontalPadding = isWide ? 28 : 14
+  const headerInnerWidth = headerViewportWidth - headerHorizontalPadding * 2
+  const wordmarkWidth = Math.round(brandMarkSize * 6.8)
+  const expandedSearchWidth = Math.max(
+    126,
+    Math.min(240, headerViewportWidth - wordmarkWidth - 46)
+  )
+  const headerPlanButtonWidth = Math.max(
+    132,
+    Math.min(170, headerInnerWidth - 46)
+  )
+  const expandedHeaderPlanButtonWidth = Math.max(
+    112,
+    Math.min(headerPlanButtonWidth, headerInnerWidth - expandedSearchWidth - 6)
+  )
   const searchWidth = searchExpansion.interpolate({
     inputRange: [0, 1],
-    outputRange: [40, Math.max(126, Math.min(240, width - Math.round(brandMarkSize * 6.8) - 46))],
+    outputRange: [40, expandedSearchWidth],
+  })
+  const headerPlanWidth = searchExpansion.interpolate({
+    inputRange: [0, 1],
+    outputRange: [headerPlanButtonWidth, expandedHeaderPlanButtonWidth],
+  })
+  const heroOpacity = scrollY.interpolate({
+    inputRange: [0, 56, 132],
+    outputRange: [1, 0.58, 0],
+    extrapolate: 'clamp',
+  })
+  const heroPlanOpacity = scrollY.interpolate({
+    inputRange: [0, 38, HERO_PLAN_FADE_END],
+    outputRange: [1, 0.45, 0],
+    extrapolate: 'clamp',
+  })
+  const headerPlanOpacity = scrollY.interpolate({
+    inputRange: [HEADER_PLAN_FADE_START, 208, HEADER_PLAN_FADE_END],
+    outputRange: [0, 0.58, 1],
+    extrapolate: 'clamp',
+  })
+  const wordmarkOpacity = scrollY.interpolate({
+    inputRange: [WORDMARK_EXIT_START, 114, WORDMARK_EXIT_END],
+    outputRange: [1, 0.45, 0],
+    extrapolate: 'clamp',
+  })
+  const wordmarkTranslateY = scrollY.interpolate({
+    inputRange: [WORDMARK_EXIT_START, WORDMARK_EXIT_END],
+    outputRange: [0, -12],
+    extrapolate: 'clamp',
   })
   React.useEffect(() => {
     if (!isSearchExpanded || isSearchFieldEngaged || searchQuery) {
@@ -325,12 +395,55 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
     return () => clearTimeout(timeout)
   }, [collapseSearch, isSearchExpanded, isSearchFieldEngaged, searchActivityVersion])
 
+  const advanceAdvertisement = React.useCallback((direction = 1) => {
+    if (isAdvertisementFading.current) return
+    isAdvertisementFading.current = true
+
+    Animated.timing(advertisementFade, {
+      duration: 140,
+      easing: Easing.in(Easing.quad),
+      toValue: 0,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (!finished) {
+        advertisementFade.setValue(1)
+        isAdvertisementFading.current = false
+        return
+      }
+
+      setActiveAdvertisementIndex((current) => (
+        (current + direction + ADVERTISEMENTS.length) % ADVERTISEMENTS.length
+      ))
+      Animated.timing(advertisementFade, {
+        duration: 220,
+        easing: Easing.out(Easing.quad),
+        toValue: 1,
+        useNativeDriver: true,
+      }).start(() => {
+        isAdvertisementFading.current = false
+      })
+    })
+  }, [advertisementFade])
+
   React.useEffect(() => {
-    const interval = setInterval(() => {
-      setActiveAdvertisementIndex((current) => (current + 1) % ADVERTISEMENTS.length)
-    }, 5000)
+    const interval = setInterval(() => advanceAdvertisement(), 5000)
     return () => clearInterval(interval)
-  }, [])
+  }, [advanceAdvertisement])
+
+  const advertisementPanResponder = React.useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponder: (_, gesture) => (
+      Math.abs(gesture.dx) > 8 && Math.abs(gesture.dx) > Math.abs(gesture.dy)
+    ),
+    onPanResponderRelease: (_, gesture) => {
+      if (gesture.dx <= -44) {
+        advanceAdvertisement(1)
+        return
+      }
+      if (gesture.dx >= 44) {
+        advanceAdvertisement(-1)
+      }
+    },
+  }), [advanceAdvertisement])
 
   const handleSearchFocus = () => {
     setIsSearchFieldEngaged(true)
@@ -395,12 +508,26 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
           />
         ) : undefined}
         onScroll={(event) => {
-          const scrollY = Math.max(0, event.nativeEvent.contentOffset.y)
-          const delta = scrollY - lastScrollY.current
+          const offsetY = Math.max(0, event.nativeEvent.contentOffset.y)
+          scrollY.setValue(offsetY)
+
+          const shouldEnableHeroPlanCta = offsetY < HERO_PLAN_FADE_END
+          if (shouldEnableHeroPlanCta !== heroPlanCtaInteractiveRef.current) {
+            heroPlanCtaInteractiveRef.current = shouldEnableHeroPlanCta
+            setIsHeroPlanCtaInteractive(shouldEnableHeroPlanCta)
+          }
+
+          const shouldEnableHeaderPlanCta = offsetY >= HEADER_PLAN_FADE_END
+          if (shouldEnableHeaderPlanCta !== headerPlanCtaInteractiveRef.current) {
+            headerPlanCtaInteractiveRef.current = shouldEnableHeaderPlanCta
+            setIsHeaderPlanCtaInteractive(shouldEnableHeaderPlanCta)
+          }
+
+          const delta = offsetY - lastScrollY.current
 
           if (Math.abs(delta) >= 4) {
             onScrollDirectionChange?.(delta > 0 ? 'down' : 'up')
-            lastScrollY.current = scrollY
+            lastScrollY.current = offsetY
           }
         }}
         scrollEventThrottle={16}
@@ -412,12 +539,7 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
             isWide && styles.referenceTopSurfaceWide,
           ]}
         >
-          <Pressable
-            accessibilityLabel="Plan your wedding"
-            accessibilityRole="button"
-            onPress={handleCreateEventPress}
-            style={({ pressed }) => [styles.referenceHero, pressed && styles.referencePressed]}
-          >
+          <Animated.View style={[styles.referenceHero, { opacity: heroOpacity }]}>
             <VideoView
               contentFit="cover"
               nativeControls={false}
@@ -432,19 +554,28 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
               pointerEvents="none"
               style={styles.heroVideoOverlay}
             />
-            <View pointerEvents="none" style={styles.heroContent}>
+            <View pointerEvents="box-none" style={styles.heroContent}>
               <Text style={styles.heroTitle}>YOUR DREAM WEDDING{`\n`}STARTS HERE!</Text>
               <Text style={styles.heroDescription}>
                 Make every moment of your special day unforgettable.
               </Text>
               <View style={styles.heroFooter}>
-                <View style={styles.heroPlanAction}>
-                  <Text style={styles.heroPlanText}>Plan Wedding</Text>
-                  <MaterialIcons color="#FFFFFF" name="trending-flat" size={31} />
-                </View>
+                <Animated.View
+                  pointerEvents={isHeroPlanCtaInteractive ? 'auto' : 'none'}
+                  style={{ opacity: heroPlanOpacity }}
+                >
+                  <LuminousPillButton
+                    accessibilityLabel="Plan your wedding"
+                    onPress={handleCreateEventPress}
+                    style={styles.heroPlanButton}
+                    tone="glass"
+                  >
+                    <Text style={styles.heroPlanText}>Plan Wedding</Text>
+                  </LuminousPillButton>
+                </Animated.View>
               </View>
             </View>
-          </Pressable>
+          </Animated.View>
         </View>
 
         <View style={[styles.referenceSection, styles.quickAccessSection]}>
@@ -470,6 +601,8 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
             ))}
           </View>
         </View>
+
+        <View pointerEvents="none" style={styles.quickAccessDivider} />
 
         <View style={styles.referenceSection}>
           <View style={styles.referenceSectionHeader}>
@@ -535,17 +668,6 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
             </Pressable>
           )) : (
             <View style={styles.emptyDraftState}>
-              <LinearGradient
-                colors={['#F8F6F3', '#F8F6F3']}
-                end={{ x: 1, y: 1 }}
-                pointerEvents="none"
-                start={{ x: 0, y: 0 }}
-                style={styles.emptyDraftInset}
-              />
-              <LinearGradient colors={['rgba(0, 0, 0, 0.1)', 'rgba(0, 0, 0, 0)']} end={{ x: 0, y: 1 }} pointerEvents="none" start={{ x: 0, y: 0 }} style={styles.emptyDraftInsetTop} />
-              <LinearGradient colors={['rgba(0, 0, 0, 0.12)', 'rgba(0, 0, 0, 0)']} end={{ x: 1, y: 0 }} pointerEvents="none" start={{ x: 0, y: 0 }} style={styles.emptyDraftInsetLeft} />
-              <LinearGradient colors={['rgba(255, 255, 255, 0)', 'rgba(255, 255, 255, 0.56)']} end={{ x: 0, y: 1 }} pointerEvents="none" start={{ x: 0, y: 0 }} style={styles.emptyDraftInsetBottom} />
-              <LinearGradient colors={['rgba(255, 255, 255, 0)', 'rgba(255, 255, 255, 0.48)']} end={{ x: 1, y: 0 }} pointerEvents="none" start={{ x: 0, y: 0 }} style={styles.emptyDraftInsetRight} />
               <View style={styles.emptyDraftContent}>
                 <MaterialIcons name="event-available" size={24} color="#8A2944" />
                 <View style={styles.emptyDraftCopy}>
@@ -560,8 +682,16 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
         <View style={styles.referenceSection}>
           <View style={[styles.referenceSectionHeader, styles.referenceRecommendationHeader]}>
             <View style={styles.referenceSectionTitleCopy}><Text style={[styles.referenceSectionTitle, styles.referenceRecommendedTitle]}>RECOMMENDED FOR YOU<Text style={styles.sectionDot}></Text></Text></View>
-            <Pressable accessibilityLabel="See all venues" accessibilityRole="button" onPress={onSeeAllVenues} style={styles.exploreAllButton}>
-              <Text style={styles.exploreAll}>Explore All →</Text>
+            <Pressable
+              accessibilityLabel="See all recommended services"
+              accessibilityRole="button"
+              onPress={onSeeAllVenues}
+              style={({ pressed }) => [
+                styles.sectionChevronButton,
+                pressed && styles.sectionChevronButtonPressed,
+              ]}
+            >
+              <MaterialIcons color="#57636C" name="chevron-right" size={23} />
             </Pressable>
           </View>
           <ScrollView
@@ -631,7 +761,17 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
         </View>
 
         <View style={[styles.referenceSection, styles.featuredBusinessSection]}>
-          <Text style={[styles.referenceSectionTitle, styles.referenceRecommendedTitle]}>FEATURED BUSINESSES</Text>
+          <View style={styles.referenceSectionHeader}>
+            <Text style={[styles.referenceSectionTitle, styles.referenceRecommendedTitle]}>FEATURED BUSINESSES</Text>
+            <Pressable
+              accessibilityLabel="See all featured businesses"
+              accessibilityRole="button"
+              onPress={onSeeAllVenues}
+              style={({ pressed }) => [styles.sectionChevronButton, pressed && styles.sectionChevronButtonPressed]}
+            >
+              <MaterialIcons color="#57636C" name="chevron-right" size={23} />
+            </Pressable>
+          </View>
           <ScrollView
             contentContainerStyle={styles.featuredBusinessCarousel}
             decelerationRate="normal"
@@ -671,19 +811,95 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
         </View>
 
         <View style={styles.advertisementSection}>
-          <LinearGradient
-            colors={ADVERTISEMENTS[activeAdvertisementIndex].colors}
-            end={{ x: 1, y: 1 }}
-            style={styles.advertisementCard}
-            start={{ x: 0, y: 0 }}
+          <View
+            {...advertisementPanResponder.panHandlers}
+            accessibilityHint="Swipe left or right to browse advertisements"
+            accessibilityLabel={`Advertisement ${activeAdvertisementIndex + 1} of ${ADVERTISEMENTS.length}`}
+            accessibilityRole="adjustable"
+            style={styles.advertisementCardWrap}
           >
-            <Text style={styles.advertisementText}>ADS HERE</Text>
-          </LinearGradient>
+            <Animated.View style={[styles.advertisementFadeLayer, { opacity: advertisementFade }]}>
+              <LinearGradient
+                colors={ADVERTISEMENTS[activeAdvertisementIndex].colors}
+                end={{ x: 1, y: 1 }}
+                style={styles.advertisementCard}
+                start={{ x: 0, y: 0 }}
+              >
+                <Text style={styles.advertisementText}>ADS HERE</Text>
+              </LinearGradient>
+            </Animated.View>
+          </View>
           <View style={styles.advertisementIndicators}>
             {ADVERTISEMENTS.map((advertisement, index) => (
               <View key={advertisement.id} style={[styles.advertisementIndicator, index === activeAdvertisementIndex && styles.advertisementIndicatorActive]} />
             ))}
           </View>
+        </View>
+
+        <View style={styles.expertsSection}>
+          <LinearGradient
+            colors={['rgba(112, 27, 48, 0.94)', 'rgba(157, 65, 88, 0.48)', 'rgba(248, 246, 243, 0)']}
+            end={{ x: 0, y: 1 }}
+            locations={[0, 0.42, 1]}
+            pointerEvents="none"
+            start={{ x: 0, y: 0 }}
+            style={styles.expertsBurgundyFade}
+          />
+          <View style={styles.expertsHeading}>
+            <View style={styles.expertsHeadingCopy}>
+              <Text style={styles.expertsTitle}>PLAN WITH EXPERTS</Text>
+              <Text style={styles.expertsSubtitle}>Connect with experienced event coordinators.</Text>
+            </View>
+            <Pressable
+              accessibilityLabel="See all event coordinators"
+              accessibilityRole="button"
+              onPress={onSeeAllVenues}
+              style={({ pressed }) => [
+                styles.sectionChevronButton,
+                styles.expertChevronButton,
+                pressed && styles.sectionChevronButtonPressed,
+              ]}
+            >
+              <MaterialIcons color="#57636C" name="chevron-right" size={23} />
+            </Pressable>
+          </View>
+          <ScrollView
+            contentContainerStyle={styles.expertCarousel}
+            decelerationRate="normal"
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={[styles.expertCarouselViewport, isWide && styles.carouselViewportWide]}
+          >
+            {featuredCoordinators.map((coordinator) => (
+              <Pressable
+                key={coordinator.id}
+                accessibilityLabel={`View coordinator ${coordinator.name}`}
+                accessibilityRole="button"
+                onPress={() => onSelectCoordinator?.(coordinator.id)}
+                style={({ pressed }) => [styles.expertCard, pressed && styles.expertCardPressed]}
+              >
+                <View style={styles.expertPortraitFrame}>
+                  {coordinator.imageUrl ? (
+                    <Image
+                      accessibilityLabel={coordinator.imageLabel}
+                      resizeMode="cover"
+                      source={{ uri: coordinator.imageUrl }}
+                      style={styles.expertPortrait}
+                    />
+                  ) : (
+                    <MaterialIcons color="#87929A" name="person" size={46} />
+                  )}
+                </View>
+                <Text numberOfLines={2} style={styles.expertName}>{coordinator.name}</Text>
+              </Pressable>
+            ))}
+            {Array.from({ length: expertPlaceholderCount }, (_, index) => (
+              <View key={`expert-placeholder-${index}`} accessible={false} style={styles.expertPlaceholderCard}>
+                <View style={[styles.expertPortraitFrame, styles.expertPortraitPlaceholder]} />
+                <View style={styles.expertNamePlaceholder} />
+              </View>
+            ))}
+          </ScrollView>
         </View>
       </ScrollView>
 
@@ -691,7 +907,15 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
         <View style={[styles.referenceStickyHeaderContent, isWide && styles.referenceStickyHeaderContentWide]}>
           <View style={styles.referenceHeader}>
             <View accessibilityLabel="MULTIVENT" style={styles.referenceLogoButton}>
-              <View style={styles.referenceHeaderWordmark}>
+              <Animated.View
+                style={[
+                  styles.referenceHeaderWordmark,
+                  {
+                    opacity: wordmarkOpacity,
+                    transform: [{ translateY: wordmarkTranslateY }],
+                  },
+                ]}
+              >
                 <View style={styles.referenceWordmarkDepth}>
                   <BrandIdentity
                     markSize={brandMarkSize}
@@ -701,17 +925,33 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
                   />
                   <BrandIdentity markSize={brandMarkSize} showName={false} variant="metallicWordmark" />
                 </View>
-              </View>
+              </Animated.View>
+              <Animated.View
+                pointerEvents={isHeaderPlanCtaInteractive ? 'auto' : 'none'}
+                style={[
+                  styles.headerPlanAction,
+                  { opacity: headerPlanOpacity, width: headerPlanWidth },
+                ]}
+              >
+                <LuminousPillButton
+                  accessibilityLabel="Plan your wedding"
+                  isFullWidth
+                  onPress={handleCreateEventPress}
+                  style={styles.headerPlanButton}
+                  tone="glass"
+                >
+                  <Text style={styles.headerPlanText}>Plan Wedding</Text>
+                </LuminousPillButton>
+              </Animated.View>
             </View>
             <Animated.View style={[styles.referenceSearch, { width: searchWidth }]}>
-              <BlurView intensity={28} pointerEvents="none" tint="light" style={styles.referenceSearchGlass} />
               <Pressable
                 accessibilityLabel={isSearchExpanded ? 'Focus search' : 'Open search'}
                 accessibilityRole="button"
                 onPress={handleSearchPress}
                 style={({ pressed }) => [styles.referenceHeaderControl, pressed && styles.referenceHeaderControlPressed]}
               >
-                <MaterialIcons color="#FFFFFF" name="search" size={22} />
+                <MaterialIcons color="#57636C" name="search" size={22} />
               </Pressable>
               {isSearchExpanded ? (
                 <View style={styles.referenceSearchInputWrap}>
@@ -722,7 +962,7 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
                     onBlur={handleSearchBlur}
                     onFocus={handleSearchFocus}
                     placeholder=""
-                    placeholderTextColor="#FFFFFF"
+                    placeholderTextColor="#87929A"
                     style={styles.referenceSearchInput}
                     value={searchQuery}
                   />
@@ -862,7 +1102,7 @@ const styles = StyleSheet.create({
   referenceHeader: {
     minHeight: 52,
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     justifyContent: 'space-between',
     paddingTop: 2,
     paddingBottom: 4,
@@ -893,14 +1133,18 @@ const styles = StyleSheet.create({
   },
   referenceHeaderControl: {
     alignItems: 'center',
+    backgroundColor: '#E9EDF0',
+    borderColor: 'rgba(255, 255, 255, 0.72)',
+    borderWidth: 1,
+    boxShadow: '3px 4px 7px rgba(78, 88, 96, 0.48)',
     justifyContent: 'center',
     width: 40,
     height: 40,
     borderRadius: 20,
   },
   referenceHeaderControlPressed: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    opacity: 0.82,
+    boxShadow: 'inset 3px 3px 6px rgba(143, 154, 163, 0.44), inset -3px -3px 6px rgba(255, 255, 255, 0.78)',
+    opacity: 1,
   },
   referenceHeaderWordmark: {
     alignItems: 'flex-start',
@@ -913,6 +1157,25 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     justifyContent: 'center',
     borderRadius: 21,
+    position: 'relative',
+  },
+  headerPlanAction: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    justifyContent: 'center',
+    zIndex: 1,
+  },
+  headerPlanButton: { minWidth: 0, height: 44, paddingBottom: 0 },
+  headerPlanText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '700',
+    textShadowColor: 'rgba(0, 0, 0, 0.7)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   referenceSearch: {
     alignItems: 'center',
@@ -920,12 +1183,12 @@ const styles = StyleSheet.create({
     height: 40,
     overflow: 'hidden',
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.16)',
-    borderColor: 'rgba(255, 255, 255, 0.38)',
+    backgroundColor: '#E9EDF0',
+    borderColor: 'rgba(255, 255, 255, 0.72)',
     borderWidth: 1,
+    boxShadow: '3px 4px 7px rgba(78, 88, 96, 0.48)',
     marginLeft: 6,
   },
-  referenceSearchGlass: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   referenceSearchInputWrap: {
     flex: 1,
     height: '100%',
@@ -933,7 +1196,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   referenceSearchInput: {
-    color: '#FFFFFF',
+    color: '#57636C',
     fontSize: 14,
     height: '100%',
     outlineWidth: 0,
@@ -945,7 +1208,7 @@ const styles = StyleSheet.create({
     left: 2,
     position: 'absolute',
   },
-  referenceSearchPromptCharacter: { color: '#FFFFFF', fontSize: 14 },
+  referenceSearchPromptCharacter: { color: '#87929A', fontSize: 14 },
   referenceWordmarkDepth: {
     position: 'relative',
   },
@@ -1093,22 +1356,26 @@ const styles = StyleSheet.create({
   },
   heroPlanText: {
     color: '#FFFFFF',
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: '600',
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '700',
     textShadowColor: 'rgba(0, 0, 0, 0.86)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },
-  heroPlanAction: {
-    alignItems: 'flex-end',
-  },
+  heroPlanButton: { minWidth: 170, height: 44, paddingBottom: 0 },
   referenceSection: {
     marginBottom: 18,
   },
   quickAccessSection: {
     marginTop: 16,
     marginBottom: 20,
+  },
+  quickAccessDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginBottom: 18,
+    marginTop: -4,
+    backgroundColor: 'rgba(123, 137, 145, 0.42)',
   },
   quickAccessRow: {
     flexDirection: 'row',
@@ -1221,18 +1488,13 @@ const styles = StyleSheet.create({
   bookingProgressLink: { color: '#8A2944', fontSize: 13, lineHeight: 18, fontWeight: '700', marginTop: 9 },
   emptyDraftState: {
     backgroundColor: '#F8F6F3',
-    borderColor: '#FFFFFF',
+    borderColor: 'rgba(255, 255, 255, 0.72)',
     borderRadius: 22,
     borderWidth: 1,
+    boxShadow: 'inset 5px 5px 9px rgba(183, 173, 169, 0.48), inset -5px -5px 9px rgba(255, 255, 255, 0.92)',
     overflow: 'hidden',
-    padding: 2,
   },
-  emptyDraftInset: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
-  emptyDraftInsetTop: { position: 'absolute', top: 0, right: 0, left: 0, height: 8 },
-  emptyDraftInsetLeft: { position: 'absolute', top: 0, bottom: 0, left: 0, width: 5 },
-  emptyDraftInsetBottom: { position: 'absolute', right: 0, bottom: 0, left: 0, height: 13 },
-  emptyDraftInsetRight: { position: 'absolute', top: 0, right: 0, bottom: 0, width: 13 },
-  emptyDraftContent: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, zIndex: 1 },
+  emptyDraftContent: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14 },
   emptyDraftCopy: { flex: 1 },
   emptyDraftTitle: { color: '#2B2323', fontSize: 13, fontWeight: '700', lineHeight: 18 },
   emptyDraftText: { color: '#7C7271', fontSize: 13, lineHeight: 18, marginTop: 2 },
@@ -1568,6 +1830,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingLeft: 4,
   },
+  sectionChevronButton: {
+    width: 40,
+    height: 40,
+    flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.72)',
+    borderRadius: 20,
+    backgroundColor: '#F8F6F3',
+    boxShadow: '4px 4px 9px rgba(183, 173, 169, 0.48), -4px -4px 9px rgba(255, 255, 255, 0.92)',
+  },
+  sectionChevronButtonPressed: {
+    boxShadow: 'inset 3px 3px 6px rgba(183, 173, 169, 0.46), inset -3px -3px 6px rgba(255, 255, 255, 0.9)',
+  },
+  expertChevronButton: {
+    boxShadow: '3px 4px 7px rgba(81, 28, 42, 0.5)',
+  },
   referenceCarousel: {
     gap: 12,
     paddingHorizontal: 12,
@@ -1578,8 +1858,17 @@ const styles = StyleSheet.create({
   carouselViewportWide: { marginHorizontal: -28 },
   featuredBusinessSection: { marginTop: 8 },
   featuredBusinessCarousel: { gap: 14, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 12 },
-  featuredBusinessCard: { height: 306, overflow: 'hidden', position: 'relative', borderRadius: 26, backgroundColor: '#6E3C48' },
-  featuredBusinessPlaceholder: { backgroundColor: '#F8F6F3', borderColor: '#FFFFFF', borderWidth: 1, shadowColor: '#929299', shadowOffset: { width: 4, height: 5 }, shadowOpacity: 0.24, shadowRadius: 10, elevation: 5 },
+  featuredBusinessCard: {
+    height: 306,
+    overflow: 'hidden',
+    position: 'relative',
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.72)',
+    backgroundColor: '#E9EDF0',
+    boxShadow: '8px 8px 17px rgba(157, 169, 178, 0.48), -8px -8px 17px rgba(255, 255, 255, 0.9)',
+  },
+  featuredBusinessPlaceholder: { backgroundColor: '#E9EDF0' },
   featuredBusinessImage: { width: '100%', height: '100%' },
   featuredBusinessShade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   featuredBusinessLogo: { position: 'absolute', top: 10, left: 10, width: 42, height: 42, overflow: 'hidden', borderRadius: 11, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.7)' },
@@ -1587,11 +1876,46 @@ const styles = StyleSheet.create({
   featuredBusinessName: { color: '#FFFFFF', fontFamily: 'Inter_900Black', fontSize: 18, lineHeight: 22 },
   featuredBusinessEmpty: { width: 220, minHeight: 140, justifyContent: 'center', borderRadius: 24, backgroundColor: '#F2E8E7', padding: 16 },
   advertisementSection: { marginTop: 12, marginBottom: 4 },
-  advertisementCard: { height: 168, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderRadius: 28 },
+  advertisementCardWrap: {
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.72)',
+    backgroundColor: '#E9EDF0',
+    boxShadow: '8px 8px 17px rgba(157, 169, 178, 0.48), -8px -8px 17px rgba(255, 255, 255, 0.9)',
+  },
+  advertisementFadeLayer: { overflow: 'hidden', borderRadius: 27 },
+  advertisementCard: { height: 168, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderRadius: 27 },
   advertisementText: { color: '#FFFFFF', fontFamily: 'Inter_900Black', fontSize: 22, letterSpacing: 1.4 },
   advertisementIndicators: { flexDirection: 'row', alignSelf: 'center', gap: 6, marginTop: 10 },
   advertisementIndicator: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#D8CECC' },
   advertisementIndicatorActive: { width: 20, backgroundColor: '#701B30' },
+  expertsSection: { position: 'relative', marginTop: 24, marginBottom: 12, paddingTop: 24 },
+  expertsBurgundyFade: { position: 'absolute', top: 0, right: -14, left: -14, height: 230 },
+  expertsHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 4 },
+  expertsHeadingCopy: { flex: 1, minWidth: 0 },
+  expertsTitle: { color: '#FFFFFF', fontFamily: 'Inter_900Black', fontSize: 17, fontWeight: '900', letterSpacing: 0.1, lineHeight: 22 },
+  expertsSubtitle: { color: 'rgba(255, 247, 249, 0.86)', fontSize: 13, lineHeight: 18, marginTop: 3 },
+  expertCarouselViewport: { marginTop: 18, marginHorizontal: -14 },
+  expertCarousel: { gap: 16, paddingHorizontal: 14, paddingTop: 13, paddingBottom: 16 },
+  expertCard: { width: 106, alignItems: 'center' },
+  expertCardPressed: { opacity: 0.82, transform: [{ scale: 0.97 }] },
+  expertPortraitFrame: {
+    width: 96,
+    height: 96,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.72)',
+    borderRadius: 16,
+    backgroundColor: '#E9EDF0',
+    boxShadow: '5px 5px 10px rgba(126, 112, 117, 0.44), -5px -5px 10px rgba(255, 255, 255, 0.78)',
+  },
+  expertPortrait: { width: '100%', height: '100%' },
+  expertName: { alignSelf: 'stretch', color: '#3F2E33', fontSize: 13, fontWeight: '700', lineHeight: 18, marginTop: 9, textAlign: 'center' },
+  expertPlaceholderCard: { width: 106, alignItems: 'center' },
+  expertPortraitPlaceholder: { backgroundColor: 'rgba(233, 237, 240, 0.72)' },
+  expertNamePlaceholder: { width: 64, height: 12, borderRadius: 6, backgroundColor: 'rgba(248, 246, 243, 0.7)', marginTop: 12 },
   referenceVenueCard: {
     position: 'relative',
     overflow: 'hidden',

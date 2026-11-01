@@ -1,5 +1,5 @@
 import { Text } from '../components/AppText'
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Animated,
   Easing,
@@ -11,12 +11,15 @@ import {
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { BlurView } from 'expo-blur'
+import { BlurTargetView, BlurView } from 'expo-blur'
+import { LuminousPillButton } from '../components/LuminousPillButton'
 import { colors, radius, spacing } from '../theme/tokens'
 import { typography } from '../theme/typography'
 import { LoginScreen } from './01.1-Login'
+import { ForgotPasswordScreen } from './01.1.1-ForgotPassword'
 import { SignupScreen } from './02.1-ClientSignup'
 import { MerchantSignupScreen } from './02.2-MerchantSignup'
+import { PolicyDocumentOverlay } from '../components/PolicyDocumentOverlay'
 
 export type UserRole = 'client' | 'provider'
 
@@ -29,7 +32,9 @@ interface RoleSelectionScreenProps {
     needsVerification: boolean,
     accountRole: 'service_provider'
   ) => void
-  onForgotPassword?: () => void
+  onForgotPassword?: (recoveryContact: string) => void
+  openLoginOnMount?: boolean
+  onLoginSheetOpened?: () => void
   entranceDelay?: number
 }
 
@@ -48,17 +53,30 @@ const roles = [
   },
 ]
 
+const neo = {
+  surface: '#E9EDF0',
+  edge: 'rgba(255, 255, 255, 0.62)',
+  darkShadow: 'rgba(160, 171, 180, 0.54)',
+  lightShadow: 'rgba(255, 255, 255, 0.96)',
+}
+
 export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
   onClientGoogleSignUp,
   onClientSignUp,
   onLogIn,
   onMerchantSignUp,
   onForgotPassword,
+  openLoginOnMount = false,
+  onLoginSheetOpened,
   entranceDelay = 0,
 }) => {
   const { height, width } = useWindowDimensions()
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null)
   const [isLoginSheetVisible, setIsLoginSheetVisible] = useState(false)
+  const [isForgotPasswordVisible, setIsForgotPasswordVisible] = useState(false)
+  const [authPolicy, setAuthPolicy] = useState<{ content: string; title: string } | null>(null)
+  const authPolicyBlurTargetRef = useRef<React.ComponentRef<typeof View>>(null)
+  const recoveryBlurTargetRef = useRef<React.ComponentRef<typeof View>>(null)
   const [activeAuthSheet, setActiveAuthSheet] = useState<
     'login' | 'clientSignup' | 'merchantSignup'
   >('login')
@@ -73,6 +91,7 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
   const actionsEntranceAnimation = useRef(new Animated.Value(1)).current
   const loginSheetProgress = useRef(new Animated.Value(0)).current
   const loginSheetState = useRef<'closed' | 'opening' | 'open' | 'closing'>('closed')
+  const hasOpenedInitialLoginSheet = useRef(false)
   // Browser builds use the JS driver for this slide-up transition. Native
   // apps retain the native driver while web keeps the same animation without
   // relying on the native driver in Mobile Safari.
@@ -82,7 +101,9 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
   const authSheetTop =
     activeAuthSheet === 'login'
       ? Math.min(250, height * 0.32)
-      : Math.min(360, Math.max(220, height * 0.42))
+      : activeAuthSheet === 'clientSignup' || activeAuthSheet === 'merchantSignup'
+        ? Math.min(120, Math.max(72, height * 0.1))
+        : Math.min(360, Math.max(220, height * 0.42))
 
   useEffect(() => {
     roles.forEach((role) => {
@@ -119,7 +140,7 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
     openSignupSheet(selectedRole)
   }
 
-  const openAuthSheet = (sheet: 'login' | 'clientSignup' | 'merchantSignup') => {
+  const openAuthSheet = useCallback((sheet: 'login' | 'clientSignup' | 'merchantSignup') => {
     if (loginSheetState.current !== 'closed') return
 
     setActiveAuthSheet(sheet)
@@ -136,9 +157,9 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
         if (finished) loginSheetState.current = 'open'
       })
     })
-  }
+  }, [loginSheetProgress, useSheetNativeDriver])
 
-  const openLoginSheet = () => {
+  const openLoginSheet = useCallback(() => {
     if (!onLogIn) return
     if (loginSheetState.current !== 'closed') {
       setActiveAuthSheet('login')
@@ -146,7 +167,15 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
     }
 
     openAuthSheet('login')
-  }
+  }, [onLogIn, openAuthSheet])
+
+  useEffect(() => {
+    if (!openLoginOnMount || hasOpenedInitialLoginSheet.current || !onLogIn) return
+
+    hasOpenedInitialLoginSheet.current = true
+    openLoginSheet()
+    onLoginSheetOpened?.()
+  }, [onLogIn, onLoginSheetOpened, openLoginOnMount, openLoginSheet])
 
   const openSignupSheet = (role: UserRole) => {
     openAuthSheet(role === 'client' ? 'clientSignup' : 'merchantSignup')
@@ -197,14 +226,17 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
   }
 
   return (
-    <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safeArea}>
+    <View style={styles.safeArea}>
+      <BlurTargetView ref={authPolicyBlurTargetRef} style={styles.safeArea}>
+      <BlurTargetView ref={recoveryBlurTargetRef} style={styles.safeArea}>
+      <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safeArea}>
       <View style={styles.screenContent}>
         <View style={[styles.container, isCompact && styles.containerCompact]}>
           <View style={[styles.header, isCompact && styles.headerCompact]}>
             <View style={[styles.brandIdentitySpacer, { height: isCompact ? 40 : 50 }]} />
             <Text style={styles.title}>HOW DO YOU WANT TO USE MULTIVENT?</Text>
             <Text style={styles.subtitle}>
-              Choose the experience that fits you best.{'\n'}You can switch later from your profile.
+              Choose the experience that fits you best.
             </Text>
           </View>
 
@@ -288,27 +320,16 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
               },
             ]}
           >
-            <Pressable
+            <LuminousPillButton
               accessibilityRole="button"
               accessibilityLabel="Continue with selected role"
               accessibilityState={{ disabled: !selectedRole }}
               disabled={!selectedRole}
               onPress={handleContinue}
-              style={({ pressed }) => [
-                styles.continueButton,
-                !selectedRole && styles.continueButtonDisabled,
-                pressed && selectedRole && styles.continueButtonPressed,
-              ]}
+              style={styles.continueButton}
             >
-              <Text
-                style={[
-                  styles.continueButtonText,
-                  !selectedRole && styles.continueButtonTextDisabled,
-                ]}
-              >
-                CONTINUE
-              </Text>
-            </Pressable>
+              <Text style={styles.continueButtonText}>CONTINUE</Text>
+            </LuminousPillButton>
 
             <View style={styles.footer}>
               <Text style={styles.footerText}>Already have an account? </Text>
@@ -325,6 +346,8 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
           </Animated.View>
         </View>
       </View>
+      </SafeAreaView>
+      </BlurTargetView>
 
       {isLoginSheetVisible && (
         <View pointerEvents="box-none" style={styles.loginOverlay}>
@@ -340,6 +363,7 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
             ]}
           >
             <BlurView
+              blurTarget={recoveryBlurTargetRef}
               blurMethod="dimezisBlurViewSdk31Plus"
               blurReductionFactor={1}
               intensity={90}
@@ -377,7 +401,7 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
               <LoginScreen
                 onBack={closeLoginSheet}
                 onCreateAccount={closeLoginSheet}
-                onForgotPassword={onForgotPassword ?? closeLoginSheet}
+                onForgotPassword={() => setIsForgotPasswordVisible(true)}
                 onLogIn={onLogIn ?? closeLoginSheet}
                 onSheetDrag={handleLoginSheetDrag}
                 onSheetDragEnd={handleLoginSheetDragEnd}
@@ -389,6 +413,7 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
                 onBack={closeLoginSheet}
                 onGoogleSignUp={onClientGoogleSignUp}
                 onLogIn={openLoginSheet}
+                onOpenPolicyOverlay={setAuthPolicy}
                 onSheetDrag={handleLoginSheetDrag}
                 onSheetDragEnd={handleLoginSheetDragEnd}
                 onSheetDragStart={handleLoginSheetDragStart}
@@ -399,6 +424,7 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
               <MerchantSignupScreen
                 onBack={closeLoginSheet}
                 onLogIn={openLoginSheet}
+                onOpenPolicyOverlay={setAuthPolicy}
                 onSheetDrag={handleLoginSheetDrag}
                 onSheetDragEnd={handleLoginSheetDragEnd}
                 onSheetDragStart={handleLoginSheetDragStart}
@@ -409,15 +435,34 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
           </Animated.View>
         </View>
       )}
+      </BlurTargetView>
 
-    </SafeAreaView>
+      {isForgotPasswordVisible && (
+        <ForgotPasswordScreen
+          blurTarget={recoveryBlurTargetRef}
+          onBackToLogin={() => setIsForgotPasswordVisible(false)}
+          onContinueToNewPassword={(contact) => {
+            setIsForgotPasswordVisible(false)
+            onForgotPassword?.(contact)
+          }}
+        />
+      )}
+      {authPolicy && (
+        <PolicyDocumentOverlay
+          blurTarget={authPolicyBlurTargetRef}
+          content={authPolicy.content}
+          onClose={() => setAuthPolicy(null)}
+          title={authPolicy.title}
+        />
+      )}
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: neo.surface,
   },
   screenContent: {
     flex: 1,
@@ -477,17 +522,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   roleCard: {
-    backgroundColor: colors.backgroundSecondary,
-    borderColor: colors.grey200,
+    backgroundColor: neo.surface,
+    borderColor: neo.edge,
     borderRadius: radius.large,
-    borderWidth: 2,
+    borderWidth: 1,
     overflow: 'hidden',
     position: 'relative',
-    shadowColor: colors.primaryDark,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 14,
-    elevation: 4,
+    boxShadow: `inset 5px 5px 9px ${neo.darkShadow}, inset -5px -5px 9px ${neo.lightShadow}`,
   },
   roleCardWide: {
     flex: 1,
@@ -496,19 +537,14 @@ const styles = StyleSheet.create({
     minHeight: 120,
   },
   roleCardSelected: {
-    backgroundColor: '#FFF3F4',
-    borderColor: colors.primaryDark,
-    shadowOpacity: 0.16,
-    elevation: 5,
+    transform: [{ translateY: -2 }],
+    boxShadow: `10px 10px 20px ${neo.darkShadow}, -10px -10px 20px ${neo.lightShadow}`,
   },
   roleCardHovered: {
-    shadowOffset: { width: 0, height: 11 },
-    shadowOpacity: 0.18,
-    shadowRadius: 18,
-    elevation: 7,
+    boxShadow: `10px 10px 20px ${neo.darkShadow}, -10px -10px 20px ${neo.lightShadow}`,
   },
   roleCardPressed: {
-    opacity: 0.88,
+    opacity: 0.96,
     transform: [{ scale: 0.99 }],
   },
   roleCardContent: {
@@ -570,34 +606,13 @@ const styles = StyleSheet.create({
   continueButton: {
     width: '100%',
     maxWidth: 360,
-    minHeight: 44,
     alignSelf: 'center',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primaryDark,
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.xl,
-    shadowColor: colors.primaryDark,
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.14,
-    shadowRadius: 10,
-    elevation: 3,
-  },
-  continueButtonDisabled: {
-    backgroundColor: '#E8D9DC',
-  },
-  continueButtonPressed: {
-    backgroundColor: '#541F2A',
-    transform: [{ scale: 0.99 }],
   },
   continueButtonText: {
     color: colors.textInverse,
     fontSize: typography.body,
     fontWeight: '700',
     letterSpacing: 1.2,
-  },
-  continueButtonTextDisabled: {
-    color: '#9E7C83',
   },
   footer: {
     flexDirection: 'row',

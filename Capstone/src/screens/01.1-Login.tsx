@@ -12,8 +12,8 @@ import {
   View,
 } from 'react-native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
-import { Button } from '../components/Button'
 import { BrandIdentity } from '../components/BrandIdentity'
+import { LuminousPillButton } from '../components/LuminousPillButton'
 import { TextInput, type AppTextInputInstance } from '../components/TextInput'
 import { signInWithEmail, signInWithOAuth } from '../lib/auth'
 import { colors, radius, spacing } from '../theme/tokens'
@@ -31,6 +31,13 @@ interface LoginScreenProps {
 }
 
 type ScrollViewInstance = React.ComponentRef<typeof ScrollView>
+
+const neo = {
+  surface: '#E9EDF0',
+  edge: 'rgba(255, 255, 255, 0.62)',
+  darkShadow: 'rgba(160, 171, 180, 0.54)',
+  lightShadow: 'rgba(255, 255, 255, 0.96)',
+}
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({
   onBack,
@@ -323,17 +330,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               </Text>
             )}
 
-            <Button
+            <LuminousPillButton
               accessibilityLabel="Log in"
               disabled={isLoading}
               isFullWidth
               isLoading={isLoading}
               onPress={handleLogIn}
-              size="lg"
               style={styles.loginButton}
             >
               Login
-            </Button>
+            </LuminousPillButton>
 
             <View style={styles.dividerRow}>
               <View style={styles.dividerLine} />
@@ -341,20 +347,18 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               <View style={styles.dividerLine} />
             </View>
 
-            <Button
+            <LuminousPillButton
               accessibilityLabel="Continue with Google"
               disabled={isLoading}
               isFullWidth
               isLoading={isOAuthLoading}
               onPress={handleGoogleLogIn}
-              size="lg"
               style={styles.oauthButton}
-              textStyle={styles.oauthButtonText}
-              variant="secondary"
+              tone="neutral"
             >
               <MaterialCommunityIcons color="#4285F4" name="google" size={18} />
               <Text style={styles.googleLabel}>Google</Text>
-            </Button>
+            </LuminousPillButton>
           </View>
         </View>
       </ScrollView>
@@ -369,7 +373,7 @@ const styles = StyleSheet.create({
   },
   screen: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: neo.surface,
   },
   sheetScreen: {
     overflow: 'hidden',
@@ -380,7 +384,7 @@ const styles = StyleSheet.create({
     minHeight: '100%',
     alignSelf: 'center',
     paddingBottom: spacing.xl,
-    backgroundColor: colors.background,
+    backgroundColor: neo.surface,
   },
   sheetContent: {
     flexGrow: 1,
@@ -472,7 +476,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing['2xl'],
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
-    backgroundColor: colors.background,
+    backgroundColor: neo.surface,
   },
   bottomSheet: {
     flex: 1,
@@ -509,12 +513,14 @@ const styles = StyleSheet.create({
   },
   input: {
     height: 52,
-    borderWidth: 0,
+    borderWidth: 1,
+    borderColor: neo.edge,
     borderRadius: radius.xl,
-    backgroundColor: '#F1F2F4',
+    backgroundColor: neo.surface,
     paddingHorizontal: spacing.xl,
     paddingLeft: spacing['4xl'],
     fontSize: 15,
+    boxShadow: `inset 5px 5px 9px ${neo.darkShadow}, inset -5px -5px 9px ${neo.lightShadow}`,
   },
   inputWithIcon: {
     paddingLeft: spacing['4xl'],
@@ -573,14 +579,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   loginButton: {
-    borderRadius: radius.pill,
-    minHeight: 48,
-    backgroundColor: '#7A1D35',
-    shadowColor: '#7A1D35',
-    shadowOffset: { width: 0, height: 7 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 4,
+    marginTop: spacing.xs,
   },
   dividerRow: {
     flexDirection: 'row',
@@ -598,17 +597,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
   oauthButton: {
-    borderRadius: radius.pill,
-    minHeight: 48,
-    backgroundColor: colors.background,
-    paddingVertical: spacing.sm,
-  },
-  oauthButtonText: {
-    color: colors.primaryDark,
-    fontWeight: '700',
+    marginTop: spacing.xs,
   },
   googleLabel: {
-    color: colors.textPrimary,
+    color: '#57636C',
     fontSize: 14,
     fontWeight: '600',
     marginLeft: spacing.sm,

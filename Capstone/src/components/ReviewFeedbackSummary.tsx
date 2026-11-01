@@ -2,6 +2,7 @@ import React from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
 
 import type { ReviewSentiment, ServiceReviewInsights } from '../lib/reviews'
+import { typography } from '../theme/typography'
 import { Text } from './AppText'
 
 interface ReviewFeedbackSummaryProps {
@@ -185,11 +186,11 @@ const styles = StyleSheet.create({
     backgroundColor: palette.surfaceLowest,
     padding: 28,
   },
-  emptyTitle: { color: palette.text, fontSize: 18, lineHeight: 25, fontWeight: '700' },
+  emptyTitle: { color: palette.text, fontSize: typography.h3, lineHeight: 25, fontWeight: '700' },
   emptyCopy: {
     maxWidth: 480,
     color: palette.secondary,
-    fontSize: 14,
+    fontSize: typography.body,
     lineHeight: 21,
     textAlign: 'center',
     marginTop: 6,
@@ -208,13 +209,13 @@ const styles = StyleSheet.create({
   },
   bigRating: { color: palette.primary, fontSize: 56, lineHeight: 58, fontWeight: '700', marginBottom: 8 },
   summaryStars: { color: palette.gold, fontSize: 22, lineHeight: 25, letterSpacing: 1, marginBottom: 8 },
-  reviewCount: { color: palette.secondary, fontSize: 11, lineHeight: 15, fontWeight: '700', letterSpacing: 1.1 },
+  reviewCount: { color: palette.secondary, fontSize: typography.caption, lineHeight: 17, fontWeight: '700', letterSpacing: 1.1 },
   distributionList: { flex: 1, justifyContent: 'center', gap: 12 },
   distributionRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   distributionLabel: { width: 14, color: palette.secondary, fontSize: 15, lineHeight: 20, fontWeight: '600' },
   distributionTrack: { height: 12, flex: 1, overflow: 'hidden', borderRadius: 6, backgroundColor: palette.surfaceHigh },
   distributionFill: { height: '100%', borderRadius: 6, backgroundColor: palette.primary },
-  distributionCount: { width: 24, color: palette.secondary, fontSize: 12, lineHeight: 17, textAlign: 'right' },
+  distributionCount: { width: 24, color: palette.secondary, fontSize: typography.caption, lineHeight: 17, textAlign: 'right' },
   sentimentGrid: { gap: 14 },
   sentimentCard: { borderWidth: 1, borderRadius: 16, padding: 20 },
   positiveCard: { borderColor: '#B8D9C4', backgroundColor: '#F2FAF5' },
@@ -222,10 +223,10 @@ const styles = StyleSheet.create({
   sentimentCardPressed: { opacity: 0.8, transform: [{ scale: 0.99 }] },
   sentimentHeadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sentimentIcon: { width: 22, color: palette.primary, fontSize: 18, lineHeight: 22, fontWeight: '800', textAlign: 'center' },
-  sentimentHeading: { flex: 1, color: palette.primary, fontSize: 12, lineHeight: 17, fontWeight: '800', letterSpacing: 1 },
-  sentimentCount: { minWidth: 28, color: palette.primary, fontSize: 13, lineHeight: 19, fontWeight: '800', textAlign: 'right' },
-  sentimentSummary: { color: palette.text, fontSize: 15, lineHeight: 23, marginTop: 11 },
-  sentimentAction: { color: palette.primary, fontSize: 10, lineHeight: 15, fontWeight: '800', letterSpacing: 0.8, marginTop: 13 },
+  sentimentHeading: { flex: 1, color: palette.primary, fontSize: typography.caption, lineHeight: 17, fontWeight: '800', letterSpacing: 1 },
+  sentimentCount: { minWidth: 28, color: palette.primary, fontSize: typography.body, lineHeight: 20, fontWeight: '800', textAlign: 'right' },
+  sentimentSummary: { color: palette.text, fontSize: typography.body, lineHeight: 21, marginTop: 11 },
+  sentimentAction: { color: palette.primary, fontSize: typography.caption, lineHeight: 17, fontWeight: '800', letterSpacing: 0.5, marginTop: 13 },
   sentimentReviewList: {
     borderRightWidth: 1,
     borderBottomWidth: 1,
@@ -238,10 +239,10 @@ const styles = StyleSheet.create({
   },
   sentimentReviewItem: { borderBottomWidth: 1, borderBottomColor: palette.surfaceVariant, paddingVertical: 18 },
   sentimentReviewHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 10 },
-  reviewerName: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '700' },
-  reviewerMeta: { color: palette.secondary, fontSize: 12, lineHeight: 18, marginTop: 2 },
+  reviewerName: { color: palette.text, fontSize: typography.body, lineHeight: 20, fontWeight: '700' },
+  reviewerMeta: { color: palette.secondary, fontSize: typography.caption, lineHeight: 18, marginTop: 2 },
   reviewStars: { color: palette.gold, fontSize: 16, lineHeight: 19, letterSpacing: 0.5 },
-  reviewCopy: { color: palette.text, fontSize: 15, lineHeight: 23 },
-  analysisCaption: { color: palette.secondary, fontSize: 9, lineHeight: 14, fontWeight: '700', letterSpacing: 0.8, textAlign: 'center', marginTop: 16 },
-  pendingAnalysisCopy: { color: palette.secondary, fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 7 },
+  reviewCopy: { color: palette.text, fontSize: typography.body, lineHeight: 21 },
+  analysisCaption: { color: palette.secondary, fontSize: typography.caption, lineHeight: 17, fontWeight: '700', letterSpacing: 0.5, textAlign: 'center', marginTop: 16 },
+  pendingAnalysisCopy: { color: palette.secondary, fontSize: typography.caption, lineHeight: 18, textAlign: 'center', marginTop: 7 },
 })

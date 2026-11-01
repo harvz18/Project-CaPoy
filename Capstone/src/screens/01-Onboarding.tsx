@@ -13,6 +13,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native'
+import { LuminousPillButton } from '../components/LuminousPillButton'
 import { colors, radius, spacing } from '../theme/tokens'
 import { typography as typographyScale } from '../theme/typography'
 
@@ -200,19 +201,18 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }
             </Pressable>
           )}
 
-          <Pressable
+          <LuminousPillButton
             accessibilityRole="button"
             onPress={handleNext}
-            style={({ pressed }) => [
+            style={[
               styles.nextButton,
               currentSlide === 0 && styles.getStartedButton,
-              pressed && styles.nextButtonPressed,
             ]}
           >
             <Text style={styles.nextText}>
               {currentSlide === 0 ? 'Get Started' : isLastSlide ? 'Continue' : 'NEXT'}
             </Text>
-          </Pressable>
+          </LuminousPillButton>
         </View>
       </View>
     </View>
@@ -326,21 +326,10 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   nextButton: {
-    minWidth: 132,
-    minHeight: 44,
-    paddingHorizontal: spacing.xl,
-    borderRadius: radius.pill,
-    backgroundColor: '#6B1E2E',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: spacing.sm,
+    width: 132,
   },
   getStartedButton: {
-    minWidth: 220,
-  },
-  nextButtonPressed: {
-    backgroundColor: '#4E061A',
+    width: 220,
   },
   nextText: {
     color: colors.textInverse,

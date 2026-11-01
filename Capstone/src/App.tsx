@@ -4,6 +4,7 @@ import { ActivityIndicator, Alert, Animated, AppState, BackHandler, Easing, Imag
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
+import { BlurTargetView } from 'expo-blur'
 import * as WebBrowser from 'expo-web-browser'
 import * as ImagePicker from 'expo-image-picker'
 import { useFonts } from 'expo-font'
@@ -233,6 +234,7 @@ import {
 import { BudgetTrackerScreen } from './screens/04.1-BudgetTracker'
 import { CategoryBrowseScreen } from './screens/06-CategoryBrowse'
 import { CoordinatorDetailsScreen } from './screens/06.1-CoordinatorDetails'
+import { CoordinatorProfileOverlay } from './components/CoordinatorProfileOverlay'
 import { ServiceDetailsScreen } from './screens/08-ServiceDetails'
 import {
   emptyCategoryDetails,
@@ -732,6 +734,8 @@ export const App: React.FC = () => {
   const previousScreenRef = React.useRef<AppScreen>('onboarding')
   const navigationLockedRef = React.useRef(false)
   const screenTransitionAnimation = React.useRef<Animated.CompositeAnimation | null>(null)
+  const forgotPasswordBlurTargetRef = React.useRef<React.ComponentRef<typeof View>>(null)
+  const expertCoordinatorBlurTargetRef = React.useRef<React.ComponentRef<typeof View>>(null)
   const clientPlanningResumeRef = React.useRef<Partial<ClientPlanningResumeState>>({})
   const clientPlanningResumeWriteRef = React.useRef(Promise.resolve())
   const eventAutosaveChainRef = React.useRef(Promise.resolve())
@@ -854,6 +858,8 @@ export const App: React.FC = () => {
     React.useState<'client' | 'coordinator' | 'merchant'>('client')
   const [loginReturnScreen, setLoginReturnScreen] =
     React.useState<LoginReturnScreen>('roleSelection')
+  const [openRoleLoginAfterRecovery, setOpenRoleLoginAfterRecovery] = React.useState(false)
+  const [isForgotPasswordOverlayVisible, setIsForgotPasswordOverlayVisible] = React.useState(false)
   const [verificationEmail, setVerificationEmail] = React.useState('')
   const [verificationReturnScreen, setVerificationReturnScreen] =
     React.useState<VerificationReturnScreen>('clientSignup')
@@ -928,6 +934,7 @@ export const App: React.FC = () => {
     serviceId?: string
   }>()
   const [currentServiceId, setCurrentServiceId] = React.useState('')
+  const [expertCoordinatorProfile, setExpertCoordinatorProfile] = React.useState<CatalogService>()
   const [directCateringFallbackServiceId, setDirectCateringFallbackServiceId] = React.useState('')
   const [serviceReviewInsights, setServiceReviewInsights] =
     React.useState<ServiceReviewInsights>()
@@ -4714,6 +4721,10 @@ export const App: React.FC = () => {
     () => rankHomeRecommendations(catalogServices),
     [catalogServices]
   )
+  const homeCoordinators = React.useMemo(
+    () => catalogServices.filter((service) => service.kind === 'coordinator' && service.isMock !== true),
+    [catalogServices]
+  )
   const unreadNotifications = React.useMemo(
     () => notifications.filter(isUnreadUpdate),
     [notifications]
@@ -4748,51 +4759,60 @@ export const App: React.FC = () => {
   )
 
   const renderClientHome = () => (
-    <ClientHomeScreen
-      draftEvents={clientEventDrafts}
-      bookingProgressEvents={clientBookingProgress}
-      favoritePendingServiceIds={favoritePendingServiceIds}
-      favoriteServiceIds={favoriteServiceIds}
-      hasUnreadBookingUpdates={hasUnreadBookingUpdates}
-      isRefreshing={isClientHomeRefreshing}
-      recommendations={homeRecommendations}
-      selectedServiceCount={selectedServices.length}
-      onOpenDraft={(draftId) => void resumeClientDraft(draftId)}
-      onOpenFavorites={() => {
-        setExploreFavoritesOnly(true)
-        setServiceBrowseMode('explore')
-        setScreen('categoryBrowse')
-      }}
-      onOpenBookingProgress={(booking) => {
-        setSelectedBooking(booking)
-        setBookingPaymentQuote(undefined)
-        setPaymentSettlementContext(undefined)
-        setScreen('bookingDetails')
-        if (booking.eventId) void loadBookingPaymentQuote(booking.eventId)
-      }}
-      onStartNewEvent={startNewClientEvent}
-      onOpenRefunds={() => {
-        setClientRefundsReturnScreen('clientHome')
-        setScreen('clientRefunds')
-      }}
-      onRefresh={refreshClientHome}
-      onOpenSavedPlans={() => setScreen('clientPlans')}
-      onScrollDirectionChange={(direction) => {
-        handleClientNavigationScrollDirection(direction)
-      }}
-      onSeeAllVenues={() => openClientTab('explore')}
-      onSelectRecommendation={(serviceId) => {
-        const recommendedService = catalogServices.find((service) => service.id === serviceId)
-        if (recommendedService?.id) {
-          setCurrentServiceId(recommendedService.id)
-          setScreen(recommendedService.kind === 'coordinator' ? 'coordinatorDetails' : 'serviceDetails')
-        } else {
-          openClientTab('explore')
-        }
-      }}
-      onSelectTab={openClientTab}
-      onToggleFavorite={(serviceId) => void handleToggleFavorite(serviceId)}
-    />
+    <>
+      <BlurTargetView ref={expertCoordinatorBlurTargetRef} style={styles.screenTransition}>
+        <ClientHomeScreen
+          draftEvents={clientEventDrafts}
+          bookingProgressEvents={clientBookingProgress}
+          favoritePendingServiceIds={favoritePendingServiceIds}
+          favoriteServiceIds={favoriteServiceIds}
+          hasUnreadBookingUpdates={hasUnreadBookingUpdates}
+          isRefreshing={isClientHomeRefreshing}
+          coordinators={homeCoordinators}
+          recommendations={homeRecommendations}
+          selectedServiceCount={selectedServices.length}
+          onOpenDraft={(draftId) => void resumeClientDraft(draftId)}
+          onOpenFavorites={() => {
+            setExploreFavoritesOnly(true)
+            setServiceBrowseMode('explore')
+            setScreen('categoryBrowse')
+          }}
+          onOpenBookingProgress={(booking) => {
+            setSelectedBooking(booking)
+            setBookingPaymentQuote(undefined)
+            setPaymentSettlementContext(undefined)
+            setScreen('bookingDetails')
+            if (booking.eventId) void loadBookingPaymentQuote(booking.eventId)
+          }}
+          onStartNewEvent={startNewClientEvent}
+          onOpenRefunds={() => {
+            setClientRefundsReturnScreen('clientHome')
+            setScreen('clientRefunds')
+          }}
+          onRefresh={refreshClientHome}
+          onOpenSavedPlans={() => setScreen('clientPlans')}
+          onScrollDirectionChange={(direction) => {
+            handleClientNavigationScrollDirection(direction)
+          }}
+          onSeeAllVenues={() => openClientTab('explore')}
+          onSelectRecommendation={(serviceId) => {
+            const recommendedService = catalogServices.find((service) => service.id === serviceId)
+            if (recommendedService?.id) {
+              setCurrentServiceId(recommendedService.id)
+              setScreen(recommendedService.kind === 'coordinator' ? 'coordinatorDetails' : 'serviceDetails')
+            } else {
+              openClientTab('explore')
+            }
+          }}
+          onSelectCoordinator={(serviceId) => {
+            const coordinator = homeCoordinators.find((service) => service.id === serviceId)
+            if (coordinator) setExpertCoordinatorProfile(coordinator)
+          }}
+          onSelectTab={openClientTab}
+          onToggleFavorite={(serviceId) => void handleToggleFavorite(serviceId)}
+        />
+      </BlurTargetView>
+    </>
   )
 
   const renderClientPlans = () => (
@@ -4935,22 +4955,48 @@ export const App: React.FC = () => {
         return <OnboardingScreen onComplete={openRoleSelectionFromOnboarding} />
       case 'login':
         return (
-          <LoginScreen
-            onBack={() => setScreen(loginReturnScreen)}
-            onCreateAccount={() => setScreen('roleSelection')}
-            onForgotPassword={() => setScreen('forgotPassword')}
-            onLogIn={handleAuthenticatedUser}
-          />
+          <>
+            <BlurTargetView ref={forgotPasswordBlurTargetRef} style={styles.screenTransition}>
+              <LoginScreen
+                onBack={() => setScreen(loginReturnScreen)}
+                onCreateAccount={() => setScreen('roleSelection')}
+                onForgotPassword={() => setIsForgotPasswordOverlayVisible(true)}
+                onLogIn={handleAuthenticatedUser}
+              />
+            </BlurTargetView>
+            {isForgotPasswordOverlayVisible && (
+              <ForgotPasswordScreen
+                blurTarget={forgotPasswordBlurTargetRef}
+                onBackToLogin={() => setIsForgotPasswordOverlayVisible(false)}
+                onContinueToNewPassword={(contact) => {
+                  setIsForgotPasswordOverlayVisible(false)
+                  setRecoveryContact(contact)
+                  setScreen('newPassword')
+                }}
+              />
+            )}
+          </>
         )
       case 'forgotPassword':
         return (
-          <ForgotPasswordScreen
-            onBackToLogin={() => setScreen('login')}
-            onContinueToNewPassword={(contact) => {
-              setRecoveryContact(contact)
-              setScreen('newPassword')
-            }}
-          />
+          <>
+            <BlurTargetView ref={forgotPasswordBlurTargetRef} style={styles.screenTransition}>
+              <LoginScreen
+                onBack={() => setScreen(loginReturnScreen)}
+                onCreateAccount={() => setScreen('roleSelection')}
+                onForgotPassword={() => undefined}
+                onLogIn={handleAuthenticatedUser}
+              />
+            </BlurTargetView>
+            <ForgotPasswordScreen
+              blurTarget={forgotPasswordBlurTargetRef}
+              onBackToLogin={() => setScreen('login')}
+              onContinueToNewPassword={(contact) => {
+                setRecoveryContact(contact)
+                setScreen('newPassword')
+              }}
+            />
+          </>
         )
       case 'newPassword':
         return (
@@ -4970,6 +5016,8 @@ export const App: React.FC = () => {
           >
             <RoleSelectionScreen
               entranceDelay={100}
+              openLoginOnMount={openRoleLoginAfterRecovery}
+              onLoginSheetOpened={() => setOpenRoleLoginAfterRecovery(false)}
               onClientGoogleSignUp={handleAuthenticatedUser}
               onClientSignUp={(email, needsVerification) => {
                 if (needsVerification) {
@@ -4979,9 +5027,10 @@ export const App: React.FC = () => {
 
                 handleAuthenticatedUser()
               }}
-              onForgotPassword={() => {
-                setLoginReturnScreen('roleSelection')
-                setScreen('forgotPassword')
+              onForgotPassword={(contact) => {
+                if (!contact) return
+                setRecoveryContact(contact)
+                setScreen('newPassword')
               }}
               onLogIn={handleAuthenticatedUser}
               onMerchantSignUp={(email, needsVerification) => {
@@ -6665,6 +6714,13 @@ export const App: React.FC = () => {
           onCancel={() => resolveServiceChangeConfirmation(false)}
           onConfirm={() => resolveServiceChangeConfirmation(true)}
         />
+        {expertCoordinatorProfile ? (
+          <CoordinatorProfileOverlay
+            blurTarget={expertCoordinatorBlurTargetRef}
+            onClose={() => setExpertCoordinatorProfile(undefined)}
+            service={expertCoordinatorProfile}
+          />
+        ) : null}
       </SafeAreaView>
     </SafeAreaProvider>
   )

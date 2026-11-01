@@ -5,19 +5,24 @@ import {
   Image,
   Keyboard,
   KeyboardAvoidingView,
+  Modal,
   PanResponder,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
+  TouchableWithoutFeedback,
   useWindowDimensions,
   View,
 } from 'react-native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
-import { Button } from '../components/Button'
+import { BlurTargetView } from 'expo-blur'
 import { BrandIdentity } from '../components/BrandIdentity'
+import { LuminousPillButton } from '../components/LuminousPillButton'
+import { PolicyDocumentOverlay } from '../components/PolicyDocumentOverlay'
 import { TextInput, type AppTextInputInstance } from '../components/TextInput'
 import { signUpMerchant } from '../lib/auth'
+import { pricingPolicy, privacyPolicy, providerTermsAndConditions } from '../content/clientLegalDocuments'
 import { colors, radius, spacing } from '../theme/tokens'
 import { typography } from '../theme/typography'
 
@@ -29,6 +34,7 @@ interface MerchantSignupScreenProps {
     accountRole: 'service_provider'
   ) => void
   onLogIn?: () => void
+  onOpenPolicyOverlay?: (policy: { content: string; title: string }) => void
   presentation?: 'screen' | 'sheet'
   onSheetDragStart?: () => void
   onSheetDrag?: (translationY: number) => void
@@ -36,15 +42,32 @@ interface MerchantSignupScreenProps {
 }
 
 type MerchantSignupField = 'businessName' | 'contactName' | 'category' | 'email' | 'phone' | 'password' | 'confirmPassword' | 'terms'
+
+const neo = {
+  surface: '#E9EDF0',
+  edge: 'rgba(255, 255, 255, 0.62)',
+  darkShadow: 'rgba(160, 171, 180, 0.54)',
+  lightShadow: 'rgba(255, 255, 255, 0.96)',
+}
 type ScrollViewInstance = React.ComponentRef<typeof ScrollView>
 type ViewInstance = React.ComponentRef<typeof View>
+type ProviderLegalDocument = 'providerTerms' | 'pricingPolicy' | 'privacyPolicy'
 
 const serviceCategories = ['Venue', 'Photography', 'Catering', 'Florist', 'Attire']
+const countryCodes = [
+  { code: '+63', name: 'Philippines' },
+  { code: '+1', name: 'United States / Canada' },
+  { code: '+44', name: 'United Kingdom' },
+  { code: '+61', name: 'Australia' },
+  { code: '+65', name: 'Singapore' },
+  { code: '+81', name: 'Japan' },
+]
 
 export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
   onBack,
   onSignUp,
   onLogIn,
+  onOpenPolicyOverlay,
   presentation = 'screen',
   onSheetDragStart,
   onSheetDrag,
@@ -54,6 +77,7 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
   const isSheet = presentation === 'sheet'
   const sheetEntrance = useRef(new Animated.Value(presentation === 'sheet' ? 0 : 1)).current
   const sheetScroll = useRef<ScrollViewInstance>(null)
+  const policyBlurTargetRef = useRef<React.ComponentRef<typeof View>>(null)
   const businessNameRef = useRef<AppTextInputInstance>(null)
   const contactNameRef = useRef<AppTextInputInstance>(null)
   const emailRef = useRef<AppTextInputInstance>(null)
@@ -82,6 +106,9 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
   const [categoryPickerDirection, setCategoryPickerDirection] = useState<'down' | 'up'>('down')
   const [email, setEmail] = useState('')
   const [phoneNumber, setPhoneNumber] = useState('')
+  const [countryCode, setCountryCode] = useState('+63')
+  const [showCountryCodes, setShowCountryCodes] = useState(false)
+  const [legalDocument, setLegalDocument] = useState<ProviderLegalDocument | null>(null)
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [isPasswordVisible, setIsPasswordVisible] = useState(false)
@@ -98,6 +125,21 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
   const onSheetDragStartRef = useRef(onSheetDragStart)
   const onSheetDragRef = useRef(onSheetDrag)
   const onSheetDragEndRef = useRef(onSheetDragEnd)
+
+  const openLegalDocument = (document: ProviderLegalDocument) => {
+    const policy = document === 'providerTerms'
+      ? { title: 'Provider Terms', content: providerTermsAndConditions }
+      : document === 'pricingPolicy'
+        ? { title: 'Pricing Policy', content: pricingPolicy }
+        : { title: 'Privacy Policy', content: privacyPolicy }
+
+    if (onOpenPolicyOverlay) {
+      onOpenPolicyOverlay(policy)
+      return
+    }
+
+    setLegalDocument(document)
+  }
 
   onBackRef.current = onBack
   onSheetDragStartRef.current = onSheetDragStart
@@ -222,7 +264,7 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
       contactName,
       serviceCategory,
       email: normalizedEmail,
-      phoneNumber,
+      phoneNumber: `${countryCode} ${phoneNumber.trim()}`,
       password,
     })
     setIsLoading(false)
@@ -276,24 +318,28 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
   const registrationActions = (
     <View style={[styles.actionFooter, isSheet && styles.stickyActionFooter]}>
       <View onLayout={(event) => { fieldOffsets.current.terms = event.nativeEvent.layout.y }}>
-        <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: acceptedTerms }} onPress={() => setAcceptedTerms((accepted) => !accepted)} style={styles.termsRow}>
-          <View style={[styles.checkbox, acceptedTerms && styles.checkboxChecked, submitted && !acceptedTerms && styles.checkboxError]}>
-            {acceptedTerms && <MaterialCommunityIcons color={colors.textInverse} name="check" size={14} />}
-          </View>
-          <Text style={styles.termsText}>I have read and agree to the MULTIVENT Service Provider Terms and Pricing Policy, and acknowledge the Privacy Policy.</Text>
-        </Pressable>
+        <View style={styles.termsRow}>
+          <Pressable accessibilityLabel="Accept Provider Terms, Pricing Policy, and Privacy Policy" accessibilityRole="checkbox" accessibilityState={{ checked: acceptedTerms }} hitSlop={6} onPress={() => setAcceptedTerms((accepted) => !accepted)}>
+            <View style={[styles.checkbox, acceptedTerms && styles.checkboxChecked, submitted && !acceptedTerms && styles.checkboxError]}>
+              {acceptedTerms && <MaterialCommunityIcons color={colors.textInverse} name="check" size={14} />}
+            </View>
+          </Pressable>
+          <Text style={styles.termsText}>
+            I agree to the <Text accessibilityRole="link" onPress={() => openLegalDocument('providerTerms')} style={styles.termsEmphasis}>Provider Terms</Text> and <Text accessibilityRole="link" onPress={() => openLegalDocument('pricingPolicy')} style={styles.termsEmphasis}>Pricing Policy</Text> and acknowledge the <Text accessibilityRole="link" onPress={() => openLegalDocument('privacyPolicy')} style={styles.termsEmphasis}>Privacy Policy</Text>.
+          </Text>
+        </View>
         {submitted && !acceptedTerms && <Text accessibilityRole="alert" style={styles.termsError}>Please accept the Provider Terms and Privacy Policy.</Text>}
       </View>
-      <Button accessibilityLabel="Create service provider account" disabled={isLoading} isFullWidth isLoading={isLoading} onPress={handleSignUp} size="lg" style={styles.submitButton} textStyle={styles.buttonText}>CREATE BUSINESS ACCOUNT</Button>
+      <LuminousPillButton accessibilityLabel="Create service provider account" disabled={isLoading} isFullWidth isLoading={isLoading} onPress={handleSignUp} style={styles.submitButton}>CREATE BUSINESS ACCOUNT</LuminousPillButton>
     </View>
   )
 
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={[styles.screen, isSheet && styles.sheetScreen]}
+      style={[styles.screen, isSheet && styles.sheetScreen, legalDocument && styles.policyOverlayVisibleScreen]}
     >
-      <View style={[styles.content, isSheet && styles.sheetContent]}>
+      <BlurTargetView ref={policyBlurTargetRef} style={[styles.content, isSheet && styles.sheetContent]}>
         {!isSheet && (
           <View style={styles.hero}>
             <Image
@@ -341,6 +387,7 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
               <View style={styles.sheetHandle} />
             </View>
           )}
+          <TouchableWithoutFeedback accessible={false} onPress={Keyboard.dismiss}>
           <View style={styles.sheetBody}>
           <BrandIdentity markSize={38} showName={!isSheet} style={styles.brandIdentity} />
           <Text style={styles.title}>Set up Your Business</Text>
@@ -475,7 +522,15 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
             </View>
             {submitted && !categoryIsValid && <Text accessibilityRole="alert" style={styles.fieldError}>Select a service category.</Text>}
             <TextInput autoCapitalize="none" autoComplete="email" error={submitted && !emailIsValid} helperText={submitted && !emailIsValid ? 'Enter a valid business email.' : undefined} icon={<MaterialCommunityIcons color={colors.primaryDark} name="at" size={20} />} inputMode="email" keyboardType="email-address" onChangeText={setEmail} onContainerLayout={(event) => { fieldOffsets.current.email = event.nativeEvent.layout.y }} onFocus={() => handleFieldFocus('email')} onSubmitEditing={() => phoneRef.current?.focus()} placeholder="Business email" ref={emailRef} returnKeyType="next" style={[styles.input, styles.inputWithIcon]} value={email} />
-            <TextInput autoComplete="tel" error={submitted && !phoneIsValid} helperText={submitted && !phoneIsValid ? 'Phone number is required.' : undefined} icon={<MaterialCommunityIcons color={colors.primaryDark} name="cellphone" size={20} />} inputMode="tel" keyboardType="phone-pad" onChangeText={setPhoneNumber} onContainerLayout={(event) => { fieldOffsets.current.phone = event.nativeEvent.layout.y }} onFocus={() => handleFieldFocus('phone')} onSubmitEditing={() => passwordRef.current?.focus()} placeholder="Phone number" ref={phoneRef} returnKeyType="next" style={[styles.input, styles.inputWithIcon]} value={phoneNumber} />
+            <View onLayout={(event) => { fieldOffsets.current.phone = event.nativeEvent.layout.y }} style={styles.phoneRow}>
+              <Pressable accessibilityLabel="Select country calling code" accessibilityRole="button" onPress={() => setShowCountryCodes(true)} style={styles.countryCodeButton}>
+                <Text style={styles.countryCodeText}>{countryCode}</Text>
+                <MaterialCommunityIcons color={colors.primaryDark} name="chevron-down" size={18} />
+              </Pressable>
+              <View style={styles.phoneInput}>
+                <TextInput autoComplete="tel" error={submitted && !phoneIsValid} helperText={submitted && !phoneIsValid ? 'Phone number is required.' : undefined} icon={<MaterialCommunityIcons color={colors.primaryDark} name="cellphone" size={20} />} inputMode="tel" keyboardType="phone-pad" onChangeText={setPhoneNumber} onFocus={() => handleFieldFocus('phone')} onSubmitEditing={() => passwordRef.current?.focus()} placeholder="Phone number" ref={phoneRef} returnKeyType="next" style={[styles.input, styles.inputWithIcon]} value={phoneNumber} />
+              </View>
+            </View>
             <TextInput autoCapitalize="none" autoComplete="new-password" error={submitted && !passwordIsValid} helperText={submitted && !passwordIsValid ? 'Password must contain at least 8 characters.' : undefined} icon={<MaterialCommunityIcons color={colors.primaryDark} name="lock-outline" size={20} />} onChangeText={setPassword} onContainerLayout={(event) => { fieldOffsets.current.password = event.nativeEvent.layout.y }} onFocus={() => handleFieldFocus('password')} onSubmitEditing={() => confirmPasswordRef.current?.focus()} placeholder="Password" ref={passwordRef} returnKeyType="next" rightIcon={visibilityIcon(isPasswordVisible, 'password', () => setIsPasswordVisible((visible) => !visible))} secureTextEntry={!isPasswordVisible} style={[styles.input, styles.inputWithIcon]} value={password} />
             <TextInput autoCapitalize="none" autoComplete="new-password" error={submitted && !confirmPasswordIsValid} helperText={submitted && !confirmPasswordIsValid ? (confirmPassword.length === 0 ? 'Confirm your password.' : 'Passwords do not match.') : undefined} icon={<MaterialCommunityIcons color={colors.primaryDark} name="lock-outline" size={20} />} onChangeText={setConfirmPassword} onContainerLayout={(event) => { fieldOffsets.current.confirmPassword = event.nativeEvent.layout.y }} onFocus={() => handleFieldFocus('confirmPassword')} onSubmitEditing={handleSignUp} placeholder="Confirm password" ref={confirmPasswordRef} returnKeyType="done" rightIcon={visibilityIcon(isConfirmPasswordVisible, 'confirm password', () => setIsConfirmPasswordVisible((visible) => !visible))} secureTextEntry={!isConfirmPasswordVisible} style={[styles.input, styles.inputWithIcon]} value={confirmPassword} />
 
@@ -485,8 +540,32 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
           </ScrollView>
           {isSheet && registrationActions}
           </View>
+          </TouchableWithoutFeedback>
         </Animated.View>
-      </View>
+      </BlurTargetView>
+
+      <Modal animationType="fade" onRequestClose={() => setShowCountryCodes(false)} transparent visible={showCountryCodes}>
+        <View style={styles.modalOverlay}>
+          <Pressable accessibilityLabel="Close country code selector" onPress={() => setShowCountryCodes(false)} style={StyleSheet.absoluteFill} />
+          <View accessibilityViewIsModal style={styles.countryCodeSheet}>
+            <Text style={styles.modalTitle}>Country code</Text>
+            {countryCodes.map((country) => (
+              <Pressable accessibilityRole="button" key={country.code} onPress={() => { setCountryCode(country.code); setShowCountryCodes(false) }} style={styles.countryCodeOption}>
+                <Text style={styles.countryCodeOptionText}>{country.name}</Text>
+                <Text style={styles.countryCodeOptionValue}>{country.code}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      </Modal>
+      {legalDocument && (
+        <PolicyDocumentOverlay
+          blurTarget={policyBlurTargetRef}
+          content={legalDocument === 'providerTerms' ? providerTermsAndConditions : legalDocument === 'pricingPolicy' ? pricingPolicy : privacyPolicy}
+          onClose={() => setLegalDocument(null)}
+          title={legalDocument === 'providerTerms' ? 'Provider Terms' : legalDocument === 'pricingPolicy' ? 'Pricing Policy' : 'Privacy Policy'}
+        />
+      )}
 
     </KeyboardAvoidingView>
   )
@@ -497,9 +576,10 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     marginBottom: spacing.sm,
   },
-  screen: { flex: 1, backgroundColor: '#F4F4F6' },
-  sheetScreen: { overflow: 'hidden', backgroundColor: colors.background },
-  content: { flex: 1, width: '100%', maxWidth: 430, alignSelf: 'center', backgroundColor: colors.background },
+  screen: { flex: 1, backgroundColor: neo.surface },
+  sheetScreen: { overflow: 'hidden', backgroundColor: neo.surface },
+  policyOverlayVisibleScreen: { overflow: 'visible' },
+  content: { flex: 1, width: '100%', maxWidth: 430, alignSelf: 'center', backgroundColor: neo.surface },
   sheetContent: { maxWidth: undefined },
   hero: { height: 340, overflow: 'hidden', alignItems: 'center', justifyContent: 'flex-end', paddingTop: spacing['4xl'], backgroundColor: colors.primaryDark, position: 'relative' },
   heroImage: { ...StyleSheet.absoluteFill, width: undefined, height: undefined },
@@ -509,7 +589,7 @@ const styles = StyleSheet.create({
   heroCopy: { width: '100%', paddingHorizontal: spacing['2xl'], paddingBottom: spacing['3xl'] },
   heroEyebrow: { color: colors.textInverse, fontSize: typography.caption, fontWeight: '700', letterSpacing: 1.4, marginBottom: spacing.sm },
   heroTitle: { color: colors.textInverse, fontSize: typography.h1, lineHeight: 36, fontWeight: '700' },
-  sheet: { flex: 1, marginTop: -180, paddingHorizontal: spacing['2xl'], paddingTop: spacing['2xl'], borderTopLeftRadius: 34, borderTopRightRadius: 34, backgroundColor: colors.background },
+  sheet: { flex: 1, marginTop: -180, paddingHorizontal: spacing['2xl'], paddingTop: spacing['2xl'], borderTopLeftRadius: 34, borderTopRightRadius: 34, backgroundColor: neo.surface },
   bottomSheet: { marginTop: 0, paddingTop: 0 },
   sheetTopBar: { height: 40, alignItems: 'center', justifyContent: 'flex-start', paddingTop: spacing.sm, marginBottom: spacing.sm },
   sheetHandle: { width: 68, height: 4, borderRadius: radius.pill, backgroundColor: colors.grey300 },
@@ -517,12 +597,12 @@ const styles = StyleSheet.create({
   title: { color: colors.primaryDark, fontSize: 24, lineHeight: 29, fontWeight: '700', textAlign: 'center' },
   loginPrompt: { flexDirection: 'row', justifyContent: 'center', marginTop: spacing.sm, marginBottom: spacing['2xl'] },
   loginPromptText: { color: colors.textSecondary, fontSize: 14 },
-  loginText: { color: colors.primaryDark, fontSize: 14, fontWeight: '700' },
+  loginText: { color: colors.primaryDark, fontSize: 14, fontWeight: '800' },
   subtitle: { color: colors.textSecondary, fontSize: typography.body, lineHeight: 22, textAlign: 'center', marginTop: spacing.sm, marginBottom: spacing['2xl'] },
   form: { gap: spacing.md, paddingBottom: spacing['3xl'] },
   formScroll: { flex: 1 },
   actionFooter: { gap: spacing.md },
-  stickyActionFooter: { borderTopWidth: 1, borderTopColor: colors.divider, backgroundColor: colors.background, paddingTop: spacing.md, paddingBottom: spacing.sm },
+  stickyActionFooter: { borderTopWidth: 1, borderTopColor: neo.edge, backgroundColor: neo.surface, paddingTop: spacing.md, paddingBottom: spacing.sm },
   roleSelector: { position: 'relative', flexDirection: 'row', gap: spacing.sm, padding: 4, borderRadius: radius.xl, backgroundColor: '#F1F2F4' },
   roleSelectionIndicator: { position: 'absolute', top: 4, bottom: 4, left: 4, borderRadius: radius.large, backgroundColor: colors.primaryDark, shadowColor: colors.primaryDark, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.16, shadowRadius: 6, elevation: 2 },
   roleOption: { zIndex: 1, minWidth: 0, minHeight: 42, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: spacing.sm, borderRadius: radius.large },
@@ -530,10 +610,14 @@ const styles = StyleSheet.create({
   roleOptionText: { minWidth: 0, color: colors.primaryDark, fontSize: 12, fontWeight: '700' },
   roleOptionTextSelected: { color: colors.textInverse },
   roleFields: { gap: spacing.md },
-  input: { height: 52, borderWidth: 0, borderRadius: radius.xl, backgroundColor: '#F1F2F4', paddingHorizontal: spacing.xl, fontSize: 15 },
+  input: { height: 52, borderWidth: 1, borderColor: neo.edge, borderRadius: radius.xl, backgroundColor: neo.surface, paddingHorizontal: spacing.xl, fontSize: 15, boxShadow: `inset 5px 5px 9px ${neo.darkShadow}, inset -5px -5px 9px ${neo.lightShadow}` },
   inputWithIcon: { paddingLeft: spacing['4xl'] },
+  phoneRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
+  countryCodeButton: { height: 52, minWidth: 78, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2, borderWidth: 1, borderColor: neo.edge, borderRadius: radius.xl, backgroundColor: neo.surface, paddingHorizontal: spacing.sm, boxShadow: `inset 5px 5px 9px ${neo.darkShadow}, inset -5px -5px 9px ${neo.lightShadow}` },
+  countryCodeText: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
+  phoneInput: { flex: 1 },
   dropdownContainer: { position: 'relative', zIndex: 3 },
-  dropdownField: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radius.xl, backgroundColor: '#F1F2F4', paddingHorizontal: spacing.xl },
+  dropdownField: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: spacing.md, borderWidth: 1, borderColor: neo.edge, borderRadius: radius.xl, backgroundColor: neo.surface, paddingHorizontal: spacing.xl, boxShadow: `inset 5px 5px 9px ${neo.darkShadow}, inset -5px -5px 9px ${neo.lightShadow}` },
   dropdownFieldError: { borderWidth: 1.5, borderColor: colors.error },
   dropdownFieldOpenDown: { borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
   dropdownFieldOpenUp: { borderTopLeftRadius: 0, borderTopRightRadius: 0 },
@@ -547,12 +631,22 @@ const styles = StyleSheet.create({
   checkboxChecked: { backgroundColor: colors.primaryDark, borderColor: colors.primaryDark },
   checkboxError: { borderColor: colors.error, backgroundColor: '#FFF4F4' },
   termsText: { flexShrink: 1, maxWidth: 280, color: colors.textSecondary, fontSize: typography.caption, lineHeight: 18 },
+  termsEmphasis: { color: colors.primaryDark, fontWeight: '800', textDecorationLine: 'underline' },
   fieldError: { marginTop: -spacing.xs, color: colors.error, fontSize: typography.caption, lineHeight: 18 },
   termsError: { marginTop: spacing.xs, color: colors.error, fontSize: typography.caption, lineHeight: 18 },
   formError: { color: colors.error, fontSize: typography.body, lineHeight: 20 },
-  submitButton: { borderRadius: radius.pill, backgroundColor: '#7A1D35', minHeight: 44, paddingVertical: spacing.sm, marginTop: 0, shadowColor: '#7A1D35', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 4 },
-  buttonText: { fontSize: 15, fontWeight: '700' },
+  submitButton: { marginTop: 0 },
   dropdownOption: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.divider },
   dropdownOptionPressed: { opacity: 0.65 },
   dropdownOptionText: { color: colors.textPrimary, fontSize: typography.body, fontWeight: '500' },
+  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(22, 16, 17, 0.48)' },
+  countryCodeSheet: { width: '100%', borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: colors.background, padding: spacing.xl, paddingBottom: spacing['3xl'] },
+  modalTitle: { color: colors.primaryDark, fontSize: 19, fontWeight: '700' },
+  countryCodeOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: colors.divider, paddingVertical: spacing.md },
+  countryCodeOptionText: { color: colors.textPrimary, fontSize: 16 },
+  countryCodeOptionValue: { color: colors.primaryDark, fontSize: 16, fontWeight: '700' },
+  policySheet: { width: '100%', maxHeight: '86%', borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: colors.background, paddingTop: spacing.lg },
+  policyHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xl, paddingBottom: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.divider },
+  policyContent: { paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, paddingBottom: spacing['4xl'] },
+  policyText: { color: colors.textPrimary, fontSize: 14, lineHeight: 21 },
 })
