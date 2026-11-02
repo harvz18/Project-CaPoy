@@ -82,8 +82,8 @@ const mapTilerKey = process.env.EXPO_PUBLIC_MAPTILER_API_KEY?.trim() ?? ''
 const bacolodVenueSuggestions: VenueMapValue[] = [
   {
     address: 'Lacson Street, Bacolod City, Negros Occidental',
-    latitude: 10.6765,
-    longitude: 122.9511,
+    latitude: 10.6799,
+    longitude: 122.954,
     name: "L'Fisher Hotel Bacolod",
   },
   {
@@ -94,9 +94,15 @@ const bacolodVenueSuggestions: VenueMapValue[] = [
   },
   {
     address: 'Corner Araneta and Roxas Streets, Bacolod City',
-    latitude: 10.6537,
-    longitude: 122.9465,
+    latitude: 10.65253,
+    longitude: 122.93732,
     name: 'Sugarland Hotel',
+  },
+  {
+    address: 'Capitol Park and Lagoon, Bacolod City, Negros Occidental',
+    latitude: 10.676044,
+    longitude: 122.952096,
+    name: 'Capitol Park and Lagoon',
   },
   {
     address: 'Circumferential Road, Bacolod City, Negros Occidental',
@@ -126,12 +132,14 @@ const distanceInKilometres = (
   return 6371 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine))
 }
 
-const knownVenueNearPin = (latitude: number, longitude: number) => {
+const verifiedVenueAtPin = (latitude: number, longitude: number) => {
   const pin = { latitude, longitude }
   const nearestVenue = bacolodVenueSuggestions.reduce((nearest, venue) => (
     distanceInKilometres(venue, pin) < distanceInKilometres(nearest, pin) ? venue : nearest
   ))
-  return distanceInKilometres(nearestVenue, pin) <= 0.35 ? nearestVenue : null
+  // Only use a local landmark label when the pin is actually at that landmark.
+  // This prevents a nearby hotel from replacing a park or street selection.
+  return distanceInKilometres(nearestVenue, pin) <= 0.15 ? nearestVenue : null
 }
 
 const tipImage =
@@ -971,9 +979,9 @@ const VenueLocationPicker: React.FC<VenueLocationPickerProps> = ({
   const pinVenue = (latitude: number, longitude: number) => {
     const requestId = pinLookupRequestRef.current + 1
     pinLookupRequestRef.current = requestId
-    const knownVenue = knownVenueNearPin(latitude, longitude)
-    const pinnedVenue: VenueMapValue = knownVenue
-      ? { ...knownVenue, latitude, longitude }
+    const verifiedVenue = verifiedVenueAtPin(latitude, longitude)
+    const pinnedVenue: VenueMapValue = verifiedVenue
+      ? { ...verifiedVenue, latitude, longitude }
       : {
           address: 'Pinned location in Bacolod City, Negros Occidental',
           latitude,
@@ -987,7 +995,7 @@ const VenueLocationPicker: React.FC<VenueLocationPickerProps> = ({
     setRemoteResults(null)
     onChange(pinnedVenue)
 
-    if (knownVenue || !mapTilerKey || Platform.OS !== 'web') return
+    if (verifiedVenue || !mapTilerKey || Platform.OS !== 'web') return
 
     void (async () => {
       try {
