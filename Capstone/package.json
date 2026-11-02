@@ -42,7 +42,8 @@
     "react-native": "0.88.0",
     "react-native-safe-area-context": "~5.10.1",
     "react-native-url-polyfill": "^4.0.0",
-    "react-native-web": "^0.21.4"
+    "react-native-web": "^0.21.4",
+    "react-native-webview": "14.0.1"
   },
   "devDependencies": {
     "@expo/ngrok": "^4.1.3",

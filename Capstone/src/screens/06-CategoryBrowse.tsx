@@ -107,6 +107,7 @@ interface CategoryBrowseScreenProps {
   onSelectVendor?: (vendor: CategoryBrowseVendor) => void
   onScrollDirectionChange?: (direction: 'down' | 'up') => void
   onClearFavoritesFilter?: () => void
+  onRefreshReviewedServices?: () => void
   onToggleFavorite?: (serviceId: string) => void
   onSelectReviewedService?: (serviceId: string) => void
 }
@@ -552,6 +553,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   onSelectVendor,
   onScrollDirectionChange,
   onClearFavoritesFilter,
+  onRefreshReviewedServices,
   onSelectReviewedService,
   onToggleFavorite,
 }) => {
@@ -1070,6 +1072,30 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
         />
       )}
 
+      {isExploreMode ? (
+        <View style={[styles.exploreTabs, isWide && styles.exploreTabsWide]}>
+          <Pressable
+            accessibilityRole="tab"
+            accessibilityState={{ selected: activeExploreTab === 'explore' }}
+            onPress={() => setActiveExploreTab('explore')}
+            style={[styles.exploreTab, activeExploreTab === 'explore' && styles.exploreTabActive]}
+          >
+            <Text style={[styles.exploreTabText, activeExploreTab === 'explore' && styles.exploreTabTextActive]}>Explore</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="tab"
+            accessibilityState={{ selected: activeExploreTab === 'reviewed' }}
+            onPress={() => {
+              setActiveExploreTab('reviewed')
+              onRefreshReviewedServices?.()
+            }}
+            style={[styles.exploreTab, activeExploreTab === 'reviewed' && styles.exploreTabActive]}
+          >
+            <Text style={[styles.exploreTabText, activeExploreTab === 'reviewed' && styles.exploreTabTextActive]}>Reviewed</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
       <ScrollView
         contentContainerStyle={[
           styles.content,
@@ -1156,27 +1182,6 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
             <Text style={styles.planningCompleteText}>
               You can revisit any category, adjust an unlocked budget, or review your selected services.
             </Text>
-          </View>
-        ) : null}
-
-        {isExploreMode ? (
-          <View style={styles.exploreTabs}>
-            <Pressable
-              accessibilityRole="tab"
-              accessibilityState={{ selected: activeExploreTab === 'explore' }}
-              onPress={() => setActiveExploreTab('explore')}
-              style={[styles.exploreTab, activeExploreTab === 'explore' && styles.exploreTabActive]}
-            >
-              <Text style={[styles.exploreTabText, activeExploreTab === 'explore' && styles.exploreTabTextActive]}>Explore</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="tab"
-              accessibilityState={{ selected: activeExploreTab === 'reviewed' }}
-              onPress={() => setActiveExploreTab('reviewed')}
-              style={[styles.exploreTab, activeExploreTab === 'reviewed' && styles.exploreTabActive]}
-            >
-              <Text style={[styles.exploreTabText, activeExploreTab === 'reviewed' && styles.exploreTabTextActive]}>Reviewed</Text>
-            </Pressable>
           </View>
         ) : null}
 
@@ -2785,12 +2790,14 @@ const styles = StyleSheet.create({
   },
   exploreTabs: {
     alignSelf: 'stretch',
+    backgroundColor: '#FFFFFF',
     borderBottomColor: palette.surfaceContainerHigh,
     borderBottomWidth: 1,
     flexDirection: 'row',
-    marginTop: 18,
+    paddingHorizontal: 20,
     width: '100%',
   },
+  exploreTabsWide: { paddingHorizontal: 64 },
   exploreTab: {
     alignItems: 'center',
     borderBottomColor: 'transparent',

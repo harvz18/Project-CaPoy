@@ -1226,7 +1226,7 @@ const VenueMapSurface: React.FC<VenueMapSurfaceProps> = ({
   value,
 }) => {
   const [size, setSize] = React.useState({ height: 1, width: 1 })
-  if (Platform.OS === 'web' && hasMapTilerVenueMap) {
+  if (hasMapTilerVenueMap) {
     return <MapTilerVenueMap coordinates={{ latitude: value.latitude, longitude: value.longitude }} fullscreen={fullscreen} onPin={({ latitude, longitude }) => onPin(latitude, longitude)} />
   }
 

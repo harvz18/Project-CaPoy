@@ -4475,11 +4475,19 @@ test('Explore keeps its tabs balanced and shows only the signed-in client\'s rev
   mustContain(categoryBrowse, [
     "exploreTabs: {",
     "width: '100%'",
+    'paddingHorizontal: 20',
+    'exploreTabsWide',
     'exploreTab: {',
     'flex: 1',
     'minHeight: 48',
     '<ReviewedServicesTab',
+    'onRefreshReviewedServices?.()',
   ], 'Inbox-style balanced Explore and Reviewed tabs')
+  assert.doesNotMatch(
+    categoryBrowse,
+    /exploreTabs:\s*\{[^}]*marginTop:\s*18/,
+    'Explore tabs sit directly below the header rather than retaining a top gap'
+  )
   mustContain(reviewedServices, [
     "supabase.rpc('get_my_reviewed_services_v22')",
     'bookingId: text(row.booking_id)',
@@ -4494,7 +4502,37 @@ test('Explore keeps its tabs balanced and shows only the signed-in client\'s rev
     'fetchMyReviewedServices()',
     'setReviewedServices(myReviewedServices)',
     'reviewedServices={reviewedServices}',
+    'onRefreshReviewedServices={() => {',
   ], 'Reviewed tab app integration')
+})
+
+test('MapTiler venue picking keeps one origin-restricted key across web and native preview', () => {
+  const eventCreation = read('src/screens/04-EventCreation.tsx')
+  const nativeMap = read('src/components/MapTilerVenueMap.native.tsx')
+  const hostedMap = read('public/multivent-venue-map.html')
+  const packageJson = read('package.json')
+
+  mustContain(eventCreation, [
+    'if (hasMapTilerVenueMap)',
+    '<MapTilerVenueMap',
+  ], 'native and web Event Creation map entry point')
+  mustContain(nativeMap, [
+    "'https://mobile.multivent.org/multivent-venue-map.html'",
+    "'react-native-webview'",
+    'window.multiventSetPin',
+    'onMessage={onMessage}',
+    'injectJavaScript',
+    'EXPO_PUBLIC_MAPTILER_API_KEY',
+  ], 'native hosted-map bridge')
+  mustContain(hostedMap, [
+    'window.ReactNativeWebView.postMessage',
+    "source: 'multivent-maptiler'",
+    'window.multiventSetPin',
+    'api.maptiler.com/maps/streets-v2',
+    'OpenStreetMap',
+    'MapTiler',
+  ], 'hosted one-key Leaflet map page')
+  mustContain(packageJson, ['"react-native-webview": "14.0.1"'], 'Expo-compatible native WebView dependency')
 })
 
 test('V16 keeps PayMongo collection server-owned, webhook-verified, and idempotent', () => {

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MULTIVENT venue map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+    <style>
+      html, body, #map { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #f7f3f2; }
+      #map, .leaflet-container { font-family: Arial, sans-serif; touch-action: none; }
+      .multivent-venue-marker { display: block; position: relative; width: 28px; height: 28px; box-sizing: border-box; border: 3px solid #fff; border-radius: 50% 50% 50% 0; background: #7d1832; box-shadow: 0 2px 8px rgba(56, 8, 22, .38); transform: rotate(-45deg); }
+      .multivent-venue-marker::after { position: absolute; top: 7px; left: 7px; width: 8px; height: 8px; border-radius: 50%; background: #fff; content: ''; }
+    </style>
+  </head>
+  <body>
+    <div id="map" aria-label="Venue map"></div>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <script>
+      const parameters = new URLSearchParams(window.location.search)
+      const mapTilerKey = parameters.get('key') || ''
+      const latitude = Number(parameters.get('lat')) || 10.6765
+      const longitude = Number(parameters.get('lng')) || 122.9511
+      window.history.replaceState({}, '', window.location.pathname)
+
+      const postToHost = (payload) => {
+        const message = JSON.stringify(payload)
+        if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(message)
+        else if (window.parent !== window) window.parent.postMessage(payload, '*')
+      }
+
+      const map = L.map('map', { attributionControl: true, zoomControl: true }).setView([latitude, longitude], 15)
+      if (mapTilerKey) {
+        L.tileLayer(`https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png?key=${mapTilerKey}`, {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://www.maptiler.com/copyright/">MapTiler</a>',
+          maxZoom: 19,
+          tileSize: 256,
+        }).addTo(map)
+      }
+
+      const markerIcon = L.divIcon({
+        className: 'multivent-venue-marker-wrap',
+        html: '<span class="multivent-venue-marker" aria-hidden="true"></span>',
+        iconAnchor: [14, 28],
+        iconSize: [28, 28],
+      })
+      let marker = L.marker([latitude, longitude], { draggable: true, icon: markerIcon }).addTo(map)
+      const reportPin = (latlng) => postToHost({
+        source: 'multivent-maptiler',
+        latitude: Number(latlng.lat.toFixed(6)),
+        longitude: Number(latlng.lng.toFixed(6)),
+      })
+      marker.on('dragend', () => reportPin(marker.getLatLng()))
+      map.on('click', (event) => {
+        marker.setLatLng(event.latlng)
+        reportPin(event.latlng)
+      })
+      window.multiventSetPin = (command) => {
+        if (!command || command.source !== 'multivent-maptiler-command' || command.action !== 'set-pin'
+          || typeof command.latitude !== 'number' || typeof command.longitude !== 'number') return
+        const nextLocation = L.latLng(command.latitude, command.longitude)
+        marker.setLatLng(nextLocation)
+        if (command.recenter === true) map.panTo(nextLocation)
+      }
+    </script>
+  </body>
+</html>

@@ -6620,6 +6620,9 @@ export const App: React.FC = () => {
             showBottomNavigation={false}
             reviewedServices={reviewedServices}
             reviewedServicesLoading={isAuthRestoring}
+            onRefreshReviewedServices={() => {
+              void refreshLiveData()
+            }}
             onScrollDirectionChange={serviceBrowseMode === 'explore'
               ? handleClientNavigationScrollDirection
               : undefined}
