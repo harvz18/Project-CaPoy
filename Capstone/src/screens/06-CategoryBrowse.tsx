@@ -581,6 +581,8 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   const [cateringWarningAction, setCateringWarningAction] = React.useState<(() => void)>()
   const cateringWarningShownForCategoryRef = React.useRef(false)
   const lastScrollY = React.useRef(0)
+  const categoryTagScrollerRef = React.useRef<React.ComponentRef<typeof ScrollView>>(null)
+  const categoryTagOffsetsRef = React.useRef(new Map<string, number>())
   const [isSelectedServicesOpen, setIsSelectedServicesOpen] = React.useState(false)
   const [isAddCategoryOpen, setIsAddCategoryOpen] = React.useState(false)
   const [isAddingCategory, setIsAddingCategory] = React.useState(false)
@@ -616,6 +618,14 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     cateringWarningShownForCategoryRef.current = true
     setCateringWarningAction(() => action)
   }, [cateringIncludedInVenuePackage])
+  const scrollCategoryTagToStart = React.useCallback((categoryId: string) => {
+    const offset = categoryTagOffsetsRef.current.get(categoryId)
+    if (offset === undefined) return
+
+    requestAnimationFrame(() => {
+      categoryTagScrollerRef.current?.scrollTo({ animated: true, x: Math.max(0, offset) })
+    })
+  }, [])
   React.useEffect(() => setSelectedFilters(new Set()), [categoryName])
   React.useEffect(() => {
     if (!isExploreMode) setActiveExploreTab('explore')
@@ -808,34 +818,6 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     ]
   }))
 
-  const orderCategoryTags = (
-    options: ServiceCategoryOption[],
-    activeOptionId?: string,
-    keepAllFirst = false
-  ) => {
-    const activeOption = options.find((option) => option.id === activeOptionId)
-    if (!activeOption) return options
-
-    const allOption = keepAllFirst
-      ? options.find((option) => marketplaceCategoryId(option) === 'all')
-      : undefined
-    const remainingOptions = options.filter((option) => (
-      option.id !== activeOptionId && option !== allOption
-    ))
-    const selectedOptions = remainingOptions.filter((option) => (
-      marketplaceCategoryId(option) !== 'all'
-      && activeSelectedCategoryIds.has(marketplaceCategoryId(option) as CatalogCategoryId)
-    ))
-    const otherOptions = remainingOptions.filter((option) => !selectedOptions.includes(option))
-
-    return [
-      ...(allOption ? [allOption] : []),
-      ...(activeOption !== allOption ? [activeOption] : []),
-      ...selectedOptions,
-      ...otherOptions,
-    ]
-  }
-
   const visibleVendors = services.filter((vendor) => matchesMarketplaceFilters(vendor)).sort((left, right) => {
     const leftRating = Number.parseFloat(left.rating) || 0
     const rightRating = Number.parseFloat(right.rating) || 0
@@ -892,18 +874,6 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
       || rightBookings - leftBookings
       || left.name.localeCompare(right.name)
   })
-  const activeExploreCategoryId = exploreCategories.find(
-    (option) => option.name === selectedExploreCategory
-  )?.id
-  const activePlanningCategoryId = categories.find(
-    (option) => categoryNameToId(option.name) === categoryNameToId(categoryName)
-  )?.id
-  const orderedExploreCategoryTags = orderCategoryTags(
-    exploreCategories,
-    activeExploreCategoryId,
-    true
-  )
-  const orderedPlanningCategoryTags = orderCategoryTags(categories, activePlanningCategoryId)
   const hasCategoryRecommendationBudget = !isExploreMode && !isChangingService && !replacementContext && visibleVendors.some(
     (vendor) => (vendor.budgetRecommendation?.categoryBudget ?? 0) > 0
   )
@@ -1222,10 +1192,11 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
           <ScrollView
             contentContainerStyle={styles.exploreCategoryContent}
             horizontal
+            ref={categoryTagScrollerRef}
             showsHorizontalScrollIndicator={false}
             style={styles.exploreCategoryScroller}
           >
-            {orderedExploreCategoryTags.map((option) => {
+            {exploreCategories.map((option) => {
               const isSelected = selectedExploreCategory === option.name
               const categoryId = marketplaceCategoryId(option)
               const isCompleted = categoryId !== 'all'
@@ -1243,7 +1214,11 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                     : `Show ${option.name} services. ${serviceCount} eligible services.`}
                   accessibilityRole="button"
                   accessibilityState={{ selected: isSelected }}
-                  onPress={() => requestCateringBrowse(categoryId === 'catering', () => setSelectedExploreCategory(option.name))}
+                  onLayout={(event) => categoryTagOffsetsRef.current.set(option.id, event.nativeEvent.layout.x)}
+                  onPress={() => requestCateringBrowse(categoryId === 'catering', () => {
+                    setSelectedExploreCategory(option.name)
+                    scrollCategoryTagToStart(option.id)
+                  })}
                   style={({ pressed }) => [
                     styles.categoryTag,
                     isSelected && styles.categoryTagSelected,
@@ -1281,10 +1256,11 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
           <ScrollView
             contentContainerStyle={styles.exploreCategoryContent}
             horizontal
+            ref={categoryTagScrollerRef}
             showsHorizontalScrollIndicator={false}
             style={styles.exploreCategoryScroller}
           >
-            {orderedPlanningCategoryTags.map((option) => {
+            {categories.map((option) => {
               const categoryId = marketplaceCategoryId(option)
               const isSelected = categoryId === categoryNameToId(categoryName)
               const isCompleted = activeSelectedCategoryIds.has(categoryId as CatalogCategoryId)
@@ -1301,7 +1277,11 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                     : `Browse ${option.name}. ${serviceCount} eligible services.`}
                   accessibilityRole="button"
                   accessibilityState={{ selected: isSelected }}
-                  onPress={() => requestCateringBrowse(categoryId === 'catering', () => onSelectCategory?.(option))}
+                  onLayout={(event) => categoryTagOffsetsRef.current.set(option.id, event.nativeEvent.layout.x)}
+                  onPress={() => requestCateringBrowse(categoryId === 'catering', () => {
+                    onSelectCategory?.(option)
+                    scrollCategoryTagToStart(option.id)
+                  })}
                   style={({ pressed }) => [
                     styles.categoryTag,
                     isSelected && styles.categoryTagSelected,

@@ -231,9 +231,14 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
     (count, conversation) => count + (readIds.has(conversation.id) ? 0 : conversation.unreadCount),
     0
   )
-  const hasUnreadInboxNotifications = notifications.some(
-    (notification) => notification.category !== 'message' && !notification.isRead
-  )
+  const unreadInboxNotificationIds = notifications
+    .filter((notification) => notification.category !== 'message' && !notification.isRead)
+    .map((notification) => notification.id)
+  const hasUnreadInboxNotifications = unreadInboxNotificationIds.length > 0
+  const markAllInboxNotificationsRead = () => {
+    if (!unreadInboxNotificationIds.length) return
+    onMarkAllNotificationsRead?.(unreadInboxNotificationIds)
+  }
   const eventGroups = React.useMemo(() => {
     const groups = new Map<string, EventConversationGroup>()
     const addConversation = (conversation: ClientConversation) => {
@@ -475,6 +480,24 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                     style={({ pressed }) => [styles.clientHeaderButton, pressed && styles.surfacePressed]}
                   ><InboxSelectionBox color="#FFFFFF" state={activeAllSelected ? 'checked' : activeSomeSelected ? 'mixed' : 'unchecked'} /></Pressable>
                   <InboxTrashButton accessibilityLabel="Move selected Inbox items to Trash" color="#FFFFFF" onPress={moveSelectedInboxItemsToTrash} />
+                </View>
+              ) : navigationVariant === 'client' && inboxTab === 'notifications' ? (
+                <View style={styles.selectionHeaderActions}>
+                  <Pressable
+                    accessibilityLabel="Mark all notifications as read"
+                    accessibilityRole="button"
+                    disabled={!hasUnreadInboxNotifications || !onMarkAllNotificationsRead}
+                    hitSlop={8}
+                    onPress={markAllInboxNotificationsRead}
+                    style={({ pressed }) => [
+                      styles.headerReadAll,
+                      (!hasUnreadInboxNotifications || !onMarkAllNotificationsRead) && styles.headerReadAllDisabled,
+                      pressed && styles.surfacePressed,
+                    ]}
+                  >
+                    <Text style={styles.headerReadAllText}>Read all</Text>
+                  </Pressable>
+                  <InboxTrashButton accessibilityLabel="Open Inbox Trash" color="#FFFFFF" onPress={() => onOpenTrash?.('notifications')} />
                 </View>
               ) : navigationVariant === 'coordinator' ? (
                 <Pressable
@@ -1007,6 +1030,9 @@ const styles = StyleSheet.create({
   conversationRow: { minHeight: 82, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingVertical: 12 },
   rowSelected: { backgroundColor: '#F7ECEE' },
   selectionHeaderActions: { flexDirection: 'row', alignItems: 'center' },
+  headerReadAll: { minHeight: 40, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
+  headerReadAllDisabled: { opacity: 0.5 },
+  headerReadAllText: { color: palette.white, fontSize: 11, lineHeight: 16, fontWeight: '800' },
   conversationRowUnread: { backgroundColor: '#FCF8F9' },
   conversationRowBorder: { borderBottomWidth: 1, borderBottomColor: palette.border },
   conversationRowPressed: { opacity: 0.66 },

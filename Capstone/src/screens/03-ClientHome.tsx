@@ -222,7 +222,7 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   const safeAreaInsets = useSafeAreaInsets()
   const { width } = useWindowDimensions()
   const isWide = width >= 768
-  const brandMarkSize = width < 375 ? 18 : 20
+  const brandMarkSize = width < 375 ? 22 : 24
   const lastScrollY = React.useRef(0)
   const searchInputRef = React.useRef<React.ComponentRef<typeof TextInput>>(null)
   const searchExpansion = React.useRef(new Animated.Value(0)).current
