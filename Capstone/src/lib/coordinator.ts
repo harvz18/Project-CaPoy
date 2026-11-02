@@ -1,4 +1,5 @@
 import { supabase, supabaseConfig } from './supabase'
+import { openEventLocation } from './event-location'
 
 export type CoordinatorTaskStatus = 'blocked' | 'completed' | 'in_progress' | 'pending'
 
@@ -517,6 +518,21 @@ const parseDashboard = (value: unknown): CoordinatorDashboard => {
 
 const unavailableMessage =
   'Supabase is not configured. Check the app environment settings.'
+
+export const openCoordinatorEventLocation = async (eventId: string, fallbackAddress?: string) => {
+  const client = supabaseConfig.isConfigured ? supabase : null
+  if (!client || !eventId) return openEventLocation({ address: fallbackAddress })
+
+  const { data } = await client.rpc('get_my_coordinator_event_location_v23', {
+    target_event_id: eventId,
+  })
+  const row = recordFrom(data)
+  return openEventLocation({
+    address: optionalText(row.location) || optionalText(row.venue) || fallbackAddress,
+    latitude: optionalNumber(row.venue_latitude),
+    longitude: optionalNumber(row.venue_longitude),
+  })
+}
 
 interface CoordinatorAssignmentContext {
   budgetAllocations: CoordinatorBudgetAllocation[]

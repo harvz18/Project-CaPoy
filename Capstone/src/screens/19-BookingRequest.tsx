@@ -117,6 +117,8 @@ export interface MerchantBookingRequest {
   status: BookingRequestStatus
   submittedAt?: string
   venue?: string
+  venueLatitude?: number
+  venueLongitude?: number
   venueBookedHours?: number
   venueEndAt?: string
   venueOptionName?: string

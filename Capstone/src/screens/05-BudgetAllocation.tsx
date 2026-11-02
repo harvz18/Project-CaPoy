@@ -55,6 +55,7 @@ export interface BudgetAllocationValue {
 interface BudgetAllocationScreenProps {
   categoryMinimums?: Partial<Record<BudgetPriority, CategoryBudgetMinimum>>
   coordinatorCost?: number
+  excludeVenue?: boolean
   includeCoordinator?: boolean
   initialAllocations?: CategoryBudgetAllocation[]
   initialBudget?: number
@@ -368,6 +369,7 @@ const AllocationSlider: React.FC<AllocationSliderProps> = ({
 export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
   categoryMinimums = {},
   coordinatorCost = 0,
+  excludeVenue = false,
   includeCoordinator = true,
   initialAllocations = [],
   initialBudget,
@@ -398,6 +400,12 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
       : categoryOptions.filter((category) => category.id !== 'eventOrganizer'),
     [includeCoordinator]
   )
+  const selectableCategoryOptions = React.useMemo(
+    () => excludeVenue
+      ? visibleCategoryOptions.filter((category) => category.id !== 'venue')
+      : visibleCategoryOptions,
+    [excludeVenue, visibleCategoryOptions]
+  )
   const [allocationValidationMessages, setAllocationValidationMessages] = React.useState<
     Partial<Record<BudgetPriority, string>>
   >({})
@@ -405,7 +413,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
   const [expandedCategories, setExpandedCategories] = React.useState<Set<BudgetPriority>>(
     () =>
       new Set(
-        visibleCategoryOptions
+        selectableCategoryOptions
           .filter((category) => {
             const initialAllocation = initialAllocations.find(
               (allocation) => allocation.categoryKey === category.id
@@ -452,13 +460,24 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
   }, [coordinatorMinimum])
 
   React.useEffect(() => {
-    const priorities = visibleCategoryOptions
+    if (!excludeVenue) return
+    setAllocations((current) => current.venue > 0 ? { ...current, venue: 0 } : current)
+    setExpandedCategories((current) => {
+      if (!current.has('venue')) return current
+      const next = new Set(current)
+      next.delete('venue')
+      return next
+    })
+  }, [excludeVenue])
+
+  React.useEffect(() => {
+    const priorities = selectableCategoryOptions
       .filter((category) => allocations[category.id] > 0)
       .sort((left, right) => allocations[right.id] - allocations[left.id])
       .slice(0, 3)
       .map((category) => category.id)
     onPrioritiesChange?.(priorities)
-  }, [allocations, onPrioritiesChange, visibleCategoryOptions])
+  }, [allocations, onPrioritiesChange, selectableCategoryOptions])
 
   const handleBudgetChange = (value: string) => {
     const digits = value.replace(/\D/g, '').slice(0, 10)
@@ -658,7 +677,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
   )
 
   const draftValue = React.useMemo<BudgetAllocationValue>(() => {
-    const draftAllocations = visibleCategoryOptions
+    const draftAllocations = selectableCategoryOptions
       .map((category) => ({
         amount: sanitizeMoney(allocations[category.id]),
         categoryKey: category.id,
@@ -672,7 +691,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
       .map((allocation) => allocation.categoryKey)
 
     return { allocations: draftAllocations, budget, priorities }
-  }, [allocations, budget, lockedCategories, visibleCategoryOptions])
+  }, [allocations, budget, lockedCategories, selectableCategoryOptions])
 
   React.useEffect(() => {
     onDraftChange?.(draftValue)
@@ -729,7 +748,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
         <View style={styles.introCopy}>
           <Text style={styles.title}>Allocate Your Event Budget</Text>
           <Text style={styles.subtitle}>
-            Set the total, then divide it among the services that matter to your event.
+            {excludeVenue ? 'Your secured external venue is excluded. Divide the full budget among your remaining services.' : 'Set the total, then divide it among the services that matter to your event.'}
           </Text>
         </View>
 
@@ -838,7 +857,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
           ) : null}
 
           <View style={styles.allocationList}>
-            {visibleCategoryOptions.map((category) => {
+            {selectableCategoryOptions.map((category) => {
               const amount = allocations[category.id]
               const otherTotal = totalAllocated - amount
               const maximum = Math.max(budget - otherTotal, 0)

@@ -1858,7 +1858,7 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
   const { data, error } = await client
     .from('bookings')
     .select(
-      'id, event_id, provider_id, service_id, amount, provider_amount, status, requested_date, requested_time, client_notes, food_tasting_preference, catering_option_snapshot, final_menu_snapshot, venue_option_snapshot, venue_options_snapshot, venue_booking_snapshot, photo_video_selection_snapshot, photo_video_pre_event_plan, photo_video_event_day_log, photo_video_deliverable_tracking, created_at, updated_at, events(id, coordinator_id, pending_coordinator_id, coordinator_assignment_status, coordinator_fee_amount, wants_coordinator, name, event_type, is_church_wedding, event_date, event_time, guest_count, venue, location, status), services(name, cover_image_url, category_details, service_categories(name)), provider_profiles(business_name), payments(status, amount, service_subtotal, provider_initial_allocation, paid_at, created_at, metadata)'
+      'id, event_id, provider_id, service_id, amount, provider_amount, status, requested_date, requested_time, client_notes, food_tasting_preference, catering_option_snapshot, final_menu_snapshot, venue_option_snapshot, venue_options_snapshot, venue_booking_snapshot, photo_video_selection_snapshot, photo_video_pre_event_plan, photo_video_event_day_log, photo_video_deliverable_tracking, created_at, updated_at, events(id, coordinator_id, pending_coordinator_id, coordinator_assignment_status, coordinator_fee_amount, wants_coordinator, name, event_type, is_church_wedding, event_date, event_time, guest_count, venue, location, venue_latitude, venue_longitude, status), services(name, cover_image_url, category_details, service_categories(name)), provider_profiles(business_name), payments(status, amount, service_subtotal, provider_initial_allocation, paid_at, created_at, metadata)'
     )
     .eq('client_id', userId)
     .neq('status', 'payment_required')
@@ -2133,6 +2133,8 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
       status: 'requested',
       updatedAt: textFrom(record.updated_at),
       venue: textFrom(event?.venue),
+      venueLatitude: optionalNumber(event?.venue_latitude),
+      venueLongitude: optionalNumber(event?.venue_longitude),
     })
   })
 
@@ -2167,7 +2169,7 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
   if (!context) return []
 
   const bookingSelect =
-    'id, event_id, service_id, amount, provider_amount, status, requested_date, requested_time, client_notes, florist_selection_snapshot, photo_video_selection_snapshot, photo_video_pre_event_plan, photo_video_event_day_log, photo_video_deliverable_tracking, catering_option_name, catering_option_snapshot, venue_option_name, venue_option_snapshot, venue_options_snapshot, venue_booking_snapshot, venue_booked_hours, venue_setup_start_at, venue_start_at, venue_end_at, created_at, profiles(full_name, email), events(name, event_type, event_date, event_time, guest_count, venue, location), services(name, description, category_details, service_categories(name)), service_packages(name, description, inclusions), payments(status, amount, service_subtotal, platform_fee_amount, provider_initial_allocation, paid_at, verified_at, created_at, metadata)'
+    'id, event_id, service_id, amount, provider_amount, status, requested_date, requested_time, client_notes, florist_selection_snapshot, photo_video_selection_snapshot, photo_video_pre_event_plan, photo_video_event_day_log, photo_video_deliverable_tracking, catering_option_name, catering_option_snapshot, venue_option_name, venue_option_snapshot, venue_options_snapshot, venue_booking_snapshot, venue_booked_hours, venue_setup_start_at, venue_start_at, venue_end_at, created_at, profiles(full_name, email), events(name, event_type, event_date, event_time, guest_count, venue, location, venue_latitude, venue_longitude), services(name, description, category_details, service_categories(name)), service_packages(name, description, inclusions), payments(status, amount, service_subtotal, platform_fee_amount, provider_initial_allocation, paid_at, verified_at, created_at, metadata)'
   const loadBookings = (select: string) => context.client
     .from('bookings')
     .select(select)
@@ -2416,6 +2418,8 @@ export const fetchMerchantBookingRequests = async (): Promise<MerchantBookingReq
       status: mapRequestStatus(textFrom(record.status)),
       submittedAt: textFrom(record.created_at),
       venue: textFrom(event?.venue),
+      venueLatitude: optionalNumber(event?.venue_latitude),
+      venueLongitude: optionalNumber(event?.venue_longitude),
       venueBookedHours: record.venue_booked_hours == null
         ? undefined
         : numberFrom(record.venue_booked_hours),

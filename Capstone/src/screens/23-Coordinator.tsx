@@ -39,6 +39,8 @@ import type {
   CreateCoordinatorTaskInput,
   SaveChurchWeddingArrangementInput,
 } from '../lib/coordinator'
+import { openCoordinatorEventLocation } from '../lib/coordinator'
+import { canOpenEventLocation } from '../lib/event-location'
 
 export type CoordinatorView = 'events' | 'overview' | 'tasks'
 type TaskFilter = 'all' | 'due' | 'open'
@@ -387,6 +389,11 @@ const EventCard: React.FC<{
               <Text style={styles.metaLabel}>VENUE</Text>
               <Text numberOfLines={2} style={styles.metaValue}>{venue}</Text>
             </View>
+            {canOpenEventLocation({ address: event.location || event.venue }) ? (
+              <Pressable accessibilityLabel="Open event venue on map" accessibilityRole="link" hitSlop={8} onPress={() => { void openCoordinatorEventLocation(event.id, event.location || event.venue) }} style={styles.eventMapButton}>
+                <MaterialIcons color={palette.primaryContainer} name="map" size={19} />
+              </Pressable>
+            ) : null}
           </View>
         </View>
 
@@ -1228,6 +1235,12 @@ const InvitationCard: React.FC<{
       <Text style={styles.invitationMetaText}>
         {invitation.venue || invitation.location || 'Venue to be confirmed'}
       </Text>
+          {canOpenEventLocation({ address: invitation.location || invitation.venue }) ? (
+            <Pressable accessibilityLabel="Open invitation venue on map" accessibilityRole="link" onPress={() => { void openCoordinatorEventLocation(invitation.eventId, invitation.location || invitation.venue) }} style={styles.invitationMapButton}>
+              <MaterialIcons color={palette.primaryContainer} name="map" size={16} />
+              <Text style={styles.invitationMapButtonText}>View map</Text>
+            </Pressable>
+          ) : null}
       {invitation.guestCount ? (
         <Text style={styles.invitationMetaText}>{invitation.guestCount} guests</Text>
       ) : null}
@@ -2177,6 +2190,8 @@ const styles = StyleSheet.create({
   invitationTitle: { color: palette.text, fontSize: 15, lineHeight: 20, fontWeight: '700', marginTop: 2 },
   invitationClient: { color: palette.secondary, fontSize: 12, lineHeight: 16, marginTop: 1 },
   invitationMeta: { gap: 3, borderTopWidth: 1, borderTopColor: palette.border, marginTop: 12, paddingTop: 10 },
+  invitationMapButton: { alignSelf: 'flex-start', alignItems: 'center', flexDirection: 'row', gap: 5, marginTop: 4 },
+  invitationMapButtonText: { color: palette.primaryContainer, fontSize: 11, fontWeight: '800', textTransform: 'uppercase' },
   invitationMetaText: { color: palette.secondary, fontSize: 12, lineHeight: 16 },
   invitationNotice: { color: palette.secondary, fontSize: 12, lineHeight: 16, marginTop: 10 },
   churchWeddingNotice: { color: palette.primaryContainer, fontSize: 12, lineHeight: 16, fontWeight: '700', marginTop: 5 },
@@ -2265,6 +2280,7 @@ const styles = StyleSheet.create({
   statusPillText: { color: palette.primaryContainer, fontSize: 12, lineHeight: 16, fontWeight: '700' },
   eventMetaGrid: { flexDirection: 'row', gap: 10, marginBottom: 16 },
   eventMetaItem: { minWidth: 0, flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
+  eventMapButton: { marginLeft: 'auto', padding: 2 },
   metaCopy: { minWidth: 0, flex: 1 },
   metaLabel: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 0.6 },
   metaValue: { color: palette.text, fontSize: 12, lineHeight: 16, fontWeight: '600', marginTop: 2 },

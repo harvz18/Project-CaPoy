@@ -533,6 +533,8 @@ const eventDetailsMatch = (first: EventCreationValue, second: EventCreationValue
     && first.time === second.time
     && first.venueAddress === second.venueAddress
     && first.venueName === second.venueName
+    && first.venueSource === second.venueSource
+    && first.externalVenueConfirmed === second.externalVenueConfirmed
     && first.venueStatus === second.venueStatus
     && (
       first.venueStatus !== 'secured'
@@ -1250,11 +1252,20 @@ export const App: React.FC = () => {
   // A previously assigned coordinator remains visible even if the client later
   // changes their preference, so no confirmed booking is hidden or removed.
   const coordinatorPlanningEnabled = eventDetails.wantsCoordinator === true || Boolean(assignedCoordinator)
+  const hasConfirmedExternalVenue = eventDetails.venueStatus === 'secured'
+    && eventDetails.venueSource === 'external'
+    && eventDetails.externalVenueConfirmed === true
   const planningBudgetAllocations = React.useMemo(
     () => coordinatorPlanningEnabled
       ? budgetAllocations
       : budgetAllocations.filter((allocation) => allocation.categoryKey !== 'eventOrganizer'),
     [budgetAllocations, coordinatorPlanningEnabled]
+  )
+  const eligiblePlanningBudgetAllocations = React.useMemo(
+    () => hasConfirmedExternalVenue
+      ? planningBudgetAllocations.filter((allocation) => allocation.categoryKey !== 'venue')
+      : planningBudgetAllocations,
+    [hasConfirmedExternalVenue, planningBudgetAllocations]
   )
   const hasEventOrganizerBudget = coordinatorPlanningEnabled && planningBudgetAllocations.some(
     (allocation) => allocation.categoryKey === 'eventOrganizer' && allocation.amount > 0
@@ -1263,26 +1274,28 @@ export const App: React.FC = () => {
   // no-budget marketplace. Only actual positive category allocations enable
   // budget filtering and the allocation-driven category list.
   const hasConfiguredPlanningBudget = React.useMemo(
-    () => hasConfiguredCategoryBudgets(planningBudgetAllocations),
-    [planningBudgetAllocations]
+    () => hasConfiguredCategoryBudgets(eligiblePlanningBudgetAllocations),
+    [eligiblePlanningBudgetAllocations]
   )
   const activePlanningCategories = React.useMemo(
-    () => getActivePlanningCategories(planningBudgetAllocations),
-    [planningBudgetAllocations]
+    () => getActivePlanningCategories(planningBudgetAllocations).filter((category) => (
+      !hasConfirmedExternalVenue || category.categoryId !== 'venues'
+    )),
+    [hasConfirmedExternalVenue, planningBudgetAllocations]
   )
   const configuredPlanningCategories = React.useMemo(() => {
-    const configured = getConfiguredPlanningCategories(planningBudgetAllocations)
+    const configured = getConfiguredPlanningCategories(eligiblePlanningBudgetAllocations)
     // Positive allocations always have a persisted row. The fallback retains
     // the established allocation-driven path for legacy planning snapshots.
     return configured.length > 0 ? configured : activePlanningCategories
-  }, [activePlanningCategories, planningBudgetAllocations])
+  }, [activePlanningCategories, eligiblePlanningBudgetAllocations])
   const firstPlanningCategory = React.useMemo(
-    () => getFirstPlanningCategory(planningBudgetAllocations),
-    [planningBudgetAllocations]
+    () => getFirstPlanningCategory(eligiblePlanningBudgetAllocations),
+    [eligiblePlanningBudgetAllocations]
   )
   const firstServicePlanningCategory = React.useMemo(
-    () => getFirstServicePlanningCategory(planningBudgetAllocations),
-    [planningBudgetAllocations]
+    () => getFirstServicePlanningCategory(eligiblePlanningBudgetAllocations),
+    [eligiblePlanningBudgetAllocations]
   )
   const planningCategoryIds = React.useMemo(() => {
     if (hasConfiguredPlanningBudget) {
@@ -1291,8 +1304,9 @@ export const App: React.FC = () => {
 
     return PLANNING_CATEGORY_PRIORITY
       .filter((category) => coordinatorPlanningEnabled || category.categoryId !== 'eventOrganizers')
+      .filter((category) => !hasConfirmedExternalVenue || category.categoryId !== 'venues')
       .map((category) => category.categoryId)
-  }, [configuredPlanningCategories, coordinatorPlanningEnabled, hasConfiguredPlanningBudget])
+  }, [configuredPlanningCategories, coordinatorPlanningEnabled, hasConfiguredPlanningBudget, hasConfirmedExternalVenue])
   const planningServiceCategories = React.useMemo(() => {
     const categoriesById = new Map(
       serviceCategories.map((category) => [categoryNameToId(category.name), category])
@@ -1314,11 +1328,11 @@ export const App: React.FC = () => {
   const planningCategoryBudgets = React.useMemo<Partial<Record<CatalogCategoryId, number>>>(() => (
     Object.fromEntries(configuredPlanningCategories.map((category) => [
       category.categoryId,
-      planningBudgetAllocations.find((allocation) => (
+      eligiblePlanningBudgetAllocations.find((allocation) => (
         allocation.categoryKey === category.categoryKey
       ))?.amount ?? 0,
     ]))
-  ), [configuredPlanningCategories, planningBudgetAllocations])
+  ), [configuredPlanningCategories, eligiblePlanningBudgetAllocations])
   const planningCatalogServices = React.useMemo(
     () => catalogServices.filter((service) => planningMarketplaceCategoryIds.has(service.categoryId)),
     [catalogServices, planningMarketplaceCategoryIds]
@@ -1354,11 +1368,12 @@ export const App: React.FC = () => {
 
     return PLANNING_CATEGORY_PRIORITY
       .filter((category) => category.categoryId !== 'eventOrganizers')
+      .filter((category) => !hasConfirmedExternalVenue || category.categoryId !== 'venues')
       .filter((category) => !configuredCategoryIds.has(category.categoryId))
       .map((category) => categoriesById.get(category.categoryId)
         ?? fallbackServiceCategories.find((fallback) => fallback.id === category.categoryId))
       .filter((category): category is ServiceCategoryOption => Boolean(category))
-  }, [planningCategoryIds, serviceCategories])
+  }, [hasConfirmedExternalVenue, planningCategoryIds, serviceCategories])
   const unallocatedPlanningCategoryCount = React.useMemo(
     () => addablePlanningServiceCategories.length,
     [addablePlanningServiceCategories]
@@ -3415,6 +3430,11 @@ export const App: React.FC = () => {
         return
       }
 
+      if (value.venueSource === 'external' && value.externalVenueConfirmed === true) {
+        setBudgetAllocations((current) => current.filter((allocation) => allocation.categoryKey !== 'venue'))
+        setBudgetPriorities((current) => current.filter((priority) => priority !== 'venue'))
+      }
+
       eventDetailsDirtyRef.current = false
       if (value.wantsCoordinator === true && !assignedCoordinator) {
         setCoordinatorPreferenceState('undecided')
@@ -4880,6 +4900,11 @@ export const App: React.FC = () => {
         return
       }
 
+      if (value.venueSource === 'external' && value.externalVenueConfirmed === true) {
+        setBudgetAllocations((current) => current.filter((allocation) => allocation.categoryKey !== 'venue'))
+        setBudgetPriorities((current) => current.filter((priority) => priority !== 'venue'))
+      }
+
       eventDetailsDirtyRef.current = false
       if (value.wantsCoordinator === true && !assignedCoordinator) setCoordinatorPreferenceState('undecided')
       else if (value.wantsCoordinator === false) setCoordinatorPreferenceState('skipped')
@@ -6143,8 +6168,9 @@ export const App: React.FC = () => {
             <BudgetAllocationScreen
               categoryMinimums={categoryBudgetMinimums}
               coordinatorCost={coordinatorBudgetCost}
+              excludeVenue={hasConfirmedExternalVenue}
               includeCoordinator={coordinatorPlanningEnabled}
-              initialAllocations={planningBudgetAllocations}
+              initialAllocations={eligiblePlanningBudgetAllocations}
               initialBudget={totalBudget}
               initialPriorities={budgetPriorities}
               isProcessing={activeGuardedActionCount > 0}

@@ -16,6 +16,7 @@ import { PhotoVideoPreEventPlanCard } from '../components/PhotoVideoPreEventPlan
 import { PhotoVideoEventDayCard } from '../components/PhotoVideoEventDayCard'
 import { PhotoVideoDeliverablesCard } from '../components/PhotoVideoDeliverablesCard'
 import type { PhotoVideoPreEventPlan } from '../lib/photo-video-pre-event'
+import { canOpenEventLocation, openEventLocation } from '../lib/event-location'
 import type { MerchantBookedService, MerchantBookingRequest } from './19-BookingRequest'
 
 export interface MerchantBookingRequestDetails {
@@ -484,6 +485,17 @@ export const BookingRequestDetailsScreen: React.FC<BookingRequestDetailsScreenPr
               }
             />
           </View>
+          {canOpenEventLocation({ address: request.location || request.venue, latitude: request.venueLatitude, longitude: request.venueLongitude }) ? (
+            <Pressable
+              accessibilityLabel="Open event venue on map"
+              accessibilityRole="link"
+              onPress={() => { void openEventLocation({ address: request.location || request.venue, latitude: request.venueLatitude, longitude: request.venueLongitude }) }}
+              style={({ pressed }) => [styles.openVenueMapButton, pressed && styles.pressed]}
+            >
+              <MaterialIcons color={palette.primaryContainer} name="map" size={17} />
+              <Text style={styles.openVenueMapText}>View on map</Text>
+            </Pressable>
+          ) : null}
         </View>
 
         <View style={styles.sectionHeader}>
@@ -1294,6 +1306,8 @@ const styles = StyleSheet.create({
   totalValue: { color: palette.primaryContainer, fontSize: 15, lineHeight: 20, fontWeight: '700', marginTop: 1 },
   eventFacts: { gap: 13 },
   eventFactsWide: { flexDirection: 'row' },
+  openVenueMapButton: { alignSelf: 'flex-start', alignItems: 'center', flexDirection: 'row', gap: 7, marginTop: 14, paddingVertical: 4 },
+  openVenueMapText: { color: palette.primaryContainer, fontSize: 12, fontWeight: '800', textTransform: 'uppercase' },
   eventFact: { minWidth: 0, flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   eventFactIcon: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: palette.primarySoft },
   eventFactCopy: { minWidth: 0, flex: 1 },

@@ -14,6 +14,7 @@ import type { InstructionModuleValue } from '../screens/10-InstructionModule'
 import type {
   EventCreationValue,
   EventType,
+  VenueSource,
   VenueStatus,
 } from '../screens/04-EventCreation'
 import type {
@@ -157,6 +158,8 @@ type EventDraftInput = {
   venueLatitude?: number
   venueLongitude?: number
   venueName?: string
+  venueSource?: VenueSource
+  externalVenueConfirmed?: boolean
   venueStatus: string
   weddingThemes?: string[]
 }
@@ -485,7 +488,7 @@ const toMessage = (error: unknown) => {
   }
 
   if (
-    ['planning_step', 'venue_latitude', 'venue_longitude', 'wedding_themes'].some((column) =>
+    ['planning_step', 'venue_latitude', 'venue_longitude', 'wedding_themes', 'venue_source', 'external_venue_confirmed'].some((column) =>
       message.toLowerCase().includes(column)
     )
   ) {
@@ -867,7 +870,7 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
   if (!client || !userId) return { selectedServices: [] }
 
   const eventSelection =
-    'id, coordinator_id, pending_coordinator_id, coordinator_assignment_status, coordinator_preference, coordinator_fee_amount, wants_coordinator, name, event_type, is_church_wedding, event_date, event_time, guest_count, total_budget, venue_status, venue, location, venue_latitude, venue_longitude, wedding_themes, planning_step, status, updated_at'
+    'id, coordinator_id, pending_coordinator_id, coordinator_assignment_status, coordinator_preference, coordinator_fee_amount, wants_coordinator, name, event_type, is_church_wedding, event_date, event_time, guest_count, total_budget, venue_status, venue_source, external_venue_confirmed, venue, location, venue_latitude, venue_longitude, wedding_themes, planning_step, status, updated_at'
   const { data: selectedEvent } = activePlanningEventId
     ? await client
         .from('events')
@@ -1100,6 +1103,10 @@ export const fetchClientPlanningState = async (): Promise<ClientPlanningState> =
       venueLatitude: asFiniteCoordinate(event.venue_latitude) ?? undefined,
       venueLongitude: asFiniteCoordinate(event.venue_longitude) ?? undefined,
       venueName: event.venue ?? '',
+      venueSource: event.venue_source === 'external' || event.venue_source === 'marketplace'
+        ? event.venue_source as VenueSource
+        : undefined,
+      externalVenueConfirmed: event.external_venue_confirmed === true,
       venueStatus: ['secured', 'searching'].includes(event.venue_status)
         ? (event.venue_status as VenueStatus)
         : 'searching',
@@ -1261,6 +1268,14 @@ const toEventPayload = (
       ? asFiniteCoordinate(details.venueLongitude)
       : null
     payload.venue_status = details.venueStatus
+    payload.venue_source = details.venueStatus === 'secured'
+      && details.venueSource === 'external'
+      && details.externalVenueConfirmed === true
+      ? 'external'
+      : null
+    payload.external_venue_confirmed = details.venueStatus === 'secured'
+      && details.venueSource === 'external'
+      && details.externalVenueConfirmed === true
     payload.wedding_themes = normalizedWeddingThemes(details.weddingThemes)
     // Explicitly clear removed dates/times instead of retaining stale values from an older draft.
     payload.event_date = eventDate

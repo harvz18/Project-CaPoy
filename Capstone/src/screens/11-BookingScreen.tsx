@@ -107,6 +107,8 @@ export interface BookingItem {
   services?: BookingServiceItem[]
   updatedAt?: string
   venue?: string
+  venueLatitude?: number
+  venueLongitude?: number
   venueBooking?: VenueBookingConfiguration
 }
 

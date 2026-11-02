@@ -24,6 +24,7 @@ import { hasMapTilerVenueMap, MapTilerVenueMap } from '../components/MapTilerVen
 
 export type EventType = 'wedding' | 'preWedding' | 'postWedding'
 export type VenueStatus = 'secured' | 'searching'
+export type VenueSource = 'external' | 'marketplace'
 
 export interface EventCreationValue {
   date: string
@@ -37,6 +38,8 @@ export interface EventCreationValue {
   venueLatitude?: number
   venueLongitude?: number
   venueName?: string
+  venueSource?: VenueSource
+  externalVenueConfirmed?: boolean
   venueStatus: VenueStatus
   weddingThemes?: string[]
 }
@@ -236,6 +239,9 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
     name: initialValue?.venueName ?? '',
   })
   const [venueError, setVenueError] = React.useState('')
+  const [externalVenueConfirmed, setExternalVenueConfirmed] = React.useState(
+    initialValue?.venueSource === 'external' && initialValue?.externalVenueConfirmed === true
+  )
   const venuePanelAnimation = React.useRef(
     new Animated.Value(venueStatus === 'secured' ? 1 : 0)
   ).current
@@ -327,8 +333,8 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
       return
     }
 
-    if (venueStatus === 'secured' && (!venueMap.name.trim() || !venueMap.address.trim())) {
-      setVenueError('Search for the secured venue or pin its location on the map.')
+    if (venueStatus === 'secured' && (!venueMap.name.trim() || !externalVenueConfirmed)) {
+      setVenueError('Choose a location, then select Use This Venue to confirm your external venue.')
       return
     }
 
@@ -345,6 +351,8 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
     venueLatitude: venueMap.latitude,
     venueLongitude: venueMap.longitude,
     venueName: venueMap.name,
+    venueSource: venueStatus === 'secured' && externalVenueConfirmed ? 'external' : undefined,
+    externalVenueConfirmed: venueStatus === 'secured' && externalVenueConfirmed,
     guestCount,
     isChurchWedding,
     wantsCoordinator,
@@ -362,6 +370,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
     venueMap.longitude,
     venueMap.name,
     venueStatus,
+    externalVenueConfirmed,
     wantsCoordinator,
   ])
 
@@ -381,7 +390,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
       !isPastDateTime(date, time) &&
       (!shouldAskChurchQuestion || typeof isChurchWedding === 'boolean') &&
       typeof wantsCoordinator === 'boolean' &&
-      (venueStatus !== 'secured' || (venueMap.name.trim() && venueMap.address.trim()))
+      (venueStatus !== 'secured' || (venueMap.name.trim() && externalVenueConfirmed))
   )
 
   return (
@@ -648,6 +657,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                         accessibilityState={{ checked: selected }}
                         onPress={() => {
                           setVenueStatus(option.id)
+                          if (option.id !== 'secured') setExternalVenueConfirmed(false)
                           setVenueError('')
                         }}
                         style={({ pressed }) => [
@@ -711,9 +721,15 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                             <View style={styles.venueMapConnectorDiamond} />
                           </View>
                           <VenueLocationPicker
+                            confirmed={externalVenueConfirmed}
                             error={venueError}
                             onChange={(nextValue) => {
                               setVenueMap(nextValue)
+                              setExternalVenueConfirmed(false)
+                              setVenueError('')
+                            }}
+                            onConfirm={() => {
+                              setExternalVenueConfirmed(true)
                               setVenueError('')
                             }}
                             value={venueMap}
@@ -853,14 +869,18 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
 }
 
 interface VenueLocationPickerProps {
+  confirmed: boolean
   error: string
   onChange: (value: VenueMapValue) => void
+  onConfirm: () => void
   value: VenueMapValue
 }
 
 const VenueLocationPicker: React.FC<VenueLocationPickerProps> = ({
+  confirmed,
   error,
   onChange,
+  onConfirm,
   value,
 }) => {
   const [query, setQuery] = React.useState(value.name)
@@ -928,13 +948,10 @@ const VenueLocationPicker: React.FC<VenueLocationPickerProps> = ({
     const customName = query.trim() || value.name.trim() || 'Pinned venue'
     const hasNewSearch = Boolean(query.trim() && query.trim() !== value.name.trim())
     onChange({
-      address:
-        hasNewSearch
-          ? `${query.trim()}, Bacolod City, Negros Occidental`
-          : value.address.trim() || 'Pinned location, Bacolod City, Negros Occidental',
+      address: hasNewSearch ? query.trim() : value.address.trim(),
       latitude,
       longitude,
-      name: customName,
+      name: customName || 'Pinned map location',
     })
   }
 
@@ -1040,6 +1057,20 @@ const VenueLocationPicker: React.FC<VenueLocationPickerProps> = ({
           <MaterialIcons color={palette.burgundy} name="check-circle" size={23} />
         </View>
       ) : null}
+
+      <Pressable
+        accessibilityLabel="Use this external venue"
+        accessibilityRole="button"
+        disabled={!value.name.trim()}
+        onPress={onConfirm}
+        style={({ pressed }) => [styles.useVenueButton, confirmed && styles.useVenueButtonConfirmed, (!value.name.trim() || pressed) && styles.useVenueButtonPressed]}
+      >
+        <MaterialIcons color={palette.surface} name={confirmed ? 'check-circle' : 'location-on'} size={18} />
+        <View style={styles.useVenueButtonCopy}>
+          <Text style={styles.useVenueButtonText}>{confirmed ? 'External Venue Confirmed' : 'Use This Venue'}</Text>
+          <Text style={styles.useVenueButtonHint}>{confirmed ? 'This is your event location. Venue booking is not required.' : 'Already secured this venue? Use this location without booking a venue through MULTIVENT.'}</Text>
+        </View>
+      </Pressable>
 
       {error ? (
         <Text accessibilityRole="alert" style={styles.venueError}>
@@ -2312,6 +2343,12 @@ const styles = StyleSheet.create({
   venueSearchInput: { minWidth: 0, flex: 1, minHeight: 46, color: palette.text, fontSize: 14, lineHeight: 20, paddingVertical: 11 },
   venueSearchButton: { alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: 16, backgroundColor: palette.burgundy },
   venueSearchButtonPressed: { opacity: 0.58 },
+  useVenueButton: { alignItems: 'center', backgroundColor: palette.burgundy, borderRadius: 14, flexDirection: 'row', gap: 10, marginTop: 12, padding: 13 },
+  useVenueButtonConfirmed: { backgroundColor: '#17664A' },
+  useVenueButtonPressed: { opacity: 0.62 },
+  useVenueButtonCopy: { flex: 1 },
+  useVenueButtonText: { color: palette.surface, fontSize: 14, fontWeight: '800' },
+  useVenueButtonHint: { color: '#F9EDEE', fontSize: 11, lineHeight: 16, marginTop: 2 },
   venueResults: { overflow: 'hidden', borderWidth: 1, borderTopWidth: 0, borderColor: palette.border, borderBottomLeftRadius: 12, borderBottomRightRadius: 12, backgroundColor: palette.surface },
   venueResultRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 10, borderTopWidth: 1, borderTopColor: '#F0E8EA', paddingHorizontal: 12, paddingVertical: 9 },
   venueResultRowPressed: { backgroundColor: '#FCF4F6' },

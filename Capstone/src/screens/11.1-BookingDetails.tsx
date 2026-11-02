@@ -10,6 +10,7 @@ import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, TextInput, View
 import type { CateringFoodTastingSlot, CateringFoodTastingSlotsResult } from '../lib/merchant'
 import { formatPeso } from '../lib/catalog'
 import type { EventPaymentQuote } from '../lib/planning'
+import { canOpenEventLocation, openEventLocation } from '../lib/event-location'
 import type { BookingItem } from './11-BookingScreen'
 
 export interface BookingChangeActionResult {
@@ -819,10 +820,15 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
             <DetailRow label="WEDDING FORMAT" value="Church wedding" />
           ) : null}
           {booking?.venue || booking?.location ? (
-            <DetailRow
-              label="VENUE"
-              value={[booking.venue, booking.location].filter(Boolean).join(', ')}
-            />
+            <View>
+              <DetailRow label="EVENT VENUE" value={[booking.venue, booking.location].filter(Boolean).join(', ')} />
+              {canOpenEventLocation({ address: booking.location || booking.venue, latitude: booking.venueLatitude, longitude: booking.venueLongitude }) ? (
+                <Pressable accessibilityLabel="View event venue on map" accessibilityRole="link" onPress={() => { void openEventLocation({ address: booking.location || booking.venue, latitude: booking.venueLatitude, longitude: booking.venueLongitude }) }} style={styles.eventVenueMapButton}>
+                  <MaterialIcons color={palette.burgundy} name="map" size={17} />
+                  <Text style={styles.eventVenueMapText}>View on map</Text>
+                </Pressable>
+              ) : null}
+            </View>
           ) : null}
           <DetailRow label="SERVICES" value={value.coverage} />
         </View>
@@ -2273,6 +2279,8 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
   },
+  eventVenueMapButton: { alignSelf: 'flex-start', alignItems: 'center', flexDirection: 'row', gap: 7, marginLeft: 16, marginTop: -4, marginBottom: 10 },
+  eventVenueMapText: { color: palette.burgundy, fontSize: 12, fontWeight: '800', textTransform: 'uppercase' },
   cardTitle: { color: palette.text, fontSize: 20, lineHeight: 25, fontWeight: '600', marginBottom: 16 },
   detailRow: {
     flexDirection: 'row',
