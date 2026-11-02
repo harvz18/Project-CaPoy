@@ -111,6 +111,28 @@ const mapDocument = (coordinates: MapCoordinates) => `<!doctype html>
         font-size: 10px;
       }
       .leaflet-control-attribution a { color: inherit; }
+      .multivent-venue-marker {
+        display: block;
+        position: relative;
+        width: 28px;
+        height: 28px;
+        box-sizing: border-box;
+        border: 3px solid #fff;
+        border-radius: 50% 50% 50% 0;
+        background: #7d1832;
+        box-shadow: 0 2px 8px rgba(56, 8, 22, 0.38);
+        transform: rotate(-45deg);
+      }
+      .multivent-venue-marker::after {
+        position: absolute;
+        top: 7px;
+        left: 7px;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #fff;
+        content: '';
+      }
     </style>
   </head>
   <body>
@@ -118,12 +140,30 @@ const mapDocument = (coordinates: MapCoordinates) => `<!doctype html>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script>
       const coordinates = [${coordinates.latitude}, ${coordinates.longitude}]
-      const map = L.map('map', { zoomControl: true, attributionControl: true }).setView(coordinates, 15)
-      L.tileLayer('https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=${mapTilerKey}', {
+      const map = L.map('map', {
+        zoomControl: true,
+        attributionControl: true,
+        // Avoid briefly scaling raster labels during a zoom. Fresh tiles are
+        // rendered at their natural size instead, which keeps place names legible.
+        zoomAnimation: false,
+        fadeAnimation: false,
+        markerZoomAnimation: false,
+        minZoom: 12,
+        maxZoom: 18,
+      }).setView(coordinates, 15)
+      L.tileLayer('https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png?key=${mapTilerKey}', {
+        tileSize: 256,
+        minZoom: 12,
         maxZoom: 19,
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://www.maptiler.com/copyright/">MapTiler</a>',
       }).addTo(map)
-      let marker = L.marker(coordinates, { draggable: true }).addTo(map)
+      const markerIcon = L.divIcon({
+        className: 'multivent-venue-marker-wrap',
+        html: '<span class="multivent-venue-marker" aria-hidden="true"></span>',
+        iconSize: [28, 28],
+        iconAnchor: [14, 28],
+      })
+      let marker = L.marker(coordinates, { draggable: true, icon: markerIcon }).addTo(map)
       const reportPin = (latlng) => window.parent.postMessage({
         source: 'multivent-maptiler',
         latitude: Number(latlng.lat.toFixed(6)),
