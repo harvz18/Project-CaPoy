@@ -20,6 +20,7 @@ import {
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { PlanningScreenHeader } from '../components/PlanningScreenHeader'
+import { hasMapTilerVenueMap, MapTilerVenueMap } from '../components/MapTilerVenueMap'
 
 export type EventType = 'wedding' | 'preWedding' | 'postWedding'
 export type VenueStatus = 'secured' | 'searching'
@@ -73,6 +74,7 @@ const venueOptions = [
 ]
 
 const weddingThemes = ['Minimalist', 'Rustic', 'Garden', 'Classic', 'Modern', 'Beach', 'Glam']
+const mapTilerKey = process.env.EXPO_PUBLIC_MAPTILER_API_KEY?.trim() ?? ''
 
 const bacolodVenueSuggestions: VenueMapValue[] = [
   {
@@ -863,8 +865,10 @@ const VenueLocationPicker: React.FC<VenueLocationPickerProps> = ({
 }) => {
   const [query, setQuery] = React.useState(value.name)
   const [isFullscreen, setIsFullscreen] = React.useState(false)
+  const [remoteResults, setRemoteResults] = React.useState<VenueMapValue[] | null>(null)
+  const [isSearching, setIsSearching] = React.useState(false)
   const normalizedQuery = query.trim().toLowerCase()
-  const results = normalizedQuery
+  const suggestedResults = normalizedQuery
     ? bacolodVenueSuggestions
         .filter(
           (venue) =>
@@ -873,10 +877,51 @@ const VenueLocationPicker: React.FC<VenueLocationPickerProps> = ({
         )
         .slice(0, 4)
     : []
+  const results = remoteResults ?? suggestedResults
 
   const chooseVenue = (venue: VenueMapValue) => {
     setQuery(venue.name)
+    setRemoteResults(null)
     onChange(venue)
+  }
+
+  const searchVenue = async () => {
+    const requestedQuery = query.trim()
+    if (!requestedQuery) return
+
+    if (!mapTilerKey || Platform.OS !== 'web') {
+      if (suggestedResults[0]) chooseVenue(suggestedResults[0])
+      return
+    }
+
+    setIsSearching(true)
+    try {
+      const response = await fetch(
+        `https://api.maptiler.com/geocoding/${encodeURIComponent(`${requestedQuery}, Bacolod City, Philippines`)}.json?key=${encodeURIComponent(mapTilerKey)}&limit=5&proximity=122.9511,10.6765`
+      )
+      if (!response.ok) throw new Error('Location search was unavailable.')
+      const payload = await response.json() as {
+        features?: Array<{ center?: unknown; place_name?: unknown; text?: unknown }>
+      }
+      const nextResults = (payload.features ?? []).flatMap((feature) => {
+        const center = Array.isArray(feature.center) ? feature.center : []
+        const longitude = typeof center[0] === 'number' ? center[0] : NaN
+        const latitude = typeof center[1] === 'number' ? center[1] : NaN
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return []
+        const name = typeof feature.text === 'string' && feature.text.trim()
+          ? feature.text.trim()
+          : requestedQuery
+        const address = typeof feature.place_name === 'string' && feature.place_name.trim()
+          ? feature.place_name.trim()
+          : `${requestedQuery}, Bacolod City, Negros Occidental`
+        return [{ address, latitude, longitude, name }]
+      })
+      setRemoteResults(nextResults)
+    } catch {
+      setRemoteResults([])
+    } finally {
+      setIsSearching(false)
+    }
   }
 
   const pinVenue = (latitude: number, longitude: number) => {
@@ -899,16 +944,26 @@ const VenueLocationPicker: React.FC<VenueLocationPickerProps> = ({
         <MaterialIcons color={palette.burgundy} name="search" size={21} />
         <TextInput
           accessibilityLabel="Search secured venue in Bacolod"
-          onChangeText={setQuery}
-          onSubmitEditing={() => {
-            if (results[0]) chooseVenue(results[0])
+          onChangeText={(nextQuery) => {
+            setQuery(nextQuery)
+            setRemoteResults(null)
           }}
+          onSubmitEditing={() => void searchVenue()}
           placeholder="Search your booked venue in Bacolod"
           placeholderTextColor={palette.placeholder}
           returnKeyType="search"
           style={styles.venueSearchInput}
           value={query}
         />
+        <Pressable
+          accessibilityLabel="Search for venue location"
+          accessibilityRole="button"
+          disabled={isSearching || !normalizedQuery}
+          onPress={() => void searchVenue()}
+          style={({ pressed }) => [styles.venueSearchButton, (pressed || isSearching || !normalizedQuery) && styles.venueSearchButtonPressed]}
+        >
+          {isSearching ? <ActivityIndicator color={palette.surface} size="small" /> : <MaterialIcons color={palette.surface} name="arrow-forward" size={19} />}
+        </Pressable>
       </View>
       {normalizedQuery ? (
         <View style={styles.venueResults}>
@@ -933,9 +988,7 @@ const VenueLocationPicker: React.FC<VenueLocationPickerProps> = ({
               </Pressable>
             ))
           ) : (
-            <Text style={styles.venueNoResults}>
-              No saved suggestion found. Keep the name, then tap its location on the map.
-            </Text>
+            <Text style={styles.venueNoResults}>{remoteResults ? 'No locations found. Check the spelling or place the pin manually.' : 'Press search to find a venue, or tap the map to place the pin manually.'}</Text>
           )}
         </View>
       ) : null}
@@ -1049,6 +1102,10 @@ const VenueMapSurface: React.FC<VenueMapSurfaceProps> = ({
   value,
 }) => {
   const [size, setSize] = React.useState({ height: 1, width: 1 })
+  if (Platform.OS === 'web' && hasMapTilerVenueMap) {
+    return <MapTilerVenueMap coordinates={{ latitude: value.latitude, longitude: value.longitude }} fullscreen={fullscreen} onPin={({ latitude, longitude }) => onPin(latitude, longitude)} />
+  }
+
   const west = 122.91
   const east = 122.99
   const north = 10.73
@@ -2253,6 +2310,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   venueSearchInput: { minWidth: 0, flex: 1, minHeight: 46, color: palette.text, fontSize: 14, lineHeight: 20, paddingVertical: 11 },
+  venueSearchButton: { alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: 16, backgroundColor: palette.burgundy },
+  venueSearchButtonPressed: { opacity: 0.58 },
   venueResults: { overflow: 'hidden', borderWidth: 1, borderTopWidth: 0, borderColor: palette.border, borderBottomLeftRadius: 12, borderBottomRightRadius: 12, backgroundColor: palette.surface },
   venueResultRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 10, borderTopWidth: 1, borderTopColor: '#F0E8EA', paddingHorizontal: 12, paddingVertical: 9 },
   venueResultRowPressed: { backgroundColor: '#FCF4F6' },
