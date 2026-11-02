@@ -1908,7 +1908,7 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
       bookingIds.length
         ? client
             .from('booking_replacements')
-            .select('rejected_booking_id, status')
+            .select('rejected_booking_id, replacement_booking_id, status')
             .in('rejected_booking_id', bookingIds)
             .neq('status', 'closed')
         : Promise.resolve({ data: [] }),
@@ -1919,8 +1919,17 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
   const coordinatorReviewRows = coordinatorReviewResult.data
   const foodTastingsByBooking = mapFoodTastingsByBooking(foodTastingResult.data)
   const foodTastingWorkflowsByBooking = mapFoodTastingWorkflowsByBooking(foodTastingWorkflowResult.data)
-  const replacementBookingIds = new Set(
-    (replacementResult.data ?? []).map((row) => textFrom(row.rejected_booking_id)).filter(Boolean)
+  const replacementsByRejectedBookingId = new Map(
+    (replacementResult.data ?? []).map((row) => {
+      const replacement = row as Record<string, unknown>
+      return [
+        textFrom(replacement.rejected_booking_id),
+        {
+          replacementBookingId: textFrom(replacement.replacement_booking_id) || undefined,
+          status: textFrom(replacement.status),
+        },
+      ] as const
+    }).filter(([bookingId]) => Boolean(bookingId))
   )
   const reviewedBookingIds = new Set((reviewRows ?? []).map((row) => textFrom(row.booking_id)))
   const reviewedCoordinatorEventIds = new Set(
@@ -2034,6 +2043,10 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
     const categoryName = textFrom(category?.name, 'Service')
     const isCateringService = /cater/i.test(categoryName)
     const hasCateringComponent = isCateringService || isVenueCateringPackage
+    const replacement = replacementsByRejectedBookingId.get(bookingId)
+    const replacedByBookingId = rawStatus === 'rejected'
+      ? replacement?.replacementBookingId
+      : undefined
     const foodTastingPreference = record.food_tasting_preference === true
       ? true
       : record.food_tasting_preference === false
@@ -2072,7 +2085,10 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
       providerId: textFrom(record.provider_id),
       providerName: textFrom(provider?.business_name, 'Service provider'),
       rawStatus,
-      replacementAvailable: rawStatus === 'rejected' && replacementBookingIds.has(bookingId),
+      replacementAvailable: rawStatus === 'rejected'
+        && Boolean(replacement)
+        && !replacedByBookingId,
+      replacedByBookingId,
       remainingServiceBalance,
       serviceId: textFrom(record.service_id),
       serviceAmount,
@@ -2083,10 +2099,11 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
     }
 
     const current = grouped.get(eventId)
+    const supersededDecline = Boolean(replacedByBookingId)
     if (current) {
-      current.amount = Number(current.amount ?? 0) + serviceItem.amount
+      current.amount = Number(current.amount ?? 0) + (supersededDecline ? 0 : serviceItem.amount)
       current.services = [...(current.services ?? []), serviceItem]
-      if (!current.image && serviceItem.image) current.image = serviceItem.image
+      if (!supersededDecline && !current.image && serviceItem.image) current.image = serviceItem.image
       if (textFrom(record.updated_at) > textFrom(current.updatedAt)) {
         current.updatedAt = textFrom(record.updated_at)
       }
@@ -2099,7 +2116,7 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
     const assignedCoordinatorId = acceptedCoordinatorId || pendingCoordinatorId
     const coordinator = coordinatorProfilesById.get(assignedCoordinatorId)
     grouped.set(eventId, {
-      amount: serviceItem.amount,
+      amount: supersededDecline ? 0 : serviceItem.amount,
       category: textFrom(event?.event_type, 'Event'),
       createdAt: textFrom(record.created_at),
       coordinatorAvatarUrl: textFrom(coordinator?.avatar_url) || undefined,
@@ -2117,7 +2134,7 @@ export const fetchClientBookings = async (): Promise<BookingItem[]> => {
       eventType: textFrom(event?.event_type, 'Event'),
       guestCount: numberFrom(event?.guest_count),
       id: eventId,
-      image: serviceItem.image,
+      image: supersededDecline ? '' : serviceItem.image,
       imageLabel: eventName,
       isChurchWedding: event?.is_church_wedding === true,
       churchArrangement: churchArrangementsByEvent.get(eventId),

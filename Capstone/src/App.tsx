@@ -3759,7 +3759,8 @@ export const App: React.FC = () => {
       await refreshLiveData()
       setBookingPaymentQuote(undefined)
       setPaymentSettlementContext(undefined)
-      setScreen('bookings')
+      setScreen('bookingDetails')
+      if (selectedBooking?.eventId) void loadBookingPaymentQuote(selectedBooking.eventId)
       return
     }
 
@@ -6489,6 +6490,7 @@ export const App: React.FC = () => {
             service={currentService}
             hasBudget={hasConfiguredPlanningBudget}
             isChangingSelection={Boolean(changingServiceSelection)}
+            isReplacementSelection={Boolean(replacementBooking)}
             allowBudgetOverage={Boolean(replacementBooking)}
             initialFoodTastingPreference={
               directCateringFallbackServiceId === currentService?.id ? false : undefined

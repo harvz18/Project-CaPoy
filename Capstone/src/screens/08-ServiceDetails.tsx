@@ -83,6 +83,7 @@ interface ServiceDetailsScreenProps {
   eventTime?: string
   hasBudget?: boolean
   isChangingSelection?: boolean
+  isReplacementSelection?: boolean
   allowBudgetOverage?: boolean
   initialFoodTastingPreference?: boolean
   initialPhotoVideoSelection?: PhotoVideoSelectionSnapshot
@@ -183,6 +184,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   eventTime = '',
   hasBudget,
   isChangingSelection = false,
+  isReplacementSelection = false,
   allowBudgetOverage = false,
   initialFoodTastingPreference,
   initialPhotoVideoSelection,
@@ -2076,6 +2078,8 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
               accessibilityLabel={
                 isFoodTastingFlow
                   ? 'Submit food tasting request'
+                  : isReplacementSelection
+                  ? `Confirm change to ${service.name} for ${formatPeso(estimatedTotal)} Philippine pesos`
                   : isPhotoVideo
                   ? 'Photo and video coverage draft saved'
                   : requiresQuote
@@ -2104,6 +2108,8 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                       : 'Submit Food Tasting Request'
                   : isAddingSelection
                   ? 'Adding...'
+                  : isReplacementSelection
+                    ? 'Confirm Change'
                   : isPhotoVideo
                     ? photoVideoSelectionIssue
                       ? 'Complete Photo / Video Selection'

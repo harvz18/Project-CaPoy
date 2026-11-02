@@ -47,6 +47,9 @@ export interface BookingServiceItem {
   providerName: string
   rawStatus: string
   replacementAvailable?: boolean
+  // The rejected booking remains retained as financial history, but the event
+  // detail view uses this link to present the requested replacement instead.
+  replacedByBookingId?: string
   remainingServiceBalance?: number
   serviceAmount?: number
   serviceId: string

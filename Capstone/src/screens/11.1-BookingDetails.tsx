@@ -323,7 +323,12 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
       && booking?.isChurchWedding
       && booking?.coordinatorAssignmentStatus === 'accepted'
   )
-  const bookedServices = booking?.services ?? emptyBookedServices
+  // Once the client has sent an alternate request, surface that request in
+  // place of the declined booking. The original booking remains in the
+  // database for audit and financial history, but should not look active.
+  const bookedServices = (booking?.services ?? emptyBookedServices).filter(
+    (service) => !service.replacedByBookingId
+  )
   const localProviderConfirmation = getLocalProviderConfirmationProgress(bookedServices)
   // Booking records refresh through the live client data subscription. Prefer
   // them while present so this small tracker never waits on a previously
@@ -967,7 +972,7 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
           </View>
         ) : null}
 
-        {booking?.services?.filter((service) => service.photoVideoPreEventPlan !== undefined).map((service) => (
+        {bookedServices.filter((service) => service.photoVideoPreEventPlan !== undefined).map((service) => (
           <PhotoVideoPreEventPlanCard
             bookingId={service.bookingId}
             key={`photo-video-plan-${service.bookingId}`}
@@ -977,10 +982,10 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
             plan={service.photoVideoPreEventPlan}
           />
         ))}
-        {booking?.services?.filter((service) => service.photoVideoEventDayLog !== undefined).map((service) => (
+        {bookedServices.filter((service) => service.photoVideoEventDayLog !== undefined).map((service) => (
           <PhotoVideoEventDayCard bookingId={service.bookingId} key={`photo-video-day-${service.bookingId}`} log={service.photoVideoEventDayLog} mode="client" onRespond={onRespondToPhotoVideoEventDayRequest} />
         ))}
-        {booking?.services?.filter((service) => service.photoVideoDeliverableTracking !== undefined).map((service) => (
+        {bookedServices.filter((service) => service.photoVideoDeliverableTracking !== undefined).map((service) => (
           <PhotoVideoDeliverablesCard bookingId={service.bookingId} key={`photo-video-deliverables-${service.bookingId}`} mode="client" onRespond={onRespondToPhotoVideoDeliverable} tracking={service.photoVideoDeliverableTracking} />
         ))}
 
