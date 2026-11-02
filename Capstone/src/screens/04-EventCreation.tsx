@@ -112,6 +112,28 @@ const bacolodVenueSuggestions: VenueMapValue[] = [
   },
 ]
 
+const distanceInKilometres = (
+  first: Pick<VenueMapValue, 'latitude' | 'longitude'>,
+  second: Pick<VenueMapValue, 'latitude' | 'longitude'>,
+) => {
+  const radians = (value: number) => (value * Math.PI) / 180
+  const latitudeDelta = radians(second.latitude - first.latitude)
+  const longitudeDelta = radians(second.longitude - first.longitude)
+  const firstLatitude = radians(first.latitude)
+  const secondLatitude = radians(second.latitude)
+  const haversine = Math.sin(latitudeDelta / 2) ** 2
+    + Math.cos(firstLatitude) * Math.cos(secondLatitude) * Math.sin(longitudeDelta / 2) ** 2
+  return 6371 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine))
+}
+
+const knownVenueNearPin = (latitude: number, longitude: number) => {
+  const pin = { latitude, longitude }
+  const nearestVenue = bacolodVenueSuggestions.reduce((nearest, venue) => (
+    distanceInKilometres(venue, pin) < distanceInKilometres(nearest, pin) ? venue : nearest
+  ))
+  return distanceInKilometres(nearestVenue, pin) <= 0.35 ? nearestVenue : null
+}
+
 const tipImage =
   'https://lh3.googleusercontent.com/aida-public/AB6AXuBN6x8Mx5zGHTD6IUyLqfk50QbAV-Dq_o6n1Enaq7AusFv1NnMCxYBi0buj801mTGgF7ik3QFivj2rQeGMjXrjptQ6nWOWxpil8cSFaiGfQ79kC9IIW2Jw1dSgsd1IpNCQzZUBkMjoeI_8PbNUsPPCfmvb5L7F7JenBBEY4QpYJe8FcwPrci6W4vHuD5rsSFk_v-xKjQy_eOgKNO7bWrx2GzC1QXPsn3MqYevozfV8UX9XJkZATyrsrCw'
 
@@ -887,6 +909,7 @@ const VenueLocationPicker: React.FC<VenueLocationPickerProps> = ({
   const [isFullscreen, setIsFullscreen] = React.useState(false)
   const [remoteResults, setRemoteResults] = React.useState<VenueMapValue[] | null>(null)
   const [isSearching, setIsSearching] = React.useState(false)
+  const pinLookupRequestRef = React.useRef(0)
   const normalizedQuery = query.trim().toLowerCase()
   const suggestedResults = normalizedQuery
     ? bacolodVenueSuggestions
@@ -900,6 +923,7 @@ const VenueLocationPicker: React.FC<VenueLocationPickerProps> = ({
   const results = remoteResults ?? suggestedResults
 
   const chooseVenue = (venue: VenueMapValue) => {
+    pinLookupRequestRef.current += 1
     setQuery(venue.name)
     setRemoteResults(null)
     onChange(venue)
@@ -945,14 +969,50 @@ const VenueLocationPicker: React.FC<VenueLocationPickerProps> = ({
   }
 
   const pinVenue = (latitude: number, longitude: number) => {
-    const customName = query.trim() || value.name.trim() || 'Pinned venue'
-    const hasNewSearch = Boolean(query.trim() && query.trim() !== value.name.trim())
-    onChange({
-      address: hasNewSearch ? query.trim() : value.address.trim(),
-      latitude,
-      longitude,
-      name: customName || 'Pinned map location',
-    })
+    const requestId = pinLookupRequestRef.current + 1
+    pinLookupRequestRef.current = requestId
+    const knownVenue = knownVenueNearPin(latitude, longitude)
+    const pinnedVenue: VenueMapValue = knownVenue
+      ? { ...knownVenue, latitude, longitude }
+      : {
+          address: 'Pinned location in Bacolod City, Negros Occidental',
+          latitude,
+          longitude,
+          name: 'Pinned location',
+        }
+
+    // Move and retain the marker immediately. The reverse lookup below only
+    // improves the location name; it never re-creates the map.
+    setQuery(pinnedVenue.name)
+    setRemoteResults(null)
+    onChange(pinnedVenue)
+
+    if (knownVenue || !mapTilerKey || Platform.OS !== 'web') return
+
+    void (async () => {
+      try {
+        const response = await fetch(
+          `https://api.maptiler.com/geocoding/${longitude.toFixed(6)},${latitude.toFixed(6)}.json?key=${encodeURIComponent(mapTilerKey)}&language=en`
+        )
+        if (!response.ok) throw new Error('Pinned location lookup was unavailable.')
+        const payload = await response.json() as {
+          features?: Array<{ place_name?: unknown; text?: unknown }>
+        }
+        const result = payload.features?.[0]
+        const name = typeof result?.text === 'string' && result.text.trim()
+          ? result.text.trim()
+          : pinnedVenue.name
+        const address = typeof result?.place_name === 'string' && result.place_name.trim()
+          ? result.place_name.trim()
+          : pinnedVenue.address
+        if (pinLookupRequestRef.current !== requestId) return
+        setQuery(name)
+        onChange({ address, latitude, longitude, name })
+      } catch {
+        // The selected coordinates remain valid even if a readable place name
+        // is unavailable from the optional reverse-geocoding service.
+      }
+    })()
   }
 
   const searchBox = (fullscreen = false) => (

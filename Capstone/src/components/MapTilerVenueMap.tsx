@@ -28,6 +28,10 @@ const isMapMessage = (value: unknown): value is {
     && Number.isFinite(record.longitude)
 }
 
+const sameCoordinates = (left: MapCoordinates, right: MapCoordinates) =>
+  Math.abs(left.latitude - right.latitude) < 0.000001
+  && Math.abs(left.longitude - right.longitude) < 0.000001
+
 const mapDocument = (coordinates: MapCoordinates) => `<!doctype html>
 <html lang="en">
   <head>
@@ -174,6 +178,19 @@ const mapDocument = (coordinates: MapCoordinates) => `<!doctype html>
         marker.setLatLng(event.latlng)
         reportPin(event.latlng)
       })
+      window.addEventListener('message', (event) => {
+        const command = event.data
+        if (
+          !command ||
+          command.source !== 'multivent-maptiler-command' ||
+          command.action !== 'set-pin' ||
+          typeof command.latitude !== 'number' ||
+          typeof command.longitude !== 'number'
+        ) return
+        const nextLocation = L.latLng(command.latitude, command.longitude)
+        marker.setLatLng(nextLocation)
+        if (command.recenter === true) map.panTo(nextLocation)
+      })
     </script>
   </body>
 </html>`
@@ -184,25 +201,57 @@ const mapDocument = (coordinates: MapCoordinates) => `<!doctype html>
 export const hasMapTilerVenueMap = Platform.OS === 'web' && Boolean(mapTilerKey)
 
 export const MapTilerVenueMap: React.FC<MapTilerVenueMapProps> = ({ coordinates, fullscreen = false, onPin }) => {
+  const frameRef = React.useRef<HTMLIFrameElement | null>(null)
+  const initialDocumentRef = React.useRef<string | null>(null)
+  const lastPinnedCoordinatesRef = React.useRef<MapCoordinates | null>(null)
+  const latitude = coordinates.latitude
+  const longitude = coordinates.longitude
+
+  if (!initialDocumentRef.current) {
+    initialDocumentRef.current = mapDocument(coordinates)
+  }
+
+  const sendPinCommand = React.useCallback((recenter: boolean) => {
+    frameRef.current?.contentWindow?.postMessage({
+      action: 'set-pin',
+      latitude,
+      longitude,
+      recenter,
+      source: 'multivent-maptiler-command',
+    }, '*')
+  }, [latitude, longitude])
+
   React.useEffect(() => {
     if (Platform.OS !== 'web' || !mapTilerKey) return undefined
     const onMessage = (event: MessageEvent) => {
       if (!isMapMessage(event.data)) return
-      onPin({ latitude: event.data.latitude, longitude: event.data.longitude })
+      const nextCoordinates = { latitude: event.data.latitude, longitude: event.data.longitude }
+      lastPinnedCoordinatesRef.current = nextCoordinates
+      onPin(nextCoordinates)
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
   }, [onPin])
+
+  React.useEffect(() => {
+    const wasPinnedInMap = lastPinnedCoordinatesRef.current
+    if (wasPinnedInMap && sameCoordinates(wasPinnedInMap, { latitude, longitude })) {
+      lastPinnedCoordinatesRef.current = null
+      return
+    }
+    sendPinCommand(true)
+  }, [latitude, longitude, sendPinCommand])
 
   if (!hasMapTilerVenueMap) return <View />
 
   return (
     <View style={[styles.container, fullscreen && styles.containerFullscreen]}>
       {React.createElement('iframe' as React.ElementType, {
-        key: `${coordinates.latitude}-${coordinates.longitude}`,
         'aria-label': 'Interactive venue map',
+        onLoad: () => sendPinCommand(false),
+        ref: frameRef,
         sandbox: 'allow-scripts allow-same-origin',
-        srcDoc: mapDocument(coordinates),
+        srcDoc: initialDocumentRef.current,
         style: styles.frame,
         title: 'Interactive venue map',
       })}
