@@ -84,6 +84,10 @@ const mapDocument = (coordinates: MapCoordinates) => `<!doctype html>
       .leaflet-map-pane svg { position: absolute; }
       .leaflet-tile { visibility: hidden; }
       .leaflet-tile-loaded { visibility: inherit; }
+      .leaflet-zoom-animated { transform-origin: 0 0; }
+      .leaflet-zoom-anim .leaflet-zoom-animated {
+        transition: transform 0.25s cubic-bezier(0, 0, 0.25, 1);
+      }
       .leaflet-zoom-box { box-sizing: border-box; z-index: 800; }
       .leaflet-control { position: relative; z-index: 800; pointer-events: auto; }
       .leaflet-top, .leaflet-bottom { position: absolute; z-index: 1000; pointer-events: none; }
@@ -147,17 +151,9 @@ const mapDocument = (coordinates: MapCoordinates) => `<!doctype html>
       const map = L.map('map', {
         zoomControl: true,
         attributionControl: true,
-        // Avoid briefly scaling raster labels during a zoom. Fresh tiles are
-        // rendered at their natural size instead, which keeps place names legible.
-        zoomAnimation: false,
-        fadeAnimation: false,
-        markerZoomAnimation: false,
-        minZoom: 12,
-        maxZoom: 18,
       }).setView(coordinates, 15)
       L.tileLayer('https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png?key=${mapTilerKey}', {
         tileSize: 256,
-        minZoom: 12,
         maxZoom: 19,
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://www.maptiler.com/copyright/">MapTiler</a>',
       }).addTo(map)

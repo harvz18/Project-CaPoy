@@ -999,23 +999,48 @@ const VenueLocationPicker: React.FC<VenueLocationPickerProps> = ({
 
     void (async () => {
       try {
-        const response = await fetch(
-          `https://api.maptiler.com/geocoding/${longitude.toFixed(6)},${latitude.toFixed(6)}.json?key=${encodeURIComponent(mapTilerKey)}&language=en`
+        let name = ''
+        let address = ''
+        const poiResponse = await fetch(
+          `https://api.maptiler.com/geocoding/${longitude.toFixed(6)},${latitude.toFixed(6)}.json?key=${encodeURIComponent(mapTilerKey)}&language=en&types=poi&limit=1`
         )
-        if (!response.ok) throw new Error('Pinned location lookup was unavailable.')
-        const payload = await response.json() as {
-          features?: Array<{ place_name?: unknown; text?: unknown }>
+        if (poiResponse.ok) {
+          const poiPayload = await poiResponse.json() as {
+            features?: Array<{ center?: unknown; place_name?: unknown; text?: unknown }>
+          }
+          const poi = poiPayload.features?.[0]
+          const center = Array.isArray(poi?.center) ? poi.center : []
+          const poiLongitude = typeof center[0] === 'number' ? center[0] : NaN
+          const poiLatitude = typeof center[1] === 'number' ? center[1] : NaN
+          const poiIsAtPin = Number.isFinite(poiLatitude)
+            && Number.isFinite(poiLongitude)
+            && distanceInKilometres({ latitude, longitude }, { latitude: poiLatitude, longitude: poiLongitude }) <= 0.12
+          if (poiIsAtPin) {
+            name = typeof poi?.text === 'string' ? poi.text.trim() : ''
+            address = typeof poi?.place_name === 'string' ? poi.place_name.trim() : ''
+          }
         }
-        const result = payload.features?.[0]
-        const name = typeof result?.text === 'string' && result.text.trim()
-          ? result.text.trim()
-          : pinnedVenue.name
-        const address = typeof result?.place_name === 'string' && result.place_name.trim()
-          ? result.place_name.trim()
-          : pinnedVenue.address
+
+        // If no named place contains the pin, use the actual nearby street or
+        // address details rather than assigning a different venue name.
+        if (!name || !address) {
+          const response = await fetch(
+            `https://api.maptiler.com/geocoding/${longitude.toFixed(6)},${latitude.toFixed(6)}.json?key=${encodeURIComponent(mapTilerKey)}&language=en`
+          )
+          if (response.ok) {
+            const payload = await response.json() as {
+              features?: Array<{ place_name?: unknown; text?: unknown }>
+            }
+            const result = payload.features?.[0]
+            name = name || (typeof result?.text === 'string' ? result.text.trim() : '')
+            address = address || (typeof result?.place_name === 'string' ? result.place_name.trim() : '')
+          }
+        }
         if (pinLookupRequestRef.current !== requestId) return
-        setQuery(name)
-        onChange({ address, latitude, longitude, name })
+        const resolvedName = name || pinnedVenue.name
+        const resolvedAddress = address || pinnedVenue.address
+        setQuery(resolvedName)
+        onChange({ address: resolvedAddress, latitude, longitude, name: resolvedName })
       } catch {
         // The selected coordinates remain valid even if a readable place name
         // is unavailable from the optional reverse-geocoding service.
