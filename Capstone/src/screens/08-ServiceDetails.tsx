@@ -83,6 +83,7 @@ interface ServiceDetailsScreenProps {
   eventTime?: string
   hasBudget?: boolean
   isChangingSelection?: boolean
+  allowBudgetOverage?: boolean
   initialFoodTastingPreference?: boolean
   initialPhotoVideoSelection?: PhotoVideoSelectionSnapshot
   mode?: 'explore' | 'planning'
@@ -182,6 +183,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   eventTime = '',
   hasBudget,
   isChangingSelection = false,
+  allowBudgetOverage = false,
   initialFoodTastingPreference,
   initialPhotoVideoSelection,
   mode = 'planning',
@@ -773,6 +775,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     && (quoteLoading || Boolean(quoteError) || !authoritativeQuote)
   const exceedsAvailableCategoryBudget = !isFoodTastingFlow
     && hasSetBudget
+    && !allowBudgetOverage
     && estimatedTotal > availableCategoryBudget
   const categoryBudgetOverage = exceedsAvailableCategoryBudget
     ? Math.max(0, estimatedTotal - availableCategoryBudget)

@@ -2518,6 +2518,14 @@ export const saveServiceSelection = async (
     const providerId = value.service.bookingProviderId ?? value.service.providerId
     const serviceId = value.service.bookingServiceId ?? value.service.id
     const packageId = value.service.bookingPackageId ?? value.service.packageId
+    const stageReplacement = async (): Promise<string | undefined> => {
+      if (!value.replacementBookingId) return undefined
+      const { error } = await client.rpc('stage_my_booking_replacement', {
+        target_booking_id: value.replacementBookingId,
+        target_service_id: serviceId,
+      })
+      return error?.message
+    }
     if (isUuid(serviceId) && value.service.categoryId === 'florists' && value.floristSelection) {
       const { data, error } = await client.rpc('save_my_florist_service_selection_v17', {
         replace_existing: true,
@@ -2527,6 +2535,8 @@ export const saveServiceSelection = async (
         target_service_id: serviceId,
       })
       if (error) return { ok: false, message: error.message }
+      const replacementError = await stageReplacement()
+      if (replacementError) return { ok: false, message: replacementError }
       const result = data && typeof data === 'object' ? data as Record<string, unknown> : {}
       return {
         calculatedAmount: Number(result.customerAmount ?? value.estimatedTotal),
@@ -2545,6 +2555,8 @@ export const saveServiceSelection = async (
         target_service_id: serviceId,
       })
       if (error) return { ok: false, message: error.message }
+      const replacementError = await stageReplacement()
+      if (replacementError) return { ok: false, message: replacementError }
       const result = data && typeof data === 'object' ? data as Record<string, unknown> : {}
       return {
         calculatedAmount: Number(result.customerAmount ?? value.estimatedTotal),
@@ -2570,6 +2582,8 @@ export const saveServiceSelection = async (
           target_package_id: value.venueCateringPackageId,
         })
       if (error) return { ok: false, message: error.message }
+      const replacementError = await stageReplacement()
+      if (replacementError) return { ok: false, message: replacementError }
       const result = data && typeof data === 'object' ? data as Record<string, unknown> : {}
       return {
         bookingId: typeof result.bookingId === 'string' ? result.bookingId : undefined,
@@ -2612,6 +2626,8 @@ export const saveServiceSelection = async (
             return { ok: false, message: continuationError.message }
           }
         }
+        const replacementError = await stageReplacement()
+        if (replacementError) return { ok: false, message: replacementError }
         return {
           bookingId,
           calculatedAmount: 0,
@@ -2713,13 +2729,8 @@ export const saveServiceSelection = async (
         }
       }
       const result = data && typeof data === 'object' ? data as Record<string, unknown> : {}
-      if (value.replacementBookingId) {
-        const { error: replacementError } = await client.rpc('stage_my_booking_replacement', {
-          target_booking_id: value.replacementBookingId,
-          target_service_id: serviceId,
-        })
-        if (replacementError) return { ok: false, message: replacementError.message }
-      }
+      const replacementError = await stageReplacement()
+      if (replacementError) return { ok: false, message: replacementError }
       return {
         calculatedAmount: Number(result.customerAmount ?? value.estimatedTotal),
         ok: true,

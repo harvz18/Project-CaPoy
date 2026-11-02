@@ -1938,7 +1938,14 @@ export const App: React.FC = () => {
   }, [defaultPlanningCategory, hasEventOrganizerBudget, openPlanningHub, screen, serviceBrowseMode])
 
   React.useEffect(() => {
-    if (screen !== 'categoryBrowse' || serviceBrowseMode !== 'planning') return
+    if (
+      screen !== 'categoryBrowse'
+      || serviceBrowseMode !== 'planning'
+      // A declined-booking replacement is intentionally outside the event-plan
+      // category allocation. Keep the declined service's category selected even
+      // when it was not part of the original plan.
+      || replacementBooking
+    ) return
     if (planningMarketplaceCategoryIds.has(selectedCategory)) return
 
     setSelectedCategory(defaultPlanningCategory)
@@ -1948,6 +1955,7 @@ export const App: React.FC = () => {
     screen,
     selectedCategory,
     serviceBrowseMode,
+    replacementBooking,
   ])
 
   React.useEffect(() => {
@@ -6227,9 +6235,9 @@ export const App: React.FC = () => {
             style={[styles.screenTransition, { transform: [{ translateX: categoryBrowseEntrance }] }]}
           >
             <CategoryBrowseScreen
-            categoryCountServices={
-              serviceBrowseMode === 'planning' ? planningCatalogServices : catalogServices
-            }
+            categoryCountServices={replacementBooking
+              ? catalogServices
+              : serviceBrowseMode === 'planning' ? planningCatalogServices : catalogServices}
             categoryBudgets={planningCategoryBudgets}
             favoritePendingServiceIds={favoritePendingServiceIds}
             favoriteServiceIds={favoriteServiceIds}
@@ -6237,21 +6245,29 @@ export const App: React.FC = () => {
             addableCategories={serviceBrowseMode === 'planning' && !changingServiceSelection
               ? addablePlanningServiceCategories
               : []}
-            categories={serviceBrowseMode === 'planning'
+            categories={replacementBooking
+              ? serviceCategories.filter((category) => (
+                  categoryNameToId(category.name) === categoryNameToId(replacementBooking.category)
+                ))
+              : serviceBrowseMode === 'planning'
               ? changingServiceSelection
                 ? planningServiceCategories.filter((category) => (
                     categoryNameToId(category.name) === categoryNameToId(changingServiceSelection.category)
                   ))
                 : planningServiceCategories
               : serviceCategories}
-            categoryName={catalogCategoryName(selectedCategory)}
+            categoryName={replacementBooking?.category ?? catalogCategoryName(selectedCategory)}
               eventGuestCount={eventDetails.guestCount}
             mode={serviceBrowseMode}
-            services={(serviceBrowseMode === 'explore' ? catalogServices : visibleCatalogServices).filter(
+            services={(replacementBooking
+              ? catalogServices
+              : serviceBrowseMode === 'explore' ? catalogServices : visibleCatalogServices
+            ).filter(
               (service) => (
                 (!replacementBooking || (
-                  service.categoryName.toLowerCase() === replacementBooking.category.toLowerCase()
+                  service.categoryId === categoryNameToId(replacementBooking.category)
                   && service.id !== replacementBooking.serviceId
+                  && service.bookingServiceId !== replacementBooking.serviceId
                 )) && (!changingServiceSelection || (
                   service.categoryName.toLowerCase() === changingServiceSelection.category.toLowerCase()
                   && service.id !== changingServiceSelection.id
@@ -6309,6 +6325,12 @@ export const App: React.FC = () => {
               setScreen('serviceDetails')
             }}
             onBack={() => {
+              if (replacementBooking) {
+                setReplacementBooking(undefined)
+                setCurrentServiceId('')
+                setScreen('bookingDetails')
+                return
+              }
               if (changingServiceSelection) {
                 setChangingServiceSelection(undefined)
                 setCurrentServiceId('')
@@ -6422,6 +6444,7 @@ export const App: React.FC = () => {
               if (
                 serviceBrowseMode === 'planning'
                 && selectedVendor?.kind === 'coordinator'
+                && !replacementBooking
                 && !hasEventOrganizerBudget
               ) {
                 setSelectedCategory('catering')
@@ -6466,6 +6489,7 @@ export const App: React.FC = () => {
             service={currentService}
             hasBudget={hasConfiguredPlanningBudget}
             isChangingSelection={Boolean(changingServiceSelection)}
+            allowBudgetOverage={Boolean(replacementBooking)}
             initialFoodTastingPreference={
               directCateringFallbackServiceId === currentService?.id ? false : undefined
             }

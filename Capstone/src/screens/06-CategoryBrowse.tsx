@@ -559,7 +559,9 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   const isWide = width >= 768
   const isExploreMode = mode === 'explore'
   const isChangingService = Boolean(changeServiceContext)
-  const hasSetBudget = hasBudget ?? remainingBudget > 0
+  // Provider replacements compare against the current booking, not the old
+  // planning allocation. Keep the normal allocation behavior everywhere else.
+  const hasSetBudget = replacementContext ? false : hasBudget ?? remainingBudget > 0
   const hasPlanSelections = selectedServiceCount > 0
     || Boolean(assignedCoordinator)
     || coordinatorAssignmentStatus === 'awaiting_assignment'
@@ -744,6 +746,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     if (
       !isExploreMode
       && !isChangingService
+      && !replacementContext
       && vendor.budgetRecommendation
       && vendor.budgetRecommendation.categoryBudget > 0
       && !vendor.budgetRecommendation.isWithinBudget
@@ -839,6 +842,19 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     const leftBookings = left.bookingCount ?? 0
     const rightBookings = right.bookingCount ?? 0
 
+    // A declined-provider replacement must not inherit the original event
+    // budget ranking. The client needs every viable alternative to compare,
+    // ordered by the marketplace price, with unavailable dates kept last.
+    if (replacementContext) {
+      const availabilityDifference = Number(isScheduleUnavailable(left))
+        - Number(isScheduleUnavailable(right))
+      if (availabilityDifference !== 0) return availabilityDifference
+      return marketplaceStartingPrice(left) - marketplaceStartingPrice(right)
+        || rightRating - leftRating
+        || right.reviewCount - left.reviewCount
+        || left.name.localeCompare(right.name)
+    }
+
     if (!isExploreMode && sortMode === 'recommended') {
       const recommendationDifference = recommendationRank(right) - recommendationRank(left)
       if (recommendationDifference !== 0) return recommendationDifference
@@ -888,7 +904,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     true
   )
   const orderedPlanningCategoryTags = orderCategoryTags(categories, activePlanningCategoryId)
-  const hasCategoryRecommendationBudget = !isExploreMode && !isChangingService && visibleVendors.some(
+  const hasCategoryRecommendationBudget = !isExploreMode && !isChangingService && !replacementContext && visibleVendors.some(
     (vendor) => (vendor.budgetRecommendation?.categoryBudget ?? 0) > 0
   )
   const vendorSections = hasCategoryRecommendationBudget
@@ -1028,17 +1044,31 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
             <View style={styles.headerButton} />
           </View>
         </View>
+      ) : replacementContext ? (
+        <View style={styles.topAppBar}>
+          <View style={[styles.topAppBarContent, isWide && styles.horizontalPaddingWide]}>
+            <Pressable
+              accessibilityLabel="Back to booking details"
+              accessibilityRole="button"
+              hitSlop={8}
+              onPress={onBack}
+              style={({ pressed }) => [styles.headerButton, pressed && styles.headerButtonPressed]}
+            >
+              <Text style={styles.backIcon}>{'‹'}</Text>
+            </Pressable>
+            <Text style={styles.headerTitle}>CHANGE PROVIDER</Text>
+            <View style={styles.headerButton} />
+          </View>
+        </View>
       ) : (
         <PlanningScreenHeader
-          currentStep={replacementContext ? 4 : 3}
-          label={replacementContext ? 'Replace Provider' : isChangingService ? 'Change Service' : 'Choose Services'}
+          currentStep={3}
+          label="Choose Services"
           nextAccessibilityLabel="Review selected services"
-          nextEnabled={!replacementContext && !isChangingService && hasReviewableSelections}
+          nextEnabled={hasReviewableSelections}
           onBack={onBack}
-          onNext={
-            replacementContext || isChangingService ? undefined : () => setIsSelectedServicesOpen(true)
-          }
-          title={replacementContext ? 'Change Provider' : isChangingService ? 'Change Service' : 'Choose Services'}
+          onNext={() => setIsSelectedServicesOpen(true)}
+          title="Choose Services"
         />
       )}
 
@@ -1068,8 +1098,8 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
             <Text style={styles.replacementEyebrow}>REPLACING PROVIDER</Text>
             <Text style={styles.replacementTitle}>{replacementContext.serviceName}</Text>
             <Text style={styles.replacementCopy}>
-              Choose a replacement for {replacementContext.currentProviderName}. Your schedule
-              will be checked again automatically.
+              Current provider: {replacementContext.currentProviderName} ({formatCurrency(replacementContext.baselineAmount)}).
+              {' '}Every published alternative is shown without budget filtering; services available on your date appear first and are ordered by price.
             </Text>
           </View>
         ) : changeServiceContext ? (
