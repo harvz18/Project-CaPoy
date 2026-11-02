@@ -731,6 +731,43 @@ const ServiceChangeConfirmationModal: React.FC<{
   )
 }
 
+const ReplacementRequestSuccessModal: React.FC<{
+  request?: { providerName: string; serviceName: string }
+  onDismiss: () => void
+}> = ({ request, onDismiss }) => {
+  if (!request) return null
+
+  return (
+    <Modal
+      animationType="fade"
+      onRequestClose={onDismiss}
+      transparent
+      visible
+    >
+      <View style={styles.serviceChangeOverlay}>
+        <View accessibilityViewIsModal style={styles.serviceChangeCard}>
+          <View style={styles.serviceChangeIcon}>
+            <Text style={styles.replacementSuccessIcon}>✓</Text>
+          </View>
+          <Text style={styles.serviceChangeTitle}>Replacement Request Sent</Text>
+          <Text style={styles.serviceChangeCopy}>
+            Replacement booking request sent. The new provider must accept before payment becomes available.
+            {' '} {request.serviceName} was requested from {request.providerName}.
+          </Text>
+          <Pressable
+            accessibilityLabel="View event details"
+            accessibilityRole="button"
+            onPress={onDismiss}
+            style={({ pressed }) => [styles.serviceChangeConfirm, styles.replacementSuccessButton, pressed && styles.serviceChangePressed]}
+          >
+            <Text style={styles.serviceChangeConfirmText}>VIEW EVENT DETAILS</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  )
+}
+
 const outcomeMessageForCompletionPayment = (
   type: ProviderCompletionPaymentValue['type'],
   bookingCompleted: boolean
@@ -973,6 +1010,11 @@ export const App: React.FC = () => {
   const [changingServiceSelection, setChangingServiceSelection] = React.useState<SelectedSummaryService>()
   const [serviceChangeConfirmation, setServiceChangeConfirmation] =
     React.useState<ServiceChangeConfirmation>()
+  const [replacementRequestSuccess, setReplacementRequestSuccess] = React.useState<{
+    providerName: string
+    serviceName: string
+  }>()
+  const quickReplacementSubmissionRef = React.useRef(false)
   const serviceChangeConfirmationResolverRef = React.useRef<
     ((confirmed: boolean) => void) | undefined
   >(undefined)
@@ -3748,6 +3790,11 @@ export const App: React.FC = () => {
     setMaxPlanningStep((current) => Math.min(current, 4))
 
     if (replacementBooking) {
+      const replacementEventId = selectedBooking?.eventId ?? ''
+      const submittedReplacement = {
+        providerName: value.service.providerName || 'the new provider',
+        serviceName: value.service.name,
+      }
       const replacementSubmission = await submitBookingReplacementRequest(selectedBooking?.eventId ?? '')
       if (!replacementSubmission.ok) {
         setToastMessage(replacementSubmission.message ?? 'Unable to send the replacement booking request.')
@@ -3755,12 +3802,12 @@ export const App: React.FC = () => {
       }
       setReplacementBooking(undefined)
       setCurrentServiceId('')
-      setToastMessage('Replacement booking request sent. The new provider must accept before payment becomes available.')
       await refreshLiveData()
       setBookingPaymentQuote(undefined)
       setPaymentSettlementContext(undefined)
       setScreen('bookingDetails')
-      if (selectedBooking?.eventId) void loadBookingPaymentQuote(selectedBooking.eventId)
+      setReplacementRequestSuccess(submittedReplacement)
+      if (replacementEventId) void loadBookingPaymentQuote(replacementEventId)
       return
     }
 
@@ -3806,6 +3853,53 @@ export const App: React.FC = () => {
     setServiceBrowseMode('planning')
     setSelectedCategory(categoryNameToId(service.category))
     setScreen('categoryBrowse')
+  }
+
+  const handleQuickBookingReplacement = async (serviceId: string): Promise<boolean> => {
+    if (!replacementBooking || quickReplacementSubmissionRef.current) return false
+    const service = catalogServices.find((candidate) => candidate.id === serviceId)
+    if (!service || service.id === replacementBooking.serviceId) return false
+
+    quickReplacementSubmissionRef.current = true
+    try {
+      // The marketplace card represents the provider's lowest published,
+      // complete package when one exists. This gives a client a direct
+      // replacement route without silently inventing configuration choices.
+      const defaultPackage = [...(service.packages ?? [])]
+        .sort((left, right) => left.price - right.price)[0]
+      const directService = defaultPackage
+        ? {
+            ...service,
+            bookingPackageId: defaultPackage.id,
+            packageId: defaultPackage.id,
+          }
+        : service
+      const attendeeCount = service.categoryId === 'catering'
+        ? Math.max(1, Math.floor(eventDetails.guestCount || 1))
+        : 0
+      const quote = await calculateServiceDetailsQuote({
+        attendeeCount: attendeeCount || undefined,
+        packageId: defaultPackage?.id,
+        service: directService,
+      })
+      const quotedAmount = Number(quote.calculatedAmount ?? 0)
+      if (!quote.ok || !Number.isFinite(quotedAmount) || quotedAmount <= 0) {
+        setToastMessage(quote.message ?? 'This alternate needs a valid published price before it can be requested.')
+        return false
+      }
+
+      await handleAddSelection({
+        attendeeCount,
+        budgetPerHead: attendeeCount > 0 ? quotedAmount / attendeeCount : 0,
+        estimatedTotal: quotedAmount,
+        foodTastingPreference: service.categoryId === 'catering' ? false : undefined,
+        notes: '',
+        service: directService,
+      })
+      return true
+    } finally {
+      quickReplacementSubmissionRef.current = false
+    }
   }
 
   const handleAssignCoordinator = async () => {
@@ -6422,11 +6516,7 @@ export const App: React.FC = () => {
               setScreen('serviceDetails')
             }}
             onConfirmReplacement={(serviceId) => {
-              const replacement = catalogServices.find((service) => service.id === serviceId)
-              if (!replacement || replacement.id === replacementBooking?.serviceId) return false
-              setCurrentServiceId(serviceId)
-              setScreen('serviceDetails')
-              return true
+              return handleQuickBookingReplacement(serviceId)
             }}
             onSelectCategory={(category) => {
               setSelectedCategory(categoryNameToId(category.name))
@@ -7033,6 +7123,10 @@ export const App: React.FC = () => {
           onCancel={() => resolveServiceChangeConfirmation(false)}
           onConfirm={() => resolveServiceChangeConfirmation(true)}
         />
+        <ReplacementRequestSuccessModal
+          request={replacementRequestSuccess}
+          onDismiss={() => setReplacementRequestSuccess(undefined)}
+        />
         {expertCoordinatorProfile ? (
           <CoordinatorProfileOverlay
             blurTarget={expertCoordinatorBlurTargetRef}
@@ -7215,6 +7309,12 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     lineHeight: 30,
   },
+  replacementSuccessIcon: {
+    color: '#16794A',
+    fontSize: 28,
+    fontWeight: '800',
+    lineHeight: 31,
+  },
   serviceChangeTitle: {
     color: '#4E061A',
     fontSize: 21,
@@ -7337,6 +7437,11 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     backgroundColor: '#6B1E2E',
     paddingHorizontal: 12,
+  },
+  replacementSuccessButton: {
+    alignSelf: 'stretch',
+    flex: 0,
+    marginTop: 22,
   },
   serviceChangeConfirmText: {
     color: '#FFFFFF',

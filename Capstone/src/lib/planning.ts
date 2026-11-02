@@ -325,7 +325,10 @@ export const calculateServiceQuote = async ({
 }): Promise<PlanningResult> => {
   try {
     const client = getClient()
-    const event = await ensureDraftEvent()
+    // Quotes are read-only, but a declined-provider replacement belongs to an
+    // already submitted event. Include that active booking event so opening a
+    // comparison never falls through and creates an unrelated draft.
+    const event = await ensureDraftEvent(undefined, undefined, false, true)
     if (!client || !event || !isUuid(serviceId)) {
       return { ok: false, message: 'Choose a published service to calculate its event price.' }
     }

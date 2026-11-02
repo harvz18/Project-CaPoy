@@ -576,10 +576,8 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   const [isSortOpen, setIsSortOpen] = React.useState(false)
   const [selectedExploreCategory, setSelectedExploreCategory] = React.useState('All')
   const [activeExploreTab, setActiveExploreTab] = React.useState<'explore' | 'reviewed'>('explore')
-  const [pendingReplacement, setPendingReplacement] = React.useState<CatalogService>()
   const [cateringWarningAction, setCateringWarningAction] = React.useState<(() => void)>()
   const cateringWarningShownForCategoryRef = React.useRef(false)
-  const [isReplacing, setIsReplacing] = React.useState(false)
   const lastScrollY = React.useRef(0)
   const [isSelectedServicesOpen, setIsSelectedServicesOpen] = React.useState(false)
   const [isAddCategoryOpen, setIsAddCategoryOpen] = React.useState(false)
@@ -1627,7 +1625,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                     accessibilityRole="button"
                     onPress={(event) => {
                       event.stopPropagation()
-                      setPendingReplacement(vendor)
+                      void onConfirmReplacement?.(vendor.id)
                     }}
                     style={({ pressed }) => [
                       styles.changeProviderButton,
@@ -2135,58 +2133,6 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                 style={({ pressed }) => [styles.confirmationConfirm, pressed && styles.pressed]}
               >
                 <Text style={styles.confirmationConfirmText}>CONTINUE BROWSING</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal
-        animationType="fade"
-        onRequestClose={() => {
-          if (!isReplacing) setPendingReplacement(undefined)
-        }}
-        transparent
-        visible={Boolean(pendingReplacement)}
-      >
-        <View style={styles.confirmationOverlay}>
-          <View accessibilityViewIsModal style={styles.confirmationCard}>
-            <View style={styles.confirmationIcon}>
-              <Text style={styles.confirmationIconText}>?</Text>
-            </View>
-            <Text style={styles.confirmationTitle}>Confirm provider change</Text>
-            <Text style={styles.confirmationCopy}>
-              Replace {replacementContext?.currentProviderName} with{' '}
-              {pendingReplacement?.providerName}? Your saved event details stay the same.
-            </Text>
-            <View style={styles.confirmationActions}>
-              <Pressable
-                accessibilityRole="button"
-                disabled={isReplacing}
-                onPress={() => setPendingReplacement(undefined)}
-                style={({ pressed }) => [styles.confirmationCancel, pressed && styles.pressed]}
-              >
-                <Text style={styles.confirmationCancelText}>CANCEL</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                disabled={isReplacing}
-                onPress={async () => {
-                  if (!pendingReplacement || isReplacing) return
-                  setIsReplacing(true)
-                  const changed = await onConfirmReplacement?.(pendingReplacement.id)
-                  setIsReplacing(false)
-                  if (changed !== false) setPendingReplacement(undefined)
-                }}
-                style={({ pressed }) => [
-                  styles.confirmationConfirm,
-                  isReplacing && styles.confirmationDisabled,
-                  pressed && styles.changeProviderButtonPressed,
-                ]}
-              >
-                <Text style={styles.confirmationConfirmText}>
-                  {isReplacing ? 'CHANGING...' : 'CONFIRM CHANGE'}
-                </Text>
               </Pressable>
             </View>
           </View>
