@@ -2249,7 +2249,7 @@ test('provider root tabs share the metallic-wordmark header and use global navig
   })
 })
 
-test('in-progress client planning autosaves and returns to the last safe step', () => {
+test('in-progress client planning autosaves without forcing a draft over the latest client screen', () => {
   const app = read('src/App.tsx')
   const eventCreation = read('src/screens/04-EventCreation.tsx')
   const budget = read('src/screens/05-BudgetAllocation.tsx')
@@ -2259,6 +2259,8 @@ test('in-progress client planning autosaves and returns to the last safe step', 
   mustContain(app, [
     "import AsyncStorage from '@react-native-async-storage/async-storage'",
     'clientPlanningResumeStorageKey',
+    'clientLastScreenStorageKey',
+    'clientRouteRestoreReadyRef',
     'AppState.addEventListener',
     "window.addEventListener('pagehide', persistBeforeDeactivation)",
     'saveEventDraft(value, Math.max(1, maxPlanningStep))',
@@ -2266,7 +2268,9 @@ test('in-progress client planning autosaves and returns to the last safe step', 
     "previousScreen === 'eventCreation' && screen !== 'eventCreation'",
     "previousScreen === 'budgetAllocation' && screen !== 'budgetAllocation'",
     'restoreClientPlanningResume',
-    'transitionToScreen(resumeScreen)',
+    'lastScreenNeedsPlanningState',
+    "lastScreen?.screen ?? 'clientHome'",
+    'transitionToScreen(targetScreen)',
     'onDraftChange={queueBudgetAutosave}',
     'initialValue={instructionDraft}',
     'onDraftChange={handleInstructionDraftChange}',

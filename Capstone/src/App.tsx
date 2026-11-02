@@ -456,6 +456,25 @@ type ClientPlanningResumeState = {
 
 type ClientPlanningResumeUpdate = Partial<Omit<ClientPlanningResumeState, 'version'>>
 
+type ClientRestorableScreen =
+  | ClientPlanningResumeScreen
+  | 'budgetTracker'
+  | 'bookingDetails'
+  | 'bookings'
+  | 'clientHome'
+  | 'clientPlans'
+  | 'clientRefunds'
+  | 'messages'
+  | 'notifications'
+
+type ClientLastScreenState = {
+  bookingId?: string
+  eventId?: string
+  screen: ClientRestorableScreen
+  serviceBrowseMode?: 'explore' | 'planning'
+  version: 1
+}
+
 const clientPlanningResumeScreens = new Set<ClientPlanningResumeScreen>([
   'budgetAllocation',
   'categoryBrowse',
@@ -468,6 +487,27 @@ const clientPlanningResumeScreens = new Set<ClientPlanningResumeScreen>([
 
 const clientPlanningResumeStorageKey = (userId: string) =>
   `multivent:client-planning-resume:v1:${userId}`
+
+const clientLastScreenStorageKey = (userId: string) =>
+  `multivent:client-last-screen:v1:${userId}`
+
+const clientRestorableScreens = new Set<ClientRestorableScreen>([
+  'budgetAllocation',
+  'budgetTracker',
+  'bookingDetails',
+  'bookings',
+  'categoryBrowse',
+  'clientHome',
+  'clientPlans',
+  'clientRefunds',
+  'coordinatorDetails',
+  'eventCreation',
+  'instructionModule',
+  'messages',
+  'notifications',
+  'payment',
+  'serviceDetails',
+])
 
 const fallbackBackScreen = (currentScreen: AppScreen): AppScreen => {
   if (currentScreen.startsWith('provider')) return 'providerHome'
@@ -803,6 +843,8 @@ export const App: React.FC = () => {
   const expertCoordinatorBlurTargetRef = React.useRef<React.ComponentRef<typeof View>>(null)
   const clientPlanningResumeRef = React.useRef<Partial<ClientPlanningResumeState>>({})
   const clientPlanningResumeWriteRef = React.useRef(Promise.resolve())
+  const clientLastScreenWriteRef = React.useRef(Promise.resolve())
+  const clientRouteRestoreReadyRef = React.useRef(false)
   const eventAutosaveChainRef = React.useRef(Promise.resolve())
   const eventAutosaveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingEventAutosaveRef = React.useRef<EventCreationValue | undefined>(undefined)
@@ -1044,6 +1086,7 @@ export const App: React.FC = () => {
   const [isEditingSavedPlanDetails, setIsEditingSavedPlanDetails] = React.useState(false)
   const [isModifyingSavedPlanServices, setIsModifyingSavedPlanServices] = React.useState(false)
   const [clientBookings, setClientBookings] = React.useState<BookingItem[]>([])
+  const clientBookingsRef = React.useRef<BookingItem[]>([])
   const [merchantRequests, setMerchantRequests] = React.useState<MerchantBookingRequest[]>([])
   const [merchantServices, setMerchantServices] = React.useState<MerchantServiceListing[]>([])
   const [totalBudget, setTotalBudget] = React.useState(DEFAULT_BUDGET)
@@ -1112,6 +1155,53 @@ export const App: React.FC = () => {
       .then(() => AsyncStorage.removeItem(storageKey))
       .catch(() => undefined)
   }, [authenticatedUserId])
+
+  const persistClientLastScreen = React.useCallback((value: Omit<ClientLastScreenState, 'version'>) => {
+    if (!authenticatedUserId || !clientRestorableScreens.has(value.screen)) return
+
+    const serialized = JSON.stringify({ ...value, version: 1 } satisfies ClientLastScreenState)
+    clientLastScreenWriteRef.current = clientLastScreenWriteRef.current
+      .catch(() => undefined)
+      .then(() => AsyncStorage.setItem(clientLastScreenStorageKey(authenticatedUserId), serialized))
+      .catch(() => undefined)
+  }, [authenticatedUserId])
+
+  const loadClientLastScreen = React.useCallback(async (userId: string) => {
+    try {
+      const serialized = await AsyncStorage.getItem(clientLastScreenStorageKey(userId))
+      if (!serialized) return undefined
+      const parsed: unknown = JSON.parse(serialized)
+      if (
+        !parsed
+        || typeof parsed !== 'object'
+        || (parsed as { version?: unknown }).version !== 1
+        || !clientRestorableScreens.has((parsed as { screen?: ClientRestorableScreen }).screen as ClientRestorableScreen)
+      ) {
+        return undefined
+      }
+      return parsed as ClientLastScreenState
+    } catch {
+      return undefined
+    }
+  }, [])
+
+  React.useEffect(() => {
+    if (!clientRouteRestoreReadyRef.current) return
+    if (!clientRestorableScreens.has(screen as ClientRestorableScreen)) return
+
+    persistClientLastScreen({
+      bookingId: selectedBooking?.id,
+      eventId: selectedBooking?.eventId,
+      screen: screen as ClientRestorableScreen,
+      serviceBrowseMode,
+    })
+  }, [
+    persistClientLastScreen,
+    screen,
+    selectedBooking?.eventId,
+    selectedBooking?.id,
+    serviceBrowseMode,
+  ])
 
   const enqueueEventAutosave = React.useCallback((value: EventCreationValue) => {
     eventAutosaveChainRef.current = eventAutosaveChainRef.current
@@ -1243,6 +1333,15 @@ export const App: React.FC = () => {
 
   React.useEffect(() => {
     const persistBeforeDeactivation = () => {
+      const currentScreen = screenRef.current as ClientRestorableScreen
+      if (clientRouteRestoreReadyRef.current && clientRestorableScreens.has(currentScreen)) {
+        persistClientLastScreen({
+          bookingId: selectedBooking?.id,
+          eventId: selectedBooking?.eventId,
+          screen: currentScreen,
+          serviceBrowseMode,
+        })
+      }
       const isPlanningScreen = clientPlanningResumeScreens.has(
         screenRef.current as ClientPlanningResumeScreen
       ) && (
@@ -1286,8 +1385,11 @@ export const App: React.FC = () => {
     flushBudgetAutosave,
     flushEventAutosave,
     instructionDraft,
+    persistClientLastScreen,
     photoVideoSelectionDraft,
     persistClientPlanningResume,
+    selectedBooking?.eventId,
+    selectedBooking?.id,
     selectedCategory,
     serviceBrowseMode,
   ])
@@ -2289,6 +2391,7 @@ export const App: React.FC = () => {
 
     setCatalogServices(services)
     setReviewedServices(myReviewedServices)
+    clientBookingsRef.current = bookings
     setClientBookings(bookings)
     setSelectedBooking((current) => {
       if (!current) return current
@@ -2474,6 +2577,7 @@ export const App: React.FC = () => {
         ? fetchMyEventPaymentQuoteV14(activeBookingEventId)
         : Promise.resolve(undefined),
     ])
+    clientBookingsRef.current = bookings
     setClientBookings(bookings)
     setSelectedBooking((current) => {
       if (!current) return current
@@ -2495,11 +2599,50 @@ export const App: React.FC = () => {
 
   const restoreClientPlanningResume = React.useCallback(async (
     userId: string,
-    planningState: ClientPlanningState
+    planningState: ClientPlanningState,
+    lastScreen?: ClientLastScreenState
   ) => {
     try {
+      const lastScreenNeedsPlanningState = Boolean(
+        lastScreen
+          && clientPlanningResumeScreens.has(lastScreen.screen as ClientPlanningResumeScreen)
+          && !(lastScreen.screen === 'categoryBrowse' && lastScreen.serviceBrowseMode === 'explore')
+      )
+      const showRestoredScreen = (targetScreen: ClientRestorableScreen, attempt = 0) => {
+        if (navigationLockedRef.current && attempt < 8) {
+          setTimeout(() => showRestoredScreen(targetScreen, attempt + 1), 50)
+          return
+        }
+        transitionToScreen(targetScreen)
+      }
+      const restoreNonPlanningLastScreen = () => {
+        if (!lastScreen || lastScreenNeedsPlanningState) return false
+        if (lastScreen.screen === 'bookingDetails') {
+          const booking = clientBookingsRef.current.find((item) => (
+            item.id === lastScreen.bookingId
+            || Boolean(lastScreen.eventId && item.eventId === lastScreen.eventId)
+          ))
+          if (booking) {
+            setSelectedBooking(booking)
+            setBookingPaymentQuote(undefined)
+            showRestoredScreen('bookingDetails')
+            if (booking.eventId) {
+              void fetchMyEventPaymentQuoteV14(booking.eventId).then((result) => {
+                if (result.ok && result.paymentQuote) setBookingPaymentQuote(result.paymentQuote)
+              })
+            }
+            return true
+          }
+          showRestoredScreen('bookings')
+          return true
+        }
+        showRestoredScreen(lastScreen.screen)
+        return true
+      }
       const serialized = await AsyncStorage.getItem(clientPlanningResumeStorageKey(userId))
-      if (!serialized) return false
+      if (!serialized) {
+        return restoreNonPlanningLastScreen()
+      }
 
       const parsed: unknown = JSON.parse(serialized)
       if (
@@ -2508,7 +2651,7 @@ export const App: React.FC = () => {
         || (parsed as { version?: unknown }).version !== 1
         || !clientPlanningResumeScreens.has((parsed as { screen?: ClientPlanningResumeScreen }).screen as ClientPlanningResumeScreen)
       ) {
-        return false
+        return restoreNonPlanningLastScreen()
       }
 
       const resume = parsed as ClientPlanningResumeState
@@ -2519,7 +2662,7 @@ export const App: React.FC = () => {
         && planningState.draftSummary.id !== resume.eventId
       ) {
         clearClientPlanningResume()
-        return false
+        return restoreNonPlanningLastScreen()
       }
 
       clientPlanningResumeRef.current = resume
@@ -2536,10 +2679,14 @@ export const App: React.FC = () => {
       if (resume.photoVideoSelectionDraft) setPhotoVideoSelectionDraft(resume.photoVideoSelectionDraft)
       if (resume.selectedCategory) setSelectedCategory(resume.selectedCategory)
       if (resume.currentServiceId) setCurrentServiceId(resume.currentServiceId)
-      setServiceBrowseMode('planning')
+      const restoringPlanningScreen = lastScreenNeedsPlanningState
+      if (restoringPlanningScreen) setServiceBrowseMode('planning')
+      else if (lastScreen?.screen === 'categoryBrowse') {
+        setServiceBrowseMode(lastScreen.serviceBrowseMode ?? 'explore')
+      }
 
       let restoredPlanningState = planningState
-      if (resume.savedPlanId && resume.screen === 'payment') {
+      if (resume.savedPlanId && lastScreen?.screen === 'payment') {
         const savedPlanResult = await resumeClientSavedPlan(resume.savedPlanId)
         if (savedPlanResult.ok && savedPlanResult.savedPlanReview) {
           setSavedPlanReview(savedPlanResult.savedPlanReview)
@@ -2562,17 +2709,30 @@ export const App: React.FC = () => {
         resumeScreen = 'categoryBrowse'
       }
 
-      // Authentication may have just started the Home-screen transition. Retry
-      // briefly after it completes so restoring a draft cannot be ignored by
-      // the navigation lock that prevents double taps elsewhere in the app.
-      const showResumeScreen = (attempt = 0) => {
-        if (navigationLockedRef.current && attempt < 8) {
-          setTimeout(() => showResumeScreen(attempt + 1), 50)
-          return
+      let targetScreen: ClientRestorableScreen = restoringPlanningScreen
+        ? resumeScreen
+        : lastScreen?.screen ?? 'clientHome'
+      if (targetScreen === 'bookingDetails') {
+        const booking = clientBookingsRef.current.find((item) => (
+          item.id === lastScreen?.bookingId
+          || Boolean(lastScreen?.eventId && item.eventId === lastScreen.eventId)
+        ))
+        if (booking) {
+          setSelectedBooking(booking)
+          setBookingPaymentQuote(undefined)
+          if (booking.eventId) {
+            void fetchMyEventPaymentQuoteV14(booking.eventId).then((result) => {
+              if (result.ok && result.paymentQuote) setBookingPaymentQuote(result.paymentQuote)
+            })
+          }
+        } else {
+          targetScreen = 'bookings'
         }
-        transitionToScreen(resumeScreen)
       }
-      showResumeScreen()
+
+      // Authentication may have just started the Home-screen transition. The
+      // shared guarded route restore keeps the latest safe destination intact.
+      showRestoredScreen(targetScreen)
       return true
     } catch {
       return false
@@ -3094,6 +3254,7 @@ export const App: React.FC = () => {
           return
         }
 
+        clientRouteRestoreReadyRef.current = false
         setAuthenticatedUserId(data.session.user.id)
         const resolvedRole = await loadProfileAndRoute(data.session.user.id, {
           ...data.session.user.user_metadata,
@@ -3103,7 +3264,9 @@ export const App: React.FC = () => {
 
         const planningState = await refreshLiveData()
         if (isMounted && resolvedRole === 'client') {
-          await restoreClientPlanningResume(data.session.user.id, planningState)
+          const lastScreen = await loadClientLastScreen(data.session.user.id)
+          await restoreClientPlanningResume(data.session.user.id, planningState, lastScreen)
+          clientRouteRestoreReadyRef.current = true
         }
       })
       .catch(() => {
@@ -3148,13 +3311,16 @@ export const App: React.FC = () => {
 
       if (event === 'SIGNED_IN') {
         void (async () => {
+          clientRouteRestoreReadyRef.current = false
           const resolvedRole = await loadProfileAndRoute(session.user.id, {
             ...session.user.user_metadata,
             email: session.user.email,
           })
           const planningState = await refreshLiveData()
           if (resolvedRole === 'client') {
-            await restoreClientPlanningResume(session.user.id, planningState)
+            const lastScreen = await loadClientLastScreen(session.user.id)
+            await restoreClientPlanningResume(session.user.id, planningState, lastScreen)
+            clientRouteRestoreReadyRef.current = true
           }
         })()
       }
@@ -3164,7 +3330,7 @@ export const App: React.FC = () => {
       isMounted = false
       subscription.unsubscribe()
     }
-  }, [loadProfileAndRoute, refreshLiveData, restoreClientPlanningResume, setScreen])
+  }, [loadClientLastScreen, loadProfileAndRoute, refreshLiveData, restoreClientPlanningResume, setScreen])
 
   const openNotificationDestination = React.useCallback(
     (resourceType?: string, resourceId?: string) => {
