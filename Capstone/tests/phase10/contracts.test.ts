@@ -4468,6 +4468,8 @@ test('V20 Phase 11 keeps Inbox trash user-specific and reversible', () => {
 
 test('V16 keeps PayMongo collection server-owned, webhook-verified, and idempotent', () => {
   const migration = read('supabase/migrations/20261031000100_v16_paymongo_collection.sql')
+  const terminalRetryMigration = read('supabase/migrations/20261102000900_paymongo_terminal_retry.sql')
+  const retryPayloadMigration = read('supabase/migrations/20261102001000_paymongo_retry_checkout_payload.sql')
   const checkout = read('supabase/functions/paymongo-create-checkout/index.ts')
   const webhook = read('supabase/functions/paymongo-webhook/index.ts')
   const planning = read('src/lib/planning.ts')
@@ -4526,9 +4528,24 @@ test('V16 keeps PayMongo collection server-owned, webhook-verified, and idempote
     'usePaymongoCheckout',
   ], 'V16 app browser launch without client-side payment verification')
   mustContain(bookingDetails, [
-    "'payment_failed_or_cancelled', 'payment_initiated'",
-    'Resume Secure Payment',
-  ], 'V16 migration of existing pending payment records into hosted checkout')
+    "'not_initiated', 'payment_failed_or_cancelled'",
+    "paymentFailed ? 'Retry Payment' : 'Pay Now to Reserve'",
+    'Payment is being verified automatically.',
+  ], 'V16 automatic payment-status presentation')
+  assert.doesNotMatch(bookingDetails, /Resume Secure Payment|Resume Payment/,
+    'A pending hosted checkout must never be presented as a second client payment action')
+  mustContain(terminalRetryMigration, [
+    "existing_attempt.status = 'failed'",
+    "payment.status in ('failed', 'cancelled')",
+    "payment.status in ('pending', 'processing')",
+    "status in ('creating_checkout', 'checkout_created')",
+    'paymongoRetryAt',
+    'paymongoFailureAt',
+  ], 'V16 terminal checkout recovery without duplicate payment records')
+  mustContain(retryPayloadMigration, [
+    "'amountCentavos', existing_attempt.amount_centavos",
+    "'eventName', event_row.name",
+  ], 'V16 retry checkout payload')
   mustContain(paymentScreen, [
     'Choose checkout method',
     'const paymongoPaymentMethods',
@@ -4554,8 +4571,11 @@ test('V16 reconciles a returned hosted checkout only through PayMongo server ver
     'https://api.paymongo.com/v1/checkout_sessions/${checkoutId}',
     "paymentAttributes.status === 'paid'",
     "admin.rpc('reconcile_paymongo_checkout_v16'",
+    'isTerminalFailure',
+    "admin.rpc('fail_paymongo_checkout_attempt_v16'",
+    'failed: true',
     'authData.user.id',
-  ], 'V16 direct PayMongo reconciliation function')
+  ], 'V16 direct PayMongo reconciliation and terminal-failure function')
   mustContain(planning, [
     'reconcileMyPaymongoCheckoutV16',
     "client.functions.invoke('paymongo-reconcile-checkout'",
@@ -4563,5 +4583,9 @@ test('V16 reconciles a returned hosted checkout only through PayMongo server ver
   mustContain(app, [
     'await WebBrowser.openBrowserAsync(result.checkoutUrl)',
     'await reconcileMyPaymongoCheckoutV16(eventId)',
+    'const reconciledQuote = await loadBookingPaymentQuote(eventId)',
+    'client-payment-progress-',
+    "table: 'payments'",
+    'Payment was not completed. You can retry payment when ready.',
   ], 'V16 post-browser reconciliation')
 })

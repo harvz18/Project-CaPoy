@@ -110,6 +110,7 @@ export type PaymongoCheckoutResult = {
 }
 
 export type PaymongoReconciliationResult = {
+  failed?: boolean
   message?: string
   ok: boolean
   verified: boolean
@@ -2002,6 +2003,7 @@ export const reconcileMyPaymongoCheckoutV16 = async (eventId: string): Promise<P
     if (error) return { ok: false, verified: false, message: error.message }
     const record = recordFromPaymentContext(data)
     return {
+      failed: record.failed === true,
       ok: true,
       verified: record.verified === true,
       message: textFromPaymentQuote(record.error) || undefined,

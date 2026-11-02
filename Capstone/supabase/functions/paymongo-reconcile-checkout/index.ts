@@ -16,6 +16,9 @@ const getString = (value: unknown) => typeof value === 'string' ? value : ''
 const getRecord = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value)
   ? value as Record<string, unknown>
   : {}
+const isTerminalFailure = (value: unknown) => ['cancelled', 'canceled', 'expired', 'failed'].includes(
+  getString(value).trim().toLowerCase()
+)
 
 type Attempt = {
   amount_centavos: number
@@ -106,7 +109,28 @@ Deno.serve(async (request) => {
     const paymentAttributes = getRecord(payment.attributes)
     return paymentAttributes.status === 'paid'
   })
-  if (!paidPayment) return json({ verified: false, reconciled: false, status: 'pending' })
+  if (!paidPayment) {
+    const paymentFailure = payments.map(getRecord).find((payment) => (
+      isTerminalFailure(getRecord(payment.attributes).status)
+    ))
+    const intent = getRecord(attributes.payment_intent)
+    const intentAttributes = getRecord(intent.attributes)
+    const terminal = isTerminalFailure(attributes.status)
+      || isTerminalFailure(intentAttributes.status)
+      || Boolean(paymentFailure)
+    if (!terminal) return json({ verified: false, reconciled: false, status: 'pending' })
+
+    const terminalStatus = getString(attributes.status)
+      || getString(intentAttributes.status)
+      || getString(getRecord(paymentFailure?.attributes).status)
+      || 'failed'
+    const { error: failureError } = await admin.rpc('fail_paymongo_checkout_attempt_v16', {
+      failure_message: `PayMongo checkout ${terminalStatus}.`,
+      target_attempt_id: attempt.id,
+    })
+    if (failureError) return json({ error: 'Unable to record the unsuccessful PayMongo checkout.' }, 500)
+    return json({ failed: true, reconciled: true, status: 'failed', verified: false })
+  }
   const paymentAttributes = getRecord(paidPayment.attributes)
   const paymentId = getString(paidPayment.id)
   const amount = paymentAttributes.amount

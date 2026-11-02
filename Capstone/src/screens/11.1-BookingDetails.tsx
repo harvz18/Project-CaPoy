@@ -388,9 +388,9 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
   )
   const paymentReady = Boolean(
     paymentQuote?.paymentEligible
-      // A pending V14 record can safely resume through V16. The server maps
-      // it to one PayMongo attempt instead of creating a second payment.
-      && ['not_initiated', 'payment_failed_or_cancelled', 'payment_initiated'].includes(paymentQuote.paymentState)
+      // A pending hosted checkout must reconcile through PayMongo first. It
+      // is never a second client action; terminal failures become retryable.
+      && ['not_initiated', 'payment_failed_or_cancelled'].includes(paymentQuote.paymentState)
       && onStartPayment
   )
   const paymentInitiated = paymentQuote?.paymentState === 'payment_initiated'
@@ -424,7 +424,7 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
               : 'paymentLocked'
   const primaryBookingActionLabel = {
     checkingPayment: 'Checking Payment',
-    confirmPayment: paymentInitiated ? 'Resume Payment' : paymentFailed ? 'Try Payment Again' : 'Confirm Payment',
+    confirmPayment: paymentFailed ? 'Retry Payment' : 'Confirm Payment',
     experienceShared: 'Experience Shared',
     paymentConfirmed: 'Payment Confirmed',
     paymentLocked: 'Awaiting Confirmations',
@@ -1543,13 +1543,13 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                 ]}
               >
                 <Text style={styles.paymentActionButtonText}>
-                  {isStartingPayment ? 'Loading payment…' : paymentInitiated ? 'Resume Secure Payment' : paymentFailed ? 'Try Payment Again' : 'Pay Now to Reserve'}
+                  {isStartingPayment ? 'Loading payment…' : paymentFailed ? 'Retry Payment' : 'Pay Now to Reserve'}
                 </Text>
               </Pressable>
             </>
           ) : paymentInitiated ? (
             <Text style={styles.paymentNotice}>
-              Payment was initiated and is awaiting completion or verification. Your booking is not financially reserved yet.
+              Payment is being verified automatically. This page will update when PayMongo confirms the result; your booking is not financially reserved yet.
             </Text>
           ) : paymentRecorded ? (
             <Text style={styles.paymentNotice}>
@@ -1637,12 +1637,12 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                 ]}
               >
                 <Text style={styles.paymentActionButtonText}>
-                {isStartingPayment ? 'Loading payment…' : paymentInitiated ? 'Resume Secure Payment' : paymentFailed ? 'Try Payment Again' : 'Pay Now to Reserve'}
+                {isStartingPayment ? 'Loading payment…' : paymentFailed ? 'Retry Payment' : 'Pay Now to Reserve'}
                 </Text>
               </Pressable>
             </>
           ) : paymentInitiated ? (
-            <Text style={styles.paymentNotice}>Payment was initiated and is awaiting completion or verification.</Text>
+            <Text style={styles.paymentNotice}>Payment is being verified automatically. This page will update when PayMongo confirms the result; your booking is not financially reserved yet.</Text>
           ) : paymentRecorded ? (
             <Text style={styles.paymentNotice}>Payment is recorded. Provider funds follow the existing hold and release policy.</Text>
           ) : (

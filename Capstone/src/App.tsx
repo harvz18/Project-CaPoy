@@ -3753,6 +3753,7 @@ export const App: React.FC = () => {
     let active = true
     let bookingChannel: RealtimeChannel | undefined
     let eventChannel: RealtimeChannel | undefined
+    let paymentChannel: RealtimeChannel | undefined
 
     void client.auth.getUser().then(({ data }) => {
       if (!active || !data.user) return
@@ -3788,12 +3789,29 @@ export const App: React.FC = () => {
           }
         )
         .subscribe()
+
+      paymentChannel = client
+        .channel(`client-payment-progress-${data.user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            filter: `payer_id=eq.${data.user.id}`,
+            schema: 'public',
+            table: 'payments',
+          },
+          () => {
+            void refreshClientBookings()
+          }
+        )
+        .subscribe()
     })
 
     return () => {
       active = false
       if (bookingChannel) void client.removeChannel(bookingChannel)
       if (eventChannel) void client.removeChannel(eventChannel)
+      if (paymentChannel) void client.removeChannel(paymentChannel)
     }
   }, [refreshClientBookings])
 
@@ -5015,7 +5033,7 @@ export const App: React.FC = () => {
     // responsive after provider acceptance while the server remains the final
     // authority for acceptance and immutable booking-price snapshots.
     try {
-      const paymentQuote = await loadBookingPaymentQuote(eventId)
+      let paymentQuote = await loadBookingPaymentQuote(eventId)
       if (!paymentQuote) {
         setIsBookingPaymentSheetVisible(false)
         return
@@ -5054,6 +5072,7 @@ export const App: React.FC = () => {
           setIsBookingPaymentSheetVisible(false)
           return
         }
+        if (refreshedQuote) paymentQuote = refreshedQuote
       }
       if (!paymentQuote.paymentEligible) {
         setToastMessage(paymentQuote.reason ?? 'Payment is not available until all required confirmations are complete.')
@@ -5086,6 +5105,10 @@ export const App: React.FC = () => {
         termsAccepted: value.termsAccepted,
       })
       if (!result.ok || !result.checkoutUrl) {
+        // A server-side checkout-creation failure marks the existing attempt
+        // retryable. Reload the authoritative quote before returning so the
+        // Event Details action changes to Retry Payment immediately.
+        await loadBookingPaymentQuote(eventId)
         setToastMessage(result.message ?? 'Unable to start payment for this booking.')
         return
       }
@@ -5104,7 +5127,8 @@ export const App: React.FC = () => {
       setToastMessage('Complete payment in PayMongo. Your booking updates only after PayMongo verifies it.')
       await WebBrowser.openBrowserAsync(result.checkoutUrl)
       const reconciliation = await reconcileMyPaymongoCheckoutV16(eventId)
-      if (reconciliation.verified) {
+      const reconciledQuote = await loadBookingPaymentQuote(eventId)
+      if (reconciliation.verified || reconciledQuote?.paymentState === 'paid_or_verified') {
         // Reconciliation is server-authoritative. Clear the local pending
         // action immediately, even if the follow-up quote request is briefly
         // delayed by a mobile connection.
@@ -5116,7 +5140,7 @@ export const App: React.FC = () => {
         // Booking Details cannot keep rendering a disabled “Resume Payment”
         // action (or the pre-payment zero allocation projection) after
         // PayMongo has authorized the transaction.
-        const verifiedQuote = await loadBookingPaymentQuote(eventId)
+        const verifiedQuote = reconciledQuote ?? await loadBookingPaymentQuote(eventId)
         if (verifiedQuote) {
           setSelectedBooking((current) => current && current.eventId === eventId
             ? {
@@ -5134,10 +5158,12 @@ export const App: React.FC = () => {
         await refreshLiveData().catch(() => undefined)
         setToastMessage('PayMongo payment verified. Your booking has been updated.')
       } else {
-        // Preserve the pending state when the checkout was closed before a
-        // successful authorization, while still refreshing any terminal
-        // PayMongo status the server may have observed.
+        // A terminal failure becomes retryable only after the server marks it
+        // failed. Pending attempts stay pending, preventing duplicate charges.
         await refreshLiveData().catch(() => undefined)
+        if (reconciledQuote?.paymentState === 'payment_failed_or_cancelled' || reconciliation.failed) {
+          setToastMessage('Payment was not completed. You can retry payment when ready.')
+        }
       }
     } finally {
       setIsInitiatingBookingPayment(false)
