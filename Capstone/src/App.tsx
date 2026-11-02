@@ -932,6 +932,7 @@ export const App: React.FC = () => {
     React.useState<VerificationNextScreen>('clientHome')
   const [recoveryContact, setRecoveryContact] = React.useState('')
   const [selectedBooking, setSelectedBooking] = React.useState<BookingItem>()
+  const selectedBookingEventIdRef = React.useRef<string | undefined>(undefined)
   const [bookingPaymentQuote, setBookingPaymentQuote] = React.useState<EventPaymentQuote>()
   const [isBookingPaymentSheetVisible, setIsBookingPaymentSheetVisible] = React.useState(false)
   const [paymentSettlementContext, setPaymentSettlementContext] =
@@ -2459,8 +2460,20 @@ export const App: React.FC = () => {
     return () => appStateSubscription.remove()
   }, [authenticatedUserId, refreshLiveData])
 
+  React.useEffect(() => {
+    selectedBookingEventIdRef.current = selectedBooking?.eventId
+  }, [selectedBooking?.eventId])
+
   const refreshClientBookings = React.useCallback(async () => {
-    const bookings = await loadClientBookings()
+    const activeBookingEventId = screen === 'bookingDetails'
+      ? selectedBooking?.eventId
+      : undefined
+    const [bookings, quoteResult] = await Promise.all([
+      loadClientBookings(),
+      activeBookingEventId
+        ? fetchMyEventPaymentQuoteV14(activeBookingEventId)
+        : Promise.resolve(undefined),
+    ])
     setClientBookings(bookings)
     setSelectedBooking((current) => {
       if (!current) return current
@@ -2468,7 +2481,17 @@ export const App: React.FC = () => {
         item.id === current.id || Boolean(item.eventId && current.eventId && item.eventId === current.eventId)
       ) ?? current
     })
-  }, [loadClientBookings])
+    // The server quote is the authority for payment eligibility. Re-read it
+    // beside live booking updates so an accepted replacement unlocks payment
+    // without requiring the client to leave and reopen Event Details.
+    if (
+      quoteResult?.ok
+      && quoteResult.paymentQuote
+      && selectedBookingEventIdRef.current === activeBookingEventId
+    ) {
+      setBookingPaymentQuote(quoteResult.paymentQuote)
+    }
+  }, [loadClientBookings, screen, selectedBooking?.eventId])
 
   const restoreClientPlanningResume = React.useCallback(async (
     userId: string,

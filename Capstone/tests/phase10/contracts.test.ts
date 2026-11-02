@@ -754,11 +754,19 @@ test('booking details prioritizes completed-event feedback and verified payment 
     /onPress=\{onStartPayment\}[\s\S]{0,250}<Text style=\{styles\.paymentActionButtonText\}>Confirm Payment<\/Text>/,
     'the confirmation dock must not keep an unconditional payment handler'
   )
+
+  const app = read('src/App.tsx')
+  mustContain(app, [
+    'const activeBookingEventId = screen === \'bookingDetails\'',
+    'fetchMyEventPaymentQuoteV14(activeBookingEventId)',
+    'accepted replacement unlocks payment',
+  ], 'live payment eligibility refresh')
 })
 
 test('declined-provider replacements stay on the existing event and submit one pending request', () => {
   const app = read('src/App.tsx')
   const planning = read('src/lib/planning.ts')
+  const replacementEligibility = read('supabase/migrations/20261102000800_replacement_payment_eligibility.sql')
 
   mustContain(app, [
     "variant: 'replacement'",
@@ -773,6 +781,12 @@ test('declined-provider replacements stay on the existing event and submit one p
     "client.rpc('submit_my_event_booking_requests_v14'",
     'Do not use ensureDraftEvent here',
   ], 'existing-event replacement request submission')
+  mustContain(replacementEligibility, [
+    'create or replace function public.event_payment_eligibility_v14(',
+    'replacement.rejected_booking_id = booking.id',
+    'replacement.replacement_booking_id is not null',
+    'accepted_provider_count < provider_count',
+  ], 'replacement-aware payment eligibility')
 })
 
 test('V9 Phase 5 category tags count eligible services and mark active selections', () => {
