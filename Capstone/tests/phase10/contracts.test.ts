@@ -4466,6 +4466,37 @@ test('V20 Phase 11 keeps Inbox trash user-specific and reversible', () => {
   ], 'Trash sheet and dim overlay animate independently')
 })
 
+test('Explore keeps its tabs balanced and shows only the signed-in client\'s reviewed services', () => {
+  const categoryBrowse = read('src/screens/06-CategoryBrowse.tsx')
+  const reviewedServices = read('src/lib/reviewed-services.ts')
+  const reviewedServicesMigration = read('supabase/migrations/20261102000300_v22_reviewed_services_explore.sql')
+  const app = read('src/App.tsx')
+
+  mustContain(categoryBrowse, [
+    "exploreTabs: {",
+    "width: '100%'",
+    'exploreTab: {',
+    'flex: 1',
+    'minHeight: 48',
+    '<ReviewedServicesTab',
+  ], 'Inbox-style balanced Explore and Reviewed tabs')
+  mustContain(reviewedServices, [
+    "supabase.rpc('get_my_reviewed_services_v22')",
+    'bookingId: text(row.booking_id)',
+    "serviceName: text(row.service_name, 'Previously booked service')",
+  ], 'client Reviewed tab data mapping')
+  mustContain(reviewedServicesMigration, [
+    'booking.client_id = auth.uid()',
+    'where review.reviewer_id = auth.uid()',
+    'review.booking_id is not null',
+  ], 'signed-in client review ownership guard')
+  mustContain(app, [
+    'fetchMyReviewedServices()',
+    'setReviewedServices(myReviewedServices)',
+    'reviewedServices={reviewedServices}',
+  ], 'Reviewed tab app integration')
+})
+
 test('V16 keeps PayMongo collection server-owned, webhook-verified, and idempotent', () => {
   const migration = read('supabase/migrations/20261031000100_v16_paymongo_collection.sql')
   const terminalRetryMigration = read('supabase/migrations/20261102000900_paymongo_terminal_retry.sql')
