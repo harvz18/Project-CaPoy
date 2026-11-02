@@ -315,7 +315,6 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
   isStartingPayment = false,
 }) => {
   const provider = booking ?? defaultProvider
-  const isConfirmed = booking?.status === 'confirmed' || booking?.status === 'completed'
   const isCompleted = booking?.status === 'completed'
   const isCancelled = booking?.status === 'cancelled'
   const canMessageCoordinator = Boolean(
@@ -355,6 +354,15 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
     : paymentQuote?.acceptance.coordinatorAccepted ?? !coordinatorRequired
   const requiredConfirmationCount = providerCount + (coordinatorRequired ? 1 : 0)
   const acceptedConfirmationCount = acceptedProviderCount + (coordinatorRequired && coordinatorAccepted ? 1 : 0)
+  // The timeline represents the client-facing provider-request journey. Mark
+  // Confirmed only once every active provider request has accepted; the
+  // coordinator, when required, keeps its own explicit tracker row.
+  const allProviderRequestsAccepted = providerCount > 0
+    && acceptedProviderCount === providerCount
+    && pendingProviderCount === 0
+    && declinedProviderCount === 0
+    && cancelledProviderCount === 0
+  const isConfirmed = allProviderRequestsAccepted
   const coordinatorTrackerStatus = getCoordinatorTrackerStatus(booking?.coordinatorAssignmentStatus)
   const hasCoordinatorTracker = coordinatorRequired
   const bookedServiceCount = bookedServices.length + (hasCoordinatorTracker ? 1 : 0)

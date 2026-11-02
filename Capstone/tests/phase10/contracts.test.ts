@@ -743,6 +743,8 @@ test('booking details prioritizes completed-event feedback and verified payment 
     "? 'paymentConfirmed'",
     "paymentConfirmed: 'Payment Confirmed'",
     "shareExperience: 'Share Event Experience'",
+    'const allProviderRequestsAccepted = providerCount > 0',
+    'complete={isConfirmed}',
     "primaryBookingAction === 'shareExperience' ? onSubmitReview : onStartPayment",
     "!isCancelled ? (",
     'paymentActionButtonConfirmed',
