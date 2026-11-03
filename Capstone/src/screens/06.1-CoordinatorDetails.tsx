@@ -87,7 +87,7 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
             >
               <MaterialCommunityIcons color={palette.primary} name="arrow-left" size={24} />
             </Pressable>
-            <Text style={styles.headerTitle}>Coordinator Profile</Text>
+            <Text style={styles.headerTitle}>About the Coordinator</Text>
             <View style={styles.iconButton} />
           </View>
         </View>
@@ -141,7 +141,7 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
         <View style={[styles.sectionCard, isOverlay && styles.neoRaisedCard]}>
           <View style={styles.sectionHeading}>
             <MaterialCommunityIcons color={palette.primaryContainer} name="calendar-check-outline" size={22} />
-            <Text style={styles.sectionTitle}>Pricing &amp; Availability</Text>
+            <Text style={styles.sectionTitle}>Pricing and Availability</Text>
           </View>
           <View style={[styles.pricingRow, isOverlay && styles.neoRaisedPriceRow]}>
             <Text style={styles.pricingLabel}>Price Range</Text>
@@ -164,7 +164,7 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
         <View style={[styles.sectionCard, isOverlay && styles.neoRaisedCard]}>
           <View style={styles.sectionHeading}>
             <MaterialCommunityIcons color={palette.primaryContainer} name="star-shooting-outline" size={22} />
-            <Text style={styles.sectionTitle}>Skills &amp; Specialties</Text>
+            <Text style={styles.sectionTitle}>Skills and Specialties</Text>
           </View>
           {specialtyGroups.map((group, index) => (
             <View key={group.label} style={[styles.specialtyGroup, index > 0 && styles.specialtyGroupDivider]}>
@@ -180,7 +180,7 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
         <View style={[styles.sectionCard, isOverlay && styles.neoRaisedCard]}>
           <View style={styles.sectionHeading}>
             <MaterialCommunityIcons color={palette.primaryContainer} name="clipboard-list-outline" size={22} />
-            <Text style={styles.sectionTitle}>Services &amp; Inclusions</Text>
+            <Text style={styles.sectionTitle}>Services and Inclusions</Text>
           </View>
           {inclusions.length ? <ItemList isRaised={isOverlay} values={inclusions} /> : <Text style={styles.sectionCopy}>Service inclusions have not been specified yet.</Text>}
         </View>
