@@ -194,6 +194,8 @@ export interface CatalogService {
 // clears it, so genuinely empty categories remain truthful.
 let lastSuccessfulCatalogServices: CatalogService[] | undefined
 let lastSuccessfulClientCatalogServices: CatalogService[] | undefined
+let catalogServicesRequest: Promise<CatalogService[]> | undefined
+let clientCatalogServicesRequest: Promise<CatalogService[]> | undefined
 
 export const categoryNameToId = (name: string): CatalogCategoryId => {
   const normalized = name.toLowerCase()
@@ -386,7 +388,7 @@ const getCateringServiceTypes = (value: unknown): CateringServiceType[] => {
   )
 }
 
-export const fetchCatalogServices = async (): Promise<CatalogService[]> => {
+const fetchCatalogServicesUncached = async (): Promise<CatalogService[]> => {
   if (!supabase || !supabaseConfig.isConfigured) {
     return []
   }
@@ -807,7 +809,23 @@ export const fetchServiceDecisionSignals = async (): Promise<
   return signals
 }
 
-export const loadClientCatalogServices = async (): Promise<CatalogService[]> => {
+export const fetchCatalogServices = (): Promise<CatalogService[]> => {
+  if (catalogServicesRequest) return catalogServicesRequest
+
+  const request = fetchCatalogServicesUncached()
+  catalogServicesRequest = request
+  void request.then(
+    () => {
+      if (catalogServicesRequest === request) catalogServicesRequest = undefined
+    },
+    () => {
+      if (catalogServicesRequest === request) catalogServicesRequest = undefined
+    }
+  )
+  return request
+}
+
+const loadClientCatalogServicesUncached = async (): Promise<CatalogService[]> => {
   try {
     const [services, coordinators, recommendations, decisionSignals] = await Promise.all([
       fetchCatalogServices(),
@@ -852,4 +870,23 @@ export const loadClientCatalogServices = async (): Promise<CatalogService[]> => 
     )
     return lastSuccessfulClientCatalogServices ?? lastSuccessfulCatalogServices ?? []
   }
+}
+
+// Client Home, Explore, and planning can request the same catalog during one
+// transition. Share that in-flight read so the app does not issue duplicate
+// large nested service queries or make the UI wait for each copy.
+export const loadClientCatalogServices = (): Promise<CatalogService[]> => {
+  if (clientCatalogServicesRequest) return clientCatalogServicesRequest
+
+  const request = loadClientCatalogServicesUncached()
+  clientCatalogServicesRequest = request
+  void request.then(
+    () => {
+      if (clientCatalogServicesRequest === request) clientCatalogServicesRequest = undefined
+    },
+    () => {
+      if (clientCatalogServicesRequest === request) clientCatalogServicesRequest = undefined
+    }
+  )
+  return request
 }

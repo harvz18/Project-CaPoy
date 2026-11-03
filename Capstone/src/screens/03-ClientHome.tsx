@@ -220,9 +220,13 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   onToggleFavorite,
 }) => {
   const safeAreaInsets = useSafeAreaInsets()
-  const { width } = useWindowDimensions()
+  const { height, width } = useWindowDimensions()
   const isWide = width >= 768
   const brandMarkSize = width < 375 ? 22 : 24
+  // Keep the refresh affordance comfortably below the floating header. On
+  // Android this also gives the native indicator enough visual travel to be
+  // obvious instead of appearing to stop at the very top edge.
+  const refreshIndicatorOffset = Math.min(260, Math.max(124, Math.round(height * 0.28)))
   const lastScrollY = React.useRef(0)
   const searchInputRef = React.useRef<React.ComponentRef<typeof TextInput>>(null)
   const searchExpansion = React.useRef(new Animated.Value(0)).current
@@ -494,15 +498,19 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   return (
     <View style={styles.referenceScreen}>
       <ScrollView
+        alwaysBounceVertical
+        bounces
         contentContainerStyle={[
           styles.referenceContent,
           isWide && styles.referenceContentWide,
         ]}
+        overScrollMode="always"
         showsVerticalScrollIndicator={false}
         refreshControl={onRefresh ? (
           <RefreshControl
             colors={['#8A2944']}
             onRefresh={() => void onRefresh()}
+            progressViewOffset={refreshIndicatorOffset}
             refreshing={isRefreshing}
             tintColor="#8A2944"
           />

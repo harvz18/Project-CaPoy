@@ -1,10 +1,11 @@
 import React from 'react'
 import type { RealtimeChannel } from '@supabase/supabase-js'
-import { ActivityIndicator, Alert, Animated, AppState, BackHandler, Easing, Image, Modal, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
+import { Alert, Animated, AppState, BackHandler, Easing, Modal, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
 import { BlurTargetView } from 'expo-blur'
+import { VideoView, useVideoPlayer } from 'expo-video'
 import * as WebBrowser from 'expo-web-browser'
 import * as ImagePicker from 'expo-image-picker'
 import { useFonts } from 'expo-font'
@@ -15,6 +16,7 @@ import {
   Inter_700Bold,
   Inter_900Black,
 } from '@expo-google-fonts/inter'
+import splashVideo from '../images/Multivent Splash.mp4'
 
 import { supabase } from './lib/supabase'
 import { fetchFavoriteServiceIds, toggleFavoriteService } from './lib/favorites'
@@ -828,6 +830,15 @@ export const App: React.FC = () => {
     Inter_700Bold,
     Inter_900Black,
   })
+  // Expo's operating-system splash remains a static image by platform design.
+  // This video takes over immediately after JavaScript loads while the secure
+  // session is restored, preserving a smooth animated launch without delaying
+  // the application beyond work it already has to perform.
+  const splashPlayer = useVideoPlayer(splashVideo, (player) => {
+    player.loop = true
+    player.muted = true
+    player.play()
+  })
   const { height, width } = useWindowDimensions()
   const [screen, commitScreen] = React.useState<AppScreen>('onboarding')
   const [isAuthRestoring, setIsAuthRestoring] = React.useState(Boolean(supabase))
@@ -853,6 +864,14 @@ export const App: React.FC = () => {
   const pendingBudgetAutosaveRef = React.useRef<BudgetAllocationValue | undefined>(undefined)
   const refreshLiveDataInFlightRef = React.useRef<Promise<ClientPlanningState> | null>(null)
   const clientBookingsRequestRef = React.useRef<ReturnType<typeof fetchClientBookings> | null>(null)
+  // Keep the resolved role outside the render cycle so the first refresh
+  // immediately after sign-in can skip provider-only workspace reads.
+  const activeAccountRoleRef = React.useRef<AccountRole | ''>('')
+
+  React.useEffect(() => {
+    if (isAuthRestoring) splashPlayer.play()
+    else splashPlayer.pause()
+  }, [isAuthRestoring, splashPlayer])
 
   const transitionToScreen = React.useCallback((nextScreen: AppScreen) => {
     const currentScreen = screenRef.current
@@ -939,6 +958,7 @@ export const App: React.FC = () => {
   }, [goBackInApp])
   const [isClientNavigationVisible, setIsClientNavigationVisible] = React.useState(true)
   const [isClientHomeRefreshing, setIsClientHomeRefreshing] = React.useState(false)
+  const [isClientAppRefreshing, setIsClientAppRefreshing] = React.useState(false)
   const clientNavigationInteractionLockRef = React.useRef(0)
   const keepClientNavigationVisibleForToggle = React.useCallback(() => {
     clientNavigationInteractionLockRef.current = Date.now() + 320
@@ -2362,7 +2382,53 @@ export const App: React.FC = () => {
     if (inFlightRefresh) return inFlightRefresh
 
     const refresh = (async (): Promise<ClientPlanningState> => {
+    const isClientSession = activeAccountRoleRef.current === 'client'
     const favoriteStateRevisionAtStart = favoriteStateRevisionRef.current
+    if (isClientSession) {
+      // A client cannot act on provider drafts, provider service listings, or
+      // provider booking requests. Load the data needed to render and resume
+      // their current flow first, then hydrate inbox and supporting home data
+      // without making navigation wait for it.
+      const [services, bookings, planningState, categories, eventDrafts] = await Promise.all([
+        loadClientCatalogServices(),
+        loadClientBookings(),
+        fetchClientPlanningState(),
+        fetchServiceCategories(),
+        fetchClientEventDrafts(),
+      ])
+
+      setCatalogServices(services)
+      clientBookingsRef.current = bookings
+      setClientBookings(bookings)
+      setSelectedBooking((current) => {
+        if (!current) return current
+        return bookings.find((item) =>
+          item.id === current.id || Boolean(item.eventId && current.eventId && item.eventId === current.eventId)
+        ) ?? current
+      })
+      setServiceCategories(categories)
+      hydrateClientPlanningState(planningState, services)
+      setClientEventDrafts(eventDrafts)
+
+      void Promise.all([
+        fetchConversations(),
+        fetchNotifications(),
+        fetchClientSavedPlans(),
+        fetchFavoriteServiceIds(),
+        fetchMyReviewedServices(),
+      ]).then(([conversationRows, notificationRows, savedPlans, favorites, myReviewedServices]) => {
+        setConversations(conversationRows)
+        setNotifications(notificationRows)
+        setReviewedServices(myReviewedServices)
+        if (favorites.ok && favoriteStateRevisionAtStart === favoriteStateRevisionRef.current) {
+          setFavoriteServiceIds(favorites.ids)
+        }
+        setClientSavedPlans(savedPlans)
+      }).catch(() => undefined)
+
+      return planningState
+    }
+
     const [
       services,
       bookings,
@@ -2505,6 +2571,28 @@ export const App: React.FC = () => {
       setIsClientHomeRefreshing(false)
     }
   }, [isClientHomeRefreshing, refreshLiveData])
+
+  const refreshClientAppFromNavigation = React.useCallback(() => {
+    if (
+      isClientAppRefreshing
+      || isClientHomeRefreshing
+      || isScreenTransitioning
+      || activeGuardedActionCount > 0
+      || isInitiatingBookingPayment
+    ) return
+
+    setIsClientAppRefreshing(true)
+    void refreshLiveData()
+      .catch(() => setToastMessage('Unable to refresh right now. Please try again.'))
+      .finally(() => setIsClientAppRefreshing(false))
+  }, [
+    activeGuardedActionCount,
+    isClientAppRefreshing,
+    isClientHomeRefreshing,
+    isInitiatingBookingPayment,
+    isScreenTransitioning,
+    refreshLiveData,
+  ])
 
   const openInboxTrash = React.useCallback(async (scope: InboxTrashScope = 'all') => {
     if (isInboxTrashLoading) return
@@ -3212,6 +3300,15 @@ export const App: React.FC = () => {
       })
       const metadataName = getMetadataName(metadata)
       const resolvedRole = data?.default_role ?? String(metadata.default_role ?? '')
+      activeAccountRoleRef.current = (
+        resolvedRole === 'client'
+        || resolvedRole === 'service_provider'
+        || resolvedRole === 'event_coordinator'
+        || resolvedRole === 'assistant'
+        || resolvedRole === 'customer_service'
+        || resolvedRole === 'admin'
+        || resolvedRole === 'superadmin'
+      ) ? resolvedRole : ''
 
       if (profileName || metadataName) {
         setUserName(profileName || metadataName)
@@ -3244,6 +3341,7 @@ export const App: React.FC = () => {
       .then(async ({ data, error }) => {
         if (!isMounted) return
         if (error || !data.session?.user) {
+          activeAccountRoleRef.current = ''
           setAuthenticatedUserId('')
           return
         }
@@ -3275,6 +3373,7 @@ export const App: React.FC = () => {
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (!session?.user) {
         if (event === 'SIGNED_OUT') {
+          activeAccountRoleRef.current = ''
           setAuthenticatedUserId('')
           setIsAuthRestoring(false)
           setUserName('Planner')
@@ -7351,16 +7450,14 @@ export const App: React.FC = () => {
       <SafeAreaProvider>
         <StatusBar style="light" />
         <View style={styles.sessionRestoreScreen}>
-          <Image
-            accessibilityLabel="MULTIVENT"
-            accessibilityIgnoresInvertColors
-            resizeMode="contain"
-            source={require('../assets/multivent-icon.png')}
-            style={styles.sessionRestoreLogo}
+          <VideoView
+            accessibilityLabel="MULTIVENT animated splash screen"
+            contentFit="cover"
+            nativeControls={false}
+            player={splashPlayer}
+            pointerEvents="none"
+            style={styles.sessionRestoreVideo}
           />
-          <Text style={styles.sessionRestoreName}>MULTIVENT</Text>
-          <ActivityIndicator color="#F7DED2" size="small" />
-          <Text style={styles.sessionRestoreText}>Restoring your secure session…</Text>
         </View>
       </SafeAreaProvider>
     )
@@ -7421,7 +7518,9 @@ export const App: React.FC = () => {
             activeTab={clientMainTab}
             hasUnreadHomeUpdates={hasUnreadBookingUpdates}
             hasUnreadInbox={hasUnreadClientInbox}
+          isRefreshingApp={isClientAppRefreshing}
             isVisible={isClientNavigationVisible}
+          onRefreshApp={refreshClientAppFromNavigation}
             onSelectTab={openClientTab}
             onToggleNavigation={keepClientNavigationVisibleForToggle}
           />
@@ -7475,29 +7574,9 @@ export const App: React.FC = () => {
 const styles = StyleSheet.create({
   sessionRestoreScreen: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
     backgroundColor: '#630019',
-    padding: 24,
   },
-  sessionRestoreLogo: {
-    width: 132,
-    height: 132,
-    borderRadius: 28,
-  },
-  sessionRestoreName: {
-    color: '#FFF7F2',
-    fontFamily: 'Inter_700Bold',
-    fontSize: 24,
-    letterSpacing: 3.2,
-    marginBottom: 4,
-  },
-  sessionRestoreText: {
-    color: '#F7DED2',
-    fontFamily: 'Inter_500Medium',
-    fontSize: 13,
-  },
+  sessionRestoreVideo: { width: '100%', height: '100%' },
   container: {
     flex: 1,
     backgroundColor: colors.background,

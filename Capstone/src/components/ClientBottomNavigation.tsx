@@ -23,6 +23,8 @@ interface ClientBottomNavigationProps {
   hasUnreadHomeUpdates?: boolean
   hasUnreadInbox?: boolean
   isVisible?: boolean
+  isRefreshingApp?: boolean
+  onRefreshApp?: () => void
   onSelectTab?: (tab: ClientMainTab) => void
   onToggleNavigation?: () => void
 }
@@ -43,6 +45,8 @@ export const ClientBottomNavigation: React.FC<ClientBottomNavigationProps> = ({
   hasUnreadHomeUpdates = false,
   hasUnreadInbox = false,
   isVisible = true,
+  isRefreshingApp = false,
+  onRefreshApp,
   onSelectTab,
   onToggleNavigation,
 }) => {
@@ -54,10 +58,14 @@ export const ClientBottomNavigation: React.FC<ClientBottomNavigationProps> = ({
   const logoPressScale = React.useRef(new Animated.Value(1)).current
   const logoRotation = React.useRef(new Animated.Value(0)).current
   const logoSpinDirection = React.useRef<1 | -1>(1)
+  const refreshSpinAnimation = React.useRef<Animated.CompositeAnimation | null>(null)
   const activeIndicatorX = React.useRef(new Animated.Value(0)).current
   const isActiveIndicatorInitialized = React.useRef(false)
   const isToggleInFlight = React.useRef(false)
   const isLogoSpinning = React.useRef(false)
+  const isRefreshSpinning = React.useRef(false)
+  const didLongPressLogo = React.useRef(false)
+  const longPressResetTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const [navigationWidth, setNavigationWidth] = React.useState(0)
   const [navigationHeight, setNavigationHeight] = React.useState(0)
   const activeIndex = Math.max(0, tabs.findIndex((tab) => tab.id === activeTab))
@@ -159,7 +167,7 @@ export const ClientBottomNavigation: React.FC<ClientBottomNavigationProps> = ({
   }
 
   const playLogoSpin = () => {
-    if (reducedMotion || isLogoSpinning.current) return
+    if (reducedMotion || isLogoSpinning.current || isRefreshSpinning.current) return
     isLogoSpinning.current = true
     const direction = logoSpinDirection.current
     logoSpinDirection.current = direction === 1 ? -1 : 1
@@ -173,6 +181,35 @@ export const ClientBottomNavigation: React.FC<ClientBottomNavigationProps> = ({
       isLogoSpinning.current = false
     })
   }
+
+  React.useEffect(() => {
+    refreshSpinAnimation.current?.stop()
+    refreshSpinAnimation.current = null
+    isRefreshSpinning.current = isRefreshingApp
+
+    if (!isRefreshingApp || reducedMotion) {
+      logoRotation.setValue(0)
+      return undefined
+    }
+
+    logoRotation.setValue(0)
+    const animation = Animated.loop(Animated.timing(logoRotation, {
+      duration: 760,
+      easing: Easing.linear,
+      toValue: 1,
+      useNativeDriver: true,
+    }))
+    refreshSpinAnimation.current = animation
+    animation.start()
+    return () => {
+      animation.stop()
+      if (refreshSpinAnimation.current === animation) refreshSpinAnimation.current = null
+    }
+  }, [isRefreshingApp, logoRotation, reducedMotion])
+
+  React.useEffect(() => () => {
+    if (longPressResetTimer.current) clearTimeout(longPressResetTimer.current)
+  }, [])
 
   const handleLogoPressIn = () => {
     if (reducedMotion) return
@@ -208,6 +245,27 @@ export const ClientBottomNavigation: React.FC<ClientBottomNavigationProps> = ({
         useNativeDriver: true,
       }),
     ]).start()
+  }
+
+  const handleLogoLongPress = () => {
+    didLongPressLogo.current = true
+    if (longPressResetTimer.current) clearTimeout(longPressResetTimer.current)
+    longPressResetTimer.current = setTimeout(() => {
+      didLongPressLogo.current = false
+      longPressResetTimer.current = null
+    }, 500)
+    if (isRefreshingApp) return
+    onRefreshApp?.()
+  }
+
+  const handleLogoPress = () => {
+    if (didLongPressLogo.current) {
+      didLongPressLogo.current = false
+      if (longPressResetTimer.current) clearTimeout(longPressResetTimer.current)
+      longPressResetTimer.current = null
+      return
+    }
+    toggleNavigation()
   }
 
   const selectTab = (tab: (typeof tabs)[number]['id']) => {
@@ -320,12 +378,15 @@ export const ClientBottomNavigation: React.FC<ClientBottomNavigationProps> = ({
 
         <Animated.View style={[styles.logoButton, { transform: [{ scale: logoPressScale }, { rotate: logoRotate }] }]}>
           <Pressable
-            accessibilityHint={isExpanded ? 'Collapses client navigation' : 'Expands client navigation'}
+            accessibilityHint={`${isExpanded ? 'Collapses client navigation' : 'Expands client navigation'}. Hold for 2 seconds to refresh the app.`}
             accessibilityLabel={isExpanded
               ? 'Collapse navigation'
               : `Expand navigation${hasCollapsedNavigationUpdate ? ', with unread updates' : ''}`}
             accessibilityRole="button"
-            onPress={toggleNavigation}
+            accessibilityState={{ busy: isRefreshingApp }}
+            delayLongPress={2000}
+            onLongPress={handleLogoLongPress}
+            onPress={handleLogoPress}
             onPressIn={handleLogoPressIn}
             onPressOut={handleLogoPressOut}
             style={styles.logoPressTarget}

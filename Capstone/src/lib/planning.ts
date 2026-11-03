@@ -1503,16 +1503,22 @@ export const createClientEventDraft = async (): Promise<PlanningResult & { event
 
     // Starting over replaces the previous unfinished plan. This happens only
     // after the new draft is safely created, so a failed insert never removes
-    // the plan the client was already working on.
+    // the plan the client was already working on. The cleanup is not part of
+    // the new draft's validity, so keep it in the background: the client can
+    // enter the new, already-persisted draft without waiting for a second
+    // round-trip that only retires older drafts.
     const client = getClient()
     if (client) {
-      await client
+      void client
         .from('events')
         .update({ status: 'cancelled', updated_at: new Date().toISOString() })
         .eq('client_id', event.userId)
         .neq('id', event.eventId)
         .in('status', ['draft', 'planning'])
         .is('saved_plan_at', null)
+        .then(({ error }) => {
+          if (error) console.warn('Unable to retire older client drafts:', error.message)
+        })
     }
 
     return { eventId: event.eventId, ok: true }

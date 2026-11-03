@@ -122,7 +122,7 @@ export function FinancialOverviewScreen() {
   const [financialAction, setFinancialAction] = useState<FinancialAction | null>(null)
   const [actionReference, setActionReference] = useState('')
   const [actionNote, setActionNote] = useState('')
-  const [actionChannel, setActionChannel] = useState<'bank_transfer' | 'e_wallet'>('bank_transfer')
+  const [actionChannel, setActionChannel] = useState<'bank_transfer' | 'e_wallet' | 'paymongo_test'>('bank_transfer')
   const [actionBusy, setActionBusy] = useState(false)
   const [actionError, setActionError] = useState('')
   const [actionNotice, setActionNotice] = useState('')
@@ -214,7 +214,18 @@ export function FinancialOverviewScreen() {
         result = await supabase.rpc('fail_v14_provider_bank_payout', { target_disbursement_id: financialAction.id, failure_status: 'failed', failure_note: normalizedNote })
         break
       case 'prepare-refund':
-        result = await supabase.rpc('record_v14_refund_disbursement', { target_refund_id: financialAction.id, next_status: 'pending_disbursement', external_reference_value: null, channel_value: actionChannel })
+        if (actionChannel === 'paymongo_test') {
+          const { data, error: invokeError } = await supabase.functions.invoke('paymongo-refund-test', {
+            body: { refundId: financialAction.id },
+          })
+          result = invokeError
+            ? { error: invokeError }
+            : data && typeof data === 'object' && 'error' in data
+              ? { error: new Error(String((data as { error?: unknown }).error || 'PayMongo test refund could not be processed.')) }
+              : { data }
+        } else {
+          result = await supabase.rpc('record_v14_refund_disbursement', { target_refund_id: financialAction.id, next_status: 'pending_disbursement', external_reference_value: null, channel_value: actionChannel })
+        }
         break
       case 'start-refund':
         result = await supabase.rpc('record_v14_refund_disbursement', { target_refund_id: financialAction.id, next_status: 'processing', external_reference_value: null, channel_value: null })
@@ -298,7 +309,7 @@ export function FinancialOverviewScreen() {
         {payoutRows.length === 0 ? <EmptyState title="No payout requests" copy="Provider payout requests from the selected period will appear here." /> : <div className="finance-table-wrap"><table className="finance-table"><thead><tr><th>Requested</th><th>Provider</th><th>Amount</th><th>Processed</th><th>Status</th></tr></thead><tbody>{payoutRows.map((item) => <tr key={text(item.id)}><td>{formatDateTime(item.requested_at)}</td><td>{text(item.provider_name)}</td><td><strong>{formatMoney(number(item.amount))}</strong></td><td>{item.processed_at ? formatDateTime(item.processed_at) : '—'}</td><td><StatusBadge value={text(item.status)} /></td></tr>)}</tbody></table></div>}
       </section>
     </>}
-    {financialAction && <FinancialActionDialog
+    {financialAction && <FinancialActionDialogV2
       action={financialAction}
       reference={actionReference}
       note={actionNote}
@@ -390,16 +401,18 @@ function OperationList({ title, copy, rows, emptyTitle, emptyCopy, canOperate, o
   })}</div>}</section>
 }
 
+// Retained for older compiled dashboard chunks during a rolling deployment.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function FinancialActionDialog({ action, reference, note, channel, busy, error, onReference, onNote, onChannel, onCancel, onConfirm }: {
   action: FinancialAction
   reference: string
   note: string
-  channel: 'bank_transfer' | 'e_wallet'
+  channel: 'bank_transfer' | 'e_wallet' | 'paymongo_test'
   busy: boolean
   error: string
   onReference: (value: string) => void
   onNote: (value: string) => void
-  onChannel: (value: 'bank_transfer' | 'e_wallet') => void
+  onChannel: (value: 'bank_transfer' | 'e_wallet' | 'paymongo_test') => void
   onCancel: () => void
   onConfirm: () => void
 }) {
@@ -407,6 +420,43 @@ function FinancialActionDialog({ action, reference, note, channel, busy, error, 
   const needsChannel = action.kind === 'prepare-refund'
   const isReady = !needsReference || reference.trim().length >= 4
   return <div className="modal-backdrop modal-backdrop--front" role="presentation" onMouseDown={onCancel}><section className="confirmation-dialog financial-action-dialog" role="dialog" aria-modal="true" aria-labelledby="financial-action-title" onMouseDown={(event) => event.stopPropagation()}><span className="eyebrow">AUTHORIZED FINANCIAL ACTION</span><h2 id="financial-action-title">{action.title}</h2><p>{action.copy} This action is logged and cannot be used to create a client wallet balance.</p>{needsReference && <label>Authoritative bank or processor reference<input autoFocus value={reference} onChange={(event) => onReference(event.target.value)} placeholder="At least 4 characters" /></label>}{needsChannel && <label>Verified destination channel<select value={channel} onChange={(event) => onChannel(event.target.value as 'bank_transfer' | 'e_wallet')}><option value="bank_transfer">Bank transfer</option><option value="e_wallet">E-wallet</option></select></label>}<label>Operator note <small>(optional)</small><textarea value={note} onChange={(event) => onNote(event.target.value)} maxLength={2000} placeholder="Internal audit note" /></label>{error && <InlineError message={error} onClose={() => undefined} />}<div className="confirmation-dialog__actions"><button className="secondary-button" disabled={busy} onClick={onCancel}>Cancel</button><button className="primary-button" disabled={busy || !isReady} onClick={onConfirm}>{busy ? 'Recording…' : action.title}</button></div></section></div>
+}
+
+function FinancialActionDialogV2({ action, reference, note, channel, busy, error, onReference, onNote, onChannel, onCancel, onConfirm }: {
+  action: FinancialAction
+  reference: string
+  note: string
+  channel: 'bank_transfer' | 'e_wallet' | 'paymongo_test'
+  busy: boolean
+  error: string
+  onReference: (value: string) => void
+  onNote: (value: string) => void
+  onChannel: (value: 'bank_transfer' | 'e_wallet' | 'paymongo_test') => void
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  const needsReference = action.kind === 'verify-payment' || action.kind === 'complete-payout' || action.kind === 'complete-refund'
+  const needsChannel = action.kind === 'prepare-refund'
+  const isReady = !needsReference || reference.trim().length >= 4
+  return <div className="modal-backdrop modal-backdrop--front" role="presentation" onMouseDown={onCancel}>
+    <section className="confirmation-dialog financial-action-dialog" role="dialog" aria-modal="true" aria-labelledby="financial-action-title" onMouseDown={(event) => event.stopPropagation()}>
+      <span className="eyebrow">AUTHORIZED FINANCIAL ACTION</span>
+      <h2 id="financial-action-title">{action.title}</h2>
+      <p>{action.copy} This action is logged and cannot be used to create a client wallet balance.</p>
+      {needsReference && <label>Authoritative bank or processor reference<input autoFocus value={reference} onChange={(event) => onReference(event.target.value)} placeholder="At least 4 characters" /></label>}
+      {needsChannel && <label>Refund route
+        <select value={channel} onChange={(event) => onChannel(event.target.value as 'bank_transfer' | 'e_wallet' | 'paymongo_test')}>
+          <option value="bank_transfer">Bank transfer</option>
+          <option value="e_wallet">E-wallet</option>
+          <option value="paymongo_test">PayMongo original payment - test demo only</option>
+        </select>
+      </label>}
+      {needsChannel && channel === 'paymongo_test' && <p className="financial-operation-notice" role="status">Only a verified PayMongo test payment can use this route. It refuses live mode and no real money is transferred.</p>}
+      <label>Operator note <small>(optional)</small><textarea value={note} onChange={(event) => onNote(event.target.value)} maxLength={2000} placeholder="Internal audit note" /></label>
+      {error && <InlineError message={error} onClose={() => undefined} />}
+      <div className="confirmation-dialog__actions"><button className="secondary-button" disabled={busy} onClick={onCancel}>Cancel</button><button className="primary-button" disabled={busy || !isReady} onClick={onConfirm}>{busy ? 'Recording...' : action.title}</button></div>
+    </section>
+  </div>
 }
 
 function Metric({ label, value, detail, icon, tone = 'wine' }: { label: string; value: string; detail: string; icon: string; tone?: 'wine' | 'green' }) {
