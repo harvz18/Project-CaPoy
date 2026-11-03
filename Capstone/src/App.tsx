@@ -982,6 +982,10 @@ export const App: React.FC = () => {
   const [isLoadingBookingPaymentQuote, setIsLoadingBookingPaymentQuote] = React.useState(false)
   const [isPreparingBookingPayment, setIsPreparingBookingPayment] = React.useState(false)
   const [isInitiatingBookingPayment, setIsInitiatingBookingPayment] = React.useState(false)
+  // Keep automatic PayMongo reconciliation single-flight. Returning from a
+  // hosted checkout can resume both the browser and the native app at once;
+  // concurrent checks must never create duplicate local payment records.
+  const pendingPaymentReconciliationRef = React.useRef<Promise<void> | null>(null)
   const calculateServiceDetailsQuote = React.useCallback((value: {
     attendeeCount?: number
     menuItemIds?: string[]
@@ -2552,16 +2556,6 @@ export const App: React.FC = () => {
       setIsInboxTrashMutating(false)
     }
   }, [isInboxTrashMutating, refreshLiveData])
-
-  React.useEffect(() => {
-    if (!authenticatedUserId) return undefined
-
-    const appStateSubscription = AppState.addEventListener('change', (nextState) => {
-      if (nextState === 'active') void refreshLiveData()
-    })
-
-    return () => appStateSubscription.remove()
-  }, [authenticatedUserId, refreshLiveData])
 
   React.useEffect(() => {
     selectedBookingEventIdRef.current = selectedBooking?.eventId
@@ -5022,6 +5016,127 @@ export const App: React.FC = () => {
       setIsLoadingBookingPaymentQuote(false)
     }
   }
+
+  // PayMongo redirects or closes its hosted checkout independently of this
+  // application. Reconcile again when Event Details becomes visible or the
+  // app resumes, so a successful authorization cannot remain represented by a
+  // stale local "pending" action. The edge function is the authority here: it
+  // queries PayMongo directly and records a payment only when PayMongo reports
+  // it as paid.
+  const reconcilePendingBookingPayment = React.useCallback(async (
+    eventId: string,
+    announceVerification = false
+  ) => {
+    const inFlight = pendingPaymentReconciliationRef.current
+    if (inFlight) {
+      await inFlight
+      return
+    }
+
+    const reconciliationTask = (async () => {
+      const currentQuoteResult = await fetchMyEventPaymentQuoteV14(eventId)
+      const currentQuote = currentQuoteResult.ok ? currentQuoteResult.paymentQuote : undefined
+      if (currentQuote) setBookingPaymentQuote(currentQuote)
+      if (!currentQuote || currentQuote.paymentState !== 'payment_initiated') return
+
+      const reconciliation = await reconcileMyPaymongoCheckoutV16(eventId)
+      const refreshedQuoteResult = await fetchMyEventPaymentQuoteV14(eventId)
+      const refreshedQuote = refreshedQuoteResult.ok ? refreshedQuoteResult.paymentQuote : undefined
+      if (refreshedQuote) setBookingPaymentQuote(refreshedQuote)
+
+      const isVerified = reconciliation.verified
+        || refreshedQuote?.paymentState === 'paid_or_verified'
+      if (isVerified) {
+        setSelectedBooking((current) => current && current.eventId === eventId
+          ? {
+              ...current,
+              paymentState: 'paid_or_verified',
+              paymentStatus: refreshedQuote?.paymentStatus === 'verified'
+                ? 'Payment verified'
+                : 'Payment recorded',
+            }
+          : current)
+        await refreshLiveData().catch(() => undefined)
+        if (announceVerification) {
+          setToastMessage('PayMongo payment verified. Your booking has been updated.')
+        }
+        return
+      }
+
+      if (reconciliation.failed || refreshedQuote?.paymentState === 'payment_failed_or_cancelled') {
+        setSelectedBooking((current) => current && current.eventId === eventId
+          ? {
+              ...current,
+              paymentState: 'payment_failed_or_cancelled',
+              paymentStatus: refreshedQuote?.paymentStatus ?? 'Payment unsuccessful',
+            }
+          : current)
+      }
+    })()
+
+    pendingPaymentReconciliationRef.current = reconciliationTask
+    try {
+      await reconciliationTask
+    } finally {
+      if (pendingPaymentReconciliationRef.current === reconciliationTask) {
+        pendingPaymentReconciliationRef.current = null
+      }
+    }
+  }, [refreshLiveData])
+
+  React.useEffect(() => {
+    const eventId = selectedBooking?.eventId
+    if (
+      screen !== 'bookingDetails'
+      || !eventId
+      || bookingPaymentQuote?.eventId !== eventId
+      || bookingPaymentQuote.paymentState !== 'payment_initiated'
+    ) return
+
+    void reconcilePendingBookingPayment(eventId, true)
+  }, [
+    bookingPaymentQuote?.eventId,
+    bookingPaymentQuote?.paymentState,
+    reconcilePendingBookingPayment,
+    screen,
+    selectedBooking?.eventId,
+  ])
+
+  React.useEffect(() => {
+    if (!authenticatedUserId) return undefined
+
+    const refreshAfterReturningToMultivent = () => {
+      if (screenRef.current !== 'bookingDetails') return
+      const eventId = selectedBookingEventIdRef.current
+      if (eventId) void reconcilePendingBookingPayment(eventId, true)
+    }
+
+    const appStateSubscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') void refreshLiveData()
+      if (nextState === 'active') refreshAfterReturningToMultivent()
+    })
+    if (Platform.OS !== 'web' || typeof document === 'undefined') {
+      return () => appStateSubscription.remove()
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void refreshLiveData()
+        refreshAfterReturningToMultivent()
+      }
+    }
+    const handleWindowFocus = () => {
+      void refreshLiveData()
+      refreshAfterReturningToMultivent()
+    }
+    window.addEventListener('focus', handleWindowFocus)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      appStateSubscription.remove()
+      window.removeEventListener('focus', handleWindowFocus)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [authenticatedUserId, reconcilePendingBookingPayment, refreshLiveData])
 
   const openBookingPayment = async () => {
     const eventId = selectedBooking?.eventId
