@@ -34,8 +34,10 @@ type AccountProfileScreenProps = {
 
 const fallbackProfile: EditableAccountProfile = {
   avatarUrl: '',
+  businessCoverUrl: '',
   businessDescription: '',
   businessLocation: '',
+  businessLogoUrl: '',
   businessName: '',
   contactEmail: '',
   contactPhone: '',

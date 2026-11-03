@@ -240,6 +240,7 @@ import { BudgetTrackerScreen } from './screens/04.1-BudgetTracker'
 import { CategoryBrowseScreen } from './screens/06-CategoryBrowse'
 import { CoordinatorDetailsScreen } from './screens/06.1-CoordinatorDetails'
 import { CoordinatorProfileOverlay } from './components/CoordinatorProfileOverlay'
+import { BusinessProfileOverlay } from './components/BusinessProfileOverlay'
 import { ServiceProfileOverlay } from './components/ServiceProfileOverlay'
 import { ServiceDetailsScreen } from './screens/08-ServiceDetails'
 import {
@@ -324,8 +325,10 @@ import {
 import {
   EditableAccountProfile,
   loadEditableAccountProfile,
+  ProviderBusinessImageTarget,
   saveEditableAccountProfile,
   uploadEditableAccountPhoto,
+  uploadProviderBusinessImage,
 } from './lib/profile'
 import { resolveProfileDisplayName } from './lib/profile-name'
 import {
@@ -333,6 +336,11 @@ import {
   emptyClientRefundOverview,
   fetchClientRefundOverview,
 } from './lib/client-wallet'
+import {
+  emptyProviderBusinessRating,
+  fetchProviderBusinessRating,
+  ProviderBusinessRating,
+} from './lib/provider-business'
 
 type AppScreen =
   | 'onboarding'
@@ -1074,6 +1082,11 @@ export const App: React.FC = () => {
     service: CatalogService
     source: 'featured' | 'recommended'
   }>()
+  const [homeBusinessProfile, setHomeBusinessProfile] = React.useState<CatalogService>()
+  const [homeBusinessProfileRating, setHomeBusinessProfileRating] =
+    React.useState<ProviderBusinessRating>(emptyProviderBusinessRating())
+  const [isHomeBusinessProfileRatingLoading, setIsHomeBusinessProfileRatingLoading] = React.useState(false)
+  const homeBusinessProfileRatingRequestRef = React.useRef(0)
   const [directCateringFallbackServiceId, setDirectCateringFallbackServiceId] = React.useState('')
   const [serviceReviewInsights, setServiceReviewInsights] =
     React.useState<ServiceReviewInsights>()
@@ -1639,6 +1652,7 @@ export const App: React.FC = () => {
   const [isSavingAccountProfile, setIsSavingAccountProfile] = React.useState(false)
   const [isSigningOut, setIsSigningOut] = React.useState(false)
   const [isUploadingProfilePhoto, setIsUploadingProfilePhoto] = React.useState(false)
+  const [isUploadingProviderBusinessImage, setIsUploadingProviderBusinessImage] = React.useState(false)
   const [profileReturnScreen, setProfileReturnScreen] = React.useState<AppScreen>('clientHome')
   const [supportReturnScreen, setSupportReturnScreen] = React.useState<AppScreen>('accountProfile')
   const [clientRefundsReturnScreen, setClientRefundsReturnScreen] = React.useState<AppScreen>('accountProfile')
@@ -1907,6 +1921,50 @@ export const App: React.FC = () => {
     setUserAvatarUrl(result.avatarUrl)
     setToastMessage('Profile photo updated.')
     return result.avatarUrl
+  }
+
+  const chooseProviderBusinessImage = async (target: ProviderBusinessImageTarget) => {
+    if (isUploadingProviderBusinessImage) return
+
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync()
+    if (!permission.granted) {
+      setToastMessage('Photo-library access is needed to choose a business image.')
+      return
+    }
+
+    const selection = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: true,
+      aspect: target === 'logo' ? [1, 1] : [16, 7],
+      mediaTypes: ['images'],
+      quality: 0.82,
+    })
+    if (selection.canceled || !selection.assets[0]) return
+
+    setIsUploadingProviderBusinessImage(true)
+    const asset = selection.assets[0]
+    const result = await uploadProviderBusinessImage(target, {
+      fileName: asset.fileName,
+      mimeType: asset.mimeType,
+      uri: asset.uri,
+    })
+    setIsUploadingProviderBusinessImage(false)
+
+    if (!result.ok || !result.imageUrl) {
+      setToastMessage(result.message ?? 'Unable to upload your business image.')
+      return
+    }
+
+    const imageUrl = result.imageUrl
+
+    setAccountProfile((current) => current
+      ? {
+          ...current,
+          ...(target === 'logo'
+            ? { businessLogoUrl: imageUrl }
+            : { businessCoverUrl: imageUrl }),
+        }
+      : current)
+    setToastMessage(target === 'logo' ? 'Business logo updated.' : 'Business cover photo updated.')
   }
 
   const openClientTab = (tab: ClientHomeTab) => {
@@ -5537,6 +5595,55 @@ export const App: React.FC = () => {
     () => getClientBookingProgress(clientBookings, new Date(), unreadBookingResourceIds),
     [clientBookings, unreadBookingResourceIds]
   )
+  const homeBusinessServices = React.useMemo(() => {
+    if (!homeBusinessProfile) return []
+    const providerKey = homeBusinessProfile.providerId || homeBusinessProfile.providerName
+    return catalogServices
+      .filter((service) => (
+        service.kind !== 'coordinator'
+        && (service.providerId || service.providerName) === providerKey
+      ))
+      .sort((left, right) => left.categoryName.localeCompare(right.categoryName) || left.name.localeCompare(right.name))
+  }, [catalogServices, homeBusinessProfile])
+
+  const closeHomeBusinessProfile = () => {
+    homeBusinessProfileRatingRequestRef.current += 1
+    setHomeBusinessProfile(undefined)
+    setHomeBusinessProfileRating(emptyProviderBusinessRating())
+    setIsHomeBusinessProfileRatingLoading(false)
+  }
+
+  const openHomeBusinessProfile = (providerId: string, serviceId: string) => {
+    const provider = catalogServices.find((service) => (
+      service.id === serviceId && service.kind !== 'coordinator'
+    )) ?? catalogServices.find((service) => (
+      service.kind !== 'coordinator'
+      && (service.providerId || service.providerName) === providerId
+    ))
+    if (!provider) {
+      setToastMessage('This business is no longer available.')
+      return
+    }
+
+    const requestId = homeBusinessProfileRatingRequestRef.current + 1
+    homeBusinessProfileRatingRequestRef.current = requestId
+    setHomeBusinessProfile(provider)
+    setHomeBusinessProfileRating(emptyProviderBusinessRating())
+    setIsHomeBusinessProfileRatingLoading(true)
+    void fetchProviderBusinessRating(provider.providerId || '')
+      .then((rating) => {
+        if (homeBusinessProfileRatingRequestRef.current !== requestId) return
+        setHomeBusinessProfileRating(rating)
+      })
+      .catch(() => {
+        if (homeBusinessProfileRatingRequestRef.current !== requestId) return
+        setHomeBusinessProfileRating(emptyProviderBusinessRating())
+      })
+      .finally(() => {
+        if (homeBusinessProfileRatingRequestRef.current !== requestId) return
+        setIsHomeBusinessProfileRatingLoading(false)
+      })
+  }
 
   const renderClientHome = () => (
     <>
@@ -5576,6 +5683,7 @@ export const App: React.FC = () => {
             handleClientNavigationScrollDirection(direction)
           }}
           onSeeAllVenues={() => openClientTab('explore')}
+          onSelectFeaturedBusiness={openHomeBusinessProfile}
           onSelectRecommendation={(serviceId, source) => {
             const recommendedService = catalogServices.find((service) => service.id === serviceId)
             if (recommendedService?.kind === 'coordinator') {
@@ -6374,11 +6482,14 @@ export const App: React.FC = () => {
             isLoggingOut={isSigningOut}
             profile={{
               businessName: accountProfile?.businessName || userName,
+              coverImageUrl: accountProfile?.businessCoverUrl,
               contactEmail: accountProfile?.contactEmail || '',
               contactPhone: accountProfile?.contactPhone || '',
               description: accountProfile?.businessDescription || '',
               location: accountProfile?.businessLocation || '',
+              logoUrl: accountProfile?.businessLogoUrl,
             }}
+            onEditMedia={(target) => void chooseProviderBusinessImage(target)}
             onEditProfile={() => openAccountProfile('providerProfile')}
             onOpenNotifications={() => setScreen('providerNotifications')}
             onSelectAction={handleMerchantAction}
@@ -7589,6 +7700,22 @@ export const App: React.FC = () => {
             reviewInsightsLoading={serviceReviewInsightsLoading}
             service={homeServiceProfile.service}
             showPlanAction={homeServiceProfile.source === 'recommended'}
+          />
+        ) : null}
+        {homeBusinessProfile ? (
+          <BusinessProfileOverlay
+            blurTarget={expertCoordinatorBlurTargetRef}
+            isRatingLoading={isHomeBusinessProfileRatingLoading}
+            onClose={closeHomeBusinessProfile}
+            onSelectService={(service) => {
+              homeBusinessProfileRatingRequestRef.current += 1
+              setHomeBusinessProfile(undefined)
+              setIsHomeBusinessProfileRatingLoading(false)
+              setHomeServiceProfile({ service, source: 'featured' })
+            }}
+            provider={homeBusinessProfile}
+            rating={homeBusinessProfileRating}
+            services={homeBusinessServices}
           />
         ) : null}
       </SafeAreaView>

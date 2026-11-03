@@ -68,6 +68,7 @@ export interface ClientHomeScreenProps {
   onOpenRefunds?: () => void
   onRefresh?: () => void | Promise<void>
   onSelectCoordinator?: (serviceId: string) => void
+  onSelectFeaturedBusiness?: (providerId: string, serviceId: string) => void
   onStartNewEvent?: () => Promise<boolean | void> | boolean | void
   onScrollDirectionChange?: (direction: 'down' | 'up') => void
   onSeeAllVenues?: () => void
@@ -214,6 +215,7 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   onOpenRefunds,
   onRefresh,
   onSelectCoordinator,
+  onSelectFeaturedBusiness,
   onScrollDirectionChange,
   onSeeAllVenues,
   onSelectRecommendation,
@@ -268,8 +270,9 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
       return [{
         categoryName: service.categoryName,
         id: providerId,
-        imageLabel: service.imageLabel,
-        imageUrl: service.imageUrl,
+        imageLabel: `${service.providerName} business image`,
+        imageUrl: service.providerCoverUrl || service.imageUrl,
+        logoUrl: service.providerLogoUrl,
         name: service.providerName,
         rating: service.rating,
         reviewCount: service.reviewCount,
@@ -794,9 +797,9 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
             {featuredBusinesses.map((business) => (
               <Pressable
                 key={business.id}
-                accessibilityLabel={`Open ${business.name}`}
+                accessibilityLabel={`View ${business.name}`}
                 accessibilityRole="button"
-                onPress={() => onSelectRecommendation?.(business.serviceId, 'featured')}
+                onPress={() => onSelectFeaturedBusiness?.(business.id, business.serviceId)}
                 style={({ pressed }) => [styles.featuredBusinessCard, { width: isWide ? 180 : 150 }, pressed && styles.referencePressed]}
               >
                 {business.imageUrl ? (
@@ -805,7 +808,16 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
                   <View style={[styles.featuredBusinessImage, styles.recommendationImageFallback]}><MaterialIcons name="storefront" size={34} color="#FFFFFF" /></View>
                 )}
                 <LinearGradient colors={['rgba(15, 8, 10, 0)', 'rgba(15, 8, 10, 0.5)', 'rgba(15, 8, 10, 0.98)']} end={{ x: 0, y: 1 }} locations={[0, 0.62, 1]} pointerEvents="none" start={{ x: 0, y: 0.28 }} style={styles.featuredBusinessShade} />
-                <LinearGradient colors={['#C9CCD1', '#F1F2F4']} end={{ x: 1, y: 1 }} pointerEvents="none" start={{ x: 0, y: 0 }} style={styles.featuredBusinessLogo} />
+                {business.logoUrl ? (
+                  <Image
+                    accessibilityLabel={`${business.name} logo`}
+                    resizeMode="cover"
+                    source={{ uri: business.logoUrl }}
+                    style={styles.featuredBusinessLogo}
+                  />
+                ) : (
+                  <LinearGradient colors={['#C9CCD1', '#F1F2F4']} end={{ x: 1, y: 1 }} pointerEvents="none" start={{ x: 0, y: 0 }} style={styles.featuredBusinessLogo} />
+                )}
                 <View style={styles.featuredBusinessCopy}>
                   <Text numberOfLines={2} style={styles.featuredBusinessName}>{business.name}</Text>
                 </View>

@@ -3,8 +3,10 @@ import { composeProfileFullName, resolveProfileDisplayName } from './profile-nam
 
 export type EditableAccountProfile = {
   avatarUrl: string
+  businessCoverUrl: string
   businessDescription: string
   businessLocation: string
+  businessLogoUrl: string
   businessName: string
   contactEmail: string
   contactPhone: string
@@ -29,6 +31,14 @@ export type ProfilePhotoResult = {
   ok: boolean
 }
 
+export type ProviderBusinessImageTarget = 'cover' | 'logo'
+
+export type ProviderBusinessImageResult = {
+  imageUrl?: string
+  message?: string
+  ok: boolean
+}
+
 export type ProfilePhotoUpload = {
   fileName?: string | null
   mimeType?: string | null
@@ -37,8 +47,10 @@ export type ProfilePhotoUpload = {
 
 const emptyProfile: EditableAccountProfile = {
   avatarUrl: '',
+  businessCoverUrl: '',
   businessDescription: '',
   businessLocation: '',
+  businessLogoUrl: '',
   businessName: '',
   contactEmail: '',
   contactPhone: '',
@@ -78,7 +90,7 @@ export async function loadEditableAccountProfile(): Promise<ProfileResult> {
   if (role === 'service_provider') {
     const { data, error } = await supabase
       .from('provider_profiles')
-      .select('business_name, description, contact_email, contact_phone, location')
+      .select('business_name, description, contact_email, contact_phone, location, business_logo_url, business_cover_url')
       .eq('user_id', authData.user.id)
       .maybeSingle()
 
@@ -91,8 +103,10 @@ export async function loadEditableAccountProfile(): Promise<ProfileResult> {
     profile: {
       ...emptyProfile,
       avatarUrl: account?.avatar_url ?? '',
+      businessCoverUrl: provider?.business_cover_url ?? '',
       businessDescription: provider?.description ?? '',
       businessLocation: provider?.location ?? '',
+      businessLogoUrl: provider?.business_logo_url ?? '',
       businessName: provider?.business_name ?? '',
       contactEmail: provider?.contact_email ?? authData.user.email ?? '',
       contactPhone: provider?.contact_phone ?? account?.phone ?? '',
@@ -270,6 +284,91 @@ export async function uploadEditableAccountPhoto(
   return { avatarUrl, ok: true }
 }
 
+export async function uploadProviderBusinessImage(
+  target: ProviderBusinessImageTarget,
+  upload: ProfilePhotoUpload
+): Promise<ProviderBusinessImageResult> {
+  if (!supabase) {
+    return { message: 'Connect Supabase to upload your business image.', ok: false }
+  }
+
+  const { data: authData, error: authError } = await supabase.auth.getUser()
+  if (authError || !authData.user) {
+    return { message: authError?.message ?? 'Sign in to update your business image.', ok: false }
+  }
+
+  let imageBody: ArrayBuffer
+  try {
+    const response = await fetch(upload.uri)
+    if (!response.ok) throw new Error('The selected image could not be opened.')
+    imageBody = await response.arrayBuffer()
+  } catch (error) {
+    return {
+      message: error instanceof Error ? error.message : 'The selected image could not be opened.',
+      ok: false,
+    }
+  }
+
+  const contentType = normalizedImageType(upload.mimeType)
+    ?? imageTypeFromName(upload.fileName || upload.uri)
+  if (!contentType) {
+    return { message: 'Choose a JPEG, PNG, or WebP image.', ok: false }
+  }
+  if (imageBody.byteLength > 5 * 1024 * 1024) {
+    return { message: 'Business images must be 5 MB or smaller.', ok: false }
+  }
+
+  const column = target === 'logo' ? 'business_logo_url' : 'business_cover_url'
+  const extension = contentType === 'image/jpeg'
+    ? 'jpg'
+    : contentType === 'image/png'
+      ? 'png'
+      : 'webp'
+  const objectPath = `${authData.user.id}/business-${target}-${Date.now()}.${extension}`
+  const { error: uploadError } = await supabase.storage
+    .from('profile-photos')
+    .upload(objectPath, imageBody, { contentType, upsert: false })
+
+  if (uploadError) return { message: uploadError.message, ok: false }
+
+  const { data: publicUrlData } = supabase.storage
+    .from('profile-photos')
+    .getPublicUrl(objectPath)
+  const imageUrl = publicUrlData.publicUrl
+  const { data: provider, error: providerLookupError } = await supabase
+    .from('provider_profiles')
+    .select(`id, ${column}`)
+    .eq('user_id', authData.user.id)
+    .maybeSingle()
+
+  if (providerLookupError || !provider?.id) {
+    await supabase.storage.from('profile-photos').remove([objectPath])
+    return {
+      message: providerLookupError?.message ?? 'Your provider business profile could not be found.',
+      ok: false,
+    }
+  }
+
+  const previousImageUrl = (provider as Record<string, unknown>)[column]
+  const { error: providerError } = await supabase
+    .from('provider_profiles')
+    .update({ [column]: imageUrl, updated_at: new Date().toISOString() })
+    .eq('id', provider.id)
+    .eq('user_id', authData.user.id)
+
+  if (providerError) {
+    await supabase.storage.from('profile-photos').remove([objectPath])
+    return { message: providerError.message, ok: false }
+  }
+
+  const previousPath = providerBusinessImagePath(previousImageUrl, authData.user.id, target)
+  if (previousPath && previousPath !== objectPath) {
+    await supabase.storage.from('profile-photos').remove([previousPath])
+  }
+
+  return { imageUrl, ok: true }
+}
+
 function normalizedImageType(value?: string | null) {
   const normalized = value?.toLowerCase()
   if (normalized === 'image/jpg' || normalized === 'image/jpeg') return 'image/jpeg'
@@ -294,6 +393,15 @@ function profilePhotoPath(value: unknown, userId: string) {
 
   const path = decodeURIComponent(value.slice(markerIndex + marker.length))
   return path.startsWith(`${userId}/`) ? path : undefined
+}
+
+function providerBusinessImagePath(
+  value: unknown,
+  userId: string,
+  target: ProviderBusinessImageTarget
+) {
+  const path = profilePhotoPath(value, userId)
+  return path?.startsWith(`${userId}/business-${target}-`) ? path : undefined
 }
 
 function normalizeEditableRole(value: unknown): EditableAccountProfile['role'] {

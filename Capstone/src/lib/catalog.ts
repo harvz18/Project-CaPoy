@@ -180,6 +180,10 @@ export interface CatalogService {
   popularityRank?: number
   positiveSentimentCount?: number
   providerId?: string
+  providerCoverUrl?: string
+  providerDescription?: string
+  providerLogoUrl?: string
+  providerLocation?: string
   providerUserId?: string
   providerName: string
   rating: string
@@ -394,9 +398,9 @@ const fetchCatalogServicesUncached = async (): Promise<CatalogService[]> => {
   }
 
   const baseSelection =
-    'id, provider_id, category_id, name, description, base_price, location, cover_image_url, provider_profiles(id, user_id, business_name), service_categories(id, name), service_packages(id, service_id, name, description, price, inclusions, pricing_unit, pricing_mode, is_active, is_deleted), reviews(rating)'
+    'id, provider_id, category_id, name, description, base_price, location, cover_image_url, provider_profiles(id, user_id, business_name, description, location, business_logo_url, business_cover_url), service_categories(id, name), service_packages(id, service_id, name, description, price, inclusions, pricing_unit, pricing_mode, is_active, is_deleted), reviews(rating)'
   const detailedSelection =
-    'id, provider_id, category_id, name, description, base_price, location, cover_image_url, gallery_urls, pricing_model, pricing_unit, pricing_details, catering_service_types, category_details, provider_profiles(id, user_id, business_name), service_categories(id, name), service_packages(id, service_id, name, description, price, inclusions, pricing_unit, pricing_mode, subtotal, discount_type, discount_value, discount_amount, is_active, is_deleted, configuration, image_urls, venue_catering_package_details(venue_service_id, catering_service_id, venue_option_id), service_package_items(position, services(id, name, category_details, service_categories(name))), florist_package_arrangements(arrangement_id, included_quantity, customization_allowed), florist_package_add_ons(id, name, price, pricing_unit, is_active)), florist_arrangements(id, name, category, description, base_price, pricing_unit, minimum_quantity, maximum_quantity, is_active, display_order, florist_arrangement_option_groups(id, name, selection_type, is_required, minimum_selections, maximum_selections, is_active, display_order, florist_arrangement_options(id, name, price_modifier, price_modifier_type, is_active, display_order))), florist_service_fulfillment_options(id, fulfillment_kind, name, price, is_active, display_order), reviews(rating, analysis_status, sentiment_label)'
+    'id, provider_id, category_id, name, description, base_price, location, cover_image_url, gallery_urls, pricing_model, pricing_unit, pricing_details, catering_service_types, category_details, provider_profiles(id, user_id, business_name, description, location, business_logo_url, business_cover_url), service_categories(id, name), service_packages(id, service_id, name, description, price, inclusions, pricing_unit, pricing_mode, subtotal, discount_type, discount_value, discount_amount, is_active, is_deleted, configuration, image_urls, venue_catering_package_details(venue_service_id, catering_service_id, venue_option_id), service_package_items(position, services(id, name, category_details, service_categories(name))), florist_package_arrangements(arrangement_id, included_quantity, customization_allowed), florist_package_add_ons(id, name, price, pricing_unit, is_active)), florist_arrangements(id, name, category, description, base_price, pricing_unit, minimum_quantity, maximum_quantity, is_active, display_order, florist_arrangement_option_groups(id, name, selection_type, is_required, minimum_selections, maximum_selections, is_active, display_order, florist_arrangement_options(id, name, price_modifier, price_modifier_type, is_active, display_order))), florist_service_fulfillment_options(id, fulfillment_kind, name, price, is_active, display_order), reviews(rating, analysis_status, sentiment_label)'
 
   const [detailedResult, commissionResult, includedPackageResult] = await Promise.all([
     supabase
@@ -455,6 +459,14 @@ const fetchCatalogServicesUncached = async (): Promise<CatalogService[]> => {
     const record = row as Record<string, unknown>
     const categoryName = getNestedText(record.service_categories, 'name', 'Catering')
     const providerName = getNestedText(record.provider_profiles, 'business_name', 'Provider')
+    const providerCoverUrl = usableImageUrl(
+      getNestedText(record.provider_profiles, 'business_cover_url', '')
+    )
+    const providerDescription = getNestedText(record.provider_profiles, 'description', '')
+    const providerLogoUrl = usableImageUrl(
+      getNestedText(record.provider_profiles, 'business_logo_url', '')
+    )
+    const providerLocation = getNestedText(record.provider_profiles, 'location', '')
     const name = textFrom(record.name, providerName)
     const serviceId = textFrom(record.id, `service-${index}`)
     const directlyOwnedPackages = Array.isArray(record.service_packages)
@@ -593,6 +605,10 @@ const fetchCatalogServicesUncached = async (): Promise<CatalogService[]> => {
       positiveSentimentCount,
       providerMinPrice,
       providerId: textFrom(record.provider_id, getNestedId(record.provider_profiles, '')),
+      providerCoverUrl,
+      providerDescription,
+      providerLogoUrl,
+      providerLocation,
       providerUserId: getNestedText(record.provider_profiles, 'user_id', ''),
       providerName,
       rating: averageRating > 0 ? averageRating.toFixed(1) : 'New',
