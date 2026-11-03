@@ -50,6 +50,7 @@ export interface ClientBookingProgress {
 
 export interface ClientHomeScreenProps {
   draftEvents?: ClientEventDraftSummary[]
+  blurTarget?: React.RefObject<React.ComponentRef<typeof View> | null>
   bookingProgressEvents?: ClientBookingProgress[]
   favoritePendingServiceIds?: ReadonlySet<string>
   favoriteServiceIds?: ReadonlySet<string>
@@ -70,7 +71,7 @@ export interface ClientHomeScreenProps {
   onStartNewEvent?: () => Promise<boolean | void> | boolean | void
   onScrollDirectionChange?: (direction: 'down' | 'up') => void
   onSeeAllVenues?: () => void
-  onSelectRecommendation?: (serviceId: string) => void
+  onSelectRecommendation?: (serviceId: string, source: 'featured' | 'recommended') => void
   onSelectTab?: (tab: ClientHomeTab) => void
   onToggleFavorite?: (serviceId: string) => void
 }
@@ -199,6 +200,7 @@ export const getClientBookingProgress = (
 export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   draftEvents = [],
   bookingProgressEvents = [],
+  blurTarget,
   coordinators = [],
   favoritePendingServiceIds = new Set(),
   favoriteServiceIds = new Set(),
@@ -566,11 +568,13 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
                 >
                   <LuminousPillButton
                     accessibilityLabel="Plan your wedding"
+                    compact
                     onPress={handleCreateEventPress}
                     style={styles.heroPlanButton}
-                    tone="glass"
+                    textStyle={styles.heroPlanText}
+                    tone="burgundyMatte"
                   >
-                    <Text style={styles.heroPlanText}>Plan Wedding</Text>
+                    + Plan Wedding
                   </LuminousPillButton>
                 </Animated.View>
               </View>
@@ -706,7 +710,7 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
                 key={recommendation.service.id}
                 accessibilityLabel={`Open ${recommendation.service.name}`}
                 accessibilityRole="button"
-                onPress={() => onSelectRecommendation?.(recommendation.service.id)}
+                onPress={() => onSelectRecommendation?.(recommendation.service.id, 'recommended')}
                 style={({ pressed }) => [styles.referenceVenueCard, { width: isWide ? 324 : Math.max(252, width - 56) }, pressed && styles.referencePressed]}
               >
                 <CardInsetShadow />
@@ -784,7 +788,7 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
                 key={business.id}
                 accessibilityLabel={`Open ${business.name}`}
                 accessibilityRole="button"
-                onPress={() => onSelectRecommendation?.(business.serviceId)}
+                onPress={() => onSelectRecommendation?.(business.serviceId, 'featured')}
                 style={({ pressed }) => [styles.featuredBusinessCard, { width: isWide ? 180 : 150 }, pressed && styles.referencePressed]}
               >
                 {business.imageUrl ? (
@@ -935,12 +939,14 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
               >
                 <LuminousPillButton
                   accessibilityLabel="Plan your wedding"
+                  compact
                   isFullWidth
                   onPress={handleCreateEventPress}
                   style={styles.headerPlanButton}
-                  tone="glass"
+                  textStyle={styles.headerPlanText}
+                  tone="surfaceMatte"
                 >
-                  <Text style={styles.headerPlanText}>Plan Wedding</Text>
+                  + Plan Wedding
                 </LuminousPillButton>
               </Animated.View>
             </View>
@@ -998,34 +1004,51 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
         visible={isDraftPromptVisible}
       >
         <View style={styles.draftPromptBackdrop}>
+          <BlurView
+            blurMethod="dimezisBlurViewSdk31Plus"
+            blurReductionFactor={1}
+            blurTarget={blurTarget}
+            intensity={42}
+            tint="dark"
+            style={StyleSheet.absoluteFill}
+          >
+            <Pressable
+              accessibilityLabel="Close saved drafts prompt"
+              accessibilityRole="button"
+              onPress={() => setIsDraftPromptVisible(false)}
+              style={StyleSheet.absoluteFill}
+            />
+          </BlurView>
           <View accessibilityViewIsModal style={styles.draftPromptCard}>
-            <View style={styles.draftPromptIcon}>
-              <MaterialIcons name="event-note" size={25} color={palette.primary} />
-            </View>
             <Text style={styles.draftPromptTitle}>You have saved event drafts</Text>
             <Text style={styles.draftPromptCopy}>
               Your saved drafts will stay available. You can resume the latest one or create another event.
             </Text>
-            <Pressable
-              accessibilityRole="button"
+            <LuminousPillButton
+              accessibilityLabel="Resume latest draft"
               onPress={() => {
                 setIsDraftPromptVisible(false)
                 onOpenActiveEvent()
               }}
-              style={({ pressed }) => [styles.draftPromptPrimary, pressed && styles.referencePressed]}
+              isFullWidth
+              style={styles.draftPromptPrimary}
+              textStyle={styles.draftPromptPrimaryText}
+              tone="burgundyMatte"
             >
-              <Text style={styles.draftPromptPrimaryText}>Resume Latest Draft</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
+              Resume Latest Draft
+            </LuminousPillButton>
+            <LuminousPillButton
+              accessibilityLabel="Start a new event"
               disabled={isStartingNewEvent}
               onPress={() => void handleStartNewEvent()}
-              style={({ pressed }) => [styles.draftPromptSecondary, pressed && styles.referencePressed]}
+              isFullWidth
+              style={styles.draftPromptSecondary}
+              tone="neumorphic"
             >
               <Text style={styles.draftPromptSecondaryText}>
                 {isStartingNewEvent ? 'Starting…' : 'Start New Event'}
               </Text>
-            </Pressable>
+            </LuminousPillButton>
             <Pressable
               accessibilityRole="button"
               onPress={() => setIsDraftPromptVisible(false)}
@@ -1167,15 +1190,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 1,
   },
-  headerPlanButton: { minWidth: 0, height: 44, paddingBottom: 0 },
+  headerPlanButton: { minWidth: 0, height: 40, paddingBottom: 0 },
   headerPlanText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    lineHeight: 16,
+    color: '#6B1E2E',
+    fontFamily: 'Inter_700Bold',
+    fontSize: 13,
+    lineHeight: 18,
     fontWeight: '700',
-    textShadowColor: 'rgba(0, 0, 0, 0.7)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
   },
   referenceSearch: {
     alignItems: 'center',
@@ -1356,14 +1377,12 @@ const styles = StyleSheet.create({
   },
   heroPlanText: {
     color: '#FFFFFF',
-    fontSize: 13,
-    lineHeight: 18,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 14,
+    lineHeight: 20,
     fontWeight: '700',
-    textShadowColor: 'rgba(0, 0, 0, 0.86)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
   },
-  heroPlanButton: { minWidth: 170, height: 44, paddingBottom: 0 },
+  heroPlanButton: { minWidth: 170, height: 40, paddingBottom: 0 },
   referenceSection: {
     marginBottom: 18,
   },
@@ -1641,42 +1660,34 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(30, 18, 21, 0.52)',
+    backgroundColor: 'rgba(35, 43, 48, 0.14)',
     padding: 24,
   },
   draftPromptCard: {
     width: '100%',
-    maxWidth: 420,
+    maxWidth: 380,
     alignItems: 'center',
-    borderRadius: 18,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 22,
-    paddingTop: 24,
-    paddingBottom: 18,
-    shadowColor: '#2B1018',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.2,
-    shadowRadius: 24,
-    elevation: 8,
-  },
-  draftPromptIcon: {
-    width: 48,
-    height: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 24,
-    backgroundColor: '#F8EDEF',
-    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.62)',
+    borderRadius: 20,
+    backgroundColor: '#E9EDF0',
+    padding: 24,
+    shadowColor: '#9DA9B2',
+    shadowOffset: { width: 8, height: 8 },
+    shadowOpacity: 0.54,
+    shadowRadius: 17,
+    elevation: 7,
+    boxShadow: '8px 8px 17px rgba(160, 171, 180, 0.54)',
   },
   draftPromptTitle: {
-    color: '#241E1E',
-    fontSize: 19,
-    lineHeight: 25,
+    color: '#57636C',
+    fontSize: 20,
+    lineHeight: 26,
     fontWeight: '700',
     textAlign: 'center',
   },
   draftPromptCopy: {
-    color: '#6F6463',
+    color: '#87929A',
     fontSize: 14,
     lineHeight: 21,
     textAlign: 'center',
@@ -1685,31 +1696,25 @@ const styles = StyleSheet.create({
   },
   draftPromptPrimary: {
     width: '100%',
-    minHeight: 46,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 10,
-    backgroundColor: '#701B30',
+    marginTop: 2,
   },
   draftPromptPrimaryText: {
     color: '#FFFFFF',
     fontSize: 14,
+    lineHeight: 20,
     fontWeight: '700',
   },
   draftPromptSecondary: {
     width: '100%',
-    minHeight: 46,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#8A2944',
-    borderRadius: 10,
-    marginTop: 10,
+    marginTop: 2,
   },
   draftPromptSecondaryText: {
-    color: '#701B30',
+    color: '#6B1E2E',
     fontSize: 14,
+    lineHeight: 20,
     fontWeight: '700',
+    textShadowColor: 'transparent',
+    textShadowRadius: 0,
   },
   draftPromptCancel: {
     paddingHorizontal: 18,

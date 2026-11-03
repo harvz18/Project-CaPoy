@@ -310,10 +310,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 onPress={() => setRememberMe((isRemembered) => !isRemembered)}
                 style={({ pressed }) => [styles.rememberRow, pressed && styles.pressed]}
               >
-                <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
-                  {rememberMe && <Text style={styles.checkmark}>{'\u2713'}</Text>}
-                </View>
-                <Text style={styles.rememberText}>Remember me</Text>
+                {({ pressed }) => (
+                  <>
+                    <View style={[styles.checkbox, rememberMe && styles.checkboxChecked, pressed && styles.checkboxPressed]}>
+                      {rememberMe && <Text style={styles.checkmark}>{'\u2713'}</Text>}
+                    </View>
+                    <Text style={styles.rememberText}>Remember me</Text>
+                  </>
+                )}
               </Pressable>
               <Pressable
                 accessibilityRole="button"
@@ -337,6 +341,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               isLoading={isLoading}
               onPress={handleLogIn}
               style={styles.loginButton}
+              textStyle={styles.sinkingButtonText}
+              tone="burgundyMatte"
             >
               Login
             </LuminousPillButton>
@@ -352,11 +358,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               disabled={isLoading}
               isFullWidth
               isLoading={isOAuthLoading}
+              neumorphicSurfaceColor={neo.surface}
               onPress={handleGoogleLogIn}
               style={styles.oauthButton}
-              tone="neutral"
+              tone="neumorphic"
             >
-              <MaterialCommunityIcons color="#4285F4" name="google" size={18} />
+              <Image
+                accessibilityIgnoresInvertColors
+                resizeMode="contain"
+                source={require('../../assets/google-g-neo.png')}
+                style={styles.googleIcon}
+              />
               <Text style={styles.googleLabel}>Google</Text>
             </LuminousPillButton>
           </View>
@@ -494,7 +506,7 @@ const styles = StyleSheet.create({
     width: 68,
     height: 4,
     borderRadius: radius.pill,
-    backgroundColor: colors.grey300,
+    backgroundColor: colors.grey600,
   },
   signupPrompt: {
     flexDirection: 'row',
@@ -551,18 +563,33 @@ const styles = StyleSheet.create({
     height: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: colors.border,
+    borderWidth: 1,
+    borderColor: neo.edge,
     borderRadius: radius.small,
-    backgroundColor: colors.background,
+    backgroundColor: neo.surface,
+    elevation: 0,
+    boxShadow: 'inset 3px 3px 6px rgba(160, 171, 180, 0.48), inset -3px -3px 6px rgba(255, 255, 255, 0.92)',
   },
   checkboxChecked: {
-    borderColor: colors.primaryDark,
-    backgroundColor: colors.primaryDark,
+    borderColor: 'rgba(255, 240, 245, 0.30)',
+    backgroundColor: '#6B1E2E',
+    shadowColor: '#2B0712',
+    shadowOffset: { width: 3, height: 4 },
+    shadowOpacity: 0.36,
+    shadowRadius: 6,
+    elevation: 3,
+    boxShadow: '3px 4px 7px rgba(43, 7, 18, 0.36), -2px -2px 5px rgba(255, 255, 255, 0.70), inset 1px 1px 1px rgba(255, 255, 255, 0.16)',
+  },
+  checkboxPressed: {
+    shadowOpacity: 0,
+    elevation: 0,
+    transform: [{ translateY: 1 }],
+    boxShadow: 'inset 2px 2px 4px rgba(107, 30, 46, 0.28), inset -2px -2px 4px rgba(255, 255, 255, 0.86)',
   },
   checkmark: {
-    color: colors.textInverse,
+    color: '#FFFFFF',
     fontSize: 14,
+    fontFamily: 'Inter_700Bold',
     fontWeight: '700',
   },
   rememberText: {
@@ -580,6 +607,15 @@ const styles = StyleSheet.create({
   },
   loginButton: {
     marginTop: spacing.xs,
+  },
+  sinkingButtonText: {
+    color: '#FFFFFF',
+    fontFamily: 'Inter_700Bold',
+    fontWeight: '700',
+    textShadowColor: 'rgba(37, 4, 14, 0.50)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
+    transform: [{ translateY: 1 }],
   },
   dividerRow: {
     flexDirection: 'row',
@@ -600,11 +636,17 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   googleLabel: {
-    color: '#57636C',
+    color: '#6B1E2E',
+    fontFamily: 'Inter_700Bold',
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     marginLeft: spacing.sm,
+    textShadowColor: 'rgba(255, 255, 255, 0.84)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 0.6,
+    transform: [{ translateY: 1 }],
   },
+  googleIcon: { width: 20, height: 20 },
   footer: {
     flexDirection: 'row',
     flexWrap: 'wrap',

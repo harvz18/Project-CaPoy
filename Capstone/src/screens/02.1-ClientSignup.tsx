@@ -279,9 +279,11 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({
       <View onLayout={(event) => { fieldOffsets.current.terms = event.nativeEvent.layout.y }}>
         <View style={styles.termsRow}>
           <Pressable accessibilityLabel="Accept Terms & Conditions and Privacy Policy" accessibilityRole="checkbox" accessibilityState={{ checked: acceptedTerms }} hitSlop={6} onPress={() => setAcceptedTerms((accepted) => !accepted)}>
-            <View style={[styles.checkbox, acceptedTerms && styles.checkboxChecked, submitted && !acceptedTerms && styles.checkboxError]}>
-              {acceptedTerms && <MaterialCommunityIcons color={colors.textInverse} name="check" size={14} />}
-            </View>
+            {({ pressed }) => (
+              <View style={[styles.checkbox, acceptedTerms && styles.checkboxChecked, submitted && !acceptedTerms && styles.checkboxError, pressed && styles.checkboxPressed]}>
+                {acceptedTerms && <MaterialCommunityIcons color="#FFFFFF" name="check" size={14} />}
+              </View>
+            )}
           </Pressable>
           <Text adjustsFontSizeToFit minimumFontScale={0.8} numberOfLines={1} style={styles.termsText}>
             I agree to the{' '}
@@ -292,9 +294,37 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({
         </View>
         {submitted && !acceptedTerms && <Text accessibilityRole="alert" style={styles.termsError}>Please accept the Terms & Conditions and Privacy Policy.</Text>}
       </View>
-      <LuminousPillButton accessibilityLabel="Create client account" disabled={isLoading} isFullWidth isLoading={isLoading} onPress={handleSignUp} style={styles.submitButton}>CREATE CLIENT ACCOUNT</LuminousPillButton>
+      <LuminousPillButton
+        accessibilityLabel="Create client account"
+        disabled={isLoading}
+        isFullWidth
+        isLoading={isLoading}
+        onPress={handleSignUp}
+        style={styles.submitButton}
+        textStyle={styles.sinkingButtonText}
+        tone="burgundyMatte"
+      >
+        Create Client Account
+      </LuminousPillButton>
       <View style={styles.dividerRow}><View style={styles.dividerLine} /><Text style={styles.dividerText}>or</Text><View style={styles.dividerLine} /></View>
-      <LuminousPillButton accessibilityLabel="Sign up with Google" disabled={isLoading || !onGoogleSignUp} isFullWidth isLoading={isOAuthLoading} onPress={handleGoogleSignUp} style={styles.googleButton} tone="neutral">Google</LuminousPillButton>
+      <LuminousPillButton
+        accessibilityLabel="Sign up with Google"
+        disabled={isLoading || !onGoogleSignUp}
+        isFullWidth
+        isLoading={isOAuthLoading}
+        neumorphicSurfaceColor={neo.surface}
+        onPress={handleGoogleSignUp}
+        style={styles.googleButton}
+        tone="neumorphic"
+      >
+        <Image
+          accessibilityIgnoresInvertColors
+          resizeMode="contain"
+          source={require('../../assets/google-g-neo.png')}
+          style={styles.googleIcon}
+        />
+        <Text style={styles.sinkingGoogleLabel}>Google</Text>
+      </LuminousPillButton>
     </View>
   )
 
@@ -472,15 +502,67 @@ const styles = StyleSheet.create({
   dividerLine: { flex: 1, height: 1, backgroundColor: colors.divider },
   dividerText: { color: colors.textMuted, fontSize: 12, fontWeight: '600', textTransform: 'uppercase' },
   termsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.md, marginTop: 0 },
-  checkbox: { width: 18, height: 18, flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colors.border, borderRadius: 5, backgroundColor: colors.background },
-  checkboxChecked: { backgroundColor: colors.primaryDark, borderColor: colors.primaryDark },
-  checkboxError: { borderColor: colors.error, backgroundColor: '#FFF4F4' },
+  checkbox: {
+    width: 18,
+    height: 18,
+    flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: neo.edge,
+    borderRadius: 5,
+    backgroundColor: neo.surface,
+    elevation: 0,
+    boxShadow: 'inset 3px 3px 6px rgba(160, 171, 180, 0.48), inset -3px -3px 6px rgba(255, 255, 255, 0.92)',
+  },
+  checkboxChecked: {
+    borderColor: 'rgba(255, 240, 245, 0.30)',
+    backgroundColor: '#6B1E2E',
+    shadowColor: '#2B0712',
+    shadowOffset: { width: 2, height: 3 },
+    shadowOpacity: 0.34,
+    shadowRadius: 5,
+    elevation: 3,
+    boxShadow: '2px 3px 6px rgba(43, 7, 18, 0.34), -2px -2px 4px rgba(255, 255, 255, 0.70), inset 1px 1px 1px rgba(255, 255, 255, 0.16)',
+  },
+  checkboxError: {
+    borderColor: colors.error,
+    backgroundColor: '#FFF4F4',
+    shadowOpacity: 0,
+    elevation: 0,
+    boxShadow: 'inset 2px 2px 4px rgba(179, 38, 30, 0.20), inset -2px -2px 4px rgba(255, 255, 255, 0.86)',
+  },
+  checkboxPressed: {
+    shadowOpacity: 0,
+    elevation: 0,
+    transform: [{ translateY: 1 }],
+    boxShadow: 'inset 2px 2px 4px rgba(107, 30, 46, 0.28), inset -2px -2px 4px rgba(255, 255, 255, 0.86)',
+  },
   termsText: { flexShrink: 1, color: colors.textSecondary, fontSize: typography.caption, lineHeight: 18, textAlign: 'center' },
   legalLink: { color: colors.primaryDark, fontWeight: '800', textDecorationLine: 'underline' },
   termsError: { marginTop: spacing.xs, color: colors.error, fontSize: typography.caption, lineHeight: 18 },
   formError: { color: colors.error, fontSize: typography.body, lineHeight: 20 },
   submitButton: { marginTop: 0 },
+  sinkingButtonText: {
+    color: '#FFFFFF',
+    fontFamily: 'Inter_700Bold',
+    fontWeight: '700',
+    textShadowColor: 'rgba(37, 4, 14, 0.50)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
+    transform: [{ translateY: 1 }],
+  },
   googleButton: { marginTop: 0 },
+  sinkingGoogleLabel: {
+    color: '#6B1E2E',
+    fontFamily: 'Inter_700Bold',
+    fontWeight: '700',
+    textShadowColor: 'rgba(255, 255, 255, 0.84)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 0.6,
+    transform: [{ translateY: 1 }],
+  },
+  googleIcon: { width: 20, height: 20 },
   modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(22, 16, 17, 0.48)' },
   countryCodeSheet: { width: '100%', borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: colors.background, padding: spacing.xl, paddingBottom: spacing['3xl'] },
   modalTitle: { color: colors.primaryDark, fontSize: 19, fontWeight: '700' },
