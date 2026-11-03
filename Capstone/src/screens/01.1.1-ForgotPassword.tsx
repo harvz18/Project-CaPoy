@@ -1,7 +1,6 @@
 import { Text } from '../components/AppText'
 import React, { useEffect, useRef, useState } from 'react'
 import {
-  ActivityIndicator,
   Animated,
   Easing,
   KeyboardAvoidingView,
@@ -12,8 +11,8 @@ import {
   View,
 } from 'react-native'
 import { BlurView } from 'expo-blur'
-import { LinearGradient } from 'expo-linear-gradient'
 import { Button } from '../components/Button'
+import { LuminousPillButton } from '../components/LuminousPillButton'
 import { TextInput, type AppTextInputInstance } from '../components/TextInput'
 import { requestPasswordReset } from '../lib/auth'
 import { colors, radius, spacing } from '../theme/tokens'
@@ -219,46 +218,17 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
                     />
                   </View>
                   {authError.length > 0 && <Text accessibilityRole="alert" style={styles.formError}>{authError}</Text>}
-                  <View style={styles.luminousPillWrap}>
-                    <View pointerEvents="none" style={styles.luminousPillGlow} />
-                    <Pressable
-                      accessibilityLabel="Send password reset code"
-                      accessibilityRole="button"
-                      accessibilityState={{ busy: isLoading, disabled: isLoading }}
-                      disabled={isLoading}
-                      onPress={handleRequestReset}
-                      style={({ pressed }) => [
-                        styles.luminousPillPressable,
-                        isLoading && styles.luminousPillDisabled,
-                        pressed && !isLoading && styles.luminousPillPressed,
-                      ]}
-                    >
-                      {({ pressed }) => (
-                        <LinearGradient
-                          colors={pressed && !isLoading
-                            ? ['#B8486D', '#A83F63', '#8C2347', '#64132E']
-                            : ['#D17A95', '#BC4A70', '#962747', '#6D102D']}
-                          locations={[0, 0.24, 0.57, 1]}
-                          pointerEvents="none"
-                          start={{ x: 0.5, y: 0 }}
-                          end={{ x: 0.5, y: 1 }}
-                          style={[styles.luminousPill, pressed && !isLoading && styles.luminousPillFacePressed]}
-                        >
-                          <LinearGradient
-                            colors={['rgba(255, 246, 249, 0.68)', 'rgba(255, 226, 237, 0.25)', 'rgba(255, 226, 237, 0)']}
-                            locations={[0, 0.55, 1]}
-                            pointerEvents="none"
-                            start={{ x: 0.5, y: 0 }}
-                            end={{ x: 0.5, y: 1 }}
-                            style={styles.luminousPillSheen}
-                          />
-                          {isLoading
-                            ? <ActivityIndicator color="#FFF7F9" size="small" />
-                            : <Text style={styles.luminousPillLabel}>SEND RESET CODE</Text>}
-                        </LinearGradient>
-                      )}
-                    </Pressable>
-                  </View>
+                  <LuminousPillButton
+                    accessibilityLabel="Send password reset code"
+                    disabled={isLoading}
+                    isFullWidth
+                    isLoading={isLoading}
+                    onPress={handleRequestReset}
+                    textStyle={styles.sinkingButtonText}
+                    tone="burgundyMatte"
+                  >
+                    Send Reset Code
+                  </LuminousPillButton>
                 </View>
               )}
             </Animated.View>
@@ -467,67 +437,14 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.24)',
     boxShadow: `5px 5px 11px ${neo.burgundyDarkShadow}, -5px -5px 11px ${neo.burgundyLightShadow}`,
   },
-  luminousPillWrap: {
-    width: '100%',
-    minWidth: 190,
-    position: 'relative',
-    paddingBottom: 10,
-  },
-  luminousPillGlow: {
-    position: 'absolute',
-    left: '9%',
-    right: '9%',
-    bottom: 1,
-    height: 18,
-    borderRadius: radius.pill,
-    backgroundColor: 'transparent',
-    boxShadow: 'none',
-  },
-  luminousPillPressable: {
-    minHeight: 44,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: 'rgba(234, 174, 192, 0.9)',
-    boxShadow: '0px 8px 16px rgba(30, 33, 37, 0.30)',
-  },
-  luminousPill: {
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.xl,
-    boxShadow: 'inset 0px 2px 1px rgba(255, 255, 255, 0.51), inset 0px -3px 5px rgba(55, 5, 24, 0.32)',
-  },
-  luminousPillSheen: {
-    position: 'absolute',
-    top: 3,
-    left: '9%',
-    right: '9%',
-    height: '54%',
-    borderRadius: radius.pill,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.4)',
-  },
-  luminousPillLabel: {
-    color: '#FFF7F9',
-    fontSize: typography.body,
+  sinkingButtonText: {
+    color: '#FFFFFF',
+    fontFamily: 'Inter_700Bold',
     fontWeight: '700',
-    letterSpacing: 0.17,
-    lineHeight: 19,
-    textShadowColor: 'rgba(58, 10, 27, 0.3)',
+    textShadowColor: 'rgba(37, 4, 14, 0.50)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  luminousPillPressed: {
-    transform: [{ translateY: 2 }],
-    boxShadow: '0px 3px 7px rgba(30, 33, 37, 0.24)',
-  },
-  luminousPillFacePressed: {
-    boxShadow: 'inset 0px 3px 6px rgba(57, 6, 27, 0.28), inset 0px -1px 2px rgba(255, 255, 255, 0.17)',
-  },
-  luminousPillDisabled: {
-    opacity: 0.55,
+    textShadowRadius: 1,
+    transform: [{ translateY: 1 }],
   },
   notice: {
     width: '100%',

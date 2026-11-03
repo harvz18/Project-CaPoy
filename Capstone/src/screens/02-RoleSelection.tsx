@@ -327,6 +327,7 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
               disabled={!selectedRole}
               onPress={handleContinue}
               style={styles.continueButton}
+              tone="burgundyMatte"
             >
               <Text style={styles.continueButtonText}>CONTINUE</Text>
             </LuminousPillButton>
@@ -609,10 +610,15 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   continueButtonText: {
-    color: colors.textInverse,
+    color: '#FFFFFF',
+    fontFamily: 'Inter_700Bold',
     fontSize: typography.body,
     fontWeight: '700',
     letterSpacing: 1.2,
+    textShadowColor: 'rgba(37, 4, 14, 0.50)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
+    transform: [{ translateY: 1 }],
   },
   footer: {
     flexDirection: 'row',

@@ -31,9 +31,9 @@ interface CoordinatorDetailsScreenProps {
 const initialsFrom = (name: string) =>
   name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || 'EC'
 
-const ItemList = ({ values }: { values: string[] }) => (
+const ItemList = ({ isRaised = false, values }: { isRaised?: boolean; values: string[] }) => (
   <View style={styles.pillList}>
-    {values.map((value) => <View key={value} style={styles.pill}><Text style={styles.pillText}>{value}</Text></View>)}
+    {values.map((value) => <View key={value} style={[styles.pill, isRaised && styles.neoRaisedPill]}><Text style={styles.pillText}>{value}</Text></View>)}
   </View>
 )
 
@@ -64,6 +64,12 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
   const skills = service?.coordinatorSkills ?? []
   const capabilities = service?.coordinatorCapabilities ?? []
   const certifications = service?.coordinatorCertifications ?? []
+  const specialtyGroups = [
+    { label: 'Specialties', values: specialties },
+    { label: 'Skills', values: skills },
+    { label: 'Capabilities', values: capabilities },
+    { label: 'Certifications', values: certifications },
+  ].filter((group) => group.values.length > 0)
   const eventTypes = service?.coordinatorEventTypesHandled ?? []
   const inclusions = service?.coordinatorServiceInclusions ?? []
 
@@ -107,76 +113,39 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
             <View style={styles.avatarFallback}><Text style={styles.avatarInitials}>{initialsFrom(name)}</Text></View>
           ) : null}
           <View style={styles.profileCopy}>
-            <View style={styles.rolePill}>
-              <MaterialCommunityIcons color={palette.primaryContainer} name="account-tie-outline" size={16} />
-              <Text style={styles.rolePillText}>EVENT COORDINATOR</Text>
-            </View>
-            <Text style={styles.name}>{name}</Text>
+            {!isOverlay ? (
+              <View style={styles.rolePill}>
+                <MaterialCommunityIcons color={palette.primaryContainer} name="account-tie-outline" size={16} />
+                <Text style={styles.rolePillText}>EVENT COORDINATOR</Text>
+              </View>
+            ) : null}
+            <Text style={[styles.name, isOverlay && styles.overlayName]}>{name}</Text>
             <Text style={styles.subtitle}>
               {service?.description || 'This coordinator has not added a professional introduction yet.'}
             </Text>
-            <Text style={styles.fee}>{formatPeso(service?.minPrice ?? 0)} per event</Text>
-            {service?.coordinatorYearsExperience ? (
-              <Text style={styles.experience}>{service.coordinatorYearsExperience} years of coordination experience</Text>
+            {service?.coordinatorYearsExperience || service?.coordinatorPortfolioSummary ? (
+              <>
+                <View style={styles.profileExperienceDivider} />
+                <View style={styles.profileExperienceSection}>
+                  <Text style={styles.profileExperienceHeader}>Experience</Text>
+                  {service?.coordinatorYearsExperience ? (
+                    <Text style={styles.experience}>{service.coordinatorYearsExperience} years of coordination experience</Text>
+                  ) : null}
+                  {service?.coordinatorPortfolioSummary ? <Text style={styles.profileExperience}>{service.coordinatorPortfolioSummary}</Text> : null}
+                </View>
+              </>
             ) : null}
-            {!isAvailable ? <Text style={styles.unavailable}>{service?.coordinatorUnavailableReason || 'Unavailable for your event schedule.'}</Text> : null}
           </View>
-        </View>
-
-        <View style={[styles.sectionCard, isOverlay && styles.neoRaisedCard]}>
-          <View style={styles.sectionHeading}>
-            <MaterialCommunityIcons color={palette.primaryContainer} name="account-heart-outline" size={22} />
-            <Text style={styles.sectionTitle}>About the Coordinator</Text>
-          </View>
-          <Text style={styles.sectionCopy}>{service?.description || 'No professional introduction has been added yet.'}</Text>
-        </View>
-
-        <View style={[styles.detailsGrid, isWide && styles.detailsGridWide]}>
-          <View style={[styles.detailCard, isOverlay && styles.neoRaisedCard]}>
-            <MaterialCommunityIcons color={palette.primaryContainer} name="briefcase-clock-outline" size={23} />
-            <Text style={styles.detailTitle}>Experience</Text>
-            <Text style={styles.detailCopy}>{service?.coordinatorYearsExperience
-              ? `${service.coordinatorYearsExperience} years of event coordination experience.`
-              : 'Years of experience have not been specified.'}</Text>
-            {service?.coordinatorPortfolioSummary ? <Text style={styles.detailCopy}>{service.coordinatorPortfolioSummary}</Text> : null}
-          </View>
-          <View style={[styles.detailCard, isOverlay && styles.neoRaisedCard]}>
-            <MaterialCommunityIcons color={palette.primaryContainer} name="calendar-star-outline" size={23} />
-            <Text style={styles.detailTitle}>Events Handled</Text>
-            {eventTypes.length ? <ItemList values={eventTypes} /> : <Text style={styles.detailCopy}>Event types have not been specified.</Text>}
-          </View>
-        </View>
-
-        <View style={[styles.sectionCard, isOverlay && styles.neoRaisedCard]}>
-          <View style={styles.sectionHeading}>
-            <MaterialCommunityIcons color={palette.primaryContainer} name="star-shooting-outline" size={22} />
-            <Text style={styles.sectionTitle}>Skills and Specialties</Text>
-          </View>
-          {specialties.length ? <><Text style={styles.listLabel}>Specialties</Text><ItemList values={specialties} /></> : null}
-          {skills.length ? <><Text style={styles.listLabel}>Skills</Text><ItemList values={skills} /></> : null}
-          {capabilities.length ? <><Text style={styles.listLabel}>Capabilities</Text><ItemList values={capabilities} /></> : null}
-          {certifications.length ? <><Text style={styles.listLabel}>Certifications</Text><ItemList values={certifications} /></> : null}
-          {!specialties.length && !skills.length && !capabilities.length && !certifications.length ? (
-            <Text style={styles.sectionCopy}>Skills and specialties have not been specified yet.</Text>
-          ) : null}
-        </View>
-
-        <View style={[styles.sectionCard, isOverlay && styles.neoRaisedCard]}>
-          <View style={styles.sectionHeading}>
-            <MaterialCommunityIcons color={palette.primaryContainer} name="clipboard-list-outline" size={22} />
-            <Text style={styles.sectionTitle}>Services and Inclusions</Text>
-          </View>
-          {inclusions.length ? <ItemList values={inclusions} /> : <Text style={styles.sectionCopy}>Service inclusions have not been specified yet.</Text>}
         </View>
 
         <View style={[styles.sectionCard, isOverlay && styles.neoRaisedCard]}>
           <View style={styles.sectionHeading}>
             <MaterialCommunityIcons color={palette.primaryContainer} name="calendar-check-outline" size={22} />
-            <Text style={styles.sectionTitle}>Pricing and Availability</Text>
+            <Text style={styles.sectionTitle}>Pricing &amp; Availability</Text>
           </View>
-          <View style={[styles.pricingRow, isOverlay && styles.neoInsetRow]}>
-            <Text style={styles.pricingLabel}>Coordination fee</Text>
-            <Text style={styles.pricingValue}>{formatPeso(service?.minPrice ?? 0)} per event</Text>
+          <View style={[styles.pricingRow, isOverlay && styles.neoRaisedPriceRow]}>
+            <Text style={styles.pricingLabel}>Price Range</Text>
+            <Text style={styles.pricingValue}>{formatPeso(service?.minPrice ?? 0)}</Text>
           </View>
           <Text style={isAvailable ? styles.available : styles.unavailable}>
             {isAvailable ? 'Available for the selected event schedule' : service?.coordinatorUnavailableReason || 'Unavailable for the selected event schedule'}
@@ -184,25 +153,56 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
           {service?.coordinatorAvailabilityNotes ? <Text style={styles.sectionCopy}>{service.coordinatorAvailabilityNotes}</Text> : null}
         </View>
 
-        <PublishedBusinessPolicies ownerId={service?.coordinatorUserId} />
+        <View style={[styles.detailCard, isOverlay && styles.neoRaisedCard]}>
+          <View style={styles.detailHeading}>
+            <MaterialCommunityIcons color={palette.primaryContainer} name="calendar-star-outline" size={23} />
+            <Text numberOfLines={1} style={styles.detailTitle}>Events Handled</Text>
+          </View>
+          {eventTypes.length ? <ItemList isRaised={isOverlay} values={eventTypes} /> : <Text style={styles.detailCopy}>Event types have not been specified.</Text>}
+        </View>
 
-        <View style={styles.privacyCard}>
-          <MaterialCommunityIcons color={palette.success} name="shield-check-outline" size={22} />
+        <View style={[styles.sectionCard, isOverlay && styles.neoRaisedCard]}>
+          <View style={styles.sectionHeading}>
+            <MaterialCommunityIcons color={palette.primaryContainer} name="star-shooting-outline" size={22} />
+            <Text style={styles.sectionTitle}>Skills &amp; Specialties</Text>
+          </View>
+          {specialtyGroups.map((group, index) => (
+            <View key={group.label} style={[styles.specialtyGroup, index > 0 && styles.specialtyGroupDivider]}>
+              <Text style={styles.listLabel}>{group.label}</Text>
+              <ItemList isRaised={isOverlay} values={group.values} />
+            </View>
+          ))}
+          {!specialtyGroups.length ? (
+            <Text style={styles.sectionCopy}>Skills and specialties have not been specified yet.</Text>
+          ) : null}
+        </View>
+
+        <View style={[styles.sectionCard, isOverlay && styles.neoRaisedCard]}>
+          <View style={styles.sectionHeading}>
+            <MaterialCommunityIcons color={palette.primaryContainer} name="clipboard-list-outline" size={22} />
+            <Text style={styles.sectionTitle}>Services &amp; Inclusions</Text>
+          </View>
+          {inclusions.length ? <ItemList isRaised={isOverlay} values={inclusions} /> : <Text style={styles.sectionCopy}>Service inclusions have not been specified yet.</Text>}
+        </View>
+
+        <PublishedBusinessPolicies neumorphic={isOverlay} ownerId={service?.coordinatorUserId} />
+
+        <View style={[styles.privacyCard, isOverlay && styles.neoRaisedInfoCard]}>
+          <MaterialCommunityIcons color={isOverlay ? palette.primaryContainer : palette.success} name="shield-check-outline" size={22} />
           <View style={styles.privacyCopy}>
-            <Text style={styles.privacyTitle}>Access is limited to this event</Text>
-            <Text style={styles.privacyText}>The coordinator receives a booking request first. Event, booking, and provider details are shared only after acceptance.</Text>
+            <Text style={[styles.privacyTitle, isOverlay && styles.neoInfoTitle]}>Access is limited to this event</Text>
+            <Text style={[styles.privacyText, isOverlay && styles.neoInfoText]}>The coordinator receives a booking request first. Event, booking, and provider details are shared only after acceptance.</Text>
           </View>
         </View>
 
         <View style={styles.reviewsSection}>
           <View style={styles.reviewsHeading}>
-            <View><Text style={styles.reviewsEyebrow}>VERIFIED CLIENT FEEDBACK</Text><Text style={styles.reviewsTitle}>Reviews &amp; feedback</Text></View>
+            <View><Text style={styles.reviewsTitle}>Reviews &amp; feedback</Text></View>
             <View style={styles.ratingSummary}>
               <Text style={styles.ratingValue}>{reviewInsights.totalRatings ? reviewInsights.averageRating.toFixed(1) : 'New'}</Text>
-              <Text style={styles.ratingCount}>{reviewInsights.totalRatings} {reviewInsights.totalRatings === 1 ? 'review' : 'reviews'}</Text>
             </View>
           </View>
-          <ReviewFeedbackSummary insights={reviewInsights} isWide={isWide} showReviewComments />
+          <ReviewFeedbackSummary insights={reviewInsights} isWide={isWide} neumorphic={isOverlay} showReviewComments />
         </View>
       </ScrollView>
 
@@ -247,7 +247,7 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.55 },
   headerTitle: { color: palette.primary, fontSize: typography.body, lineHeight: 20, fontWeight: '700', letterSpacing: 0.6 },
   content: { width: '100%', maxWidth: 1120, alignSelf: 'center', paddingTop: 28, paddingBottom: 120, gap: 20 },
-  overlayContent: { paddingTop: 64, paddingBottom: 32, gap: 18 },
+  overlayContent: { paddingTop: 20, paddingBottom: 32, gap: 18 },
   profileCard: { borderRadius: 24, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface, padding: 22, gap: 20 },
   profileCardWide: { flexDirection: 'row', alignItems: 'center', padding: 30 },
   profileCardWithoutAvatar: { alignItems: 'stretch', gap: 12 },
@@ -259,39 +259,76 @@ const styles = StyleSheet.create({
   rolePill: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, backgroundColor: palette.surfaceTint, paddingHorizontal: 11, paddingVertical: 6 },
   rolePillText: { color: palette.primaryContainer, fontSize: typography.caption, lineHeight: 16, fontWeight: '700', letterSpacing: 0.7 },
   name: { color: palette.text, fontSize: typography.h1, fontWeight: '700', lineHeight: 32 },
+  overlayName: { textAlign: 'center' },
   subtitle: { maxWidth: 700, color: palette.muted, fontSize: typography.body, lineHeight: 21 },
-  fee: { color: palette.primaryContainer, fontSize: typography.h3, lineHeight: 24, fontWeight: '700' },
+  profileExperienceDivider: { width: '100%', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(157, 169, 178, 0.42)' },
+  profileExperienceSection: { gap: 4 },
+  profileExperienceHeader: { color: palette.text, fontSize: typography.h3, lineHeight: 24, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' },
   experience: { color: palette.muted, fontSize: typography.caption, lineHeight: 18, fontWeight: '600' },
+  profileExperience: { color: palette.muted, fontSize: typography.body, lineHeight: 21 },
   unavailable: { color: '#A12A35', fontSize: typography.caption, lineHeight: 18, fontWeight: '700' },
   available: { color: palette.success, fontSize: typography.caption, lineHeight: 18, fontWeight: '700' },
   sectionCard: { borderRadius: 18, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface, padding: 20, gap: 10 },
   sectionHeading: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-  sectionTitle: { color: palette.text, fontSize: typography.h3, lineHeight: 24, fontWeight: '700' },
+  sectionTitle: { color: palette.text, fontSize: typography.h3, lineHeight: 24, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' },
   sectionCopy: { color: palette.muted, fontSize: typography.body, lineHeight: 21 },
-  listLabel: { color: palette.primaryContainer, fontSize: typography.caption, lineHeight: 17, letterSpacing: 0.5, fontWeight: '700', marginTop: 3 },
+  listLabel: { color: palette.text, fontSize: 13, lineHeight: 19, letterSpacing: 0.6, fontWeight: '800', marginTop: 3, textTransform: 'uppercase' },
+  specialtyGroup: { gap: 8 },
+  specialtyGroupDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(157, 169, 178, 0.42)', marginTop: 2, paddingTop: 10 },
   pillList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   pill: { borderRadius: 999, backgroundColor: palette.surfaceTint, paddingHorizontal: 10, paddingVertical: 7 },
+  neoRaisedPill: {
+    backgroundColor: neo.surface,
+    borderWidth: 1,
+    borderColor: neo.edge,
+    shadowColor: '#9DA9B2',
+    shadowOffset: { width: 3, height: 3 },
+    shadowOpacity: 0.48,
+    shadowRadius: 6,
+    elevation: 3,
+    boxShadow: `3px 3px 6px ${neo.darkShadow}, -3px -3px 6px ${neo.lightShadow}`,
+  },
   pillText: { color: palette.primaryContainer, fontSize: typography.caption, lineHeight: 16, fontWeight: '700' },
-  detailsGrid: { gap: 14 },
-  detailsGridWide: { flexDirection: 'row' },
   detailCard: { flex: 1, gap: 10, borderRadius: 18, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface, padding: 20 },
-  detailTitle: { color: palette.text, fontSize: typography.body, lineHeight: 20, fontWeight: '700' },
+  detailHeading: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  detailTitle: { color: palette.text, fontSize: typography.h3, lineHeight: 24, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' },
   detailCopy: { color: palette.muted, fontSize: typography.body, lineHeight: 21 },
   pricingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 14, borderRadius: 10, backgroundColor: palette.surfaceTint, padding: 12 },
-  neoInsetRow: { backgroundColor: neo.surface, boxShadow: `inset 3px 3px 6px ${neo.darkShadow}, inset -3px -3px 6px ${neo.lightShadow}` },
+  neoRaisedPriceRow: {
+    backgroundColor: neo.surface,
+    borderWidth: 1,
+    borderColor: neo.edge,
+    shadowColor: '#9DA9B2',
+    shadowOffset: { width: 3, height: 3 },
+    shadowOpacity: 0.48,
+    shadowRadius: 6,
+    elevation: 3,
+    boxShadow: `3px 3px 6px ${neo.darkShadow}, -3px -3px 6px ${neo.lightShadow}`,
+  },
   pricingLabel: { color: palette.muted, fontSize: typography.caption, lineHeight: 17, fontWeight: '700' },
   pricingValue: { color: palette.primaryContainer, fontSize: typography.body, lineHeight: 20, fontWeight: '700' },
   privacyCard: { flexDirection: 'row', gap: 13, borderRadius: 17, backgroundColor: '#EEF6F1', padding: 18 },
+  neoRaisedInfoCard: {
+    backgroundColor: neo.surface,
+    borderWidth: 1,
+    borderColor: neo.edge,
+    shadowColor: '#9DA9B2',
+    shadowOffset: { width: 7, height: 7 },
+    shadowOpacity: 0.48,
+    shadowRadius: 15,
+    elevation: 5,
+    boxShadow: `7px 7px 15px ${neo.darkShadow}, -7px -7px 15px ${neo.lightShadow}`,
+  },
   privacyCopy: { flex: 1, gap: 4 },
   privacyTitle: { color: palette.success, fontSize: typography.body, lineHeight: 20, fontWeight: '700' },
+  neoInfoTitle: { color: palette.primaryContainer, fontSize: typography.caption, lineHeight: 17 },
   privacyText: { color: '#486052', fontSize: typography.body, lineHeight: 21 },
+  neoInfoText: { color: neo.mutedText, fontSize: typography.caption, lineHeight: 18 },
   reviewsSection: { borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 22, gap: 15 },
-  reviewsHeading: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 },
-  reviewsEyebrow: { color: palette.primaryContainer, fontSize: typography.caption, lineHeight: 17, fontWeight: '700', letterSpacing: 0.6 },
-  reviewsTitle: { color: palette.text, fontSize: typography.h3, lineHeight: 24, fontWeight: '700', marginTop: 3 },
+  reviewsHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 },
+  reviewsTitle: { color: palette.text, fontSize: typography.h3, lineHeight: 24, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' },
   ratingSummary: { alignItems: 'flex-end' },
   ratingValue: { color: palette.primaryContainer, fontSize: typography.h2, lineHeight: 27, fontWeight: '700' },
-  ratingCount: { color: palette.muted, fontSize: typography.caption, lineHeight: 17 },
   reviewList: { gap: 10 },
   reviewCard: { borderWidth: 1, borderColor: palette.border, borderRadius: 14, backgroundColor: palette.surface, padding: 15 },
   reviewHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },

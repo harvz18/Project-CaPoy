@@ -13,7 +13,7 @@ import { colors } from '../theme/tokens'
 import { Text } from './AppText'
 
 type EditorProps = { audience: 'provider' | 'coordinator' }
-type ViewerProps = { ownerId?: string }
+type ViewerProps = { neumorphic?: boolean; ownerId?: string }
 
 const categoryLabel = (value: BusinessPolicy['category']) => value.replace(/_/g, ' ')
 
@@ -127,7 +127,7 @@ export const BusinessPoliciesEditor: React.FC<EditorProps> = ({ audience }) => {
   )
 }
 
-export const PublishedBusinessPolicies: React.FC<ViewerProps> = ({ ownerId }) => {
+export const PublishedBusinessPolicies: React.FC<ViewerProps> = ({ neumorphic = false, ownerId }) => {
   const [expanded, setExpanded] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
   const [policies, setPolicies] = React.useState<BusinessPolicy[]>([])
@@ -144,14 +144,32 @@ export const PublishedBusinessPolicies: React.FC<ViewerProps> = ({ ownerId }) =>
   }
 
   if (!ownerId) return null
-  return <View style={styles.viewer}>
-    <Pressable accessibilityLabel="View business policies" accessibilityRole="button" accessibilityState={{ expanded }} onPress={open} style={styles.viewerButton}>
-      <View style={styles.viewerTitleRow}><MaterialCommunityIcons color={colors.primary} name="file-document-outline" size={21} /><Text style={styles.viewerTitle}>View Policies</Text></View>
-      <MaterialCommunityIcons color={colors.primary} name={expanded ? 'chevron-up' : 'chevron-down'} size={22} />
+  return <View style={[styles.viewer, neumorphic && styles.viewerNeumorphic]}>
+    <Pressable
+      accessibilityLabel="View business policies"
+      accessibilityRole="button"
+      accessibilityState={{ expanded }}
+      onPress={open}
+      style={({ pressed }) => [
+        styles.viewerButton,
+        neumorphic && styles.viewerButtonNeumorphic,
+        pressed && neumorphic && styles.viewerButtonNeumorphicPressed,
+      ]}
+    >
+      <View style={styles.viewerTitleRow}>
+        <MaterialCommunityIcons color={colors.primary} name="file-document-outline" size={neumorphic ? 18 : 21} />
+        <Text style={[styles.viewerTitle, neumorphic && styles.viewerTitleNeumorphic]}>View Policies</Text>
+      </View>
+      <MaterialCommunityIcons color={colors.primary} name={expanded ? 'chevron-up' : 'chevron-down'} size={neumorphic ? 20 : 22} />
     </Pressable>
-    {expanded ? <View style={styles.viewerContent}>
-      <Text style={styles.viewerNote}>These policies are informational. MULTIVENT&apos;s payment, cancellation, refund, and booking rules continue to apply.</Text>
-      {loading ? <ActivityIndicator color={colors.primary} /> : policies.length ? policies.map((policy) => <View key={policy.id} style={styles.publishedPolicy}><Text style={styles.publishedTitle}>{policy.title}</Text><Text style={styles.publishedText}>{policy.text}</Text></View>) : <Text style={styles.empty}>This {ownerId ? 'business' : 'provider'} has not published any policies yet.</Text>}
+    {expanded ? <View style={[styles.viewerContent, neumorphic && styles.viewerContentNeumorphic]}>
+      <Text style={[styles.viewerNote, neumorphic && styles.viewerNoteNeumorphic]}>These policies are informational. MULTIVENT&apos;s payment, cancellation, refund, and booking rules continue to apply.</Text>
+      {loading ? <ActivityIndicator color={colors.primary} /> : policies.length ? policies.map((policy) => (
+        <View key={policy.id} style={[styles.publishedPolicy, neumorphic && styles.publishedPolicyNeumorphic]}>
+          <Text style={[styles.publishedTitle, neumorphic && styles.publishedTitleNeumorphic]}>{policy.title}</Text>
+          <Text style={[styles.publishedText, neumorphic && styles.publishedTextNeumorphic]}>{policy.text}</Text>
+        </View>
+      )) : <Text style={[styles.empty, neumorphic && styles.viewerEmptyNeumorphic]}>This {ownerId ? 'business' : 'provider'} has not published any policies yet.</Text>}
     </View> : null}
   </View>
 }
@@ -191,8 +209,30 @@ const styles = StyleSheet.create({
   textarea: { minHeight: 94, textAlignVertical: 'top' },
   viewer: { backgroundColor: colors.backgroundSecondary, borderColor: colors.divider, borderRadius: 14, borderWidth: 1, marginTop: 18, overflow: 'hidden' },
   viewerButton: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', minHeight: 54, paddingHorizontal: 14 },
+  viewerNeumorphic: {
+    backgroundColor: '#E9EDF0',
+    borderColor: 'rgba(255, 255, 255, 0.66)',
+    shadowColor: '#9DA9B2',
+    shadowOffset: { width: 7, height: 7 },
+    shadowOpacity: 0.48,
+    shadowRadius: 15,
+    elevation: 5,
+    boxShadow: '7px 7px 15px rgba(157, 169, 178, 0.48), -7px -7px 15px rgba(255, 255, 255, 0.94)',
+  },
+  viewerButtonNeumorphic: { minHeight: 48 },
+  viewerButtonNeumorphicPressed: {
+    backgroundColor: '#E9EDF0',
+    boxShadow: 'inset 3px 3px 6px rgba(157, 169, 178, 0.48), inset -3px -3px 6px rgba(255, 255, 255, 0.94)',
+  },
   viewerContent: { borderTopColor: colors.divider, borderTopWidth: 1, gap: 12, padding: 14 },
+  viewerContentNeumorphic: { backgroundColor: '#E9EDF0', borderTopColor: 'rgba(255, 255, 255, 0.66)' },
   viewerNote: { color: colors.textMuted, fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 17 },
+  viewerNoteNeumorphic: { color: '#73808A' },
   viewerTitle: { color: colors.primaryDark, fontFamily: 'Inter_700Bold', fontSize: 15 },
+  viewerTitleNeumorphic: { color: '#6B1E2E', fontSize: 12, lineHeight: 16 },
   viewerTitleRow: { alignItems: 'center', flexDirection: 'row', gap: 8 },
+  publishedPolicyNeumorphic: { borderTopColor: 'rgba(255, 255, 255, 0.66)' },
+  publishedTitleNeumorphic: { color: '#6B1E2E', fontSize: 12, lineHeight: 17 },
+  publishedTextNeumorphic: { color: '#73808A', fontSize: 12, lineHeight: 17 },
+  viewerEmptyNeumorphic: { color: '#73808A', fontSize: 12, lineHeight: 17 },
 })

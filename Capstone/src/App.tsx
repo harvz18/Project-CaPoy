@@ -240,6 +240,7 @@ import { BudgetTrackerScreen } from './screens/04.1-BudgetTracker'
 import { CategoryBrowseScreen } from './screens/06-CategoryBrowse'
 import { CoordinatorDetailsScreen } from './screens/06.1-CoordinatorDetails'
 import { CoordinatorProfileOverlay } from './components/CoordinatorProfileOverlay'
+import { ServiceProfileOverlay } from './components/ServiceProfileOverlay'
 import { ServiceDetailsScreen } from './screens/08-ServiceDetails'
 import {
   emptyCategoryDetails,
@@ -1069,6 +1070,10 @@ export const App: React.FC = () => {
   }>()
   const [currentServiceId, setCurrentServiceId] = React.useState('')
   const [expertCoordinatorProfile, setExpertCoordinatorProfile] = React.useState<CatalogService>()
+  const [homeServiceProfile, setHomeServiceProfile] = React.useState<{
+    service: CatalogService
+    source: 'featured' | 'recommended'
+  }>()
   const [directCateringFallbackServiceId, setDirectCateringFallbackServiceId] = React.useState('')
   const [serviceReviewInsights, setServiceReviewInsights] =
     React.useState<ServiceReviewInsights>()
@@ -2097,6 +2102,10 @@ export const App: React.FC = () => {
   ) || (selectedCategory === 'eventOrganizers' && Boolean(assignedCoordinator))
   const currentService = catalogServices.find((service) => service.id === currentServiceId)
   const currentReviewServiceId = currentService?.bookingServiceId ?? currentService?.id
+  const homeProfileReviewServiceId = homeServiceProfile?.service.bookingServiceId ?? homeServiceProfile?.service.id
+  const activeReviewServiceId = screen === 'serviceDetails'
+    ? currentReviewServiceId
+    : homeProfileReviewServiceId
 
   React.useEffect(() => {
     const coordinatorPlanningScreen = screen === 'coordinatorDetails'
@@ -2130,7 +2139,7 @@ export const App: React.FC = () => {
   React.useEffect(() => {
     let active = true
 
-    if (screen !== 'serviceDetails' || !currentReviewServiceId) {
+    if (!activeReviewServiceId) {
       setServiceReviewInsights(undefined)
       setServiceReviewInsightsLoading(false)
       return () => {
@@ -2139,13 +2148,13 @@ export const App: React.FC = () => {
     }
 
     setServiceReviewInsightsLoading(true)
-    void fetchServiceReviewInsights(currentReviewServiceId).then(async (insights) => {
+    void fetchServiceReviewInsights(activeReviewServiceId).then(async (insights) => {
       if (!active) return
       setServiceReviewInsights(insights)
       setServiceReviewInsightsLoading(false)
 
       if (!insights.analyzedCommentCount) return
-      const summaries = await fetchServiceReviewSummaries(currentReviewServiceId)
+      const summaries = await fetchServiceReviewSummaries(activeReviewServiceId)
       if (!active || (!summaries.positive && !summaries.negative)) return
       setServiceReviewInsights((current) =>
         current
@@ -2167,7 +2176,7 @@ export const App: React.FC = () => {
     return () => {
       active = false
     }
-  }, [currentReviewServiceId, screen])
+  }, [activeReviewServiceId])
   const categoryServices = catalogServices.filter(
     (service) => service.categoryId === selectedCategory
   )
@@ -5533,6 +5542,7 @@ export const App: React.FC = () => {
     <>
       <BlurTargetView ref={expertCoordinatorBlurTargetRef} style={styles.screenTransition}>
         <ClientHomeScreen
+          blurTarget={expertCoordinatorBlurTargetRef}
           draftEvents={clientEventDrafts}
           bookingProgressEvents={clientBookingProgress}
           favoritePendingServiceIds={favoritePendingServiceIds}
@@ -5566,11 +5576,12 @@ export const App: React.FC = () => {
             handleClientNavigationScrollDirection(direction)
           }}
           onSeeAllVenues={() => openClientTab('explore')}
-          onSelectRecommendation={(serviceId) => {
+          onSelectRecommendation={(serviceId, source) => {
             const recommendedService = catalogServices.find((service) => service.id === serviceId)
-            if (recommendedService?.id) {
-              setCurrentServiceId(recommendedService.id)
-              setScreen(recommendedService.kind === 'coordinator' ? 'coordinatorDetails' : 'serviceDetails')
+            if (recommendedService?.kind === 'coordinator') {
+              setExpertCoordinatorProfile(recommendedService)
+            } else if (recommendedService?.id) {
+              setHomeServiceProfile({ service: recommendedService, source })
             } else {
               openClientTab('explore')
             }
@@ -7564,6 +7575,20 @@ export const App: React.FC = () => {
             blurTarget={expertCoordinatorBlurTargetRef}
             onClose={() => setExpertCoordinatorProfile(undefined)}
             service={expertCoordinatorProfile}
+          />
+        ) : null}
+        {homeServiceProfile ? (
+          <ServiceProfileOverlay
+            blurTarget={expertCoordinatorBlurTargetRef}
+            onClose={() => setHomeServiceProfile(undefined)}
+            onPlanWithService={() => {
+              setHomeServiceProfile(undefined)
+              void startNewClientEvent()
+            }}
+            reviewInsights={serviceReviewInsights}
+            reviewInsightsLoading={serviceReviewInsightsLoading}
+            service={homeServiceProfile.service}
+            showPlanAction={homeServiceProfile.source === 'recommended'}
           />
         ) : null}
       </SafeAreaView>

@@ -14,7 +14,7 @@ import {
   View,
 } from 'react-native'
 import { LuminousPillButton } from '../components/LuminousPillButton'
-import { colors, radius, spacing } from '../theme/tokens'
+import { radius, spacing } from '../theme/tokens'
 import { typography as typographyScale } from '../theme/typography'
 
 interface OnboardingScreenProps {
@@ -203,14 +203,16 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }
 
           <LuminousPillButton
             accessibilityRole="button"
+            accessibilityLabel={currentSlide === 0 ? 'Get started' : isLastSlide ? 'Continue' : 'Next slide'}
             onPress={handleNext}
+            tone="burgundyMatte"
             style={[
               styles.nextButton,
               currentSlide === 0 && styles.getStartedButton,
             ]}
           >
-            <Text style={styles.nextText}>
-              {currentSlide === 0 ? 'Get Started' : isLastSlide ? 'Continue' : 'NEXT'}
+            <Text style={styles.sinkingLabel}>
+              {currentSlide === 0 ? 'Get Started' : isLastSlide ? 'Continue' : 'Next'}
             </Text>
           </LuminousPillButton>
         </View>
@@ -274,7 +276,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   title: {
-    color: '#6B1E2E',
+    color: '#FFF7F9',
     fontSize: typographyScale.h1,
     lineHeight: 40,
     fontWeight: '700',
@@ -331,12 +333,17 @@ const styles = StyleSheet.create({
   getStartedButton: {
     width: 220,
   },
-  nextText: {
-    color: colors.textInverse,
+  sinkingLabel: {
+    color: '#FFFFFF',
+    fontFamily: 'Inter_700Bold',
     fontSize: typographyScale.body,
     lineHeight: 20,
     fontWeight: '700',
     letterSpacing: 1.2,
+    textShadowColor: 'rgba(37, 4, 14, 0.50)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
+    transform: [{ translateY: 1 }],
   },
   pressed: {
     opacity: 0.7,

@@ -88,6 +88,7 @@ interface ServiceDetailsScreenProps {
   initialFoodTastingPreference?: boolean
   initialPhotoVideoSelection?: PhotoVideoSelectionSnapshot
   mode?: 'explore' | 'planning'
+  presentation?: 'overlay' | 'screen'
   service?: CatalogService
   onAddSelection?: (value: ServiceSelectionValue) => Promise<void> | void
   onCalculateQuote?: (value: {
@@ -189,6 +190,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   initialFoodTastingPreference,
   initialPhotoVideoSelection,
   mode = 'planning',
+  presentation = 'screen',
   service,
   onAddSelection,
   onCalculateQuote,
@@ -203,6 +205,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   const { width, height } = useWindowDimensions()
   const isWide = width >= 768
   const isExploreMode = mode === 'explore'
+  const isOverlay = presentation === 'overlay'
   const hasSetBudget = hasBudget ?? availableCategoryBudget > 0
   const heroWidth = Math.min(width, 1200)
   const heroHeight = Math.max(280, Math.min(460, height * 0.42))
@@ -1023,7 +1026,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   return (
     <View style={styles.screen}>
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, isOverlay && styles.overlayScrollContent]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -1054,36 +1057,32 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
           </ScrollView>
 
           <LinearGradient
-            colors={['rgba(18, 10, 12, 0)', 'rgba(18, 10, 12, 0.72)']}
-            locations={[0, 1]}
+            colors={isOverlay
+              ? ['rgba(12, 8, 10, 0)', 'rgba(12, 8, 10, 0.38)', 'rgba(12, 8, 10, 0.88)']
+              : ['rgba(18, 10, 12, 0)', 'rgba(18, 10, 12, 0.72)']}
+            locations={isOverlay ? [0, 0.36, 1] : [0, 1]}
             pointerEvents="none"
             style={styles.heroShade}
           />
 
-          <View style={[styles.heroActions, isWide && styles.heroActionsWide]}>
-            <Pressable
-              accessibilityLabel="Go back"
-              accessibilityRole="button"
-              onPress={onBack}
-              style={({ pressed }) => [styles.heroButton, pressed && styles.heroButtonPressed]}
-            >
-              <MaterialCommunityIcons
-                color={palette.white}
-                name="arrow-left"
-                size={30}
-                style={styles.heroActionIcon}
-              />
-            </Pressable>
+          {!isOverlay ? (
+            <View style={[styles.heroActions, isWide && styles.heroActionsWide]}>
+              <Pressable
+                accessibilityLabel="Go back"
+                accessibilityRole="button"
+                onPress={onBack}
+                style={({ pressed }) => [styles.heroButton, pressed && styles.heroButtonPressed]}
+              >
+                <MaterialCommunityIcons
+                  color={palette.white}
+                  name="arrow-left"
+                  size={30}
+                  style={styles.heroActionIcon}
+                />
+              </Pressable>
 
-            <View accessibilityLabel="More service options" style={styles.heroButton}>
-              <MaterialCommunityIcons
-                color={palette.white}
-                name="dots-vertical"
-                size={31}
-                style={styles.heroActionIcon}
-              />
             </View>
-          </View>
+          ) : null}
 
           <View style={[styles.pagination, isWide && styles.paginationWide]}>
             {serviceImages.map((image, index) => (
@@ -1096,10 +1095,10 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
 
           <View pointerEvents="none" style={[styles.heroCopy, isWide && styles.heroCopyWide]}>
             <View style={styles.badgeRow}>
-              <View style={styles.categoryBadge}>
-                <Text style={styles.categoryBadgeText}>{service.categoryName.toUpperCase()}</Text>
+              <View style={[styles.categoryBadge, isOverlay && styles.overlayHeroBadge]}>
+                <Text style={styles.categoryBadgeText}>{service.categoryId === 'venues' ? 'VENUE' : service.categoryName.toUpperCase()}</Text>
               </View>
-              <View style={styles.ratingBadge}>
+              <View style={[styles.ratingBadge, isOverlay && styles.overlayHeroBadge]}>
                 <MaterialCommunityIcons color={palette.gold} name="star" size={17} />
                 <Text style={styles.ratingBadgeText}>{service.rating}</Text>
               </View>
@@ -1121,7 +1120,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
           </View>
         ) : null}
 
-        <View style={[styles.content, isWide && styles.contentPaddingWide]}>
+        <View style={[styles.content, isWide && styles.contentPaddingWide, isOverlay && styles.overlayContent]}>
           {exceedsAvailableCategoryBudget ? (
             <View style={styles.budgetOverageNotice}>
               <MaterialCommunityIcons color={palette.primary} name="alert-circle-outline" size={20} />
@@ -1136,7 +1135,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
               </Text>
             </View>
           ) : null}
-          <View style={styles.descriptionSection}>
+          <View style={[styles.descriptionSection, isOverlay && styles.overlayDetailCard]}>
             <Text style={styles.description}>{service.description}</Text>
             {isCatering && cateringFormats.length > 0 ? (
               <View style={styles.cateringFormatsSection}>
@@ -1151,7 +1150,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                 </View>
               </View>
             ) : null}
-            <View style={styles.serviceFacts}>
+            <View style={[styles.serviceFacts, isOverlay && styles.overlayServiceFacts]}>
               <View style={styles.serviceFactRow}>
                 <Text style={styles.serviceFactLabel}>SERVICE PROVIDER</Text>
                 <Text style={styles.serviceFactValue}>{service.providerName}</Text>
@@ -1179,10 +1178,10 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                 </View>
               ))}
             </View>
-            <PublishedBusinessPolicies ownerId={service.providerUserId} />
+            <PublishedBusinessPolicies neumorphic={isOverlay} ownerId={service.providerUserId} />
           </View>
 
-          <View style={styles.packagesSection}>
+          <View style={[styles.packagesSection, isOverlay && styles.overlayDetailCard]}>
             <Text style={styles.sectionHeading}>Included in These Packages</Text>
             <Text style={styles.packageSectionIntro}>
               Choose a bundle that includes this service together with other services from the provider.
@@ -1852,7 +1851,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
             </View>
           ) : null}
 
-          <View style={styles.reviewsSection}>
+          <View style={[styles.reviewsSection, isOverlay && styles.overlayDetailCard]}>
             <Text style={styles.sectionHeading}>Guest Reviews</Text>
 
             {service.isMock && !service.bookingServiceId ? (
@@ -1934,7 +1933,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
               </>
             ) : (
               reviewInsightsLoading ? (
-                <View style={styles.liveReviewCard}>
+                <View style={[styles.liveReviewCard, isOverlay && styles.overlaySunkenReviewCard]}>
                   <Text style={styles.liveReviewTitle}>Loading verified feedback...</Text>
                 </View>
               ) : reviewInsights && reviewInsights.totalRatings > 0 ? (
@@ -2046,7 +2045,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                   ) : null}
                 </>
               ) : (
-                <View style={styles.liveReviewCard}>
+                <View style={[styles.liveReviewCard, isOverlay && styles.overlaySunkenReviewCard]}>
                   <Text style={styles.liveReviewTitle}>No reviews yet</Text>
                   <Text style={styles.liveReviewCopy}>
                     Ratings and analyzed comments will appear after clients complete bookings.
@@ -2294,6 +2293,8 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
   },
   contentPaddingWide: { paddingHorizontal: 24 },
+  overlayScrollContent: { paddingBottom: 28 },
+  overlayContent: { paddingTop: 20 },
   badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 },
   categoryBadge: {
     borderRadius: 16,
@@ -2318,6 +2319,11 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   ratingBadgeText: { color: palette.white, fontSize: 14, lineHeight: 18, fontWeight: '700' },
+  overlayHeroBadge: {
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.28)',
+    backgroundColor: 'rgba(35, 21, 25, 0.52)',
+  },
   serviceTitle: {
     color: palette.white,
     fontSize: 32,
@@ -2349,6 +2355,23 @@ const styles = StyleSheet.create({
     paddingTop: 24,
   },
   descriptionSection: { borderBottomWidth: 1, borderBottomColor: palette.surfaceVariant, paddingBottom: 32 },
+  overlayDetailCard: {
+    borderBottomWidth: 0,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.68)',
+    borderRadius: 20,
+    backgroundColor: '#E9EDF0',
+    marginBottom: 18,
+    padding: 20,
+    paddingTop: 20,
+    paddingBottom: 20,
+    shadowColor: '#9DA9B2',
+    shadowOffset: { width: 6, height: 6 },
+    shadowOpacity: 0.46,
+    shadowRadius: 12,
+    elevation: 4,
+    boxShadow: '6px 6px 12px rgba(157, 169, 178, 0.46), -6px -6px 12px rgba(255, 255, 255, 0.94)',
+  },
   description: { maxWidth: 680, color: palette.secondary, fontSize: 18, lineHeight: 30 },
   cateringFormatsSection: { gap: 10, marginTop: 20 },
   cateringFormatsLabel: { color: palette.secondary, fontSize: 11, lineHeight: 15, fontWeight: '700', letterSpacing: 1 },
@@ -2362,6 +2385,11 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: palette.surfaceLowest,
     marginTop: 24,
+  },
+  overlayServiceFacts: {
+    borderWidth: 0,
+    backgroundColor: '#E9EDF0',
+    boxShadow: 'inset 3px 3px 7px rgba(157, 169, 178, 0.46), inset -3px -3px 7px rgba(255, 255, 255, 0.94)',
   },
   serviceFactRow: {
     minHeight: 58,
@@ -2607,6 +2635,11 @@ const styles = StyleSheet.create({
   },
   reviewsSection: { paddingTop: 40, paddingBottom: 64 },
   liveReviewCard: { alignItems: 'center', borderWidth: 1, borderColor: palette.surfaceVariant, borderRadius: 16, backgroundColor: palette.surfaceLowest, padding: 28 },
+  overlaySunkenReviewCard: {
+    borderWidth: 0,
+    backgroundColor: '#E9EDF0',
+    boxShadow: 'inset 4px 4px 9px rgba(157, 169, 178, 0.48), inset -4px -4px 9px rgba(255, 255, 255, 0.94)',
+  },
   liveReviewRating: { color: palette.primary, fontSize: 44, lineHeight: 48, fontWeight: '700' },
   liveReviewTitle: { color: palette.text, fontSize: 18, lineHeight: 25, fontWeight: '700' },
   liveReviewCopy: { maxWidth: 480, color: palette.secondary, fontSize: 14, lineHeight: 21, textAlign: 'center', marginTop: 6 },

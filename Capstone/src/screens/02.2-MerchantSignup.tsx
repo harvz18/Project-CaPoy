@@ -319,9 +319,11 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
       <View onLayout={(event) => { fieldOffsets.current.terms = event.nativeEvent.layout.y }}>
         <View style={styles.termsRow}>
           <Pressable accessibilityLabel="Accept Provider Terms, Pricing Policy, and Privacy Policy" accessibilityRole="checkbox" accessibilityState={{ checked: acceptedTerms }} hitSlop={6} onPress={() => setAcceptedTerms((accepted) => !accepted)}>
-            <View style={[styles.checkbox, acceptedTerms && styles.checkboxChecked, submitted && !acceptedTerms && styles.checkboxError]}>
-              {acceptedTerms && <MaterialCommunityIcons color={colors.textInverse} name="check" size={14} />}
-            </View>
+            {({ pressed }) => (
+              <View style={[styles.checkbox, acceptedTerms && styles.checkboxChecked, submitted && !acceptedTerms && styles.checkboxError, pressed && styles.checkboxPressed]}>
+                {acceptedTerms && <MaterialCommunityIcons color="#FFFFFF" name="check" size={14} />}
+              </View>
+            )}
           </Pressable>
           <Text style={styles.termsText}>
             I agree to the <Text accessibilityRole="link" onPress={() => openLegalDocument('providerTerms')} style={styles.termsEmphasis}>Provider Terms</Text> and <Text accessibilityRole="link" onPress={() => openLegalDocument('pricingPolicy')} style={styles.termsEmphasis}>Pricing Policy</Text> and acknowledge the <Text accessibilityRole="link" onPress={() => openLegalDocument('privacyPolicy')} style={styles.termsEmphasis}>Privacy Policy</Text>.
@@ -329,7 +331,18 @@ export const MerchantSignupScreen: React.FC<MerchantSignupScreenProps> = ({
         </View>
         {submitted && !acceptedTerms && <Text accessibilityRole="alert" style={styles.termsError}>Please accept the Provider Terms and Privacy Policy.</Text>}
       </View>
-      <LuminousPillButton accessibilityLabel="Create service provider account" disabled={isLoading} isFullWidth isLoading={isLoading} onPress={handleSignUp} style={styles.submitButton}>CREATE BUSINESS ACCOUNT</LuminousPillButton>
+      <LuminousPillButton
+        accessibilityLabel="Create service provider account"
+        disabled={isLoading}
+        isFullWidth
+        isLoading={isLoading}
+        onPress={handleSignUp}
+        style={styles.submitButton}
+        textStyle={styles.sinkingButtonText}
+        tone="burgundyMatte"
+      >
+        Create Business Account
+      </LuminousPillButton>
     </View>
   )
 
@@ -624,15 +637,57 @@ const styles = StyleSheet.create({
   dropdownOptionsDown: { position: 'relative', borderTopLeftRadius: 0, borderTopRightRadius: 0 },
   dropdownOptionsUp: { position: 'absolute', bottom: 58, left: 0, right: 0, borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
   termsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.md },
-  checkbox: { width: 18, height: 18, flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colors.border, borderRadius: 5, backgroundColor: colors.background },
-  checkboxChecked: { backgroundColor: colors.primaryDark, borderColor: colors.primaryDark },
-  checkboxError: { borderColor: colors.error, backgroundColor: '#FFF4F4' },
+  checkbox: {
+    width: 18,
+    height: 18,
+    flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: neo.edge,
+    borderRadius: 5,
+    backgroundColor: neo.surface,
+    elevation: 0,
+    boxShadow: 'inset 3px 3px 6px rgba(160, 171, 180, 0.48), inset -3px -3px 6px rgba(255, 255, 255, 0.92)',
+  },
+  checkboxChecked: {
+    borderColor: 'rgba(255, 240, 245, 0.30)',
+    backgroundColor: '#6B1E2E',
+    shadowColor: '#2B0712',
+    shadowOffset: { width: 2, height: 3 },
+    shadowOpacity: 0.34,
+    shadowRadius: 5,
+    elevation: 3,
+    boxShadow: '2px 3px 6px rgba(43, 7, 18, 0.34), -2px -2px 4px rgba(255, 255, 255, 0.70), inset 1px 1px 1px rgba(255, 255, 255, 0.16)',
+  },
+  checkboxError: {
+    borderColor: colors.error,
+    backgroundColor: '#FFF4F4',
+    shadowOpacity: 0,
+    elevation: 0,
+    boxShadow: 'inset 2px 2px 4px rgba(179, 38, 30, 0.20), inset -2px -2px 4px rgba(255, 255, 255, 0.86)',
+  },
+  checkboxPressed: {
+    shadowOpacity: 0,
+    elevation: 0,
+    transform: [{ translateY: 1 }],
+    boxShadow: 'inset 2px 2px 4px rgba(107, 30, 46, 0.28), inset -2px -2px 4px rgba(255, 255, 255, 0.86)',
+  },
   termsText: { flexShrink: 1, maxWidth: 280, color: colors.textSecondary, fontSize: typography.caption, lineHeight: 18 },
   termsEmphasis: { color: colors.primaryDark, fontWeight: '800', textDecorationLine: 'underline' },
   fieldError: { marginTop: -spacing.xs, color: colors.error, fontSize: typography.caption, lineHeight: 18 },
   termsError: { marginTop: spacing.xs, color: colors.error, fontSize: typography.caption, lineHeight: 18 },
   formError: { color: colors.error, fontSize: typography.body, lineHeight: 20 },
   submitButton: { marginTop: 0 },
+  sinkingButtonText: {
+    color: '#FFFFFF',
+    fontFamily: 'Inter_700Bold',
+    fontWeight: '700',
+    textShadowColor: 'rgba(37, 4, 14, 0.50)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
+    transform: [{ translateY: 1 }],
+  },
   dropdownOption: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.divider },
   dropdownOptionPressed: { opacity: 0.65 },
   dropdownOptionText: { color: colors.textPrimary, fontSize: typography.body, fontWeight: '500' },
