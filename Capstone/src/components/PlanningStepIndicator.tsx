@@ -80,7 +80,7 @@ export const PlanningStepIndicator: React.FC<PlanningStepIndicatorProps> = ({
 const palette = {
   burgundy: '#6B1E2E',
   secondary: '#5E5E5E',
-  surface: '#E3E2E2',
+  surface: '#E9EDF0',
 } as const
 
 const styles = StyleSheet.create({
@@ -113,21 +113,23 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   progressSegment: {
-    height: 10,
+    height: 12,
     flex: 1,
     borderRadius: 999,
     backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.62)',
+    boxShadow:
+      'inset 3px 3px 6px rgba(166, 175, 183, 0.57), inset -3px -3px 6px rgba(255, 255, 255, 0.97)',
   },
   progressSegmentFilled: {
     backgroundColor: palette.burgundy,
+    borderColor: 'rgba(255, 237, 243, 0.32)',
+    boxShadow:
+      '3px 4px 7px rgba(43, 7, 18, 0.42), -3px -3px 6px rgba(255, 237, 243, 0.36), inset 1px 1px 1px rgba(255, 255, 255, 0.16)',
   },
   progressSegmentCurrent: {
-    shadowColor: palette.burgundy,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.24,
-    shadowRadius: 4,
-    elevation: 2,
-    transform: [{ scaleY: 1.12 }],
+    transform: [{ scaleY: 1.08 }],
   },
   progressSegmentPressed: { opacity: 0.62 },
 })

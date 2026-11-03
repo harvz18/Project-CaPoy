@@ -176,6 +176,13 @@ const formatDate = (month: number, day: number, year: number) =>
 const formatDateValue = (date: Date) =>
   formatDate(date.getMonth() + 1, date.getDate(), date.getFullYear())
 
+const formatManualDateInput = (value: string) => {
+  const digits = value.replace(/\D/g, '').slice(0, 8)
+  if (digits.length <= 2) return digits
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
+}
+
 const startOfLocalDay = (date: Date) =>
   new Date(date.getFullYear(), date.getMonth(), date.getDate())
 
@@ -191,11 +198,11 @@ const parseTimeParts = (value: string) => {
   const match = value.trim().match(/^(\d{1,2}):(\d{2})\s?(AM|PM)$/i)
   const rawHour = match ? Number.parseInt(match[1], 10) : 6
   const rawMinute = match?.[2] ?? '00'
-  const rawMeridiem = match?.[3]?.toUpperCase() === 'AM' ? 'AM' : 'PM'
+  const rawMeridiem = match?.[3]?.toUpperCase() === 'PM' ? 'PM' : 'AM'
 
   return {
     hour: rawHour >= 1 && rawHour <= 12 ? rawHour : 6,
-    minute: minuteOptions.includes(rawMinute as (typeof minuteOptions)[number])
+    minute: /^\d{2}$/.test(rawMinute) && Number.parseInt(rawMinute, 10) <= 59
       ? rawMinute
       : '00',
     meridiem: rawMeridiem as Meridiem,
@@ -204,6 +211,30 @@ const parseTimeParts = (value: string) => {
 
 const formatTime = (hour: number, minute: string, meridiem: Meridiem) =>
   `${padTwo(hour)}:${minute} ${meridiem}`
+
+const getManualTimeInput = (value: string) => {
+  const match = value.trim().match(/^(\d{1,2}):(\d{2})\s?(?:AM|PM)$/i)
+  return match ? `${padTwo(Number.parseInt(match[1], 10))}:${match[2]}` : ''
+}
+
+const formatManualTimeInput = (value: string) => {
+  const digits = value.replace(/\D/g, '').slice(0, 4)
+  if (digits.length <= 2) return digits
+  if (digits.length === 3 && Number.parseInt(digits[0], 10) > 1) {
+    return `${digits[0]}:${digits.slice(1)}`
+  }
+  return `${digits.slice(0, 2)}:${digits.slice(2)}`
+}
+
+const parseManualTimeInput = (value: string) => {
+  const match = value.match(/^(\d{1,2}):(\d{2})$/)
+  if (!match) return null
+  const hour = Number.parseInt(match[1], 10)
+  const minute = Number.parseInt(match[2], 10)
+  return hour >= 1 && hour <= 12 && minute >= 0 && minute <= 59
+    ? { hour, minute: padTwo(minute) }
+    : null
+}
 
 const timePartsToMinutes = (hour: number, minute: string, meridiem: Meridiem) => {
   const normalizedHour = hour % 12 + (meridiem === 'PM' ? 12 : 0)
@@ -256,11 +287,24 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
   const eventType: EventType = initialValue?.eventType ?? 'wedding'
   const [date, setDate] = React.useState(initialValue?.date ?? '')
   const [time, setTime] = React.useState(initialValue?.time ?? '')
+  const [timeInput, setTimeInput] = React.useState(() => getManualTimeInput(initialValue?.time ?? ''))
+  const [timeMeridiem, setTimeMeridiem] = React.useState<Meridiem>(
+    () => parseTimeParts(initialValue?.time ?? '').meridiem
+  )
+  const [isMeridiemMenuOpen, setIsMeridiemMenuOpen] = React.useState(false)
   const [dateTimeError, setDateTimeError] = React.useState('')
   const [isEventNameFocused, setIsEventNameFocused] = React.useState(false)
-  const [activePicker, setActivePicker] = React.useState<'date' | 'calendar' | 'time' | null>(null)
+  const [activePicker, setActivePicker] = React.useState<'calendar' | 'time' | null>(null)
   const [venueStatus, setVenueStatus] = React.useState<VenueStatus>(
     initialValue?.venueStatus ?? 'searching'
+  )
+  const [hasVenueStatusSelection, setHasVenueStatusSelection] = React.useState(
+    Boolean(
+      initialValue?.eventName
+        || initialValue?.date
+        || initialValue?.time
+        || typeof initialValue?.wantsCoordinator === 'boolean'
+    )
   )
   const [venueMap, setVenueMap] = React.useState<VenueMapValue>({
     address: initialValue?.venueAddress ?? '',
@@ -323,28 +367,53 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
     setSelectedWeddingThemes((current) => [...current, theme])
   }
 
+  const handleTimeChange = (nextTime: string) => {
+    const nextTimeParts = parseTimeParts(nextTime)
+    setTime(formatTime(nextTimeParts.hour, nextTimeParts.minute, nextTimeParts.meridiem))
+    setTimeInput(`${padTwo(nextTimeParts.hour)}:${nextTimeParts.minute}`)
+    setTimeMeridiem(nextTimeParts.meridiem)
+    setDateTimeError('')
+  }
+
+  const handleManualTimeChange = (nextValue: string) => {
+    const formattedTime = formatManualTimeInput(nextValue)
+    const parsedTime = parseManualTimeInput(formattedTime)
+    setTimeInput(formattedTime)
+    setDateTimeError('')
+    setTime(parsedTime ? formatTime(parsedTime.hour, parsedTime.minute, timeMeridiem) : '')
+  }
+
+  const handleMeridiemChange = (nextMeridiem: Meridiem) => {
+    const parsedTime = parseManualTimeInput(timeInput)
+    setTimeMeridiem(nextMeridiem)
+    setIsMeridiemMenuOpen(false)
+    setDateTimeError('')
+    setTime(parsedTime ? formatTime(parsedTime.hour, parsedTime.minute, nextMeridiem) : '')
+  }
+
   const handleDateChange = (nextDate: string) => {
     setDate(nextDate)
     setDateTimeError('')
 
     if (time && isPastDateTime(nextDate, time)) {
       const nextAvailableTime = validTimePartsForDate(nextDate, new Date())[0]
-      setTime(
-        nextAvailableTime
-          ? formatTime(
-              nextAvailableTime.hour,
-              nextAvailableTime.minute,
-              nextAvailableTime.meridiem
-            )
-          : ''
-      )
+      if (nextAvailableTime) {
+        handleTimeChange(
+          formatTime(
+            nextAvailableTime.hour,
+            nextAvailableTime.minute,
+            nextAvailableTime.meridiem
+          )
+        )
+      } else {
+        setTime('')
+        setTimeInput('')
+      }
     }
   }
 
-  const handleTimeChange = (nextTime: string) => {
-    setTime(nextTime)
-    setDateTimeError('')
-  }
+  const handleManualDateChange = (nextValue: string) =>
+    handleDateChange(formatManualDateInput(nextValue))
 
   const handleCoordinatorPreferenceChange = (nextPreference: boolean) => {
     setWantsCoordinator(nextPreference)
@@ -426,10 +495,12 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
   return (
     <View style={styles.screen}>
       <PlanningScreenHeader
+        brandTitle={presentation !== 'savedPlan'}
         currentStep={1}
-        label={presentation === 'savedPlan' ? 'Saved Plan' : 'Basics'}
+        label={presentation === 'savedPlan' ? 'Saved Plan' : 'CREATE EVENT'}
         nextEnabled={isStepComplete && !isProcessing}
         onBack={isProcessing ? undefined : onClose}
+        onBrandPress={presentation === 'savedPlan' || isProcessing ? undefined : onClose}
         onNext={handleContinue}
         showProgress={presentation !== 'savedPlan'}
         showBackButton
@@ -444,17 +515,16 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
         <View style={[styles.mainContent, isWide && styles.horizontalPaddingWide]}>
           <View style={[styles.form, isWide && styles.formWide]}>
             <View style={styles.intro}>
-              <Text style={[styles.pageTitle, isWide && styles.pageTitleWide]}>
-                Let&apos;s start with the basics
+              <Text adjustsFontSizeToFit minimumFontScale={0.8} numberOfLines={1} style={[styles.pageTitle, isWide && styles.pageTitleWide]}>
+                Your Wedding Starts Here
               </Text>
               <Text style={styles.pageDescription}>
-                Define the foundational elements of this celebration. We&apos;ll build the
-                details around these choices.
+                Tell us a few details about your special day so we can personalize your planning experience.
               </Text>
             </View>
 
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>EVENT NAME</Text>
+              <Text style={styles.sectionFieldLabel}>EVENT NAME</Text>
               <View
                 style={[styles.textInputShell, isEventNameFocused && styles.textInputShellFocused]}
               >
@@ -520,10 +590,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
             </View>
 
             <View style={styles.coordinatorPreferenceSection}>
-              <Text style={styles.fieldLabel}>WOULD YOU LIKE AN EVENT COORDINATOR?</Text>
-              <Text style={styles.churchWeddingHelper}>
-                This adds Event Coordinator to your budget choices. Selecting Yes does not book or assign anyone.
-              </Text>
+              <Text style={styles.sectionFieldLabel}>WOULD YOU LIKE AN EVENT COORDINATOR?</Text>
               <View style={styles.churchWeddingChoices}>
                 {[
                   {
@@ -576,10 +643,13 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
 
             {shouldAskChurchQuestion ? (
               <View style={styles.churchWeddingSection}>
-                <Text style={styles.fieldLabel}>IS THIS A CHURCH WEDDING?</Text>
-                <Text style={styles.churchWeddingHelper}>
-                  This helps a booked coordinator prepare for church arrangements. It does not reserve a church or change your budget.
-                </Text>
+                <Text style={styles.sectionFieldLabel}>IS THIS A CHURCH WEDDING?</Text>
+                <View accessibilityLiveRegion="polite" style={styles.churchWeddingNotice}>
+                  <MaterialIcons color="#BA1A1A" name="error-outline" size={18} />
+                  <Text style={styles.churchWeddingNoticeText}>
+                    It does not reserve a church or change your budget.
+                  </Text>
+                </View>
                 <View style={styles.churchWeddingChoices}>
                   {[
                     {
@@ -631,55 +701,118 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
               </View>
             ) : null}
 
-            <View style={[styles.dateTimeGrid, isWide && styles.dateTimeGridWide]}>
-              <PickerField
-                icon={
-                  <MaterialIcons
-                    color={palette.burgundy}
-                    name="calendar-month"
-                    size={22}
-                    style={styles.inputIcon}
-                  />
-                }
-                label="DATE"
-                onAccessoryPress={() => setActivePicker('calendar')}
-                accessoryAccessibilityLabel="Open event calendar"
-                onPress={() => setActivePicker('date')}
-                placeholder="MM/DD/YYYY"
-                value={date}
-              />
-              <PickerField
-                icon={
-                  <MaterialIcons
-                    color={palette.burgundy}
-                    name="timer"
-                    size={22}
-                    style={styles.inputIcon}
-                  />
-                }
-                label="TIME"
-                onPress={() => setActivePicker('time')}
-                placeholder="HH:MM AM"
-                value={time}
-              />
-            </View>
-            {dateTimeError ? (
-              <Text accessibilityRole="alert" style={styles.dateTimeError}>
-                {dateTimeError}
-              </Text>
-            ) : null}
-            <View accessibilityLiveRegion="polite" style={styles.timeGuidanceNotice}>
-              <MaterialIcons color={palette.burgundy} name="info-outline" size={18} />
-              <Text style={styles.timeGuidanceText}>
-                {timeGuidance ?? 'Service operating hours may vary depending on the provider and selected package.'}
-              </Text>
+            <View style={styles.dateTimeSection}>
+              <View style={[styles.dateTimeGrid, isWide && styles.dateTimeGridWide]}>
+                <View style={styles.dateTimeField}>
+                  <Text style={styles.sectionFieldLabel}>DATE</Text>
+                  <View style={styles.iconInputShell}>
+                    <Pressable
+                      accessibilityLabel="Open full event calendar"
+                      accessibilityRole="button"
+                      hitSlop={6}
+                      onPress={() => setActivePicker('calendar')}
+                      style={({ pressed }) => [styles.inputIconButton, pressed && styles.pressed]}
+                    >
+                      <MaterialIcons color={palette.burgundy} name="calendar-month" size={22} />
+                    </Pressable>
+                    <TextInput
+                      accessibilityLabel="Event date"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
+                      maxLength={10}
+                      onChangeText={handleManualDateChange}
+                      onFocus={() => setIsMeridiemMenuOpen(false)}
+                      placeholder="MM/DD/YYYY"
+                      placeholderTextColor="#A3A4A4"
+                      style={styles.dateTimeTextInput}
+                      value={date}
+                    />
+                  </View>
+                </View>
+
+                <View style={[styles.dateTimeField, isMeridiemMenuOpen && styles.dateTimeFieldMenuOpen]}>
+                  <Text style={styles.sectionFieldLabel}>TIME</Text>
+                  <View style={styles.iconInputShell}>
+                    <Pressable
+                      accessibilityLabel="Open event time picker"
+                      accessibilityRole="button"
+                      hitSlop={6}
+                      onPress={() => setActivePicker('time')}
+                      style={({ pressed }) => [styles.inputIconButton, pressed && styles.pressed]}
+                    >
+                      <MaterialIcons color={palette.burgundy} name="timer" size={22} />
+                    </Pressable>
+                    <TextInput
+                      accessibilityLabel="Event time"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
+                      maxLength={5}
+                      onChangeText={handleManualTimeChange}
+                      onFocus={() => setIsMeridiemMenuOpen(false)}
+                      placeholder="HH:MM"
+                      placeholderTextColor="#A3A4A4"
+                      style={styles.dateTimeTextInput}
+                      value={timeInput}
+                    />
+                    <View style={styles.meridiemSelector}>
+                      <Pressable
+                        accessibilityLabel={`Select AM or PM, currently ${timeMeridiem}`}
+                        accessibilityRole="button"
+                        accessibilityState={{ expanded: isMeridiemMenuOpen }}
+                        onPress={() => setIsMeridiemMenuOpen((open) => !open)}
+                        style={({ pressed }) => [styles.meridiemButton, pressed && styles.pressed]}
+                      >
+                        <Text style={styles.meridiemButtonText}>{timeMeridiem}</Text>
+                        <MaterialIcons color={palette.burgundy} name="keyboard-arrow-down" size={18} />
+                      </Pressable>
+                      {isMeridiemMenuOpen ? (
+                        <View style={styles.meridiemMenu}>
+                          {meridiemOptions.map((option) => (
+                            <Pressable
+                              key={option}
+                              accessibilityRole="button"
+                              accessibilityState={{ selected: option === timeMeridiem }}
+                              onPress={() => handleMeridiemChange(option)}
+                              style={({ pressed }) => [
+                                styles.meridiemOption,
+                                option === timeMeridiem && styles.meridiemOptionSelected,
+                                pressed && styles.pressed,
+                              ]}
+                            >
+                              <Text style={[styles.meridiemOptionText, option === timeMeridiem && styles.meridiemOptionTextSelected]}>
+                                {option}
+                              </Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      ) : null}
+                    </View>
+                  </View>
+                </View>
+              </View>
+              {dateTimeError ? (
+                <Text accessibilityRole="alert" style={styles.dateTimeError}>
+                  {dateTimeError}
+                </Text>
+              ) : null}
+              <View
+                accessibilityLiveRegion="polite"
+                style={[styles.timeGuidanceNotice, isWide && styles.timeGuidanceNoticeWide]}
+              >
+                <MaterialIcons color="#BA1A1A" name="info-outline" size={18} />
+                <Text style={styles.timeGuidanceText}>
+                  {timeGuidance ?? 'Service operating hours may vary depending on the provider and selected package.'}
+                </Text>
+              </View>
             </View>
 
-            <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>VENUE STATUS</Text>
+            <View style={[styles.fieldGroup, styles.venueStatusSection]}>
+              <Text style={styles.sectionFieldLabel}>VENUE STATUS</Text>
               <View style={styles.venueGrid}>
                 {venueOptions.map((option) => {
-                  const selected = venueStatus === option.id
+                  const selected = hasVenueStatusSelection && venueStatus === option.id
                   return (
                     <React.Fragment key={option.id}>
                       <Pressable
@@ -687,6 +820,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                         accessibilityState={{ checked: selected }}
                         onPress={() => {
                           setVenueStatus(option.id)
+                          setHasVenueStatusSelection(true)
                           if (option.id !== 'secured') setExternalVenueConfirmed(false)
                           setVenueError('')
                         }}
@@ -786,7 +920,6 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                   style={({ pressed }) => [
                     styles.stepperButton,
                     pressed && styles.stepperButtonPressed,
-                    pressed && styles.cardPressed,
                   ]}
                 >
                   {({ pressed }) => (
@@ -814,7 +947,6 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                   style={({ pressed }) => [
                     styles.stepperButton,
                     pressed && styles.stepperButtonPressed,
-                    pressed && styles.cardPressed,
                   ]}
                 >
                   {({ pressed }) => (
@@ -872,13 +1004,6 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
         </View>
       </View>
 
-      {activePicker === 'date' ? (
-        <DatePickerModal
-          onChange={handleDateChange}
-          onClose={() => setActivePicker(null)}
-          value={date}
-        />
-      ) : null}
       {activePicker === 'calendar' ? (
         <CalendarPickerModal
           onChange={handleDateChange}
@@ -1283,55 +1408,6 @@ const VenueMapSurface: React.FC<VenueMapSurfaceProps> = ({
   )
 }
 
-interface PickerFieldProps {
-  accessoryAccessibilityLabel?: string
-  icon: React.ReactNode
-  label: string
-  onAccessoryPress?: () => void
-  onPress: () => void
-  placeholder: string
-  value: string
-}
-
-const PickerField: React.FC<PickerFieldProps> = ({
-  accessoryAccessibilityLabel,
-  icon,
-  label,
-  onAccessoryPress,
-  onPress,
-  placeholder,
-  value,
-}) => (
-  <View style={styles.dateTimeField}>
-    <Text style={styles.fieldLabel}>{label}</Text>
-    <View style={styles.iconInputShell}>
-      <Pressable
-        accessibilityLabel={`Pick ${label.toLowerCase()} with the wheel`}
-        accessibilityRole="button"
-        onPress={onPress}
-        style={({ pressed }) => [styles.pickerMainButton, pressed && styles.cardPressed]}
-      >
-        {typeof icon === 'string' ? <Text style={styles.inputIcon}>{icon}</Text> : icon}
-        <Text style={[styles.pickerValue, !value && styles.pickerPlaceholder]}>
-          {value || placeholder}
-        </Text>
-        <Text style={styles.pickerChevron}>{'\u2304'}</Text>
-      </Pressable>
-      {onAccessoryPress ? (
-        <Pressable
-          accessibilityLabel={accessoryAccessibilityLabel ?? `Open ${label.toLowerCase()} calendar`}
-          accessibilityRole="button"
-          hitSlop={8}
-          onPress={onAccessoryPress}
-          style={({ pressed }) => [styles.calendarShortcutButton, pressed && styles.pressed]}
-        >
-          <MaterialIcons color={palette.burgundy} name="calendar-today" size={19} />
-        </Pressable>
-      ) : null}
-    </View>
-  </View>
-)
-
 interface WheelOption {
   accessibilityLabel?: string
   label: string
@@ -1527,131 +1603,6 @@ const PickerColumn: React.FC<PickerColumnProps> = ({
         windowSize={7}
       />
     </View>
-  )
-}
-
-interface DatePickerModalProps {
-  onChange: (value: string) => void
-  onClose: () => void
-  value: string
-}
-
-const DatePickerModal: React.FC<DatePickerModalProps> = ({ onChange, onClose, value }) => {
-  const now = React.useRef(new Date()).current
-  const minimumDate = React.useMemo(() => {
-    const today = startOfLocalDay(now)
-    return validTimePartsForDate(formatDateValue(today), now).length > 0
-      ? today
-      : addLocalDays(today, 1)
-  }, [now])
-  const parsedValue = parseDateValue(value)
-  const maximumYear = minimumDate.getFullYear() + 7
-  const initialDate = parsedValue &&
-      parsedValue >= minimumDate &&
-      parsedValue.getFullYear() <= maximumYear
-    ? parsedValue
-    : minimumDate
-  const [draftDate, setDraftDate] = React.useState(initialDate)
-  const selectedYear = draftDate.getFullYear()
-  const selectedMonth = draftDate.getMonth() + 1
-  const selectedDay = draftDate.getDate()
-  const yearOptions = Array.from({ length: 8 }, (_, index) => minimumDate.getFullYear() + index)
-  const totalMonthOptions =
-    (maximumYear - minimumDate.getFullYear()) * 12 +
-    (12 - minimumDate.getMonth())
-  const monthWheelOptions = Array.from({ length: totalMonthOptions }, (_, index) => {
-    const optionDate = new Date(
-      minimumDate.getFullYear(),
-      minimumDate.getMonth() + index,
-      1
-    )
-
-    return {
-      accessibilityLabel: `${monthNames[optionDate.getMonth()]} ${optionDate.getFullYear()}`,
-      label: monthNames[optionDate.getMonth()],
-      value: `${optionDate.getFullYear()}-${optionDate.getMonth() + 1}`,
-    }
-  })
-  const minimumDay =
-    selectedYear === minimumDate.getFullYear() && selectedMonth === minimumDate.getMonth() + 1
-      ? minimumDate.getDate()
-      : 1
-  const daysInSelectedMonth = new Date(selectedYear, selectedMonth, 0).getDate()
-  const availableDays = Array.from(
-    { length: daysInSelectedMonth - minimumDay + 1 },
-    (_, index) => minimumDay + index
-  )
-
-  const updateDateParts = (next: { day?: number; month?: number; year?: number }) => {
-    const year = next.year ?? selectedYear
-    const earliestMonth = year === minimumDate.getFullYear() ? minimumDate.getMonth() + 1 : 1
-    const month = Math.max(earliestMonth, next.month ?? selectedMonth)
-    const earliestDay =
-      year === minimumDate.getFullYear() && month === minimumDate.getMonth() + 1
-        ? minimumDate.getDate()
-        : 1
-    const lastDay = new Date(year, month, 0).getDate()
-    const day = Math.min(lastDay, Math.max(earliestDay, next.day ?? selectedDay))
-
-    setDraftDate(new Date(year, month - 1, day))
-  }
-
-  return (
-    <Modal animationType="fade" onRequestClose={onClose} transparent visible>
-      <View style={styles.modalOverlay}>
-        <Pressable style={styles.modalScrim} onPress={onClose} />
-        <View style={styles.pickerSheet}>
-          <View style={styles.pickerHeader}>
-            <Text style={styles.pickerTitle}>Pick event date</Text>
-            <Pressable
-              accessibilityLabel="Confirm event date"
-              accessibilityRole="button"
-              onPress={() => {
-                onChange(formatDateValue(draftDate))
-                onClose()
-              }}
-              style={({ pressed }) => [styles.modalCloseButton, pressed && styles.pressed]}
-            >
-              <Text style={styles.modalCloseText}>DONE</Text>
-            </Pressable>
-          </View>
-          <View style={[styles.pickerColumnLabelRow, styles.datePickerColumns]}>
-            <Text style={styles.pickerColumnLabel}>MONTH</Text>
-            <Text style={styles.pickerColumnLabel}>DAY</Text>
-            <Text style={styles.pickerColumnLabel}>YEAR</Text>
-          </View>
-          <View style={[styles.pickerColumns, styles.datePickerColumns]}>
-            <PickerColumn
-              accessibilityLabel="Event month wheel"
-              onSelect={(monthValue) => {
-                const [year, month] = monthValue.split('-').map(Number)
-                updateDateParts({ month, year })
-              }}
-              options={monthWheelOptions}
-              selected={`${selectedYear}-${selectedMonth}`}
-            />
-            <PickerColumn
-              accessibilityLabel="Event day wheel"
-              onSelect={(day) => updateDateParts({ day: Number(day) })}
-              options={availableDays.map((day) => ({
-                label: padTwo(day),
-                value: String(day),
-              }))}
-              selected={String(selectedDay)}
-            />
-            <PickerColumn
-              accessibilityLabel="Event year wheel"
-              onSelect={(year) => updateDateParts({ year: Number(year) })}
-              options={yearOptions.map((year) => ({
-                label: String(year),
-                value: String(year),
-              }))}
-              selected={String(selectedYear)}
-            />
-          </View>
-        </View>
-      </View>
-    </Modal>
   )
 }
 
@@ -1989,7 +1940,7 @@ const SelectionCheck: React.FC = () => (
 )
 
 const palette = {
-  background: '#F9F9F9',
+  background: '#E9EDF0',
   border: '#E2E2E2',
   burgundy: '#6B1E2E',
   burgundyDark: '#4E061A',
@@ -2074,13 +2025,23 @@ const styles = StyleSheet.create({
   form: { width: '100%', gap: 48 },
   formWide: { width: '64%' },
   intro: { marginBottom: 16 },
-  pageTitle: { color: '#2A1A1D', fontSize: 32, lineHeight: 40, fontWeight: '700', letterSpacing: -0.3, marginBottom: 16 },
-  pageTitleWide: { fontSize: 48, lineHeight: 56, letterSpacing: -0.8 },
-  pageDescription: { color: palette.muted, fontSize: 18, lineHeight: 30 },
+  pageTitle: { color: '#57636C', fontSize: 24, lineHeight: 30, fontWeight: '700', letterSpacing: -0.25, marginBottom: 16 },
+  pageTitleWide: { fontSize: 36, lineHeight: 44, letterSpacing: -0.5 },
+  pageDescription: { color: '#87929A', fontSize: 18, lineHeight: 30 },
   fieldGroup: { gap: 12 },
   fieldLabel: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 1.2 },
-  textInputShell: { flexDirection: 'row', alignItems: 'center', minHeight: 52, borderWidth: 2, borderColor: palette.border, borderRadius: 20, backgroundColor: '#F1F2F4' },
-  textInputShellFocused: { borderColor: palette.burgundy },
+  sectionFieldLabel: { color: palette.muted, fontSize: 14, lineHeight: 20, fontWeight: '800', letterSpacing: 1.2 },
+  textInputShell: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 52,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.62)',
+    borderRadius: 20,
+    backgroundColor: '#E9EDF0',
+    boxShadow: 'inset 4px 4px 8px rgba(160, 171, 180, 0.54), inset -4px -4px 8px rgba(255, 255, 255, 0.96)',
+  },
+  textInputShellFocused: { borderColor: '#6B1E2E' },
   eventNameIcon: { marginLeft: 16 },
   textInput: { minHeight: 52, borderWidth: 0, borderColor: 'transparent', borderRadius: 0, color: palette.text, fontSize: 15, lineHeight: 22, paddingHorizontal: 16, paddingVertical: 14 },
   textInputWithIcon: {
@@ -2091,12 +2052,15 @@ const styles = StyleSheet.create({
     outlineWidth: 0,
   },
   selectionCardActive: {
-    borderColor: palette.burgundy,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.72)',
+    backgroundColor: '#E9EDF0',
     shadowColor: palette.burgundy,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.32,
-    shadowRadius: 18,
-    elevation: 8,
+    shadowOffset: { width: 5, height: 5 },
+    shadowOpacity: 0.36,
+    shadowRadius: 11,
+    elevation: 6,
+    boxShadow: '5px 5px 11px rgba(107, 30, 46, 0.38), -5px -5px 11px rgba(255, 255, 255, 0.96)',
   },
   selectionCheck: {
     width: 24,
@@ -2107,56 +2071,93 @@ const styles = StyleSheet.create({
     backgroundColor: palette.burgundy,
   },
   selectionCheckText: { color: palette.surface, fontSize: 14, lineHeight: 16, fontWeight: '800' },
+  dateTimeSection: { gap: 12 },
   dateTimeGrid: { gap: 24 },
   dateTimeGridWide: { flexDirection: 'row' },
-  dateTimeError: { color: '#BA1A1A', fontSize: 13, lineHeight: 19, marginTop: -32 },
+  dateTimeError: { color: '#BA1A1A', fontSize: 13, lineHeight: 19 },
   dateTimeField: { flex: 1, gap: 12 },
+  dateTimeFieldMenuOpen: { zIndex: 10 },
   timeGuidanceNotice: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(186, 26, 26, 0.20)',
     borderRadius: 12,
-    backgroundColor: '#F8EDEF',
+    backgroundColor: 'rgba(186, 26, 26, 0.10)',
     padding: 12,
   },
-  timeGuidanceText: { flex: 1, color: palette.burgundy, fontSize: 12, lineHeight: 18 },
+  timeGuidanceNoticeWide: { alignSelf: 'flex-end', width: '48%' },
+  timeGuidanceText: { flex: 1, color: '#8F1010', fontSize: 12, lineHeight: 18, fontWeight: '600' },
   iconInputShell: {
     minHeight: 52,
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: palette.border,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.62)',
     borderRadius: 20,
-    backgroundColor: '#F1F2F4',
+    backgroundColor: '#E9EDF0',
     paddingHorizontal: 16,
+    boxShadow: 'inset 4px 4px 8px rgba(160, 171, 180, 0.54), inset -4px -4px 8px rgba(255, 255, 255, 0.96)',
   },
-  pickerMainButton: { minWidth: 0, flex: 1, flexDirection: 'row', alignItems: 'center' },
-  calendarShortcutButton: {
+  inputIconButton: {
     width: 36,
     height: 36,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 18,
-    backgroundColor: '#F8EDEF',
-    marginLeft: 4,
+    backgroundColor: '#E9EDF0',
+    boxShadow: '2px 2px 5px rgba(160, 171, 180, 0.46), -2px -2px 5px rgba(255, 255, 255, 0.92)',
   },
-  inputIcon: { color: palette.burgundy, fontSize: 20, lineHeight: 23, marginRight: 12 },
-  iconTextInput: { flex: 1, minHeight: 56, color: palette.text, fontSize: 16, lineHeight: 24, paddingVertical: 14 },
-  pickerValue: {
+  dateTimeTextInput: {
     flex: 1,
+    minWidth: 0,
+    minHeight: 50,
     color: palette.text,
     fontSize: 16,
     lineHeight: 24,
-    paddingVertical: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 13,
+    outlineWidth: 0,
   },
-  pickerPlaceholder: {
-    color: '#BDBDBD',
+  meridiemSelector: { position: 'relative', zIndex: 20 },
+  meridiemButton: {
+    minWidth: 64,
+    minHeight: 36,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.68)',
+    borderRadius: 12,
+    backgroundColor: '#E9EDF0',
+    paddingHorizontal: 7,
+    boxShadow: '2px 2px 5px rgba(160, 171, 180, 0.46), -2px -2px 5px rgba(255, 255, 255, 0.92)',
   },
-  pickerChevron: {
-    color: palette.muted,
-    fontSize: 18,
-    lineHeight: 20,
-    fontWeight: '700',
+  meridiemButtonText: { color: palette.burgundy, fontSize: 12, lineHeight: 16, fontWeight: '800' },
+  meridiemMenu: {
+    position: 'absolute',
+    top: 42,
+    right: 0,
+    minWidth: 64,
+    gap: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.68)',
+    borderRadius: 12,
+    backgroundColor: '#E9EDF0',
+    padding: 4,
+    boxShadow: '4px 4px 8px rgba(160, 171, 180, 0.52), -4px -4px 8px rgba(255, 255, 255, 0.96)',
+  },
+  meridiemOption: { minHeight: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 8, paddingHorizontal: 8 },
+  meridiemOptionSelected: { backgroundColor: 'rgba(107, 30, 46, 0.12)' },
+  meridiemOptionText: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: '700' },
+  meridiemOptionTextSelected: { color: palette.burgundy, fontWeight: '800' },
+  venueStatusSection: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(107, 30, 46, 0.16)',
+    marginTop: -24,
+    paddingTop: 16,
   },
   modalOverlay: {
     flex: 1,
@@ -2253,14 +2254,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   calendarYearButtonSelected: { borderColor: palette.burgundy, backgroundColor: palette.burgundy },
-  calendarYearText: { color: palette.muted, fontSize: 11, lineHeight: 15, fontWeight: '700' },
+  calendarYearText: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: '700' },
   calendarYearTextSelected: { color: palette.surface },
   calendarWeekdays: { flexDirection: 'row', marginBottom: 5 },
   calendarWeekday: {
     width: '14.2857%',
     color: palette.muted,
-    fontSize: 10,
-    lineHeight: 15,
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: '800',
     textAlign: 'center',
   },
@@ -2282,7 +2283,7 @@ const styles = StyleSheet.create({
   calendarHelper: {
     marginTop: 12,
     color: palette.muted,
-    fontSize: 11,
+    fontSize: 12,
     lineHeight: 16,
     textAlign: 'center',
   },
@@ -2303,8 +2304,8 @@ const styles = StyleSheet.create({
   pickerColumnLabel: {
     flex: 1,
     color: palette.muted,
-    fontSize: 10,
-    lineHeight: 14,
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: '800',
     letterSpacing: 0.9,
     textAlign: 'center',
@@ -2359,10 +2360,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: 'rgba(255, 255, 255, 0.62)',
     borderRadius: 12,
-    backgroundColor: palette.surface,
+    backgroundColor: '#E9EDF0',
     padding: 16,
+    boxShadow: 'inset 4px 4px 8px rgba(160, 171, 180, 0.54), inset -4px -4px 8px rgba(255, 255, 255, 0.96)',
   },
   venueIconCircle: {
     width: 40,
@@ -2371,7 +2373,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 20,
-    backgroundColor: '#F8EDEF',
+    backgroundColor: '#E9EDF0',
+    boxShadow: 'inset 2px 2px 4px rgba(160, 171, 180, 0.44), inset -2px -2px 4px rgba(255, 255, 255, 0.92)',
   },
   venueIconSelected: { backgroundColor: palette.burgundy },
   venueIcon: { color: palette.burgundyDark, fontSize: 23, lineHeight: 26 },
@@ -2415,11 +2418,11 @@ const styles = StyleSheet.create({
   },
   venueMapHeading: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 14 },
   venueMapHeadingCopy: { minWidth: 0, flex: 1 },
-  venueMapEyebrow: { color: palette.burgundy, fontSize: 10, lineHeight: 14, fontWeight: '800', letterSpacing: 1.1 },
+  venueMapEyebrow: { color: palette.burgundy, fontSize: 12, lineHeight: 16, fontWeight: '800', letterSpacing: 1.1 },
   venueMapTitle: { color: palette.text, fontSize: 18, lineHeight: 25, fontWeight: '700', marginTop: 2 },
   venueMapDescription: { color: palette.muted, fontSize: 12, lineHeight: 18, marginTop: 4 },
   venueStepBadge: { borderRadius: 999, backgroundColor: '#F8EDEF', paddingHorizontal: 10, paddingVertical: 5 },
-  venueStepBadgeText: { color: palette.burgundy, fontSize: 9, lineHeight: 12, fontWeight: '800', letterSpacing: 0.8 },
+  venueStepBadgeText: { color: palette.burgundy, fontSize: 12, lineHeight: 16, fontWeight: '800', letterSpacing: 0.8 },
   venueSearchArea: { zIndex: 8, marginBottom: 12 },
   venueSearchAreaFullscreen: { zIndex: 20, paddingHorizontal: 16, paddingTop: 14, marginBottom: 0, backgroundColor: palette.background },
   venueSearchShell: {
@@ -2428,10 +2431,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     borderWidth: 1,
-    borderColor: '#D8C7CA',
+    borderColor: 'rgba(255, 255, 255, 0.62)',
     borderRadius: 12,
-    backgroundColor: palette.surface,
+    backgroundColor: '#E9EDF0',
     paddingHorizontal: 14,
+    boxShadow: 'inset 3px 3px 7px rgba(160, 171, 180, 0.5), inset -3px -3px 7px rgba(255, 255, 255, 0.94)',
   },
   venueSearchInput: { minWidth: 0, flex: 1, minHeight: 46, color: palette.text, fontSize: 14, lineHeight: 20, paddingVertical: 11 },
   venueSearchButton: { alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: 16, backgroundColor: palette.burgundy },
@@ -2441,13 +2445,13 @@ const styles = StyleSheet.create({
   useVenueButtonPressed: { opacity: 0.62 },
   useVenueButtonCopy: { flex: 1 },
   useVenueButtonText: { color: palette.surface, fontSize: 14, fontWeight: '800' },
-  useVenueButtonHint: { color: '#F9EDEE', fontSize: 11, lineHeight: 16, marginTop: 2 },
+  useVenueButtonHint: { color: '#F9EDEE', fontSize: 12, lineHeight: 18, marginTop: 2 },
   venueResults: { overflow: 'hidden', borderWidth: 1, borderTopWidth: 0, borderColor: palette.border, borderBottomLeftRadius: 12, borderBottomRightRadius: 12, backgroundColor: palette.surface },
   venueResultRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 10, borderTopWidth: 1, borderTopColor: '#F0E8EA', paddingHorizontal: 12, paddingVertical: 9 },
   venueResultRowPressed: { backgroundColor: '#FCF4F6' },
   venueResultCopy: { minWidth: 0, flex: 1 },
   venueResultName: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '700' },
-  venueResultAddress: { color: palette.muted, fontSize: 11, lineHeight: 16, marginTop: 1 },
+  venueResultAddress: { color: palette.muted, fontSize: 12, lineHeight: 18, marginTop: 1 },
   venueNoResults: { color: palette.muted, fontSize: 12, lineHeight: 18, padding: 12 },
   mapPreviewShell: { position: 'relative', overflow: 'hidden', borderRadius: 14 },
   mapSurface: {
@@ -2469,37 +2473,43 @@ const styles = StyleSheet.create({
   mapRoadMinor: { position: 'absolute', height: 3, borderRadius: 2, backgroundColor: '#F8F3EA' },
   mapRoadMinorOne: { top: '20%', right: '9%', width: '58%', transform: [{ rotate: '8deg' }] },
   mapRoadMinorTwo: { top: '43%', left: '16%', width: '60%', transform: [{ rotate: '27deg' }] },
-  mapDistrictLabel: { position: 'absolute', color: '#8B8176', fontSize: 9, lineHeight: 12, fontWeight: '700', letterSpacing: 0.7 },
+  mapDistrictLabel: { position: 'absolute', color: '#8B8176', fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 0.7 },
   mapLabelMandalagan: { top: '13%', right: '14%' },
   mapLabelDowntown: { top: '61%', left: '28%' },
   mapLabelSingcang: { right: '12%', bottom: '13%' },
   mapCityLabel: { position: 'absolute', top: 12, left: 12, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.86)', paddingHorizontal: 8, paddingVertical: 5 },
-  mapCityLabelText: { color: palette.burgundy, fontSize: 9, lineHeight: 12, fontWeight: '800', letterSpacing: 0.9 },
+  mapCityLabelText: { color: palette.burgundy, fontSize: 12, lineHeight: 16, fontWeight: '800', letterSpacing: 0.9 },
   mapPin: { position: 'absolute', zIndex: 6, width: 38, height: 44, alignItems: 'center', marginLeft: -19, marginTop: -38 },
   mapPinPulse: { width: 15, height: 6, borderRadius: 8, backgroundColor: 'rgba(107,30,46,0.24)', marginTop: -6 },
   mapAttributionBadge: { position: 'absolute', right: 8, bottom: 8, borderRadius: 5, backgroundColor: 'rgba(255,255,255,0.84)', paddingHorizontal: 7, paddingVertical: 3 },
-  mapAttributionText: { color: palette.muted, fontSize: 8, lineHeight: 11, fontWeight: '600' },
+  mapAttributionText: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: '600' },
   mapFullscreenButton: { position: 'absolute', top: 10, right: 10, zIndex: 7, flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 8, backgroundColor: palette.burgundy, paddingHorizontal: 10, paddingVertical: 8 },
   mapFullscreenButtonPressed: { backgroundColor: palette.burgundyDark, transform: [{ scale: 0.97 }] },
-  mapFullscreenText: { color: palette.surface, fontSize: 9, lineHeight: 12, fontWeight: '800', letterSpacing: 0.7 },
+  mapFullscreenText: { color: palette.surface, fontSize: 12, lineHeight: 16, fontWeight: '800', letterSpacing: 0.7 },
   selectedVenueBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, backgroundColor: '#F8EDEF', padding: 12, marginTop: 12 },
   selectedVenueIcon: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 17, backgroundColor: palette.burgundy },
   selectedVenueCopy: { minWidth: 0, flex: 1 },
   selectedVenueName: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '700' },
-  selectedVenueAddress: { color: palette.muted, fontSize: 11, lineHeight: 16, marginTop: 1 },
+  selectedVenueAddress: { color: palette.muted, fontSize: 12, lineHeight: 18, marginTop: 1 },
   venueError: { color: '#BA1A1A', fontSize: 12, lineHeight: 18, marginTop: 10 },
   fullscreenMapScreen: { flex: 1, backgroundColor: palette.background },
   fullscreenMapHeader: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: palette.burgundy, paddingHorizontal: 16, paddingVertical: 10 },
   fullscreenMapClose: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },
   fullscreenMapHeaderCopy: { minWidth: 0, flex: 1 },
-  fullscreenMapEyebrow: { color: '#EAC7CE', fontSize: 9, lineHeight: 12, fontWeight: '800', letterSpacing: 1 },
+  fullscreenMapEyebrow: { color: '#EAC7CE', fontSize: 12, lineHeight: 16, fontWeight: '800', letterSpacing: 1 },
   fullscreenMapTitle: { color: palette.surface, fontSize: 17, lineHeight: 23, fontWeight: '700' },
   fullscreenMapDone: { minHeight: 38, justifyContent: 'center', borderRadius: 19, backgroundColor: palette.surface, paddingHorizontal: 15 },
-  fullscreenMapDoneText: { color: palette.burgundy, fontSize: 11, lineHeight: 15, fontWeight: '800', letterSpacing: 0.8 },
+  fullscreenMapDoneText: { color: palette.burgundy, fontSize: 12, lineHeight: 16, fontWeight: '800', letterSpacing: 0.8 },
   fullscreenMapBody: { minHeight: 0, flex: 1, marginTop: 14 },
   fullscreenMapFooter: { minHeight: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderTopWidth: 1, borderTopColor: palette.border, backgroundColor: palette.surface, paddingHorizontal: 20, paddingVertical: 12 },
   fullscreenMapHint: { color: palette.muted, fontSize: 12, lineHeight: 18, textAlign: 'center' },
-  themeSection: { gap: 10 },
+  themeSection: {
+    gap: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(107, 30, 46, 0.16)',
+    marginTop: -24,
+    paddingTop: 16,
+  },
   themeLabelRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2520,33 +2530,76 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 17,
-    backgroundColor: '#E5E5E5',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.62)',
+    backgroundColor: '#E9EDF0',
     paddingHorizontal: 14,
+    shadowColor: '#9DA9B2',
+    shadowOffset: { width: 3, height: 3 },
+    shadowOpacity: 0.44,
+    shadowRadius: 6,
+    elevation: 3,
+    boxShadow: '3px 3px 6px rgba(157, 169, 178, 0.44), -3px -3px 6px rgba(255, 255, 255, 0.94)',
   },
-  themeChipSelected: { backgroundColor: palette.burgundy },
+  themeChipSelected: {
+    borderColor: 'rgba(107, 30, 46, 0.34)',
+    shadowColor: '#6B1E2E',
+    boxShadow: '3px 3px 6px rgba(107, 30, 46, 0.36), -3px -3px 6px rgba(255, 255, 255, 0.94)',
+  },
   themeChipText: { color: '#8A8A8A', fontSize: 12, lineHeight: 16, fontWeight: '600' },
-  themeChipTextSelected: { color: palette.surface },
+  themeChipTextSelected: { color: palette.burgundy, fontWeight: '800' },
   themeLimitMessage: { color: '#8A8A8A', fontSize: 12, lineHeight: 18 },
-  churchWeddingSection: { gap: 12, marginTop: -20 },
-  coordinatorPreferenceSection: { gap: 12, marginTop: -8 },
-  churchWeddingHelper: { color: palette.muted, fontSize: 13, lineHeight: 20, marginTop: -4 },
+  churchWeddingSection: {
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(107, 30, 46, 0.16)',
+    marginTop: -24,
+    paddingTop: 16,
+  },
+  coordinatorPreferenceSection: {
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(107, 30, 46, 0.16)',
+    marginTop: -24,
+    paddingTop: 16,
+  },
+  churchWeddingNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(186, 26, 26, 0.20)',
+    borderRadius: 12,
+    backgroundColor: 'rgba(186, 26, 26, 0.10)',
+    padding: 12,
+  },
+  churchWeddingNoticeText: { minWidth: 0, flex: 1, color: '#8F1010', fontSize: 12, lineHeight: 18, fontWeight: '600' },
   churchWeddingChoices: { gap: 10 },
   churchWeddingChoice: {
     minHeight: 76,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    borderWidth: 2,
-    borderColor: palette.border,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.62)',
     borderRadius: 16,
-    backgroundColor: '#F8F8F9',
+    backgroundColor: '#E9EDF0',
     padding: 14,
+    boxShadow: 'inset 4px 4px 8px rgba(160, 171, 180, 0.54), inset -4px -4px 8px rgba(255, 255, 255, 0.96)',
   },
-  churchWeddingIcon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: '#F1E4E7' },
+  churchWeddingIcon: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 20,
+    backgroundColor: '#E9EDF0',
+    boxShadow: 'inset 2px 2px 4px rgba(160, 171, 180, 0.44), inset -2px -2px 4px rgba(255, 255, 255, 0.92)',
+  },
   churchWeddingIconSelected: { backgroundColor: palette.burgundy },
   churchWeddingCopy: { minWidth: 0, flex: 1 },
   churchWeddingTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '700' },
-  churchWeddingDescription: { color: palette.muted, fontSize: 11, lineHeight: 16, marginTop: 2 },
+  churchWeddingDescription: { color: palette.muted, fontSize: 12, lineHeight: 18, marginTop: 2 },
   preferenceRequiredText: { color: '#BA1A1A', fontSize: 12, lineHeight: 18, fontWeight: '600' },
   guestSection: {
     alignItems: 'center',
@@ -2564,19 +2617,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: 'rgba(255, 255, 255, 0.62)',
     borderRadius: 24,
-    backgroundColor: palette.surface,
-    shadowColor: palette.burgundy,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.16,
-    shadowRadius: 7,
-    elevation: 3,
+    backgroundColor: palette.background,
+    boxShadow: '4px 4px 8px rgba(160, 171, 180, 0.52), -4px -4px 8px rgba(255, 255, 255, 0.96)',
   },
   stepperButtonText: { color: palette.burgundyDark, fontSize: 27, lineHeight: 29, fontWeight: '400' },
-  stepperButtonPressed: { backgroundColor: palette.burgundy, borderColor: palette.burgundy },
-  stepperButtonTextPressed: { color: palette.surface },
-  guestInputShell: { width: 128, borderWidth: 1, borderColor: palette.border, borderRadius: 8, backgroundColor: palette.surface },
+  stepperButtonPressed: {
+    backgroundColor: palette.background,
+    borderColor: 'rgba(255, 255, 255, 0.62)',
+    boxShadow: 'inset 3px 3px 6px rgba(166, 175, 183, 0.57), inset -3px -3px 6px rgba(255, 255, 255, 0.97)',
+    transform: [{ scale: 0.98 }],
+  },
+  stepperButtonTextPressed: { color: palette.burgundyDark },
+  guestInputShell: {
+    width: 128,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.62)',
+    borderRadius: 8,
+    backgroundColor: '#E9EDF0',
+    boxShadow: 'inset 4px 4px 8px rgba(160, 171, 180, 0.54), inset -4px -4px 8px rgba(255, 255, 255, 0.96)',
+  },
   guestInput: { minHeight: 54, color: palette.text, fontSize: 24, lineHeight: 32, fontWeight: '600', textAlign: 'center', paddingVertical: 10 },
   tipPanel: {
     position: 'absolute',
@@ -2617,33 +2678,29 @@ const styles = StyleSheet.create({
     zIndex: 50,
     borderTopWidth: 1,
     borderTopColor: 'rgba(226, 226, 226, 0.5)',
-    backgroundColor: 'rgba(249,249,249,0.96)',
+    backgroundColor: 'rgba(233, 237, 240, 0.96)',
     paddingHorizontal: 20,
     paddingVertical: 16,
   },
   footerContent: { width: '100%', maxWidth: 1200, alignSelf: 'center', alignItems: 'stretch', gap: 10 },
   continueButton: {
     width: '100%',
-    minHeight: 56,
+    minHeight: 52,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    borderRadius: 28,
+    borderRadius: 26,
     backgroundColor: palette.burgundyDark,
     paddingHorizontal: 32,
-    paddingVertical: 14,
-    shadowColor: palette.burgundyDark,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    elevation: 4,
+    paddingVertical: 12,
+    boxShadow: '4px 5px 10px rgba(43, 7, 18, 0.38), -3px -3px 7px rgba(255, 255, 255, 0.42), inset 1px 1px 1px rgba(255, 255, 255, 0.14)',
   },
   continueButtonWide: { alignSelf: 'flex-end', width: 200 },
   continueText: { color: palette.surface, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 1.2 },
   continueArrow: { color: palette.surface, fontSize: 18, lineHeight: 21 },
   continuePressed: { opacity: 0.9, transform: [{ scale: 0.98 }] },
-  continueDisabled: { opacity: 0.45, shadowOpacity: 0, elevation: 0 },
+  continueDisabled: { opacity: 0.45, boxShadow: 'none' },
   cardPressed: { opacity: 0.88, transform: [{ scale: 0.98 }] },
   pressed: { opacity: 0.58 },
 })

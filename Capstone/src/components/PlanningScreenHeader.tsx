@@ -2,14 +2,17 @@ import React from 'react'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native'
 import { Text } from './AppText'
+import { BrandIdentity } from './BrandIdentity'
 import { PlanningStepIndicator } from './PlanningStepIndicator'
 
 interface PlanningScreenHeaderProps {
+  brandTitle?: boolean
   currentStep: number
   label: string
   nextAccessibilityLabel?: string
   nextEnabled?: boolean
   onBack?: () => void
+  onBrandPress?: () => void
   onNext?: () => void | Promise<void>
   showProgress?: boolean
   showBackButton?: boolean
@@ -17,11 +20,13 @@ interface PlanningScreenHeaderProps {
 }
 
 export const PlanningScreenHeader: React.FC<PlanningScreenHeaderProps> = ({
+  brandTitle = false,
   currentStep,
   label,
   nextAccessibilityLabel = 'Continue to the next planning step',
   nextEnabled,
   onBack,
+  onBrandPress,
   onNext,
   showProgress = true,
   showBackButton,
@@ -65,7 +70,33 @@ export const PlanningScreenHeader: React.FC<PlanningScreenHeaderProps> = ({
             <View style={styles.navigationButton} />
           )}
 
-          <Text numberOfLines={1} style={styles.title}>{title.toUpperCase()}</Text>
+          {brandTitle ? (
+            onBrandPress ? (
+              <Pressable
+                accessibilityLabel="Go to homepage"
+                accessibilityRole="button"
+                hitSlop={8}
+                onPress={onBrandPress}
+                style={({ pressed }) => [styles.brandWordmarkButton, pressed && styles.pressed]}
+              >
+                <BrandIdentity
+                  inverse
+                  markSize={isWide ? 31 : 27}
+                  showName={false}
+                  variant="metallicWordmark"
+                />
+              </Pressable>
+            ) : (
+              <View style={styles.brandWordmarkButton}>
+                <BrandIdentity
+                  inverse
+                  markSize={isWide ? 31 : 27}
+                  showName={false}
+                  variant="metallicWordmark"
+                />
+              </View>
+            )
+          ) : <Text numberOfLines={1} style={styles.title}>{title.toUpperCase()}</Text>}
 
           <Pressable
             accessibilityLabel={nextAccessibilityLabel}
@@ -131,6 +162,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
     textAlign: 'center',
   },
+  brandWordmarkButton: { minWidth: 0, minHeight: 40, flex: 1, alignItems: 'center', justifyContent: 'center' },
   progressWrapper: {
     zIndex: 30,
     width: '100%',
