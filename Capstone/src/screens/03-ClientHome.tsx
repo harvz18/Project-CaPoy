@@ -286,7 +286,6 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
     )).slice(0, 8),
     [coordinators]
   )
-  const expertPlaceholderCount = Math.max(0, 6 - featuredCoordinators.length)
   const hasAdditionalBookingProgress = bookingProgressEvents.length > 3
   const draftEvent = draftEvents[0]
   const onOpenActiveEvent = () => {
@@ -823,11 +822,6 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
                 </View>
               </Pressable>
             ))}
-            {Array.from({ length: 5 }, (_, index) => (
-              <View key={`featured-business-placeholder-${index}`} style={[styles.featuredBusinessCard, styles.featuredBusinessPlaceholder, { width: isWide ? 180 : 150 }]}>
-                <NeumorphicRaised surfaceColor="#F8F6F3" />
-              </View>
-            ))}
             {featuredBusinesses.length === 0 ? (
               <View style={styles.featuredBusinessEmpty}><Text style={styles.emptyDraftTitle}>Featured businesses will appear here</Text></View>
             ) : null}
@@ -887,43 +881,41 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
               <MaterialIcons color="#57636C" name="chevron-right" size={23} />
             </Pressable>
           </View>
-          <ScrollView
-            contentContainerStyle={styles.expertCarousel}
-            decelerationRate="normal"
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={[styles.expertCarouselViewport, isWide && styles.carouselViewportWide]}
-          >
-            {featuredCoordinators.map((coordinator) => (
-              <Pressable
-                key={coordinator.id}
-                accessibilityLabel={`View coordinator ${coordinator.name}`}
-                accessibilityRole="button"
-                onPress={() => onSelectCoordinator?.(coordinator.id)}
-                style={({ pressed }) => [styles.expertCard, pressed && styles.expertCardPressed]}
-              >
-                <View style={styles.expertPortraitFrame}>
-                  {coordinator.imageUrl ? (
-                    <Image
-                      accessibilityLabel={coordinator.imageLabel}
-                      resizeMode="cover"
-                      source={{ uri: coordinator.imageUrl }}
-                      style={styles.expertPortrait}
-                    />
-                  ) : (
-                    <MaterialIcons color="#87929A" name="person" size={46} />
-                  )}
-                </View>
-                <Text numberOfLines={2} style={styles.expertName}>{coordinator.name}</Text>
-              </Pressable>
-            ))}
-            {Array.from({ length: expertPlaceholderCount }, (_, index) => (
-              <View key={`expert-placeholder-${index}`} accessible={false} style={styles.expertPlaceholderCard}>
-                <View style={[styles.expertPortraitFrame, styles.expertPortraitPlaceholder]} />
-                <View style={styles.expertNamePlaceholder} />
-              </View>
-            ))}
-          </ScrollView>
+          {featuredCoordinators.length > 0 ? (
+            <ScrollView
+              contentContainerStyle={styles.expertCarousel}
+              decelerationRate="normal"
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={[styles.expertCarouselViewport, isWide && styles.carouselViewportWide]}
+            >
+              {featuredCoordinators.map((coordinator) => (
+                <Pressable
+                  key={coordinator.id}
+                  accessibilityLabel={`View coordinator ${coordinator.name}`}
+                  accessibilityRole="button"
+                  onPress={() => onSelectCoordinator?.(coordinator.id)}
+                  style={({ pressed }) => [styles.expertCard, pressed && styles.expertCardPressed]}
+                >
+                  <View style={styles.expertPortraitFrame}>
+                    {coordinator.imageUrl ? (
+                      <Image
+                        accessibilityLabel={coordinator.imageLabel}
+                        resizeMode="cover"
+                        source={{ uri: coordinator.imageUrl }}
+                        style={styles.expertPortrait}
+                      />
+                    ) : (
+                      <MaterialIcons color="#87929A" name="person" size={46} />
+                    )}
+                  </View>
+                  <Text numberOfLines={2} style={styles.expertName}>{coordinator.name}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          ) : (
+            <Text style={styles.expertsEmpty}>Coordinators will appear here when available.</Text>
+          )}
         </View>
       </ScrollView>
 
@@ -1893,7 +1885,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#E9EDF0',
     boxShadow: '8px 8px 17px rgba(157, 169, 178, 0.48), -8px -8px 17px rgba(255, 255, 255, 0.9)',
   },
-  featuredBusinessPlaceholder: { backgroundColor: '#E9EDF0' },
   featuredBusinessImage: { width: '100%', height: '100%' },
   featuredBusinessShade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   featuredBusinessLogo: { position: 'absolute', top: 10, left: 10, width: 42, height: 42, overflow: 'hidden', borderRadius: 11, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.7)' },
@@ -1938,9 +1929,7 @@ const styles = StyleSheet.create({
   },
   expertPortrait: { width: '100%', height: '100%' },
   expertName: { alignSelf: 'stretch', color: '#3F2E33', fontSize: 13, fontWeight: '700', lineHeight: 18, marginTop: 9, textAlign: 'center' },
-  expertPlaceholderCard: { width: 106, alignItems: 'center' },
-  expertPortraitPlaceholder: { backgroundColor: 'rgba(233, 237, 240, 0.72)' },
-  expertNamePlaceholder: { width: 64, height: 12, borderRadius: 6, backgroundColor: 'rgba(248, 246, 243, 0.7)', marginTop: 12 },
+  expertsEmpty: { color: 'rgba(255, 247, 249, 0.9)', fontSize: 14, lineHeight: 20, marginTop: 18, paddingHorizontal: 4, paddingBottom: 16 },
   referenceVenueCard: {
     position: 'relative',
     overflow: 'hidden',
