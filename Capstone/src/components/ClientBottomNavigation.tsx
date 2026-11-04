@@ -378,13 +378,13 @@ export const ClientBottomNavigation: React.FC<ClientBottomNavigationProps> = ({
 
         <Animated.View style={[styles.logoButton, { transform: [{ scale: logoPressScale }, { rotate: logoRotate }] }]}>
           <Pressable
-            accessibilityHint={`${isExpanded ? 'Collapses client navigation' : 'Expands client navigation'}. Hold for 2 seconds to refresh the app.`}
+            accessibilityHint={`${isExpanded ? 'Collapses client navigation' : 'Expands client navigation'}. Hold for 1 second to refresh the app.`}
             accessibilityLabel={isExpanded
               ? 'Collapse navigation'
               : `Expand navigation${hasCollapsedNavigationUpdate ? ', with unread updates' : ''}`}
             accessibilityRole="button"
             accessibilityState={{ busy: isRefreshingApp }}
-            delayLongPress={2000}
+            delayLongPress={1000}
             onLongPress={handleLogoLongPress}
             onPress={handleLogoPress}
             onPressIn={handleLogoPressIn}

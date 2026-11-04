@@ -47,6 +47,7 @@ import {
   loadClientCatalogServices,
   ServiceCategoryOption,
 } from './lib/catalog'
+import { loadClientCatalogCache, saveClientCatalogCache } from './lib/client-catalog-cache'
 import {
   assignCoordinatorToEvent,
   activateBookingReplacement,
@@ -968,6 +969,7 @@ export const App: React.FC = () => {
   const [isClientNavigationVisible, setIsClientNavigationVisible] = React.useState(true)
   const [isClientHomeRefreshing, setIsClientHomeRefreshing] = React.useState(false)
   const [isClientAppRefreshing, setIsClientAppRefreshing] = React.useState(false)
+  const [homeRecommendationShuffleRevision, setHomeRecommendationShuffleRevision] = React.useState(0)
   const clientNavigationInteractionLockRef = React.useRef(0)
   const keepClientNavigationVisibleForToggle = React.useCallback(() => {
     clientNavigationInteractionLockRef.current = Date.now() + 320
@@ -1050,6 +1052,7 @@ export const App: React.FC = () => {
   const [isLoadingConversationMessages, setIsLoadingConversationMessages] = React.useState(false)
   const [isSendingMessage, setIsSendingMessage] = React.useState(false)
   const [catalogServices, setCatalogServices] = React.useState<CatalogService[]>([])
+  const catalogServicesRef = React.useRef<CatalogService[]>([])
   const [reviewedServices, setReviewedServices] = React.useState<ReviewedService[]>([])
   const [isBudgetMarketplacePricingLoading, setIsBudgetMarketplacePricingLoading] = React.useState(true)
   const [favoriteServiceIds, setFavoriteServiceIds] = React.useState<ReadonlySet<string>>(
@@ -1439,6 +1442,24 @@ export const App: React.FC = () => {
   // A previously assigned coordinator remains visible even if the client later
   // changes their preference, so no confirmed booking is hidden or removed.
   const coordinatorPlanningEnabled = eventDetails.wantsCoordinator === true || Boolean(assignedCoordinator)
+  const lowestAvailableCoordinatorPrice = React.useMemo(() => {
+    const prices = catalogServices.flatMap((service) => (
+      service.kind === 'coordinator'
+        && service.coordinatorAvailable !== false
+        && Number.isFinite(service.minPrice)
+        && service.minPrice > 0
+        ? [service.minPrice]
+        : []
+    ))
+    return prices.length > 0 ? Math.min(...prices) : undefined
+  }, [catalogServices])
+  const coordinatorBudgetFloor = coordinatorPlanningEnabled
+    ? assignedCoordinator?.price
+      ?? lowestAvailableCoordinatorPrice
+      ?? (Number.isFinite(coordinatorBudgetCost) && coordinatorBudgetCost > 0
+        ? coordinatorBudgetCost
+        : 0)
+    : 0
   const hasConfirmedExternalVenue = eventDetails.venueStatus === 'secured'
     && eventDetails.venueSource === 'external'
     && eventDetails.externalVenueConfirmed === true
@@ -2146,7 +2167,7 @@ export const App: React.FC = () => {
     () => configuredPlanningCategories.filter((category) => category.categoryId !== 'eventOrganizers'),
     [configuredPlanningCategories]
   )
-  const requiresCoordinatorSelection = eventDetails.wantsCoordinator === true && hasEventOrganizerBudget
+  const requiresCoordinatorSelection = eventDetails.wantsCoordinator === true
   const planningSelectionsComplete = (
     activeServicePlanningCategories.length > 0 || requiresCoordinatorSelection
   ) && activeServicePlanningCategories.every((category) =>
@@ -2369,18 +2390,48 @@ export const App: React.FC = () => {
 
   React.useEffect(() => {
     let isMounted = true
+    let hasAppliedLiveCatalog = false
+    let hasAppliedCachedCatalog = false
+    const cachedCatalogRequest = loadClientCatalogCache()
+
+    const applyCachedCatalog = (cachedCatalog: Awaited<ReturnType<typeof loadClientCatalogCache>>) => {
+      if (!isMounted || hasAppliedLiveCatalog || hasAppliedCachedCatalog || !cachedCatalog) return
+      hasAppliedCachedCatalog = true
+      catalogServicesRef.current = cachedCatalog.services
+      setCatalogServices(cachedCatalog.services)
+      setServiceCategories(cachedCatalog.categories)
+      setCurrentServiceId((current) => (
+        cachedCatalog.services.some((service) => service.id === current)
+          ? current
+          : cachedCatalog.services[0]?.id ?? ''
+      ))
+      setIsBudgetMarketplacePricingLoading(false)
+    }
+
+    // Render the last verified marketplace snapshot first. It is only a
+    // browsing optimization: the live fetch below always refreshes it, and
+    // booking RPCs remain the authority for availability and pricing.
+    void cachedCatalogRequest.then(applyCachedCatalog)
 
     Promise.all([loadClientCatalogServices(), fetchServiceCategories()]).then(
-      ([services, categories]) => {
+      async ([services, categories]) => {
+      const cachedCatalog = await cachedCatalogRequest
       if (!isMounted) {
         return
       }
+      if (!services.length && cachedCatalog) {
+        applyCachedCatalog(cachedCatalog)
+        return
+      }
 
+      hasAppliedLiveCatalog = true
+      catalogServicesRef.current = services
       setCatalogServices(services)
       setServiceCategories(categories)
       setCurrentServiceId((current) =>
         services.some((service) => service.id === current) ? current : services[0]?.id ?? ''
       )
+      void saveClientCatalogCache(services, categories)
       }
     ).finally(() => {
       if (isMounted) setIsBudgetMarketplacePricingLoading(false)
@@ -2390,6 +2441,10 @@ export const App: React.FC = () => {
       isMounted = false
     }
   }, [])
+
+  React.useEffect(() => {
+    catalogServicesRef.current = catalogServices
+  }, [catalogServices])
 
   const hydrateClientPlanningState = React.useCallback((
     planningState: ClientPlanningState,
@@ -2464,7 +2519,12 @@ export const App: React.FC = () => {
         fetchClientEventDrafts(),
       ])
 
-      setCatalogServices(services)
+      const resolvedServices = services.length ? services : catalogServicesRef.current
+      if (services.length) {
+        catalogServicesRef.current = services
+        setCatalogServices(services)
+        void saveClientCatalogCache(services, categories)
+      }
       clientBookingsRef.current = bookings
       setClientBookings(bookings)
       setSelectedBooking((current) => {
@@ -2474,7 +2534,7 @@ export const App: React.FC = () => {
         ) ?? current
       })
       setServiceCategories(categories)
-      hydrateClientPlanningState(planningState, services)
+      hydrateClientPlanningState(planningState, resolvedServices)
       setClientEventDrafts(eventDrafts)
 
       void Promise.all([
@@ -2526,7 +2586,12 @@ export const App: React.FC = () => {
       fetchMyReviewedServices(),
     ])
 
-    setCatalogServices(services)
+    const resolvedServices = services.length ? services : catalogServicesRef.current
+    if (services.length) {
+      catalogServicesRef.current = services
+      setCatalogServices(services)
+      void saveClientCatalogCache(services, categories)
+    }
     setReviewedServices(myReviewedServices)
     clientBookingsRef.current = bookings
     setClientBookings(bookings)
@@ -2552,7 +2617,7 @@ export const App: React.FC = () => {
     if (favorites.ok && favoriteStateRevisionAtStart === favoriteStateRevisionRef.current) {
       setFavoriteServiceIds(favorites.ids)
     }
-    hydrateClientPlanningState(planningState, services)
+    hydrateClientPlanningState(planningState, resolvedServices)
     setClientEventDrafts(eventDrafts)
     setClientSavedPlans(savedPlans)
 
@@ -2629,6 +2694,7 @@ export const App: React.FC = () => {
     setIsClientHomeRefreshing(true)
     try {
       await refreshLiveData()
+      setHomeRecommendationShuffleRevision((revision) => revision + 1)
     } catch (error) {
       const message = error instanceof Error ? error.message : ''
       setToastMessage(/network|fetch|offline|internet/i.test(message)
@@ -2650,6 +2716,7 @@ export const App: React.FC = () => {
 
     setIsClientAppRefreshing(true)
     void refreshLiveData()
+      .then(() => setHomeRecommendationShuffleRevision((revision) => revision + 1))
       .catch(() => setToastMessage('Unable to refresh right now. Please try again.'))
       .finally(() => setIsClientAppRefreshing(false))
   }, [
@@ -3865,6 +3932,12 @@ export const App: React.FC = () => {
 
   const handlePlanningStepPress = (step: number) => {
     if (step < 1 || step > maxPlanningStep) return
+
+    if (step >= 4 && requiresCoordinatorSelection && !assignedCoordinator) {
+      setToastMessage('Choose and book an event coordinator before continuing with the rest of your plan.')
+      openPlanningHub('forward', 'eventOrganizers')
+      return
+    }
 
     setServiceBrowseMode('planning')
 
@@ -5555,10 +5628,23 @@ export const App: React.FC = () => {
     return true
   }
 
-  const homeRecommendations = React.useMemo(
-    () => rankHomeRecommendations(catalogServices),
-    [catalogServices]
-  )
+  const homeRecommendations = React.useMemo(() => {
+    const rankedRecommendations = rankHomeRecommendations(catalogServices)
+    if (!homeRecommendationShuffleRevision || rankedRecommendations.length < 2) return rankedRecommendations
+
+    // Shuffle only after an explicit client refresh. The ranked set remains the
+    // same; this simply varies the order clients see from one refresh to the next.
+    const shuffledRecommendations = [...rankedRecommendations]
+    let randomState = homeRecommendationShuffleRevision >>> 0
+    for (let index = shuffledRecommendations.length - 1; index > 0; index -= 1) {
+      randomState = (Math.imul(randomState, 1664525) + 1013904223) >>> 0
+      const swapIndex = randomState % (index + 1)
+      const recommendationAtIndex = shuffledRecommendations[index]
+      shuffledRecommendations[index] = shuffledRecommendations[swapIndex]
+      shuffledRecommendations[swapIndex] = recommendationAtIndex
+    }
+    return shuffledRecommendations
+  }, [catalogServices, homeRecommendationShuffleRevision])
   const homeCoordinators = React.useMemo(
     () => catalogServices.filter((service) => service.kind === 'coordinator' && service.isMock !== true),
     [catalogServices]
@@ -6821,7 +6907,8 @@ export const App: React.FC = () => {
           >
             <BudgetAllocationScreen
               categoryMinimums={categoryBudgetMinimums}
-              coordinatorCost={coordinatorBudgetCost}
+              coordinatorCost={coordinatorBudgetFloor}
+              coordinatorRequired={eventDetails.wantsCoordinator === true}
               excludeVenue={hasConfirmedExternalVenue}
               includeCoordinator={coordinatorPlanningEnabled}
               initialAllocations={eligiblePlanningBudgetAllocations}
@@ -7019,6 +7106,12 @@ export const App: React.FC = () => {
               return true
             }}
             onContinueSelectedServices={() => {
+              if (requiresCoordinatorSelection && !assignedCoordinator) {
+                setSelectionCompletionAcknowledged(false)
+                setToastMessage('Choose and book an event coordinator before proceeding.')
+                openPlanningHub('forward', 'eventOrganizers')
+                return
+              }
               if (isModifyingSavedPlanServices) {
                 setScreen('instructionModule')
                 return

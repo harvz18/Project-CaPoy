@@ -55,6 +55,7 @@ export interface BudgetAllocationValue {
 interface BudgetAllocationScreenProps {
   categoryMinimums?: Partial<Record<BudgetPriority, CategoryBudgetMinimum>>
   coordinatorCost?: number
+  coordinatorRequired?: boolean
   excludeVenue?: boolean
   includeCoordinator?: boolean
   initialAllocations?: CategoryBudgetAllocation[]
@@ -76,6 +77,7 @@ const categoryOptions: ReadonlyArray<{
   icon: MaterialIconName
   label: string
 }> = [
+  { id: 'eventOrganizer', icon: 'event', label: 'Event Coordinator' },
   { id: 'venue', icon: 'location-on', label: 'Venue' },
   { id: 'catering', icon: 'restaurant', label: 'Catering' },
   { id: 'photoVideo', icon: 'camera-alt', label: 'Photography & Video' },
@@ -83,7 +85,6 @@ const categoryOptions: ReadonlyArray<{
   { id: 'soundLights', icon: 'volume-up', label: 'Sound & Lights' },
   { id: 'hostEmcee', icon: 'mic', label: 'Host / Emcee' },
   { id: 'gownRental', icon: 'checkroom', label: 'Attire & Gown Rental' },
-  { id: 'eventOrganizer', icon: 'event', label: 'Event Coordinator' },
 ]
 
 type AllocationMap = Record<BudgetPriority, number>
@@ -369,6 +370,7 @@ const AllocationSlider: React.FC<AllocationSliderProps> = ({
 export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
   categoryMinimums = {},
   coordinatorCost = 0,
+  coordinatorRequired = false,
   excludeVenue = false,
   includeCoordinator = true,
   initialAllocations = [],
@@ -458,6 +460,13 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
   React.useEffect(() => {
     setAllocations((current) => reserveCoordinatorAllocation(current, coordinatorMinimum))
   }, [coordinatorMinimum])
+
+  React.useEffect(() => {
+    if (!includeCoordinator || coordinatorMinimum <= 0) return
+    setExpandedCategories((current) => (
+      current.has('eventOrganizer') ? current : new Set(current).add('eventOrganizer')
+    ))
+  }, [coordinatorMinimum, includeCoordinator])
 
   React.useEffect(() => {
     if (!excludeVenue) return
@@ -707,7 +716,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
   }
 
   const removeBudget = () => {
-    if (coordinatorMinimum > 0) {
+    if (coordinatorRequired || coordinatorMinimum > 0) {
       setCategoryNotice('The event budget cannot be removed while a coordinator cost is committed.')
       return
     }
@@ -724,7 +733,12 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
     onBudgetChange?.(0)
   }
 
-  const canContinue = !isProcessing && !budgetTooLow && !allocationExceeded && !hasAllocationValidationErrors
+  const coordinatorPriceUnavailable = coordinatorRequired && coordinatorMinimum <= 0
+  const canContinue = !isProcessing
+    && !budgetTooLow
+    && !allocationExceeded
+    && !hasAllocationValidationErrors
+    && !coordinatorPriceUnavailable
 
   return (
     <KeyboardAvoidingView
@@ -830,6 +844,17 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
           </View>
         ) : null}
 
+        {coordinatorPriceUnavailable ? (
+          <View style={styles.errorBanner}>
+            <MaterialIcons color={palette.error} name="event-busy" size={20} />
+            <Text style={styles.errorText}>
+              {isMarketplacePricingLoading
+                ? 'Coordinator prices are loading. Please wait before continuing.'
+                : 'No bookable coordinator price is available for this event yet. Return to Step 1 to continue without a coordinator, or try again after refreshing.'}
+            </Text>
+          </View>
+        ) : null}
+
         {allocationExceeded ? (
           <View style={styles.errorBanner}>
             <MaterialIcons color={palette.error} name="error-outline" size={20} />
@@ -866,7 +891,9 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
               const selected = amount > 0 || locked
               const wasRemoved = Boolean(removedCategories[category.id])
               const expanded = expandedCategories.has(category.id)
-              const canRemove = !locked && !(category.id === 'eventOrganizer' && minimum > 0)
+              const canRemove = !locked && !(
+                category.id === 'eventOrganizer' && (minimum > 0 || coordinatorRequired)
+              )
               const canRequestCoordinatorRemoval =
                 category.id === 'eventOrganizer'
                 && minimum > 0
@@ -1042,7 +1069,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
 
       <View style={styles.footer}>
         <View style={styles.footerContent}>
-          {onSkip && coordinatorMinimum === 0 ? (
+          {onSkip && coordinatorMinimum === 0 && !coordinatorRequired ? (
             <Pressable
               accessibilityRole="button"
               disabled={isProcessing}
