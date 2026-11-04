@@ -291,7 +291,6 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
   const [timeMeridiem, setTimeMeridiem] = React.useState<Meridiem>(
     () => parseTimeParts(initialValue?.time ?? '').meridiem
   )
-  const [isMeridiemMenuOpen, setIsMeridiemMenuOpen] = React.useState(false)
   const [dateTimeError, setDateTimeError] = React.useState('')
   const [isEventNameFocused, setIsEventNameFocused] = React.useState(false)
   const [activePicker, setActivePicker] = React.useState<'calendar' | 'time' | null>(null)
@@ -381,14 +380,6 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
     setTimeInput(formattedTime)
     setDateTimeError('')
     setTime(parsedTime ? formatTime(parsedTime.hour, parsedTime.minute, timeMeridiem) : '')
-  }
-
-  const handleMeridiemChange = (nextMeridiem: Meridiem) => {
-    const parsedTime = parseManualTimeInput(timeInput)
-    setTimeMeridiem(nextMeridiem)
-    setIsMeridiemMenuOpen(false)
-    setDateTimeError('')
-    setTime(parsedTime ? formatTime(parsedTime.hour, parsedTime.minute, nextMeridiem) : '')
   }
 
   const handleDateChange = (nextDate: string) => {
@@ -722,7 +713,6 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                       keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
                       maxLength={10}
                       onChangeText={handleManualDateChange}
-                      onFocus={() => setIsMeridiemMenuOpen(false)}
                       placeholder="MM/DD/YYYY"
                       placeholderTextColor="#A3A4A4"
                       style={styles.dateTimeTextInput}
@@ -731,7 +721,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                   </View>
                 </View>
 
-                <View style={[styles.dateTimeField, isMeridiemMenuOpen && styles.dateTimeFieldMenuOpen]}>
+                <View style={styles.dateTimeField}>
                   <Text style={styles.sectionFieldLabel}>TIME</Text>
                   <View style={styles.iconInputShell}>
                     <Pressable
@@ -750,45 +740,11 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                       keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
                       maxLength={5}
                       onChangeText={handleManualTimeChange}
-                      onFocus={() => setIsMeridiemMenuOpen(false)}
                       placeholder="HH:MM"
                       placeholderTextColor="#A3A4A4"
                       style={styles.dateTimeTextInput}
                       value={timeInput}
                     />
-                    <View style={styles.meridiemSelector}>
-                      <Pressable
-                        accessibilityLabel={`Select AM or PM, currently ${timeMeridiem}`}
-                        accessibilityRole="button"
-                        accessibilityState={{ expanded: isMeridiemMenuOpen }}
-                        onPress={() => setIsMeridiemMenuOpen((open) => !open)}
-                        style={({ pressed }) => [styles.meridiemButton, pressed && styles.pressed]}
-                      >
-                        <Text style={styles.meridiemButtonText}>{timeMeridiem}</Text>
-                        <MaterialIcons color={palette.burgundy} name="keyboard-arrow-down" size={18} />
-                      </Pressable>
-                      {isMeridiemMenuOpen ? (
-                        <View style={styles.meridiemMenu}>
-                          {meridiemOptions.map((option) => (
-                            <Pressable
-                              key={option}
-                              accessibilityRole="button"
-                              accessibilityState={{ selected: option === timeMeridiem }}
-                              onPress={() => handleMeridiemChange(option)}
-                              style={({ pressed }) => [
-                                styles.meridiemOption,
-                                option === timeMeridiem && styles.meridiemOptionSelected,
-                                pressed && styles.pressed,
-                              ]}
-                            >
-                              <Text style={[styles.meridiemOptionText, option === timeMeridiem && styles.meridiemOptionTextSelected]}>
-                                {option}
-                              </Text>
-                            </Pressable>
-                          ))}
-                        </View>
-                      ) : null}
-                    </View>
                   </View>
                 </View>
               </View>
@@ -2076,7 +2032,6 @@ const styles = StyleSheet.create({
   dateTimeGridWide: { flexDirection: 'row' },
   dateTimeError: { color: '#BA1A1A', fontSize: 13, lineHeight: 19 },
   dateTimeField: { flex: 1, gap: 12 },
-  dateTimeFieldMenuOpen: { zIndex: 10 },
   timeGuidanceNotice: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -2120,39 +2075,6 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     outlineWidth: 0,
   },
-  meridiemSelector: { position: 'relative', zIndex: 20 },
-  meridiemButton: {
-    minWidth: 64,
-    minHeight: 36,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 2,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.68)',
-    borderRadius: 12,
-    backgroundColor: '#E9EDF0',
-    paddingHorizontal: 7,
-    boxShadow: '2px 2px 5px rgba(160, 171, 180, 0.46), -2px -2px 5px rgba(255, 255, 255, 0.92)',
-  },
-  meridiemButtonText: { color: palette.burgundy, fontSize: 12, lineHeight: 16, fontWeight: '800' },
-  meridiemMenu: {
-    position: 'absolute',
-    top: 42,
-    right: 0,
-    minWidth: 64,
-    gap: 2,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.68)',
-    borderRadius: 12,
-    backgroundColor: '#E9EDF0',
-    padding: 4,
-    boxShadow: '4px 4px 8px rgba(160, 171, 180, 0.52), -4px -4px 8px rgba(255, 255, 255, 0.96)',
-  },
-  meridiemOption: { minHeight: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 8, paddingHorizontal: 8 },
-  meridiemOptionSelected: { backgroundColor: 'rgba(107, 30, 46, 0.12)' },
-  meridiemOptionText: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: '700' },
-  meridiemOptionTextSelected: { color: palette.burgundy, fontWeight: '800' },
   venueStatusSection: {
     borderTopWidth: 1,
     borderTopColor: 'rgba(107, 30, 46, 0.16)',

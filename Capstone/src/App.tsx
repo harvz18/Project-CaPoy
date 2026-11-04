@@ -503,6 +503,9 @@ const clientPlanningResumeStorageKey = (userId: string) =>
 const clientLastScreenStorageKey = (userId: string) =>
   `multivent:client-last-screen:v1:${userId}`
 
+const PAYMONGO_RECONCILIATION_POLL_INTERVAL_MS = 2_000
+const PAYMONGO_RECONCILIATION_POLL_WINDOW_MS = 30_000
+
 const clientRestorableScreens = new Set<ClientRestorableScreen>([
   'budgetAllocation',
   'budgetTracker',
@@ -872,6 +875,8 @@ export const App: React.FC = () => {
   const budgetAutosaveChainRef = React.useRef(Promise.resolve())
   const budgetAutosaveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingBudgetAutosaveRef = React.useRef<BudgetAllocationValue | undefined>(undefined)
+  const clientEventDraftStartRequestRef = React.useRef<ReturnType<typeof createClientEventDraft> | null>(null)
+  const clientEventDraftStartFailedRef = React.useRef(false)
   const refreshLiveDataInFlightRef = React.useRef<Promise<ClientPlanningState> | null>(null)
   const clientBookingsRequestRef = React.useRef<ReturnType<typeof fetchClientBookings> | null>(null)
   // Keep the resolved role outside the render cycle so the first refresh
@@ -1017,6 +1022,10 @@ export const App: React.FC = () => {
   // hosted checkout can resume both the browser and the native app at once;
   // concurrent checks must never create duplicate local payment records.
   const pendingPaymentReconciliationRef = React.useRef<Promise<void> | null>(null)
+  const [paymentReconciliationPoll, setPaymentReconciliationPoll] = React.useState<{
+    eventId: string
+    revision: number
+  }>()
   const calculateServiceDetailsQuote = React.useCallback((value: {
     attendeeCount?: number
     menuItemIds?: string[]
@@ -1248,14 +1257,23 @@ export const App: React.FC = () => {
     serviceBrowseMode,
   ])
 
+  const waitForClientEventDraftStart = React.useCallback(async () => {
+    const request = clientEventDraftStartRequestRef.current
+    if (!request) return !clientEventDraftStartFailedRef.current
+
+    const result = await request
+    return result.ok
+  }, [])
+
   const enqueueEventAutosave = React.useCallback((value: EventCreationValue) => {
     eventAutosaveChainRef.current = eventAutosaveChainRef.current
       .catch(() => undefined)
       .then(async () => {
+        if (!await waitForClientEventDraftStart()) return
         await saveEventDraft(value, Math.max(1, maxPlanningStep))
       })
     return eventAutosaveChainRef.current
-  }, [maxPlanningStep])
+  }, [maxPlanningStep, waitForClientEventDraftStart])
 
   const queueEventAutosave = React.useCallback((value: EventCreationValue) => {
     pendingEventAutosaveRef.current = value
@@ -3863,6 +3881,11 @@ export const App: React.FC = () => {
   }
 
   const handleEventContinue = async (value: EventCreationValue, nextScreen: AppScreen) => {
+    if (!await waitForClientEventDraftStart()) {
+      setToastMessage('Your new event could not be started. Please return Home and try again.')
+      return
+    }
+
     // The explicit next-step save below is authoritative. Drop only a queued
     // duplicate autosave, while waiting for an earlier write already in flight.
     discardPendingEventAutosave()
@@ -4104,17 +4127,6 @@ export const App: React.FC = () => {
       return
     }
 
-    const {
-      data: { session },
-      error: sessionError,
-    } = await supabase.auth.getSession()
-
-    if (sessionError || !session?.user) {
-      setToastMessage('Your session expired. Sign in again with your client account.')
-      openLogin('roleSelection')
-      return
-    }
-
     const existingCategorySelection = changingServiceSelection ?? selectedServices.find((service) =>
       service.category.toLowerCase() === value.service.categoryName.toLowerCase()
         && service.id !== value.service.id
@@ -4149,6 +4161,122 @@ export const App: React.FC = () => {
         nextProviderName: value.service.providerName || 'New provider',
       })
       if (!confirmed) return
+    }
+
+    const isNewCategorySelection = !replacementBooking
+      && !changingServiceSelection
+      && !existingCategorySelection
+    if (isNewCategorySelection) {
+      const fallbackProviderPrice = value.service.pricingUnit === 'person' && value.attendeeCount > 0
+        ? value.service.providerMinPrice * value.attendeeCount
+        : value.service.providerMinPrice
+      const foodTastingPricePending = value.foodTastingPreference === true
+      const optimisticSelection: SelectedSummaryService = {
+        id: value.service.id,
+        category: value.service.categoryName.toUpperCase(),
+        commissionAmount: Math.round(
+          Math.max(0, value.estimatedTotal - fallbackProviderPrice) * 100
+        ) / 100,
+        commissionRate: value.service.commissionRate,
+        detail: foodTastingPricePending
+          ? `${value.attendeeCount} Guests - Food tasting request sent`
+          : value.venueOption
+            ? `${value.venueOption.name} Â· ${value.venueBookedHours} hours`
+            : value.cateringOption
+              ? `${value.cateringOption.name} Â· ${value.attendeeCount} Guests`
+              : value.attendeeCount > 0 ? `${value.attendeeCount} Guests` : value.service.detail,
+        imageLabel: value.service.imageLabel,
+        imageUrl: value.service.imageUrl,
+        includesCatering: Boolean(value.venueCateringPackageId),
+        name: value.service.name,
+        price: value.estimatedTotal,
+        pricePending: foodTastingPricePending,
+        providerPrice: fallbackProviderPrice,
+        status: foodTastingPricePending ? 'Requested' : 'Selected',
+      }
+      const nextSelectedServices = [...selectedServices, optimisticSelection]
+      const nextPlanningCategory = getNextPlanningServiceCategory(
+        new Set([
+          ...nextSelectedServices.map((service) => categoryNameToId(service.category)),
+          ...(nextSelectedServices.some((service) => service.includesCatering) ? ['catering' as const] : []),
+        ])
+      )
+
+      // Give immediate feedback and return the client to Choose Services. The
+      // server still validates the price, availability, and budget in the
+      // background; an unsuccessful write is removed again below.
+      setSelectedServices((current) => {
+        const existingIndex = current.findIndex((service) => (
+          service.id === optimisticSelection.id || service.category === optimisticSelection.category
+        ))
+        return existingIndex >= 0
+          ? current.map((service, index) => index === existingIndex ? optimisticSelection : service)
+          : [...current, optimisticSelection]
+      })
+      setMaxPlanningStep((current) => Math.min(current, 4))
+      setToastMessage('Service Added. Proceed with the next category.')
+      openPlanningHub(undefined, nextPlanningCategory ?? categoryNameToId(optimisticSelection.category))
+
+      void (async () => {
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession()
+        if (sessionError || !session?.user) {
+          setSelectedServices((current) => current.filter((service) => service.id !== optimisticSelection.id))
+          setToastMessage('Your session expired. The service was not added. Sign in again with your client account.')
+          openLogin('roleSelection')
+          return
+        }
+
+        let result = await saveServiceSelection({
+          ...value,
+          replacementBookingId: undefined,
+        })
+        if (!result.ok && result.message?.includes('Category allocations cannot exceed')) {
+          await refreshLiveData()
+          result = await saveServiceSelection({
+            ...value,
+            replacementBookingId: undefined,
+          })
+        }
+
+        if (!result.ok) {
+          setSelectedServices((current) => current.filter((service) => service.id !== optimisticSelection.id))
+          const message = result.message?.includes('remaining event budget')
+            ? 'This service could not be added because it exceeds the budget available for its category.'
+            : result.message
+          setToastMessage(message ?? 'Unable to add the service. Your selection was restored.')
+          await refreshLiveData()
+          return
+        }
+
+        if (directCateringFallbackServiceId === value.service.id) {
+          setDirectCateringFallbackServiceId('')
+        }
+        try {
+          await refreshLiveData()
+          await recheckSavedPlan()
+        } catch {
+          // The selection is already committed. A later refresh failure must
+          // not roll back a successful server-side save.
+        }
+      })().catch(() => {
+        setSelectedServices((current) => current.filter((service) => service.id !== optimisticSelection.id))
+        setToastMessage('Unable to add the service. Your selection was restored.')
+      })
+      return
+    }
+
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession()
+
+    if (sessionError || !session?.user) {
+      setToastMessage('Your session expired. Sign in again with your client account.')
+      openLogin('roleSelection')
+      return
     }
 
     let result = await saveServiceSelection({
@@ -5065,15 +5193,15 @@ export const App: React.FC = () => {
     return result.assets.map((asset) => asset.uri).filter(Boolean)
   }
 
-  const startNewClientEvent = async () => {
-    clearClientPlanningResume()
-    const result = await createClientEventDraft()
-    if (!result.ok) {
-      setToastMessage(result.message ?? 'Unable to start a new event right now.')
-      return false
-    }
+  const startNewClientEvent = () => {
+    // Navigate into Step 1 immediately. The new draft is created in parallel,
+    // and the existing save gates below keep the client from persisting event
+    // details until that server-side draft is ready.
+    if (clientEventDraftStartRequestRef.current) return true
 
+    clearClientPlanningResume()
     eventDetailsDirtyRef.current = false
+    clientEventDraftStartFailedRef.current = false
     setEventDetails({ ...DEFAULT_EVENT })
     setTotalBudget(DEFAULT_BUDGET)
     setBudgetPriorities([])
@@ -5088,13 +5216,30 @@ export const App: React.FC = () => {
     setSavedPlanReview(undefined)
     setMaxPlanningStep(1)
     setServiceBrowseMode('planning')
-    persistClientPlanningResume({
-      eventDetails: { ...DEFAULT_EVENT },
-      eventId: result.eventId,
-      screen: 'eventCreation',
-    })
     openEventCreation()
-    void refreshLiveData().catch(() => undefined)
+
+    const request = createClientEventDraft()
+    clientEventDraftStartRequestRef.current = request
+    void request.then((result) => {
+      if (!result.ok) {
+        clientEventDraftStartFailedRef.current = true
+        setToastMessage(result.message ?? 'Unable to start a new event right now.')
+        if (screenRef.current === 'eventCreation') setScreen('clientHome')
+        return
+      }
+
+      persistClientPlanningResume({
+        eventDetails: { ...DEFAULT_EVENT },
+        eventId: result.eventId,
+        screen: 'eventCreation',
+      })
+      void refreshLiveData().catch(() => undefined)
+    }).finally(() => {
+      if (clientEventDraftStartRequestRef.current === request) {
+        clientEventDraftStartRequestRef.current = null
+      }
+    })
+
     return true
   }
 
@@ -5341,6 +5486,70 @@ export const App: React.FC = () => {
     selectedBooking?.eventId,
   ])
 
+  // PayMongo can publish a completed checkout a short moment after its hosted
+  // page returns. Reconcile briefly during that window so clients do not need
+  // to pull-to-refresh or reopen Event Details. The server-side reconciliation
+  // and signed webhook remain the authorities for recording payment.
+  React.useEffect(() => {
+    const eventId = selectedBooking?.eventId
+    if (
+      screen !== 'bookingDetails'
+      || !eventId
+      || bookingPaymentQuote?.eventId !== eventId
+      || bookingPaymentQuote.paymentState !== 'payment_initiated'
+      || paymentReconciliationPoll?.eventId !== eventId
+    ) return undefined
+
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const deadline = Date.now() + PAYMONGO_RECONCILIATION_POLL_WINDOW_MS
+
+    const stop = () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+      timer = undefined
+    }
+    const scheduleNext = () => {
+      if (cancelled || timer || Date.now() >= deadline) return
+      timer = setTimeout(() => {
+        timer = undefined
+        void poll()
+      }, PAYMONGO_RECONCILIATION_POLL_INTERVAL_MS)
+    }
+    const poll = async () => {
+      if (cancelled || Date.now() >= deadline) return
+      await reconcilePendingBookingPayment(eventId, true)
+      if (!cancelled) scheduleNext()
+    }
+
+    const appStateSubscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState !== 'active') stop()
+    })
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') stop()
+    }
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange)
+    }
+
+    scheduleNext()
+    return () => {
+      stop()
+      appStateSubscription.remove()
+      if (Platform.OS === 'web' && typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange)
+      }
+    }
+  }, [
+    bookingPaymentQuote?.eventId,
+    bookingPaymentQuote?.paymentState,
+    paymentReconciliationPoll?.eventId,
+    paymentReconciliationPoll?.revision,
+    reconcilePendingBookingPayment,
+    screen,
+    selectedBooking?.eventId,
+  ])
+
   React.useEffect(() => {
     if (!authenticatedUserId) return undefined
 
@@ -5480,6 +5689,13 @@ export const App: React.FC = () => {
       setScreen('bookingDetails')
       setToastMessage('Complete payment in PayMongo. Your booking updates only after PayMongo verifies it.')
       await WebBrowser.openBrowserAsync(result.checkoutUrl)
+      // Start the short retry window only after PayMongo returns control to
+      // MULTIVENT. Opening hosted checkout backgrounds native apps, so an
+      // earlier timer would be stopped before it could be useful.
+      setPaymentReconciliationPoll((current) => ({
+        eventId,
+        revision: (current?.revision ?? 0) + 1,
+      }))
       const reconciliation = await reconcileMyPaymongoCheckoutV16(eventId)
       const reconciledQuote = await loadBookingPaymentQuote(eventId)
       if (reconciliation.verified || reconciledQuote?.paymentState === 'paid_or_verified') {

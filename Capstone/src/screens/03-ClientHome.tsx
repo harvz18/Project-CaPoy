@@ -91,13 +91,18 @@ const WORDMARK_EXIT_END = 148
 const HEADER_PLAN_FADE_START = 164
 const HEADER_PLAN_FADE_END = 252
 
-const ADVERTISEMENTS = [
-  { colors: ['#7B1E37', '#C65B76'] as const, id: 'ad-1' },
-  { colors: ['#2B5268', '#6097B1'] as const, id: 'ad-2' },
-  { colors: ['#76512E', '#C49A66'] as const, id: 'ad-3' },
-  { colors: ['#4A3D76', '#9382C1'] as const, id: 'ad-4' },
-  { colors: ['#2E6258', '#6EB19E'] as const, id: 'ad-5' },
-] as const
+type Advertisement =
+  | { id: string; kind: 'video' }
+  | { colors: readonly [string, string]; id: string; kind: 'gradient' }
+
+const ADVERTISEMENTS: readonly Advertisement[] = [
+  { id: 'wedding-video', kind: 'video' },
+  { colors: ['#7B1E37', '#C65B76'], id: 'ad-1', kind: 'gradient' },
+  { colors: ['#2B5268', '#6097B1'], id: 'ad-2', kind: 'gradient' },
+  { colors: ['#76512E', '#C49A66'], id: 'ad-3', kind: 'gradient' },
+  { colors: ['#4A3D76', '#9382C1'], id: 'ad-4', kind: 'gradient' },
+  { colors: ['#2E6258', '#6EB19E'], id: 'ad-5', kind: 'gradient' },
+]
 
 type QuickAccessId = (typeof QUICK_ACCESS_ITEMS)[number]['id']
 
@@ -247,6 +252,11 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
     player.muted = true
     player.play()
   })
+  const weddingAdvertisementPlayer = useVideoPlayer(weddingHeroVideo, (player) => {
+    player.loop = true
+    player.muted = true
+    player.play()
+  })
   const [isDraftPromptVisible, setIsDraftPromptVisible] = React.useState(false)
   const [isStartingNewEvent, setIsStartingNewEvent] = React.useState(false)
   const [showAllBookingProgress, setShowAllBookingProgress] = React.useState(false)
@@ -257,6 +267,7 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   const [activeAdvertisementIndex, setActiveAdvertisementIndex] = React.useState(0)
   const [isHeroPlanCtaInteractive, setIsHeroPlanCtaInteractive] = React.useState(true)
   const [isHeaderPlanCtaInteractive, setIsHeaderPlanCtaInteractive] = React.useState(false)
+  const activeAdvertisement = ADVERTISEMENTS[activeAdvertisementIndex]
   const visibleBookingProgress = showAllBookingProgress
     ? bookingProgressEvents
     : bookingProgressEvents.slice(0, 3)
@@ -830,22 +841,49 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
 
         <View style={styles.advertisementSection}>
           <View
-            {...advertisementPanResponder.panHandlers}
             accessibilityHint="Swipe left or right to browse advertisements"
             accessibilityLabel={`Advertisement ${activeAdvertisementIndex + 1} of ${ADVERTISEMENTS.length}`}
             accessibilityRole="adjustable"
             style={styles.advertisementCardWrap}
           >
             <Animated.View style={[styles.advertisementFadeLayer, { opacity: advertisementFade }]}>
-              <LinearGradient
-                colors={ADVERTISEMENTS[activeAdvertisementIndex].colors}
-                end={{ x: 1, y: 1 }}
-                style={styles.advertisementCard}
-                start={{ x: 0, y: 0 }}
-              >
-                <Text style={styles.advertisementText}>ADS HERE</Text>
-              </LinearGradient>
+              <View style={styles.advertisementCard}>
+                <VideoView
+                  contentFit="cover"
+                  nativeControls={false}
+                  player={weddingAdvertisementPlayer}
+                  pointerEvents="none"
+                  surfaceType="textureView"
+                  style={[
+                    styles.advertisementVideo,
+                    activeAdvertisement.kind !== 'video' && styles.advertisementVideoHidden,
+                  ]}
+                />
+                {activeAdvertisement.kind === 'video' ? (
+                  <LinearGradient
+                    colors={['rgba(24, 4, 10, 0.14)', 'rgba(24, 4, 10, 0.42)']}
+                    end={{ x: 0, y: 1 }}
+                    pointerEvents="none"
+                    start={{ x: 0, y: 0 }}
+                    style={styles.advertisementVideoShade}
+                  />
+                ) : (
+                  <LinearGradient
+                    colors={activeAdvertisement.colors}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.advertisementGradient}
+                    start={{ x: 0, y: 0 }}
+                  >
+                    <Text style={styles.advertisementText}>ADS HERE</Text>
+                  </LinearGradient>
+                )}
+              </View>
             </Animated.View>
+            <View
+              accessible={false}
+              {...advertisementPanResponder.panHandlers}
+              style={styles.advertisementGestureOverlay}
+            />
           </View>
           <View style={styles.advertisementIndicators}>
             {ADVERTISEMENTS.map((advertisement, index) => (
@@ -1901,6 +1939,11 @@ const styles = StyleSheet.create({
   },
   advertisementFadeLayer: { overflow: 'hidden', borderRadius: 27 },
   advertisementCard: { height: 168, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderRadius: 27 },
+  advertisementGestureOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+  advertisementGradient: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center' },
+  advertisementVideo: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+  advertisementVideoHidden: { opacity: 0 },
+  advertisementVideoShade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   advertisementText: { color: '#FFFFFF', fontFamily: 'Inter_900Black', fontSize: 22, letterSpacing: 1.4 },
   advertisementIndicators: { flexDirection: 'row', alignSelf: 'center', gap: 6, marginTop: 10 },
   advertisementIndicator: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#D8CECC' },

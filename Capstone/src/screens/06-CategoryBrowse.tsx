@@ -2011,8 +2011,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                         }}
                         style={({ pressed }) => [styles.reviewChangeButton, pressed && styles.pressed]}
                       >
-                        <MaterialCommunityIcons color={palette.primaryContainer} name="swap-horizontal" size={17} />
-                        <Text style={styles.reviewChangeButtonText}>Change Service</Text>
+                        <MaterialCommunityIcons color={palette.primaryContainer} name="swap-horizontal" size={18} />
                       </Pressable>
                       <Pressable
                         accessibilityLabel={`Remove ${service.name} from selected services`}
@@ -2531,17 +2530,13 @@ const styles = StyleSheet.create({
   },
   reviewServiceActions: { alignItems: 'flex-end', gap: 8 },
   reviewChangeButton: {
-    minHeight: 32,
-    flexDirection: 'row',
+    width: 32,
+    height: 32,
     alignItems: 'center',
-    gap: 4,
-    borderWidth: 1,
-    borderColor: palette.outlineVariant,
+    justifyContent: 'center',
     borderRadius: 16,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 9,
+    backgroundColor: '#F8EDEF',
   },
-  reviewChangeButtonText: { color: palette.primaryContainer, fontSize: 9, lineHeight: 13, fontWeight: '800' },
   reviewRemoveButtonDisabled: {
     opacity: 0.55,
   },
