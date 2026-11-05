@@ -7,9 +7,7 @@ import { StatusBar } from 'expo-status-bar'
 import { BlurTargetView } from 'expo-blur'
 import * as WebBrowser from 'expo-web-browser'
 import * as ImagePicker from 'expo-image-picker'
-import { loadAsync, useFonts } from 'expo-font'
-import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular'
-import { Inter_700Bold } from '@expo-google-fonts/inter/700Bold'
+import { loadAsync } from 'expo-font'
 
 import { supabase } from './lib/supabase'
 import { fetchFavoriteServiceIds, toggleFavoriteService } from './lib/favorites'
@@ -919,28 +917,55 @@ const outcomeMessageForCompletionPayment = (
 }
 
 export const App: React.FC = () => {
-  useFonts({
-    Inter_400Regular,
-    Inter_700Bold,
-  })
-  React.useEffect(() => {
-    const deferredFontTimer = setTimeout(() => {
-      void Promise.all([
-        import('@expo-google-fonts/inter/500Medium'),
-        import('@expo-google-fonts/inter/600SemiBold'),
-        import('@expo-google-fonts/inter/900Black'),
-      ]).then(([medium, semiBold, black]) => loadAsync({
-        Inter_500Medium: medium.Inter_500Medium,
-        Inter_600SemiBold: semiBold.Inter_600SemiBold,
-        Inter_900Black: black.Inter_900Black,
-      })).catch(() => {
-        // The existing font weights and platform fallbacks keep the app usable
-        // if a nonessential deferred font cannot be loaded.
-      })
-    }, 2500)
+  const deferredFontsPromiseRef = React.useRef<Promise<void> | null>(null)
+  const loadDeferredFonts = React.useCallback(() => {
+    if (deferredFontsPromiseRef.current) return deferredFontsPromiseRef.current
 
-    return () => clearTimeout(deferredFontTimer)
+    const deferredFonts = Promise.all([
+      import('@expo-google-fonts/inter/400Regular'),
+      import('@expo-google-fonts/inter/500Medium'),
+      import('@expo-google-fonts/inter/600SemiBold'),
+      import('@expo-google-fonts/inter/700Bold'),
+      import('@expo-google-fonts/inter/900Black'),
+    ]).then(([regular, medium, semiBold, bold, black]) => loadAsync({
+      Inter_400Regular: regular.Inter_400Regular,
+      Inter_500Medium: medium.Inter_500Medium,
+      Inter_600SemiBold: semiBold.Inter_600SemiBold,
+      Inter_700Bold: bold.Inter_700Bold,
+      Inter_900Black: black.Inter_900Black,
+    }))
+    deferredFontsPromiseRef.current = deferredFonts
+    void deferredFonts.catch(() => {
+      // Platform font fallbacks retain a fully usable interface when an
+      // optional deferred web font is unavailable.
+    })
+    return deferredFonts
   }, [])
+
+  React.useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') {
+      const nativeFontTimer = setTimeout(() => {
+        void loadDeferredFonts()
+      }, 750)
+      return () => clearTimeout(nativeFontTimer)
+    }
+
+    let hasStartedFontLoading = false
+    const startFontLoading = () => {
+      if (hasStartedFontLoading) return
+      hasStartedFontLoading = true
+      window.removeEventListener('pointerdown', startFontLoading)
+      window.removeEventListener('keydown', startFontLoading)
+      void loadDeferredFonts()
+    }
+    window.addEventListener('pointerdown', startFontLoading, { passive: true })
+    window.addEventListener('keydown', startFontLoading)
+
+    return () => {
+      window.removeEventListener('pointerdown', startFontLoading)
+      window.removeEventListener('keydown', startFontLoading)
+    }
+  }, [loadDeferredFonts])
   const { height, width } = useWindowDimensions()
   const [screen, commitScreen] = React.useState<AppScreen>('onboarding')
   const [isAuthRestoring, setIsAuthRestoring] = React.useState(Boolean(supabase))
@@ -2491,6 +2516,8 @@ export const App: React.FC = () => {
     : []
 
   React.useEffect(() => {
+    if (!authenticatedUserId) return undefined
+
     let isMounted = true
     let hasAppliedLiveCatalog = false
     let hasAppliedCachedCatalog = false
@@ -2542,7 +2569,7 @@ export const App: React.FC = () => {
     return () => {
       isMounted = false
     }
-  }, [])
+  }, [authenticatedUserId])
 
   React.useEffect(() => {
     catalogServicesRef.current = catalogServices
