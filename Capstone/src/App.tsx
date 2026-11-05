@@ -920,7 +920,20 @@ const outcomeMessageForCompletionPayment = (
     : 'Provider-confirmed external payment recorded. The remaining balance is still outstanding.'
 }
 
-export const App: React.FC = () => {
+type AppProps = {
+  /**
+   * The lightweight bootstrap has already established that this visitor has
+   * no saved session, so the full workspace can begin at role selection
+   * without briefly replacing it with the session restore screen.
+   */
+  initialScreen?: AppScreen
+  skipInitialAuthRestore?: boolean
+}
+
+export const App: React.FC<AppProps> = ({
+  initialScreen = 'onboarding',
+  skipInitialAuthRestore = false,
+}) => {
   const deferredFontsPromiseRef = React.useRef<Promise<void> | null>(null)
   const loadDeferredFonts = React.useCallback(() => {
     if (deferredFontsPromiseRef.current) return deferredFontsPromiseRef.current
@@ -971,14 +984,22 @@ export const App: React.FC = () => {
     }
   }, [loadDeferredFonts])
   const { height, width } = useWindowDimensions()
-  const [screen, commitScreen] = React.useState<AppScreen>('onboarding')
-  const [isAuthRestoring, setIsAuthRestoring] = React.useState(Boolean(supabase))
+  const [screen, commitScreen] = React.useState<AppScreen>(initialScreen)
+  const [isAuthRestoring, setIsAuthRestoring] = React.useState(
+    Boolean(supabase) && !skipInitialAuthRestore
+  )
   const [authenticatedUserId, setAuthenticatedUserId] = React.useState('')
   const [isScreenTransitioning, setIsScreenTransitioning] = React.useState(false)
   const screenTransitionProgress = React.useRef(new Animated.Value(1)).current
-  const screenRef = React.useRef<AppScreen>('onboarding')
+  const screenRef = React.useRef<AppScreen>(initialScreen)
   const screenHistoryRef = React.useRef<AppScreen[]>(['onboarding'])
-  const previousScreenRef = React.useRef<AppScreen>('onboarding')
+  // Preserve the established default navigation contract while allowing the
+  // anonymous bootstrap to begin directly at role selection after its own
+  // onboarding experience has completed.
+  if (initialScreen !== 'onboarding' && screenHistoryRef.current[0] === 'onboarding') {
+    screenHistoryRef.current = [initialScreen]
+  }
+  const previousScreenRef = React.useRef<AppScreen>(initialScreen)
   const navigationLockedRef = React.useRef(false)
   const screenTransitionAnimation = React.useRef<Animated.CompositeAnimation | null>(null)
   const forgotPasswordBlurTargetRef = React.useRef<React.ComponentRef<typeof View>>(null)
