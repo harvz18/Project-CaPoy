@@ -1,9 +1,11 @@
+import Feather from "@expo/vector-icons/Feather";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AnimatedBottomNav } from "../../src/components/AnimatedBottomNav";
 import { useApp } from "../../src/context/AppContext";
+import { useTasklinkBack } from "../../src/hooks/useTasklinkBack";
 import { ChatMessage } from "../../src/types";
 
 const palette = {
@@ -28,6 +30,7 @@ const quickReplies = ["I'm on my way", "I've arrived", "Stuck in traffic"];
 export default function ChatScreen() {
   const { id, recipientId } = useLocalSearchParams<{ id: string; recipientId?: string }>();
   const router = useRouter();
+  const goBack = useTasklinkBack();
   const insets = useSafeAreaInsets();
   const { currentUser, getTaskMessages, getUserById, loadOlderChatMessages, markMessagesRead, sendMessage, tasks } = useApp();
   const [message, setMessage] = useState("");
@@ -80,8 +83,8 @@ export default function ChatScreen() {
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Pressable accessibilityLabel="Go back" accessibilityRole="button" onPress={() => router.back()} style={styles.iconButton}>
-            <Text style={styles.menuText}>Back</Text>
+          <Pressable accessibilityLabel="Go back" accessibilityRole="button" onPress={goBack} style={styles.iconButton}>
+            <Feather accessibilityElementsHidden color={palette.primary} name="arrow-left" size={22} />
           </Pressable>
           <Text style={styles.brand}>TASKLINK</Text>
         </View>

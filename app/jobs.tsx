@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AnimatedBottomNav } from "../src/components/AnimatedBottomNav";
@@ -8,7 +8,7 @@ import { StatusBadge } from "../src/components/StatusBadge";
 import { useApp } from "../src/context/AppContext";
 import { MatchResult, rankTasksForWorker } from "../src/domain/matching";
 import { filterAndSortRankedJobs, getAvailableJobs, getJobCategories, JobSort } from "../src/domain/jobDiscovery";
-import { formatTaskDuration, formatTaskPrice, formatTaskSchedule } from "../src/domain/taskMarketplace";
+import { formatRequiredCapabilities, formatTaskDuration, formatTaskPrice, formatTaskSchedule } from "../src/domain/taskMarketplace";
 import { captureForegroundLocation } from "../src/services/locationService";
 import { Task } from "../src/types";
 import { formatDistance, getDiscoveryLocationIssue } from "../src/utils/location";
@@ -34,6 +34,7 @@ const sortOptions: Array<{ label: string; value: JobSort }> = [
   { label: "Newest", value: "newest" },
   { label: "Highest pay", value: "highest-pay" }
 ];
+const JOB_PAGE_SIZE = 10;
 
 export default function JobsScreen() {
   const router = useRouter();
@@ -45,6 +46,7 @@ export default function JobsScreen() {
   const [locationMessage, setLocationMessage] = useState("");
   const [actionMessage, setActionMessage] = useState("");
   const [applicationsExpanded, setApplicationsExpanded] = useState(false);
+  const [visibleJobCount, setVisibleJobCount] = useState(JOB_PAGE_SIZE);
   const postedTasks = tasks.filter((task) => task.status === "Finding Workers" || task.status === "Applied");
   const availableTasks = getAvailableJobs(postedTasks, currentUser?.id ?? "");
   const appliedTasks = tasks.filter(
@@ -58,7 +60,12 @@ export default function JobsScreen() {
   const rankedJobs = currentUser
     ? filterAndSortRankedJobs(rankTasksForWorker(availableTasks, currentUser), { category: activeFilter, query, sort })
     : [];
+  const visibleJobs = rankedJobs.slice(0, visibleJobCount);
   const discoveryLocationIssue = getDiscoveryLocationIssue(currentUser);
+
+  useEffect(() => {
+    setVisibleJobCount(JOB_PAGE_SIZE);
+  }, [activeFilter, query, sort]);
 
   async function handleQuickApply(task: Task) {
     try {
@@ -185,7 +192,7 @@ export default function JobsScreen() {
 
         <View style={styles.jobGrid}>
           {rankedJobs.length ? (
-            rankedJobs.map(({ task, match }) => (
+            visibleJobs.map(({ task, match }) => (
               <JobCard
                 key={task.id}
                 task={task}
@@ -204,6 +211,11 @@ export default function JobsScreen() {
             </View>
           )}
         </View>
+        {rankedJobs.length > visibleJobs.length ? (
+          <Pressable accessibilityRole="button" onPress={() => setVisibleJobCount((count) => count + JOB_PAGE_SIZE)} style={styles.loadMoreButton}>
+            <Text style={styles.loadMoreText}>Load more jobs ({visibleJobs.length} of {rankedJobs.length})</Text>
+          </Pressable>
+        ) : rankedJobs.length > JOB_PAGE_SIZE ? <Text style={styles.listCount}>Showing all {rankedJobs.length} matching jobs</Text> : null}
         {actionMessage ? <Text accessibilityRole="alert" style={styles.errorMessage}>{actionMessage}</Text> : null}
         {error ? <Text style={styles.locationMessage}>{error}</Text> : null}
       </ScrollView>
@@ -249,7 +261,7 @@ function JobCard({
       </View>
       <View style={styles.jobInfoRow}>
         <Text style={styles.jobInfo}>{formatTaskDuration(task)}</Text>
-        <Text style={styles.jobInfo}>{task.requiredCapability ?? task.category}</Text>
+        <Text style={styles.jobInfo}>{formatRequiredCapabilities(task)}</Text>
       </View>
       <View style={styles.actionRow}>
         <Pressable accessibilityRole="button" onPress={onOpen} style={styles.detailsButton}>
@@ -350,6 +362,9 @@ const styles = StyleSheet.create({
   liveBadge: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: "#EAF8F1" },
   liveBadgeText: { color: "#0B7A52", fontSize: 12, fontWeight: "900" },
   jobGrid: { paddingHorizontal: 16, gap: 12 },
+  loadMoreButton: { minHeight: 46, marginHorizontal: 16, marginTop: 14, borderRadius: 10, borderWidth: 1, borderColor: palette.primary, alignItems: "center", justifyContent: "center", backgroundColor: palette.surface },
+  loadMoreText: { color: palette.primary, fontSize: 14, fontWeight: "900" },
+  listCount: { color: palette.muted, fontSize: 12, fontWeight: "700", textAlign: "center", paddingTop: 14 },
   jobCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, elevation: 2, gap: 12 },
   urgentBadge: { position: "absolute", left: 16, top: 16, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: palette.secondaryContainer },
   urgentText: { color: "#684000", fontSize: 12, lineHeight: 16, fontWeight: "900" },

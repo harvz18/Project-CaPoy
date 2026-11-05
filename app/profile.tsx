@@ -1,3 +1,4 @@
+import Feather from "@expo/vector-icons/Feather";
 import { Href, useRouter } from "expo-router";
 import { useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
@@ -14,6 +15,7 @@ import { captureForegroundLocation } from "../src/services/locationService";
 import { pickAndUploadPrivateDocument, pickAndUploadProfilePhoto } from "../src/services/fileUploadService";
 import { submitVerificationRequest } from "../src/services/verificationService";
 import { parseCoordinate } from "../src/utils/location";
+import { AddressDetails, formatAddressDetails } from "../src/utils/address";
 
 const palette = {
   background: "#F7FAF8",
@@ -51,6 +53,7 @@ export default function ProfileScreen() {
   const [fullName, setFullName] = useState(currentUser?.fullName ?? "");
   const [mobileNumber, setMobileNumber] = useState(currentUser?.mobileNumber ?? "");
   const [address, setAddress] = useState(currentUser?.address ?? "");
+  const [addressDetails, setAddressDetails] = useState<AddressDetails>({});
   const [bio, setBio] = useState(
     currentUser?.role === "client"
       ? currentUser?.businessName ?? ""
@@ -111,9 +114,10 @@ export default function ProfileScreen() {
 
   async function handleSave() {
     try {
+      const detailedAddress = formatAddressDetails(addressDetails);
       await updateProfile({
         fullName: fullNameLocked ? undefined : fullName,
-        address,
+        address: detailedAddress || address,
         skills: currentUser?.role === "worker" ? skills : undefined,
         capabilities: currentUser?.role === "worker" ? skills : undefined,
         profilePhotoUrl: currentUser?.role === "worker" ? profilePhotoUrl : undefined,
@@ -212,6 +216,10 @@ export default function ProfileScreen() {
     setLocationMessage("Location pin updated. Save changes to keep it.");
   }
 
+  function updateAddressDetail(field: keyof AddressDetails, value: string) {
+    setAddressDetails((current) => ({ ...current, [field]: value }));
+  }
+
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <View style={styles.header}>
@@ -270,7 +278,20 @@ export default function ProfileScreen() {
             keyboardType="phone-pad"
             placeholder="Mobile number"
           />
-          <Field label="Address / Barangay" value={address} onChangeText={setAddress} placeholder="Address or barangay" />
+          <Field label="Address / Barangay" value={address} onChangeText={setAddress} placeholder="Address or barangay" helper="Use this for a simple address, or add optional exact details below." />
+          <View style={styles.twoColumn}>
+            <View style={styles.flex}><Field label="House / Building" value={addressDetails.houseNumber ?? ""} onChangeText={(value) => updateAddressDetail("houseNumber", value)} placeholder="Optional" /></View>
+            <View style={styles.flex}><Field label="Street" value={addressDetails.street ?? ""} onChangeText={(value) => updateAddressDetail("street", value)} placeholder="Optional" /></View>
+          </View>
+          <View style={styles.twoColumn}>
+            <View style={styles.flex}><Field label="Barangay" value={addressDetails.barangay ?? ""} onChangeText={(value) => updateAddressDetail("barangay", value)} placeholder="Barangay" /></View>
+            <View style={styles.flex}><Field label="City / Municipality" value={addressDetails.city ?? ""} onChangeText={(value) => updateAddressDetail("city", value)} placeholder="City" /></View>
+          </View>
+          <View style={styles.twoColumn}>
+            <View style={styles.flex}><Field label="Province" value={addressDetails.province ?? ""} onChangeText={(value) => updateAddressDetail("province", value)} placeholder="Province" /></View>
+            <View style={styles.flex}><Field label="Postal Code" value={addressDetails.postalCode ?? ""} onChangeText={(value) => updateAddressDetail("postalCode", value.replace(/\D/g, ""))} placeholder="Optional" /></View>
+          </View>
+          <Text style={styles.helperText}>House/building and postal code are optional. When any detailed field is filled, its combined address replaces the simple address when you save.</Text>
           <Field label={currentUser?.role === "client" ? "Business Bio" : "Worker Bio"} value={bio} onChangeText={setBio} placeholder="Tell people about yourself" multiline />
         </SettingsCard>
 
@@ -294,13 +315,14 @@ export default function ProfileScreen() {
             <View style={styles.skillRow}>
               {skills.map((skill) => (
                 <Pressable accessibilityLabel={`Remove ${skill}`} accessibilityRole="button" key={skill} onPress={() => toggleSkill(skill)} style={styles.skillChip}>
-                  <Text style={styles.skillText}>{skill} x</Text>
+                  <Text style={styles.skillText}>{skill}</Text>
+                  <Feather accessibilityElementsHidden color={palette.primary} name="x" size={16} />
                 </Pressable>
               ))}
             </View>
             <Pressable accessibilityRole="button" onPress={() => setSkillDropdownOpen(true)} style={styles.dropdownButton}>
               <Text style={styles.dropdownText}>Add or remove capabilities</Text>
-              <Text style={styles.dropdownIcon}>v</Text>
+              <Feather accessibilityElementsHidden color={palette.primary} name="chevron-down" size={20} />
             </Pressable>
           </View>
         ) : null}
@@ -665,7 +687,7 @@ const styles = StyleSheet.create({
   viewAllComingSoon: { alignItems: "flex-end" },
   viewAllHint: { color: palette.muted, fontSize: 10, lineHeight: 14, fontWeight: "700" },
   skillRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  skillChip: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9, backgroundColor: palette.primaryContainer, borderWidth: 1, borderColor: "rgba(0,92,85,0.2)" },
+  skillChip: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9, backgroundColor: palette.primaryContainer, borderWidth: 1, borderColor: "rgba(0,92,85,0.2)", flexDirection: "row", alignItems: "center", gap: 6 },
   skillText: { color: "#A3FAEF", fontSize: 14, lineHeight: 20, fontWeight: "900" },
   dropdownButton: { minHeight: 48, borderRadius: 8, borderWidth: 1, borderColor: palette.primary, backgroundColor: palette.surface, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14 },
   dropdownText: { color: palette.primary, fontSize: 14, fontWeight: "900" },

@@ -1,8 +1,10 @@
 import { useState } from "react";
+import Feather from "@expo/vector-icons/Feather";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScreenContainer } from "../src/components/ScreenContainer";
 import { useApp } from "../src/context/AppContext";
+import { useTasklinkBack } from "../src/hooks/useTasklinkBack";
 import { submitViolationReport } from "../src/services/adminService";
 import { colors } from "../src/theme";
 import { ViolationReport } from "../src/types";
@@ -11,6 +13,7 @@ const categories: ViolationReport["category"][] = ["Safety", "Fraud", "Harassmen
 
 export default function ReportUserScreen() {
   const router = useRouter();
+  const goBack = useTasklinkBack();
   const { targetUserId, taskId } = useLocalSearchParams<{ targetUserId?: string; taskId?: string }>();
   const { currentUser, getUserById } = useApp();
   const [category, setCategory] = useState<ViolationReport["category"]>("Safety");
@@ -49,7 +52,7 @@ export default function ReportUserScreen() {
   return (
     <ScreenContainer scroll>
       <View style={styles.header}>
-        <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.back}><Text style={styles.backText}>Back</Text></Pressable>
+        <Pressable accessibilityLabel="Go back" accessibilityRole="button" onPress={goBack} style={styles.back}><Feather accessibilityElementsHidden color={colors.primary} name="arrow-left" size={22} /></Pressable>
         <Text style={styles.eyebrow}>TASKLINK SAFETY</Text>
         <Text style={styles.title}>Report a user</Text>
         <Text style={styles.subtitle}>

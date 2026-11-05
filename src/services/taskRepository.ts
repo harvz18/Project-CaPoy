@@ -7,6 +7,7 @@ import {
   query,
   runTransaction,
   setDoc,
+  updateDoc,
   where,
   writeBatch,
   Transaction
@@ -18,8 +19,10 @@ import {
   assertTaskTransition,
   TaskActor
 } from "../domain/taskWorkflow";
-import { DurationUnit, PaymentMethod, PaymentStatus, PricingMode, Task, TaskMatch, TaskStatus, UserProfile } from "../types";
+import { DurationUnit, PaymentMethod, PaymentStatus, PricingMode, ScheduleMode, Task, TaskHistoryEvent, TaskMatch, TaskStatus, TaskTerms, UserProfile } from "../types";
 import { isPaymentProofPathForTask } from "../utils/paymentProof";
+import { canEditTaskTerms, getChangedTaskTermKeys, getTaskTerms, hasPendingTaskChange, makeTaskChangeRequest, summarizeTaskTermChanges } from "../domain/taskTerms";
+import { assertCanCancelTask, assertValidCancellationReason, isCancellationActorRole } from "../domain/cancellation";
 import { auth, db } from "./firebase";
 
 function requireDb() {
@@ -51,12 +54,15 @@ export type TaskInput = {
   locationAccuracyMeters?: number;
   locationSource?: Task["locationSource"];
   requiredCapability?: string;
+  requiredCapabilities?: string[];
   wage: string;
   estimatedDuration: string;
   durationValue: number;
   durationUnit: DurationUnit;
-  scheduleStart: string;
-  scheduleEnd: string;
+  scheduleStart?: string;
+  scheduleEnd?: string;
+  scheduleMode?: ScheduleMode;
+  scheduleDate?: string;
   pricingMode: PricingMode;
   perks: string[];
   paymentMethod: PaymentMethod;
@@ -136,13 +142,16 @@ export async function createTaskInFirestore(input: TaskInput) {
     locationCapturedAt: input.locationCapturedAt,
     locationAccuracyMeters: input.locationAccuracyMeters,
     locationSource: input.locationSource,
-    requiredCapability: input.requiredCapability ?? input.category,
+    requiredCapability: input.requiredCapability ?? input.requiredCapabilities?.[0] ?? input.category,
+    requiredCapabilities: input.requiredCapabilities,
     wage: input.wage,
     estimatedDuration: input.estimatedDuration,
     durationValue: input.durationValue,
     durationUnit: input.durationUnit,
-    scheduleStart: input.scheduleStart,
-    scheduleEnd: input.scheduleEnd,
+    scheduleMode: input.scheduleMode ?? "fixed",
+    scheduleDate: input.scheduleMode === "anytime" ? input.scheduleDate : undefined,
+    scheduleStart: input.scheduleMode === "anytime" ? undefined : input.scheduleStart,
+    scheduleEnd: input.scheduleMode === "anytime" ? undefined : input.scheduleEnd,
     pricingMode: input.pricingMode,
     perks: input.perks,
     status: "Finding Workers" as const,
@@ -165,6 +174,112 @@ export async function createTaskInFirestore(input: TaskInput) {
   });
   await batch.commit();
   return { id: taskRef.id, ...task } as Task;
+}
+
+/**
+ * Updates an unassigned task immediately. Once a worker has been accepted the
+ * same edit becomes a terms-change request; the live task is not changed until
+ * that worker accepts it. This keeps an agreed task from changing silently.
+ */
+export async function updateTaskTermsInFirestore(taskId: string, terms: TaskTerms, actor: UserProfile) {
+  const firestore = requireDb();
+  requireAuthActor({ id: actor.id, role: actor.role });
+  const taskRef = doc(firestore, "tasks", taskId);
+  const now = new Date().toISOString();
+
+  await runTransaction(firestore, async (transaction) => {
+    const taskSnapshot = await transaction.get(taskRef);
+    if (!taskSnapshot.exists()) throw new Error("Task not found.");
+    const task = { id: taskSnapshot.id, ...taskSnapshot.data() } as Task;
+    if (actor.role !== "client" || !canEditTaskTerms(task, actor.id)) {
+      throw new Error("Only the employer can edit this task before it is completed.");
+    }
+    if (hasPendingTaskChange(task)) {
+      throw new Error("Wait for the assigned tasker to respond to the pending change request.");
+    }
+
+    const previousTerms = getTaskTerms(task);
+    const changedFields = getChangedTaskTermKeys(previousTerms, terms);
+    if (!changedFields.length) throw new Error("No task details were changed.");
+    const changedSummary = summarizeTaskTermChanges(changedFields);
+
+    if (task.workerId) {
+      if (task.status !== "Accepted") {
+        throw new Error("Changes to an assigned task can only be proposed before work starts.");
+      }
+      const changeRequest = makeTaskChangeRequest(task, terms, actor.id, now);
+      transaction.update(taskRef, { changeRequest, updatedAt: now });
+      setWorkflowNotification(transaction, {
+        id: `${taskId}_terms-change_${changeRequest.version}_${task.workerId}`,
+        userId: task.workerId,
+        taskId,
+        createdBy: actor.id,
+        notificationType: "Task changes need your review",
+        message: `${task.title} has proposed changes to ${changedSummary}. Review the task before starting work.`,
+        createdAt: now
+      });
+      return;
+    }
+
+    transaction.update(taskRef, { ...toTaskTermsUpdate(terms), updatedAt: now });
+    (task.applicantIds ?? []).forEach((workerId) => {
+      setWorkflowNotification(transaction, {
+        id: `${taskId}_task-update_${now}_${workerId}`,
+        userId: workerId,
+        taskId,
+        createdBy: actor.id,
+        notificationType: "Task updated",
+        message: `${task.title} was updated: ${changedSummary}. Review the latest details.`,
+        createdAt: now
+      });
+    });
+  });
+}
+
+export async function respondToTaskChangeRequestInFirestore(
+  taskId: string,
+  accept: boolean,
+  actor: UserProfile
+) {
+  const firestore = requireDb();
+  requireAuthActor({ id: actor.id, role: actor.role });
+  const taskRef = doc(firestore, "tasks", taskId);
+  const now = new Date().toISOString();
+
+  await runTransaction(firestore, async (transaction) => {
+    const taskSnapshot = await transaction.get(taskRef);
+    if (!taskSnapshot.exists()) throw new Error("Task not found.");
+    const task = { id: taskSnapshot.id, ...taskSnapshot.data() } as Task;
+    const changeRequest = task.changeRequest;
+    if (actor.role !== "worker" || task.workerId !== actor.id || !changeRequest || changeRequest.status !== "Pending") {
+      throw new Error("There is no pending task change request for you to review.");
+    }
+
+    const nextRequest = { ...changeRequest, status: accept ? "Accepted" as const : "Rejected" as const, decidedAt: now };
+    const updates: Record<string, unknown> = { changeRequest: nextRequest, updatedAt: now };
+    if (accept) Object.assign(updates, toTaskTermsUpdate(changeRequest.proposedTerms));
+    transaction.update(taskRef, updates);
+    setWorkflowNotification(transaction, {
+      id: `${taskId}_terms-change-${accept ? "accepted" : "rejected"}_${changeRequest.version}_${task.clientId}`,
+      userId: task.clientId,
+      taskId,
+      createdBy: actor.id,
+      notificationType: accept ? "Task changes accepted" : "Task changes declined",
+      message: accept
+        ? `${actor.fullName} accepted the proposed changes to ${task.title}.`
+        : `${actor.fullName} declined the proposed changes to ${task.title}.`,
+      createdAt: now
+    });
+  });
+}
+
+function toTaskTermsUpdate(terms: TaskTerms): Record<string, unknown> {
+  return {
+    ...withoutUndefined(terms),
+    scheduleDate: terms.scheduleMode === "anytime" ? terms.scheduleDate : deleteField(),
+    scheduleStart: terms.scheduleMode === "anytime" ? deleteField() : terms.scheduleStart,
+    scheduleEnd: terms.scheduleMode === "anytime" ? deleteField() : terms.scheduleEnd
+  };
 }
 
 export async function applyToTask(taskId: string, worker: UserProfile, proposedAmount?: string) {
@@ -304,10 +419,7 @@ export async function updateTaskStatusInFirestore(
       await acceptApplicantInTransaction(transaction, task, workerId as string, actor, now);
       return;
     }
-    if (status === "Cancelled") {
-      await cancelTaskInTransaction(transaction, task, actor, now);
-      return;
-    }
+    if (status === "Cancelled") throw new Error("Use the cancellation flow so a reason and history record are saved.");
     if (status === "Finished") {
       await finishTaskInTransaction(transaction, task, actor, now);
       return;
@@ -335,6 +447,24 @@ export async function updateTaskStatusInFirestore(
       });
     }
   });
+}
+
+export async function cancelTaskInFirestore(taskId: string, reasonInput: string, actor: UserProfile) {
+  const firestore = requireDb();
+  requireAuthActor({ id: actor.id, role: actor.role });
+  if (!isCancellationActorRole(actor.role)) throw new Error("Only a task participant can cancel this task.");
+  const reason = assertValidCancellationReason(reasonInput);
+  const taskRef = doc(firestore, "tasks", taskId);
+  const now = new Date().toISOString();
+  const cancelledTask = await runTransaction(firestore, async (transaction) => {
+    const taskSnapshot = await transaction.get(taskRef);
+    if (!taskSnapshot.exists()) throw new Error("Task not found.");
+    const task = { id: taskSnapshot.id, ...taskSnapshot.data() } as Task;
+    const eligibility = assertCanCancelTask(task, actor);
+    cancelTaskInTransaction(transaction, task, actor, now, reason, eligibility.stage);
+    return task;
+  });
+  await finishCancellationCleanup(cancelledTask, actor, now, reason);
 }
 
 export async function reconcileDisputedTaskerAvailability(worker: UserProfile, taskId: string) {
@@ -441,47 +571,82 @@ async function acceptApplicantInTransaction(
   });
 }
 
-async function cancelTaskInTransaction(transaction: Transaction, task: Task, client: UserProfile, now: string) {
+function cancelTaskInTransaction(
+  transaction: Transaction,
+  task: Task,
+  actor: UserProfile,
+  now: string,
+  reason: string,
+  stage: "open" | "pre-check-in"
+) {
   const firestore = requireDb();
   const taskRef = doc(firestore, "tasks", task.id);
-  const matchRefs = (task.applicantIds ?? []).map(
-    (applicantId) => doc(firestore, "taskMatches", `${task.id}_${applicantId}`)
-  );
-  const workerRefs = task.workerId ? [
-    doc(firestore, "users", task.workerId),
-    doc(firestore, "workerProfiles", task.workerId),
-    doc(firestore, "publicProfiles", task.workerId)
-  ] : [];
-  const snapshots = await Promise.all([
-    ...matchRefs.map((matchRef) => transaction.get(matchRef)),
-    ...workerRefs.map((workerRef) => transaction.get(workerRef))
-  ]);
-  const matchSnapshots = snapshots.slice(0, matchRefs.length);
-  const workerSnapshots = snapshots.slice(matchRefs.length);
-  if (task.workerId && (workerSnapshots.length !== 3 || workerSnapshots.some((snapshot) => !snapshot.exists()))) {
-    throw new Error("The assigned tasker profile is incomplete.");
-  }
-  transaction.update(taskRef, { status: "Cancelled", cancelledAt: now, updatedAt: now });
-  matchSnapshots.forEach((matchSnapshot) => {
-    if (!matchSnapshot.exists() || !["Applied", "Accepted"].includes(matchSnapshot.data().acceptanceStatus)) return;
-    const match = matchSnapshot.data() as TaskMatch;
-    transaction.update(matchSnapshot.ref, { acceptanceStatus: "Cancelled", cancelledAt: now, updatedAt: now });
-    setWorkflowNotification(transaction, {
-      id: `${task.id}_cancelled_${match.workerId}`, userId: match.workerId, taskId: task.id, createdBy: client.id,
-      notificationType: "Task cancelled", message: `${task.title} was cancelled by the employer.`, createdAt: now
-    });
+  transaction.update(taskRef, {
+    status: "Cancelled",
+    cancelledAt: now,
+    cancelledBy: actor.id,
+    cancelledByRole: actor.role,
+    cancellationReason: reason,
+    cancellationStage: stage,
+    paymentStatusAtCancellation: task.paymentStatus ?? "Pending",
+    updatedAt: now
   });
+  const historyEvent: TaskHistoryEvent = {
+    id: "cancellation",
+    type: "Task cancelled",
+    taskId: task.id,
+    actorId: actor.id,
+    actorRole: actor.role as "client" | "worker",
+    reason,
+    stage,
+    paymentStatusAtEvent: task.paymentStatus ?? "Pending",
+    createdAt: now
+  };
+  const { id: historyId, ...historyData } = historyEvent;
+  transaction.set(doc(firestore, "tasks", task.id, "history", historyId), historyData);
+}
+
+async function finishCancellationCleanup(task: Task, actor: UserProfile, now: string, reason: string) {
+  const firestore = requireDb();
+  for (const workerId of task.applicantIds ?? []) {
+    await updateDoc(doc(firestore, "taskMatches", `${task.id}_${workerId}`), {
+      acceptanceStatus: "Cancelled", cancelledAt: now, updatedAt: now
+    });
+  }
   if (task.workerId) {
-    const [workerUserRef, workerProfileRef, publicProfileRef] = workerRefs;
-    const worker = workerSnapshots[0].data() as UserProfile;
-    if (worker.activeTaskId !== task.id) {
-      throw new Error("The tasker's confirmed assignment changed. Refresh and try again.");
+    const recipientId = actor.id === task.workerId ? task.clientId : task.workerId;
+    await createWorkflowNotification({
+      id: `${task.id}_cancelled_${recipientId}`,
+      userId: recipientId,
+      taskId: task.id,
+      createdBy: actor.id,
+      notificationType: "Task cancelled",
+      message: `${task.title} was cancelled by the ${actor.role === "worker" ? "tasker" : "employer"}. Reason: ${reason}`,
+      createdAt: now
+    });
+  } else {
+    for (const workerId of task.applicantIds ?? []) {
+      await createWorkflowNotification({
+        id: `${task.id}_cancelled_${workerId}`,
+        userId: workerId,
+        taskId: task.id,
+        createdBy: actor.id,
+        notificationType: "Task cancelled",
+        message: `${task.title} was cancelled by the employer. Reason: ${reason}`,
+        createdAt: now
+      });
     }
-    transaction.update(workerUserRef, {
+  }
+  if (task.workerId) {
+    await updateDoc(doc(firestore, "workerProfiles", task.workerId), {
+      availabilityStatus: "Available", availability: "Available", updatedAt: now
+    });
+    await updateDoc(doc(firestore, "publicProfiles", task.workerId), {
+      availabilityStatus: "Available", availability: "Available", updatedAt: now
+    });
+    await updateDoc(doc(firestore, "users", task.workerId), {
       availabilityStatus: "Available", availability: "Available", activeTaskId: deleteField(), updatedAt: now
     });
-    transaction.update(workerProfileRef, { availabilityStatus: "Available", availability: "Available", updatedAt: now });
-    transaction.update(publicProfileRef, { availabilityStatus: "Available", availability: "Available", updatedAt: now });
   }
 }
 
@@ -674,4 +839,10 @@ function setWorkflowNotification(transaction: Transaction, notification: Workflo
   const firestore = requireDb();
   const { id, ...data } = notification;
   transaction.set(doc(firestore, "notifications", id), { ...data, readStatus: false });
+}
+
+async function createWorkflowNotification(notification: WorkflowNotification) {
+  const firestore = requireDb();
+  const { id, ...data } = notification;
+  await setDoc(doc(firestore, "notifications", id), { ...data, readStatus: false });
 }

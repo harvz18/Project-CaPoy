@@ -32,7 +32,7 @@ test("a qualified nearby worker receives a predictable perfect score", () => {
   assert.equal(result.score, 100);
   assert.ok((result.distanceKm ?? 1) < 0.1);
   assert.ok(result.reasons.some((reason) => reason.includes("preferred radius")));
-  assert.equal(MATCH_POLICY_VERSION, 5);
+  assert.equal(MATCH_POLICY_VERSION, 6);
   assert.deepEqual(result.breakdown, {
     skill: 35,
     proximity: 30,
@@ -87,6 +87,12 @@ test("missing capability and coordinates fail closed", () => {
   assert.equal(result.score, 0);
   assert.ok(result.reasons.some((reason) => reason.includes("Missing required capability")));
   assert.ok(result.reasons.some((reason) => reason.includes("valid worker location")));
+});
+
+test("all selected required capabilities must be present for a worker to match", () => {
+  const multiCapabilityTask = task({ requiredCapabilities: ["Cleaning", "Errands"] });
+  assert.equal(scoreWorkerForTask(multiCapabilityTask, worker({ capabilities: ["Cleaning"] }), Date.parse(now)).skillMatched, false);
+  assert.equal(scoreWorkerForTask(multiCapabilityTask, worker({ capabilities: ["Cleaning", "Errands"] }), Date.parse(now)).skillMatched, true);
 });
 
 test("a task outside the preferred radius is not eligible", () => {

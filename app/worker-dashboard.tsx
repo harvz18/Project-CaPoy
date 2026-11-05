@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AnimatedBottomNav } from "../src/components/AnimatedBottomNav";
+import { HelpShortcut } from "../src/components/HelpShortcut";
 import { NotificationShortcut } from "../src/components/NotificationShortcut";
 import LocationMap from "../src/components/LocationMap";
 import { StatusBadge } from "../src/components/StatusBadge";
@@ -64,6 +65,7 @@ export default function WorkerDashboardScreen() {
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <DashboardHeader
         initials={currentUser?.fullName?.[0] ?? "J"}
+        onHelp={() => router.push("/help")}
         onNotifications={() => router.push("/notifications")}
         unreadCount={notifications.filter((notification) => notification.userId === currentUser?.id && !notification.readStatus).length}
       />
@@ -216,8 +218,9 @@ export default function WorkerDashboardScreen() {
   );
 }
 
-function DashboardHeader({ initials, onNotifications, unreadCount }: {
+function DashboardHeader({ initials, onHelp, onNotifications, unreadCount }: {
   initials: string;
+  onHelp: () => void;
   onNotifications: () => void;
   unreadCount: number;
 }) {
@@ -227,6 +230,7 @@ function DashboardHeader({ initials, onNotifications, unreadCount }: {
         <Text style={styles.brand}>TASKLINK</Text>
       </View>
       <View style={styles.headerRight}>
+        <HelpShortcut onPress={onHelp} />
         <NotificationShortcut onPress={onNotifications} unreadCount={unreadCount} />
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{initials}</Text>

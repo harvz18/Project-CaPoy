@@ -21,6 +21,17 @@ export function formatTaskDuration(task: Pick<Task, "durationValue" | "durationU
   return `${task.durationValue} ${unit[0].toUpperCase()}${unit.slice(1)}`;
 }
 
+export function getRequiredCapabilities(task: Pick<Task, "category" | "requiredCapability" | "requiredCapabilities">) {
+  const values = task.requiredCapabilities?.length
+    ? task.requiredCapabilities
+    : [task.requiredCapability ?? task.category];
+  return [...new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value)))];
+}
+
+export function formatRequiredCapabilities(task: Pick<Task, "category" | "requiredCapability" | "requiredCapabilities">) {
+  return getRequiredCapabilities(task).join(", ") || task.category || "Other";
+}
+
 export function durationToMilliseconds(value: number, unit: DurationUnit) {
   const hour = 60 * 60 * 1000;
   if (unit === "hour") return value * hour;
@@ -29,15 +40,16 @@ export function durationToMilliseconds(value: number, unit: DurationUnit) {
   return value * 30 * 24 * hour;
 }
 
-export function getTaskSchedule(task: Pick<Task, "scheduleStart" | "scheduleEnd">) {
+export function getTaskSchedule(task: Pick<Task, "scheduleMode" | "scheduleStart" | "scheduleEnd">) {
+  if (task.scheduleMode === "anytime") return null;
   const start = task.scheduleStart ? Date.parse(task.scheduleStart) : Number.NaN;
   const end = task.scheduleEnd ? Date.parse(task.scheduleEnd) : Number.NaN;
   return Number.isFinite(start) && Number.isFinite(end) && end > start ? { start, end } : null;
 }
 
 export function schedulesOverlap(
-  left: Pick<Task, "scheduleStart" | "scheduleEnd">,
-  right: Pick<Task, "scheduleStart" | "scheduleEnd">
+  left: Pick<Task, "scheduleMode" | "scheduleStart" | "scheduleEnd">,
+  right: Pick<Task, "scheduleMode" | "scheduleStart" | "scheduleEnd">
 ) {
   const leftSchedule = getTaskSchedule(left);
   const rightSchedule = getTaskSchedule(right);
@@ -63,7 +75,12 @@ export function getScheduleBasedAvailability(tasks: Task[], workerId: string, at
   return busy ? "Busy" as const : "Available" as const;
 }
 
-export function formatTaskSchedule(task: Pick<Task, "scheduleStart" | "scheduleEnd">) {
+export function formatTaskSchedule(task: Pick<Task, "scheduleMode" | "scheduleDate" | "scheduleStart" | "scheduleEnd">) {
+  if (task.scheduleMode === "anytime") {
+    const date = parseScheduleDate(task.scheduleDate);
+    if (!date) return "Anytime (date to be arranged)";
+    return `Anytime on ${new Intl.DateTimeFormat("en-PH", { month: "short", day: "numeric", year: "numeric" }).format(date)}`;
+  }
   const schedule = getTaskSchedule(task);
   if (!schedule) return "Schedule to be arranged";
   const formatter = new Intl.DateTimeFormat("en-PH", {
@@ -74,6 +91,19 @@ export function formatTaskSchedule(task: Pick<Task, "scheduleStart" | "scheduleE
     minute: "2-digit"
   });
   return `${formatter.format(schedule.start)} – ${formatter.format(schedule.end)}`;
+}
+
+export function isValidScheduleDate(value?: string) {
+  return Boolean(parseScheduleDate(value));
+}
+
+function parseScheduleDate(value?: string) {
+  const match = value?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return undefined;
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return date.getFullYear() === Number(match[1])
+    && date.getMonth() === Number(match[2]) - 1
+    && date.getDate() === Number(match[3]) ? date : undefined;
 }
 
 export function formatTaskPrice(task: Pick<Task, "pricingMode" | "wage" | "agreedAmount">) {

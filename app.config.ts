@@ -1,27 +1,18 @@
 import { ConfigContext, ExpoConfig } from "expo/config";
 
 export default ({ config }: ConfigContext): ExpoConfig => {
-  const googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY?.trim();
-  const googleMapsConfigured = Boolean(googleMapsApiKey);
+  const mapTilerApiKey = process.env.EXPO_PUBLIC_MAPTILER_API_KEY?.trim();
   return {
     ...config,
     extra: {
       ...config.extra,
-      googleMapsConfigured
-    },
-    android: {
-      ...config.android,
-      ...(googleMapsApiKey
-        ? {
-            config: {
-              ...config.android?.config,
-              googleMaps: { apiKey: googleMapsApiKey }
-            }
-          }
-        : {})
+      mapProvider: "maplibre",
+      mapTilerApiKey,
+      mapTilerConfigured: Boolean(mapTilerApiKey)
     },
     plugins: [
       ...(config.plugins ?? []),
+      "@maplibre/maplibre-react-native",
       [
         "expo-location",
         {

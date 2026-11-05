@@ -415,7 +415,7 @@ Intentionally deferred beyond this baseline:
 ## Phase 3 Implementation Status — Implemented Locally, Pending Device/Cloud Verification
 
 - Added foreground device-location capture with explicit denial messages and a manual discovery fallback.
-- Replaced simulated map panels in the Phase 3 task/location flows with `react-native-maps` on native and a safe coordinate fallback on web.
+- Replaced simulated map panels in the Phase 3 task/location flows with native MapLibre and a Leaflet/OpenStreetMap web map.
 - Removed default-coordinate and missing-coordinate geofence bypasses. Location source, capture time, and accuracy are stored.
 - Task start and finish now refresh device location and require a fresh, accurate reading inside the configured task radius.
 - Added one deterministic matching policy with bounded capability, distance, availability, verification, experience, rating, and completed-task signals plus readable reasons.
@@ -426,7 +426,7 @@ Intentionally deferred beyond this baseline:
 Remaining Phase 3 release checks:
 
 - Run a physical Android permission-denial, manual-fallback, map-pin, and inside/outside geofence test.
-- Set a restricted `GOOGLE_MAPS_API_KEY` for production Android builds.
+- Configure `EXPO_PUBLIC_MAPTILER_API_KEY` for the preferred native MapTiler style, then test a rebuilt development or preview build.
 - Review and deploy the function/rules only after emulator verification; Cloud Functions deployment requires Firebase Blaze.
 - Phase 4 is still required for actual push delivery, token registration, retry, and notification preferences.
 

@@ -330,12 +330,27 @@ service cloud.firestore {
           ||
           (
             resource.data.activeTaskId is string
+            && hasRole('worker')
+            && request.auth.uid == userId
+            && !('activeTaskId' in request.resource.data)
+            && request.resource.data.availabilityStatus == 'Available'
+            && request.resource.data.availability == 'Available'
+            && request.resource.data.get('completedTasks', 0) == resource.data.get('completedTasks', 0)
+            && task(resource.data.activeTaskId).status in ['Accepted', 'Cancelled']
+            && taskAfter(resource.data.activeTaskId).status == 'Cancelled'
+            && taskAfter(resource.data.activeTaskId).workerId == userId
+            && taskAfter(resource.data.activeTaskId).cancelledBy == request.auth.uid
+            && taskAfter(resource.data.activeTaskId).cancelledByRole == 'worker'
+          )
+          ||
+          (
+            resource.data.activeTaskId is string
             && hasRole('client')
             && !('activeTaskId' in request.resource.data)
             && request.resource.data.availabilityStatus == 'Available'
             && request.resource.data.availability == 'Available'
             && request.resource.data.get('completedTasks', 0) == resource.data.get('completedTasks', 0)
-            && task(resource.data.activeTaskId).status in ['Accepted', 'In Progress', 'Pending Approval']
+            && task(resource.data.activeTaskId).status in ['Accepted', 'In Progress', 'Pending Approval', 'Cancelled']
             && taskAfter(resource.data.activeTaskId).status == 'Cancelled'
             && taskAfter(resource.data.activeTaskId).clientId == request.auth.uid
             && taskAfter(resource.data.activeTaskId).workerId == userId
@@ -404,13 +419,26 @@ service cloud.firestore {
           ||
           (
             'activeTaskId' in get(/databases/$(database)/documents/users/$(userId)).data
+            && hasRole('worker')
+            && request.auth.uid == userId
+            && request.resource.data.availabilityStatus == 'Available'
+            && request.resource.data.availability == 'Available'
+            && request.resource.data.get('completedTasks', 0) == resource.data.get('completedTasks', 0)
+            && task(get(/databases/$(database)/documents/users/$(userId)).data.activeTaskId).status in ['Accepted', 'Cancelled']
+            && taskAfter(get(/databases/$(database)/documents/users/$(userId)).data.activeTaskId).status == 'Cancelled'
+            && taskAfter(get(/databases/$(database)/documents/users/$(userId)).data.activeTaskId).workerId == userId
+            && taskAfter(get(/databases/$(database)/documents/users/$(userId)).data.activeTaskId).cancelledBy == request.auth.uid
+            && taskAfter(get(/databases/$(database)/documents/users/$(userId)).data.activeTaskId).cancelledByRole == 'worker'
+          )
+          ||
+          (
+            'activeTaskId' in get(/databases/$(database)/documents/users/$(userId)).data
             && hasRole('client')
-            && !('activeTaskId' in getAfter(/databases/$(database)/documents/users/$(userId)).data)
             && request.resource.data.availabilityStatus == 'Available'
             && request.resource.data.availability == 'Available'
             && request.resource.data.get('completedTasks', 0) == resource.data.get('completedTasks', 0)
             && task(get(/databases/$(database)/documents/users/$(userId)).data.activeTaskId).status
-              in ['Accepted', 'In Progress', 'Pending Approval']
+              in ['Accepted', 'In Progress', 'Pending Approval', 'Cancelled']
             && taskAfter(get(/databases/$(database)/documents/users/$(userId)).data.activeTaskId).status == 'Cancelled'
             && taskAfter(get(/databases/$(database)/documents/users/$(userId)).data.activeTaskId).clientId == request.auth.uid
             && taskAfter(get(/databases/$(database)/documents/users/$(userId)).data.activeTaskId).workerId == userId
@@ -601,6 +629,7 @@ service cloud.firestore {
       return hasRole('worker')
         && resource.data.workerId == request.auth.uid
         && request.resource.data.workerId == request.auth.uid
+        && (!('changeRequest' in resource.data) || resource.data.changeRequest.status != 'Pending')
         && (
           (resource.data.status == 'Accepted'
             && request.resource.data.status == 'In Progress'
@@ -677,6 +706,30 @@ service cloud.firestore {
         ]);
     }
 
+    function validWorkerPaymentEvidenceUpdate(taskId) {
+      return hasRole('worker')
+        && task(taskId).workerId == request.auth.uid
+        && resource.data.workerId == request.auth.uid
+        && resource.data.paymentStatus != 'Verified'
+        && taskAfter(taskId).status in ['Accepted', 'In Progress', 'Pending Approval']
+        && request.resource.data.paymentStatus == resource.data.paymentStatus
+        && validWorkerPaymentProofPath(taskId, request.resource.data.workerProofOfPaymentUrl)
+        && request.resource.data.workerProofSubmittedAt is string
+        && (!('workerProofOfPaymentText' in request.resource.data)
+          || (request.resource.data.workerProofOfPaymentText is string
+            && request.resource.data.workerProofOfPaymentText.size() > 0))
+        && taskAfter(taskId).workerProofOfPaymentUrl == request.resource.data.workerProofOfPaymentUrl
+        && taskAfter(taskId).get('workerProofOfPaymentText', null)
+          == request.resource.data.get('workerProofOfPaymentText', null)
+        && taskAfter(taskId).workerProofSubmittedAt == request.resource.data.workerProofSubmittedAt
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'workerProofOfPaymentUrl',
+          'workerProofOfPaymentText',
+          'workerProofSubmittedAt',
+          'updatedAt'
+        ]);
+    }
+
     function validClientTaskUpdate(taskId) {
       return hasRole('client')
         && resource.data.clientId == request.auth.uid
@@ -726,21 +779,6 @@ service cloud.firestore {
             && request.resource.data.status == 'Archived'
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'archivedAt', 'updatedAt']))
           ||
-          (resource.data.status in ['Finding Workers', 'Applied']
-            && request.resource.data.status == 'Cancelled'
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt', 'updatedAt']))
-          ||
-          (resource.data.status in ['Accepted', 'In Progress', 'Pending Approval']
-            && request.resource.data.status == 'Cancelled'
-            && !('activeTaskId' in getAfter(/databases/$(database)/documents/users/$(resource.data.workerId)).data)
-            && getAfter(/databases/$(database)/documents/users/$(resource.data.workerId)).data.availabilityStatus
-              == 'Available'
-            && getAfter(/databases/$(database)/documents/workerProfiles/$(resource.data.workerId)).data.availabilityStatus
-              == 'Available'
-            && getAfter(/databases/$(database)/documents/publicProfiles/$(resource.data.workerId)).data.availabilityStatus
-              == 'Available'
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt', 'updatedAt']))
-          ||
           (resource.data.status in ['Accepted', 'In Progress', 'Pending Approval']
             && request.resource.data.status == 'Disputed'
             && !('activeTaskId' in getAfter(/databases/$(database)/documents/users/$(resource.data.workerId)).data)
@@ -776,7 +814,180 @@ service cloud.firestore {
                 ? request.resource.data.clientConfirmedAt is string
                 : true
             ))
+          ||
+          (resource.data.acceptanceStatus == 'Accepted'
+            && request.resource.data.acceptanceStatus == 'Cancelled'
+            && resource.data.workerId == request.auth.uid
+            && taskAfter(resource.data.taskId).status == 'Cancelled'
+            && taskAfter(resource.data.taskId).workerId == request.auth.uid
+            && taskAfter(resource.data.taskId).cancelledBy == request.auth.uid
+            && taskAfter(resource.data.taskId).cancelledByRole == 'worker')
         );
+    }
+
+    function validClientCancellation(taskId) {
+      return hasRole('client')
+        && resource.data.clientId == request.auth.uid
+        && request.resource.data.clientId == request.auth.uid
+        && (resource.data.status in ['Finding Workers', 'Applied']
+          ? (request.resource.data.status == 'Cancelled'
+            && validCancellationMetadata(taskId, 'client', 'open'))
+          : (resource.data.status == 'Accepted'
+            ? (request.resource.data.status == 'Cancelled'
+              && !('startedAt' in resource.data)
+              && validCancellationMetadata(taskId, 'client', 'pre-check-in'))
+            : false));
+    }
+
+    // Editable terms deliberately exclude task ownership, status, assignment,
+    // payment, and application fields. An unassigned task may change directly;
+    // an accepted task can only store a review request for its assigned worker.
+    function validTaskTerms(terms) {
+      return terms.title is string && terms.title.size() >= 1 && terms.title.size() <= 160
+        && terms.description is string && terms.description.size() <= 5000
+        && terms.category is string && terms.category.size() >= 1 && terms.category.size() <= 100
+        && terms.location is string && terms.location.size() >= 1 && terms.location.size() <= 200
+        && (!('locationAddress' in terms) || (terms.locationAddress is string && terms.locationAddress.size() <= 500))
+        && terms.latitude is number && terms.latitude >= -90 && terms.latitude <= 90
+        && terms.longitude is number && terms.longitude >= -180 && terms.longitude <= 180
+        && terms.geofenceRadius is number && terms.geofenceRadius >= 100 && terms.geofenceRadius <= 5000
+        && terms.locationSource in ['device', 'manual', 'map']
+        && terms.requiredCapabilities is list && terms.requiredCapabilities.size() >= 1 && terms.requiredCapabilities.size() <= 3
+        && terms.requiredCapability is string
+        && terms.wage is string
+        && terms.pricingMode in ['fixed', 'bidding']
+        && (terms.pricingMode == 'bidding' || terms.wage.matches('[1-9][0-9]*([.][0-9]{1,2})?'))
+        && terms.estimatedDuration is string && terms.estimatedDuration.size() >= 1 && terms.estimatedDuration.size() <= 100
+        && terms.durationValue is int && terms.durationValue >= 1 && terms.durationValue <= 365
+        && terms.durationUnit in ['hour', 'day', 'week', 'month']
+        && terms.scheduleMode in ['fixed', 'anytime']
+        && (terms.scheduleMode == 'anytime'
+          ? terms.scheduleDate is string
+          : (terms.scheduleStart is string && terms.scheduleEnd is string))
+        && terms.perks is list && terms.perks.size() <= 10;
+    }
+
+    function onlyTaskTermsChanged() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'title', 'description', 'category', 'location', 'locationAddress', 'latitude', 'longitude',
+        'geofenceRadius', 'locationCapturedAt', 'locationAccuracyMeters', 'locationSource',
+        'requiredCapability', 'requiredCapabilities', 'wage', 'estimatedDuration', 'durationValue',
+        'durationUnit', 'scheduleMode', 'scheduleDate', 'scheduleStart', 'scheduleEnd', 'pricingMode', 'perks', 'updatedAt'
+      ]);
+    }
+
+    function validOpenTaskTermsUpdate() {
+      return hasRole('client')
+        && resource.data.clientId == request.auth.uid
+        && request.resource.data.clientId == resource.data.clientId
+        && isOpenTask(resource.data)
+        && request.resource.data.status == resource.data.status
+        && hasNoAssignedWorker(resource.data)
+        && hasNoAssignedWorker(request.resource.data)
+        && onlyTaskTermsChanged()
+        && validTaskTerms(request.resource.data);
+    }
+
+    function validTaskChangeProposal() {
+      return hasRole('client')
+        && resource.data.clientId == request.auth.uid
+        && resource.data.status == 'Accepted'
+        && resource.data.workerId is string
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.workerId == resource.data.workerId
+        && (!('changeRequest' in resource.data) || resource.data.changeRequest.status != 'Pending')
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['changeRequest', 'updatedAt'])
+        && request.resource.data.changeRequest.keys().hasOnly([
+          'version', 'status', 'requestedBy', 'requestedAt', 'previousTerms', 'proposedTerms', 'changedFields'
+        ])
+        && request.resource.data.changeRequest.version is int
+        && request.resource.data.changeRequest.version == (('changeRequest' in resource.data) ? resource.data.changeRequest.version + 1 : 1)
+        && request.resource.data.changeRequest.status == 'Pending'
+        && request.resource.data.changeRequest.requestedBy == request.auth.uid
+        && request.resource.data.changeRequest.requestedAt is string
+        && request.resource.data.changeRequest.previousTerms is map
+        && request.resource.data.changeRequest.proposedTerms is map
+        && request.resource.data.changeRequest.changedFields is list
+        && request.resource.data.changeRequest.changedFields.size() >= 1
+        && validTaskTerms(request.resource.data.changeRequest.proposedTerms);
+    }
+
+    function proposedTermsApplied() {
+      let terms = request.resource.data.changeRequest.proposedTerms;
+      return request.resource.data.title == terms.title
+        && request.resource.data.description == terms.description
+        && request.resource.data.category == terms.category
+        && request.resource.data.location == terms.location
+        && request.resource.data.get('locationAddress', null) == terms.get('locationAddress', null)
+        && request.resource.data.latitude == terms.latitude
+        && request.resource.data.longitude == terms.longitude
+        && request.resource.data.geofenceRadius == terms.geofenceRadius
+        && request.resource.data.get('locationCapturedAt', null) == terms.get('locationCapturedAt', null)
+        && request.resource.data.get('locationAccuracyMeters', null) == terms.get('locationAccuracyMeters', null)
+        && request.resource.data.locationSource == terms.locationSource
+        && request.resource.data.requiredCapability == terms.requiredCapability
+        && request.resource.data.requiredCapabilities == terms.requiredCapabilities
+        && request.resource.data.wage == terms.wage
+        && request.resource.data.estimatedDuration == terms.estimatedDuration
+        && request.resource.data.durationValue == terms.durationValue
+        && request.resource.data.durationUnit == terms.durationUnit
+        && request.resource.data.scheduleMode == terms.scheduleMode
+        && request.resource.data.get('scheduleDate', null) == terms.get('scheduleDate', null)
+        && request.resource.data.get('scheduleStart', null) == terms.get('scheduleStart', null)
+        && request.resource.data.get('scheduleEnd', null) == terms.get('scheduleEnd', null)
+        && request.resource.data.pricingMode == terms.pricingMode
+        && request.resource.data.perks == terms.perks;
+    }
+
+    function validAssignedTaskChangeDecision() {
+      return hasRole('worker')
+        && resource.data.workerId == request.auth.uid
+        && resource.data.status == 'Accepted'
+        && request.resource.data.status == resource.data.status
+        && resource.data.changeRequest.status == 'Pending'
+        && request.resource.data.changeRequest.version == resource.data.changeRequest.version
+        && request.resource.data.changeRequest.requestedBy == resource.data.changeRequest.requestedBy
+        && request.resource.data.changeRequest.requestedAt == resource.data.changeRequest.requestedAt
+        && request.resource.data.changeRequest.previousTerms == resource.data.changeRequest.previousTerms
+        && request.resource.data.changeRequest.proposedTerms == resource.data.changeRequest.proposedTerms
+        && request.resource.data.changeRequest.changedFields == resource.data.changeRequest.changedFields
+        && request.resource.data.changeRequest.decidedAt is string
+        && request.resource.data.changeRequest.status in ['Accepted', 'Rejected']
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'title', 'description', 'category', 'location', 'locationAddress', 'latitude', 'longitude',
+          'geofenceRadius', 'locationCapturedAt', 'locationAccuracyMeters', 'locationSource',
+          'requiredCapability', 'requiredCapabilities', 'wage', 'estimatedDuration', 'durationValue',
+          'durationUnit', 'scheduleMode', 'scheduleDate', 'scheduleStart', 'scheduleEnd', 'pricingMode', 'perks',
+          'changeRequest', 'updatedAt'
+        ])
+        && (request.resource.data.changeRequest.status == 'Rejected'
+          ? request.resource.data.diff(resource.data).affectedKeys().hasOnly(['changeRequest', 'updatedAt'])
+          : (validTaskTerms(request.resource.data) && proposedTermsApplied()));
+    }
+
+    function validCancellationMetadata(taskId, actorRole, stage) {
+      return request.resource.data.status == 'Cancelled'
+        && request.resource.data.cancelledAt is string
+        && request.resource.data.cancelledBy == request.auth.uid
+        && request.resource.data.cancelledByRole == actorRole
+        && request.resource.data.cancellationStage == stage
+        && request.resource.data.cancellationReason is string
+        && request.resource.data.cancellationReason.size() >= 5
+        && request.resource.data.cancellationReason.size() <= 500
+        && request.resource.data.paymentStatusAtCancellation == resource.data.get('paymentStatus', 'Pending')
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'cancelledAt', 'cancelledBy', 'cancelledByRole', 'cancellationReason',
+          'cancellationStage', 'paymentStatusAtCancellation', 'updatedAt'
+        ]);
+    }
+
+    function validAssignedWorkerCancellation(taskId) {
+      return hasRole('worker')
+        && resource.data.status == 'Accepted'
+        && resource.data.workerId == request.auth.uid
+        && request.resource.data.workerId == resource.data.workerId
+        && !('startedAt' in resource.data)
+        && validCancellationMetadata(taskId, 'worker', 'pre-check-in');
     }
 
     match /users/{userId} {
@@ -831,24 +1042,16 @@ service cloud.firestore {
           && request.resource.data.get('verificationStatus', null)
             == getAfter(/databases/$(database)/documents/users/$(userId)).data.get('verificationStatus', null)
           && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-            'rating',
-            'ratingCount',
-            'ratingTotal',
-            'completedTasks',
-            'createdAt'
+            'rating', 'ratingCount', 'ratingTotal', 'completedTasks', 'createdAt'
           ])
-          && (
-            !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-              'availabilityStatus',
-              'availability'
-            ])
-            || (
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny([
+              'availabilityStatus', 'availability'
+            ]) || (
               get(/databases/$(database)/documents/users/$(userId)).data.role == 'client'
               && getAfter(/databases/$(database)/documents/users/$(userId)).data.role == 'worker'
               && request.resource.data.availabilityStatus == 'Available'
               && request.resource.data.availability == 'Available'
-            )
-          )
+            ))
         ) || validWorkflowVisibleWorkerUpdate(userId);
       allow delete: if false;
     }
@@ -921,13 +1124,47 @@ service cloud.firestore {
         && (!('locationAccuracyMeters' in request.resource.data)
           || (request.resource.data.locationAccuracyMeters is number
             && request.resource.data.locationAccuracyMeters >= 0));
-      allow update: if validClientTaskUpdate(taskId)
-        || validApplicationUpdate(taskId)
-        || validApplicationRemoval(taskId)
-        || validAssignedWorkerUpdate()
-        || validAssignedWorkerPaymentConfirmation(taskId)
-        || validAssignedWorkerPaymentProof(taskId);
+      allow update: if request.resource.data.status == 'Cancelled'
+        ? (validClientCancellation(taskId) || validAssignedWorkerCancellation(taskId))
+        : (request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'workerProofOfPaymentUrl', 'workerProofOfPaymentText', 'workerProofSubmittedAt'
+          ])
+          ? validAssignedWorkerPaymentProof(taskId)
+          : (validClientTaskUpdate(taskId)
+          || validOpenTaskTermsUpdate()
+          || validTaskChangeProposal()
+          || validAssignedTaskChangeDecision()
+          || validApplicationUpdate(taskId)
+          || validApplicationRemoval(taskId)
+          || validAssignedWorkerUpdate()
+          || validAssignedWorkerPaymentConfirmation(taskId)
+          || validAssignedWorkerPaymentProof(taskId)));
       allow delete: if false;
+
+      match /history/{eventId} {
+        allow read: if isAdmin() || (hasEnabledAccount() && isTaskParticipant(task(taskId)));
+        allow create: if hasEnabledAccount()
+          && eventId == 'cancellation'
+          && request.resource.data.keys().hasOnly([
+            'type', 'taskId', 'actorId', 'actorRole', 'reason', 'stage', 'paymentStatusAtEvent', 'createdAt'
+          ])
+          && request.resource.data.type == 'Task cancelled'
+          && request.resource.data.taskId == taskId
+          && request.resource.data.actorId == request.auth.uid
+          && request.resource.data.actorRole in ['client', 'worker']
+          && request.resource.data.reason is string
+          && request.resource.data.reason.size() >= 5
+          && request.resource.data.reason.size() <= 500
+          && request.resource.data.stage in ['open', 'pre-check-in']
+          && taskAfter(taskId).status == 'Cancelled'
+          && taskAfter(taskId).cancelledBy == request.auth.uid
+          && taskAfter(taskId).cancelledByRole == request.resource.data.actorRole
+          && taskAfter(taskId).cancellationReason == request.resource.data.reason
+          && taskAfter(taskId).cancellationStage == request.resource.data.stage
+          && taskAfter(taskId).paymentStatusAtCancellation == request.resource.data.paymentStatusAtEvent
+          && request.resource.data.createdAt == taskAfter(taskId).cancelledAt;
+        allow update, delete: if false;
+      }
     }
 
     match /taskMatches/{matchId} {
@@ -964,6 +1201,14 @@ service cloud.firestore {
           'updatedAt'
         ])
         && (
+          (resource.data.acceptanceStatus in ['Applied', 'Accepted']
+            && request.resource.data.acceptanceStatus == 'Cancelled'
+            && resource.data.workerId == request.auth.uid
+            && taskAfter(resource.data.taskId).status == 'Cancelled'
+            && taskAfter(resource.data.taskId).workerId == request.auth.uid
+            && taskAfter(resource.data.taskId).cancelledBy == request.auth.uid
+            && taskAfter(resource.data.taskId).cancelledByRole == 'worker')
+          ||
           (resource.data.acceptanceStatus == 'Applied'
             && request.resource.data.acceptanceStatus == 'Withdrawn'
             && resource.data.workerId == request.auth.uid
@@ -982,7 +1227,14 @@ service cloud.firestore {
               ||
               (resource.data.acceptanceStatus in ['Applied', 'Accepted']
                 && request.resource.data.acceptanceStatus == 'Cancelled'
-                && taskAfter(resource.data.taskId).status == 'Cancelled')
+                && taskAfter(resource.data.taskId).status == 'Cancelled'
+                && (
+                  resource.data.clientId == request.auth.uid
+                  || (resource.data.workerId == request.auth.uid
+                    && taskAfter(resource.data.taskId).workerId == request.auth.uid
+                    && taskAfter(resource.data.taskId).cancelledBy == request.auth.uid
+                    && taskAfter(resource.data.taskId).cancelledByRole == 'worker')
+                ))
             ))
         );
       allow delete: if false;
@@ -1079,7 +1331,11 @@ service cloud.firestore {
         && request.resource.data.paymentMethod in ['COD', 'GCash link']
         && request.resource.data.paymentStatus == 'Pending'
         && !('workerId' in request.resource.data);
-      allow update: if (
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'workerProofOfPaymentUrl', 'workerProofOfPaymentText', 'workerProofSubmittedAt'
+        ])
+        ? validWorkerPaymentEvidenceUpdate(taskId)
+        : ((
           hasRole('client')
           && task(taskId).clientId == request.auth.uid
           && request.resource.data.taskId == taskId
@@ -1109,28 +1365,6 @@ service cloud.firestore {
         ) || (
           hasRole('worker')
           && task(taskId).workerId == request.auth.uid
-          && resource.data.workerId == request.auth.uid
-          && resource.data.paymentStatus != 'Verified'
-          && taskAfter(taskId).status in ['Accepted', 'In Progress', 'Pending Approval']
-          && request.resource.data.paymentStatus == resource.data.paymentStatus
-          && validWorkerPaymentProofPath(taskId, request.resource.data.workerProofOfPaymentUrl)
-          && request.resource.data.workerProofSubmittedAt is string
-          && (!('workerProofOfPaymentText' in request.resource.data)
-            || (request.resource.data.workerProofOfPaymentText is string
-              && request.resource.data.workerProofOfPaymentText.size() > 0))
-          && taskAfter(taskId).workerProofOfPaymentUrl == request.resource.data.workerProofOfPaymentUrl
-          && taskAfter(taskId).get('workerProofOfPaymentText', null)
-            == request.resource.data.get('workerProofOfPaymentText', null)
-          && taskAfter(taskId).workerProofSubmittedAt == request.resource.data.workerProofSubmittedAt
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'workerProofOfPaymentUrl',
-            'workerProofOfPaymentText',
-            'workerProofSubmittedAt',
-            'updatedAt'
-          ])
-        ) || (
-          hasRole('worker')
-          && task(taskId).workerId == request.auth.uid
           && task(taskId).status == 'Pending Approval'
           && task(taskId).paymentMethod == 'COD'
           && resource.data.workerId == request.auth.uid
@@ -1146,7 +1380,7 @@ service cloud.firestore {
             'workerConfirmedAt',
             'updatedAt'
           ])
-        );
+        ));
       allow delete: if false;
     }
 

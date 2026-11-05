@@ -51,9 +51,9 @@ export function evaluateBetaPreflight({ env, app, eas, firebaseRc, hasDynamicCon
     ? result("pass", "support:email", "A public beta support mailbox is configured.")
     : result("warn", "support:email", "EXPO_PUBLIC_SUPPORT_EMAIL is missing or invalid."));
 
-  results.push(env.GOOGLE_MAPS_API_KEY?.trim()
-    ? result("pass", "maps:android-key", "An Android map key is configured for build-time injection.")
-    : result("warn", "maps:android-key", "GOOGLE_MAPS_API_KEY is missing; standalone Android maps are not release-ready."));
+  results.push(env.EXPO_PUBLIC_MAPTILER_API_KEY?.trim()
+    ? result("pass", "maps:maptiler-key", "A public MapTiler map key is configured for the native map style.")
+    : result("warn", "maps:maptiler-key", "EXPO_PUBLIC_MAPTILER_API_KEY is missing; the native map will use the controlled OpenStreetMap fallback."));
 
   results.push(hasDynamicConfig
     ? result("pass", "maps:dynamic-config", "Dynamic Expo configuration is present.")

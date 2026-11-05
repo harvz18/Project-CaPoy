@@ -1,3 +1,4 @@
+import Feather from "@expo/vector-icons/Feather";
 import { Href, useRouter } from "expo-router";
 import { useState } from "react";
 import {
@@ -29,6 +30,7 @@ const palette = {
   surfaceHigh: "#E0E3E1",
   primary: "#005C55",
   secondary: "#855300",
+  secondaryContainer: "#FEA619",
   text: "#181C1C",
   textStrong: "#111827",
   muted: "#3E4947",
@@ -116,10 +118,19 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={screenStyles.safeArea} edges={["top", "left", "right"]}>
+      <View pointerEvents="none" style={screenStyles.backgroundArt}>
+        <View style={[screenStyles.backgroundOrb, screenStyles.backgroundOrbOne]} />
+        <View style={[screenStyles.backgroundOrb, screenStyles.backgroundOrbTwo]} />
+        <View style={screenStyles.backgroundLink}>
+          <View style={screenStyles.backgroundLinkCircle} />
+          <View style={screenStyles.backgroundLinkBar} />
+          <View style={[screenStyles.backgroundLinkCircle, screenStyles.backgroundLinkCircleGold]} />
+        </View>
+      </View>
       <View style={screenStyles.header}>
         <Text style={screenStyles.brand}>TASKLINK</Text>
         <Pressable accessibilityLabel="Help, privacy, and support" accessibilityRole="button" onPress={() => router.push("/help" as Href)} style={screenStyles.helpButton}>
-          <Text style={screenStyles.helpText}>?</Text>
+          <Feather accessibilityElementsHidden color={palette.primary} name="help-circle" size={22} />
         </Pressable>
       </View>
 
@@ -230,7 +241,7 @@ export default function LoginScreen() {
                 style={screenStyles.dropdownButton}
               >
                 <Text style={screenStyles.dropdownText}>{selectedBarangay}</Text>
-                <Text style={screenStyles.dropdownIcon}>v</Text>
+                <Feather accessibilityElementsHidden color={palette.primary} name="chevron-down" size={20} />
               </Pressable>
 
               <Text style={screenStyles.label}>Password</Text>
@@ -357,8 +368,17 @@ function PhoneInput({ mobileNumber, onChange }: PhoneInputProps) {
 const screenStyles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: palette.background
+    backgroundColor: palette.background,
+    overflow: "hidden"
   },
+  backgroundArt: { ...StyleSheet.absoluteFillObject, opacity: 0.12 },
+  backgroundOrb: { position: "absolute", borderRadius: 999, backgroundColor: palette.primary },
+  backgroundOrbOne: { width: 300, height: 300, top: 76, right: -174 },
+  backgroundOrbTwo: { width: 230, height: 230, bottom: -96, left: -126, backgroundColor: palette.secondaryContainer },
+  backgroundLink: { position: "absolute", right: -22, top: "39%", flexDirection: "row", alignItems: "center", transform: [{ rotate: "-16deg" }] },
+  backgroundLinkCircle: { width: 120, height: 120, borderRadius: 60, backgroundColor: palette.primary },
+  backgroundLinkCircleGold: { backgroundColor: palette.secondaryContainer },
+  backgroundLinkBar: { width: 80, height: 28, marginHorizontal: -10, borderRadius: 14, backgroundColor: "#9CF2E8" },
   header: {
     minHeight: 56,
     paddingHorizontal: 16,

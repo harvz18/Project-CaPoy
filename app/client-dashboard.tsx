@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AnimatedBottomNav } from "../src/components/AnimatedBottomNav";
+import { HelpShortcut } from "../src/components/HelpShortcut";
 import { NotificationShortcut } from "../src/components/NotificationShortcut";
 import { StatusBadge } from "../src/components/StatusBadge";
 import { useApp } from "../src/context/AppContext";
@@ -46,6 +47,7 @@ export default function ClientDashboardScreen() {
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <DashboardHeader
         initials={currentUser?.fullName?.[0] ?? "U"}
+        onHelp={() => router.push("/help")}
         onNotifications={() => router.push("/notifications")}
         onPostTask={() => router.push("/post-task")}
         unreadCount={notifications.filter((notification) => notification.userId === currentUser?.id && !notification.readStatus).length}
@@ -170,8 +172,9 @@ function getVerifiedWorkTotal(tasks: Task[]) {
     .toLocaleString("en-PH");
 }
 
-function DashboardHeader({ onPostTask, onNotifications, initials, unreadCount }: {
+function DashboardHeader({ onPostTask, onHelp, onNotifications, initials, unreadCount }: {
   onPostTask: () => void;
+  onHelp: () => void;
   onNotifications: () => void;
   initials: string;
   unreadCount: number;
@@ -185,6 +188,7 @@ function DashboardHeader({ onPostTask, onNotifications, initials, unreadCount }:
         <Pressable accessibilityRole="button" onPress={onPostTask} style={styles.headerPostButton}>
           <Text style={styles.headerPostText}>Post Task</Text>
         </Pressable>
+        <HelpShortcut onPress={onHelp} />
         <NotificationShortcut onPress={onNotifications} unreadCount={unreadCount} />
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{initials}</Text>

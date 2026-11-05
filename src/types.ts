@@ -17,11 +17,63 @@ export type TaskStatus =
 export type PaymentMethod = "COD" | "GCash link";
 export type DurationUnit = "hour" | "day" | "week" | "month";
 export type PricingMode = "fixed" | "bidding";
+export type ScheduleMode = "fixed" | "anytime";
 export type PaymentStatus = "Pending" | "Submitted" | "Verified" | "Rejected";
 export type VerificationStatus = "Not Submitted" | "Pending Verification" | "Verified" | "Rejected" | "Needs Resubmission";
 export type IdentityStatus = "Unverified" | "Pending Approval" | "Approved" | "Rejected" | "Needs Resubmission";
 export type AccountStatus = "active" | "pending_verification" | "suspended" | "deleted";
 export type LocationSource = "device" | "manual" | "map";
+
+export type TaskTerms = {
+  title: string;
+  description: string;
+  category: string;
+  location: string;
+  locationAddress?: string;
+  latitude?: number;
+  longitude?: number;
+  geofenceRadius?: number;
+  locationCapturedAt?: string;
+  locationAccuracyMeters?: number;
+  locationSource?: LocationSource;
+  requiredCapability?: string;
+  requiredCapabilities?: string[];
+  wage: string;
+  estimatedDuration: string;
+  durationValue?: number;
+  durationUnit?: DurationUnit;
+  scheduleMode?: ScheduleMode;
+  scheduleDate?: string;
+  scheduleStart?: string;
+  scheduleEnd?: string;
+  pricingMode?: PricingMode;
+  perks?: string[];
+};
+
+export type TaskChangeRequest = {
+  version: number;
+  status: "Pending" | "Accepted" | "Rejected";
+  requestedBy: string;
+  requestedAt: string;
+  decidedAt?: string;
+  previousTerms: TaskTerms;
+  proposedTerms: TaskTerms;
+  changedFields: string[];
+};
+
+export type CancellationStage = "open" | "pre-check-in";
+
+export type TaskHistoryEvent = {
+  id: string;
+  type: "Task cancelled";
+  taskId: string;
+  actorId: string;
+  actorRole: "client" | "worker";
+  reason: string;
+  stage: CancellationStage;
+  paymentStatusAtEvent?: PaymentStatus;
+  createdAt: string;
+};
 
 export type UserProfile = {
   id: string;
@@ -92,12 +144,15 @@ export type Task = {
   locationAccuracyMeters?: number;
   locationSource?: LocationSource;
   requiredCapability?: string;
+  requiredCapabilities?: string[];
   wage: string;
   estimatedDuration: string;
   durationValue?: number;
   durationUnit?: DurationUnit;
   scheduleStart?: string;
   scheduleEnd?: string;
+  scheduleMode?: ScheduleMode;
+  scheduleDate?: string;
   pricingMode?: PricingMode;
   agreedAmount?: string;
   perks?: string[];
@@ -121,9 +176,15 @@ export type Task = {
   finishedAt?: string;
   archivedAt?: string;
   cancelledAt?: string;
+  cancelledBy?: string;
+  cancelledByRole?: "client" | "worker";
+  cancellationReason?: string;
+  cancellationStage?: CancellationStage;
+  paymentStatusAtCancellation?: PaymentStatus;
   disputedAt?: string;
   expiresAt?: string;
   updatedAt?: string;
+  changeRequest?: TaskChangeRequest;
 };
 
 export type ChatMessage = {

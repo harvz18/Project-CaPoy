@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { filterAndSortRankedJobs, getAvailableJobs, getJobCategories, RankedJob } from "../src/domain/jobDiscovery";
+import type { Task } from "../src/types";
 
 const jobs: RankedJob[] = [
   {
@@ -23,6 +24,11 @@ const jobs: RankedJob[] = [
 
 test("job categories are derived from current data", () => {
   assert.deepEqual(getJobCategories(jobs.map(({ task }) => task)), ["Cleaning", "Repair"]);
+});
+
+test("legacy tasks without a category are ignored safely by category discovery", () => {
+  const legacyTask = { ...jobs[0].task, category: undefined } as unknown as Task;
+  assert.deepEqual(getJobCategories([legacyTask]), []);
 });
 
 test("the job board excludes tasks the tasker already applied to", () => {

@@ -395,7 +395,7 @@ Phase 4 verification:
 
 ### Tasks
 
-1. Keep the existing `react-native-maps` component for the immediate beta to reduce regression risk.
+1. Use the MapLibre native component with a MapTiler style when configured and an attributed OSM fallback for controlled defense traffic.
 2. Add a foreground location-watch service with balanced accuracy.
 3. Start watching only on the relevant active-task/map screen.
 4. Display the task pin, worksite radius, current device marker, last-updated time, and accuracy.
@@ -428,7 +428,7 @@ If avoiding billed Google Maps setup is mandatory, complete a separate MapLibre-
 
 ### Phase 5 implementation status (2026-09-30)
 
-- Retained `react-native-maps` and the existing task pin/worksite circle to avoid a map-provider migration during beta hardening.
+- Replaced the former native map renderer with MapLibre while retaining the task pin/worksite circle, route line, pin selection, and location display behaviors. Leaflet remains the web renderer.
 - Added a foreground-only balanced-accuracy watcher for the assigned tasker on the task-status screen. It runs only while the task is `Accepted` or `In Progress`.
 - Added a controlled blue device marker, live distance/geofence display, last-update time, accuracy, locating/live/paused/error states, and an explicit retry action.
 - Applied both native watch options and an application filter: updates are accepted after at least 5 seconds or 10 meters of movement. This limits unnecessary foreground rendering and battery use.
@@ -625,7 +625,7 @@ Completed safely:
 
 Current release blockers:
 
-- Strict preflight correctly fails distribution readiness because `EXPO_PUBLIC_SUPPORT_EMAIL` and `GOOGLE_MAPS_API_KEY` are not configured.
+- Strict preflight correctly fails distribution readiness because `EXPO_PUBLIC_SUPPORT_EMAIL` and `EXPO_PUBLIC_MAPTILER_API_KEY` are not configured; the native map uses the controlled OSM fallback until the MapTiler key is supplied.
 - EAS is authenticated as `harvz1827`, while the configured project belongs to `shaolin18`; EAS denies build access. Ownership/project IDs were not modified to bypass this boundary.
 - Separate employer, tasker, admin, and superadmin beta accounts have not been provisioned. Staff provisioning requires account identifiers and trusted Firebase Admin credentials.
 - Functions-dependent geofence fan-out, push, moderation, payment/verification review, and analytics remain unavailable under the current no-charge constraint.

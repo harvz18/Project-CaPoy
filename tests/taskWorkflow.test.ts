@@ -130,6 +130,27 @@ test("requires verified payment before completion", () => {
   );
 });
 
+test("blocks task progress while assigned terms are awaiting the tasker's review", () => {
+  const pendingTermsTask = {
+    ...task,
+    status: "Accepted" as const,
+    workerId: "worker-1",
+    changeRequest: {
+      version: 1,
+      status: "Pending" as const,
+      requestedBy: "client-1",
+      requestedAt: "2026-11-05T00:00:00.000Z",
+      previousTerms: {},
+      proposedTerms: {},
+      changedFields: ["scheduleStart"]
+    }
+  };
+  assert.throws(
+    () => assertTaskTransition(pendingTermsTask, "In Progress", { id: "worker-1", role: "worker" }),
+    /accepted or rejected/
+  );
+});
+
 test("application policy is task-specific and requires an offer for open-offer tasks", () => {
   assert.doesNotThrow(() => assertCanApply(task("Finding Workers", { applicantIds: [] }), WORKER));
   assert.doesNotThrow(
@@ -140,7 +161,9 @@ test("application policy is task-specific and requires an offer for open-offer t
     { ...WORKER, capabilities: ["Laundry"] }
   ));
   assert.doesNotThrow(() => assertCanApply(task("Finding Workers", { applicantIds: [], pricingMode: "bidding" }), WORKER, "750"));
+  assert.doesNotThrow(() => assertCanApply(task("Finding Workers", { applicantIds: [], pricingMode: "bidding" }), WORKER, "750.50"));
   assert.throws(() => assertCanApply(task("Finding Workers", { applicantIds: [], pricingMode: "bidding" }), WORKER));
+  assert.throws(() => assertCanApply(task("Finding Workers", { applicantIds: [], pricingMode: "bidding" }), WORKER, "750.555"));
   assert.throws(() => assertCanApply(task("Finding Workers", { applicantIds: [] }), CLIENT));
   assert.throws(() => assertCanApply(task("Applied"), WORKER));
   assert.throws(() =>

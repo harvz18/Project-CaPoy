@@ -1,3 +1,4 @@
+import Feather from "@expo/vector-icons/Feather";
 import { useEffect, useMemo, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -106,7 +107,7 @@ export function DateTimePickerSheet({
                   onPress={() => setVisibleMonth((current) => addMonths(current, -1))}
                   style={[styles.monthButton, previousMonthDisabled && styles.disabled]}
                 >
-                  <Text style={styles.monthButtonText}>‹</Text>
+                  <Feather accessibilityElementsHidden color="#005C55" name="chevron-left" size={24} />
                 </Pressable>
                 <Text accessibilityRole="header" style={styles.monthTitle}>
                   {visibleMonth.toLocaleDateString(undefined, { month: "long", year: "numeric" })}
@@ -117,7 +118,7 @@ export function DateTimePickerSheet({
                   onPress={() => setVisibleMonth((current) => addMonths(current, 1))}
                   style={styles.monthButton}
                 >
-                  <Text style={styles.monthButtonText}>›</Text>
+                  <Feather accessibilityElementsHidden color="#005C55" name="chevron-right" size={24} />
                 </Pressable>
               </View>
 
@@ -218,11 +219,11 @@ function TimeStepper({ label, onDecrease, onIncrease, value }: {
       <Text style={styles.timeLabel}>{label}</Text>
       <View style={styles.stepper}>
         <Pressable accessibilityLabel={`Decrease ${label.toLowerCase()}`} accessibilityRole="button" onPress={onDecrease} style={styles.stepButton}>
-          <Text style={styles.stepButtonText}>−</Text>
+          <Feather accessibilityElementsHidden color="#005C55" name="minus" size={18} />
         </Pressable>
         <Text accessibilityLabel={`${label} ${value}`} style={styles.timeValue}>{value}</Text>
         <Pressable accessibilityLabel={`Increase ${label.toLowerCase()}`} accessibilityRole="button" onPress={onIncrease} style={styles.stepButton}>
-          <Text style={styles.stepButtonText}>+</Text>
+          <Feather accessibilityElementsHidden color="#005C55" name="plus" size={18} />
         </Pressable>
       </View>
     </View>

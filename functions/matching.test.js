@@ -76,7 +76,7 @@ test("unverified workers remain eligible while missing the optional verification
 test("trusted match snapshots persist policy, score, reasons, distance, and breakdown", () => {
   const snapshot = buildMatchSnapshot(task(), worker(), Date.parse(now));
 
-  assert.equal(snapshot.matchPolicyVersion, 5);
+  assert.equal(snapshot.matchPolicyVersion, 6);
   assert.equal(snapshot.matchScore, 100);
   assert.equal(snapshot.eligible, true);
   assert.ok(snapshot.distanceKm >= 0);
@@ -97,6 +97,15 @@ test("mismatched worker is never notified", () => {
     task(), worker({ capabilities: ["Repair"] }), Date.parse(now)
   );
   assert.equal(result.eligible, false);
+});
+
+test("all selected required capabilities must be present for a worker to match", () => {
+  assert.equal(scoreWorkerForTask(
+    task({ requiredCapabilities: ["Cleaning", "Errands"] }), worker({ capabilities: ["Cleaning"] }), Date.parse(now)
+  ).eligible, false);
+  assert.equal(scoreWorkerForTask(
+    task({ requiredCapabilities: ["Cleaning", "Errands"] }), worker({ capabilities: ["Cleaning", "Errands"] }), Date.parse(now)
+  ).eligible, true);
 });
 
 test("worker outside their preferred radius is never notified", () => {
@@ -121,7 +130,7 @@ test("manual pins can match for discovery but device accuracy is enforced", () =
 });
 
 test("matching notification policy is deterministic and independent from push opt-in", () => {
-  assert.equal(MATCH_POLICY_VERSION, 5);
+  assert.equal(MATCH_POLICY_VERSION, 6);
   assert.equal(
     MATCH_POLICY_WEIGHTS.skill + MATCH_POLICY_WEIGHTS.proximityMaximum +
       MATCH_POLICY_WEIGHTS.availability + MATCH_POLICY_WEIGHTS.verification +

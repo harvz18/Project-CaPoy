@@ -4,6 +4,7 @@ import {
   scoreWorkerForTask as scoreUsingCanonicalPolicy
 } from "../../functions/matching";
 import { MatchScoreBreakdown, Task, TaskMatch, UserProfile } from "../types";
+import { getRequiredCapabilities } from "./taskMarketplace";
 
 export type MatchResult = {
   eligible: boolean;
@@ -17,10 +18,10 @@ export type MatchResult = {
 export { MATCH_POLICY_VERSION, MATCH_POLICY_WEIGHTS };
 
 export function scoreWorkerForTask(task: Task, worker: UserProfile, now = Date.now()): MatchResult {
-  const requiredCapability = (task.requiredCapability ?? task.category).trim().toLocaleLowerCase();
+  const requiredCapabilities = getRequiredCapabilities(task).map((capability) => capability.toLocaleLowerCase());
   const workerCapabilities = [...(worker.capabilities ?? []), ...(worker.skills ?? [])]
     .map((capability) => capability.trim().toLocaleLowerCase());
-  const skillMatched = !requiredCapability || workerCapabilities.includes(requiredCapability);
+  const skillMatched = requiredCapabilities.every((capability) => workerCapabilities.includes(capability));
   return { ...(scoreUsingCanonicalPolicy(task, worker, now) as MatchResult), skillMatched };
 }
 

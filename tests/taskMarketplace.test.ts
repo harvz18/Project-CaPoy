@@ -3,7 +3,9 @@ import test from "node:test";
 import {
   findScheduleConflict,
   formatPaymentMethod,
+  formatRequiredCapabilities,
   formatTaskDuration,
+  formatTaskSchedule,
   getScheduleBasedAvailability,
   schedulesOverlap
 } from "../src/domain/taskMarketplace";
@@ -33,6 +35,18 @@ test("structured durations render singular and plural units", () => {
   assert.equal(formatTaskDuration({ durationValue: 1, durationUnit: "week", estimatedDuration: "legacy" }), "1 Week");
   assert.equal(formatTaskDuration({ durationValue: 3, durationUnit: "day", estimatedDuration: "legacy" }), "3 Days");
   assert.equal(formatTaskDuration({ estimatedDuration: "Whole Day" }), "Whole Day");
+});
+
+test("multiple required capabilities and anytime schedules retain legacy compatibility", () => {
+  const anytime = task("anytime", "", "", {
+    requiredCapabilities: ["Cleaning", "Errands"],
+    requiredCapability: "Cleaning",
+    scheduleMode: "anytime",
+    scheduleDate: "2026-10-05"
+  });
+  assert.equal(formatRequiredCapabilities(anytime), "Cleaning, Errands");
+  assert.equal(formatTaskSchedule(anytime), "Anytime on Oct 5, 2026");
+  assert.equal(schedulesOverlap(anytime, task("fixed", "2026-10-05T08:00:00.000Z", "2026-10-05T17:00:00.000Z")), false);
 });
 
 test("payment methods use the requested customer-facing labels", () => {

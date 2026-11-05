@@ -14,6 +14,7 @@ import {
   BarChart3,
   Bell,
   CheckCircle2,
+  CircleHelp,
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
@@ -255,6 +256,7 @@ const adminNavigation = [
   ["verifications", "Verifications", ClipboardCheck],
   ["feedback", "Feedback", Star],
   ["analytics", "Analytics", BarChart3],
+  ["help", "Help", CircleHelp],
 ] as const;
 const superNavigation = [
   ...adminNavigation,
@@ -363,6 +365,7 @@ function Page({
   if (section === "verifications") return <VerificationPage notify={notify} />;
   if (section === "feedback") return <FeedbackPage />;
   if (section === "analytics") return <AnalyticsPage />;
+  if (section === "help") return <HelpPage />;
   if (scope === "superadmin" && section === "reports")
     return <ReportsPage notify={notify} />;
   if (scope === "superadmin" && section === "audit") return <AuditPage />;
@@ -1114,6 +1117,22 @@ function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
       ) : null}
     </div>
   );
+}
+
+function HelpPage() {
+  const items = [
+    ["What can administrators review?", "Administrators can review verification requests and submitted GCash payment evidence, and can manage accounts only through the authorized portal actions."],
+    ["How are payment decisions handled?", "A receipt or reference is evidence only. Review the submitted evidence and use Verify or Reject with an appropriate reason. The portal does not initiate or transfer payments."],
+    ["Why is a record missing?", "Tables are paginated and may be filtered. Use the table controls to move through pages or refresh the page. Verify that your staff role has access to the requested section."],
+    ["How should an account restriction be used?", "Use restrictions only after reviewing a report or other authorized evidence. The action is processed by a trusted backend function and creates an audit record."],
+    ["What should I do if an action fails?", "Read the displayed error, confirm the record is still in the required state, then refresh before retrying. Do not claim a review succeeded until the record updates."],
+  ];
+  return <div className="page-stack">
+    <div className="page-heading"><div><h2>Administration help</h2><p>Guidance for the current TaskLink administration workflows.</p></div></div>
+    <Panel title="Frequently asked questions" description="This portal supports review and moderation workflows; it does not process or transfer funds.">
+      <div className="help-list">{items.map(([question, answer]) => <details key={question} className="help-item"><summary>{question}</summary><p>{answer}</p></details>)}</div>
+    </Panel>
+  </div>;
 }
 
 function FeedbackPage() {

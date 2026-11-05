@@ -1,3 +1,4 @@
+import Feather from "@expo/vector-icons/Feather";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { FlatList, Pressable, StyleSheet, Switch, Text, View } from "react-native";
@@ -7,11 +8,13 @@ import { ScreenContainer } from "../src/components/ScreenContainer";
 import { StatusBadge } from "../src/components/StatusBadge";
 import { FREE_WEB_DEMO } from "../src/config/release";
 import { useApp } from "../src/context/AppContext";
+import { useTasklinkBack } from "../src/hooks/useTasklinkBack";
 import { AppNotification, NotificationPreferences } from "../src/types";
 
 
 export default function NotificationsScreen() {
   const router = useRouter();
+  const goBack = useTasklinkBack();
   const {
     currentUser,
     markEveryNotificationRead,
@@ -50,19 +53,10 @@ export default function NotificationsScreen() {
     router.push({ pathname: "/task/[id]", params: { id: item.taskId } });
   }
 
-  function goBack() {
-    if (router.canGoBack()) {
-      router.back();
-      return;
-    }
-    router.replace(currentUser?.role === "worker" ? "/worker-dashboard" : "/client-dashboard");
-  }
-
   return (
     <ScreenContainer style={localStyles.screen}>
       <Pressable accessibilityLabel="Back" accessibilityRole="button" onPress={goBack} style={({ pressed }) => [localStyles.backButton, pressed && localStyles.pressed]}>
-        <Text style={localStyles.backArrow}>‹</Text>
-        <Text style={localStyles.backText}>Back</Text>
+        <Feather accessibilityElementsHidden color="#005C55" name="arrow-left" size={22} />
       </Pressable>
       <View style={localStyles.headingRow}>
         <View>

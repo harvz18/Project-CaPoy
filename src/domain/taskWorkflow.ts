@@ -1,4 +1,7 @@
 import { PaymentStatus, Role, Task, TaskStatus } from "../types";
+import { isValidMoneyAmount } from "../utils/numericInput";
+import { hasPendingTaskChange } from "./taskTerms";
+import { assertCanCancelTask } from "./cancellation";
 
 export type TaskActor = {
   id: string;
@@ -17,6 +20,10 @@ export function assertTaskTransition(
 ) {
   if (TERMINAL_TASK_STATUSES.includes(task.status)) {
     throw new Error("This task is already closed.");
+  }
+
+  if (hasPendingTaskChange(task) && ["In Progress", "Pending Approval", "Finished"].includes(nextStatus)) {
+    throw new Error("The proposed task changes must be accepted or rejected before work can continue.");
   }
 
   if (nextStatus === "Accepted") {
@@ -55,10 +62,7 @@ export function assertTaskTransition(
   }
 
   if (nextStatus === "Cancelled") {
-    requireTaskClient(task, actor);
-    if (!["Finding Workers", "Applied", "Accepted", "In Progress", "Pending Approval"].includes(task.status)) {
-      throw new Error("This task can no longer be cancelled.");
-    }
+    assertCanCancelTask(task, actor);
     return;
   }
 
@@ -87,7 +91,7 @@ export function assertCanApply(task: Task, actor: TaskActor, proposedAmount?: st
   if (task.applicantIds?.includes(actor.id)) {
     throw new Error("You have already applied to this task.");
   }
-  if (task.pricingMode === "bidding" && (!proposedAmount || Number(proposedAmount) <= 0)) {
+  if (task.pricingMode === "bidding" && (!proposedAmount || !isValidMoneyAmount(proposedAmount))) {
     throw new Error("Enter a valid offer amount for this task.");
   }
 }

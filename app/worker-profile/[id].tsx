@@ -1,9 +1,11 @@
+import Feather from "@expo/vector-icons/Feather";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBadge } from "../../src/components/StatusBadge";
 import { useApp } from "../../src/context/AppContext";
+import { useTasklinkBack } from "../../src/hooks/useTasklinkBack";
 
 const palette = {
   background: "#F7FAF8",
@@ -27,6 +29,7 @@ const palette = {
 
 export default function WorkerPublicProfileScreen() {
   const router = useRouter();
+  const goBack = useTasklinkBack();
   const insets = useSafeAreaInsets();
   const { id, taskId } = useLocalSearchParams<{ id: string; taskId?: string }>();
   const { actionLoading, currentUser, getUserById, ratings, taskMatches, tasks, updateTaskStatus, users } = useApp();
@@ -90,8 +93,8 @@ export default function WorkerPublicProfileScreen() {
     return (
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
         <View style={styles.header}>
-          <Pressable accessibilityLabel="Go back" accessibilityRole="button" onPress={() => router.back()} style={styles.backButton}>
-            <Text style={styles.backText}>Back</Text>
+          <Pressable accessibilityLabel="Go back" accessibilityRole="button" onPress={goBack} style={styles.backButton}>
+            <Feather accessibilityElementsHidden color={palette.primary} name="arrow-left" size={22} />
           </Pressable>
         </View>
         <View style={styles.missingProfile}>
@@ -106,8 +109,8 @@ export default function WorkerPublicProfileScreen() {
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Pressable accessibilityLabel="Go back" accessibilityRole="button" onPress={() => router.back()} style={styles.backButton}>
-            <Text style={styles.backText}>Back</Text>
+          <Pressable accessibilityLabel="Go back" accessibilityRole="button" onPress={goBack} style={styles.backButton}>
+            <Feather accessibilityElementsHidden color={palette.primary} name="arrow-left" size={22} />
           </Pressable>
           <Text style={styles.brand}>TASKLINK</Text>
         </View>

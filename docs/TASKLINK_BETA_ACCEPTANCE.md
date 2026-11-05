@@ -22,16 +22,16 @@ The repository contains only a beta Firebase alias. It deliberately has no defau
 
 1. Copy variable names from .env.preview.example; never commit populated values.
 2. Run npm run beta:preflight. It reports only configured/missing state and target consistency, never values.
-3. Run npm run beta:preflight:strict before distributing an APK. Strict mode also requires the public support mailbox and Android map key.
+3. Run npm run beta:preflight:strict before distributing an APK. Strict mode also requires the public support mailbox and the preferred MapTiler map key.
 4. Configure the same EXPO_PUBLIC_FIREBASE values in Render and in the EAS preview environment.
 5. Set EXPO_PUBLIC_SUPPORT_EMAIL to a project-owned mailbox.
-6. Set GOOGLE_MAPS_API_KEY as an EAS sensitive variable in the preview environment. Do not use secret visibility because dynamic app configuration must resolve it. app.config.js injects it into the Android Google Maps configuration at build time. Restrict the key to the Maps SDK for Android, package com.tasklink.app, and the preview signing certificate.
+6. Set EXPO_PUBLIC_MAPTILER_API_KEY in the preview environment to use MapTiler's vector style in the native MapLibre map. It is a public client key; do not commit it, and apply appropriate restrictions in the MapTiler dashboard. Without it, only the controlled OpenStreetMap fallback is available.
 7. Never store tester passwords, service-account JSON, ID images, payment proofs, push credentials, or populated environment files in Git or beta-evidence.
 
 Current preflight gaps observed October 1, 2026:
 
 - EXPO_PUBLIC_SUPPORT_EMAIL is not configured locally.
-- GOOGLE_MAPS_API_KEY is not configured locally.
+- EXPO_PUBLIC_MAPTILER_API_KEY is not configured locally; native maps use the controlled OSM fallback.
 - EAS CLI is authenticated as harvz1827, but configured project 7a7d5f05-f8f2-45cb-a820-31bdff543ef0 belongs to shaolin18; build access is denied.
 - Trusted Firebase Functions cannot be deployed under the current no-charge/Spark constraint.
 - Storage setup and rules deployment remain unavailable under the current no-charge constraint documented in the project.

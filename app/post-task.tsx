@@ -1,3 +1,4 @@
+import Feather from "@expo/vector-icons/Feather";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
@@ -6,16 +7,22 @@ import { AnimatedBottomNav } from "../src/components/AnimatedBottomNav";
 import {
   DateTimePickerSheet,
   formatFriendlyDate,
+  formatLocalDate,
   formatLocalDateTime,
+  parseLocalDate,
   parseLocalDateTime
 } from "../src/components/DateTimePickerSheet";
 import LocationMap from "../src/components/LocationMap";
-import { workerCapabilities } from "../src/constants/capabilities";
+import { getDefaultCapabilityForCategory, taskCategories, workerCapabilities } from "../src/constants/capabilities";
 import { useApp } from "../src/context/AppContext";
+import { useTasklinkBack } from "../src/hooks/useTasklinkBack";
 import { captureForegroundLocation } from "../src/services/locationService";
-import { DurationUnit, PaymentMethod, PricingMode } from "../src/types";
+import { DurationUnit, PaymentMethod, PricingMode, ScheduleMode } from "../src/types";
 import { durationToMilliseconds, PAYMENT_METHOD_OPTIONS } from "../src/domain/taskMarketplace";
 import { parseCoordinate } from "../src/utils/location";
+import { sanitizeDurationInput, sanitizeMoneyInput } from "../src/utils/numericInput";
+import { AddressDetails, formatAddressDetails } from "../src/utils/address";
+import { ReverseGeocodeResult, reverseGeocodeSelectedPin } from "../src/services/reverseGeocoding";
 
 const palette = {
   background: "#F7FAF8",
@@ -33,7 +40,7 @@ const palette = {
   white: "#FFFFFF"
 };
 
-const categories = ["Delivery assistance", "Basic repair", "Cleaning"];
+const categories = [...taskCategories];
 const durationUnits: Array<{ label: string; value: DurationUnit }> = [
   { label: "Hours", value: "hour" },
   { label: "Days", value: "day" },
@@ -48,12 +55,17 @@ const radiusOptions = [
 
 export default function PostTaskScreen() {
   const router = useRouter();
+  const goBack = useTasklinkBack();
   const insets = useSafeAreaInsets();
   const { actionLoading, createTask, currentUser, error } = useApp();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("Delivery assistance");
   const [location, setLocation] = useState("");
+  const [locationAddress, setLocationAddress] = useState("");
+  const [addressDetails, setAddressDetails] = useState<AddressDetails>({});
+  const [addressSuggestion, setAddressSuggestion] = useState<ReverseGeocodeResult>();
+  const [addressLookupLoading, setAddressLookupLoading] = useState(false);
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
   const [locationSource, setLocationSource] = useState<"device" | "manual" | "map">();
@@ -62,12 +74,17 @@ export default function PostTaskScreen() {
   const [locating, setLocating] = useState(false);
   const [locationMessage, setLocationMessage] = useState("");
   const [geofenceRadius, setGeofenceRadius] = useState("500");
-  const [requiredCapability, setRequiredCapability] = useState("Delivery assistance");
+  const [requiredCapabilities, setRequiredCapabilities] = useState<string[]>(["Delivery assistance"]);
+  const [capabilityDraft, setCapabilityDraft] = useState<string[]>([]);
+  const [capabilityPickerOpen, setCapabilityPickerOpen] = useState(false);
+  const [capabilityMessage, setCapabilityMessage] = useState("");
   const [wage, setWage] = useState("");
   const [pricingMode, setPricingMode] = useState<PricingMode>("fixed");
   const [durationValue, setDurationValue] = useState("1");
   const [durationUnit, setDurationUnit] = useState<DurationUnit>("day");
+  const [scheduleMode, setScheduleMode] = useState<ScheduleMode>("fixed");
   const [scheduleStart, setScheduleStart] = useState("");
+  const [scheduleDate, setScheduleDate] = useState("");
   const [perksText, setPerksText] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("COD");
   const [mapOpen, setMapOpen] = useState(false);
@@ -90,6 +107,7 @@ export default function PostTaskScreen() {
       setLocationCapturedAt(captured.capturedAt);
       setLocationAccuracyMeters(captured.accuracyMeters);
       setLocationMessage(`Device location captured${captured.accuracyMeters ? ` (about ${Math.round(captured.accuracyMeters)} m accuracy)` : ""}.`);
+      setAddressSuggestion(undefined);
     } catch (locationError) {
       setLocationMessage(locationError instanceof Error ? locationError.message : "Unable to capture location.");
     } finally {
@@ -104,39 +122,106 @@ export default function PostTaskScreen() {
     setLocationCapturedAt(new Date().toISOString());
     setLocationAccuracyMeters(undefined);
     setLocationMessage("Task pin selected on the map.");
+    setAddressSuggestion(undefined);
+  }
+
+  async function lookUpSelectedPinAddress() {
+    if (!mapCenter) {
+      setLocationMessage("Place a task pin before looking up an address.");
+      return;
+    }
+    setAddressLookupLoading(true);
+    setLocationMessage("");
+    try {
+      setAddressSuggestion(await reverseGeocodeSelectedPin(mapCenter));
+    } catch (lookupError) {
+      setLocationMessage(lookupError instanceof Error ? lookupError.message : "Address lookup is unavailable. Enter the address manually.");
+    } finally {
+      setAddressLookupLoading(false);
+    }
+  }
+
+  function applyAddressSuggestion() {
+    if (!addressSuggestion) return;
+    setLocationAddress(addressSuggestion.formattedAddress);
+    setAddressDetails(addressSuggestion.details);
+    setLocationMessage("Suggested address applied. Review and correct it before posting.");
+  }
+
+  function updateAddressDetail(field: keyof AddressDetails, value: string) {
+    setAddressDetails((current) => ({ ...current, [field]: value }));
   }
 
   function selectCategory(nextCategory: string) {
     setCategory(nextCategory);
-    setRequiredCapability(nextCategory);
+    setRequiredCapabilities((current) => current.length <= 1 ? [getDefaultCapabilityForCategory(nextCategory)] : current);
     setCategoryOpen(false);
+  }
+
+  function openCapabilityPicker() {
+    setCapabilityDraft(requiredCapabilities);
+    setCapabilityMessage("");
+    setCapabilityPickerOpen(true);
+  }
+
+  function toggleCapability(capability: string) {
+    setCapabilityMessage("");
+    setCapabilityDraft((current) => {
+      if (current.includes(capability)) return current.filter((item) => item !== capability);
+      if (current.length >= 3) {
+        setCapabilityMessage("You can select up to three required capabilities.");
+        return current;
+      }
+      return [...current, capability];
+    });
+  }
+
+  function saveCapabilities() {
+    if (!capabilityDraft.length) {
+      setCapabilityMessage("Select at least one required capability.");
+      return;
+    }
+    setRequiredCapabilities(capabilityDraft);
+    setCapabilityPickerOpen(false);
+  }
+
+  function updateDuration(value: string) {
+    setDurationValue(sanitizeDurationInput(value));
+  }
+
+  function changeDuration(step: number) {
+    const current = Number(durationValue) || 1;
+    setDurationValue(String(Math.min(365, Math.max(1, current + step))));
   }
 
   async function handlePostTask() {
     try {
       const durationNumber = Number(durationValue);
-      const parsedStart = parseLocalDateTime(scheduleStart);
+      const parsedStart = scheduleMode === "fixed" ? parseLocalDateTime(scheduleStart) : undefined;
       const scheduleEnd = parsedStart && Number.isFinite(durationNumber)
         ? new Date(parsedStart.getTime() + durationToMilliseconds(durationNumber, durationUnit)).toISOString()
-        : "";
+        : undefined;
       const task = await createTask({
         title,
         description,
         category,
         location,
-        locationAddress: location,
+        locationAddress: locationAddress.trim() || formatAddressDetails(addressDetails) || location,
         latitude: parseCoordinate(latitude),
         longitude: parseCoordinate(longitude),
         geofenceRadius: Number(geofenceRadius) || 500,
         locationCapturedAt,
         locationAccuracyMeters,
         locationSource,
-        requiredCapability,
+        requiredCapability: requiredCapabilities[0],
+        requiredCapabilities,
         wage: pricingMode === "fixed" ? wage : "",
         estimatedDuration: `${durationValue} ${durationValue === "1" ? durationUnit : `${durationUnit}s`}`,
         durationValue: durationNumber,
         durationUnit,
-        scheduleStart: parsedStart?.toISOString() ?? "",
+        scheduleMode,
+        scheduleDate: scheduleMode === "anytime" ? scheduleDate : undefined,
+        scheduleStart: parsedStart?.toISOString(),
         scheduleEnd,
         pricingMode,
         perks: perksText.split(",").map((perk) => perk.trim()).filter(Boolean),
@@ -152,8 +237,8 @@ export default function PostTaskScreen() {
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.closeButton}>
-            <Text style={styles.closeText}>x</Text>
+          <Pressable accessibilityLabel="Go back" accessibilityRole="button" onPress={goBack} style={styles.closeButton}>
+            <Feather accessibilityElementsHidden color={palette.muted} name="x" size={22} />
           </Pressable>
           <Text style={styles.headerTitle}>Post a Task</Text>
         </View>
@@ -176,7 +261,7 @@ export default function PostTaskScreen() {
               style={({ pressed }) => [styles.selectButton, pressed && styles.pressed]}
             >
               <Text style={styles.selectValue}>{category}</Text>
-              <Text style={styles.selectChevron}>v</Text>
+              <Feather accessibilityElementsHidden color={palette.primary} name="chevron-down" size={20} />
             </Pressable>
           </Field>
 
@@ -190,12 +275,12 @@ export default function PostTaskScreen() {
             />
           </Field>
 
-          <Field label="Location & Service Area">
+          <Field label="Landmark">
             <View style={styles.locationInputWrap}>
               <TextInput
-                accessibilityLabel="Task location"
+                accessibilityLabel="Task landmark"
                 onChangeText={setLocation}
-                placeholder="Street, barangay, or nearby landmark"
+                placeholder="e.g. Near Barangay Hall"
                 placeholderTextColor={palette.outline}
                 style={styles.locationInput}
                 value={location}
@@ -204,8 +289,8 @@ export default function PostTaskScreen() {
             <View style={styles.serviceAreaCard}>
               <View style={styles.serviceAreaHeader}>
                 <View style={styles.flex}>
-                  <Text style={styles.fieldLabel}>Client-centered worker radius</Text>
-                  <Text style={styles.helperText}>This location is the center of the service area check before workers start or finish.</Text>
+                  <Text style={styles.fieldLabel}>Task location and worker radius</Text>
+                  <Text style={styles.helperText}>Use a recognizable landmark. The pin and address remain the exact task location for worker check-in.</Text>
                 </View>
               </View>
 
@@ -227,6 +312,68 @@ export default function PostTaskScreen() {
                 </Pressable>
               </View>
               {locationMessage ? <Text style={styles.locationMessage}>{locationMessage}</Text> : null}
+
+              <View style={styles.addressCard}>
+                <View style={styles.addressCardHeader}>
+                  <View style={styles.flex}>
+                    <Text style={styles.fieldLabel}>Exact address (optional)</Text>
+                    <Text style={styles.helperText}>Add details that help the tasker find the pin. A house number is never required.</Text>
+                  </View>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: !mapCenter || addressLookupLoading }}
+                    disabled={!mapCenter || addressLookupLoading}
+                    onPress={lookUpSelectedPinAddress}
+                    style={[styles.addressLookupButton, (!mapCenter || addressLookupLoading) && styles.disabled]}
+                  >
+                    <Feather accessibilityElementsHidden color={palette.primary} name="map-pin" size={16} />
+                    <Text style={styles.addressLookupText}>{addressLookupLoading ? "Looking up..." : "Find from pin"}</Text>
+                  </Pressable>
+                </View>
+                <TextInput
+                  accessibilityLabel="Exact task address"
+                  multiline
+                  onChangeText={setLocationAddress}
+                  placeholder="Building, street, barangay, city, province, postal code"
+                  placeholderTextColor={palette.outline}
+                  style={[styles.input, styles.addressInput]}
+                  textAlignVertical="top"
+                  value={locationAddress}
+                />
+                <View style={styles.twoColumn}>
+                  <Field label="House / building" style={styles.flex}>
+                    <TextInput onChangeText={(value) => updateAddressDetail("houseNumber", value)} placeholder="Optional" placeholderTextColor={palette.outline} style={styles.input} value={addressDetails.houseNumber ?? ""} />
+                  </Field>
+                  <Field label="Street" style={styles.flex}>
+                    <TextInput onChangeText={(value) => updateAddressDetail("street", value)} placeholder="Optional" placeholderTextColor={palette.outline} style={styles.input} value={addressDetails.street ?? ""} />
+                  </Field>
+                </View>
+                <View style={styles.twoColumn}>
+                  <Field label="Barangay" style={styles.flex}>
+                    <TextInput onChangeText={(value) => updateAddressDetail("barangay", value)} placeholder="Barangay" placeholderTextColor={palette.outline} style={styles.input} value={addressDetails.barangay ?? ""} />
+                  </Field>
+                  <Field label="City / municipality" style={styles.flex}>
+                    <TextInput onChangeText={(value) => updateAddressDetail("city", value)} placeholder="City" placeholderTextColor={palette.outline} style={styles.input} value={addressDetails.city ?? ""} />
+                  </Field>
+                </View>
+                <View style={styles.twoColumn}>
+                  <Field label="Province" style={styles.flex}>
+                    <TextInput onChangeText={(value) => updateAddressDetail("province", value)} placeholder="Province" placeholderTextColor={palette.outline} style={styles.input} value={addressDetails.province ?? ""} />
+                  </Field>
+                  <Field label="Postal code" style={styles.flex}>
+                    <TextInput keyboardType="number-pad" onChangeText={(value) => updateAddressDetail("postalCode", value.replace(/\D/g, ""))} placeholder="Optional" placeholderTextColor={palette.outline} style={styles.input} value={addressDetails.postalCode ?? ""} />
+                  </Field>
+                </View>
+                {addressSuggestion ? <View style={styles.addressSuggestion}>
+                  <Text style={styles.addressSuggestionLabel}>Map suggestion · {addressSuggestion.provider}</Text>
+                  <Text style={styles.addressSuggestionText}>{addressSuggestion.formattedAddress}</Text>
+                  <Text style={styles.helperText}>Using it replaces the fields above; you can still correct every field before posting.</Text>
+                  <Pressable accessibilityRole="button" onPress={applyAddressSuggestion} style={styles.addressApplyButton}>
+                    <Text style={styles.addressApplyText}>Use suggested address</Text>
+                  </Pressable>
+                </View> : null}
+                <Text style={styles.addressPrivacyText}>Address lookup sends only the selected coordinates to OpenStreetMap Nominatim when you tap “Find from pin.”</Text>
+              </View>
 
               <View style={styles.radiusGrid}>
                 {radiusOptions.map((option) => {
@@ -250,33 +397,24 @@ export default function PostTaskScreen() {
               <View style={styles.coordinateSummary}>
                 <View style={styles.flex}>
                   <Text style={styles.coordinateLabel}>Pinned task area</Text>
-                  <Text style={styles.coordinateAddress}>{location || "Address not entered"}</Text>
+                  <Text style={styles.coordinateAddress}>{location || "Landmark not entered"}</Text>
                 </View>
                 <Text style={[styles.coordinateValue, mapCenter && styles.coordinateValueSelected]}>{mapCenter ? "Pin selected" : "Pin not set"}</Text>
               </View>
             </View>
           </Field>
 
-          <Field label="Required Capability">
-            <View style={styles.capabilityGrid}>
-              {workerCapabilities.map((capability) => {
-                const selected = requiredCapability === capability;
-                return (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                    key={capability}
-                    onPress={() => {
-                      setRequiredCapability(capability);
-                      setCategory(capability);
-                    }}
-                    style={[styles.capabilityChip, selected && styles.capabilityChipSelected]}
-                  >
-                    <Text style={[styles.capabilityText, selected && styles.capabilityTextSelected]}>{capability}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+          <Field label="Required Capabilities">
+            <Pressable
+              accessibilityLabel="Select required capabilities"
+              accessibilityRole="button"
+              onPress={openCapabilityPicker}
+              style={({ pressed }) => [styles.selectButton, pressed && styles.pressed]}
+            >
+              <Text numberOfLines={1} style={styles.selectValue}>{requiredCapabilities.join(", ") || "Select capabilities"}</Text>
+              <Feather accessibilityElementsHidden color={palette.primary} name="chevron-down" size={20} />
+            </Pressable>
+            <Text style={styles.helperText}>{requiredCapabilities.length}/3 selected. Taskers must have every selected capability.</Text>
           </Field>
 
           <Field label="Pricing">
@@ -300,8 +438,8 @@ export default function PostTaskScreen() {
           {pricingMode === "fixed" ? <Field label="Budget (₱)">
               <TextInput
                 accessibilityLabel="Task budget in pesos"
-                keyboardType="numeric"
-                onChangeText={setWage}
+                keyboardType="decimal-pad"
+                onChangeText={(value) => setWage(sanitizeMoneyInput(value))}
                 placeholder="500"
                 placeholderTextColor={palette.outline}
                 style={styles.input}
@@ -311,23 +449,89 @@ export default function PostTaskScreen() {
 
           <View style={styles.twoColumn}>
             <Field label="Duration value" style={styles.flex}>
-              <TextInput accessibilityLabel="Task duration value" keyboardType="numeric" onChangeText={setDurationValue} placeholder="1" placeholderTextColor={palette.outline} style={styles.input} value={durationValue} />
+              <View style={styles.durationControl}>
+                <Pressable
+                  accessibilityLabel="Decrease task duration"
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: Number(durationValue) <= 1 }}
+                  disabled={Number(durationValue) <= 1}
+                  onPress={() => changeDuration(-1)}
+                  style={[styles.durationStepButton, Number(durationValue) <= 1 && styles.durationStepButtonDisabled]}
+                >
+                  <Feather accessibilityElementsHidden color={palette.primary} name="minus" size={18} />
+                </Pressable>
+                <TextInput
+                  accessibilityLabel="Task duration value"
+                  keyboardType="number-pad"
+                  onChangeText={updateDuration}
+                  placeholder="1"
+                  placeholderTextColor={palette.outline}
+                  style={[styles.input, styles.durationInput]}
+                  value={durationValue}
+                />
+                <Pressable
+                  accessibilityLabel="Increase task duration"
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: Number(durationValue) >= 365 }}
+                  disabled={Number(durationValue) >= 365}
+                  onPress={() => changeDuration(1)}
+                  style={[styles.durationStepButton, Number(durationValue) >= 365 && styles.durationStepButtonDisabled]}
+                >
+                  <Feather accessibilityElementsHidden color={palette.primary} name="plus" size={18} />
+                </Pressable>
+              </View>
             </Field>
             <Field label="Duration unit" style={styles.flex}>
               <Pressable
                 accessibilityRole="button"
-                onPress={() => setDurationOpen(true)}
+                accessibilityState={{ expanded: durationOpen }}
+                onPress={() => setDurationOpen((open) => !open)}
                 style={({ pressed }) => [styles.selectButton, pressed && styles.pressed]}
               >
                 <Text style={styles.selectValue}>{durationUnits.find((item) => item.value === durationUnit)?.label}</Text>
-                <Text style={styles.selectChevron}>v</Text>
+                <Feather accessibilityElementsHidden color={palette.primary} name="chevron-down" size={20} />
               </Pressable>
+              {durationOpen ? <View style={styles.durationDropdown}>
+                {durationUnits.map((item) => {
+                  const selected = item.value === durationUnit;
+                  return (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                      key={item.value}
+                      onPress={() => {
+                        setDurationUnit(item.value);
+                        setDurationOpen(false);
+                      }}
+                      style={[styles.durationDropdownOption, selected && styles.durationDropdownOptionSelected]}
+                    >
+                      <Text style={[styles.durationDropdownText, selected && styles.durationDropdownTextSelected]}>{item.label}</Text>
+                      {selected ? <Feather accessibilityElementsHidden color={palette.primary} name="check" size={18} /> : null}
+                    </Pressable>
+                  );
+                })}
+              </View> : null}
             </Field>
           </View>
 
           <Field label="When should the task start?">
+            <View style={styles.scheduleModeRow}>
+              {(["fixed", "anytime"] as ScheduleMode[]).map((mode) => (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: scheduleMode === mode }}
+                  key={mode}
+                  onPress={() => setScheduleMode(mode)}
+                  style={[styles.scheduleModeButton, scheduleMode === mode && styles.scheduleModeButtonSelected]}
+                >
+                  <Text style={[styles.scheduleModeText, scheduleMode === mode && styles.scheduleModeTextSelected]}>{mode === "fixed" ? "Specific time" : "Anytime"}</Text>
+                </Pressable>
+              ))}
+            </View>
             <Pressable
-              accessibilityLabel={scheduleStart ? `Task starts ${formatFriendlyDate(parseLocalDateTime(scheduleStart) ?? new Date())}` : "Choose task start date and time"}
+              accessibilityLabel={scheduleMode === "anytime"
+                ? scheduleDate ? `Task is flexible on ${formatFriendlyDate(parseLocalDate(scheduleDate) ?? new Date(), "date")}` : "Choose flexible task date"
+                : scheduleStart ? `Task starts ${formatFriendlyDate(parseLocalDateTime(scheduleStart) ?? new Date())}` : "Choose task start date and time"}
               accessibilityRole="button"
               onPress={() => {
                 setScheduleMinimum(new Date());
@@ -335,14 +539,16 @@ export default function PostTaskScreen() {
               }}
               style={({ pressed }) => [styles.dateButton, pressed && styles.pressed]}
             >
-              <View style={styles.dateIcon}><Text style={styles.dateIconText}>DATE</Text></View>
+              <View style={styles.dateIcon}><Feather accessibilityElementsHidden color={palette.primary} name="calendar" size={20} /></View>
               <View style={styles.dateCopy}>
-                <Text style={[styles.dateValue, !scheduleStart && styles.datePlaceholder]}>
-                  {scheduleStart ? formatFriendlyDate(parseLocalDateTime(scheduleStart) ?? new Date()) : "Choose date and time"}
+                <Text style={[styles.dateValue, !(scheduleMode === "anytime" ? scheduleDate : scheduleStart) && styles.datePlaceholder]}>
+                  {scheduleMode === "anytime"
+                    ? scheduleDate ? `Anytime — ${formatFriendlyDate(parseLocalDate(scheduleDate) ?? new Date(), "date")}` : "Choose a flexible date"
+                    : scheduleStart ? formatFriendlyDate(parseLocalDateTime(scheduleStart) ?? new Date()) : "Choose date and time"}
                 </Text>
-                <Text style={styles.dateHint}>A calendar and time picker will open.</Text>
+                <Text style={styles.dateHint}>{scheduleMode === "anytime" ? "Choose a date; agree the exact start with the tasker before work begins." : "A calendar and time picker will open."}</Text>
               </View>
-              <Text style={styles.dateChevron}>›</Text>
+              <Feather accessibilityElementsHidden color={palette.primary} name="chevron-right" size={22} />
             </Pressable>
           </Field>
 
@@ -384,7 +590,7 @@ export default function PostTaskScreen() {
         </View>
 
         <View style={styles.tipCard}>
-          <Text style={styles.tipIcon}>i</Text>
+          <Feather accessibilityElementsHidden color={palette.secondary} name="info" size={19} />
           <View style={styles.flex}>
             <Text style={styles.tipTitle}>Reliability Tip</Text>
             <Text style={styles.tipText}>Providing clear details and a fair wage helps you find a helper faster.</Text>
@@ -465,24 +671,61 @@ export default function PostTaskScreen() {
         onSelect={selectCategory}
       />
 
-      <PickerModal
-        options={durationUnits.map((item) => item.label)}
-        selectedValue={durationUnits.find((item) => item.value === durationUnit)?.label ?? "Days"}
-        title="Duration"
-        visible={durationOpen}
-        onClose={() => setDurationOpen(false)}
-        onSelect={(label) => {
-          setDurationUnit(durationUnits.find((item) => item.label === label)?.value ?? "day");
-          setDurationOpen(false);
-        }}
-      />
+      <Modal animationType="slide" transparent visible={capabilityPickerOpen} onRequestClose={() => setCapabilityPickerOpen(false)}>
+        <Pressable accessibilityLabel="Close required capabilities" accessibilityRole="button" onPress={() => setCapabilityPickerOpen(false)} style={styles.pickerBackdrop}>
+          <Pressable accessibilityRole="none" onPress={() => undefined} style={styles.capabilitySheet}>
+            <View style={styles.pickerHandle} />
+            <View style={styles.pickerHeader}>
+              <View style={styles.flex}>
+                <Text style={styles.pickerTitle}>Select Required Capabilities</Text>
+                <Text style={styles.capabilityCount}>{capabilityDraft.length}/3 selected</Text>
+              </View>
+              <Pressable accessibilityLabel="Cancel required capabilities" accessibilityRole="button" onPress={() => setCapabilityPickerOpen(false)} style={styles.pickerCloseButton}>
+                <Text style={styles.pickerCloseText}>Cancel</Text>
+              </Pressable>
+            </View>
+            <ScrollView contentContainerStyle={styles.capabilityList} showsVerticalScrollIndicator={false}>
+              {workerCapabilities.map((capability) => {
+                const selected = capabilityDraft.includes(capability);
+                return (
+                  <Pressable
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: selected }}
+                    key={capability}
+                    onPress={() => toggleCapability(capability)}
+                    style={[styles.capabilityOption, selected && styles.capabilityOptionSelected]}
+                  >
+                    <View style={[styles.checkbox, selected && styles.checkboxSelected]}>
+                      {selected ? <Feather accessibilityElementsHidden color={palette.white} name="check" size={16} /> : null}
+                    </View>
+                    <Text style={[styles.capabilityOptionText, selected && styles.capabilityOptionTextSelected]}>{capability}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+            {capabilityMessage ? <Text accessibilityRole="alert" style={styles.capabilityValidation}>{capabilityMessage}</Text> : null}
+            <View style={styles.capabilityActions}>
+              <Pressable accessibilityRole="button" onPress={() => setCapabilityPickerOpen(false)} style={styles.capabilityCancelButton}>
+                <Text style={styles.capabilityCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" onPress={saveCapabilities} style={styles.capabilitySaveButton}>
+                <Text style={styles.capabilitySaveText}>Save</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <DateTimePickerSheet
+        mode={scheduleMode === "anytime" ? "date" : "datetime"}
         minimumDate={scheduleMinimum}
         onClose={() => setSchedulePickerOpen(false)}
-        onConfirm={(value) => setScheduleStart(formatLocalDateTime(value))}
-        title="Choose task start"
-        value={parseLocalDateTime(scheduleStart)}
+        onConfirm={(value) => {
+          if (scheduleMode === "anytime") setScheduleDate(formatLocalDate(value));
+          else setScheduleStart(formatLocalDateTime(value));
+        }}
+        title={scheduleMode === "anytime" ? "Choose flexible task date" : "Choose task start"}
+        value={scheduleMode === "anytime" ? parseLocalDate(scheduleDate) : parseLocalDateTime(scheduleStart)}
         visible={schedulePickerOpen}
       />
     </SafeAreaView>
@@ -633,8 +876,21 @@ const styles = StyleSheet.create({
   mapPin: { position: "absolute", left: "48%", top: 50, width: 20, height: 20, borderRadius: 10, backgroundColor: palette.primary, borderWidth: 4, borderColor: palette.white },
   twoColumn: { flexDirection: "row", gap: 8 },
   flex: { flex: 1 },
-  durationGrid: { gap: 6 },
+  durationControl: { flexDirection: "row", alignItems: "center", gap: 6 },
+  durationInput: { flex: 1, textAlign: "center", paddingHorizontal: 6 },
+  durationStepButton: { width: 40, minHeight: 48, borderRadius: 8, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, alignItems: "center", justifyContent: "center" },
+  durationStepButtonDisabled: { opacity: 0.45 },
+  durationDropdown: { borderWidth: 1, borderColor: palette.outlineVariant, borderRadius: 8, backgroundColor: palette.surface, overflow: "hidden", marginTop: 2 },
+  durationDropdownOption: { minHeight: 42, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  durationDropdownOptionSelected: { backgroundColor: "#E5F1EE" },
+  durationDropdownText: { color: palette.text, fontSize: 15, lineHeight: 20, fontWeight: "700" },
+  durationDropdownTextSelected: { color: palette.primary, fontWeight: "900" },
   paymentRow: { flexDirection: "row", gap: 8 },
+  scheduleModeRow: { flexDirection: "row", gap: 8 },
+  scheduleModeButton: { flex: 1, minHeight: 38, borderRadius: 8, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, alignItems: "center", justifyContent: "center" },
+  scheduleModeButtonSelected: { backgroundColor: palette.primary, borderColor: palette.primary },
+  scheduleModeText: { color: palette.muted, fontSize: 13, lineHeight: 18, fontWeight: "800" },
+  scheduleModeTextSelected: { color: palette.white },
   capabilityGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   capabilityChip: { minHeight: 36, borderRadius: 18, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, paddingHorizontal: 12, alignItems: "center", justifyContent: "center" },
   capabilityChipSelected: { backgroundColor: palette.primary, borderColor: palette.primary },
@@ -739,6 +995,17 @@ const styles = StyleSheet.create({
   locationOutlineButton: { flex: 1, minHeight: 44, borderRadius: 8, borderWidth: 1, borderColor: palette.primary, alignItems: "center", justifyContent: "center" },
   locationOutlineText: { color: palette.primary, fontSize: 12, fontWeight: "900" },
   locationMessage: { color: palette.primary, fontSize: 12, lineHeight: 17, fontWeight: "700" },
+  addressCard: { padding: 12, borderRadius: 10, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow, gap: 8 },
+  addressCardHeader: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  addressLookupButton: { minHeight: 38, borderRadius: 8, borderWidth: 1, borderColor: palette.primary, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, backgroundColor: palette.surface },
+  addressLookupText: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
+  addressInput: { minHeight: 70, paddingTop: 10 },
+  addressSuggestion: { padding: 10, borderRadius: 8, backgroundColor: "#E5F1EE", gap: 4 },
+  addressSuggestionLabel: { color: palette.primary, fontSize: 11, lineHeight: 15, fontWeight: "900" },
+  addressSuggestionText: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: "800" },
+  addressApplyButton: { alignSelf: "flex-start", minHeight: 34, borderRadius: 7, paddingHorizontal: 10, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary, marginTop: 2 },
+  addressApplyText: { color: palette.white, fontSize: 12, lineHeight: 16, fontWeight: "900" },
+  addressPrivacyText: { color: palette.muted, fontSize: 11, lineHeight: 15 },
   areaPresetChip: { minHeight: 36, borderRadius: 18, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow, paddingHorizontal: 12, alignItems: "center", justifyContent: "center" },
   areaPresetChipSelected: { backgroundColor: palette.primary, borderColor: palette.primary },
   areaPresetText: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "900" },
@@ -879,6 +1146,21 @@ const styles = StyleSheet.create({
   pickerOptionText: { color: palette.text, fontSize: 16, lineHeight: 24, fontWeight: "700", flex: 1 },
   pickerOptionTextSelected: { color: palette.primary, fontWeight: "900" },
   pickerCheck: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
+  capabilitySheet: { width: "100%", maxWidth: 520, maxHeight: "82%", borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 12, paddingBottom: 20, backgroundColor: palette.surface, gap: 8 },
+  capabilityCount: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "800", marginTop: 2 },
+  capabilityList: { gap: 6, paddingHorizontal: 4, paddingVertical: 4 },
+  capabilityOption: { minHeight: 48, borderRadius: 8, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow },
+  capabilityOptionSelected: { borderColor: palette.primary, backgroundColor: "#E5F1EE" },
+  checkbox: { width: 22, height: 22, borderRadius: 5, borderWidth: 2, borderColor: palette.outline, alignItems: "center", justifyContent: "center" },
+  checkboxSelected: { borderColor: palette.primary, backgroundColor: palette.primary },
+  capabilityOptionText: { color: palette.text, fontSize: 15, lineHeight: 21, fontWeight: "700", flex: 1 },
+  capabilityOptionTextSelected: { color: palette.primary, fontWeight: "900" },
+  capabilityValidation: { color: "#BA1A1A", fontSize: 12, lineHeight: 16, fontWeight: "800", paddingHorizontal: 8 },
+  capabilityActions: { flexDirection: "row", justifyContent: "flex-end", gap: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: palette.outlineVariant },
+  capabilityCancelButton: { minHeight: 44, paddingHorizontal: 16, borderRadius: 8, borderWidth: 1, borderColor: palette.primary, alignItems: "center", justifyContent: "center" },
+  capabilityCancelText: { color: palette.primary, fontSize: 14, lineHeight: 20, fontWeight: "900" },
+  capabilitySaveButton: { minHeight: 44, paddingHorizontal: 20, borderRadius: 8, backgroundColor: palette.primary, alignItems: "center", justifyContent: "center" },
+  capabilitySaveText: { color: palette.white, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   disabled: { opacity: 0.55 },
   pressed: { opacity: 0.78, transform: [{ scale: 0.99 }] }
 });

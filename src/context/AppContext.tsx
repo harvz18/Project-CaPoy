@@ -13,6 +13,7 @@ import {
   Task,
   TaskMatch,
   TaskStatus,
+  TaskTerms,
   UserProfile
 } from "../types";
 import {
@@ -24,6 +25,10 @@ import {
   subscribeToAuthState
 } from "../services/authService";
 import { assertCanApply, assertTaskTransition } from "../domain/taskWorkflow";
+import { getTaskTerms } from "../domain/taskTerms";
+import { workerCapabilities } from "../constants/capabilities";
+import { isValidMoneyAmount } from "../utils/numericInput";
+import { isValidScheduleDate } from "../domain/taskMarketplace";
 import {
   markConversationMessagesRead,
   loadOlderMessages,
@@ -45,12 +50,15 @@ import { disableCurrentPushToken, registerPushToken, showDeviceAlert } from "../
 import { addRatingToFirestore, subscribeToRatings } from "../services/ratingService";
 import {
   applyToTask,
+  cancelTaskInFirestore,
   confirmCashPaymentReceipt,
   createTaskInFirestore,
   reconcileDisputedTaskerAvailability,
   rejectTaskApplication,
   subscribeToTaskMatchesForUser,
   subscribeToTasksForUser,
+  respondToTaskChangeRequestInFirestore,
+  updateTaskTermsInFirestore,
   updateTaskPaymentVerification,
   updateWorkerPaymentEvidence,
   updateTaskStatusInFirestore,
@@ -97,12 +105,15 @@ type TaskInput = {
   locationAccuracyMeters?: number;
   locationSource?: Task["locationSource"];
   requiredCapability?: string;
+  requiredCapabilities?: string[];
   wage: string;
   estimatedDuration: string;
   durationValue: number;
   durationUnit: DurationUnit;
-  scheduleStart: string;
-  scheduleEnd: string;
+  scheduleStart?: string;
+  scheduleEnd?: string;
+  scheduleMode?: "fixed" | "anytime";
+  scheduleDate?: string;
   pricingMode: PricingMode;
   perks: string[];
   paymentMethod: PaymentMethod;
@@ -130,6 +141,9 @@ type AppContextValue = {
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
   getUserById: (userId?: string) => UserProfile | undefined;
   createTask: (input: TaskInput) => Promise<Task>;
+  updateTaskTerms: (taskId: string, input: TaskTerms) => Promise<void>;
+  respondToTaskChangeRequest: (taskId: string, accept: boolean) => Promise<void>;
+  cancelTask: (taskId: string, reason: string) => Promise<void>;
   acceptTask: (taskId: string, proposedAmount?: string) => Promise<void>;
   withdrawApplication: (taskId: string) => Promise<void>;
   rejectApplication: (taskId: string, workerId: string) => Promise<void>;
@@ -495,6 +509,44 @@ export function AppProvider({ children }: PropsWithChildren) {
     return createdTask;
   }
 
+  async function updateTaskTerms(taskId: string, input: TaskTerms) {
+    await runAction(async () => {
+      if (!currentUser || currentUser.role !== "client") {
+        throw new Error("Only the employer can edit a task.");
+      }
+      const task = tasks.find((item) => item.id === taskId);
+      if (!task) throw new Error("Task not found.");
+      const completeTerms = { ...getTaskTerms(task), ...input } as TaskTerms;
+      validateTask({
+        ...completeTerms,
+        paymentMethod: task.paymentMethod,
+        durationValue: completeTerms.durationValue ?? 0,
+        durationUnit: completeTerms.durationUnit ?? "day",
+        pricingMode: completeTerms.pricingMode ?? "fixed",
+        perks: completeTerms.perks ?? []
+      });
+      await updateTaskTermsInFirestore(taskId, completeTerms, currentUser);
+    });
+  }
+
+  async function respondToTaskChangeRequest(taskId: string, accept: boolean) {
+    await runAction(async () => {
+      if (!currentUser || currentUser.role !== "worker") {
+        throw new Error("Only the assigned tasker can review these changes.");
+      }
+      await respondToTaskChangeRequestInFirestore(taskId, accept, currentUser);
+    });
+  }
+
+  async function cancelTask(taskId: string, reason: string) {
+    await runAction(async () => {
+      if (!currentUser) throw new Error("Please log in before cancelling a task.");
+      const task = tasks.find((item) => item.id === taskId);
+      if (!task) throw new Error("Task not found.");
+      await cancelTaskInFirestore(taskId, reason, currentUser);
+    });
+  }
+
   async function acceptTask(taskId: string, proposedAmount?: string) {
     await runAction(async () => {
       if (!currentUser) {
@@ -799,6 +851,9 @@ export function AppProvider({ children }: PropsWithChildren) {
       updateProfile,
       getUserById,
       createTask,
+      updateTaskTerms,
+      respondToTaskChangeRequest,
+      cancelTask,
       acceptTask,
       withdrawApplication,
       rejectApplication,
@@ -867,8 +922,12 @@ function validateTask(input: TaskInput) {
     throw new Error("Task title is required.");
   }
 
+  if (!input.category.trim()) {
+    throw new Error("Choose a task category.");
+  }
+
   if (!input.location.trim()) {
-    throw new Error("Task location is required.");
+    throw new Error("A recognizable task landmark is required.");
   }
 
   if (!hasValidCoordinates({ latitude: input.latitude, longitude: input.longitude }) || !input.locationSource) {
@@ -879,16 +938,28 @@ function validateTask(input: TaskInput) {
     throw new Error("Choose a task service radius from 100 to 5,000 meters.");
   }
 
-  if (input.pricingMode === "fixed" && (!input.wage.trim() || Number(input.wage) <= 0)) {
+  if (input.pricingMode === "fixed" && !isValidMoneyAmount(input.wage)) {
     throw new Error("Enter a valid wage offer.");
   }
   if (!Number.isInteger(input.durationValue) || input.durationValue < 1 || input.durationValue > 365) {
     throw new Error("Enter a duration from 1 to 365.");
   }
-  const scheduleStart = Date.parse(input.scheduleStart);
-  const scheduleEnd = Date.parse(input.scheduleEnd);
-  if (!Number.isFinite(scheduleStart) || !Number.isFinite(scheduleEnd) || scheduleEnd <= scheduleStart) {
-    throw new Error("Enter a valid schedule with an end after the start.");
+  const requiredCapabilities = input.requiredCapabilities?.filter(Boolean) ?? (input.requiredCapability ? [input.requiredCapability] : []);
+  if (!requiredCapabilities.length || requiredCapabilities.length > 3 ||
+      new Set(requiredCapabilities).size !== requiredCapabilities.length ||
+      requiredCapabilities.some((capability) => !workerCapabilities.includes(capability))) {
+    throw new Error("Select from one to three required capabilities.");
+  }
+  if (input.scheduleMode === "anytime") {
+    if (!isValidScheduleDate(input.scheduleDate)) {
+      throw new Error("Choose a valid date for an anytime task.");
+    }
+  } else {
+    const scheduleStart = Date.parse(input.scheduleStart ?? "");
+    const scheduleEnd = Date.parse(input.scheduleEnd ?? "");
+    if (!Number.isFinite(scheduleStart) || !Number.isFinite(scheduleEnd) || scheduleEnd <= scheduleStart) {
+      throw new Error("Enter a valid schedule with an end after the start.");
+    }
   }
   if (input.perks.some((perk) => perk.length > 80) || input.perks.length > 10) {
     throw new Error("Add up to 10 perks, with 80 characters per perk.");

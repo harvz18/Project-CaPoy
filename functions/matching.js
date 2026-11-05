@@ -1,5 +1,5 @@
 const EARTH_RADIUS_KM = 6371;
-const MATCH_POLICY_VERSION = 5;
+const MATCH_POLICY_VERSION = 6;
 const DISCOVERY_LOCATION_MAX_AGE_MS = 30 * 60 * 1000;
 const DISCOVERY_MAX_DEVICE_ACCURACY_METERS = 200;
 const MATCH_POLICY_WEIGHTS = Object.freeze({
@@ -31,9 +31,12 @@ function distanceKm(fromLatitude, fromLongitude, toLatitude, toLongitude) {
 function scoreWorkerForTask(task, worker, now = Date.now()) {
   const reasons = [];
   const normalize = (value) => String(value || "").trim().toLowerCase();
-  const required = normalize(task.requiredCapability || task.category);
+  const required = [...new Set((Array.isArray(task.requiredCapabilities) && task.requiredCapabilities.length
+    ? task.requiredCapabilities
+    : [task.requiredCapability || task.category]).map(normalize).filter(Boolean))];
   const capabilities = [...(worker.capabilities || []), ...(worker.skills || [])].map(normalize);
-  const capabilityMatch = !required || capabilities.includes(required);
+  const missingCapabilities = required.filter((capability) => !capabilities.includes(capability));
+  const capabilityMatch = missingCapabilities.length === 0;
   const approvedIdentity = worker.verificationStatus === "Verified" || worker.identityStatus === "Approved";
   const openTask = ["Finding Workers", "Applied"].includes(task.status);
   const expiry = task.expiresAt ? new Date(task.expiresAt).getTime() : undefined;
@@ -51,7 +54,7 @@ function scoreWorkerForTask(task, worker, now = Date.now()) {
   const activeAccount = !["suspended", "deleted"].includes(worker.accountStatus);
   if (worker.role !== "worker") reasons.push("Only tasker profiles can be matched.");
   if (!activeAccount) reasons.push("Account must be active before matching.");
-  if (!capabilityMatch) reasons.push(`Missing required capability: ${task.requiredCapability || task.category}.`);
+  if (!capabilityMatch) reasons.push(`Missing required capability: ${missingCapabilities.join(", ")}.`);
   if (!approvedIdentity) reasons.push("Identity verification is optional during beta testing.");
   if (!openTask) reasons.push("Task is not open for applications.");
   if (!unexpiredTask) reasons.push("Task has expired.");
@@ -87,7 +90,7 @@ function scoreWorkerForTask(task, worker, now = Date.now()) {
   };
   const score = Object.values(breakdown).reduce((total, points) => total + points, 0);
 
-  reasons.push(`Matches ${task.requiredCapability || task.category}.`);
+  reasons.push(`Matches ${required.join(", ") || task.category}.`);
   reasons.push(`${distance.toFixed(1)} km away within the ${radius} km preferred radius.`);
   reasons.push("Schedule conflicts will be checked before acceptance.");
   reasons.push(approvedIdentity ? "Identity approved." : "Identity is not yet verified; beta access remains enabled.");

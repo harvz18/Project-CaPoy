@@ -8,6 +8,7 @@ import { ScreenContainer } from "../src/components/ScreenContainer";
 import { useApp } from "../src/context/AppContext";
 import { styles } from "../src/styles";
 import { PublicRole } from "../src/types";
+import { sanitizePhoneNumberInput } from "../src/utils/numericInput";
 
 export default function RegistrationScreen() {
   const router = useRouter();
@@ -47,9 +48,10 @@ export default function RegistrationScreen() {
         <AppInput
           label="Mobile number"
           value={mobileNumber}
-          onChangeText={setMobileNumber}
+          onChangeText={(value) => setMobileNumber(sanitizePhoneNumberInput(value))}
           keyboardType="phone-pad"
-          placeholder="Mobile number"
+          maxLength={24}
+          placeholder="+63 917 000 0001"
         />
         <AppInput label="Address/location" value={address} onChangeText={setAddress} placeholder="Address/location" />
         <AppInput

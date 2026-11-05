@@ -177,6 +177,7 @@ function ProtectedNavigator() {
         <Stack.Screen name="worker-dashboard" options={{ title: "Worker Dashboard" }} />
         <Stack.Screen name="client-dashboard" options={{ title: "Client Dashboard" }} />
         <Stack.Screen name="post-task" options={{ title: "Post Task" }} />
+        <Stack.Screen name="edit-task/[id]" options={{ title: "Edit Task" }} />
         <Stack.Screen name="jobs" options={{ title: "Nearby Jobs" }} />
         <Stack.Screen name="task/[id]" options={{ title: "Job Details" }} />
         <Stack.Screen name="task-status/[id]" options={{ title: "Task Status" }} />

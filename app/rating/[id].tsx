@@ -1,9 +1,11 @@
+import Feather from "@expo/vector-icons/Feather";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { EmptyState } from "../../src/components/EmptyState";
 import { useApp } from "../../src/context/AppContext";
+import { useTasklinkBack } from "../../src/hooks/useTasklinkBack";
 
 const palette = {
   background: "#F7FAF8",
@@ -27,6 +29,7 @@ const palette = {
 export default function RatingScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const goBack = useTasklinkBack();
   const insets = useSafeAreaInsets();
   const { actionLoading, submitRating, ratings, currentUser, tasks } = useApp();
   const [score, setScore] = useState(5);
@@ -39,7 +42,7 @@ export default function RatingScreen() {
     try {
       setSubmitError("");
       await submitRating(id, score, feedback.trim());
-      router.back();
+      goBack();
     } catch (ratingError) {
       setSubmitError(ratingError instanceof Error ? ratingError.message : "Unable to submit this rating.");
     }
@@ -49,8 +52,8 @@ export default function RatingScreen() {
     return (
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
         <View style={styles.header}>
-          <Pressable accessibilityLabel="Go back" accessibilityRole="button" onPress={() => router.back()} style={styles.backButton}>
-            <Text style={styles.backText}>Back</Text>
+          <Pressable accessibilityLabel="Go back" accessibilityRole="button" onPress={goBack} style={styles.backButton}>
+            <Feather accessibilityElementsHidden color={palette.primary} name="arrow-left" size={22} />
           </Pressable>
         </View>
         <EmptyState title="Task unavailable" message="This task could not be loaded, so a rating cannot be submitted." />
@@ -62,8 +65,8 @@ export default function RatingScreen() {
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Pressable accessibilityLabel="Go back" accessibilityRole="button" onPress={() => router.back()} style={styles.backButton}>
-            <Text style={styles.backText}>Back</Text>
+          <Pressable accessibilityLabel="Go back" accessibilityRole="button" onPress={goBack} style={styles.backButton}>
+            <Feather accessibilityElementsHidden color={palette.primary} name="arrow-left" size={22} />
           </Pressable>
           <Text style={styles.brand}>TASKLINK</Text>
         </View>

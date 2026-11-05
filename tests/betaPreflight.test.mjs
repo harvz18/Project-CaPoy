@@ -14,7 +14,7 @@ const completeEnv = {
   EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "123",
   EXPO_PUBLIC_FIREBASE_APP_ID: "app-id",
   EXPO_PUBLIC_SUPPORT_EMAIL: "support@example.test",
-  GOOGLE_MAPS_API_KEY: "maps-key"
+  EXPO_PUBLIC_MAPTILER_API_KEY: "maptiler-key"
 };
 
 const config = {
@@ -37,7 +37,7 @@ test("beta preflight fails a Firebase target mismatch", () => {
 test("distribution-only settings are warnings while core Firebase settings fail closed", () => {
   const results = evaluateBetaPreflight({ ...config, env: {} });
   assert.equal(results.find(({ id }) => id === "support:email")?.level, "warn");
-  assert.equal(results.find(({ id }) => id === "maps:android-key")?.level, "warn");
+  assert.equal(results.find(({ id }) => id === "maps:maptiler-key")?.level, "warn");
   assert.equal(results.find(({ id }) => id === "env:EXPO_PUBLIC_FIREBASE_PROJECT_ID")?.level, "fail");
 });
 
@@ -45,15 +45,16 @@ test("environment parsing ignores comments and preserves equals signs in values"
   assert.deepEqual(parseEnv("# comment\nA=one=two\nB=\"three\"\n"), { A: "one=two", B: "three" });
 });
 
-test("dynamic app config injects the Android map key only when configured", () => {
-  const original = process.env.GOOGLE_MAPS_API_KEY;
+test("dynamic app config exposes the public MapTiler key only when configured", () => {
+  const original = process.env.EXPO_PUBLIC_MAPTILER_API_KEY;
   try {
-    delete process.env.GOOGLE_MAPS_API_KEY;
-    assert.equal(resolveAppConfig().android.config, undefined);
-    process.env.GOOGLE_MAPS_API_KEY = "test-map-key";
-    assert.equal(resolveAppConfig().android.config.googleMaps.apiKey, "test-map-key");
+    delete process.env.EXPO_PUBLIC_MAPTILER_API_KEY;
+    assert.equal(resolveAppConfig().extra.mapTilerConfigured, false);
+    process.env.EXPO_PUBLIC_MAPTILER_API_KEY = "test-maptiler-key";
+    assert.equal(resolveAppConfig().extra.mapTilerApiKey, "test-maptiler-key");
+    assert.equal(resolveAppConfig().extra.mapTilerConfigured, true);
   } finally {
-    if (original === undefined) delete process.env.GOOGLE_MAPS_API_KEY;
-    else process.env.GOOGLE_MAPS_API_KEY = original;
+    if (original === undefined) delete process.env.EXPO_PUBLIC_MAPTILER_API_KEY;
+    else process.env.EXPO_PUBLIC_MAPTILER_API_KEY = original;
   }
 });

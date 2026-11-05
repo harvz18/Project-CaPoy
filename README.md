@@ -11,13 +11,13 @@ The active no-cost demo target is the web build published through Expo static ex
 - Leaflet with OpenStreetMap tiles
 - In-app task, chat, and workflow notifications
 
-The web demo intentionally does not require Google Maps, Cloud Functions, Cloud Storage, EAS, or a Firebase billing upgrade.
+The web demo intentionally does not require a Google Maps SDK, Cloud Functions, Cloud Storage, EAS, or a Firebase billing upgrade.
 
 ## Local setup
 
 Requirements:
 
-- A supported Node.js LTS release
+- Node.js 20 LTS (the project includes `.nvmrc` and the Cloud Functions runtime is Node 20)
 - npm
 - Android Studio or an Android device for mobile testing
 - A Firebase project with Email/Password Authentication enabled
@@ -48,7 +48,7 @@ The current secure baseline uses Firebase Email/Password Authentication. A norma
 
 The Firebase Auth SDK owns the session used by Firestore and Storage. Mobile sessions are persisted with AsyncStorage and restored on app launch.
 
-SMS OTP is not implemented yet. The old fixed prototype code and shared fallback password have been removed. Do not describe the current password flow as phone verification.
+SMS OTP is not implemented yet. The old fixed prototype code and shared fallback password have been removed. Do not describe the current password flow as phone verification. Phase 9 retained the password flow because real Firebase verification SMS requires owner-controlled Phone-provider, app-verification, SMS-region, and billing configuration; local OTP input/cooldown helpers do not authenticate or mark a number verified.
 
 Employer and tasker accounts use the same login form. Registration selects the account type first and creates the matching `client` or `worker` profile directly; login reads that stored role and opens the correct dashboard. An existing idle account can change modes from Profile > Account Mode.
 
@@ -88,7 +88,7 @@ The controlled-beta limitations, location/payment statements, manual deletion pr
 
 The repository now uses an explicit Firebase `beta` alias and intentionally has no default/production alias. Run `npm run beta:preflight` for a value-redacted configuration check, `npm run beta:preflight:strict` before APK distribution, and `npm run test:beta:local` for the complete automated local gate.
 
-Android standalone builds resolve `GOOGLE_MAPS_API_KEY` through `app.config.js`; the key must be configured in the EAS `preview` environment and restricted to the Android package/signing certificate. The reproducible setup, four-account fixture register, cloud deployment boundary, physical-device scenarios, evidence fields, and rollback procedure are in [docs/TASKLINK_BETA_ACCEPTANCE.md](docs/TASKLINK_BETA_ACCEPTANCE.md).
+Native maps use MapLibre. Set `EXPO_PUBLIC_MAPTILER_API_KEY` in the local/EAS preview environment to use the MapTiler vector style; do not commit the key. Without it, the app uses a visibly attributed OpenStreetMap fallback for controlled defense traffic. The reproducible setup, four-account fixture register, cloud deployment boundary, physical-device scenarios, evidence fields, and rollback procedure are in [docs/TASKLINK_BETA_ACCEPTANCE.md](docs/TASKLINK_BETA_ACCEPTANCE.md).
 
 ## Task workflow
 
@@ -108,7 +108,7 @@ TASKLINK requests foreground location only after the user taps a location action
 
 Job recommendations and applicant cards use a deterministic score based on required capability, distance, availability, verification, experience, rating, and completed work. Missing location or capability data fails closed instead of using a hidden Bacolod coordinate.
 
-Native Android maps work in Expo Go during development. Production Android builds need `GOOGLE_MAPS_API_KEY` in the local/EAS environment. Restrict that key to `com.tasklink.app` and the production signing certificate. Web uses Leaflet with visibly attributed OpenStreetMap tiles for navigation, click/tap selection, draggable pins, and geofence previews. The public OpenStreetMap tile service is for controlled beta traffic here, not assumed to be unlimited production hosting.
+Native Android and iOS maps use MapLibre and require an Expo development or preview build after native code is rebuilt; they cannot run in Expo Go. Configure `EXPO_PUBLIC_MAPTILER_API_KEY` to use MapTiler's `streets-v4` style. Until the key is available, MapLibre uses a visibly attributed OpenStreetMap raster fallback for controlled defense traffic only. Web continues to use Leaflet with OpenStreetMap tiles for navigation, click/tap selection, draggable pins, and geofence previews. The public OpenStreetMap tile service is not assumed to be unlimited production hosting.
 
 Nearby-worker notification fan-out is implemented in `functions/` as an optional trusted Firestore trigger, but it is not used by the no-cost web demo. Workers discover and filter open tasks from the live job feed, which never exposes another user's private coordinates.
 

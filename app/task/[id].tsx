@@ -1,13 +1,17 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import Feather from "@expo/vector-icons/Feather";
+import { Href, useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBadge } from "../../src/components/StatusBadge";
 import { useApp } from "../../src/context/AppContext";
+import { useTasklinkBack } from "../../src/hooks/useTasklinkBack";
 import { rankTaskMatches, summarizeScoreBreakdown } from "../../src/domain/matching";
-import { formatPaymentMethod, formatTaskDuration, formatTaskPrice, formatTaskSchedule } from "../../src/domain/taskMarketplace";
+import { formatPaymentMethod, formatRequiredCapabilities, formatTaskDuration, formatTaskPrice, formatTaskSchedule } from "../../src/domain/taskMarketplace";
 import { TaskMatch } from "../../src/types";
 import { formatDistance } from "../../src/utils/location";
+import { sanitizeMoneyInput } from "../../src/utils/numericInput";
+import { canEditTaskTerms, hasPendingTaskChange } from "../../src/domain/taskTerms";
 
 const palette = {
   background: "#F7FAF8",
@@ -31,6 +35,7 @@ const palette = {
 export default function TaskDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const goBack = useTasklinkBack();
   const insets = useSafeAreaInsets();
   const { actionLoading, currentUser, users, ratings, getUserById, tasks, taskMatches, acceptTask, rejectApplication, updateTaskStatus } = useApp();
   const [proposedAmount, setProposedAmount] = useState("");
@@ -40,7 +45,7 @@ export default function TaskDetailsScreen() {
   if (!task) {
     return (
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-        <TopBar title="Task" onBack={() => router.back()} />
+        <TopBar title="Task" onBack={goBack} />
         <View style={styles.notFound}>
           <Text style={styles.title}>Task not found</Text>
         </View>
@@ -72,6 +77,7 @@ export default function TaskDetailsScreen() {
     ? employerScores.reduce((total, score) => total + score, 0) / employerScores.length
     : employer?.rating;
   const hasApplied = Boolean(currentUser?.id && task.applicantIds?.includes(currentUser.id));
+  const canEdit = Boolean(currentUser && currentUser.role === "client" && canEditTaskTerms(task, currentUser.id));
 
   async function handleWorkerAccept() {
     const taskId = task?.id;
@@ -113,7 +119,7 @@ export default function TaskDetailsScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-      <TopBar title={isClient ? "Task Details" : "Job Details"} onBack={() => router.back()} />
+      <TopBar title={isClient ? "Task Details" : "Job Details"} onBack={goBack} />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 32 + insets.bottom }]} showsVerticalScrollIndicator={false}>
         <View style={styles.heroCard}>
           <View style={styles.heroTop}>
@@ -128,6 +134,16 @@ export default function TaskDetailsScreen() {
             </View>
           </View>
           <StatusBadge status={task.status} />
+          {canEdit ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push(`/edit-task/${task.id}` as Href)}
+              style={styles.editTaskButton}
+            >
+              <Feather accessibilityElementsHidden color={palette.primary} name="edit-3" size={17} />
+              <Text style={styles.editTaskText}>{hasPendingTaskChange(task) ? "Changes awaiting tasker review" : task.workerId ? "Propose task changes" : "Edit task"}</Text>
+            </Pressable>
+          ) : null}
         </View>
 
         <View style={styles.detailsGrid}>
@@ -135,7 +151,7 @@ export default function TaskDetailsScreen() {
           <DetailBox label="Duration" value={formatTaskDuration(task)} />
           <DetailBox label="Payment" value={formatPaymentMethod(task.paymentMethod)} />
           <DetailBox label="Applicants" value={hasAcceptedWorker ? "1 accepted" : `${applicantCount} applied`} />
-          <DetailBox label="Capability" value={task.requiredCapability ?? task.category} />
+          <DetailBox label="Capabilities" value={formatRequiredCapabilities(task)} />
           <DetailBox label="Task Radius" value={`${task.geofenceRadius ?? 500} meters`} />
           <DetailBox label="Employer" value={`${employer?.fullName ?? "TaskLink employer"}${employer?.verificationStatus === "Verified" ? " · Verified" : ""}${employerRating ? ` · ${employerRating.toFixed(1)}/5` : ""}`} />
           <DetailBox label="Schedule" value={formatTaskSchedule(task)} />
@@ -273,8 +289,8 @@ export default function TaskDetailsScreen() {
                 <View style={styles.applyBox}>
                   {task.pricingMode === "bidding" ? <TextInput
                     accessibilityLabel="Offer amount"
-                    keyboardType="numeric"
-                    onChangeText={setProposedAmount}
+                    keyboardType="decimal-pad"
+                    onChangeText={(value) => setProposedAmount(sanitizeMoneyInput(value))}
                     placeholder="Your offer amount (₱)"
                     placeholderTextColor={palette.outline}
                     style={styles.bidInput}
@@ -342,7 +358,7 @@ function TopBar({ title, onBack }: { title: string; onBack: () => void }) {
     <View style={styles.header}>
       <View style={styles.headerLeft}>
         <Pressable accessibilityLabel="Go back" accessibilityRole="button" onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backText}>Back</Text>
+          <Feather accessibilityElementsHidden color={palette.primary} name="arrow-left" size={22} />
         </Pressable>
         <Text style={styles.headerTitle}>{title}</Text>
       </View>
@@ -419,6 +435,8 @@ const styles = StyleSheet.create({
   primaryButton: { flex: 1, minHeight: 46, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
   primaryButtonLarge: { minHeight: 52, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
   primaryButtonText: { color: palette.white, fontSize: 14, lineHeight: 20, fontWeight: "900" },
+  editTaskButton: { minHeight: 44, borderRadius: 10, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#E5F3F0", borderWidth: 1, borderColor: "#9CCBC4" },
+  editTaskText: { color: palette.primary, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   secondaryButton: { flex: 1, minHeight: 46, borderRadius: 10, borderWidth: 1, borderColor: palette.primary, alignItems: "center", justifyContent: "center", backgroundColor: palette.surface },
   secondaryButtonText: { color: palette.primary, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   disabledButton: { backgroundColor: palette.surfaceHigh },

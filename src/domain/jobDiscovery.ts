@@ -22,7 +22,7 @@ function wage(value: string) {
 
 export function getJobCategories(tasks: Task[]) {
   return [...new Set(tasks
-    .map((task) => task.category.trim())
+    .map((task) => task.category?.trim() ?? "")
     .filter(Boolean))]
     .sort((left, right) => left.localeCompare(right));
 }
@@ -39,7 +39,7 @@ export function filterAndSortRankedJobs(items: RankedJob[], filters: JobDiscover
   const query = filters.query.trim().toLocaleLowerCase();
   const category = filters.category.trim().toLocaleLowerCase();
   const filtered = items.filter(({ task }) => {
-    const categoryMatches = !category || task.category.trim().toLocaleLowerCase() === category;
+    const categoryMatches = !category || (task.category?.trim().toLocaleLowerCase() ?? "") === category;
     if (!categoryMatches) return false;
     if (!query) return true;
     return [

@@ -2,7 +2,7 @@ import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
 import { Platform } from "react-native";
-import { collection, doc, getDoc, getDocs, writeBatch } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import {
   createFirestorePaymentProofPath,
@@ -128,8 +128,7 @@ export async function pickAndUploadPaymentProof(taskId: string, party: PaymentPr
   const version = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
   const createdAt = new Date().toISOString();
   const proofRef = doc(firestore, "paymentProofFiles", taskId, "uploads", party);
-  const batch = writeBatch(firestore);
-  batch.set(proofRef, {
+  await setDoc(proofRef, {
     taskId,
     party,
     uploaderId: user.uid,
@@ -142,9 +141,9 @@ export async function pickAndUploadPaymentProof(taskId: string, party: PaymentPr
     status: "ready",
     createdAt
   });
-  chunks.forEach((data, index) => {
+  for (const [index, data] of chunks.entries()) {
     const chunkId = index.toString().padStart(3, "0");
-    batch.set(doc(proofRef, "chunks", chunkId), {
+    await setDoc(doc(proofRef, "chunks", chunkId), {
       id: chunkId,
       taskId,
       party,
@@ -154,8 +153,7 @@ export async function pickAndUploadPaymentProof(taskId: string, party: PaymentPr
       data,
       createdAt
     });
-  });
-  await batch.commit();
+  }
   const path = createFirestorePaymentProofPath(taskId, party);
   return { name: file.name, path };
 }

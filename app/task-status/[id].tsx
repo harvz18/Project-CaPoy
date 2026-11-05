@@ -1,3 +1,4 @@
+import Feather from "@expo/vector-icons/Feather";
 import { Href, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
@@ -5,8 +6,9 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import LocationMap from "../../src/components/LocationMap";
 import { StatusBadge } from "../../src/components/StatusBadge";
 import { useApp } from "../../src/context/AppContext";
-import { formatPaymentMethod, formatTaskDuration, formatTaskPrice, formatTaskSchedule } from "../../src/domain/taskMarketplace";
+import { formatPaymentMethod, formatRequiredCapabilities, formatTaskDuration, formatTaskPrice, formatTaskSchedule } from "../../src/domain/taskMarketplace";
 import { useForegroundLocationWatch } from "../../src/hooks/useForegroundLocationWatch";
+import { useTasklinkBack } from "../../src/hooks/useTasklinkBack";
 import { PaymentStatus, Task, TaskStatus } from "../../src/types";
 import {
   formatDistance,
@@ -16,6 +18,8 @@ import {
   shouldTrackTaskLocation
 } from "../../src/utils/location";
 import { getPaymentProofDownloadUrl, pickAndUploadPaymentProof } from "../../src/services/fileUploadService";
+import { hasPendingTaskChange, summarizeTaskTermChanges } from "../../src/domain/taskTerms";
+import { getCancellationEligibility } from "../../src/domain/cancellation";
 
 const palette = {
   background: "#F7FAF8",
@@ -39,8 +43,9 @@ const palette = {
 export default function TaskStatusScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const goBack = useTasklinkBack();
   const insets = useSafeAreaInsets();
-  const { acceptTask, actionLoading, clearError, confirmCashPayment, currentUser, getUserById, ratings, tasks, submitPaymentProof, submitWorkerPaymentProof, updateTaskStatus, withdrawApplication } = useApp();
+  const { acceptTask, actionLoading, cancelTask, clearError, confirmCashPayment, currentUser, getUserById, ratings, respondToTaskChangeRequest, tasks, submitPaymentProof, submitWorkerPaymentProof, updateTaskStatus, withdrawApplication } = useApp();
   const task = tasks.find((item) => item.id === id);
   const taskClient = getUserById(task?.clientId) ?? (currentUser?.id === task?.clientId ? currentUser : undefined);
   const [actionWarning, setActionWarning] = useState("");
@@ -52,7 +57,8 @@ export default function TaskStatusScreen() {
   const [workerProofOfPaymentUrl, setWorkerProofOfPaymentUrl] = useState(task?.workerProofOfPaymentUrl ?? "");
   const [workerProofFileName, setWorkerProofFileName] = useState(task?.workerProofOfPaymentUrl?.split("/").pop() ?? "");
   const [uploadingWorkerProof, setUploadingWorkerProof] = useState(false);
-  const [disputeDialogOpen, setDisputeDialogOpen] = useState(false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [cancellationReason, setCancellationReason] = useState("");
 
   // Task data is delivered by a Firestore listener, so it can arrive after this
   // screen's first render. Keep an already-uploaded local receipt, while also
@@ -75,7 +81,7 @@ export default function TaskStatusScreen() {
   if (!task) {
     return (
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-        <TopBar initials={currentUser?.fullName?.[0] ?? "U"} onBack={() => router.back()} />
+        <TopBar initials={currentUser?.fullName?.[0] ?? "U"} onBack={goBack} />
         <View style={styles.notFound}>
           <Text style={styles.title}>Task not found</Text>
           <Pressable style={styles.secondaryAction} onPress={() => router.replace("/worker-dashboard")}>
@@ -114,8 +120,10 @@ export default function TaskStatusScreen() {
   const actionRequiresGeofence = currentUser?.role === "worker" &&
     (action.nextStatus === "In Progress" || action.nextStatus === "Pending Approval");
   const geofenceActionReady = !actionRequiresGeofence || (liveLocationHealthy && insideGeofence);
-  const primaryActionEnabled = action.enabled && geofenceActionReady && !actionLoading;
-  const primaryActionLabel = getGeofenceActionLabel(
+  const changeRequestPending = hasPendingTaskChange(task);
+  const assignedWorkerMustReviewChange = changeRequestPending && currentUser?.role === "worker" && currentUser.id === task.workerId;
+  const primaryActionEnabled = action.enabled && geofenceActionReady && !actionLoading && !assignedWorkerMustReviewChange;
+  const primaryActionLabel = assignedWorkerMustReviewChange ? "Review task changes first" : getGeofenceActionLabel(
     action.label,
     action.nextStatus,
     geofenceActionReady,
@@ -135,6 +143,8 @@ export default function TaskStatusScreen() {
     currentUser.id === task.workerId &&
     ["Accepted", "In Progress", "Pending Approval"].includes(task.status) &&
     task.paymentStatus !== "Verified";
+  const cancellationEligibility = currentUser ? getCancellationEligibility(task, currentUser) : { allowed: false as const, reason: "Sign in to cancel a task." };
+  const canCancelTask = cancellationEligibility.allowed;
 
   async function handlePrimaryAction() {
     if (!task) {
@@ -174,7 +184,7 @@ export default function TaskStatusScreen() {
   if (!workerCanTrackTask) {
     return (
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-        <TopBar initials={currentUser?.fullName?.[0] ?? "U"} onBack={() => router.back()} />
+          <TopBar initials={currentUser?.fullName?.[0] ?? "U"} onBack={goBack} />
         <View style={styles.notFound}>
           <Text style={styles.title}>Apply before tracking this task</Text>
           <Text style={styles.emptyText}>This status screen is only for workers who applied to the task or were accepted by the client.</Text>
@@ -253,23 +263,41 @@ export default function TaskStatusScreen() {
     }
   }
 
-  async function handleSecondaryWorkflowAction(actionName: "withdraw" | "cancel" | "dispute") {
+  async function handleWithdrawApplication() {
     if (!task) return;
     try {
       setActionWarning("");
-      if (actionName === "withdraw") {
-        await withdrawApplication(task.id);
-        return;
-      }
-      await updateTaskStatus(task.id, actionName === "cancel" ? "Cancelled" : "Disputed");
+      await withdrawApplication(task.id);
     } catch (error) {
-      setActionWarning(error instanceof Error ? error.message : "Unable to continue. Please try again.");
+      setActionWarning(error instanceof Error ? error.message : "Unable to withdraw this application.");
+    }
+  }
+
+  async function handleCancelTask() {
+    if (!task) return;
+    try {
+      setActionWarning("");
+      await cancelTask(task.id, cancellationReason);
+      setCancelDialogOpen(false);
+      setCancellationReason("");
+    } catch (cancelError) {
+      setActionWarning(cancelError instanceof Error ? cancelError.message : "Unable to cancel this task.");
+    }
+  }
+
+  async function handleTaskChangeReview(accept: boolean) {
+    if (!task) return;
+    try {
+      setActionWarning("");
+      await respondToTaskChangeRequest(task.id, accept);
+    } catch (reviewError) {
+      setActionWarning(reviewError instanceof Error ? reviewError.message : "Unable to review the task changes.");
     }
   }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-      <TopBar initials={currentUser?.fullName?.[0] ?? "U"} onBack={() => router.back()} />
+      <TopBar initials={currentUser?.fullName?.[0] ?? "U"} onBack={goBack} />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 132 + insets.bottom }]} showsVerticalScrollIndicator={false}>
         <View style={styles.mapHero}>
           <LocationMap
@@ -351,8 +379,8 @@ export default function TaskStatusScreen() {
             </View>
 
             <View style={styles.detailsGrid}>
-              <DetailBox label="Payment Method" value={formatPaymentMethod(task.paymentMethod)} icon="P" />
-              <DetailBox label="Required Capability" value={task.requiredCapability ?? task.category} icon="S" />
+              <DetailBox label="Payment Method" value={formatPaymentMethod(task.paymentMethod)} icon="credit-card" />
+              <DetailBox label="Required Capabilities" value={formatRequiredCapabilities(task)} icon="tool" />
             </View>
 
             <View style={styles.geoPanel}>
@@ -563,13 +591,41 @@ export default function TaskStatusScreen() {
             <View style={styles.trustRow}>
               <TrustItem text="Evidence stored privately" />
               <TrustItem text="Participants only" />
-              <TrustItem text="Disputes can be reviewed" />
+              <TrustItem text="Task history preserved" />
             </View>
 
             <View style={styles.statusPanel}>
               <Text style={styles.sectionTitle}>Current Status</Text>
               <StatusBadge status={task.status} />
             </View>
+
+            {task.status === "Cancelled" ? (
+              <View style={styles.cancellationRecord}>
+                <Text style={styles.cancellationRecordTitle}>Cancellation record</Text>
+                <Text style={styles.cancellationRecordText}>Cancelled by: {task.cancelledByRole === "worker" ? "Tasker" : "Employer"}</Text>
+                <Text style={styles.cancellationRecordText}>Reason: {task.cancellationReason ?? "Not recorded"}</Text>
+                <Text style={styles.cancellationRecordText}>Payment status preserved: {task.paymentStatusAtCancellation ?? task.paymentStatus ?? "Pending"}</Text>
+              </View>
+            ) : null}
+
+            {changeRequestPending && task.changeRequest ? (
+              <View style={styles.changeRequestPanel}>
+                <Text style={styles.changeRequestTitle}>Task changes awaiting review</Text>
+                <Text style={styles.changeRequestText}>
+                  The employer proposed changes to {summarizeTaskTermChanges(task.changeRequest.changedFields)}. The current agreed terms remain in effect until the tasker responds.
+                </Text>
+                {assignedWorkerMustReviewChange ? (
+                  <View style={styles.changeRequestActions}>
+                    <Pressable accessibilityRole="button" disabled={actionLoading} onPress={() => void handleTaskChangeReview(false)} style={styles.changeDeclineButton}>
+                      <Text style={styles.changeDeclineText}>Decline changes</Text>
+                    </Pressable>
+                    <Pressable accessibilityRole="button" disabled={actionLoading} onPress={() => void handleTaskChangeReview(true)} style={styles.changeAcceptButton}>
+                      <Text style={styles.changeAcceptText}>{actionLoading ? "Saving..." : "Accept changes"}</Text>
+                    </Pressable>
+                  </View>
+                ) : <Text style={styles.changeRequestHint}>The assigned tasker has been notified and must accept or decline before work starts.</Text>}
+              </View>
+            ) : null}
 
             {currentUser?.role === "client" && (task.status === "Finished" || task.status === "Archived") && task.workerId ? (
               <View style={styles.clientRatingPanel}>
@@ -608,25 +664,22 @@ export default function TaskStatusScreen() {
             ) : null}
 
             {currentUser?.role === "worker" && workerHasApplied && taskIsOpenForApplications ? (
-              <Pressable style={styles.dangerAction} onPress={() => handleSecondaryWorkflowAction("withdraw")}>
+              <Pressable style={styles.dangerAction} onPress={handleWithdrawApplication}>
                 <Text style={styles.dangerActionText}>Withdraw Application</Text>
               </Pressable>
             ) : null}
 
-            {currentUser?.role === "client" && task.clientId === currentUser.id &&
-            ["Finding Workers", "Applied", "Accepted", "In Progress", "Pending Approval"].includes(task.status) ? (
-              <Pressable style={styles.dangerAction} onPress={() => handleSecondaryWorkflowAction("cancel")}>
-                <Text style={styles.dangerActionText}>Cancel Task</Text>
+            {canCancelTask ? (
+              <Pressable accessibilityRole="button" style={styles.dangerAction} onPress={() => setCancelDialogOpen(true)}>
+                <Text style={styles.dangerActionText}>{currentUser?.role === "worker" ? "Cancel Assignment" : "Cancel Task"}</Text>
               </Pressable>
             ) : null}
 
-            {(task.status === "Accepted" || task.status === "In Progress" || task.status === "Pending Approval" || task.status === "Finished") &&
-            (currentUser?.id === task.clientId || currentUser?.id === task.workerId) ? (
-              <View style={styles.disputeBlock}>
-                <Pressable style={styles.dangerAction} onPress={() => setDisputeDialogOpen(true)}>
-                  <Text style={styles.dangerActionText}>Open Dispute</Text>
-                </Pressable>
-                <Text style={styles.disputeHelp}>Use this when the employer and tasker cannot resolve a problem with the work, payment, or completion. It flags the task for administrator review.</Text>
+            {currentUser?.role === "worker" && currentUser.id === task.workerId && !canCancelTask &&
+            ["In Progress", "Pending Approval"].includes(task.status) ? (
+              <View style={styles.cancellationFallback}>
+                <Text style={styles.cancellationFallbackTitle}>Cancellation unavailable after check-in</Text>
+                <Text style={styles.cancellationFallbackText}>TaskLink records the start only after its location check. It cannot independently verify physical arrival when location data is missing; contact the project coordinator if work has already started.</Text>
               </View>
             ) : null}
 
@@ -671,25 +724,38 @@ export default function TaskStatusScreen() {
         </Pressable>
         <Text style={styles.guidelineText}>By clicking, you agree to the TaskLink Community Guidelines.</Text>
       </View>
-      <Modal animationType="fade" transparent visible={disputeDialogOpen} onRequestClose={() => setDisputeDialogOpen(false)}>
+      <Modal animationType="fade" transparent visible={cancelDialogOpen} onRequestClose={() => setCancelDialogOpen(false)}>
         <View accessibilityViewIsModal style={styles.dialogBackdrop}>
           <View style={styles.dialogCard}>
-            <Text style={styles.dialogTitle}>Open a dispute?</Text>
-            <Text style={styles.dialogMessage}>A dispute stops the normal task flow and flags the task for administrator review. Use it only when chat cannot resolve a disagreement about the work, payment, or completion.</Text>
+            <Text style={styles.dialogTitle}>{currentUser?.role === "worker" ? "Cancel assignment?" : "Cancel task?"}</Text>
+            <Text style={styles.dialogMessage}>
+              {cancellationEligibility.allowed && cancellationEligibility.stage === "pre-check-in"
+                ? "This is available only before TaskLink records the task start. It will notify the other participant and preserve the task and payment history."
+                : "This will close the task, notify active applicants, and preserve its history. Payment records will not be changed."}
+            </Text>
+            <TextInput
+              accessibilityLabel="Cancellation reason"
+              multiline
+              maxLength={500}
+              onChangeText={setCancellationReason}
+              placeholder="Explain why you are cancelling (required)"
+              placeholderTextColor={palette.outline}
+              style={styles.cancellationReasonInput}
+              textAlignVertical="top"
+              value={cancellationReason}
+            />
+            <Text style={styles.cancellationReasonHint}>{cancellationReason.trim().length}/500 characters (minimum 5)</Text>
             <View style={styles.dialogActions}>
-              <Pressable accessibilityRole="button" disabled={actionLoading} onPress={() => setDisputeDialogOpen(false)} style={styles.dialogCancel}>
+              <Pressable accessibilityRole="button" disabled={actionLoading} onPress={() => setCancelDialogOpen(false)} style={styles.dialogCancel}>
                 <Text style={styles.dialogCancelText}>Keep Task Active</Text>
               </Pressable>
               <Pressable
                 accessibilityRole="button"
-                disabled={actionLoading}
-                onPress={() => {
-                  setDisputeDialogOpen(false);
-                  void handleSecondaryWorkflowAction("dispute");
-                }}
-                style={styles.dialogConfirm}
+                disabled={actionLoading || cancellationReason.trim().length < 5}
+                onPress={() => void handleCancelTask()}
+                style={[styles.dialogConfirm, (actionLoading || cancellationReason.trim().length < 5) && styles.primaryActionDisabled]}
               >
-                <Text style={styles.dialogConfirmText}>{actionLoading ? "Opening..." : "Open Dispute"}</Text>
+                <Text style={styles.dialogConfirmText}>{actionLoading ? "Cancelling..." : "Confirm Cancellation"}</Text>
               </Pressable>
             </View>
           </View>
@@ -803,7 +869,7 @@ function TopBar({ initials, onBack }: { initials: string; onBack: () => void }) 
   return (
     <View style={styles.topBar}>
       <Pressable accessibilityLabel="Go back" accessibilityRole="button" onPress={onBack} style={styles.backButton}>
-        <Text style={styles.backText}>Back</Text>
+        <Feather accessibilityElementsHidden color={palette.primary} name="arrow-left" size={22} />
       </Pressable>
       <Text style={styles.brand}>TASKLINK</Text>
       <View style={styles.userAvatar}>
@@ -813,12 +879,12 @@ function TopBar({ initials, onBack }: { initials: string; onBack: () => void }) 
   );
 }
 
-function DetailBox({ label, value, icon }: { label: string; value: string; icon: string }) {
+function DetailBox({ label, value, icon }: { label: string; value: string; icon: "credit-card" | "tool" }) {
   return (
     <View style={styles.detailBox}>
       <Text style={styles.detailLabel}>{label}</Text>
       <View style={styles.detailValueRow}>
-        <Text style={styles.detailIcon}>{icon}</Text>
+        <Feather accessibilityElementsHidden color={palette.primary} name={icon} size={18} />
         <Text style={styles.detailValue}>{value}</Text>
       </View>
     </View>
@@ -1028,6 +1094,23 @@ const styles = StyleSheet.create({
   trustCheck: { color: palette.success, fontSize: 12, fontWeight: "900" },
   trustText: { color: palette.muted, fontSize: 11, lineHeight: 14, fontWeight: "600" },
   statusPanel: { gap: 8 },
+  changeRequestPanel: { padding: 14, gap: 8, borderRadius: 12, borderWidth: 1, borderColor: "#F7C66A", backgroundColor: "#FFF8E7" },
+  changeRequestTitle: { color: "#684000", fontSize: 16, lineHeight: 22, fontWeight: "900" },
+  changeRequestText: { color: "#684000", fontSize: 13, lineHeight: 19 },
+  changeRequestHint: { color: "#855300", fontSize: 12, lineHeight: 17, fontWeight: "800" },
+  changeRequestActions: { flexDirection: "row", gap: 10, marginTop: 2 },
+  changeDeclineButton: { flex: 1, minHeight: 44, alignItems: "center", justifyContent: "center", borderRadius: 10, borderWidth: 1, borderColor: "#B45309", backgroundColor: palette.surface },
+  changeDeclineText: { color: "#92400E", fontSize: 13, fontWeight: "900" },
+  changeAcceptButton: { flex: 1, minHeight: 44, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: palette.primary },
+  changeAcceptText: { color: palette.white, fontSize: 13, fontWeight: "900" },
+  cancellationFallback: { padding: 14, gap: 6, borderRadius: 12, backgroundColor: "#FFF8E7", borderWidth: 1, borderColor: "#F7C66A" },
+  cancellationFallbackTitle: { color: "#684000", fontSize: 15, lineHeight: 21, fontWeight: "900" },
+  cancellationFallbackText: { color: "#684000", fontSize: 12, lineHeight: 18 },
+  cancellationRecord: { padding: 14, gap: 5, borderRadius: 12, backgroundColor: palette.surfaceLow, borderWidth: 1, borderColor: palette.outlineVariant },
+  cancellationRecordTitle: { color: palette.text, fontSize: 16, lineHeight: 22, fontWeight: "900" },
+  cancellationRecordText: { color: palette.muted, fontSize: 13, lineHeight: 19 },
+  cancellationReasonInput: { minHeight: 96, paddingHorizontal: 12, paddingTop: 12, borderRadius: 10, borderWidth: 1, borderColor: palette.outlineVariant, color: palette.text, backgroundColor: palette.surface },
+  cancellationReasonHint: { color: palette.muted, fontSize: 11, lineHeight: 16, textAlign: "right" },
   geoPanel: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow, gap: 6 },
   geoMapFrame: { marginTop: 4, gap: 8 },
   geoMapLegend: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
@@ -1056,8 +1139,6 @@ const styles = StyleSheet.create({
   paymentOutlineButton: { minHeight: 42, borderRadius: 8, borderWidth: 1, borderColor: palette.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: 12 },
   paymentOutlineButtonText: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "900", textAlign: "center" },
   warningText: { color: "#684000", fontSize: 12, lineHeight: 16, fontWeight: "800" },
-  disputeBlock: { gap: 6 },
-  disputeHelp: { color: palette.muted, fontSize: 12, lineHeight: 17, textAlign: "center" },
   dialogBackdrop: { flex: 1, padding: 24, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(17,24,39,0.55)" },
   dialogCard: { width: "100%", maxWidth: 460, padding: 20, borderRadius: 16, backgroundColor: palette.surface, gap: 12, elevation: 16 },
   dialogTitle: { color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "900" },

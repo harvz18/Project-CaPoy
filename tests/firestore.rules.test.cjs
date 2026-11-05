@@ -98,6 +98,32 @@ function taskData(overrides = {}) {
   };
 }
 
+function cancellationData(now, actorId, actorRole, stage, reason = "Schedule changed") {
+  return {
+    status: "Cancelled",
+    cancelledAt: now,
+    cancelledBy: actorId,
+    cancelledByRole: actorRole,
+    cancellationReason: reason,
+    cancellationStage: stage,
+    paymentStatusAtCancellation: "Pending",
+    updatedAt: now
+  };
+}
+
+function cancellationHistory(now, actorId, actorRole, stage, reason = "Schedule changed") {
+  return {
+    type: "Task cancelled",
+    taskId: TASK_ID,
+    actorId,
+    actorRole,
+    reason,
+    stage,
+    paymentStatusAtEvent: "Pending",
+    createdAt: now
+  };
+}
+
 function dbFor(userId, tokenOptions) {
   return testEnvironment.authenticatedContext(userId, tokenOptions).firestore();
 }
@@ -978,8 +1004,7 @@ test("assigned participants can store private receipt chunks in Firestore withou
   const uploadReceipt = async (actorId, party) => {
     const actorDb = dbFor(actorId);
     const proofRef = doc(actorDb, "paymentProofFiles", TASK_ID, "uploads", party);
-    const batch = writeBatch(actorDb);
-    batch.set(proofRef, {
+    await assertSucceeds(setDoc(proofRef, {
       taskId: TASK_ID,
       party,
       uploaderId: actorId,
@@ -991,10 +1016,10 @@ test("assigned participants can store private receipt chunks in Firestore withou
       version: `${party}-v1`,
       status: "ready",
       createdAt
-    });
+    }));
     for (let index = 0; index < 2; index += 1) {
       const chunkId = index.toString().padStart(3, "0");
-      batch.set(doc(proofRef, "chunks", chunkId), {
+      await assertSucceeds(setDoc(doc(proofRef, "chunks", chunkId), {
         id: chunkId,
         taskId: TASK_ID,
         party,
@@ -1003,9 +1028,8 @@ test("assigned participants can store private receipt chunks in Firestore withou
         version: `${party}-v1`,
         data: index === 0 ? "YWJj" : "ZGVm",
         createdAt
-      });
+      }));
     }
-    await assertSucceeds(batch.commit());
     return proofRef;
   };
 
@@ -1569,29 +1593,42 @@ test("a client can archive only a finished task", async () => {
 });
 
 test("cancelling an open task also closes its active application matches", async () => {
-  await seedWorkflowTask();
+  await seedWorkflowTask({ paymentStatus: "Pending" });
   const db = dbFor(CLIENT_ID);
   const now = "2026-01-01T01:00:00.000Z";
   const batch = writeBatch(db);
-  batch.update(doc(db, "tasks", TASK_ID), { status: "Cancelled", cancelledAt: now, updatedAt: now });
+  batch.update(doc(db, "tasks", TASK_ID), cancellationData(now, CLIENT_ID, "client", "open"));
+  batch.set(doc(db, "tasks", TASK_ID, "history", "cancellation"), cancellationHistory(now, CLIENT_ID, "client", "open"));
+  await assertSucceeds(batch.commit());
   for (const workerId of [WORKER_ID, OUTSIDER_ID]) {
-    batch.update(doc(db, "taskMatches", `${TASK_ID}_${workerId}`), {
+    await assertSucceeds(updateDoc(doc(db, "taskMatches", `${TASK_ID}_${workerId}`), {
       acceptanceStatus: "Cancelled",
       cancelledAt: now,
       updatedAt: now
-    });
+    }));
   }
+  assert.equal((await getDoc(doc(db, "tasks", TASK_ID))).data().status, "Cancelled");
+});
+
+test("cancellation status and its history record commit together", async () => {
+  await seedWorkflowTask({ paymentStatus: "Pending" });
+  const db = dbFor(CLIENT_ID);
+  const now = "2026-01-01T01:00:00.000Z";
+  const batch = writeBatch(db);
+  batch.update(doc(db, "tasks", TASK_ID), cancellationData(now, CLIENT_ID, "client", "open"));
+  batch.set(doc(db, "tasks", TASK_ID, "history", "cancellation"), cancellationHistory(now, CLIENT_ID, "client", "open"));
   await assertSucceeds(batch.commit());
   assert.equal((await getDoc(doc(db, "tasks", TASK_ID))).data().status, "Cancelled");
 });
 
 test("cancelling an assigned task releases the tasker atomically", async () => {
   await seedWorkflowTask({
-    status: "In Progress",
+    status: "Accepted",
     applicantIds: [WORKER_ID],
     workerId: WORKER_ID,
     selectedMatchId: `${TASK_ID}_${WORKER_ID}`,
-    agreedAmount: "1200"
+    agreedAmount: "1200",
+    paymentStatus: "Pending"
   });
   await testEnvironment.withSecurityRulesDisabled(async (context) => {
     const db = context.firestore();
@@ -1611,22 +1648,53 @@ test("cancelling an assigned task releases the tasker atomically", async () => {
   const db = dbFor(CLIENT_ID);
   const now = "2026-01-01T02:00:00.000Z";
   const batch = writeBatch(db);
-  batch.update(doc(db, "tasks", TASK_ID), { status: "Cancelled", cancelledAt: now, updatedAt: now });
-  batch.update(doc(db, "taskMatches", `${TASK_ID}_${WORKER_ID}`), {
-    acceptanceStatus: "Cancelled", cancelledAt: now, updatedAt: now
-  });
-  batch.update(doc(db, "users", WORKER_ID), {
-    availabilityStatus: "Available", availability: "Available", activeTaskId: deleteField(), updatedAt: now
-  });
-  batch.update(doc(db, "workerProfiles", WORKER_ID), {
-    availabilityStatus: "Available", availability: "Available", updatedAt: now
-  });
-  batch.update(doc(db, "publicProfiles", WORKER_ID), {
-    availabilityStatus: "Available", availability: "Available", updatedAt: now
-  });
+  batch.update(doc(db, "tasks", TASK_ID), cancellationData(now, CLIENT_ID, "client", "pre-check-in"));
+  batch.set(doc(db, "tasks", TASK_ID, "history", "cancellation"), cancellationHistory(now, CLIENT_ID, "client", "pre-check-in"));
   await assertSucceeds(batch.commit());
+  await assertSucceeds(updateDoc(doc(db, "taskMatches", `${TASK_ID}_${WORKER_ID}`), {
+    acceptanceStatus: "Cancelled", cancelledAt: now, updatedAt: now
+  }));
+  await assertSucceeds(updateDoc(doc(db, "workerProfiles", WORKER_ID), {
+    availabilityStatus: "Available", availability: "Available", updatedAt: now
+  }));
+  await assertSucceeds(updateDoc(doc(db, "publicProfiles", WORKER_ID), {
+    availabilityStatus: "Available", availability: "Available", updatedAt: now
+  }));
+  await assertSucceeds(updateDoc(doc(db, "users", WORKER_ID), {
+    availabilityStatus: "Available", availability: "Available", activeTaskId: deleteField(), updatedAt: now
+  }));
   assert.equal((await getDoc(doc(db, "tasks", TASK_ID))).data().status, "Cancelled");
   assert.equal((await getDoc(doc(dbFor(WORKER_ID), "users", WORKER_ID))).data().activeTaskId, undefined);
+});
+
+test("an assigned worker can cancel before check-in with a reason and history", async () => {
+  await seedWorkflowTask({
+    status: "Accepted",
+    applicantIds: [WORKER_ID],
+    workerId: WORKER_ID,
+    selectedMatchId: `${TASK_ID}_${WORKER_ID}`,
+    agreedAmount: "1200",
+    paymentStatus: "Pending"
+  });
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
+    await Promise.all([
+      updateDoc(doc(db, "taskMatches", `${TASK_ID}_${WORKER_ID}`), { acceptanceStatus: "Accepted" }),
+      updateDoc(doc(db, "users", WORKER_ID), { availabilityStatus: "Busy", availability: "Busy", activeTaskId: TASK_ID }),
+      updateDoc(doc(db, "workerProfiles", WORKER_ID), { availabilityStatus: "Busy", availability: "Busy" }),
+      updateDoc(doc(db, "publicProfiles", WORKER_ID), { availabilityStatus: "Busy", availability: "Busy" })
+    ]);
+  });
+  const db = dbFor(WORKER_ID);
+  const now = "2026-01-01T03:00:00.000Z";
+  const batch = writeBatch(db);
+  batch.update(doc(db, "tasks", TASK_ID), cancellationData(now, WORKER_ID, "worker", "pre-check-in", "Unable to attend"));
+  batch.set(doc(db, "tasks", TASK_ID, "history", "cancellation"), cancellationHistory(now, WORKER_ID, "worker", "pre-check-in", "Unable to attend"));
+  await assertSucceeds(batch.commit());
+  await assertSucceeds(updateDoc(doc(db, "taskMatches", `${TASK_ID}_${WORKER_ID}`), { acceptanceStatus: "Cancelled", cancelledAt: now, updatedAt: now }));
+  await assertSucceeds(updateDoc(doc(db, "workerProfiles", WORKER_ID), { availabilityStatus: "Available", availability: "Available", updatedAt: now }));
+  await assertSucceeds(updateDoc(doc(db, "publicProfiles", WORKER_ID), { availabilityStatus: "Available", availability: "Available", updatedAt: now }));
+  await assertSucceeds(updateDoc(doc(db, "users", WORKER_ID), { availabilityStatus: "Available", availability: "Available", activeTaskId: deleteField(), updatedAt: now }));
 });
 
 test("a worker dispute atomically releases the tasker so another assignment can be accepted", async () => {
