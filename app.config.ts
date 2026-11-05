@@ -13,6 +13,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     plugins: [
       ...(config.plugins ?? []),
       "@maplibre/maplibre-react-native",
+      "expo-font",
       [
         "expo-location",
         {

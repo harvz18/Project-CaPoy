@@ -730,7 +730,7 @@ export default function TaskStatusScreen() {
             <Text style={styles.dialogTitle}>{currentUser?.role === "worker" ? "Cancel assignment?" : "Cancel task?"}</Text>
             <Text style={styles.dialogMessage}>
               {cancellationEligibility.allowed && cancellationEligibility.stage === "pre-check-in"
-                ? "This is available only before TaskLink records the task start. It will notify the other participant and preserve the task and payment history."
+                ? "This is available until the task is marked In Progress. It will notify the other participant and preserve the task and payment history."
                 : "This will close the task, notify active applicants, and preserve its history. Payment records will not be changed."}
             </Text>
             <TextInput

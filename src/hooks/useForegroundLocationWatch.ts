@@ -9,8 +9,15 @@ import {
 
 export type ForegroundLocationWatchStatus = "idle" | "starting" | "watching" | "paused" | "error";
 
+function currentAppState(): AppStateStatus {
+  const state = AppState.currentState;
+  return state === "active" || state === "background" || state === "inactive" || state === "extension" || state === "unknown"
+    ? state
+    : "background";
+}
+
 export function useForegroundLocationWatch(enabled: boolean) {
-  const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
+  const [appState, setAppState] = useState<AppStateStatus>(currentAppState);
   const [attempt, setAttempt] = useState(0);
   const [checkedAt, setCheckedAt] = useState(Date.now());
   const [location, setLocation] = useState<CapturedLocation>();

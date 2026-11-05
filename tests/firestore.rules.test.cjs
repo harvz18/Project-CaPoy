@@ -1624,6 +1624,7 @@ test("cancellation status and its history record commit together", async () => {
 test("cancelling an assigned task releases the tasker atomically", async () => {
   await seedWorkflowTask({
     status: "Accepted",
+    startedAt: "2026-01-01T01:30:00.000Z",
     applicantIds: [WORKER_ID],
     workerId: WORKER_ID,
     selectedMatchId: `${TASK_ID}_${WORKER_ID}`,
@@ -1670,6 +1671,7 @@ test("cancelling an assigned task releases the tasker atomically", async () => {
 test("an assigned worker can cancel before check-in with a reason and history", async () => {
   await seedWorkflowTask({
     status: "Accepted",
+    startedAt: "2026-01-01T02:30:00.000Z",
     applicantIds: [WORKER_ID],
     workerId: WORKER_ID,
     selectedMatchId: `${TASK_ID}_${WORKER_ID}`,

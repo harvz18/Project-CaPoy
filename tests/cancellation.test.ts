@@ -11,9 +11,10 @@ const task: Task = {
   paymentMethod: "COD", paymentStatus: "Pending", createdAt: "2026-11-05T00:00:00.000Z"
 };
 
-test("both assigned parties may cancel before the recorded start", () => {
-  assert.equal(getCancellationEligibility(task, client).allowed, true);
-  assert.equal(getCancellationEligibility(task, worker).allowed, true);
+test("both assigned parties may cancel an accepted task even with a stale start timestamp", () => {
+  const acceptedTask = { ...task, startedAt: "2026-11-05T01:00:00.000Z" };
+  assert.equal(getCancellationEligibility(acceptedTask, client).allowed, true);
+  assert.equal(getCancellationEligibility(acceptedTask, worker).allowed, true);
 });
 
 test("worker cancellation does not infer location and is unavailable after check-in", () => {

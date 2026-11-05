@@ -56,7 +56,7 @@ function ProtectedNavigator() {
     if (!currentUser) return () => undefined;
 
     const openNotification = (response: Notifications.NotificationResponse) => {
-      const data = response.notification.request.content.data;
+      const data = response.notification.request.content.data ?? {};
       const taskId = typeof data.taskId === "string" ? data.taskId : undefined;
       const route = data.route === "chat" ? "chat" : "task";
       const senderId = typeof data.senderId === "string" ? data.senderId : undefined;

@@ -13,10 +13,10 @@ export function getCancellationEligibility(task: Task, actor: CancellationActor)
 
   if (actor.role === "client" && actor.id === task.clientId) {
     if (!task.workerId) return { allowed: true, stage: "open" };
-    if (task.status === "Accepted" && !task.startedAt) return { allowed: true, stage: "pre-check-in" };
+    if (task.status === "Accepted") return { allowed: true, stage: "pre-check-in" };
   }
 
-  if (actor.role === "worker" && actor.id === task.workerId && task.status === "Accepted" && !task.startedAt) {
+  if (actor.role === "worker" && actor.id === task.workerId && task.status === "Accepted") {
     return { allowed: true, stage: "pre-check-in" };
   }
 

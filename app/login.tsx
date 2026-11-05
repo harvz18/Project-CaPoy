@@ -371,7 +371,7 @@ const screenStyles = StyleSheet.create({
     backgroundColor: palette.background,
     overflow: "hidden"
   },
-  backgroundArt: { ...StyleSheet.absoluteFillObject, opacity: 0.12 },
+  backgroundArt: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, opacity: 0.12 },
   backgroundOrb: { position: "absolute", borderRadius: 999, backgroundColor: palette.primary },
   backgroundOrbOne: { width: 300, height: 300, top: 76, right: -174 },
   backgroundOrbTwo: { width: 230, height: 230, bottom: -96, left: -126, backgroundColor: palette.secondaryContainer },
