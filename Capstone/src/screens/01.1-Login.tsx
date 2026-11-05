@@ -11,7 +11,7 @@ import {
   StyleSheet,
   View,
 } from 'react-native'
-import { MaterialCommunityIcons } from '@expo/vector-icons'
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
 import { BrandIdentity } from '../components/BrandIdentity'
 import { LuminousPillButton } from '../components/LuminousPillButton'
 import { TextInput, type AppTextInputInstance } from '../components/TextInput'

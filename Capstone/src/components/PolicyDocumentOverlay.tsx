@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native'
 import { BlurView } from 'expo-blur'
-import { MaterialCommunityIcons } from '@expo/vector-icons'
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { radius, spacing } from '../theme/tokens'
 

@@ -1,6 +1,6 @@
 import React from 'react'
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native'
-import { MaterialCommunityIcons } from '@expo/vector-icons'
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
 import { Text } from '../components/AppText'
 import {
   createSupportTicket,

@@ -1,5 +1,5 @@
 import { Text } from '../components/AppText'
-import { MaterialIcons } from '@expo/vector-icons'
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import React from 'react'
 import {
   ActivityIndicator,

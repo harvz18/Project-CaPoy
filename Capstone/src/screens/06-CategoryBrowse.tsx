@@ -1,6 +1,7 @@
 import { Text } from '../components/AppText'
 import React from 'react'
-import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons'
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { BlurView } from 'expo-blur'
 import {
   Animated,

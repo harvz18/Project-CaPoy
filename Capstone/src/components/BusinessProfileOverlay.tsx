@@ -1,4 +1,4 @@
-import { MaterialIcons } from '@expo/vector-icons'
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { BlurView } from 'expo-blur'
 import React from 'react'
 import { Animated, Easing, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native'

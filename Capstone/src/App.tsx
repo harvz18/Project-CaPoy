@@ -1,22 +1,18 @@
 import React from 'react'
 import type { RealtimeChannel } from '@supabase/supabase-js'
-import { Alert, Animated, AppState, BackHandler, Easing, Modal, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
+import { Alert, Animated, AppState, BackHandler, Easing, Image, Modal, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
 import { BlurTargetView } from 'expo-blur'
-import { VideoView, useVideoPlayer } from 'expo-video'
 import * as WebBrowser from 'expo-web-browser'
 import * as ImagePicker from 'expo-image-picker'
 import { useFonts } from 'expo-font'
-import {
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
-  Inter_900Black,
-} from '@expo-google-fonts/inter'
-import splashVideo from '../images/Multivent Splash.mp4'
+import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular'
+import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium'
+import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold'
+import { Inter_700Bold } from '@expo-google-fonts/inter/700Bold'
+import { Inter_900Black } from '@expo-google-fonts/inter/900Black'
 
 import { supabase } from './lib/supabase'
 import { fetchFavoriteServiceIds, toggleFavoriteService } from './lib/favorites'
@@ -836,21 +832,12 @@ const outcomeMessageForCompletionPayment = (
 }
 
 export const App: React.FC = () => {
-  const [fontsLoaded] = useFonts({
+  useFonts({
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
     Inter_900Black,
-  })
-  // Expo's operating-system splash remains a static image by platform design.
-  // This video takes over immediately after JavaScript loads while the secure
-  // session is restored, preserving a smooth animated launch without delaying
-  // the application beyond work it already has to perform.
-  const splashPlayer = useVideoPlayer(splashVideo, (player) => {
-    player.loop = true
-    player.muted = true
-    player.play()
   })
   const { height, width } = useWindowDimensions()
   const [screen, commitScreen] = React.useState<AppScreen>('onboarding')
@@ -882,11 +869,6 @@ export const App: React.FC = () => {
   // Keep the resolved role outside the render cycle so the first refresh
   // immediately after sign-in can skip provider-only workspace reads.
   const activeAccountRoleRef = React.useRef<AccountRole | ''>('')
-
-  React.useEffect(() => {
-    if (isAuthRestoring) splashPlayer.play()
-    else splashPlayer.pause()
-  }, [isAuthRestoring, splashPlayer])
 
   const transitionToScreen = React.useCallback((nextScreen: AppScreen) => {
     const currentScreen = screenRef.current
@@ -7872,23 +7854,13 @@ export const App: React.FC = () => {
       || Boolean(updatingAvailabilityServiceId)
   )
 
-  if (!fontsLoaded) {
-    return null
-  }
-
   if (isAuthRestoring) {
     return (
       <SafeAreaProvider>
         <StatusBar style="light" />
         <View style={styles.sessionRestoreScreen}>
-          <VideoView
-            accessibilityLabel="MULTIVENT animated splash screen"
-            contentFit="cover"
-            nativeControls={false}
-            player={splashPlayer}
-            pointerEvents="none"
-            style={styles.sessionRestoreVideo}
-          />
+          <Image accessibilityLabel="MULTIVENT" resizeMode="contain" source={require('../assets/multivent-icon.png')} style={styles.sessionRestoreMark} />
+          <Text style={styles.sessionRestoreTitle}>MULTIVENT</Text>
         </View>
       </SafeAreaProvider>
     )
@@ -8035,9 +8007,12 @@ export const App: React.FC = () => {
 const styles = StyleSheet.create({
   sessionRestoreScreen: {
     flex: 1,
+    alignItems: 'center',
     backgroundColor: '#630019',
+    justifyContent: 'center',
   },
-  sessionRestoreVideo: { width: '100%', height: '100%' },
+  sessionRestoreMark: { width: 116, height: 116 },
+  sessionRestoreTitle: { color: '#FFFFFF', fontFamily: 'Inter_700Bold', fontSize: 18, fontWeight: '700', letterSpacing: 2.4, marginTop: 16 },
   container: {
     flex: 1,
     backgroundColor: colors.background,

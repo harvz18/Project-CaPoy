@@ -597,7 +597,7 @@ test('Step 1 coordinator preference replaces the redundant coordinator choice sc
   mustContain(creation, [
     'WOULD YOU LIKE AN EVENT COORDINATOR?',
     'typeof wantsCoordinator === \'boolean\'',
-    'Selecting Yes does not book or assign anyone.',
+    'Include Event Coordinator in your budget and browse coordinators when you are ready.',
   ], 'required Step 1 coordinator preference')
   mustContain(planning, [
     'wantsCoordinator?: boolean',
@@ -1623,7 +1623,7 @@ test('V9 Phase 8 completes allocated selections once and safely changes an unsub
   const planning = read('src/lib/planning.ts')
 
   mustContain(app, [
-    'const requiresCoordinatorSelection = eventDetails.wantsCoordinator === true && hasEventOrganizerBudget',
+    'const requiresCoordinatorSelection = eventDetails.wantsCoordinator === true',
     '(!requiresCoordinatorSelection || Boolean(assignedCoordinator))',
     'selectionCompletionAcknowledged',
     'setSelectionCompletionAcknowledged(false)',
@@ -1640,7 +1640,7 @@ test('V9 Phase 8 completes allocated selections once and safely changes an unsub
     "You're All Set!",
     'Review Selected Services',
     'revealSelectedServicesAfterCompletion',
-    'Change Service',
+    'accessibilityLabel={`Change ${service.name}`}',
     'changeServiceContext',
   ], 'V9 marketplace completion and change-service UI')
   mustContain(details, [
@@ -2293,7 +2293,7 @@ test('in-progress client planning autosaves without forcing a draft over the lat
 
 test('new events and resumed drafts do not wait for a whole-workspace refresh', () => {
   const app = read('src/App.tsx')
-  const createStart = app.indexOf('const startNewClientEvent = async () =>')
+  const createStart = app.indexOf('const startNewClientEvent = () =>')
   const resumeStart = app.indexOf('const resumeClientDraft = async (draftId: string) =>')
   const savedPlanStart = app.indexOf('const resumeSavedPlan = async (savedPlanId: string) =>')
   const createFlow = app.slice(createStart, resumeStart)
@@ -2302,8 +2302,9 @@ test('new events and resumed drafts do not wait for a whole-workspace refresh', 
   mustContain(app, ['const hydrateClientPlanningState = React.useCallback'],
     'shared client-plan state hydration')
   mustContain(createFlow, [
-    'const result = await createClientEventDraft()',
+    'const request = createClientEventDraft()',
     'openEventCreation()',
+    'void request.then((result) => {',
     'void refreshLiveData().catch(() => undefined)',
   ], 'new-event foreground and background work')
   assert.ok(
@@ -2774,6 +2775,7 @@ test('redesigned client home keeps branded live navigation and booking actions',
   const app = read('src/App.tsx')
 
   mustContain(home, [
+    "import MaterialIcons from '@expo/vector-icons/MaterialIcons'",
     "import { AnimatedQuickAccessButton } from '../components/AnimatedQuickAccessButton'",
     "import { CardInsetShadow, NeumorphicRaised } from '../components/CardInsetShadow'",
     "import { BrandIdentity } from '../components/BrandIdentity'",
@@ -2781,8 +2783,8 @@ test('redesigned client home keeps branded live navigation and booking actions',
     'accessibilityLabel="Plan your wedding"',
     'YOUR DREAM WEDDING',
     'Make every moment of your special day unforgettable.',
-    'name="trending-flat"',
-    'styles.heroPlanAction',
+    'name="search"',
+    'styles.heroPlanButton',
     'styles.quickAccessRow',
     'collapseSearch()',
     'handleStartNewEvent',
@@ -2790,7 +2792,7 @@ test('redesigned client home keeps branded live navigation and booking actions',
     'referenceWordmarkDepth',
     'referenceHeaderWordmark',
     'onOpenBookingProgress?.(progress.booking)',
-    'onSelectRecommendation?.(recommendation.service.id)',
+    "onSelectRecommendation?.(recommendation.service.id, 'recommended')",
   ], 'redesigned client home')
   mustContain(app, [
     'bookingProgressEvents={clientBookingProgress}',
@@ -2811,10 +2813,10 @@ test('redesigned client home preserves drafts, bookings, search, and marketplace
     'onOpenDraft?.(draftEvent.id)',
     'onOpenBookingProgress?: (booking: BookingItem) => void',
     'onSeeAllVenues?: () => void',
-    'onSelectRecommendation?: (serviceId: string) => void',
+    "onSelectRecommendation?: (serviceId: string, source: 'featured' | 'recommended') => void",
     'onSelectTab?: (tab: ClientHomeTab) => void',
-    'accessibilityLabel="Search"',
-    'accessibilityLabel="See all venues"',
+    "accessibilityLabel={isSearchExpanded ? 'Focus search' : 'Open search'}",
+    'accessibilityLabel="See all recommended services"',
   ], 'redesigned client-home data and action contract')
   assert.doesNotMatch(home, /ModernHomeScreen|client-home-appearance/,
     'The redesigned home must not retain the removed Classic/Modern appearance switch.')

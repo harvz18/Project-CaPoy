@@ -2,7 +2,7 @@ import { Text } from '../components/AppText'
 import { PublishedBusinessPolicies } from '../components/BusinessPolicies'
 import { FloristBookingConfigurator } from '../components/FloristBookingConfigurator'
 import { PhotoVideoBookingConfigurator } from '../components/PhotoVideoBookingConfigurator'
-import { MaterialCommunityIcons } from '@expo/vector-icons'
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
 import { LinearGradient } from 'expo-linear-gradient'
 import React from 'react'
 import {

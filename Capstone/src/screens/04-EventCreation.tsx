@@ -18,7 +18,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native'
-import { MaterialIcons } from '@expo/vector-icons'
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { PlanningScreenHeader } from '../components/PlanningScreenHeader'
 import { hasMapTilerVenueMap, MapTilerVenueMap } from '../components/MapTilerVenueMap'
 

@@ -9,7 +9,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native'
-import { MaterialCommunityIcons } from '@expo/vector-icons'
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
 import { PlanningScreenHeader } from '../components/PlanningScreenHeader'
 import { formatPeso } from '../lib/catalog'
 import { calculatePaymentBreakdown } from '../lib/pricing'

@@ -14,7 +14,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native'
-import { MaterialCommunityIcons } from '@expo/vector-icons'
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
 import { BlurTargetView } from 'expo-blur'
 import { BrandIdentity } from '../components/BrandIdentity'
 import { LuminousPillButton } from '../components/LuminousPillButton'

@@ -1,5 +1,5 @@
 import { Text } from './AppText'
-import { MaterialCommunityIcons } from '@expo/vector-icons'
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
 import { BlurView } from 'expo-blur'
 import React from 'react'
 import { Animated, Easing, Image, Pressable, StyleSheet, View } from 'react-native'

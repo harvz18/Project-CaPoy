@@ -1,6 +1,6 @@
 import { Text } from '../components/AppText'
 import React from 'react'
-import { MaterialCommunityIcons } from '@expo/vector-icons'
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
 import {
   Image,
   Pressable,

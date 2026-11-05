@@ -54,7 +54,6 @@
           "resizeMode": "contain"
         }
       ],
-      "expo-video",
       "expo-font",
       "expo-status-bar",
       [
