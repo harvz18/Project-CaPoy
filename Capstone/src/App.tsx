@@ -147,7 +147,8 @@ import { InboxTrashModal } from './components/InboxTrashModal'
 import type { CoordinatorMainTab } from './components/CoordinatorBottomNavigation'
 import { MerchantBottomNavigation } from './components/MerchantBottomNavigation'
 import { NonBlockingActivityBar, ScreenMotionFrame } from './components/MotionFeedback'
-import { ClientHomeScreen, ClientHomeTab, getClientBookingProgress } from './screens/03-ClientHome'
+import type { ClientHomeTab } from './screens/03-ClientHome'
+import { getClientBookingProgress } from './lib/client-booking-progress'
 import type { ClientConversation, ClientInboxTab } from './screens/03.1-Messages'
 import type { ChatMessage } from './screens/03.2-ChatThread'
 import type { MerchantHomeTab } from './screens/16-MerchantHome'
@@ -260,6 +261,9 @@ import {
 
 const SupportScreen = React.lazy(async () => ({
   default: (await import('./screens/25-Support')).SupportScreen,
+}))
+const ClientHomeScreen = React.lazy(async () => ({
+  default: (await import('./screens/03-ClientHome')).ClientHomeScreen,
 }))
 const LoginScreen = React.lazy(async () => ({
   default: (await import('./screens/01.1-Login')).LoginScreen,
