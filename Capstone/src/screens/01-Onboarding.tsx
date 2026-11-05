@@ -1,5 +1,6 @@
 import { Text } from '../components/AppText'
 import React, { useRef, useState } from 'react'
+import { Asset } from 'expo-asset'
 import {
   Animated,
   Easing,
@@ -24,7 +25,7 @@ interface OnboardingScreenProps {
 
 const ONBOARDING_TRANSITION_DURATION = 900
 type ScrollViewInstance = React.ComponentRef<typeof ScrollView>
-type OnboardingImageSource = NonNullable<React.ComponentProps<typeof Image>['source']>
+type OnboardingImageSource = number
 
 const slides = [
   {
@@ -51,8 +52,9 @@ const slides = [
 
 const OnboardingImage: React.FC<{ source: OnboardingImageSource }> = ({ source }) => {
   if (Platform.OS === 'web') {
-    const resolvedSource = Image.resolveAssetSource(source)
-    if (!resolvedSource) return null
+    const asset = Asset.fromModule(source)
+    const uri = asset.localUri ?? asset.uri
+    if (!uri) return null
     return React.createElement('img', {
       alt: '',
       'aria-hidden': true,
@@ -62,7 +64,7 @@ const OnboardingImage: React.FC<{ source: OnboardingImageSource }> = ({ source }
       // allowing the browser to prioritize the request correctly.
       fetchPriority: 'high',
       loading: 'eager',
-      src: resolvedSource.uri,
+      src: uri,
       style: {
         display: 'block',
         height: '100%',
