@@ -9,6 +9,7 @@ import {
   Image,
   Modal,
   PanResponder,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -17,6 +18,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native'
+import type { LayoutChangeEvent } from 'react-native'
 import { ClientMainTab } from '../components/ClientBottomNavigation'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { AnimatedQuickAccessButton } from '../components/AnimatedQuickAccessButton'
@@ -103,6 +105,158 @@ const formatDraftDate = (value: string) => {
   })
 }
 
+/**
+ * Booking progress arrives after the home shell. Give each resulting card the
+ * same restrained fade-and-rise entrance used by Quick Access instead of
+ * making a completed data request look like an abrupt layout change.
+ */
+const StaggeredBookingProgress: React.FC<{
+  children: React.ReactNode
+  entranceDelay: number
+  onLayout?: (event: LayoutChangeEvent) => void
+}> = ({ children, entranceDelay, onLayout }) => {
+  const entranceProgress = React.useRef(new Animated.Value(0)).current
+
+  React.useEffect(() => {
+    entranceProgress.setValue(0)
+    const entrance = Animated.sequence([
+      Animated.delay(entranceDelay),
+      Animated.timing(entranceProgress, {
+        duration: 720,
+        easing: Easing.out(Easing.cubic),
+        toValue: 1,
+        useNativeDriver: Platform.OS !== 'web',
+      }),
+    ])
+    entrance.start()
+    return () => entrance.stop()
+  }, [entranceDelay, entranceProgress])
+
+  return (
+    <Animated.View
+      onLayout={onLayout}
+      style={{
+        opacity: entranceProgress,
+        transform: [{
+          translateY: entranceProgress.interpolate({
+            inputRange: [0, 0.62, 1],
+            outputRange: [14, -7, 0],
+          }),
+        }],
+      }}
+    >
+      {children}
+    </Animated.View>
+  )
+}
+
+const BookingProgressScroller: React.FC<{
+  children: React.ReactNode
+  containerHeight?: Animated.Value
+  scrollEnabled: boolean
+  viewportHeight: number
+}> = ({ children, containerHeight, scrollEnabled, viewportHeight }) => {
+  const scrollOffset = React.useRef(new Animated.Value(0)).current
+  const scrollbarOpacity = React.useRef(new Animated.Value(0)).current
+  const scrollbarHideTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [contentHeight, setContentHeight] = React.useState(0)
+
+  const clearScrollbarHideTimer = React.useCallback(() => {
+    if (!scrollbarHideTimerRef.current) return
+    clearTimeout(scrollbarHideTimerRef.current)
+    scrollbarHideTimerRef.current = null
+  }, [])
+
+  const hideScrollbarSoon = React.useCallback(() => {
+    clearScrollbarHideTimer()
+    scrollbarHideTimerRef.current = setTimeout(() => {
+      Animated.timing(scrollbarOpacity, {
+        duration: 180,
+        easing: Easing.out(Easing.quad),
+        toValue: 0,
+        useNativeDriver: Platform.OS !== 'web',
+      }).start()
+    }, 700)
+  }, [clearScrollbarHideTimer, scrollbarOpacity])
+
+  const revealScrollbar = React.useCallback(() => {
+    if (!scrollEnabled) return
+    clearScrollbarHideTimer()
+    scrollbarOpacity.stopAnimation()
+    Animated.timing(scrollbarOpacity, {
+      duration: 120,
+      easing: Easing.out(Easing.quad),
+      toValue: 1,
+      useNativeDriver: Platform.OS !== 'web',
+    }).start()
+  }, [clearScrollbarHideTimer, scrollEnabled, scrollbarOpacity])
+
+  React.useEffect(() => () => clearScrollbarHideTimer(), [clearScrollbarHideTimer])
+
+  React.useEffect(() => {
+    if (scrollEnabled) return
+    clearScrollbarHideTimer()
+    scrollbarOpacity.stopAnimation()
+    scrollbarOpacity.setValue(0)
+    scrollOffset.setValue(0)
+  }, [clearScrollbarHideTimer, scrollEnabled, scrollOffset, scrollbarOpacity])
+
+  const scrollableHeight = Math.max(0, contentHeight - viewportHeight)
+  const trackHeight = Math.max(0, viewportHeight - 12)
+  const thumbHeight = scrollableHeight > 0
+    ? Math.max(32, trackHeight * (viewportHeight / contentHeight))
+    : 0
+  const thumbTravel = Math.max(0, trackHeight - thumbHeight)
+  const thumbTranslateY = scrollOffset.interpolate({
+    extrapolate: 'clamp',
+    inputRange: [0, Math.max(scrollableHeight, 1)],
+    outputRange: [0, thumbTravel],
+  })
+  const showCustomScrollbar = scrollEnabled && scrollableHeight > 0
+
+  return (
+    <Animated.View
+      style={[
+        containerHeight ? styles.bookingProgressScroller : undefined,
+        containerHeight ? { height: containerHeight } : undefined,
+      ]}
+    >
+      <ScrollView
+        nestedScrollEnabled={scrollEnabled}
+        onContentSizeChange={(_, height) => setContentHeight(height)}
+        onMomentumScrollBegin={revealScrollbar}
+        onMomentumScrollEnd={hideScrollbarSoon}
+        onScroll={(event) => {
+          scrollOffset.setValue(event.nativeEvent.contentOffset.y)
+          revealScrollbar()
+          hideScrollbarSoon()
+        }}
+        onScrollBeginDrag={revealScrollbar}
+        onScrollEndDrag={hideScrollbarSoon}
+        scrollEnabled={scrollEnabled}
+        scrollEventThrottle={16}
+        showsVerticalScrollIndicator={false}
+        style={containerHeight ? styles.bookingProgressScrollView : undefined}
+      >
+        {children}
+      </ScrollView>
+      {showCustomScrollbar ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.bookingProgressScrollThumb,
+            {
+              height: thumbHeight,
+              opacity: scrollbarOpacity,
+              transform: [{ translateY: thumbTranslateY }],
+            },
+          ]}
+        />
+      ) : null}
+    </Animated.View>
+  )
+}
+
 export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   draftEvents = [],
   bookingProgressEvents = [],
@@ -150,6 +304,10 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   const [isDraftPromptVisible, setIsDraftPromptVisible] = React.useState(false)
   const [isStartingNewEvent, setIsStartingNewEvent] = React.useState(false)
   const [showAllBookingProgress, setShowAllBookingProgress] = React.useState(false)
+  const [bookingProgressCardHeight, setBookingProgressCardHeight] = React.useState(0)
+  const bookingProgressViewportAnimation = React.useRef(new Animated.Value(0)).current
+  const bookingProgressViewportInitializedRef = React.useRef(false)
+  const previousBookingProgressExpandedRef = React.useRef(false)
   const [isSearchExpanded, setIsSearchExpanded] = React.useState(false)
   const [isSearchFieldEngaged, setIsSearchFieldEngaged] = React.useState(false)
   const [searchQuery, setSearchQuery] = React.useState('')
@@ -159,9 +317,18 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   const [isHeaderPlanCtaInteractive, setIsHeaderPlanCtaInteractive] = React.useState(false)
   const deferredRecommendations = React.useDeferredValue(recommendations)
   const deferredCoordinators = React.useDeferredValue(coordinators)
+  // Retain the existing three-event preview window as the source for the
+  // expanded viewport, while the collapsed visual deliberately exposes two.
+  const bookingProgressPreviewWindow = bookingProgressEvents.slice(0, 3)
   const visibleBookingProgress = showAllBookingProgress
     ? bookingProgressEvents
-    : bookingProgressEvents.slice(0, 3)
+    : bookingProgressPreviewWindow.slice(0, 2)
+  const bookingProgressViewportCardCount = showAllBookingProgress
+    ? Math.min(3, bookingProgressEvents.length)
+    : Math.min(2, bookingProgressEvents.length)
+  const bookingProgressViewportHeight = bookingProgressCardHeight > 0
+    ? bookingProgressCardHeight * bookingProgressViewportCardCount
+    : 420
   const featuredBusinesses = React.useMemo(() => {
     const providerIds = new Set<string>()
     return deferredRecommendations.flatMap((recommendation) => {
@@ -188,7 +355,38 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
     )).slice(0, 8),
     [deferredCoordinators]
   )
-  const hasAdditionalBookingProgress = bookingProgressEvents.length > 3
+  const hasAdditionalBookingProgress = bookingProgressEvents.length > 2
+  React.useEffect(() => {
+    if (bookingProgressCardHeight <= 0 || bookingProgressViewportCardCount === 0) return undefined
+
+    const nextViewportHeight = bookingProgressCardHeight * bookingProgressViewportCardCount
+    if (!bookingProgressViewportInitializedRef.current) {
+      bookingProgressViewportInitializedRef.current = true
+      previousBookingProgressExpandedRef.current = showAllBookingProgress
+      bookingProgressViewportAnimation.setValue(nextViewportHeight)
+      return undefined
+    }
+
+    if (previousBookingProgressExpandedRef.current === showAllBookingProgress) {
+      bookingProgressViewportAnimation.setValue(nextViewportHeight)
+      return undefined
+    }
+
+    previousBookingProgressExpandedRef.current = showAllBookingProgress
+    const transition = Animated.timing(bookingProgressViewportAnimation, {
+      duration: 300,
+      easing: Easing.out(Easing.cubic),
+      toValue: nextViewportHeight,
+      useNativeDriver: false,
+    })
+    transition.start()
+    return () => transition.stop()
+  }, [
+    bookingProgressCardHeight,
+    bookingProgressViewportAnimation,
+    bookingProgressViewportCardCount,
+    showAllBookingProgress,
+  ])
   const draftEvent = draftEvents[0]
   const onOpenActiveEvent = () => {
     if (draftEvent) onOpenDraft?.(draftEvent.id)
@@ -543,9 +741,22 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
               </Pressable>
             ) : null}
           </View>
-          {visibleBookingProgress.length ? visibleBookingProgress.map((progress) => (
-            <Pressable
+          {visibleBookingProgress.length ? (
+            <BookingProgressScroller
+              containerHeight={bookingProgressCardHeight > 0 ? bookingProgressViewportAnimation : undefined}
+              scrollEnabled={showAllBookingProgress}
+              viewportHeight={bookingProgressViewportHeight}
+            >
+            {visibleBookingProgress.map((progress, index) => (
+            <StaggeredBookingProgress
               key={progress.booking.id}
+              entranceDelay={260 + index * 180}
+              onLayout={index === 0 ? (event) => {
+                const nextHeight = Math.round(event.nativeEvent.layout.height)
+                setBookingProgressCardHeight((current) => current === nextHeight ? current : nextHeight)
+              } : undefined}
+            >
+            <Pressable
               accessibilityLabel={`View booking details for ${progress.booking.name}`}
               accessibilityRole="button"
               onPress={() => onOpenBookingProgress?.(progress.booking)}
@@ -581,7 +792,10 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
               </View>
               <Text style={styles.bookingProgressLink}>View Booking Details →</Text>
             </Pressable>
-          )) : (
+            </StaggeredBookingProgress>
+            ))}
+            </BookingProgressScroller>
+          ) : (
             <View style={styles.emptyDraftState}>
               <View style={styles.emptyDraftContent}>
                 <MaterialIcons name="event-available" size={24} color="#8A2944" />
@@ -1410,7 +1624,10 @@ const styles = StyleSheet.create({
   compactDraftAction: { color: '#8A2944', fontSize: 12, fontWeight: '700' },
   compactDraftDeleteButton: { padding: 8 },
   bookingDropdown: { flexDirection: 'row', alignItems: 'center', gap: 1 },
+  bookingProgressScroller: { overflow: 'hidden', position: 'relative' },
+  bookingProgressScrollView: { height: '100%' },
   bookingProgressCard: { position: 'relative', overflow: 'hidden', borderWidth: 1, borderColor: '#FFFFFF', borderRadius: 32, backgroundColor: '#F8F6F3', marginBottom: 12, padding: 12, shadowColor: '#8F939D', shadowOffset: { width: 4, height: 5 }, shadowOpacity: 0.28, shadowRadius: 10, elevation: 6 },
+  bookingProgressScrollThumb: { position: 'absolute', top: 6, right: 5, width: 6, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.82)', backgroundColor: '#8A2944', shadowColor: '#5A1022', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.22, shadowRadius: 3, elevation: 3 },
   bookingProgressUnreadDot: { position: 'absolute', top: 8, left: 8, zIndex: 1, width: 9, height: 9, borderWidth: 1.5, borderColor: '#FFFFFF', borderRadius: 5, backgroundColor: '#C93643' },
   bookingProgressHeading: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
   bookingProgressCopy: { flex: 1, minWidth: 0 },
