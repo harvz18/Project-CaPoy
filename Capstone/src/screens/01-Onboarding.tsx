@@ -6,6 +6,7 @@ import {
   Image,
   NativeScrollEvent,
   NativeSyntheticEvent,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -23,6 +24,7 @@ interface OnboardingScreenProps {
 
 const ONBOARDING_TRANSITION_DURATION = 900
 type ScrollViewInstance = React.ComponentRef<typeof ScrollView>
+type OnboardingImageSource = NonNullable<React.ComponentProps<typeof Image>['source']>
 
 const slides = [
   {
@@ -47,6 +49,32 @@ const slides = [
   },
 ] as const
 
+const OnboardingImage: React.FC<{ source: OnboardingImageSource }> = ({ source }) => {
+  if (Platform.OS === 'web') {
+    const resolvedSource = Image.resolveAssetSource(source)
+    if (!resolvedSource) return null
+    return React.createElement('img', {
+      alt: '',
+      'aria-hidden': true,
+      // This is the initial mobile LCP image. React Native Web renders its
+      // Image component as a CSS background, which browsers discover late;
+      // using an eager image element here preserves the same visual while
+      // allowing the browser to prioritize the request correctly.
+      fetchPriority: 'high',
+      loading: 'eager',
+      src: resolvedSource.uri,
+      style: {
+        display: 'block',
+        height: '100%',
+        objectFit: 'cover',
+        width: '100%',
+      },
+    })
+  }
+
+  return <Image source={source} resizeMode="cover" style={styles.image} />
+}
+
 export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
   const { width, height } = useWindowDimensions()
   const scrollViewRef = useRef<ScrollViewInstance>(null)
@@ -54,7 +82,21 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }
   const transitionIdRef = useRef(0)
   const transitionFrameRef = useRef<number | null>(null)
   const [currentSlide, setCurrentSlide] = useState(0)
+  // Only the visible slide is mounted on first paint. Apart from making the
+  // onboarding route lighter, this prevents off-screen photography from
+  // competing with the first visual on constrained mobile connections.
+  const [loadedSlideIndices, setLoadedSlideIndices] = useState<Set<number>>(() => new Set([0]))
   const isLastSlide = currentSlide === slides.length - 1
+
+  const loadSlide = (slideIndex: number) => {
+    if (slideIndex < 0 || slideIndex >= slides.length) return
+    setLoadedSlideIndices((currentIndices) => {
+      if (currentIndices.has(slideIndex)) return currentIndices
+      const nextIndices = new Set(currentIndices)
+      nextIndices.add(slideIndex)
+      return nextIndices
+    })
+  }
 
   const stopSlideTransition = () => {
     transitionIdRef.current += 1
@@ -74,6 +116,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }
       transitionFrameRef.current = null
     }
     transitionIdRef.current = transitionId
+    loadSlide(targetSlide)
     setCurrentSlide(targetSlide)
 
     scrollX.stopAnimation((startX) => {
@@ -105,7 +148,18 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }
 
   const handleScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const slideIndex = Math.round(event.nativeEvent.contentOffset.x / width)
-    setCurrentSlide(Math.max(0, Math.min(slideIndex, slides.length - 1)))
+    const nextSlide = Math.max(0, Math.min(slideIndex, slides.length - 1))
+    loadSlide(nextSlide)
+    setCurrentSlide(nextSlide)
+  }
+
+  const handleScrollBeginDrag = () => {
+    stopSlideTransition()
+    // Make the neighboring image available only once the client elects to
+    // swipe, keeping manual carousel navigation smooth without loading every
+    // slide during initial render.
+    loadSlide(currentSlide - 1)
+    loadSlide(currentSlide + 1)
   }
 
   const handleNext = () => {
@@ -122,6 +176,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }
         <View style={styles.imageSection}>
           <View style={[styles.imageFrame, { height: Math.min(height * 0.42, 400) }]}>
             {slides.map((slide, index) => (
+              loadedSlideIndices.has(index) ? (
               <Animated.View
                 key={slide.title}
                 style={[
@@ -135,12 +190,9 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }
                   },
                 ]}
               >
-                <Image
-                  source={typeof slide.image === 'string' ? { uri: slide.image } : slide.image}
-                  resizeMode="cover"
-                  style={styles.image}
-                />
+                <OnboardingImage source={slide.image} />
               </Animated.View>
+              ) : null
             ))}
           </View>
         </View>
@@ -152,7 +204,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }
           decelerationRate="normal"
           scrollEventThrottle={16}
           showsHorizontalScrollIndicator={false}
-          onScrollBeginDrag={stopSlideTransition}
+          onScrollBeginDrag={handleScrollBeginDrag}
           onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
             useNativeDriver: false,
           })}

@@ -7,12 +7,9 @@ import { StatusBar } from 'expo-status-bar'
 import { BlurTargetView } from 'expo-blur'
 import * as WebBrowser from 'expo-web-browser'
 import * as ImagePicker from 'expo-image-picker'
-import { useFonts } from 'expo-font'
+import { loadAsync, useFonts } from 'expo-font'
 import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular'
-import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium'
-import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold'
 import { Inter_700Bold } from '@expo-google-fonts/inter/700Bold'
-import { Inter_900Black } from '@expo-google-fonts/inter/900Black'
 
 import { supabase } from './lib/supabase'
 import { fetchFavoriteServiceIds, toggleFavoriteService } from './lib/favorites'
@@ -169,15 +166,6 @@ import type { PayoutAccountInput, PayoutEarningsPeriod, PayoutTransaction } from
 import type { MerchantNotification } from './screens/22.5-Notification'
 import type { ChurchArrangementDraft, CoordinatorView } from './screens/23-Coordinator'
 import { OnboardingScreen } from './screens/01-Onboarding'
-import { LoginScreen } from './screens/01.1-Login'
-import { ForgotPasswordScreen } from './screens/01.1.1-ForgotPassword'
-import { NewPasswordScreen } from './screens/01.1.2-NewPassword'
-import { RoleSelectionScreen } from './screens/02-RoleSelection'
-import { SignupScreen } from './screens/02.1-ClientSignup'
-import { MerchantSignupScreen } from './screens/02.2-MerchantSignup'
-import { PendingApprovalScreen } from './screens/02.2.1-PendingApproval'
-import { RejectedApplicationScreen } from './screens/02.2.2-RejectedApplication'
-import { VerificationScreen } from './screens/02.3-Verification'
 import type {
   BudgetAllocationValue,
   BudgetPriority,
@@ -274,6 +262,33 @@ import {
 
 const SupportScreen = React.lazy(async () => ({
   default: (await import('./screens/25-Support')).SupportScreen,
+}))
+const LoginScreen = React.lazy(async () => ({
+  default: (await import('./screens/01.1-Login')).LoginScreen,
+}))
+const ForgotPasswordScreen = React.lazy(async () => ({
+  default: (await import('./screens/01.1.1-ForgotPassword')).ForgotPasswordScreen,
+}))
+const NewPasswordScreen = React.lazy(async () => ({
+  default: (await import('./screens/01.1.2-NewPassword')).NewPasswordScreen,
+}))
+const RoleSelectionScreen = React.lazy(async () => ({
+  default: (await import('./screens/02-RoleSelection')).RoleSelectionScreen,
+}))
+const SignupScreen = React.lazy(async () => ({
+  default: (await import('./screens/02.1-ClientSignup')).SignupScreen,
+}))
+const MerchantSignupScreen = React.lazy(async () => ({
+  default: (await import('./screens/02.2-MerchantSignup')).MerchantSignupScreen,
+}))
+const PendingApprovalScreen = React.lazy(async () => ({
+  default: (await import('./screens/02.2.1-PendingApproval')).PendingApprovalScreen,
+}))
+const RejectedApplicationScreen = React.lazy(async () => ({
+  default: (await import('./screens/02.2.2-RejectedApplication')).RejectedApplicationScreen,
+}))
+const VerificationScreen = React.lazy(async () => ({
+  default: (await import('./screens/02.3-Verification')).VerificationScreen,
 }))
 const MerchantHomeScreen = React.lazy(async () => ({
   default: (await import('./screens/16-MerchantHome')).MerchantHomeScreen,
@@ -906,11 +921,26 @@ const outcomeMessageForCompletionPayment = (
 export const App: React.FC = () => {
   useFonts({
     Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
     Inter_700Bold,
-    Inter_900Black,
   })
+  React.useEffect(() => {
+    const deferredFontTimer = setTimeout(() => {
+      void Promise.all([
+        import('@expo-google-fonts/inter/500Medium'),
+        import('@expo-google-fonts/inter/600SemiBold'),
+        import('@expo-google-fonts/inter/900Black'),
+      ]).then(([medium, semiBold, black]) => loadAsync({
+        Inter_500Medium: medium.Inter_500Medium,
+        Inter_600SemiBold: semiBold.Inter_600SemiBold,
+        Inter_900Black: black.Inter_900Black,
+      })).catch(() => {
+        // The existing font weights and platform fallbacks keep the app usable
+        // if a nonessential deferred font cannot be loaded.
+      })
+    }, 2500)
+
+    return () => clearTimeout(deferredFontTimer)
+  }, [])
   const { height, width } = useWindowDimensions()
   const [screen, commitScreen] = React.useState<AppScreen>('onboarding')
   const [isAuthRestoring, setIsAuthRestoring] = React.useState(Boolean(supabase))
