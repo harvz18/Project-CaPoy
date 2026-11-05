@@ -250,12 +250,14 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   const [activeAdvertisementIndex, setActiveAdvertisementIndex] = React.useState(0)
   const [isHeroPlanCtaInteractive, setIsHeroPlanCtaInteractive] = React.useState(true)
   const [isHeaderPlanCtaInteractive, setIsHeaderPlanCtaInteractive] = React.useState(false)
+  const deferredRecommendations = React.useDeferredValue(recommendations)
+  const deferredCoordinators = React.useDeferredValue(coordinators)
   const visibleBookingProgress = showAllBookingProgress
     ? bookingProgressEvents
     : bookingProgressEvents.slice(0, 3)
   const featuredBusinesses = React.useMemo(() => {
     const providerIds = new Set<string>()
-    return recommendations.flatMap((recommendation) => {
+    return deferredRecommendations.flatMap((recommendation) => {
       const { service } = recommendation
       const providerId = service.providerId || service.providerName
       if (providerIds.has(providerId)) return []
@@ -272,12 +274,12 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
         serviceId: service.id,
       }]
     }).slice(0, 6)
-  }, [recommendations])
+  }, [deferredRecommendations])
   const featuredCoordinators = React.useMemo(
-    () => coordinators.filter((coordinator) => (
+    () => deferredCoordinators.filter((coordinator) => (
       coordinator.kind === 'coordinator' && coordinator.isMock !== true
     )).slice(0, 8),
-    [coordinators]
+    [deferredCoordinators]
   )
   const hasAdditionalBookingProgress = bookingProgressEvents.length > 3
   const draftEvent = draftEvents[0]
@@ -707,7 +709,7 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
             showsHorizontalScrollIndicator={false}
             style={[styles.carouselViewport, isWide && styles.carouselViewportWide]}
           >
-            {recommendations.map((recommendation) => (
+            {deferredRecommendations.map((recommendation) => (
               <Pressable
                 key={recommendation.service.id}
                 accessibilityLabel={`Open ${recommendation.service.name}`}
@@ -757,7 +759,7 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
                 <Text style={styles.referenceVenuePrice}>{formatServicePrice(recommendation.service)}</Text>
               </Pressable>
             ))}
-            {recommendations.length === 0 ? (
+            {deferredRecommendations.length === 0 ? (
               <View style={styles.emptyRecommendationState}>
                 <Text style={styles.emptyDraftTitle}>Recommendations will appear here</Text>
                 <Text style={styles.emptyDraftText}>Published services become available as providers join MULTIVENT.</Text>

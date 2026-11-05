@@ -1,6 +1,6 @@
 import React from 'react'
 import type { RealtimeChannel } from '@supabase/supabase-js'
-import { Alert, Animated, AppState, BackHandler, Easing, Image, Modal, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
+import { ActivityIndicator, Alert, Animated, AppState, BackHandler, Easing, Image, Modal, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
@@ -153,65 +153,21 @@ import type { CoordinatorMainTab } from './components/CoordinatorBottomNavigatio
 import { MerchantBottomNavigation } from './components/MerchantBottomNavigation'
 import { NonBlockingActivityBar, ScreenMotionFrame } from './components/MotionFeedback'
 import { ClientHomeScreen, ClientHomeTab, getClientBookingProgress } from './screens/03-ClientHome'
-import { ClientPlansScreen } from './screens/03.3-ClientPlans'
-import { ClientConversation, ClientInboxTab, MessagesScreen } from './screens/03.1-Messages'
-import { ChatMessage, ChatThreadScreen } from './screens/03.2-ChatThread'
-import { MerchantHomeScreen, MerchantHomeTab } from './screens/16-MerchantHome'
-import {
-  ServiceInformationValue,
-  Step1ServiceListingScreen,
-} from './screens/17-Step1ServiceListing'
-import { ProviderServicesScreen } from './screens/17-ProviderServices'
-import { ServicePricingValue, Step2PricingScreen } from './screens/17.1-Step2Pricing'
-import {
-  PackageServiceOption,
-  ServicePackageValue,
-  Step2AddPackageScreen,
-} from './screens/17.1.1-Step2AddPackage'
-import {
-  ReviewListingSection,
-  ServiceListingReviewValue,
-  Step3ReviewListingsScreen,
-} from './screens/17.2-Step3ReviewListings'
-import { AvailabilityCalendarScreen, AvailabilityEntry } from './screens/18-AvailabilityCalendar'
-import {
-  BookingRequestScreen,
-  BookingRequestStatus,
-  MerchantBookingRequest,
-} from './screens/19-BookingRequest'
-import {
-  BookingRequestDecisionValue,
-  BookingRequestDetailsScreen,
-  type ProviderCompletionPaymentValue,
-} from './screens/19.1-BookingRequest'
-import {
-  BookingRequestDeclineScreen,
-  BookingRequestDeclineValue,
-} from './screens/19.2-BookingRequest(Deciline)'
-import { MerchantBookingDetailScreen } from './screens/20-BookingDetail'
-import { ReviewPerformanceScreen } from './screens/21-ReviewPerformance'
-import { MerchantProfileAction, MerchantProfileScreen } from './screens/22-MerchantProfile'
-import { AccountProfileScreen } from './screens/24-AccountProfile'
-import { ClientRefundsScreen } from './screens/24.1-ClientWallet'
-import { SupportScreen } from './screens/25-Support'
-import { OperatingHoursScreen } from './screens/22.1-OperatingHours'
-import {
-  PayoutAccountInput,
-  PayoutEarningsPeriod,
-  PayoutEarningsScreen,
-  PayoutTransaction,
-} from './screens/22.2-PayoutEarnings'
-import { TransactionDetailsScreen } from './screens/22.3-TransactionDetails'
-import { ChangePasswordScreen } from './screens/22.4-ChangePassword'
-import { MerchantNotification, NotificationScreen } from './screens/22.5-Notification'
-import {
-  CoordinatorEventDetailsScreen,
-  CoordinatorScreen,
-  type ChurchArrangementDraft,
-  type CoordinatorView,
-} from './screens/23-Coordinator'
-import { CoordinatorRemittanceDetailsScreen } from './screens/23.1-CoordinatorRemittanceDetails'
-import { CoordinatorServiceProfileScreen } from './screens/23.2-CoordinatorServiceProfile'
+import type { ClientConversation, ClientInboxTab } from './screens/03.1-Messages'
+import type { ChatMessage } from './screens/03.2-ChatThread'
+import type { MerchantHomeTab } from './screens/16-MerchantHome'
+import type { ServiceInformationValue } from './screens/17-Step1ServiceListing'
+import type { ServicePricingValue } from './screens/17.1-Step2Pricing'
+import type { PackageServiceOption, ServicePackageValue } from './screens/17.1.1-Step2AddPackage'
+import type { ReviewListingSection, ServiceListingReviewValue } from './screens/17.2-Step3ReviewListings'
+import type { AvailabilityEntry } from './screens/18-AvailabilityCalendar'
+import type { BookingRequestStatus, MerchantBookingRequest } from './screens/19-BookingRequest'
+import type { BookingRequestDecisionValue, ProviderCompletionPaymentValue } from './screens/19.1-BookingRequest'
+import type { BookingRequestDeclineValue } from './screens/19.2-BookingRequest(Deciline)'
+import type { MerchantProfileAction } from './screens/22-MerchantProfile'
+import type { PayoutAccountInput, PayoutEarningsPeriod, PayoutTransaction } from './screens/22.2-PayoutEarnings'
+import type { MerchantNotification } from './screens/22.5-Notification'
+import type { ChurchArrangementDraft, CoordinatorView } from './screens/23-Coordinator'
 import { OnboardingScreen } from './screens/01-Onboarding'
 import { LoginScreen } from './screens/01.1-Login'
 import { ForgotPasswordScreen } from './screens/01.1.1-ForgotPassword'
@@ -222,24 +178,16 @@ import { MerchantSignupScreen } from './screens/02.2-MerchantSignup'
 import { PendingApprovalScreen } from './screens/02.2.1-PendingApproval'
 import { RejectedApplicationScreen } from './screens/02.2.2-RejectedApplication'
 import { VerificationScreen } from './screens/02.3-Verification'
-import { BudgetAllocationScreen } from './screens/05-BudgetAllocation'
 import type {
   BudgetAllocationValue,
   BudgetPriority,
   CategoryBudgetAllocation,
   CategoryBudgetMinimum,
 } from './screens/05-BudgetAllocation'
-import {
-  EventCreationScreen,
-  EventCreationValue,
-} from './screens/04-EventCreation'
-import { BudgetTrackerScreen } from './screens/04.1-BudgetTracker'
-import { CategoryBrowseScreen } from './screens/06-CategoryBrowse'
-import { CoordinatorDetailsScreen } from './screens/06.1-CoordinatorDetails'
+import type { EventCreationValue } from './screens/04-EventCreation'
 import { CoordinatorProfileOverlay } from './components/CoordinatorProfileOverlay'
 import { BusinessProfileOverlay } from './components/BusinessProfileOverlay'
 import { ServiceProfileOverlay } from './components/ServiceProfileOverlay'
-import { ServiceDetailsScreen } from './screens/08-ServiceDetails'
 import {
   emptyCategoryDetails,
   cateringCustomMenuStartingPrice,
@@ -251,28 +199,13 @@ import {
   validateCategoryDetails,
 } from './lib/service-category-details'
 import type { AssignedCoordinatorSummary, SelectedSummaryService } from './screens/07-SelectedSummary'
-import { RoleHomePlaceholderScreen } from './screens/RoleHomePlaceholder'
-import {
-  InstructionModuleScreen,
-  InstructionModuleService,
-  type InstructionModuleValue,
-} from './screens/10-InstructionModule'
+import type { InstructionModuleService, InstructionModuleValue } from './screens/10-InstructionModule'
 import { PlanningStepNavigationProvider } from './components/PlanningStepIndicator'
-import { BookingItem, BookingScreen } from './screens/11-BookingScreen'
-import { BookingDetailsScreen } from './screens/11.1-BookingDetails'
-import { BookingPaymentSheet, PaymentScreen, type PaymentValue } from './screens/12-Payment'
-import {
-  EventSummaryScreen,
-  type EventSummaryDetails,
-  type EventSummaryOrderItem,
-} from './screens/12-EventSummary'
-import { ConfirmationReceipt, ConfirmationScreen } from './screens/13-Confirmation'
-import {
-  EventLedgerScreen,
-  LedgerCategory,
-  LedgerTransaction,
-} from './screens/14-EventLedger'
-import { EventFeedbackScreen } from './screens/15.1-EventFeedback'
+import type { BookingItem } from './screens/11-BookingScreen'
+import type { PaymentValue } from './screens/12-Payment'
+import type { EventSummaryDetails, EventSummaryOrderItem } from './screens/12-EventSummary'
+import type { ConfirmationReceipt } from './screens/13-Confirmation'
+import type { LedgerCategory, LedgerTransaction } from './screens/14-EventLedger'
 import {
   fetchConversationMessages,
   fetchConversations,
@@ -338,6 +271,145 @@ import {
   fetchProviderBusinessRating,
   ProviderBusinessRating,
 } from './lib/provider-business'
+
+const SupportScreen = React.lazy(async () => ({
+  default: (await import('./screens/25-Support')).SupportScreen,
+}))
+const MerchantHomeScreen = React.lazy(async () => ({
+  default: (await import('./screens/16-MerchantHome')).MerchantHomeScreen,
+}))
+const Step1ServiceListingScreen = React.lazy(async () => ({
+  default: (await import('./screens/17-Step1ServiceListing')).Step1ServiceListingScreen,
+}))
+const ProviderServicesScreen = React.lazy(async () => ({
+  default: (await import('./screens/17-ProviderServices')).ProviderServicesScreen,
+}))
+const Step2PricingScreen = React.lazy(async () => ({
+  default: (await import('./screens/17.1-Step2Pricing')).Step2PricingScreen,
+}))
+const Step2AddPackageScreen = React.lazy(async () => ({
+  default: (await import('./screens/17.1.1-Step2AddPackage')).Step2AddPackageScreen,
+}))
+const Step3ReviewListingsScreen = React.lazy(async () => ({
+  default: (await import('./screens/17.2-Step3ReviewListings')).Step3ReviewListingsScreen,
+}))
+const AvailabilityCalendarScreen = React.lazy(async () => ({
+  default: (await import('./screens/18-AvailabilityCalendar')).AvailabilityCalendarScreen,
+}))
+const BookingRequestScreen = React.lazy(async () => ({
+  default: (await import('./screens/19-BookingRequest')).BookingRequestScreen,
+}))
+const BookingRequestDetailsScreen = React.lazy(async () => ({
+  default: (await import('./screens/19.1-BookingRequest')).BookingRequestDetailsScreen,
+}))
+const BookingRequestDeclineScreen = React.lazy(async () => ({
+  default: (await import('./screens/19.2-BookingRequest(Deciline)')).BookingRequestDeclineScreen,
+}))
+const MerchantBookingDetailScreen = React.lazy(async () => ({
+  default: (await import('./screens/20-BookingDetail')).MerchantBookingDetailScreen,
+}))
+const ReviewPerformanceScreen = React.lazy(async () => ({
+  default: (await import('./screens/21-ReviewPerformance')).ReviewPerformanceScreen,
+}))
+const MerchantProfileScreen = React.lazy(async () => ({
+  default: (await import('./screens/22-MerchantProfile')).MerchantProfileScreen,
+}))
+const OperatingHoursScreen = React.lazy(async () => ({
+  default: (await import('./screens/22.1-OperatingHours')).OperatingHoursScreen,
+}))
+const PayoutEarningsScreen = React.lazy(async () => ({
+  default: (await import('./screens/22.2-PayoutEarnings')).PayoutEarningsScreen,
+}))
+const TransactionDetailsScreen = React.lazy(async () => ({
+  default: (await import('./screens/22.3-TransactionDetails')).TransactionDetailsScreen,
+}))
+const ChangePasswordScreen = React.lazy(async () => ({
+  default: (await import('./screens/22.4-ChangePassword')).ChangePasswordScreen,
+}))
+const NotificationScreen = React.lazy(async () => ({
+  default: (await import('./screens/22.5-Notification')).NotificationScreen,
+}))
+const CoordinatorScreen = React.lazy(async () => ({
+  default: (await import('./screens/23-Coordinator')).CoordinatorScreen,
+}))
+const CoordinatorEventDetailsScreen = React.lazy(async () => ({
+  default: (await import('./screens/23-Coordinator')).CoordinatorEventDetailsScreen,
+}))
+const CoordinatorRemittanceDetailsScreen = React.lazy(async () => ({
+  default: (await import('./screens/23.1-CoordinatorRemittanceDetails')).CoordinatorRemittanceDetailsScreen,
+}))
+const CoordinatorServiceProfileScreen = React.lazy(async () => ({
+  default: (await import('./screens/23.2-CoordinatorServiceProfile')).CoordinatorServiceProfileScreen,
+}))
+const ClientPlansScreen = React.lazy(async () => ({
+  default: (await import('./screens/03.3-ClientPlans')).ClientPlansScreen,
+}))
+const MessagesScreen = React.lazy(async () => ({
+  default: (await import('./screens/03.1-Messages')).MessagesScreen,
+}))
+const ChatThreadScreen = React.lazy(async () => ({
+  default: (await import('./screens/03.2-ChatThread')).ChatThreadScreen,
+}))
+const AccountProfileScreen = React.lazy(async () => ({
+  default: (await import('./screens/24-AccountProfile')).AccountProfileScreen,
+}))
+const ClientRefundsScreen = React.lazy(async () => ({
+  default: (await import('./screens/24.1-ClientWallet')).ClientRefundsScreen,
+}))
+const EventCreationScreen = React.lazy(async () => ({
+  default: (await import('./screens/04-EventCreation')).EventCreationScreen,
+}))
+const BudgetTrackerScreen = React.lazy(async () => ({
+  default: (await import('./screens/04.1-BudgetTracker')).BudgetTrackerScreen,
+}))
+const BudgetAllocationScreen = React.lazy(async () => ({
+  default: (await import('./screens/05-BudgetAllocation')).BudgetAllocationScreen,
+}))
+const CategoryBrowseScreen = React.lazy(async () => ({
+  default: (await import('./screens/06-CategoryBrowse')).CategoryBrowseScreen,
+}))
+const CoordinatorDetailsScreen = React.lazy(async () => ({
+  default: (await import('./screens/06.1-CoordinatorDetails')).CoordinatorDetailsScreen,
+}))
+const ServiceDetailsScreen = React.lazy(async () => ({
+  default: (await import('./screens/08-ServiceDetails')).ServiceDetailsScreen,
+}))
+const RoleHomePlaceholderScreen = React.lazy(async () => ({
+  default: (await import('./screens/RoleHomePlaceholder')).RoleHomePlaceholderScreen,
+}))
+const InstructionModuleScreen = React.lazy(async () => ({
+  default: (await import('./screens/10-InstructionModule')).InstructionModuleScreen,
+}))
+const BookingScreen = React.lazy(async () => ({
+  default: (await import('./screens/11-BookingScreen')).BookingScreen,
+}))
+const BookingDetailsScreen = React.lazy(async () => ({
+  default: (await import('./screens/11.1-BookingDetails')).BookingDetailsScreen,
+}))
+const PaymentScreen = React.lazy(async () => ({
+  default: (await import('./screens/12-Payment')).PaymentScreen,
+}))
+const BookingPaymentSheet = React.lazy(async () => ({
+  default: (await import('./screens/12-Payment')).BookingPaymentSheet,
+}))
+const EventSummaryScreen = React.lazy(async () => ({
+  default: (await import('./screens/12-EventSummary')).EventSummaryScreen,
+}))
+const ConfirmationScreen = React.lazy(async () => ({
+  default: (await import('./screens/13-Confirmation')).ConfirmationScreen,
+}))
+const EventLedgerScreen = React.lazy(async () => ({
+  default: (await import('./screens/14-EventLedger')).EventLedgerScreen,
+}))
+const EventFeedbackScreen = React.lazy(async () => ({
+  default: (await import('./screens/15.1-EventFeedback')).EventFeedbackScreen,
+}))
+
+const DeferredScreenFallback: React.FC = () => (
+  <View accessibilityLabel="Loading screen" accessibilityRole="progressbar" style={styles.deferredScreenFallback}>
+    <ActivityIndicator color={colors.primary} size="small" />
+  </View>
+)
 
 type AppScreen =
   | 'onboarding'
@@ -3488,6 +3560,11 @@ export const App: React.FC = () => {
         })
         if (!isMounted) return
 
+        // The role route is enough to render a usable shell. Keep the slower
+        // workspace hydration below in the background so returning clients do
+        // not wait on every catalog, booking, and inbox request before Home
+        // can paint.
+        setIsAuthRestoring(false)
         const planningState = await refreshLiveData()
         if (isMounted && resolvedRole === 'client') {
           const lastScreen = await loadClientLastScreen(data.session.user.id)
@@ -7883,7 +7960,11 @@ export const App: React.FC = () => {
     : usesFloatingBottomNavigation
       ? (['top', 'right', 'left'] as const)
       : (['top', 'right', 'bottom', 'left'] as const)
-  const renderedScreen = renderScreen()
+  const renderedScreen = (
+    <React.Suspense fallback={<DeferredScreenFallback />}>
+      {renderScreen()}
+    </React.Suspense>
+  )
 
   return (
     <SafeAreaProvider>
@@ -8013,6 +8094,7 @@ const styles = StyleSheet.create({
   },
   sessionRestoreMark: { width: 116, height: 116 },
   sessionRestoreTitle: { color: '#FFFFFF', fontFamily: 'Inter_700Bold', fontSize: 18, fontWeight: '700', letterSpacing: 2.4, marginTop: 16 },
+  deferredScreenFallback: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   container: {
     flex: 1,
     backgroundColor: colors.background,
