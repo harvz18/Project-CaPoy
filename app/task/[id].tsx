@@ -78,6 +78,23 @@ export default function TaskDetailsScreen() {
     : employer?.rating;
   const hasApplied = Boolean(currentUser?.id && task.applicantIds?.includes(currentUser.id));
   const canEdit = Boolean(currentUser && currentUser.role === "client" && canEditTaskTerms(task, currentUser.id));
+  const chatRecipientId = isClient
+    ? task.workerId ?? (applicantIds.length === 1 ? applicantIds[0] : undefined)
+    : task.clientId;
+
+  function openTaskChat() {
+    if (!chatRecipientId) {
+      // A client with several applicants must choose the intended tasker in the
+      // inbox. This prevents a message from being sent to the wrong applicant.
+      router.push("/chat");
+      return;
+    }
+
+    router.push({
+      pathname: "/chat/[id]",
+      params: { id, recipientId: chatRecipientId }
+    });
+  }
 
   async function handleWorkerAccept() {
     const taskId = task?.id;
@@ -311,7 +328,7 @@ export default function TaskDetailsScreen() {
         )}
 
         <View style={styles.actionRow}>
-          <Pressable style={styles.secondaryButton} onPress={() => router.push(`/chat/${task.id}`)}>
+          <Pressable style={styles.secondaryButton} onPress={openTaskChat}>
             <Text style={styles.secondaryButtonText}>Chat</Text>
           </Pressable>
           <Pressable style={styles.secondaryButton} onPress={() => router.push(`/task-status/${task.id}`)}>

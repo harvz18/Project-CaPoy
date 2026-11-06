@@ -38,8 +38,15 @@ export default function ChatScreen() {
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [allMessagesLoaded, setAllMessagesLoaded] = useState(false);
   const task = tasks.find((item) => item.id === id);
-  const singleApplicantId = task?.applicantIds?.length === 1 ? task.applicantIds[0] : undefined;
-  const participantId = currentUser?.role === "worker" ? task?.clientId : recipientId ?? task?.workerId ?? singleApplicantId;
+  const workerCandidates = [...new Set([task?.workerId, ...(task?.applicantIds ?? [])].filter(Boolean) as string[])];
+  const requestedWorkerId = typeof recipientId === "string" && workerCandidates.includes(recipientId)
+    ? recipientId
+    : undefined;
+  const singleApplicantId = workerCandidates.length === 1 ? workerCandidates[0] : undefined;
+  const participantId = currentUser?.role === "worker"
+    ? task?.clientId
+    : requestedWorkerId ?? task?.workerId ?? singleApplicantId;
+  const chatUnavailable = !participantId;
   const participant = getUserById(participantId);
   const messages = getTaskMessages(id, participantId);
   const unreadIds = useMemo(
@@ -55,6 +62,10 @@ export default function ChatScreen() {
 
   async function handleSend(text = message) {
     if (!text.trim()) {
+      return;
+    }
+    if (!participantId) {
+      setSendError("Choose a tasker from the Chat inbox before sending a message.");
       return;
     }
     try {
@@ -126,9 +137,10 @@ export default function ChatScreen() {
 
       <View style={[styles.composerWrap, { bottom: 72 + insets.bottom, paddingBottom: 12 }]}>
         {sendError ? <Text style={styles.sendError}>{sendError}</Text> : null}
+        {chatUnavailable ? <Text style={styles.sendError}>Choose a tasker from the Chat inbox before sending a message.</Text> : null}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickReplyRow}>
           {quickReplies.map((reply) => (
-            <Pressable key={reply} onPress={() => handleSend(reply)} style={styles.quickReply}>
+            <Pressable disabled={chatUnavailable} key={reply} onPress={() => handleSend(reply)} style={[styles.quickReply, chatUnavailable && styles.disabled]}>
               <Text style={styles.quickReplyText}>{reply}</Text>
             </Pressable>
           ))}
@@ -142,7 +154,7 @@ export default function ChatScreen() {
             style={styles.input}
             value={message}
           />
-          <Pressable accessibilityRole="button" onPress={() => handleSend()} style={({ pressed }) => [styles.sendButton, pressed && styles.pressed]}>
+          <Pressable accessibilityRole="button" disabled={chatUnavailable} onPress={() => handleSend()} style={({ pressed }) => [styles.sendButton, chatUnavailable && styles.sendButtonDisabled, pressed && !chatUnavailable && styles.pressed]}>
             <Text style={styles.sendButtonText}>Send</Text>
           </Pressable>
         </View>
@@ -220,7 +232,9 @@ const styles = StyleSheet.create({
   addButtonText: { color: palette.muted, fontSize: 24, fontWeight: "700" },
   input: { flex: 1, minHeight: 44, borderRadius: 22, backgroundColor: palette.surfaceLow, color: palette.text, paddingHorizontal: 16, fontSize: 16 },
   sendButton: { width: 52, height: 44, borderRadius: 22, backgroundColor: palette.primary, alignItems: "center", justifyContent: "center" },
+  sendButtonDisabled: { backgroundColor: palette.outline },
   sendButtonText: { color: palette.white, fontSize: 12, fontWeight: "900" },
   sendError: { color: "#BA1A1A", fontSize: 12, lineHeight: 16, fontWeight: "700", paddingHorizontal: 16, paddingBottom: 8 },
-  pressed: { opacity: 0.78, transform: [{ scale: 0.99 }] }
+  pressed: { opacity: 0.78, transform: [{ scale: 0.99 }] },
+  disabled: { opacity: 0.5 }
 });
