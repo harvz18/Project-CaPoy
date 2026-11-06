@@ -100,6 +100,16 @@ export interface ServiceDecisionSignal {
   reviewCount: number
 }
 
+export type CatalogLoadSource = 'cache' | 'empty' | 'live' | 'loading'
+
+export interface CatalogLoadStatus {
+  durationMs?: number
+  errorMessage?: string
+  lastSuccessfulAt?: number
+  serviceCount: number
+  source: CatalogLoadSource
+}
+
 export const fallbackServiceCategories: ServiceCategoryOption[] = [
   { id: 'attire', name: 'Attire' },
   { id: 'catering', name: 'Catering' },
@@ -200,6 +210,52 @@ let lastSuccessfulCatalogServices: CatalogService[] | undefined
 let lastSuccessfulClientCatalogServices: CatalogService[] | undefined
 let catalogServicesRequest: Promise<CatalogService[]> | undefined
 let clientCatalogServicesRequest: Promise<CatalogService[]> | undefined
+let catalogEnrichmentRequest: Promise<void> | undefined
+let clientCatalogEnrichmentRequest: Promise<void> | undefined
+let catalogLoadStatus: CatalogLoadStatus = { serviceCount: 0, source: 'empty' }
+const catalogLoadStatusListeners = new Set<(status: CatalogLoadStatus) => void>()
+const catalogEnrichmentListeners = new Set<(services: CatalogService[]) => void>()
+
+const updateCatalogLoadStatus = (next: CatalogLoadStatus) => {
+  catalogLoadStatus = next
+  catalogLoadStatusListeners.forEach((listener) => listener(next))
+  if (__DEV__) {
+    console.info('[catalog]', {
+      count: next.serviceCount,
+      durationMs: next.durationMs,
+      error: next.errorMessage,
+      source: next.source,
+    })
+  }
+}
+
+export const getCatalogLoadStatus = () => catalogLoadStatus
+
+export const subscribeToCatalogLoadStatus = (
+  listener: (status: CatalogLoadStatus) => void
+) => {
+  catalogLoadStatusListeners.add(listener)
+  return () => catalogLoadStatusListeners.delete(listener)
+}
+
+export const subscribeToCatalogEnrichment = (
+  listener: (services: CatalogService[]) => void
+) => {
+  catalogEnrichmentListeners.add(listener)
+  return () => catalogEnrichmentListeners.delete(listener)
+}
+
+// Device cache is only a browse-time resilience aid. Keep any live error in
+// the status so the UI can truthfully offer a retry instead of claiming that
+// the marketplace has no services.
+export const reportCatalogCacheUsed = (serviceCount: number, savedAt: number) => {
+  updateCatalogLoadStatus({
+    ...catalogLoadStatus,
+    lastSuccessfulAt: catalogLoadStatus.lastSuccessfulAt ?? savedAt,
+    serviceCount,
+    source: 'cache',
+  })
+}
 
 export const categoryNameToId = (name: string): CatalogCategoryId => {
   const normalized = name.toLowerCase()
@@ -392,31 +448,82 @@ const getCateringServiceTypes = (value: unknown): CateringServiceType[] => {
   )
 }
 
-const fetchCatalogServicesUncached = async (): Promise<CatalogService[]> => {
+const catalogRetryDelay = (attempt: number) => 350 * (attempt + 1)
+
+const isRetryableCatalogError = (message: string) => {
+  const normalized = message.toLowerCase()
+  return normalized.includes('fetch')
+    || normalized.includes('network')
+    || normalized.includes('timeout')
+    || normalized.includes('connection')
+    || normalized.includes('temporar')
+    || normalized.includes('gateway')
+    || normalized.includes('server error')
+}
+
+const pauseCatalogRequest = (milliseconds: number) => new Promise<void>((resolve) => {
+  setTimeout(resolve, milliseconds)
+})
+
+const fetchCatalogServicesUncached = async (
+  mode: 'core' | 'enrichment' = 'core'
+): Promise<CatalogService[]> => {
   if (!supabase || !supabaseConfig.isConfigured) {
+    if (mode === 'core') {
+      updateCatalogLoadStatus({
+        errorMessage: 'Marketplace configuration is unavailable.',
+        serviceCount: lastSuccessfulCatalogServices?.length ?? 0,
+        source: lastSuccessfulCatalogServices?.length ? 'cache' : 'empty',
+      })
+    }
     return []
+  }
+  const client = supabase
+
+  const startedAt = Date.now()
+  if (mode === 'core') {
+    updateCatalogLoadStatus({
+      lastSuccessfulAt: catalogLoadStatus.lastSuccessfulAt,
+      serviceCount: lastSuccessfulCatalogServices?.length ?? 0,
+      source: 'loading',
+    })
   }
 
   const baseSelection =
     'id, provider_id, category_id, name, description, base_price, location, cover_image_url, provider_profiles(id, user_id, business_name, description, location, business_logo_url, business_cover_url), service_categories(id, name), service_packages(id, service_id, name, description, price, inclusions, pricing_unit, pricing_mode, is_active, is_deleted), reviews(rating)'
   const detailedSelection =
     'id, provider_id, category_id, name, description, base_price, location, cover_image_url, gallery_urls, pricing_model, pricing_unit, pricing_details, catering_service_types, category_details, provider_profiles(id, user_id, business_name, description, location, business_logo_url, business_cover_url), service_categories(id, name), service_packages(id, service_id, name, description, price, inclusions, pricing_unit, pricing_mode, subtotal, discount_type, discount_value, discount_amount, is_active, is_deleted, configuration, image_urls, venue_catering_package_details(venue_service_id, catering_service_id, venue_option_id), service_package_items(position, services(id, name, category_details, service_categories(name))), florist_package_arrangements(arrangement_id, included_quantity, customization_allowed), florist_package_add_ons(id, name, price, pricing_unit, is_active)), florist_arrangements(id, name, category, description, base_price, pricing_unit, minimum_quantity, maximum_quantity, is_active, display_order, florist_arrangement_option_groups(id, name, selection_type, is_required, minimum_selections, maximum_selections, is_active, display_order, florist_arrangement_options(id, name, price_modifier, price_modifier_type, is_active, display_order))), florist_service_fulfillment_options(id, fulfillment_kind, name, price, is_active, display_order), reviews(rating, analysis_status, sentiment_label)'
+  const coreSelection =
+    'id, provider_id, category_id, name, description, base_price, location, cover_image_url, gallery_urls, pricing_model, pricing_unit, pricing_details, catering_service_types, category_details, provider_profiles(id, user_id, business_name, description, location, business_logo_url, business_cover_url), service_categories(id, name), service_packages(id, service_id, name, description, price, inclusions, pricing_unit, pricing_mode, subtotal, discount_type, discount_value, discount_amount, is_active, is_deleted, configuration, image_urls), reviews(rating)'
+  const selection = mode === 'core' ? coreSelection : detailedSelection
 
-  const [detailedResult, commissionResult, includedPackageResult] = await Promise.all([
-    supabase
+  const readCatalogRows = () => Promise.all([
+    client
       .from('services')
-      .select(detailedSelection)
+      .select(selection)
       .eq('status', 'active')
       .eq('is_available', true)
       .limit(1000),
-    supabase.rpc('get_public_commission_rate'),
-    supabase
-      .from('service_package_items')
-      .select(
-        'service_id, service_packages(id, service_id, name, description, price, inclusions, pricing_unit, pricing_mode, subtotal, discount_type, discount_value, discount_amount, is_active, is_deleted, venue_catering_package_details(venue_service_id, catering_service_id, venue_option_id), service_package_items(position, services(id, name, category_details, service_categories(name))))'
-      )
-      .limit(5000),
+    client.rpc('get_public_commission_rate'),
+    mode === 'core'
+      ? Promise.resolve({ data: [], error: null })
+      : client
+        .from('service_package_items')
+        .select(
+          'service_id, service_packages(id, service_id, name, description, price, inclusions, pricing_unit, pricing_mode, subtotal, discount_type, discount_value, discount_amount, is_active, is_deleted, venue_catering_package_details(venue_service_id, catering_service_id, venue_option_id), service_package_items(position, services(id, name, category_details, service_categories(name))))'
+        )
+        .limit(5000),
   ])
+
+  let catalogRows = await readCatalogRows()
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const detailedError = catalogRows[0].error?.message ?? ''
+    if (!detailedError || !isRetryableCatalogError(detailedError)) break
+    await pauseCatalogRequest(catalogRetryDelay(attempt))
+    catalogRows = await readCatalogRows()
+  }
+
+  const [detailedResult, commissionResult, includedPackageResult] = catalogRows
   const commissionRate = normalizeCommissionRate(
     commissionResult.data,
     DEFAULT_COMMISSION_RATE
@@ -451,8 +558,19 @@ const fetchCatalogServicesUncached = async (): Promise<CatalogService[]> => {
   const error = fallbackResult?.error ?? detailedResult.error
 
   if (error || !data) {
-    console.warn('Unable to fetch marketplace services:', error?.message ?? 'No service response received.')
-    return lastSuccessfulCatalogServices ?? []
+    const fallbackServices = lastSuccessfulCatalogServices ?? []
+    const errorMessage = error?.message ?? 'No service response received.'
+    console.warn('Unable to fetch marketplace services:', errorMessage)
+    if (mode === 'core') {
+      updateCatalogLoadStatus({
+        durationMs: Date.now() - startedAt,
+        errorMessage,
+        lastSuccessfulAt: catalogLoadStatus.lastSuccessfulAt,
+        serviceCount: fallbackServices.length,
+        source: fallbackServices.length ? 'cache' : 'empty',
+      })
+    }
+    return fallbackServices
   }
 
   const services = data.map((row, index) => {
@@ -629,6 +747,14 @@ const fetchCatalogServicesUncached = async (): Promise<CatalogService[]> => {
   })
 
   lastSuccessfulCatalogServices = sortedServices
+  if (mode === 'core') {
+    updateCatalogLoadStatus({
+      durationMs: Date.now() - startedAt,
+      lastSuccessfulAt: Date.now(),
+      serviceCount: sortedServices.length,
+      source: 'live',
+    })
+  }
   return sortedServices
 }
 
@@ -825,14 +951,83 @@ export const fetchServiceDecisionSignals = async (): Promise<
   return signals
 }
 
+const enrichCatalogInBackground = () => {
+  if (catalogEnrichmentRequest) return
+
+  const request = fetchCatalogServicesUncached('enrichment')
+    .then((services) => {
+      if (!services.length) return
+      catalogEnrichmentListeners.forEach((listener) => listener(services))
+    })
+    .catch((error) => {
+      // Primary cards stay available when optional, nested details cannot be
+      // refreshed. The next catalog load will try enrichment again.
+      if (__DEV__) console.info('[catalog] enrichment unavailable', error)
+    })
+    .finally(() => {
+      if (catalogEnrichmentRequest === request) catalogEnrichmentRequest = undefined
+    })
+  catalogEnrichmentRequest = request
+}
+
+const enrichClientCatalogInBackground = (primaryServices: CatalogService[]) => {
+  if (clientCatalogEnrichmentRequest) return
+
+  const request = Promise.all([
+    fetchAvailableCoordinators(),
+    fetchBudgetAwareRecommendations(),
+    fetchServiceDecisionSignals(),
+  ]).then(([coordinators, recommendations, decisionSignals]) => {
+    // Prefer the detailed service snapshot when it has already arrived, but
+    // never delay the initial marketplace cards while waiting for it.
+    const catalogServices = lastSuccessfulCatalogServices ?? primaryServices
+    const coordinatorUserIds = new Set(
+      coordinators.flatMap((coordinator) => (
+        coordinator.coordinatorUserId ? [coordinator.coordinatorUserId] : []
+      ))
+    )
+    const marketplaceServices = catalogServices.filter((service) => !(
+      service.categoryId === 'eventOrganizers'
+      && service.providerUserId
+      && coordinatorUserIds.has(service.providerUserId)
+    ))
+    const clientCatalogServices = [...marketplaceServices, ...coordinators].map((service) => {
+      const decisionSignal = decisionSignals.get(service.bookingServiceId ?? service.id)
+      return {
+        ...service,
+        bookingCount: decisionSignal?.bookingCount ?? 0,
+        budgetRecommendation: recommendations.get(service.bookingServiceId ?? service.id),
+        isMostBooked: decisionSignal?.isMostBooked ?? false,
+        popularityRank: decisionSignal?.popularityRank ?? service.popularityRank,
+        rating: decisionSignal && decisionSignal.reviewCount > 0
+          ? decisionSignal.averageRating.toFixed(1)
+          : service.rating,
+        reviewCount: decisionSignal?.reviewCount ?? service.reviewCount,
+      }
+    })
+
+    lastSuccessfulClientCatalogServices = clientCatalogServices
+    catalogEnrichmentListeners.forEach((listener) => listener(clientCatalogServices))
+  }).catch((error) => {
+    // The primary cards are already usable. Optional client signals and
+    // coordinators can safely retry on the next catalog refresh.
+    if (__DEV__) console.info('[catalog] client enrichment unavailable', error)
+  }).finally(() => {
+    if (clientCatalogEnrichmentRequest === request) clientCatalogEnrichmentRequest = undefined
+  })
+
+  clientCatalogEnrichmentRequest = request
+}
+
 export const fetchCatalogServices = (): Promise<CatalogService[]> => {
   if (catalogServicesRequest) return catalogServicesRequest
 
-  const request = fetchCatalogServicesUncached()
+  const request = fetchCatalogServicesUncached('core')
   catalogServicesRequest = request
   void request.then(
-    () => {
+    (services) => {
       if (catalogServicesRequest === request) catalogServicesRequest = undefined
+      if (services.length) enrichCatalogInBackground()
     },
     () => {
       if (catalogServicesRequest === request) catalogServicesRequest = undefined
@@ -843,42 +1038,17 @@ export const fetchCatalogServices = (): Promise<CatalogService[]> => {
 
 const loadClientCatalogServicesUncached = async (): Promise<CatalogService[]> => {
   try {
-    const [services, coordinators, recommendations, decisionSignals] = await Promise.all([
-      fetchCatalogServices(),
-      fetchAvailableCoordinators(),
-      fetchBudgetAwareRecommendations(),
-      fetchServiceDecisionSignals(),
-    ])
-
-    const coordinatorUserIds = new Set(
-      coordinators.flatMap((coordinator) =>
-        coordinator.coordinatorUserId ? [coordinator.coordinatorUserId] : []
-      )
-    )
-    const marketplaceServices = services.filter((service) => !(
-      service.categoryId === 'eventOrganizers'
-      && service.providerUserId
-      && coordinatorUserIds.has(service.providerUserId)
-    ))
-
-    const clientCatalogServices = [...marketplaceServices, ...coordinators].map((service) => {
-      const decisionSignal = decisionSignals.get(service.bookingServiceId ?? service.id)
-
-      return {
-        ...service,
-        bookingCount: decisionSignal?.bookingCount ?? 0,
-        budgetRecommendation: recommendations.get(service.bookingServiceId ?? service.id),
-        isMostBooked: decisionSignal?.isMostBooked ?? false,
-        popularityRank: decisionSignal?.popularityRank,
-        rating: decisionSignal && decisionSignal.reviewCount > 0
-          ? decisionSignal.averageRating.toFixed(1)
-          : service.rating,
-        reviewCount: decisionSignal?.reviewCount ?? service.reviewCount,
-      }
-    })
-
-    lastSuccessfulClientCatalogServices = clientCatalogServices
-    return clientCatalogServices
+    // The primary service list is enough for cards, browsing, and the next
+    // planning screen. Coordinator profiles, recommendation RPCs, and review
+    // signals must not block this first useful response.
+    const services = await fetchCatalogServices()
+    const existingCoordinators = lastSuccessfulClientCatalogServices?.filter(
+      (service) => service.kind === 'coordinator'
+    ) ?? []
+    const primaryClientServices = [...services, ...existingCoordinators]
+    lastSuccessfulClientCatalogServices = primaryClientServices
+    enrichClientCatalogInBackground(services)
+    return primaryClientServices
   } catch (error) {
     console.warn(
       'Unable to refresh the client marketplace catalog:',

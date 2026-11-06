@@ -2,12 +2,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 
 import type { CatalogService, ServiceCategoryOption } from './catalog'
 
-const CLIENT_CATALOG_CACHE_KEY = 'multivent:client-marketplace-cache:v1'
-const CLIENT_CATALOG_CACHE_VERSION = 1
+const CLIENT_CATALOG_CACHE_KEY = 'multivent:client-marketplace-cache:v2'
+const CLIENT_CATALOG_CACHE_VERSION = 2
+export const CLIENT_CATALOG_CACHE_STALE_AFTER_MS = 15 * 60 * 1000
 
 export type ClientCatalogCacheSnapshot = {
   categories: ServiceCategoryOption[]
+  isStale: boolean
   savedAt: number
+  serviceCount: number
   services: CatalogService[]
 }
 
@@ -47,7 +50,9 @@ export const loadClientCatalogCache = async (): Promise<ClientCatalogCacheSnapsh
 
     return {
       categories: parsed.categories,
+      isStale: Date.now() - parsed.savedAt > CLIENT_CATALOG_CACHE_STALE_AFTER_MS,
       savedAt: parsed.savedAt,
+      serviceCount: parsed.services.length,
       services: parsed.services,
     }
   } catch {
@@ -67,6 +72,7 @@ export const saveClientCatalogCache = async (
     await AsyncStorage.setItem(CLIENT_CATALOG_CACHE_KEY, JSON.stringify({
       categories,
       savedAt: Date.now(),
+      serviceCount: services.length,
       services,
       version: CLIENT_CATALOG_CACHE_VERSION,
     }))

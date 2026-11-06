@@ -8,7 +8,6 @@ import {
   mdiBellOutline,
   mdiBookOpenPageVariantOutline,
   mdiCashMultiple,
-  mdiChartBoxOutline,
   mdiChevronDown,
   mdiClipboardTextClockOutline,
   mdiCogOutline,
@@ -113,7 +112,6 @@ const adminReferenceNavigation: NavigationItem[] = [
   { href: '/dashboard/reviews', label: 'Ratings & reviews', icon: mdiStarOutline, permission: 'providers.view', route: 'reviews' },
   { href: '/dashboard/bookings', label: 'Bookings', icon: mdiBookOpenPageVariantOutline, permission: 'events.view', route: 'bookings' },
   { href: '/dashboard/revenue', label: 'Revenue', icon: mdiCashMultiple, permission: 'revenue.view', route: 'revenue' },
-  { href: '/dashboard/insights', label: 'Insights', icon: mdiChartBoxOutline, permission: 'dashboard.analytics.view', route: 'insights' },
   { href: '/dashboard/reports', label: 'Reports', icon: mdiClipboardTextClockOutline, permission: ['events.view', 'providers.view', 'revenue.view', 'cashflow.view', 'coordinators.view'], route: 'reports' },
 ]
 
@@ -163,7 +161,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const [searchResults, setSearchResults] = useState<DashboardSearchResult[]>([])
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchError, setSearchError] = useState('')
-  const [liveDataVersion, setLiveDataVersion] = useState(0)
+  const [liveDataVersion] = useState(0)
   const [liveStatus, setLiveStatus] = useState<'connecting' | 'live' | 'reconnecting' | 'unavailable'>('connecting')
   const [notifications, setNotifications] = useState<DashboardNotification[]>([])
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0)
@@ -331,15 +329,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     }
 
     let active = true
-    let dashboardRefreshTimer: number | undefined
     let notificationRefreshTimer: number | undefined
-
-    const queueDashboardRefresh = () => {
-      if (dashboardRefreshTimer) window.clearTimeout(dashboardRefreshTimer)
-      dashboardRefreshTimer = window.setTimeout(() => {
-        if (active) setLiveDataVersion((value) => value + 1)
-      }, 550)
-    }
 
     const loadNotifications = async () => {
       if (!active) return
@@ -385,19 +375,13 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       queueNotificationRefresh()
     }
 
-    const watchTables = ['bookings', 'events', 'payments', 'financial_transactions', 'reviews', 'services', 'provider_profiles']
-    let channel = client
+    const channel = client
       .channel(`admin-dashboard-live-${profile.id}`)
       .on('postgres_changes', {
         event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${profile.id}`,
       }, (payload) => {
         updateNotification(payload.new)
-        queueDashboardRefresh()
       })
-
-    for (const table of watchTables) {
-      channel = channel.on('postgres_changes', { event: '*', schema: 'public', table }, queueDashboardRefresh)
-    }
 
     channel.subscribe((status) => {
       if (!active) return
@@ -410,7 +394,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     const refreshOnReturn = () => {
       if (document.visibilityState === 'visible') {
         void loadNotifications()
-        queueDashboardRefresh()
       }
     }
     window.addEventListener('focus', refreshOnReturn)
@@ -419,7 +402,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
     return () => {
       active = false
-      if (dashboardRefreshTimer) window.clearTimeout(dashboardRefreshTimer)
       if (notificationRefreshTimer) window.clearTimeout(notificationRefreshTimer)
       window.removeEventListener('focus', refreshOnReturn)
       document.removeEventListener('visibilitychange', refreshOnReturn)

@@ -1,6 +1,6 @@
 'use client'
 
-import { mdiAlertCircleOutline, mdiClose, mdiInformationOutline } from '@mdi/js'
+import { mdiAlertCircleOutline, mdiChevronLeft, mdiChevronRight, mdiClose, mdiInformationOutline } from '@mdi/js'
 import { MdiIcon } from './icons'
 
 export function StatusBadge({ value }: { value: string | null | undefined }) {
@@ -65,6 +65,46 @@ export function InlineError({ message, onClose }: { message: string; onClose?: (
 
 export function TableSkeleton({ rows = 5 }: { rows?: number }) {
   return <div className="table-skeleton">{Array.from({ length: rows }, (_, index) => <i key={index} />)}</div>
+}
+
+export const TABLE_PAGE_SIZE = 10
+
+export function paginateItems<T>(items: readonly T[], requestedPage: number, pageSize = TABLE_PAGE_SIZE) {
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize))
+  const page = Math.min(Math.max(1, requestedPage), totalPages)
+  const start = items.length ? (page - 1) * pageSize : 0
+  return {
+    end: Math.min(start + pageSize, items.length),
+    page,
+    rows: items.slice(start, start + pageSize),
+    start,
+    totalPages,
+  }
+}
+
+export function TablePagination({
+  itemLabel = 'records',
+  page,
+  totalItems,
+  totalPages,
+  onPageChange,
+}: {
+  itemLabel?: string
+  page: number
+  totalItems: number
+  totalPages: number
+  onPageChange: (page: number) => void
+}) {
+  const start = totalItems ? (page - 1) * TABLE_PAGE_SIZE + 1 : 0
+  const end = Math.min(page * TABLE_PAGE_SIZE, totalItems)
+  return <footer className="table-footer table-footer--pagination">
+    <span>Showing {start}–{end} of {totalItems.toLocaleString()} {itemLabel}</span>
+    <div>
+      <button type="button" disabled={page <= 1} onClick={() => onPageChange(page - 1)} aria-label="Previous page"><MdiIcon path={mdiChevronLeft} /></button>
+      <b>Page {page} of {totalPages}</b>
+      <button type="button" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)} aria-label="Next page"><MdiIcon path={mdiChevronRight} /></button>
+    </div>
+  </footer>
 }
 
 export function formatDate(value: string | null | undefined) {

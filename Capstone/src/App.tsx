@@ -29,14 +29,19 @@ import {
 import { fetchMyReviewedServices, type ReviewedService } from './lib/reviewed-services'
 import {
   CatalogCategoryId,
+  CatalogLoadStatus,
   CatalogService,
   catalogCategoryName,
   categoryNameToId,
   fallbackServiceCategories,
   fetchServiceCategories,
   formatPeso,
+  getCatalogLoadStatus,
   loadClientCatalogServices,
+  reportCatalogCacheUsed,
   ServiceCategoryOption,
+  subscribeToCatalogEnrichment,
+  subscribeToCatalogLoadStatus,
 } from './lib/catalog'
 import { loadClientCatalogCache, saveClientCatalogCache } from './lib/client-catalog-cache'
 import {
@@ -1196,6 +1201,9 @@ export const App: React.FC<AppProps> = ({
   const [isSendingMessage, setIsSendingMessage] = React.useState(false)
   const [catalogServices, setCatalogServices] = React.useState<CatalogService[]>([])
   const catalogServicesRef = React.useRef<CatalogService[]>([])
+  const [catalogLoadStatus, setCatalogLoadStatus] = React.useState<CatalogLoadStatus>(
+    () => getCatalogLoadStatus()
+  )
   const [reviewedServices, setReviewedServices] = React.useState<ReviewedService[]>([])
   const [isBudgetMarketplacePricingLoading, setIsBudgetMarketplacePricingLoading] = React.useState(true)
   const [favoriteServiceIds, setFavoriteServiceIds] = React.useState<ReadonlySet<string>>(
@@ -2541,6 +2549,48 @@ export const App: React.FC<AppProps> = ({
     : []
 
   React.useEffect(() => {
+    const unsubscribe = subscribeToCatalogLoadStatus(setCatalogLoadStatus)
+    return () => {
+      unsubscribe()
+    }
+  }, [])
+
+  React.useEffect(() => {
+    if (!authenticatedUserId) return undefined
+
+    const unsubscribe = subscribeToCatalogEnrichment((enrichedServices) => {
+      setCatalogServices((current) => {
+        const currentById = new Map(current.map((service) => [service.id, service]))
+        const incomingCoordinators = enrichedServices.filter((service) => service.kind === 'coordinator')
+        const enrichedWithClientSignals = enrichedServices
+          .filter((service) => service.kind !== 'coordinator')
+          .map((service) => {
+          const previous = currentById.get(service.id)
+          return {
+            ...service,
+            bookingCount: service.bookingCount ?? previous?.bookingCount,
+            budgetRecommendation: service.budgetRecommendation ?? previous?.budgetRecommendation,
+            isMostBooked: service.isMostBooked ?? previous?.isMostBooked,
+            popularityRank: service.popularityRank ?? previous?.popularityRank,
+            rating: service.reviewCount > 0 ? service.rating : previous?.rating ?? service.rating,
+            reviewCount: service.reviewCount > 0 ? service.reviewCount : previous?.reviewCount ?? service.reviewCount,
+          }
+        })
+        const existingCoordinators = current.filter((service) => service.kind === 'coordinator')
+        const next = [
+          ...enrichedWithClientSignals,
+          ...(incomingCoordinators.length ? incomingCoordinators : existingCoordinators),
+        ]
+        catalogServicesRef.current = next
+        return next
+      })
+    })
+    return () => {
+      unsubscribe()
+    }
+  }, [authenticatedUserId])
+
+  React.useEffect(() => {
     if (!authenticatedUserId) return undefined
 
     let isMounted = true
@@ -2551,6 +2601,7 @@ export const App: React.FC<AppProps> = ({
     const applyCachedCatalog = (cachedCatalog: Awaited<ReturnType<typeof loadClientCatalogCache>>) => {
       if (!isMounted || hasAppliedLiveCatalog || hasAppliedCachedCatalog || !cachedCatalog) return
       hasAppliedCachedCatalog = true
+      reportCatalogCacheUsed(cachedCatalog.serviceCount, cachedCatalog.savedAt)
       catalogServicesRef.current = cachedCatalog.services
       setCatalogServices(cachedCatalog.services)
       setServiceCategories(cachedCatalog.categories)
@@ -2574,6 +2625,7 @@ export const App: React.FC<AppProps> = ({
         return
       }
       if (!services.length && cachedCatalog) {
+        reportCatalogCacheUsed(cachedCatalog.serviceCount, cachedCatalog.savedAt)
         applyCachedCatalog(cachedCatalog)
         return
       }
@@ -7327,6 +7379,7 @@ export const App: React.FC<AppProps> = ({
             style={[styles.screenTransition, { transform: [{ translateX: categoryBrowseEntrance }] }]}
           >
             <CategoryBrowseScreen
+            catalogLoadStatus={catalogLoadStatus}
             categoryCountServices={replacementBooking
               ? catalogServices
               : serviceBrowseMode === 'planning' ? planningCatalogServices : catalogServices}
@@ -7404,6 +7457,18 @@ export const App: React.FC<AppProps> = ({
             reviewedServicesLoading={isAuthRestoring}
             onRefreshReviewedServices={() => {
               void refreshLiveData()
+            }}
+            onRetryCatalog={() => {
+              setIsBudgetMarketplacePricingLoading(true)
+              void Promise.all([loadClientCatalogServices(), fetchServiceCategories()])
+                .then(([services, categories]) => {
+                  if (!services.length) return
+                  catalogServicesRef.current = services
+                  setCatalogServices(services)
+                  setServiceCategories(categories)
+                  void saveClientCatalogCache(services, categories)
+                })
+                .finally(() => setIsBudgetMarketplacePricingLoading(false))
             }}
             onScrollDirectionChange={serviceBrowseMode === 'explore'
               ? handleClientNavigationScrollDirection

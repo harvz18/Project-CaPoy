@@ -1249,8 +1249,8 @@ body { background: var(--canvas); }
 .finance-date-controls { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px; }
 .finance-custom-range { display: flex; align-items: end; gap: 7px; }
 .finance-custom-range label, .report-controls > label { display: grid; gap: 4px; color: var(--soft); font-size: 12px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; }
-.finance-custom-range input, .report-controls select { height: 32px; min-width: 128px; padding: 0 9px; color: #52474a; border: 1px solid #e5dfe0; border-radius: 8px; outline: 0; background: white; font: inherit; font-size: 12px; text-transform: none; }
-.finance-custom-range input:focus, .report-controls select:focus { border-color: var(--wine-600); box-shadow: 0 0 0 3px rgba(133,49,67,.08); }
+.finance-custom-range input, .report-controls input, .report-controls select { height: 32px; min-width: 128px; padding: 0 9px; color: #52474a; border: 1px solid #e5dfe0; border-radius: 8px; outline: 0; background: white; font: inherit; font-size: 12px; text-transform: none; }
+.finance-custom-range input:focus, .report-controls input:focus, .report-controls select:focus { border-color: var(--wine-600); box-shadow: 0 0 0 3px rgba(133,49,67,.08); }
 .finance-model-note { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; color: #664b50; border: 1px solid #ecdadd; border-radius: 11px; background: linear-gradient(110deg, #fff8f7, #fdfbf8); }
 .finance-model-note > svg { width: 23px; flex: 0 0 auto; color: var(--wine-700); }
 .finance-model-note strong { display: block; color: #5a343b; font-size: 12px; }
@@ -1332,6 +1332,7 @@ body { background: var(--canvas); }
 .financial-action-dialog .confirmation-dialog__actions { margin-top: 0; }
 .report-controls { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px; padding: 14px 16px; border: 1px solid #eee8e7; border-radius: 12px; background: white; box-shadow: var(--shadow-sm); }
 .report-controls > label { min-width: 173px; }
+.report-controls > label:has(input) { min-width: 190px; }
 .report-controls > label small { max-width: 195px; color: var(--soft); font-size: 12px; font-weight: 500; letter-spacing: 0; line-height: 1.4; text-transform: none; }
 .report-actions { display: flex; gap: 8px; }
 .report-output > header > small { flex: 0 0 auto; padding-top: 4px; color: var(--soft); font-size: 12px; text-align: right; }

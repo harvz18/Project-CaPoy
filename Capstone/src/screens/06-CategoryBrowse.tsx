@@ -21,6 +21,7 @@ import { ReviewedServicesTab } from '../components/ReviewedServicesTab'
 import { ClientBottomNavigation, ClientMainTab } from '../components/ClientBottomNavigation'
 import {
   categoryNameToId,
+  CatalogLoadStatus,
   CatalogService,
   formatPeso,
   formatServicePrice,
@@ -39,6 +40,7 @@ export type CategoryBrowseTab = ClientMainTab | 'vendors' | 'budget'
 type CategoryBrowseSort = 'recommended' | 'rating' | 'bookings' | 'priceLow' | 'priceHigh'
 
 interface CategoryBrowseScreenProps {
+  catalogLoadStatus?: CatalogLoadStatus
   categoryCountServices?: CatalogService[]
   categoryBudgets?: Partial<Record<CatalogCategoryId, number>>
   categoryName?: string
@@ -114,6 +116,7 @@ interface CategoryBrowseScreenProps {
   onScrollDirectionChange?: (direction: 'down' | 'up') => void
   onClearFavoritesFilter?: () => void
   onRefreshReviewedServices?: () => void
+  onRetryCatalog?: () => void
   onToggleFavorite?: (serviceId: string) => void
   onSelectReviewedService?: (serviceId: string) => void
 }
@@ -242,6 +245,7 @@ const ServiceSectionList: React.FC<React.PropsWithChildren<{ horizontal: boolean
 )
 
 export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
+  catalogLoadStatus,
   categoryCountServices,
   categoryBudgets = {},
   categoryName = 'Services',
@@ -295,6 +299,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   onScrollDirectionChange,
   onClearFavoritesFilter,
   onRefreshReviewedServices,
+  onRetryCatalog,
   onSelectReviewedService,
   onToggleFavorite,
 }) => {
@@ -339,6 +344,11 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   const categoryCardAnimationSequenceRef = React.useRef(0)
   const selectedServicesSheetOffset = React.useRef(new Animated.Value(480)).current
   const query = searchValue ?? internalSearch
+  const catalogUnavailable = catalogLoadStatus?.source === 'empty'
+    && catalogLoadStatus.serviceCount === 0
+    && Boolean(catalogLoadStatus.errorMessage)
+  const catalogShowingFallback = catalogLoadStatus?.source === 'cache'
+    && Boolean(catalogLoadStatus.errorMessage)
   const servicesForCategoryCounts = categoryCountServices ?? services
   const exploreCategories = React.useMemo(
     () => [
@@ -1514,14 +1524,18 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
           {visibleVendors.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyTitle}>
-                {replacementContext
+                {catalogUnavailable
+                  ? 'We could not load marketplace services'
+                  : replacementContext
                   ? 'No alternate providers available'
                   : services.length > 0
                     ? 'No services match your current plan'
                     : 'No services found'}
               </Text>
               <Text style={styles.emptyCopy}>
-                {replacementContext
+                {catalogUnavailable
+                  ? 'Check your connection and try again. Your booking details were not changed.'
+                  : replacementContext
                   ? 'Another published provider in this category is required before this service can be changed.'
                   : services.length > 0
                     ? 'Try clearing filters or selecting another category.'
@@ -1529,6 +1543,39 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                     ? 'No available venue configuration matches the current event requirements. Try another category.'
                     : 'Services will appear here after providers publish them.'}
               </Text>
+              {catalogUnavailable && onRetryCatalog ? (
+                <Pressable
+                  accessibilityLabel="Retry loading marketplace services"
+                  accessibilityRole="button"
+                  onPress={onRetryCatalog}
+                  style={({ pressed }) => [styles.emptyAction, pressed && styles.emptyActionPressed]}
+                >
+                  <Text style={styles.emptyActionText}>RETRY</Text>
+                </Pressable>
+              ) : null}
+              {!catalogUnavailable && services.length > 0 && selectedFilters.size > 0 ? (
+                <Pressable
+                  accessibilityLabel="Clear service filters"
+                  accessibilityRole="button"
+                  onPress={() => setSelectedFilters(new Set())}
+                  style={({ pressed }) => [styles.emptyAction, pressed && styles.emptyActionPressed]}
+                >
+                  <Text style={styles.emptyActionText}>CLEAR FILTERS</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
+          {catalogShowingFallback ? (
+            <View accessibilityLiveRegion="polite" style={styles.catalogFallbackNotice}>
+              <MaterialIcons color={palette.primary} name="sync-problem" size={16} />
+              <Text style={styles.catalogFallbackNoticeText}>
+                Showing last available services. Retry when your connection is ready.
+              </Text>
+              {onRetryCatalog ? (
+                <Pressable accessibilityLabel="Retry marketplace refresh" onPress={onRetryCatalog}>
+                  <Text style={styles.catalogFallbackRetry}>RETRY</Text>
+                </Pressable>
+              ) : null}
             </View>
           ) : null}
         </View>}
@@ -3621,6 +3668,46 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     textAlign: 'center',
     marginTop: 6,
+  },
+  emptyAction: {
+    alignItems: 'center',
+    backgroundColor: palette.primaryContainer,
+    borderRadius: 18,
+    marginTop: 16,
+    minWidth: 132,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+  },
+  emptyActionPressed: { opacity: 0.82 },
+  emptyActionText: {
+    color: palette.onPrimary,
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  catalogFallbackNotice: {
+    alignItems: 'center',
+    backgroundColor: '#FFF7F8',
+    borderColor: '#E6B9C0',
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  catalogFallbackNoticeText: {
+    color: palette.secondary,
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  catalogFallbackRetry: {
+    color: palette.primary,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.4,
   },
   bottomNavigation: {
     position: 'absolute',

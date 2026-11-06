@@ -626,7 +626,6 @@ export function OverviewScreen() {
           <section className="panel phase-six-insights-panel" aria-busy={phaseSixLoading}>
             <header>
               <div><span className="eyebrow">DECISION SUPPORT</span><h2>Explainable marketplace signals</h2><p>Live, advisory-only indicators from verified provider, booking, review, service, and paid revenue records.</p></div>
-              <Link href="/dashboard/insights">View details <MdiIcon path={mdiArrowRight} /></Link>
             </header>
             {phaseSixError && <div className="chart-inline-error" role="alert">{phaseSixError}</div>}
             {phaseSixLoading && !phaseSix ? <div className="chart-empty">Loading explainable decision support...</div> : <InsightCards insights={phaseSix} compact />}

@@ -11,7 +11,7 @@ import {
   mdiShieldKeyOutline,
 } from '@mdi/js'
 import { MdiIcon } from '@/components/icons'
-import { EmptyState, formatDate, formatMoney, InlineError, SegmentedFilter, StatusBadge, TableSkeleton } from '@/components/ui'
+import { EmptyState, formatDate, formatMoney, InlineError, paginateItems, SegmentedFilter, StatusBadge, TablePagination, TableSkeleton } from '@/components/ui'
 import { useStaff } from '@/components/dashboard-shell'
 import { getSupabase } from '@/lib/supabase'
 
@@ -329,6 +329,7 @@ function CashFlowScreen() {
   const [transactionType, setTransactionType] = useState('all')
   const [status, setStatus] = useState('all')
   const [customDates, setCustomDates] = useState({ start: '', end: '' })
+  const [page, setPage] = useState(1)
 
   const load = useCallback(async () => {
     const supabase = getSupabase()
@@ -356,6 +357,7 @@ function CashFlowScreen() {
 
   const summary = data.summary && typeof data.summary === 'object' ? data.summary as Row : {}
   const rows = Array.isArray(data.rows) ? data.rows as Row[] : []
+  const pagination = paginateItems(rows, page)
   return <div className="screen-stack">
     <Heading section="cashflow" onRefresh={() => void load()} />
     {error && <InlineError message={error} />}
@@ -375,8 +377,7 @@ function CashFlowScreen() {
         <div className="cashflow-selects"><label>Type<select value={transactionType} onChange={(event) => setTransactionType(event.target.value)}><option value="all">All classifications</option><option value="booking_payment">Cash inflow</option><option value="provider_remittance">Office cash remittance</option><option value="refund">Refund</option><option value="provider_payable">Provider payable</option><option value="commission_revenue">Commission revenue</option><option value="adjustment">Adjustment</option></select></label><label>Status<select value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">All statuses</option>{['pending','processing','paid','verified','partially_remitted','remitted','disputed','refunded','failed','cancelled'].map((value) => <option value={value} key={value}>{value.replaceAll('_',' ')}</option>)}</select></label></div>
         {dateFilter === 'custom' && <div className="cashflow-custom-dates"><label>From<input aria-label="Cash-flow start date" type="date" value={customDates.start} onChange={(event) => setCustomDates({...customDates,start:event.target.value})}/></label><label>Through<input aria-label="Cash-flow end date" type="date" value={customDates.end} min={customDates.start || undefined} onChange={(event) => setCustomDates({...customDates,end:event.target.value})}/></label></div>}
       </div>
-      {loading ? <TableSkeleton /> : rows.length === 0 ? <EmptyState title="No cash-flow records" copy="No financial movement matches the selected filters." /> : <div className="table-scroll"><table className="data-table"><thead><tr><th>Date</th><th>Reference</th><th>Event / service</th><th>Provider</th><th>Classification</th><th>Method</th><th>Gross</th><th>Commission</th><th>Provider net</th><th>Received</th><th>Released</th><th>Status</th></tr></thead><tbody>{rows.map((row) => <tr key={String(row.id)}><td data-label="Date">{formatDate(String(row.transaction_at))}</td><td data-label="Reference"><strong className="record-id">{String(row.transaction_reference)}</strong></td><td data-label="Event / service"><strong>{String(row.event_name)}</strong><small className="table-subtitle">{String(row.service_name)}</small></td><td data-label="Provider">{String(row.provider_name)}</td><td data-label="Classification"><strong>{String(row.classification)}</strong><small className="table-subtitle">{String(row.cash_direction).replaceAll('_',' ')}</small></td><td data-label="Method">{String(row.payment_method || '—')}</td><td data-label="Gross">{formatMoney(Number(row.gross_amount))}</td><td data-label="Commission">{formatMoney(Number(row.commission_amount))}</td><td data-label="Provider net">{formatMoney(Number(row.provider_net_amount))}</td><td data-label="Received">{formatMoney(Number(row.amount_received))}</td><td data-label="Released">{formatMoney(Number(row.amount_released))}</td><td data-label="Status"><StatusBadge value={String(row.status)} /></td></tr>)}</tbody></table></div>}
-      <footer className="table-footer"><span>Showing {rows.length} of {Number(data.total_count || 0).toLocaleString()} matching records</span><small>Read-only financial reporting</small></footer>
+      {loading ? <TableSkeleton /> : rows.length === 0 ? <EmptyState title="No cash-flow records" copy="No financial movement matches the selected filters." /> : <><div className="table-scroll"><table className="data-table"><thead><tr><th>Date</th><th>Reference</th><th>Event / service</th><th>Provider</th><th>Classification</th><th>Method</th><th>Gross</th><th>Commission</th><th>Provider net</th><th>Received</th><th>Released</th><th>Status</th></tr></thead><tbody>{pagination.rows.map((row) => <tr key={String(row.id)}><td data-label="Date">{formatDate(String(row.transaction_at))}</td><td data-label="Reference"><strong className="record-id">{String(row.transaction_reference)}</strong></td><td data-label="Event / service"><strong>{String(row.event_name)}</strong><small className="table-subtitle">{String(row.service_name)}</small></td><td data-label="Provider">{String(row.provider_name)}</td><td data-label="Classification"><strong>{String(row.classification)}</strong><small className="table-subtitle">{String(row.cash_direction).replaceAll('_',' ')}</small></td><td data-label="Method">{String(row.payment_method || '—')}</td><td data-label="Gross">{formatMoney(Number(row.gross_amount))}</td><td data-label="Commission">{formatMoney(Number(row.commission_amount))}</td><td data-label="Provider net">{formatMoney(Number(row.provider_net_amount))}</td><td data-label="Received">{formatMoney(Number(row.amount_received))}</td><td data-label="Released">{formatMoney(Number(row.amount_released))}</td><td data-label="Status"><StatusBadge value={String(row.status)} /></td></tr>)}</tbody></table></div><TablePagination itemLabel="cash-flow records" page={pagination.page} totalItems={rows.length} totalPages={pagination.totalPages} onPageChange={setPage} /></>}
     </section>
   </div>
 }
@@ -403,6 +404,7 @@ function OperationalQueue({ section }: { section: Exclude<BusinessSection, 'reve
   const [remittanceStatus, setRemittanceStatus] = useState('all')
   const [expandedRemittanceEventId, setExpandedRemittanceEventId] = useState('')
   const [customDates, setCustomDates] = useState({ start: '', end: '' })
+  const [page, setPage] = useState(1)
 
   const load = useCallback(async () => {
     const supabase = getSupabase()
@@ -623,6 +625,8 @@ function OperationalQueue({ section }: { section: Exclude<BusinessSection, 'reve
       ? groups
       : groups.filter((group) => group.rows.some((row) => String(row.status) === remittanceStatus))
   }, [remittanceStatus, rows])
+  const queuePagination = paginateItems(visibleRows, page)
+  const remittancePagination = paginateItems(remittanceGroups, page)
 
   const selectedEvent = remittanceEvents.find((item) => String(item.id) === remittance.eventId)
   const selectedExpectation = remittanceExpectations.find((item) => String(item.booking_id) === remittance.bookingId)
@@ -759,8 +763,8 @@ function OperationalQueue({ section }: { section: Exclude<BusinessSection, 'reve
         {section === 'remittances' ? (
           loading ? <TableSkeleton /> : remittanceGroups.length === 0
             ? <EmptyState title="No cash remittances found" copy="There is nothing requiring attention right now." />
-            : <div className="table-scroll"><table className="data-table remittance-event-table"><thead><tr><th>Event</th><th>Coordinator</th><th>Services</th><th>Expected</th><th>Received</th><th>Recorded</th><th>Status / details</th></tr></thead><tbody>
-              {remittanceGroups.map((group) => [
+            : <><div className="table-scroll"><table className="data-table remittance-event-table"><thead><tr><th>Event</th><th>Coordinator</th><th>Services</th><th>Expected</th><th>Received</th><th>Recorded</th><th>Status / details</th></tr></thead><tbody>
+              {remittancePagination.rows.map((group) => [
                 <tr key={group.eventId}>
                   <td data-label="Event"><strong>{group.eventName}</strong><small className="table-subtitle">{formatDate(group.eventDate)}</small></td>
                   <td data-label="Coordinator">{group.coordinatorName}</td>
@@ -781,13 +785,13 @@ function OperationalQueue({ section }: { section: Exclude<BusinessSection, 'reve
                   </div>
                 </td></tr> : null,
               ])}
-            </tbody></table></div>
+            </tbody></table></div><TablePagination itemLabel="remittance events" page={remittancePagination.page} totalItems={remittanceGroups.length} totalPages={remittancePagination.totalPages} onPageChange={setPage} /></>
         ) : loading ? <TableSkeleton /> : visibleRows.length === 0 ? <EmptyState title={`No ${copy[section].title.toLowerCase()} found`} copy="There is nothing requiring attention right now." /> : (
-          <div className="table-scroll"><table className="data-table"><thead><tr>
+          <><div className="table-scroll"><table className="data-table"><thead><tr>
             {section === 'coordinators' ? <><th>Event</th><th>Schedule</th><th>Client</th><th>Reason</th><th>Assignment</th></> :
              section === 'support' ? <><th>Ticket</th><th>Concern</th><th>User</th><th>Priority</th><th>Assigned</th><th>Status</th><th>Updated</th></> :
              <><th>Date</th><th>Type</th><th>Method</th><th>Gross</th><th>Commission</th><th>Provider net</th><th>Received</th><th>Released</th><th>Status</th></>}
-          </tr></thead><tbody>{visibleRows.map((row) => <tr key={String(row.id)}>
+          </tr></thead><tbody>{queuePagination.rows.map((row) => <tr key={String(row.id)}>
             {section === 'coordinators' ? <>
               <td data-label="Event"><strong>{String(row.name || 'Untitled event')}</strong><small className="table-subtitle">{String(row.event_type || 'Event')}</small></td>
               <td data-label="Schedule">{row.starts_at ? formatDateTime(row.starts_at) : `${formatDate(String(row.event_date || ''))} ${String(row.event_time || '').slice(0, 5)}`}</td>
@@ -801,7 +805,7 @@ function OperationalQueue({ section }: { section: Exclude<BusinessSection, 'reve
             </> : <>
               <td data-label="Date">{formatDate(String(row.transaction_at))}</td><td data-label="Type">{String(row.transaction_type).replaceAll('_',' ')}</td><td data-label="Method">{String(row.payment_method || '—')}</td><td data-label="Gross">{formatMoney(Number(row.gross_amount))}</td><td data-label="Commission">{formatMoney(Number(row.commission_amount))}</td><td data-label="Provider net">{formatMoney(Number(row.provider_net_amount))}</td><td data-label="Received">{formatMoney(Number(row.amount_received))}</td><td data-label="Released">{formatMoney(Number(row.amount_released))}</td><td data-label="Status"><StatusBadge value={String(row.status)} /></td>
             </>}
-          </tr>)}</tbody></table></div>
+          </tr>)}</tbody></table></div><TablePagination itemLabel={section === 'support' ? 'support tickets' : section === 'coordinators' ? 'events' : 'cash-flow records'} page={queuePagination.page} totalItems={visibleRows.length} totalPages={queuePagination.totalPages} onPageChange={setPage} /></>
         )}
       </section>
       {section === 'support' && activeTicket && <section className="panel support-thread"><header><div><span className="eyebrow">TICKET MV-{String(activeTicket.ticket_number).padStart(6, '0')}</span><h2>{String(activeTicket.subject)}</h2><p>{String(activeTicket.description)}</p><small>{String((activeTicket.profiles as Row | null)?.full_name || (activeTicket.profiles as Row | null)?.email || 'MULTIVENT user')}{activeTicket.events ? ` · ${String((activeTicket.events as Row).name)}` : ''}{activeTicket.bookings ? ` · Booking ${String((activeTicket.bookings as Row).status).replaceAll('_', ' ')}` : ''}</small></div><button className="secondary-button" onClick={() => setSelectedTicket(null)}>Close details</button></header><div className="support-ticket-controls"><label>Status<select value={String(activeTicket.status)} disabled={busy === activeTicket.id || !can('support.respond')} onChange={(event) => void updateTicket(String(activeTicket.id), event.target.value)}>{['open','in_progress','waiting_for_user','resolved','closed'].map((status) => <option key={status} value={status} disabled={status === 'closed' && !['resolved','closed'].includes(String(activeTicket.status))}>{status.replaceAll('_',' ')}</option>)}</select></label><label>Priority<select value={String(activeTicket.priority)} disabled={busy === activeTicket.id || !can('support.respond')} onChange={(event) => void updateTicket(String(activeTicket.id), String(activeTicket.status), event.target.value)}>{['low','normal','high','urgent'].map((priority) => <option key={priority} value={priority}>{priority}</option>)}</select></label><label>Assigned staff<select value={String(activeTicket.assigned_to || '')} disabled={busy === `assign-ticket:${String(activeTicket.id)}` || !can('support.assign')} onChange={(event) => void assignTicket(String(activeTicket.id), event.target.value)}><option value="">Unassigned</option>{supportAgents.map((agent) => <option key={String(agent.id)} value={String(agent.id)}>{String(agent.full_name)}</option>)}</select></label><div><span>Created</span><strong>{formatDate(String(activeTicket.created_at))}</strong></div><div><span>Resolved</span><strong>{activeTicket.resolved_at ? formatDate(String(activeTicket.resolved_at)) : '—'}</strong></div></div><div className="support-context-grid"><article><span>Category</span><strong>{String(activeTicket.category).replaceAll('_',' ')}</strong></article><article><span>Event</span><strong>{String((activeTicket.events as Row | null)?.name || 'Not linked')}</strong></article><article><span>Booking / payment</span><strong>{activeTicket.booking_id ? `Booking ${String(activeTicket.booking_id).slice(0,8)}` : 'Not linked'}</strong><small>{formatSupportPayment(activeTicket.bookings)}</small></article><article><span>Account</span><strong>{String((activeTicket.profiles as Row | null)?.default_role || 'user').replaceAll('_',' ')}</strong><small>{String((activeTicket.profiles as Row | null)?.account_status || '')}</small></article></div><div className="support-thread__messages">{messages.length === 0 ? <p>No replies yet.</p> : messages.map((message) => <article key={String(message.id)} className={message.is_internal ? 'support-message--internal' : ''}><strong>{message.is_internal ? 'Internal note' : String(message.sender_id) === String(activeTicket.user_id) ? 'User' : 'MULTIVENT Support'}</strong><p>{String(message.body)}</p><time>{formatDate(String(message.created_at))}</time></article>)}</div>{can('support.respond') && String(activeTicket.status) !== 'closed' && <footer><textarea value={reply} onChange={(event) => setReply(event.target.value)} placeholder={internalReply ? 'Write a private note for support staff…' : 'Write a helpful response to the user…'} maxLength={4000}/><label className="support-internal-toggle"><input type="checkbox" checked={internalReply} onChange={(event) => setInternalReply(event.target.checked)}/><span>Internal note</span></label><button className="primary-button" disabled={busy === 'reply' || !reply.trim()} onClick={() => void sendReply()}>{internalReply ? 'Save internal note' : 'Send response'}</button></footer>}</section>}

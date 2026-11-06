@@ -14,7 +14,7 @@ import {
   mdiStorefrontOutline,
 } from '@mdi/js'
 import { MdiIcon } from '@/components/icons'
-import { EmptyState, formatDate, formatMoney, InlineError, SegmentedFilter, StatusBadge, TableSkeleton } from '@/components/ui'
+import { EmptyState, formatDate, formatMoney, InlineError, paginateItems, SegmentedFilter, StatusBadge, TablePagination, TableSkeleton } from '@/components/ui'
 import { getSupabase } from '@/lib/supabase'
 import { useDashboardControls, useStaff } from '@/components/dashboard-shell'
 
@@ -88,6 +88,8 @@ export function ServicesScreen() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
+  const [servicePage, setServicePage] = useState(1)
+  const [packagePage, setPackagePage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -158,6 +160,8 @@ export function ServicesScreen() {
   const pendingPackageCount = packages.filter(({ service }) => service.status === 'pending_review').length
   const pendingCount = collection === 'services' ? pendingServiceCount : pendingPackageCount
   const categories = Array.from(new Set(services.map((service) => String(nestedRecord(service.service_categories)?.name || '')).filter(Boolean))).sort()
+  const servicePagination = paginateItems(visibleServices, servicePage)
+  const packagePagination = paginateItems(visiblePackages, packagePage)
 
   function requestDecision(nextDecision: Decision) {
     setNote('')
@@ -221,7 +225,7 @@ export function ServicesScreen() {
         {error && <InlineError message={error} onClose={() => setError('')} />}
         {loading ? <TableSkeleton /> : collection === 'services' && visibleServices.length === 0 ? <EmptyState title="No matching services" copy={status === 'pending_review' ? 'The service review queue is clear.' : 'Try another filter or search term.'} /> : collection === 'packages' && visiblePackages.length === 0 ? <EmptyState title="No matching packages" copy={status === 'pending_review' ? 'The package review queue is clear.' : 'Try another filter or search term.'} /> : collection === 'services' ? (
           <div className="service-review-list">
-            {visibleServices.map((service) => {
+            {servicePagination.rows.map((service) => {
               const provider = nestedRecord(service.provider_profiles)
               const category = nestedRecord(service.service_categories)
               return (
@@ -237,10 +241,11 @@ export function ServicesScreen() {
                 </article>
               )
             })}
+            <TablePagination itemLabel="services" page={servicePagination.page} totalItems={visibleServices.length} totalPages={servicePagination.totalPages} onPageChange={setServicePage} />
           </div>
         ) : (
           <div className="service-review-list">
-            {visiblePackages.map(({ item, service }) => {
+            {packagePagination.rows.map(({ item, service }) => {
               const provider = nestedRecord(service.provider_profiles)
               const packageServices = (item.service_package_items || [])
                 .sort((left, right) => left.position - right.position)
@@ -259,6 +264,7 @@ export function ServicesScreen() {
                 </article>
               )
             })}
+            <TablePagination itemLabel="packages" page={packagePagination.page} totalItems={visiblePackages.length} totalPages={packagePagination.totalPages} onPageChange={setPackagePage} />
           </div>
         )}
       </section>

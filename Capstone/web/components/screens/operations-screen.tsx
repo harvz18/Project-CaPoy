@@ -5,7 +5,6 @@ import {
   mdiAlertOutline,
   mdiCheck,
   mdiChevronLeft,
-  mdiChevronRight,
   mdiClose,
   mdiDownloadOutline,
   mdiDotsHorizontal,
@@ -17,7 +16,7 @@ import {
 } from '@mdi/js'
 import { MdiIcon } from '@/components/icons'
 import { useStaff } from '@/components/dashboard-shell'
-import { EmptyState, formatDate, formatMoney, InlineError, SegmentedFilter, StatusBadge, TableSkeleton } from '@/components/ui'
+import { EmptyState, formatDate, formatMoney, InlineError, paginateItems, SegmentedFilter, StatusBadge, TablePagination, TableSkeleton } from '@/components/ui'
 import { getSupabase } from '@/lib/supabase'
 import type { SectionKey } from '@/lib/types'
 import { ServicesScreen } from './services-screen'
@@ -189,6 +188,7 @@ function TableScreen({ section, copy }: { section: LegacyTableSection; copy: typ
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
+  const [page, setPage] = useState(1)
   const [busyId, setBusyId] = useState('')
   const [notice, setNotice] = useState('')
   const [bulkRetry, setBulkRetry] = useState<{ completed: number; total: number } | null>(null)
@@ -274,6 +274,7 @@ function TableScreen({ section, copy }: { section: LegacyTableSection; copy: typ
       return matchesSearch && matchesFilter
     })
   }, [filter, rows, search, section])
+  const pagination = paginateItems(visibleRows, page)
 
   const filterOptions: Array<[string, string]> = section === 'users'
     ? [['all', 'All'], ['client', 'Clients'], ['service_provider', 'Service providers'], ['event_coordinator', 'Event coordinators'], ['internal', 'Internal staff']]
@@ -429,7 +430,7 @@ function TableScreen({ section, copy }: { section: LegacyTableSection; copy: typ
           <div className="table-scroll">
             <table className="data-table">
               <thead><tr>{columns[section].map((column) => <th key={column.key}>{column.label}</th>)}{((section === 'users' && can('users.update')) || (section === 'providers' && can('providers.review')) || (section === 'reviews' && can('reviews.analysis.retry'))) && <th><span className="sr-only">Actions</span></th>}</tr></thead>
-              <tbody>{visibleRows.map((row) => (
+              <tbody>{pagination.rows.map((row) => (
                 <tr key={section === 'reviews' ? `${String(row.analysis_kind)}:${String(row.id)}` : String(row.id)}>
                   {columns[section].map((column) => <td key={column.key} data-label={column.label}>{column.render ? column.render(row) : String(row[column.key] ?? '—')}</td>)}
                   {section === 'users' && can('users.update') && <td className="row-actions">{canManageUser(row) && <button disabled={busyId === row.id} title="Manage account status" onClick={() => setConfirmation({ id: String(row.id), action: String(row.account_status), currentStatus: String(row.account_status), name: String(row.full_name || row.email || 'this user'), kind: 'user', reason: '' })}><MdiIcon path={mdiDotsHorizontal} /></button>}</td>}
@@ -440,7 +441,7 @@ function TableScreen({ section, copy }: { section: LegacyTableSection; copy: typ
             </table>
           </div>
         )}
-        <footer className="table-footer"><span>Showing {visibleRows.length} of {rows.length} records</span><div><button disabled><MdiIcon path={mdiChevronLeft} /></button><b>1</b><button disabled><MdiIcon path={mdiChevronRight} /></button></div></footer>
+        <TablePagination itemLabel="records" page={pagination.page} totalItems={visibleRows.length} totalPages={pagination.totalPages} onPageChange={setPage} />
       </section>
       {confirmation && (
         <ModerationDialog

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { mdiCashCheck, mdiCashMultiple, mdiChartLine, mdiDownloadOutline, mdiRefresh } from '@mdi/js'
 import { MdiIcon } from '@/components/icons'
 import { useDashboardControls, useStaff } from '@/components/dashboard-shell'
-import { EmptyState, formatDate, formatMoney, InlineError, SegmentedFilter, StatusBadge, TableSkeleton } from '@/components/ui'
+import { EmptyState, formatDate, formatMoney, InlineError, paginateItems, SegmentedFilter, StatusBadge, TablePagination, TableSkeleton } from '@/components/ui'
 import { getSupabase } from '@/lib/supabase'
 
 type Row = Record<string, unknown>
@@ -126,6 +126,9 @@ export function FinancialOverviewScreen() {
   const [actionBusy, setActionBusy] = useState(false)
   const [actionError, setActionError] = useState('')
   const [actionNotice, setActionNotice] = useState('')
+  const [reconciliationPage, setReconciliationPage] = useState(1)
+  const [paymentPage, setPaymentPage] = useState(1)
+  const [payoutPage, setPayoutPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const range = useMemo(() => reportRange(filter, customStart, customEnd), [customEnd, customStart, filter])
@@ -173,6 +176,9 @@ export function FinancialOverviewScreen() {
   const bookingReadiness = asRows(operations.bookingReadiness)
   const payoutOperations = asRows(operations.payoutOperations)
   const refundOperations = asRows(operations.refundOperations)
+  const reconciliationPagination = paginateItems(reconciliationItems, reconciliationPage)
+  const paymentPagination = paginateItems(paymentRows, paymentPage)
+  const payoutPagination = paginateItems(payoutRows, payoutPage)
   const canOperateFinancials = can('remittance.verify')
 
   function openFinancialAction(action: FinancialAction) {
@@ -287,7 +293,7 @@ export function FinancialOverviewScreen() {
           <Metric label="Needs reconciliation" value={formatMoney(number(reconciliationSummary.reconciliationRequiredAmount))} detail={`${number(reconciliationSummary.reconciliationRequiredCount)} ledger allocation${number(reconciliationSummary.reconciliationRequiredCount) === 1 ? '' : 's'} flagged for review`} icon={mdiChartLine} />
         </div>
         <p className="finance-reconciliation-note">Ledger liability: {formatMoney(number(reconciliationSummary.remainingLedgerLiability))}. Recorded refunds: {formatMoney(number(reconciliationSummary.recordedRefunds))}. Historic unmapped payout requests: {number(reconciliationSummary.historicUnmappedPayoutCount)} ({formatMoney(number(reconciliationSummary.historicUnmappedPayoutAmount))}).</p>
-        {reconciliationItems.length > 0 && <div className="finance-table-wrap"><table className="finance-table"><thead><tr><th>Type</th><th>Recipient / event</th><th>Event date</th><th>Amount</th><th>State</th><th>Review reason</th></tr></thead><tbody>{reconciliationItems.map((item) => <tr key={`${text(item.itemType)}-${text(item.id)}`}><td>{titleCase(text(item.itemType, 'record'))}</td><td><strong>{text(item.recipientName)}</strong><small>{text(item.eventName, 'No linked event')}</small></td><td>{item.eventDate ? formatDate(String(item.eventDate)) : '—'}</td><td><strong>{formatMoney(number(item.amount))}</strong></td><td><StatusBadge value={text(item.financialState)} /></td><td>{text(item.reason)}</td></tr>)}</tbody></table></div>}
+        {reconciliationItems.length > 0 && <><div className="finance-table-wrap"><table className="finance-table"><thead><tr><th>Type</th><th>Recipient / event</th><th>Event date</th><th>Amount</th><th>State</th><th>Review reason</th></tr></thead><tbody>{reconciliationPagination.rows.map((item) => <tr key={`${text(item.itemType)}-${text(item.id)}`}><td>{titleCase(text(item.itemType, 'record'))}</td><td><strong>{text(item.recipientName)}</strong><small>{text(item.eventName, 'No linked event')}</small></td><td>{item.eventDate ? formatDate(String(item.eventDate)) : '—'}</td><td><strong>{formatMoney(number(item.amount))}</strong></td><td><StatusBadge value={text(item.financialState)} /></td><td>{text(item.reason)}</td></tr>)}</tbody></table></div><TablePagination itemLabel="reconciliation records" page={reconciliationPagination.page} totalItems={reconciliationItems.length} totalPages={reconciliationPagination.totalPages} onPageChange={setReconciliationPage} /></>}
       </section>}
       <section className="finance-disclosure-grid">
         <article className="panel finance-panel">
@@ -302,11 +308,11 @@ export function FinancialOverviewScreen() {
       </section>
       <section className="panel finance-panel">
         <header><div><span className="eyebrow">PAYMENT SUMMARY</span><h2>Latest platform-recorded payments</h2><p>References, providers, and ledger treatment — no payment action can be performed from this view.</p></div></header>
-        {paymentRows.length === 0 ? <EmptyState title="No recognized payments" copy="No paid or verified platform transactions fall within this period." /> : <div className="finance-table-wrap"><table className="finance-table"><thead><tr><th>Recorded</th><th>Reference</th><th>Provider</th><th>Received</th><th>Platform fee</th><th>Provider treatment</th><th>Status</th></tr></thead><tbody>{paymentRows.map((item) => <tr key={text(item.id)}><td>{formatDateTime(item.transaction_at)}</td><td><strong>{text(item.reference)}</strong><small>{text(item.payment_method, 'Unspecified')}</small></td><td>{text(item.provider_name)}</td><td>{formatMoney(number(item.amount_received))}</td><td>{formatMoney(number(item.commission_amount))}</td><td><span>{number(item.held_provider_amount) > 0 ? `${formatMoney(number(item.held_provider_amount))} held` : `${formatMoney(number(item.provider_net_amount))} allocated`}</span><small>{number(item.amount_released) > 0 ? `${formatMoney(number(item.amount_released))} released` : titleCase(text(item.provider_funds_status, 'legacy'))}</small></td><td><StatusBadge value={text(item.status)} /></td></tr>)}</tbody></table></div>}
+        {paymentRows.length === 0 ? <EmptyState title="No recognized payments" copy="No paid or verified platform transactions fall within this period." /> : <><div className="finance-table-wrap"><table className="finance-table"><thead><tr><th>Recorded</th><th>Reference</th><th>Provider</th><th>Received</th><th>Platform fee</th><th>Provider treatment</th><th>Status</th></tr></thead><tbody>{paymentPagination.rows.map((item) => <tr key={text(item.id)}><td>{formatDateTime(item.transaction_at)}</td><td><strong>{text(item.reference)}</strong><small>{text(item.payment_method, 'Unspecified')}</small></td><td>{text(item.provider_name)}</td><td>{formatMoney(number(item.amount_received))}</td><td>{formatMoney(number(item.commission_amount))}</td><td><span>{number(item.held_provider_amount) > 0 ? `${formatMoney(number(item.held_provider_amount))} held` : `${formatMoney(number(item.provider_net_amount))} allocated`}</span><small>{number(item.amount_released) > 0 ? `${formatMoney(number(item.amount_released))} released` : titleCase(text(item.provider_funds_status, 'legacy'))}</small></td><td><StatusBadge value={text(item.status)} /></td></tr>)}</tbody></table></div><TablePagination itemLabel="payments" page={paymentPagination.page} totalItems={paymentRows.length} totalPages={paymentPagination.totalPages} onPageChange={setPaymentPage} /></>}
       </section>
       <section className="panel finance-panel">
         <header><div><span className="eyebrow">PROVIDER PAYOUTS</span><h2>Latest payout requests</h2><p>Request status is visible without exposing provider payout-account information.</p></div></header>
-        {payoutRows.length === 0 ? <EmptyState title="No payout requests" copy="Provider payout requests from the selected period will appear here." /> : <div className="finance-table-wrap"><table className="finance-table"><thead><tr><th>Requested</th><th>Provider</th><th>Amount</th><th>Processed</th><th>Status</th></tr></thead><tbody>{payoutRows.map((item) => <tr key={text(item.id)}><td>{formatDateTime(item.requested_at)}</td><td>{text(item.provider_name)}</td><td><strong>{formatMoney(number(item.amount))}</strong></td><td>{item.processed_at ? formatDateTime(item.processed_at) : '—'}</td><td><StatusBadge value={text(item.status)} /></td></tr>)}</tbody></table></div>}
+        {payoutRows.length === 0 ? <EmptyState title="No payout requests" copy="Provider payout requests from the selected period will appear here." /> : <><div className="finance-table-wrap"><table className="finance-table"><thead><tr><th>Requested</th><th>Provider</th><th>Amount</th><th>Processed</th><th>Status</th></tr></thead><tbody>{payoutPagination.rows.map((item) => <tr key={text(item.id)}><td>{formatDateTime(item.requested_at)}</td><td>{text(item.provider_name)}</td><td><strong>{formatMoney(number(item.amount))}</strong></td><td>{item.processed_at ? formatDateTime(item.processed_at) : '—'}</td><td><StatusBadge value={text(item.status)} /></td></tr>)}</tbody></table></div><TablePagination itemLabel="payout requests" page={payoutPagination.page} totalItems={payoutRows.length} totalPages={payoutPagination.totalPages} onPageChange={setPayoutPage} /></>}
       </section>
     </>}
     {financialAction && <FinancialActionDialogV2
@@ -334,6 +340,10 @@ function FinancialOperationsPanel({ summary, payments, readiness, payouts, refun
   canOperate: boolean
   onAction: (action: FinancialAction) => void
 }) {
+  const [paymentPage, setPaymentPage] = useState(1)
+  const [readinessPage, setReadinessPage] = useState(1)
+  const paymentPagination = paginateItems(payments, paymentPage)
+  const readinessPagination = paginateItems(readiness, readinessPage)
   return <section className="panel finance-panel financial-operations-panel">
     <header><div><span className="eyebrow">FINANCIAL OPERATIONS</span><h2>Settlement, payout, and refund control</h2><p>Every transition is permission-gated and auditable. Bank and e-wallet instructions are recorded only after an authorized operator verifies the external outcome.</p></div><StatusBadge value={canOperate ? 'operational access' : 'view only'} /></header>
     <div className="financial-operations-summary">
@@ -351,11 +361,11 @@ function FinancialOperationsPanel({ summary, payments, readiness, payouts, refun
     </div>
     <section className="financial-operation-section">
       <div className="financial-operation-section__heading"><div><h3>Payment verification queue</h3><p>Verify only against an authoritative bank or processor reference. A client screenshot or entry is never sufficient.</p></div></div>
-      {payments.length === 0 ? <EmptyState title="No payments awaiting verification" copy="New V14 settlement attempts will appear here." /> : <div className="finance-table-wrap"><table className="finance-table financial-operations-table"><thead><tr><th>Created</th><th>Client / event</th><th>Method</th><th>Amount</th><th>Settlement</th>{canOperate && <th>Action</th>}</tr></thead><tbody>{payments.map((payment) => <tr key={text(payment.id)}><td>{formatDateTime(payment.createdAt)}</td><td><strong>{text(payment.clientName)}</strong><small>{text(payment.eventName)}</small></td><td>{titleCase(text(payment.method))}<small>{titleCase(text(payment.settlementChannel))} · {titleCase(text(payment.settlementEnvironment))}</small></td><td><strong>{formatMoney(number(payment.amount))}</strong></td><td><StatusBadge value={text(payment.verificationStatus)} /></td>{canOperate && <td><button className="secondary-button" onClick={() => onAction({ kind: 'verify-payment', id: text(payment.id), title: 'Verify payment', copy: `Record the authoritative settlement reference for ${text(payment.eventName)}.` })}>Verify</button></td>}</tr>)}</tbody></table></div>}
+      {payments.length === 0 ? <EmptyState title="No payments awaiting verification" copy="New V14 settlement attempts will appear here." /> : <><div className="finance-table-wrap"><table className="finance-table financial-operations-table"><thead><tr><th>Created</th><th>Client / event</th><th>Method</th><th>Amount</th><th>Settlement</th>{canOperate && <th>Action</th>}</tr></thead><tbody>{paymentPagination.rows.map((payment) => <tr key={text(payment.id)}><td>{formatDateTime(payment.createdAt)}</td><td><strong>{text(payment.clientName)}</strong><small>{text(payment.eventName)}</small></td><td>{titleCase(text(payment.method))}<small>{titleCase(text(payment.settlementChannel))} · {titleCase(text(payment.settlementEnvironment))}</small></td><td><strong>{formatMoney(number(payment.amount))}</strong></td><td><StatusBadge value={text(payment.verificationStatus)} /></td>{canOperate && <td><button className="secondary-button" onClick={() => onAction({ kind: 'verify-payment', id: text(payment.id), title: 'Verify payment', copy: `Record the authoritative settlement reference for ${text(payment.eventName)}.` })}>Verify</button></td>}</tr>)}</tbody></table></div><TablePagination itemLabel="payments awaiting verification" page={paymentPagination.page} totalItems={payments.length} totalPages={paymentPagination.totalPages} onPageChange={setPaymentPage} /></>}
     </section>
     <section className="financial-operation-section">
       <div className="financial-operation-section__heading"><div><h3>Booking and payment readiness</h3><p>Accepted requests remain separate from pending and verified settlement; no automatic expiry is applied.</p></div></div>
-      {readiness.length === 0 ? <EmptyState title="No active booking flows" copy="Booking progress will appear after a client submits service requests." /> : <div className="finance-table-wrap"><table className="finance-table financial-operations-table"><thead><tr><th>Event</th><th>Provider confirmations</th><th>Coordinator</th><th>Payment state</th><th>Reason</th></tr></thead><tbody>{readiness.map((event) => <tr key={text(event.eventId)}><td><strong>{text(event.eventName)}</strong><small>{event.eventDate ? formatDate(String(event.eventDate)) : 'No event date'}</small></td><td>{number(event.acceptedProviderCount)} of {number(event.providerCount)} accepted<small>{number(event.pendingProviderCount)} pending · {number(event.declinedProviderCount)} declined</small></td><td>{event.coordinatorRequired ? (event.coordinatorAccepted ? 'Accepted' : 'Awaiting response') : 'Not required'}</td><td><StatusBadge value={event.paymentEligible ? 'payment available' : text(event.status)} /></td><td>{text(event.reason)}</td></tr>)}</tbody></table></div>}
+      {readiness.length === 0 ? <EmptyState title="No active booking flows" copy="Booking progress will appear after a client submits service requests." /> : <><div className="finance-table-wrap"><table className="finance-table financial-operations-table"><thead><tr><th>Event</th><th>Provider confirmations</th><th>Coordinator</th><th>Payment state</th><th>Reason</th></tr></thead><tbody>{readinessPagination.rows.map((event) => <tr key={text(event.eventId)}><td><strong>{text(event.eventName)}</strong><small>{event.eventDate ? formatDate(String(event.eventDate)) : 'No event date'}</small></td><td>{number(event.acceptedProviderCount)} of {number(event.providerCount)} accepted<small>{number(event.pendingProviderCount)} pending · {number(event.declinedProviderCount)} declined</small></td><td>{event.coordinatorRequired ? (event.coordinatorAccepted ? 'Accepted' : 'Awaiting response') : 'Not required'}</td><td><StatusBadge value={event.paymentEligible ? 'payment available' : text(event.status)} /></td><td>{text(event.reason)}</td></tr>)}</tbody></table></div><TablePagination itemLabel="booking flows" page={readinessPagination.page} totalItems={readiness.length} totalPages={readinessPagination.totalPages} onPageChange={setReadinessPage} /></>}
     </section>
     <section className="financial-operation-grid">
       <OperationList title="Provider payout operations" copy="Provider allocation requests retain their protected receivable mapping until a completed external transfer." rows={payouts} emptyTitle="No payout operations" emptyCopy="Provider payout requests will appear here." canOperate={canOperate} onAction={onAction} kind="payout" />
@@ -378,7 +388,9 @@ function OperationList({ title, copy, rows, emptyTitle, emptyCopy, canOperate, o
   onAction: (action: FinancialAction) => void
   kind: 'payout' | 'refund'
 }) {
-  return <section className="financial-operation-list"><header><h3>{title}</h3><p>{copy}</p></header>{rows.length === 0 ? <EmptyState title={emptyTitle} copy={emptyCopy} /> : <div>{rows.slice(0, 12).map((row) => {
+  const [page, setPage] = useState(1)
+  const pagination = paginateItems(rows, page)
+  return <section className="financial-operation-list"><header><h3>{title}</h3><p>{copy}</p></header>{rows.length === 0 ? <EmptyState title={emptyTitle} copy={emptyCopy} /> : <><div>{pagination.rows.map((row) => {
     const status = text(row.status, 'unknown')
     const isPayout = kind === 'payout'
     const name = isPayout ? text(row.providerName) : text(row.clientName)
@@ -398,7 +410,7 @@ function OperationList({ title, copy, rows, emptyTitle, emptyCopy, canOperate, o
       ? ['approved', 'processing'].includes(status) ? { kind: 'fail-payout' as const, id, title: 'Mark payout failed', copy: `Record that the external payout attempt for ${name} did not complete. The protected receivable will remain unreleased.` } : null
       : ['pending_destination', 'pending_disbursement', 'processing'].includes(status) ? { kind: 'fail-refund' as const, id, title: 'Mark refund failed', copy: `Record that the external refund attempt for ${name} did not complete. It will remain available for authorized review.` } : null
     return <article key={`${kind}-${text(isPayout ? row.payoutRequestId : row.id)}`}><div><strong>{name}</strong><small>{subject} · {formatMoney(number(row.amount))}</small><small>{formatDateTime(date)}</small></div><div className="financial-operation-list__action"><StatusBadge value={status} />{canOperate && action && <button className="secondary-button" onClick={() => onAction(action)}>{action.title.replace(/^(Approve|Start|Complete|Confirm) /, '')}</button>}{canOperate && failureAction && <button className="financial-operation-fail" onClick={() => onAction(failureAction)}>Mark failed</button>}</div></article>
-  })}</div>}</section>
+  })}</div><TablePagination itemLabel={kind === 'payout' ? 'payout operations' : 'refund operations'} page={pagination.page} totalItems={rows.length} totalPages={pagination.totalPages} onPageChange={setPage} /></>}</section>
 }
 
 // Retained for older compiled dashboard chunks during a rolling deployment.
@@ -464,10 +476,10 @@ function Metric({ label, value, detail, icon, tone = 'wine' }: { label: string; 
 }
 
 type ReportDefinition = { kind: string; label: string; description: string; allowed: boolean }
+type ReportCategory = { id: string; name: string }
 
 export function ReportsScreen() {
   const { can } = useStaff()
-  const { liveDataVersion } = useDashboardControls()
   const definitions = useMemo<ReportDefinition[]>(() => [
     { kind: 'bookings', label: 'Bookings', description: 'Booking requests and values', allowed: can('events.view') },
     { kind: 'provider_performance', label: 'Provider performance', description: 'Provider booking performance', allowed: can('providers.view') },
@@ -481,35 +493,75 @@ export function ReportsScreen() {
   const [filter, setFilter] = useState<DateFilter>('month')
   const [customStart, setCustomStart] = useState('')
   const [customEnd, setCustomEnd] = useState('')
+  const [categoryId, setCategoryId] = useState('all')
+  const [categories, setCategories] = useState<ReportCategory[]>([])
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
   const [data, setData] = useState<Row>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const range = useMemo(() => reportRange(filter, customStart, customEnd), [customEnd, customStart, filter])
 
   const effectiveKind = available.some((definition) => definition.kind === kind) ? kind : (available[0]?.kind || '')
+  const supportsCategoryFilter = ['bookings', 'provider_performance', 'popular_categories'].includes(effectiveKind)
+  const selectedCategoryId = supportsCategoryFilter ? categoryId : 'all'
+
+  useEffect(() => {
+    if (!supportsCategoryFilter) return
+    let active = true
+    const supabase = getSupabase()
+    if (!supabase) return
+    void supabase
+      .from('service_categories')
+      .select('id, name')
+      .eq('is_active', true)
+      .order('name')
+      .then(({ data: result, error: requestError }) => {
+        if (!active || requestError || !Array.isArray(result)) return
+        setCategories(result.flatMap((category) => (
+          typeof category.id === 'string' && typeof category.name === 'string'
+            ? [{ id: category.id, name: category.name }]
+            : []
+        )))
+      })
+    return () => { active = false }
+  }, [supportsCategoryFilter])
 
   const load = useCallback(async () => {
     if (!available.some((definition) => definition.kind === effectiveKind)) { setLoading(false); return }
     const supabase = getSupabase()
     if (!supabase) { setError('Supabase is not configured.'); setLoading(false); return }
     setLoading(true); setError('')
-    const { data: result, error: requestError } = await supabase.rpc('get_admin_report', {
-      report_kind: effectiveKind,
-      range_start: range.start,
-      range_end: range.end,
-    })
+    const request = selectedCategoryId !== 'all'
+      ? supabase.rpc('get_admin_report_with_category', {
+        report_kind: effectiveKind,
+        range_start: range.start,
+        range_end: range.end,
+        category_filter_id: selectedCategoryId,
+      })
+      : supabase.rpc('get_admin_report', {
+        report_kind: effectiveKind,
+        range_start: range.start,
+        range_end: range.end,
+      })
+    const { data: result, error: requestError } = await request
     if (requestError) setError(requestError.message)
     else setData(asRow(result))
     setLoading(false)
-  }, [available, effectiveKind, range.end, range.start])
+  }, [available, effectiveKind, range.end, range.start, selectedCategoryId])
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0)
     return () => window.clearTimeout(timer)
-  }, [liveDataVersion, load])
+  }, [load])
 
   const columns = Array.isArray(data.columns) ? data.columns.map((column) => String(column)) : []
   const rows = asRows(data.rows)
+  const normalizedSearch = search.trim().toLocaleLowerCase()
+  const visibleRows = normalizedSearch
+    ? rows.filter((row) => columns.some((column) => text(row[reportColumnKey(column)], '').toLocaleLowerCase().includes(normalizedSearch)))
+    : rows
+  const pagination = paginateItems(visibleRows, page)
   const summary = asRow(data.summary)
   const selected = definitions.find((definition) => definition.kind === effectiveKind)
   const printableTitle = text(data.title, selected?.label || 'Report')
@@ -524,14 +576,16 @@ export function ReportsScreen() {
     {available.length === 0 ? <EmptyState title="No report access" copy="Your role does not currently have access to any report source." /> : <>
       <section className="report-controls">
         <label>Report type<select value={effectiveKind} onChange={(event) => setKind(event.target.value)}>{available.map((definition) => <option key={definition.kind} value={definition.kind}>{definition.label}</option>)}</select><small>{selected?.description}</small></label>
+        {supportsCategoryFilter && <label>Category<select aria-label="Filter report by service category" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}><option value="all">All categories</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select><small>Applies to booking, provider, and category reports.</small></label>}
+        <label>Search<input aria-label="Search report results" type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search loaded results" /></label>
         <DateControls filter={filter} customStart={customStart} customEnd={customEnd} onFilter={setFilter} onStart={setCustomStart} onEnd={setCustomEnd} />
-        <div className="report-actions"><button className="secondary-button" disabled={loading || rows.length === 0} onClick={() => downloadCsv(`${effectiveKind}-${new Date().toISOString().slice(0, 10)}.csv`, columns, rows)}><MdiIcon path={mdiDownloadOutline} /> Export CSV</button><button className="secondary-button" disabled={loading} onClick={printReport}>Print</button></div>
+        <div className="report-actions"><button className="secondary-button" disabled={loading || visibleRows.length === 0} onClick={() => downloadCsv(`${effectiveKind}-${new Date().toISOString().slice(0, 10)}.csv`, columns, visibleRows)}><MdiIcon path={mdiDownloadOutline} /> Export CSV</button><button className="secondary-button" disabled={loading} onClick={printReport}>Print</button></div>
       </section>
       {error && <InlineError message={error} onClose={() => setError('')} />}
       {loading ? <TableSkeleton rows={6} /> : <section className="panel report-output">
         <header><div><span className="eyebrow">{titleCase(effectiveKind)}</span><h2>{printableTitle}</h2><p>{text(data.description, 'Results reflect the selected date range.')}</p></div><small>Generated {formatDateTime(data.generated_at)}</small></header>
         <div className="report-summary-grid">{Object.entries(summary).map(([key, value]) => <article key={key}><span>{titleCase(key)}</span><strong>{isMoneyMetric(key) ? formatMoney(number(value)) : number(value).toLocaleString('en-PH')}</strong></article>)}</div>
-        {rows.length === 0 ? <EmptyState title="No results for this period" copy="Try a wider date range or a different report type." /> : <div className="finance-table-wrap"><table className="finance-table report-table"><thead><tr>{columns.map((column) => <th key={column}>{column}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={`${index}-${text(row.id, text(row.booking, text(row.provider, text(row.client, text(row.coordinator, 'row')))))}`}>{columns.map((column) => <td key={column}>{reportValue(reportColumnKey(column), row[reportColumnKey(column)])}</td>)}</tr>)}</tbody></table></div>}
+        {rows.length === 0 ? <EmptyState title="No results for this period" copy="Try a wider date range or a different report type." /> : visibleRows.length === 0 ? <EmptyState title="No matching report records" copy="Try another search term or clear the category filter." /> : <><div className="finance-table-wrap"><table className="finance-table report-table"><thead><tr>{columns.map((column) => <th key={column}>{column}</th>)}</tr></thead><tbody>{pagination.rows.map((row, index) => <tr key={`${pagination.start + index}-${text(row.id, text(row.booking, text(row.provider, text(row.client, text(row.coordinator, 'row')))))}`}>{columns.map((column) => <td key={column}>{reportValue(reportColumnKey(column), row[reportColumnKey(column)])}</td>)}</tr>)}</tbody></table></div><TablePagination itemLabel="report records" page={pagination.page} totalItems={visibleRows.length} totalPages={pagination.totalPages} onPageChange={setPage} /></>}
       </section>}
     </>}
   </div>

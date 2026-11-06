@@ -13,7 +13,7 @@ import {
   mdiShieldCheckOutline,
 } from '@mdi/js'
 import { MdiIcon } from '@/components/icons'
-import { EmptyState, formatDate, InlineError, SegmentedFilter, StatusBadge, TableSkeleton } from '@/components/ui'
+import { EmptyState, formatDate, InlineError, paginateItems, SegmentedFilter, StatusBadge, TablePagination, TableSkeleton } from '@/components/ui'
 import { getSupabase } from '@/lib/supabase'
 
 type AuditEntry = {
@@ -67,6 +67,7 @@ export function AuditLogScreen() {
   const [resultFilter, setResultFilter] = useState('all')
   const [dateFilter, setDateFilter] = useState('all')
   const [customDates, setCustomDates] = useState({ start: '', end: '' })
+  const [page, setPage] = useState(1)
 
   const loadEntries = useCallback(async () => {
     const supabase = getSupabase()
@@ -107,6 +108,7 @@ export function AuditLogScreen() {
     return Array.from(values).sort()
   }, [entries, resourceFilter])
   const totalCount = Number(entries[0]?.total_count || 0)
+  const pagination = paginateItems(entries, page)
 
   return (
     <div className="screen-stack">
@@ -138,7 +140,7 @@ export function AuditLogScreen() {
         </div>
         {error && <InlineError message={`${error} Apply database/38_audit_security_hardening.sql after Phase 8.`} />}
         {loading ? <TableSkeleton /> : entries.length === 0 ? <EmptyState title="No audit entries found" copy="No recorded changes match the selected filters." /> : (
-          <div className="audit-list">{entries.map((entry) => <button key={entry.id} className="audit-row" onClick={() => setSelected(entry)}>
+          <div className="audit-list">{pagination.rows.map((entry) => <button key={entry.id} className="audit-row" onClick={() => setSelected(entry)}>
             <span className="audit-row__icon"><MdiIcon path={iconForAction(entry.action)} /></span>
             <span className="audit-row__main"><strong>{humanize(entry.action)}</strong><small>{humanize(entry.resource_type)}{entry.resource_id ? ` · ${shortId(entry.resource_id)}` : ''}</small></span>
             <span className="audit-row__actor"><strong>{entry.actor_name || entry.actor_email || 'System'}</strong><small>{humanize(entry.actor_role || 'system')}</small></span>
@@ -147,7 +149,7 @@ export function AuditLogScreen() {
             <MdiIcon path={mdiChevronRight} />
           </button>)}</div>
         )}
-        <footer className="table-footer"><span>Showing {entries.length} of {totalCount.toLocaleString()} matching actions</span><small>Newest actions first · maximum 250 rows</small></footer>
+        {entries.length > 0 && <><TablePagination itemLabel="loaded audit actions" page={pagination.page} totalItems={entries.length} totalPages={pagination.totalPages} onPageChange={setPage} /><footer className="table-footer"><small>Newest actions first · {totalCount.toLocaleString()} matching actions · first 250 loaded</small></footer></>}
       </section>
 
       {selected && <AuditDetailModal entry={selected} onClose={() => setSelected(null)} />}
