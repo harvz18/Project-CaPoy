@@ -179,26 +179,43 @@ const formatDate = (month: number, day: number, year: number) =>
 const formatDateValue = (date: Date) =>
   formatDate(date.getMonth() + 1, date.getDate(), date.getFullYear())
 
+// Keyboard entry must reach the exact same calendar value as the picker.
+// Keep this stricter than the display mask so impossible dates (for example,
+// 02/31/2027) cannot be carried into the planning state as a truthy string.
+const normalizeDateValue = (value: string) => {
+  const match = value.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (!match) return null
+
+  const parsed = parseDateValue(value)
+  return parsed ? formatDateValue(parsed) : null
+}
+
 const formatManualDateInput = (value: string) => {
+  // Preserve manually entered separators so inputs such as 7/5/2027 become
+  // 07/05/2027 instead of being reinterpreted as a different month/day.
+  if (value.includes('/')) {
+    const parts = value.split('/').slice(0, 3).map((part) => part.replace(/\D/g, ''))
+    const month = parts[0].slice(0, 2)
+    if (parts.length === 1) return month
+
+    const normalizedMonth = month.length === 1 ? `0${month}` : month
+    const day = (parts[1] ?? '').slice(0, 2)
+    if (parts.length === 2) return `${normalizedMonth}/${day}`
+
+    const normalizedDay = day.length === 1 ? `0${day}` : day
+    return `${normalizedMonth}/${normalizedDay}/${(parts[2] ?? '').slice(0, 4)}`
+  }
+
   const digits = value.replace(/\D/g, '').slice(0, 8)
-  const rawMonth = digits.slice(0, 2)
-  const month = rawMonth.length === 2
-    ? padTwo(Math.min(12, Math.max(1, Number.parseInt(rawMonth, 10))))
-    : rawMonth
+  const month = digits.slice(0, 2)
   if (digits.length < 2) return month
   if (digits.length === 2) return `${month}/`
 
-  const rawDay = digits.slice(2, 4)
-  const day = rawDay.length === 2
-    ? padTwo(Math.min(31, Math.max(1, Number.parseInt(rawDay, 10))))
-    : rawDay
+  const day = digits.slice(2, 4)
   if (digits.length < 4) return `${month}/${day}`
   if (digits.length === 4) return `${month}/${day}/`
 
-  const rawYear = digits.slice(4)
-  const year = rawYear.length === 4
-    ? String(Math.max(new Date().getFullYear(), Number.parseInt(rawYear, 10)))
-    : rawYear
+  const year = digits.slice(4)
   return `${month}/${day}/${year}`
 }
 
@@ -237,19 +254,37 @@ const getManualTimeInput = (value: string) => {
 }
 
 const formatManualTimeInput = (value: string) => {
-  const digits = value.replace(/\D/g, '').slice(0, 4)
-  const rawHour = digits.slice(0, 2)
-  const hour = rawHour.length === 2
-    ? padTwo(Math.min(12, Math.max(1, Number.parseInt(rawHour, 10))))
-    : rawHour
-  if (digits.length < 2) return hour
-  if (digits.length === 2) return `${hour}:`
+  const sanitized = value.replace(/[^\d:]/g, '').slice(0, 5)
 
-  const rawMinute = digits.slice(2)
-  const minute = rawMinute.length === 2
-    ? padTwo(Math.min(59, Number.parseInt(rawMinute, 10)))
-    : rawMinute
-  return `${hour}:${minute}`
+  if (sanitized.includes(':')) {
+    const [rawHour = '', rawMinute = ''] = sanitized.split(':')
+    const hour = rawHour.slice(0, 2)
+    const normalizedHour = hour.length === 1 ? `0${hour}` : hour
+    return `${normalizedHour}:${rawMinute.slice(0, 2)}`
+  }
+
+  const digits = sanitized.replace(/\D/g, '').slice(0, 4)
+  if (digits.length < 2) return digits
+
+  const twoDigitHour = Number.parseInt(digits.slice(0, 2), 10)
+  if (digits.length === 2) {
+    if (twoDigitHour >= 1 && twoDigitHour <= 12) return `${padTwo(twoDigitHour)}:`
+
+    // A user typing 9:00 on a numeric keyboard may produce 90 before the
+    // mask can insert the colon. Treat that as 09:0 rather than 12:.
+    const firstDigit = Number.parseInt(digits[0], 10)
+    const secondDigit = Number.parseInt(digits[1], 10)
+    if (firstDigit >= 1 && firstDigit <= 9 && secondDigit <= 5) {
+      return `${padTwo(firstDigit)}:${secondDigit}`
+    }
+    return digits
+  }
+
+  if (digits.length === 3 && twoDigitHour > 12) {
+    return `${padTwo(Number.parseInt(digits[0], 10))}:${digits.slice(1)}`
+  }
+
+  return `${digits.slice(0, 2)}:${digits.slice(2)}`
 }
 
 const parseManualTimeInput = (value: string) => {
@@ -260,6 +295,24 @@ const parseManualTimeInput = (value: string) => {
   return hour >= 1 && hour <= 12 && minute >= 0 && minute <= 59
     ? { hour, minute: padTwo(minute) }
     : null
+}
+
+const normalizeTimeValue = (
+  manualValue: string,
+  meridiem: Meridiem,
+  storedValue: string
+) => {
+  const manual = parseManualTimeInput(manualValue)
+  if (manual) return formatTime(manual.hour, manual.minute, meridiem)
+
+  const stored = storedValue.trim().match(/^(\d{1,2}):(\d{2})\s?(AM|PM)$/i)
+  if (!stored) return null
+
+  const hour = Number.parseInt(stored[1], 10)
+  const minute = Number.parseInt(stored[2], 10)
+  if (hour < 1 || hour > 12 || minute < 0 || minute > 59) return null
+
+  return formatTime(hour, padTwo(minute), stored[3].toUpperCase() as Meridiem)
 }
 
 const timePartsToMinutes = (hour: number, minute: string, meridiem: Meridiem) => {
@@ -490,6 +543,33 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
     handleDateChange(formatManualDateInput(editableValue))
   }
 
+  const normalizeManualSchedule = () => {
+    const normalizedDate = normalizeDateValue(date)
+    const normalizedTime = normalizeTimeValue(timeInput, timeMeridiem, time)
+    if (!normalizedDate || !normalizedTime) return undefined
+
+    if (normalizedDate !== date) setDate(normalizedDate)
+    if (normalizedTime !== time) setTime(normalizedTime)
+    const normalizedTimeParts = parseTimeParts(normalizedTime)
+    const normalizedTimeInput = `${padTwo(normalizedTimeParts.hour)}:${normalizedTimeParts.minute}`
+    if (normalizedTimeInput !== timeInput) setTimeInput(normalizedTimeInput)
+    if (normalizedTimeParts.meridiem !== timeMeridiem) {
+      setTimeMeridiem(normalizedTimeParts.meridiem)
+    }
+
+    return { date: normalizedDate, time: normalizedTime }
+  }
+
+  const handleManualDateBlur = () => {
+    const normalizedDate = normalizeDateValue(date)
+    if (normalizedDate && normalizedDate !== date) handleDateChange(normalizedDate)
+  }
+
+  const handleManualTimeBlur = () => {
+    const normalizedTime = normalizeTimeValue(timeInput, timeMeridiem, time)
+    if (normalizedTime) handleTimeChange(normalizedTime)
+  }
+
   const handleGuestInputFocus = React.useCallback(() => {
     const scrollToGuestInput = () => eventScrollRef.current?.scrollToEnd({ animated: true })
 
@@ -624,12 +704,14 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
       return
     }
 
-    if (!date || !time) {
-      revealRequiredSection('dateTime', 'Choose both an event date and time to continue.')
+    const normalizedSchedule = normalizeManualSchedule()
+    if (!normalizedSchedule) {
+      setDateTimeError('Enter a valid date and time, for example 07/05/2027 and 09:00 AM.')
+      revealRequiredSection('dateTime', 'Enter a valid event date and time to continue.')
       return
     }
 
-    if (isPastDateTime(date, time)) {
+    if (isPastDateTime(normalizedSchedule.date, normalizedSchedule.time)) {
       setDateTimeError('Choose a date and time later than the current local time.')
       revealRequiredSection('dateTime', 'Choose a date and time later than the current local time.')
       return
@@ -651,7 +733,13 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
       return
     }
 
-    onContinue?.(value)
+    // Do not wait for React state to settle after a keyboard edit. Step 2 and
+    // the draft save receive the canonical picker-equivalent values now.
+    onContinue?.({
+      ...value,
+      date: normalizedSchedule.date,
+      time: normalizedSchedule.time,
+    })
   }
 
   const value = React.useMemo<EventCreationValue>(() => ({
@@ -975,6 +1063,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                         cursorColor={palette.burgundy}
                         keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
                         maxLength={10}
+                        onBlur={handleManualDateBlur}
                         onChangeText={handleManualDateChange}
                         onFocus={() => setIsMeridiemMenuOpen(false)}
                         selectionColor={palette.burgundy}
@@ -1015,6 +1104,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                         cursorColor={palette.burgundy}
                         keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
                         maxLength={5}
+                        onBlur={handleManualTimeBlur}
                         onChangeText={handleManualTimeChange}
                         onFocus={() => setIsMeridiemMenuOpen(false)}
                         selectionColor={palette.burgundy}
