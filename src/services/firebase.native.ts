@@ -19,9 +19,14 @@ function createAuth() {
     return initializeAuth(firebaseApp, {
       persistence: getReactNativePersistence(AsyncStorage)
     });
-  } catch {
+  } catch (error) {
     // Fast Refresh can evaluate this module after Auth has already been initialized.
-    return getAuth(firebaseApp);
+    // Do not hide any other startup error: falling back to getAuth() without
+    // persistence makes the real cause appear as a misleading Auth error.
+    if (typeof error === "object" && error && "code" in error && error.code === "auth/already-initialized") {
+      return getAuth(firebaseApp);
+    }
+    throw error;
   }
 }
 
