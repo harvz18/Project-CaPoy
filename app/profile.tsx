@@ -1,6 +1,6 @@
 import Feather from "@expo/vector-icons/Feather";
 import { Href, useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AnimatedBottomNav } from "../src/components/AnimatedBottomNav";
@@ -13,9 +13,11 @@ import { getScheduleBasedAvailability, getUserTaskHistory } from "../src/domain/
 import { isIdentityLocked } from "../src/domain/profileIdentity";
 import { captureForegroundLocation } from "../src/services/locationService";
 import { pickAndUploadPrivateDocument, pickAndUploadProfilePhoto } from "../src/services/fileUploadService";
+import { AddressSearchResult, reverseGeocodeSelectedPin, searchAddressOnMap } from "../src/services/reverseGeocoding";
 import { submitVerificationRequest } from "../src/services/verificationService";
 import { parseCoordinate } from "../src/utils/location";
 import { AddressDetails, formatAddressDetails } from "../src/utils/address";
+import type { MapCoordinate } from "../src/components/LocationMap.types";
 
 const palette = {
   background: "#F7FAF8",
@@ -52,8 +54,18 @@ export default function ProfileScreen() {
   const { actionLoading, currentUser, error, logout, ratings, tasks, users, updateProfile } = useApp();
   const [fullName, setFullName] = useState(currentUser?.fullName ?? "");
   const [mobileNumber, setMobileNumber] = useState(currentUser?.mobileNumber ?? "");
-  const [address, setAddress] = useState(currentUser?.address ?? "");
-  const [addressDetails, setAddressDetails] = useState<AddressDetails>({});
+  const [addressDetails, setAddressDetails] = useState<AddressDetails>(() => ({
+    // Registration currently collects one Barangay value. Keep that value in the
+    // single Barangay field instead of showing a duplicate generic address box.
+    barangay: currentUser?.address ?? ""
+  }));
+  const [addressMapOpen, setAddressMapOpen] = useState(false);
+  const [addressMapCoordinate, setAddressMapCoordinate] = useState<MapCoordinate>();
+  const [addressSearchQuery, setAddressSearchQuery] = useState("");
+  const [addressSearchResults, setAddressSearchResults] = useState<AddressSearchResult[]>([]);
+  const [addressLookupLoading, setAddressLookupLoading] = useState(false);
+  const [addressLookupMessage, setAddressLookupMessage] = useState("");
+  const registrationBarangayLoaded = useRef(false);
   const [bio, setBio] = useState(
     currentUser?.role === "client"
       ? currentUser?.businessName ?? ""
@@ -102,6 +114,13 @@ export default function ProfileScreen() {
   const mapCenter = parseCoordinate(currentLatitude) !== undefined && parseCoordinate(currentLongitude) !== undefined
     ? { latitude: parseCoordinate(currentLatitude) as number, longitude: parseCoordinate(currentLongitude) as number }
     : undefined;
+  const formattedAddress = formatAddressDetails(addressDetails) || currentUser?.address || "";
+
+  useEffect(() => {
+    if (registrationBarangayLoaded.current || !currentUser?.address) return;
+    registrationBarangayLoaded.current = true;
+    setAddressDetails((current) => current.barangay ? current : { ...current, barangay: currentUser.address });
+  }, [currentUser?.address]);
 
   async function handleLogout() {
     try {
@@ -117,7 +136,7 @@ export default function ProfileScreen() {
       const detailedAddress = formatAddressDetails(addressDetails);
       await updateProfile({
         fullName: fullNameLocked ? undefined : fullName,
-        address: detailedAddress || address,
+        address: detailedAddress || currentUser?.address || "",
         skills: currentUser?.role === "worker" ? skills : undefined,
         capabilities: currentUser?.role === "worker" ? skills : undefined,
         profilePhotoUrl: currentUser?.role === "worker" ? profilePhotoUrl : undefined,
@@ -220,6 +239,51 @@ export default function ProfileScreen() {
     setAddressDetails((current) => ({ ...current, [field]: value }));
   }
 
+  function applyAddressDetails(details: AddressDetails, message: string) {
+    setAddressDetails((current) => ({
+      ...details,
+      // A building/house number is optional and commonly absent from map data;
+      // never erase a value the user already entered manually.
+      houseNumber: current.houseNumber?.trim() || details.houseNumber
+    }));
+    setAddressLookupMessage(message);
+  }
+
+  async function selectAddressPin(coordinate: MapCoordinate) {
+    setAddressMapCoordinate(coordinate);
+    setAddressLookupLoading(true);
+    setAddressLookupMessage("Looking up the selected pin...");
+    try {
+      const result = await reverseGeocodeSelectedPin(coordinate);
+      applyAddressDetails(result.details, "Address fields filled from the selected map pin. Review and correct any detail before saving.");
+    } catch (lookupError) {
+      setAddressLookupMessage(lookupError instanceof Error ? lookupError.message : "Unable to look up this map pin. Enter the address manually.");
+    } finally {
+      setAddressLookupLoading(false);
+    }
+  }
+
+  async function searchAddress() {
+    setAddressLookupLoading(true);
+    setAddressLookupMessage("");
+    try {
+      const results = await searchAddressOnMap(addressSearchQuery);
+      setAddressSearchResults(results);
+      if (!results.length) setAddressLookupMessage("No matching address was found. Try a more specific search or place the pin manually.");
+    } catch (lookupError) {
+      setAddressSearchResults([]);
+      setAddressLookupMessage(lookupError instanceof Error ? lookupError.message : "Unable to search the map. Try again later.");
+    } finally {
+      setAddressLookupLoading(false);
+    }
+  }
+
+  function chooseAddressSearchResult(result: AddressSearchResult) {
+    setAddressMapCoordinate(result.coordinate);
+    setAddressSearchResults([]);
+    applyAddressDetails(result.details, "Address fields filled from the selected search result. Review and correct any detail before saving.");
+  }
+
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <View style={styles.header}>
@@ -251,11 +315,9 @@ export default function ProfileScreen() {
               <Text style={styles.bio}>{bio}</Text>
               {currentUser?.role === "worker" ? <StatusBadge status={getScheduleBasedAvailability(tasks, currentUser.id)} /> : null}
               <View style={styles.statsGrid}>
-                <StatBox label={taskHistory?.totalLabel ?? (currentUser?.role === "client" ? "Tasks Posted" : "Jobs Completed")} value={String(taskHistory?.total ?? completedOrPosted)} />
-                <StatBox label={taskHistory?.acceptedLabel ?? "Accepted"} value={String(taskHistory?.accepted ?? 0)} />
+                <StatBox label="Applications" value={String(taskHistory?.total ?? completedOrPosted)} />
                 <StatBox label="Completed" value={String(taskHistory?.completed ?? completedOrPosted)} />
-                <StatBox label="Cancelled" value={String(taskHistory?.cancelled ?? 0)} />
-                <StatBox label="Member since" value={memberSince} />
+                <StatBox label="Member Since" value={memberSince} />
               </View>
             </View>
           </View>
@@ -278,7 +340,6 @@ export default function ProfileScreen() {
             keyboardType="phone-pad"
             placeholder="Mobile number"
           />
-          <Field label="Address / Barangay" value={address} onChangeText={setAddress} placeholder="Address or barangay" helper="Use this for a simple address, or add optional exact details below." />
           <View style={styles.twoColumn}>
             <View style={styles.flex}><Field label="House / Building" value={addressDetails.houseNumber ?? ""} onChangeText={(value) => updateAddressDetail("houseNumber", value)} placeholder="Optional" /></View>
             <View style={styles.flex}><Field label="Street" value={addressDetails.street ?? ""} onChangeText={(value) => updateAddressDetail("street", value)} placeholder="Optional" /></View>
@@ -291,7 +352,12 @@ export default function ProfileScreen() {
             <View style={styles.flex}><Field label="Province" value={addressDetails.province ?? ""} onChangeText={(value) => updateAddressDetail("province", value)} placeholder="Province" /></View>
             <View style={styles.flex}><Field label="Postal Code" value={addressDetails.postalCode ?? ""} onChangeText={(value) => updateAddressDetail("postalCode", value.replace(/\D/g, ""))} placeholder="Optional" /></View>
           </View>
-          <Text style={styles.helperText}>House/building and postal code are optional. When any detailed field is filled, its combined address replaces the simple address when you save.</Text>
+          <Pressable accessibilityRole="button" onPress={() => setAddressMapOpen(true)} style={styles.selectMapButton}>
+            <Feather accessibilityElementsHidden color={palette.primary} name="map-pin" size={18} />
+            <Text style={styles.selectMapButtonText}>Select on map</Text>
+          </Pressable>
+          <Text style={styles.helperText}>Choose a map pin or search an address to fill these fields. House/building and postal code are optional.</Text>
+          {addressLookupMessage ? <Text style={styles.locationMessage}>{addressLookupMessage}</Text> : null}
           <Field label={currentUser?.role === "client" ? "Business Bio" : "Worker Bio"} value={bio} onChangeText={setBio} placeholder="Tell people about yourself" multiline />
         </SettingsCard>
 
@@ -464,7 +530,7 @@ export default function ProfileScreen() {
           <View style={styles.coverageHeader}>
             <Text style={styles.coverageTitle}>{currentUser?.role === "client" ? "Preferred Service Area" : "Service Coverage"}</Text>
           </View>
-          <LocationMap center={mapCenter} markers={mapCenter ? [{ id: "coverage", ...mapCenter, title: address }] : []} height={128} />
+          <LocationMap center={mapCenter} markers={mapCenter ? [{ id: "coverage", ...mapCenter, title: formattedAddress }] : []} height={128} />
         </View>
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -497,6 +563,56 @@ export default function ProfileScreen() {
             })}
           </View>
         </Pressable>
+      </Modal>
+
+      <Modal animationType="slide" transparent visible={addressMapOpen} onRequestClose={() => setAddressMapOpen(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.addressMapModal}>
+            <View style={styles.addressMapHeader}>
+              <View style={styles.flex}>
+                <Text style={styles.dropdownTitle}>Select address on map</Text>
+                <Text style={styles.helperText}>Search, then choose a result, or tap and drag the pin on the map.</Text>
+              </View>
+              <Pressable accessibilityLabel="Close address map" accessibilityRole="button" onPress={() => setAddressMapOpen(false)} style={styles.addressMapClose}>
+                <Feather color={palette.primary} name="x" size={22} />
+              </Pressable>
+            </View>
+            <View style={styles.addressSearchRow}>
+              <TextInput
+                accessibilityLabel="Search address on map"
+                onChangeText={setAddressSearchQuery}
+                onSubmitEditing={() => void searchAddress()}
+                placeholder="Search street, barangay, city"
+                placeholderTextColor={palette.outline}
+                returnKeyType="search"
+                style={[styles.input, styles.addressSearchInput]}
+                value={addressSearchQuery}
+              />
+              <Pressable accessibilityRole="button" disabled={addressLookupLoading} onPress={() => void searchAddress()} style={[styles.addressSearchButton, addressLookupLoading && styles.uploadDisabled]}>
+                <Text style={styles.addressSearchButtonText}>{addressLookupLoading ? "..." : "Search"}</Text>
+              </Pressable>
+            </View>
+            {addressSearchResults.length ? (
+              <ScrollView keyboardShouldPersistTaps="handled" style={styles.addressSearchResults}>
+                {addressSearchResults.map((result) => (
+                  <Pressable accessibilityRole="button" key={`${result.coordinate.latitude}:${result.coordinate.longitude}:${result.formattedAddress}`} onPress={() => chooseAddressSearchResult(result)} style={styles.addressSearchResult}>
+                    <Text numberOfLines={2} style={styles.addressSearchResultText}>{result.formattedAddress}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            ) : null}
+            <LocationMap
+              center={addressMapCoordinate}
+              height={300}
+              interactive
+              markers={addressMapCoordinate ? [{ id: "selected", ...addressMapCoordinate, title: "Selected home address" }] : []}
+              onSelectCoordinate={selectAddressPin}
+            />
+            <Pressable accessibilityRole="button" onPress={() => setAddressMapOpen(false)} style={styles.locationButton}>
+              <Text style={styles.locationButtonText}>Use this address</Text>
+            </Pressable>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -639,10 +755,10 @@ const styles = StyleSheet.create({
   ratingValue: { color: palette.secondary, fontSize: 20, lineHeight: 28, fontWeight: "900" },
   reviewCount: { color: palette.muted, fontSize: 12, lineHeight: 16 },
   bio: { color: palette.muted, fontSize: 16, lineHeight: 24, textAlign: "center" },
-  statsGrid: { flexDirection: "row", gap: 12, width: "100%", paddingTop: 8 },
-  statBox: { flex: 1, padding: 12, borderRadius: 8, backgroundColor: palette.surfaceContainer, alignItems: "center" },
-  statLabel: { color: palette.muted, fontSize: 12, lineHeight: 16 },
-  statValue: { color: palette.primary, fontSize: 20, lineHeight: 28, fontWeight: "900" },
+  statsGrid: { flexDirection: "row", gap: 8, width: "100%", paddingTop: 8 },
+  statBox: { alignItems: "center", backgroundColor: palette.surfaceContainer, borderRadius: 8, flex: 1, justifyContent: "center", minHeight: 82, paddingHorizontal: 8, paddingVertical: 10 },
+  statLabel: { color: palette.muted, fontSize: 12, lineHeight: 16, textAlign: "center" },
+  statValue: { color: palette.primary, fontSize: 20, lineHeight: 28, fontWeight: "900", textAlign: "center" },
   settingsCard: { padding: 16, borderRadius: 12, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.outlineVariant, gap: 12 },
   settingsTitle: { color: palette.textStrong, fontSize: 18, lineHeight: 26, fontWeight: "900" },
   field: { gap: 6 },
@@ -703,6 +819,8 @@ const styles = StyleSheet.create({
   availabilityTextSelected: { color: palette.white },
   locationButton: { minHeight: 44, borderRadius: 8, backgroundColor: palette.primary, alignItems: "center", justifyContent: "center" },
   locationButtonText: { color: palette.white, fontSize: 13, fontWeight: "900" },
+  selectMapButton: { alignItems: "center", alignSelf: "flex-start", borderColor: palette.primary, borderRadius: 8, borderWidth: 1, flexDirection: "row", gap: 8, minHeight: 42, paddingHorizontal: 14 },
+  selectMapButtonText: { color: palette.primary, fontSize: 13, fontWeight: "900" },
   locationMessage: { color: palette.primary, fontSize: 12, lineHeight: 17, fontWeight: "700" },
   workerMapCard: { height: 150, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: "#E5F1EE", overflow: "hidden", alignItems: "center", justifyContent: "center" },
   workerRadiusRing: {
@@ -766,5 +884,15 @@ const styles = StyleSheet.create({
   dropdownTitle: { color: palette.text, fontSize: 16, lineHeight: 24, fontWeight: "900", paddingHorizontal: 8, paddingVertical: 8 },
   dropdownOption: { minHeight: 48, borderRadius: 8, justifyContent: "center", paddingHorizontal: 12 },
   dropdownOptionText: { color: palette.muted, fontSize: 16, lineHeight: 24, fontWeight: "700" },
+  addressMapModal: { backgroundColor: palette.surface, borderRadius: 16, gap: 12, maxHeight: "92%", maxWidth: 560, padding: 16, width: "100%" },
+  addressMapHeader: { alignItems: "flex-start", flexDirection: "row", gap: 12 },
+  addressMapClose: { alignItems: "center", height: 40, justifyContent: "center", width: 40 },
+  addressSearchRow: { alignItems: "center", flexDirection: "row", gap: 8 },
+  addressSearchInput: { flex: 1 },
+  addressSearchButton: { alignItems: "center", backgroundColor: palette.primary, borderRadius: 8, justifyContent: "center", minHeight: 48, minWidth: 72, paddingHorizontal: 10 },
+  addressSearchButtonText: { color: palette.white, fontSize: 13, fontWeight: "900" },
+  addressSearchResults: { borderColor: palette.outlineVariant, borderRadius: 8, borderWidth: 1, maxHeight: 132 },
+  addressSearchResult: { borderBottomColor: palette.outlineVariant, borderBottomWidth: 1, minHeight: 48, justifyContent: "center", paddingHorizontal: 12, paddingVertical: 8 },
+  addressSearchResultText: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: "700" },
   dropdownOptionSelected: { color: palette.primary, fontWeight: "900" }
 });

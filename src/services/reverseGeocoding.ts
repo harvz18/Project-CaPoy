@@ -7,12 +7,22 @@ export type ReverseGeocodeResult = {
   provider: "OpenStreetMap Nominatim";
 };
 
+export type AddressSearchResult = ReverseGeocodeResult & {
+  coordinate: MapCoordinate;
+};
+
 type NominatimResponse = {
   display_name?: unknown;
   address?: Record<string, unknown>;
 };
 
+type NominatimSearchResponse = NominatimResponse & {
+  lat?: unknown;
+  lon?: unknown;
+};
+
 const NOMINATIM_REVERSE_URL = "https://nominatim.openstreetmap.org/reverse";
+const NOMINATIM_SEARCH_URL = "https://nominatim.openstreetmap.org/search";
 const MIN_REQUEST_INTERVAL_MS = 1100;
 const cache = new Map<string, ReverseGeocodeResult>();
 let requestTail: Promise<unknown> = Promise.resolve();
@@ -31,16 +41,9 @@ export function reverseGeocodeSelectedPin(coordinate: MapCoordinate) {
   const cached = cache.get(cacheKey);
   if (cached) return Promise.resolve(cached);
 
-  const run = requestTail.then(async () => {
-    const wait = Math.max(0, MIN_REQUEST_INTERVAL_MS - (Date.now() - lastRequestAt));
-    if (wait) await delay(wait);
-    lastRequestAt = Date.now();
-
+  const run = queueNominatimRequest(async () => {
     const url = `${NOMINATIM_REVERSE_URL}?format=jsonv2&addressdetails=1&zoom=18&lat=${encodeURIComponent(String(coordinate.latitude))}&lon=${encodeURIComponent(String(coordinate.longitude))}`;
-    const headers: Record<string, string> = { Accept: "application/json" };
-    // Browsers provide their normal Referer. Native requests need an app name.
-    if (!isWebRuntime()) headers["User-Agent"] = "TaskLink-Capstone/1.0";
-    const response = await fetch(url, { headers });
+    const response = await fetch(url, { headers: nominatimHeaders() });
     if (!response.ok) throw new Error("Address lookup is unavailable. Enter the address manually.");
     const result = parseNominatimReverseResponse(await response.json());
     if (!result) throw new Error("No address was found for that pin. Enter the address manually.");
@@ -50,6 +53,28 @@ export function reverseGeocodeSelectedPin(coordinate: MapCoordinate) {
 
   requestTail = run.catch(() => undefined);
   return run;
+}
+
+/** A deliberate, user-submitted search; no type-ahead or background querying. */
+export function searchAddressOnMap(query: string) {
+  const normalizedQuery = query.trim().replace(/\s+/g, " ");
+  if (normalizedQuery.length < 3) {
+    return Promise.reject(new Error("Enter at least 3 characters to search the map."));
+  }
+  if (normalizedQuery.length > 200) {
+    return Promise.reject(new Error("Keep the map search under 200 characters."));
+  }
+
+  return queueNominatimRequest(async () => {
+    const url = `${NOMINATIM_SEARCH_URL}?format=jsonv2&addressdetails=1&limit=5&q=${encodeURIComponent(normalizedQuery)}`;
+    const response = await fetch(url, { headers: nominatimHeaders() });
+    if (!response.ok) throw new Error("Map search is unavailable. Try again or place a pin manually.");
+    const value = await response.json();
+    if (!Array.isArray(value)) return [];
+    return value
+      .map(parseNominatimSearchResponse)
+      .filter((result): result is AddressSearchResult => Boolean(result));
+  });
 }
 
 export function parseNominatimReverseResponse(value: unknown): ReverseGeocodeResult | undefined {
@@ -77,6 +102,33 @@ export function parseNominatimReverseResponse(value: unknown): ReverseGeocodeRes
     }),
     provider: "OpenStreetMap Nominatim"
   };
+}
+
+export function parseNominatimSearchResponse(value: unknown): AddressSearchResult | undefined {
+  const response = value as NominatimSearchResponse;
+  const parsed = parseNominatimReverseResponse(response);
+  const latitude = typeof response?.lat === "string" || typeof response?.lat === "number" ? Number(response.lat) : Number.NaN;
+  const longitude = typeof response?.lon === "string" || typeof response?.lon === "number" ? Number(response.lon) : Number.NaN;
+  if (!parsed || !isValidCoordinate({ latitude, longitude })) return undefined;
+  return { ...parsed, coordinate: { latitude, longitude } };
+}
+
+function queueNominatimRequest<T>(operation: () => Promise<T>) {
+  const run = requestTail.then(async () => {
+    const wait = Math.max(0, MIN_REQUEST_INTERVAL_MS - (Date.now() - lastRequestAt));
+    if (wait) await delay(wait);
+    lastRequestAt = Date.now();
+    return operation();
+  });
+  requestTail = run.catch(() => undefined);
+  return run;
+}
+
+function nominatimHeaders() {
+  const headers: Record<string, string> = { Accept: "application/json" };
+  // Browsers provide their normal Referer. Native requests need an app name.
+  if (!isWebRuntime()) headers["User-Agent"] = "TaskLink-Capstone/1.0";
+  return headers;
 }
 
 function isValidCoordinate({ latitude, longitude }: MapCoordinate) {

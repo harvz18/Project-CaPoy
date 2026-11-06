@@ -53,7 +53,7 @@ export default function RegistrationScreen() {
           maxLength={24}
           placeholder="+63 917 000 0001"
         />
-        <AppInput label="Address/location" value={address} onChangeText={setAddress} placeholder="Address/location" />
+        <AppInput label="Barangay" value={address} onChangeText={setAddress} placeholder="e.g. Barangay Alijis" />
         <AppInput
           label="Password"
           value={password}
