@@ -117,16 +117,17 @@ export default function TaskStatusScreen() {
     ? liveTracking.issue?.message
     : getLiveLocationIssue(liveTracking.location, liveTracking.checkedAt);
   const liveLocationHealthy = liveTracking.status === "watching" && !liveLocationIssue;
-  const actionRequiresGeofence = currentUser?.role === "worker" &&
-    (action.nextStatus === "In Progress" || action.nextStatus === "Pending Approval");
-  const geofenceActionReady = !actionRequiresGeofence || (liveLocationHealthy && insideGeofence);
   const changeRequestPending = hasPendingTaskChange(task);
   const assignedWorkerMustReviewChange = changeRequestPending && currentUser?.role === "worker" && currentUser.id === task.workerId;
-  const primaryActionEnabled = action.enabled && geofenceActionReady && !actionLoading && !assignedWorkerMustReviewChange;
+  // The foreground watcher is a preview, not the authority for check-in. It can
+  // be paused or still warming up even while the device can obtain a valid GPS
+  // reading. Keep the action available and let updateTaskStatus perform its
+  // fresh, authoritative location capture before changing task status.
+  const primaryActionEnabled = action.enabled && !actionLoading && !assignedWorkerMustReviewChange;
   const primaryActionLabel = assignedWorkerMustReviewChange ? "Review task changes first" : getGeofenceActionLabel(
     action.label,
     action.nextStatus,
-    geofenceActionReady,
+    primaryActionEnabled,
     liveTracking.status,
     liveLocationIssue,
     task.geofenceRadius
@@ -171,7 +172,10 @@ export default function TaskStatusScreen() {
         task.id,
         action.nextStatus,
         undefined,
-        liveLocationHealthy ? liveTracking.location : undefined
+        // Reuse only a location that already passes every check. Otherwise the
+        // action obtains a new high-accuracy reading instead of treating a
+        // delayed foreground-watch update as a failed check-in.
+        liveLocationHealthy && geofenceCheck.allowed ? liveTracking.location : undefined
       );
     } catch (error) {
       // This screen renders action failures beside the controls. Do not also
