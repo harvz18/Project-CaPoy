@@ -200,7 +200,11 @@ const formatManualDateInput = (value: string) => {
 
     const normalizedMonth = month.length === 1 ? `0${month}` : month
     const day = (parts[1] ?? '').slice(0, 2)
-    if (parts.length === 2) return `${normalizedMonth}/${day}`
+    // The first slash is inserted as soon as a two-digit month is entered.
+    // Continue that same keyboard-friendly masking after a two-digit day;
+    // otherwise a numeric keyboard cannot reach the year segment because it
+    // has no slash key to create the second separator itself.
+    if (parts.length === 2) return day.length === 2 ? `${normalizedMonth}/${day}/` : `${normalizedMonth}/${day}`
 
     const normalizedDay = day.length === 1 ? `0${day}` : day
     return `${normalizedMonth}/${normalizedDay}/${(parts[2] ?? '').slice(0, 4)}`
