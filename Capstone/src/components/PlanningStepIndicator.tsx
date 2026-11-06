@@ -22,12 +22,14 @@ export const PlanningStepNavigationProvider: React.FC<
 interface PlanningStepIndicatorProps {
   currentStep: number
   label: string
+  onNextStepPress?: () => void
   totalSteps?: number
 }
 
 export const PlanningStepIndicator: React.FC<PlanningStepIndicatorProps> = ({
   currentStep,
   label,
+  onNextStepPress,
   totalSteps = 5,
 }) => {
   const boundedStep = Math.max(1, Math.min(currentStep, totalSteps))
@@ -50,9 +52,13 @@ export const PlanningStepIndicator: React.FC<PlanningStepIndicatorProps> = ({
       >
         {Array.from({ length: totalSteps }, (_, index) => {
           const step = index + 1
-          const isReachable = step <= maxReachableStep
+          const isGuardedNextStep = step === boundedStep + 1 && Boolean(onNextStepPress)
+          const isReachable = step <= maxReachableStep || isGuardedNextStep
           const isFilled = step <= boundedStep
           const isCurrent = step === boundedStep
+          const canPress = isReachable && Boolean(
+            isGuardedNextStep ? onNextStepPress : navigation.onStepPress
+          )
 
           return (
             <Pressable
@@ -60,9 +66,16 @@ export const PlanningStepIndicator: React.FC<PlanningStepIndicatorProps> = ({
               accessibilityLabel={`Go to planning step ${step}`}
               accessibilityRole={isReachable ? 'button' : undefined}
               accessibilityState={{ disabled: !isReachable, selected: isCurrent }}
-              disabled={!isReachable || !navigation.onStepPress}
+              disabled={!canPress}
               hitSlop={6}
-              onPress={() => navigation.onStepPress?.(step)}
+              onPress={() => {
+                if (isGuardedNextStep) {
+                  onNextStepPress?.()
+                  return
+                }
+
+                navigation.onStepPress?.(step)
+              }}
               style={({ pressed }) => [
                 styles.progressSegment,
                 isFilled && styles.progressSegmentFilled,

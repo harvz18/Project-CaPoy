@@ -6,6 +6,7 @@ import {
   Easing,
   FlatList,
   Image,
+  KeyboardAvoidingView,
   Modal,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -19,12 +20,14 @@ import {
   View,
 } from 'react-native'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
+import { BlurView } from 'expo-blur'
 import { PlanningScreenHeader } from '../components/PlanningScreenHeader'
 import { hasMapTilerVenueMap, MapTilerVenueMap } from '../components/MapTilerVenueMap'
 
 export type EventType = 'wedding' | 'preWedding' | 'postWedding'
 export type VenueStatus = 'secured' | 'searching'
 export type VenueSource = 'external' | 'marketplace'
+type RequiredSection = 'eventName' | 'coordinator' | 'churchWedding' | 'dateTime' | 'venueStatus' | 'venue' | 'guestCount'
 
 export interface EventCreationValue {
   date: string
@@ -178,9 +181,25 @@ const formatDateValue = (date: Date) =>
 
 const formatManualDateInput = (value: string) => {
   const digits = value.replace(/\D/g, '').slice(0, 8)
-  if (digits.length <= 2) return digits
-  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
-  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
+  const rawMonth = digits.slice(0, 2)
+  const month = rawMonth.length === 2
+    ? padTwo(Math.min(12, Math.max(1, Number.parseInt(rawMonth, 10))))
+    : rawMonth
+  if (digits.length < 2) return month
+  if (digits.length === 2) return `${month}/`
+
+  const rawDay = digits.slice(2, 4)
+  const day = rawDay.length === 2
+    ? padTwo(Math.min(31, Math.max(1, Number.parseInt(rawDay, 10))))
+    : rawDay
+  if (digits.length < 4) return `${month}/${day}`
+  if (digits.length === 4) return `${month}/${day}/`
+
+  const rawYear = digits.slice(4)
+  const year = rawYear.length === 4
+    ? String(Math.max(new Date().getFullYear(), Number.parseInt(rawYear, 10)))
+    : rawYear
+  return `${month}/${day}/${year}`
 }
 
 const startOfLocalDay = (date: Date) =>
@@ -219,11 +238,18 @@ const getManualTimeInput = (value: string) => {
 
 const formatManualTimeInput = (value: string) => {
   const digits = value.replace(/\D/g, '').slice(0, 4)
-  if (digits.length <= 2) return digits
-  if (digits.length === 3 && Number.parseInt(digits[0], 10) > 1) {
-    return `${digits[0]}:${digits.slice(1)}`
-  }
-  return `${digits.slice(0, 2)}:${digits.slice(2)}`
+  const rawHour = digits.slice(0, 2)
+  const hour = rawHour.length === 2
+    ? padTwo(Math.min(12, Math.max(1, Number.parseInt(rawHour, 10))))
+    : rawHour
+  if (digits.length < 2) return hour
+  if (digits.length === 2) return `${hour}:`
+
+  const rawMinute = digits.slice(2)
+  const minute = rawMinute.length === 2
+    ? padTwo(Math.min(59, Number.parseInt(rawMinute, 10)))
+    : rawMinute
+  return `${hour}:${minute}`
 }
 
 const parseManualTimeInput = (value: string) => {
@@ -272,6 +298,33 @@ const isPastDateTime = (dateValue: string, timeValue: string, now = new Date()) 
     now.getHours() * 60 + now.getMinutes()
 }
 
+const RequiredFieldAlert: React.FC<{ message: string; visible: boolean }> = ({ message, visible }) => {
+  if (!visible) return null
+
+  return <Text accessibilityRole="alert" style={styles.requiredFieldWarning}>{message}</Text>
+}
+
+const ProgressiveInputMask: React.FC<{
+  complete?: boolean
+  mask: string
+  value: string
+}> = ({ complete = false, mask, value }) => {
+  const remainingMask = complete ? '' : mask.slice(Math.min(value.length, mask.length))
+
+  return (
+    <Text
+      accessibilityElementsHidden
+      accessible={false}
+      importantForAccessibility="no-hide-descendants"
+      pointerEvents="none"
+      style={styles.dateTimeInputMask}
+    >
+      <Text style={styles.dateTimeInputSpacer}>{value}</Text>
+      <Text style={styles.dateTimeInputRemaining}>{remainingMask}</Text>
+    </Text>
+  )
+}
+
 export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
   initialValue,
   isProcessing = false,
@@ -291,6 +344,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
   const [timeMeridiem, setTimeMeridiem] = React.useState<Meridiem>(
     () => parseTimeParts(initialValue?.time ?? '').meridiem
   )
+  const [isMeridiemMenuOpen, setIsMeridiemMenuOpen] = React.useState(false)
   const [dateTimeError, setDateTimeError] = React.useState('')
   const [isEventNameFocused, setIsEventNameFocused] = React.useState(false)
   const [activePicker, setActivePicker] = React.useState<'calendar' | 'time' | null>(null)
@@ -305,6 +359,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
         || typeof initialValue?.wantsCoordinator === 'boolean'
     )
   )
+  const isSecuredVenueExpanded = hasVenueStatusSelection && venueStatus === 'secured'
   const [venueMap, setVenueMap] = React.useState<VenueMapValue>({
     address: initialValue?.venueAddress ?? '',
     latitude: initialValue?.venueLatitude ?? 10.6765,
@@ -312,11 +367,8 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
     name: initialValue?.venueName ?? '',
   })
   const [venueError, setVenueError] = React.useState('')
-  const [externalVenueConfirmed, setExternalVenueConfirmed] = React.useState(
-    initialValue?.venueSource === 'external' && initialValue?.externalVenueConfirmed === true
-  )
   const venuePanelAnimation = React.useRef(
-    new Animated.Value(venueStatus === 'secured' ? 1 : 0)
+    new Animated.Value(isSecuredVenueExpanded ? 1 : 0)
   ).current
   const [guestCount, setGuestCount] = React.useState(initialValue?.guestCount ?? 120)
   const [selectedWeddingThemes, setSelectedWeddingThemes] = React.useState<string[]>(
@@ -330,23 +382,40 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
   )
   const [themeLimitMessage, setThemeLimitMessage] = React.useState(false)
   const themeLimitTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const eventScrollRef = React.useRef<React.ComponentRef<typeof ScrollView>>(null)
+  const guestInputScrollTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const requiredFieldShake = React.useRef(new Animated.Value(0)).current
+  const requiredShakeTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingRequiredShake = React.useRef<RequiredSection | undefined>(undefined)
+  const sectionOffsets = React.useRef<Partial<Record<RequiredSection, number>>>({})
+  const [requiredSection, setRequiredSection] = React.useState<RequiredSection>()
+  const [requiredNotice, setRequiredNotice] = React.useState('')
+  const shouldAskChurchQuestion = eventType === 'wedding' && wantsCoordinator === true
 
   React.useEffect(
     () => () => {
       if (themeLimitTimer.current) {
         clearTimeout(themeLimitTimer.current)
       }
+      if (guestInputScrollTimer.current) {
+        clearTimeout(guestInputScrollTimer.current)
+      }
+      if (requiredShakeTimer.current) {
+        clearTimeout(requiredShakeTimer.current)
+      }
+      requiredFieldShake.stopAnimation()
     },
+    [requiredFieldShake]
   )
 
   React.useEffect(() => {
     Animated.timing(venuePanelAnimation, {
       duration: 360,
       easing: Easing.out(Easing.cubic),
-      toValue: venueStatus === 'secured' ? 1 : 0,
+      toValue: isSecuredVenueExpanded ? 1 : 0,
       useNativeDriver: false,
     }).start()
-  }, [venuePanelAnimation, venueStatus])
+  }, [isSecuredVenueExpanded, venuePanelAnimation])
 
   const toggleWeddingTheme = (theme: string) => {
     if (selectedWeddingThemes.includes(theme)) {
@@ -355,11 +424,11 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
     }
 
     if (selectedWeddingThemes.length >= 2) {
-      setThemeLimitMessage(true)
+      setSelectedWeddingThemes((current) => [...current.slice(1), theme])
+      setThemeLimitMessage(false)
       if (themeLimitTimer.current) {
         clearTimeout(themeLimitTimer.current)
       }
-      themeLimitTimer.current = setTimeout(() => setThemeLimitMessage(false), 2200)
       return
     }
 
@@ -375,11 +444,22 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
   }
 
   const handleManualTimeChange = (nextValue: string) => {
-    const formattedTime = formatManualTimeInput(nextValue)
+    const editableValue = timeInput.endsWith(':') && nextValue === timeInput.slice(0, -1)
+      ? nextValue.slice(0, -1)
+      : nextValue
+    const formattedTime = formatManualTimeInput(editableValue)
     const parsedTime = parseManualTimeInput(formattedTime)
     setTimeInput(formattedTime)
     setDateTimeError('')
     setTime(parsedTime ? formatTime(parsedTime.hour, parsedTime.minute, timeMeridiem) : '')
+  }
+
+  const handleMeridiemChange = (nextMeridiem: Meridiem) => {
+    const parsedTime = parseManualTimeInput(timeInput)
+    setTimeMeridiem(nextMeridiem)
+    setIsMeridiemMenuOpen(false)
+    setDateTimeError('')
+    setTime(parsedTime ? formatTime(parsedTime.hour, parsedTime.minute, nextMeridiem) : '')
   }
 
   const handleDateChange = (nextDate: string) => {
@@ -403,8 +483,119 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
     }
   }
 
-  const handleManualDateChange = (nextValue: string) =>
-    handleDateChange(formatManualDateInput(nextValue))
+  const handleManualDateChange = (nextValue: string) => {
+    const editableValue = date.endsWith('/') && nextValue === date.slice(0, -1)
+      ? nextValue.slice(0, -1)
+      : nextValue
+    handleDateChange(formatManualDateInput(editableValue))
+  }
+
+  const handleGuestInputFocus = React.useCallback(() => {
+    const scrollToGuestInput = () => eventScrollRef.current?.scrollToEnd({ animated: true })
+
+    if (guestInputScrollTimer.current) clearTimeout(guestInputScrollTimer.current)
+    requestAnimationFrame(scrollToGuestInput)
+    // Android completes its keyboard resize after focus. Scroll again once it
+    // settles so the manual guest-count field remains visible.
+    guestInputScrollTimer.current = setTimeout(scrollToGuestInput, 220)
+  }, [])
+
+  const revealRequiredSection = React.useCallback((section: RequiredSection, message: string) => {
+    setRequiredSection(section)
+    setRequiredNotice(message)
+    pendingRequiredShake.current = section
+    requestAnimationFrame(() => {
+      eventScrollRef.current?.scrollTo({
+        animated: true,
+        y: Math.max(0, (sectionOffsets.current[section] ?? 0) - 18),
+      })
+
+      if (requiredShakeTimer.current) clearTimeout(requiredShakeTimer.current)
+      requiredShakeTimer.current = setTimeout(() => {
+        // Only selectable choices shake. The short delay lets the guided
+        // scroll finish before drawing attention to the missing choice.
+        if (
+          pendingRequiredShake.current !== section
+          || (
+            section !== 'coordinator'
+            && section !== 'churchWedding'
+            && section !== 'dateTime'
+            && section !== 'venueStatus'
+          )
+        ) return
+
+        requiredFieldShake.stopAnimation()
+        requiredFieldShake.setValue(0)
+        Animated.sequence([
+          Animated.timing(requiredFieldShake, {
+            duration: 105,
+            easing: Easing.inOut(Easing.ease),
+            toValue: 8,
+            useNativeDriver: true,
+          }),
+          Animated.timing(requiredFieldShake, {
+            duration: 105,
+            easing: Easing.inOut(Easing.ease),
+            toValue: -8,
+            useNativeDriver: true,
+          }),
+          Animated.timing(requiredFieldShake, {
+            duration: 105,
+            easing: Easing.inOut(Easing.ease),
+            toValue: 5,
+            useNativeDriver: true,
+          }),
+          Animated.timing(requiredFieldShake, {
+            duration: 105,
+            easing: Easing.inOut(Easing.ease),
+            toValue: -5,
+            useNativeDriver: true,
+          }),
+          Animated.timing(requiredFieldShake, {
+            duration: 125,
+            easing: Easing.inOut(Easing.ease),
+            toValue: 0,
+            useNativeDriver: true,
+          }),
+        ]).start()
+      }, 360)
+    })
+  }, [requiredFieldShake])
+
+  React.useEffect(() => {
+    if (!requiredSection) return
+
+    const isStillIncomplete = {
+      churchWedding: shouldAskChurchQuestion && typeof isChurchWedding !== 'boolean',
+      coordinator: typeof wantsCoordinator !== 'boolean',
+      dateTime: !date || !time || isPastDateTime(date, time),
+      eventName: !eventName.trim(),
+      guestCount: guestCount <= 0,
+      venue: isSecuredVenueExpanded && !venueMap.name.trim(),
+      venueStatus: !hasVenueStatusSelection,
+    }[requiredSection]
+
+    if (!isStillIncomplete) {
+      if (pendingRequiredShake.current === requiredSection) {
+        pendingRequiredShake.current = undefined
+      }
+      if (requiredShakeTimer.current) clearTimeout(requiredShakeTimer.current)
+      setRequiredSection(undefined)
+      setRequiredNotice('')
+    }
+  }, [
+    date,
+    eventName,
+    guestCount,
+    hasVenueStatusSelection,
+    isChurchWedding,
+    isSecuredVenueExpanded,
+    requiredSection,
+    shouldAskChurchQuestion,
+    time,
+    venueMap.name,
+    wantsCoordinator,
+  ])
 
   const handleCoordinatorPreferenceChange = (nextPreference: boolean) => {
     setWantsCoordinator(nextPreference)
@@ -418,13 +609,45 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
   }
 
   const handleContinue = () => {
-    if (date && isPastDateTime(date, time)) {
-      setDateTimeError('Choose a date and time later than the current local time.')
+    if (!eventName.trim()) {
+      revealRequiredSection('eventName', 'Enter an event name to continue.')
       return
     }
 
-    if (venueStatus === 'secured' && (!venueMap.name.trim() || !externalVenueConfirmed)) {
-      setVenueError('Choose a location, then select Use This Venue to confirm your external venue.')
+    if (typeof wantsCoordinator !== 'boolean') {
+      revealRequiredSection('coordinator', 'Choose whether you would like an event coordinator.')
+      return
+    }
+
+    if (shouldAskChurchQuestion && typeof isChurchWedding !== 'boolean') {
+      revealRequiredSection('churchWedding', 'Choose whether this is a church wedding.')
+      return
+    }
+
+    if (!date || !time) {
+      revealRequiredSection('dateTime', 'Choose both an event date and time to continue.')
+      return
+    }
+
+    if (isPastDateTime(date, time)) {
+      setDateTimeError('Choose a date and time later than the current local time.')
+      revealRequiredSection('dateTime', 'Choose a date and time later than the current local time.')
+      return
+    }
+
+    if (!hasVenueStatusSelection) {
+      revealRequiredSection('venueStatus', 'Choose a venue status to continue.')
+      return
+    }
+
+    if (isSecuredVenueExpanded && !venueMap.name.trim()) {
+      setVenueError('Choose a location for your secured venue.')
+      revealRequiredSection('venue', 'Choose the location of your secured venue.')
+      return
+    }
+
+    if (guestCount <= 0) {
+      revealRequiredSection('guestCount', 'Enter an estimated guest count to continue.')
       return
     }
 
@@ -441,8 +664,8 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
     venueLatitude: venueMap.latitude,
     venueLongitude: venueMap.longitude,
     venueName: venueMap.name,
-    venueSource: venueStatus === 'secured' && externalVenueConfirmed ? 'external' : undefined,
-    externalVenueConfirmed: venueStatus === 'secured' && externalVenueConfirmed,
+    venueSource: isSecuredVenueExpanded && venueMap.name.trim() ? 'external' : undefined,
+    externalVenueConfirmed: isSecuredVenueExpanded && Boolean(venueMap.name.trim()),
     guestCount,
     isChurchWedding,
     wantsCoordinator,
@@ -460,7 +683,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
     venueMap.longitude,
     venueMap.name,
     venueStatus,
-    externalVenueConfirmed,
+    isSecuredVenueExpanded,
     wantsCoordinator,
   ])
 
@@ -470,26 +693,13 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
     onValueChange?.(value)
   }, [onValueChange, value])
 
-  const shouldAskChurchQuestion = eventType === 'wedding' && wantsCoordinator === true
-
-  const isStepComplete = Boolean(
-    eventName.trim() &&
-      date &&
-      time &&
-      guestCount > 0 &&
-      !isPastDateTime(date, time) &&
-      (!shouldAskChurchQuestion || typeof isChurchWedding === 'boolean') &&
-      typeof wantsCoordinator === 'boolean' &&
-      (venueStatus !== 'secured' || (venueMap.name.trim() && externalVenueConfirmed))
-  )
-
   return (
     <View style={styles.screen}>
       <PlanningScreenHeader
         brandTitle={presentation !== 'savedPlan'}
         currentStep={1}
         label={presentation === 'savedPlan' ? 'Saved Plan' : 'CREATE EVENT'}
-        nextEnabled={isStepComplete && !isProcessing}
+        nextEnabled={!isProcessing}
         onBack={isProcessing ? undefined : onClose}
         onBrandPress={presentation === 'savedPlan' || isProcessing ? undefined : onClose}
         onNext={handleContinue}
@@ -498,11 +708,17 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
         title={presentation === 'savedPlan' ? 'Edit Event Details' : 'Create Event'}
       />
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardAwareContent}
       >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
+          ref={eventScrollRef}
+          showsVerticalScrollIndicator={false}
+        >
         <View style={[styles.mainContent, isWide && styles.horizontalPaddingWide]}>
           <View style={[styles.form, isWide && styles.formWide]}>
             <View style={styles.intro}>
@@ -514,10 +730,19 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
               </Text>
             </View>
 
-            <View style={styles.fieldGroup}>
+            <View
+              onLayout={(event) => {
+                sectionOffsets.current.eventName = event.nativeEvent.layout.y
+              }}
+              style={styles.fieldGroup}
+            >
               <Text style={styles.sectionFieldLabel}>EVENT NAME</Text>
               <View
-                style={[styles.textInputShell, isEventNameFocused && styles.textInputShellFocused]}
+                style={[
+                  styles.textInputShell,
+                  isEventNameFocused && styles.textInputShellFocused,
+                  requiredSection === 'eventName' && styles.requiredInputBorder,
+                ]}
               >
                 <MaterialIcons
                   accessibilityLabel="Event name"
@@ -543,11 +768,15 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                   value={eventName}
                 />
               </View>
+              <RequiredFieldAlert
+                message={requiredNotice}
+                visible={requiredSection === 'eventName'}
+              />
             </View>
 
             <View style={styles.themeSection}>
               <View style={styles.themeLabelRow}>
-                <Text style={styles.fieldLabel}>WEDDING THEME</Text>
+                <Text style={styles.sectionFieldLabel}>WEDDING THEME</Text>
                 <Text style={styles.themeOptionalLabel}>OPTIONAL</Text>
               </View>
               <Text style={styles.themeHelperText}>
@@ -580,9 +809,19 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
               )}
             </View>
 
-            <View style={styles.coordinatorPreferenceSection}>
+            <View
+              onLayout={(event) => {
+                sectionOffsets.current.coordinator = event.nativeEvent.layout.y
+              }}
+              style={styles.coordinatorPreferenceSection}
+            >
               <Text style={styles.sectionFieldLabel}>WOULD YOU LIKE AN EVENT COORDINATOR?</Text>
-              <View style={styles.churchWeddingChoices}>
+              <Animated.View
+                style={[
+                  styles.churchWeddingChoices,
+                  requiredSection === 'coordinator' && { transform: [{ translateX: requiredFieldShake }] },
+                ]}
+              >
                 {[
                   {
                     description: 'Include Event Coordinator in your budget and browse coordinators when you are ready.',
@@ -606,6 +845,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                       style={({ pressed }) => [
                         styles.churchWeddingChoice,
                         selected && styles.selectionCardActive,
+                        requiredSection === 'coordinator' && styles.requiredChoiceBorder,
                         pressed && styles.cardPressed,
                       ]}
                     >
@@ -624,24 +864,33 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                     </Pressable>
                   )
                 })}
-              </View>
-              {typeof wantsCoordinator !== 'boolean' ? (
-                <Text accessibilityRole="alert" style={styles.preferenceRequiredText}>
-                  Select Yes or No to continue.
-                </Text>
-              ) : null}
+              </Animated.View>
+              <RequiredFieldAlert
+                message={requiredNotice}
+                visible={requiredSection === 'coordinator'}
+              />
             </View>
 
             {shouldAskChurchQuestion ? (
-              <View style={styles.churchWeddingSection}>
+              <View
+                onLayout={(event) => {
+                  sectionOffsets.current.churchWedding = event.nativeEvent.layout.y
+                }}
+                style={styles.churchWeddingSection}
+              >
                 <Text style={styles.sectionFieldLabel}>IS THIS A CHURCH WEDDING?</Text>
                 <View accessibilityLiveRegion="polite" style={styles.churchWeddingNotice}>
                   <MaterialIcons color="#BA1A1A" name="error-outline" size={18} />
                   <Text style={styles.churchWeddingNoticeText}>
-                    It does not reserve a church or change your budget.
+                    This does not reserve a church or change your budget.
                   </Text>
                 </View>
-                <View style={styles.churchWeddingChoices}>
+                <Animated.View
+                  style={[
+                    styles.churchWeddingChoices,
+                    requiredSection === 'churchWedding' && { transform: [{ translateX: requiredFieldShake }] },
+                  ]}
+                >
                   {[
                     {
                       description: 'A coordinator can help with church arrangements after their booking is accepted.',
@@ -650,7 +899,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                     },
                     {
                       description: 'Continue with your preferred venue or ceremony location.',
-                      label: 'No — Non-Church / Outdoor Wedding',
+                      label: 'No - Non-Church / Outdoor Wedding',
                       value: false,
                     },
                   ].map((option) => {
@@ -665,6 +914,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                         style={({ pressed }) => [
                           styles.churchWeddingChoice,
                           selected && styles.selectionCardActive,
+                          requiredSection === 'churchWedding' && styles.requiredChoiceBorder,
                           pressed && styles.cardPressed,
                         ]}
                       >
@@ -683,20 +933,30 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                       </Pressable>
                     )
                   })}
-                </View>
-                {typeof isChurchWedding !== 'boolean' ? (
-                  <Text accessibilityRole="alert" style={styles.preferenceRequiredText}>
-                    Select Yes or No to continue.
-                  </Text>
-                ) : null}
+                </Animated.View>
+                <RequiredFieldAlert
+                  message={requiredNotice}
+                  visible={requiredSection === 'churchWedding'}
+                />
               </View>
             ) : null}
 
-            <View style={styles.dateTimeSection}>
-              <View style={[styles.dateTimeGrid, isWide && styles.dateTimeGridWide]}>
+            <View
+              onLayout={(event) => {
+                sectionOffsets.current.dateTime = event.nativeEvent.layout.y
+              }}
+              style={styles.dateTimeSection}
+            >
+              <Animated.View
+                style={[
+                  styles.dateTimeGrid,
+                  isWide && styles.dateTimeGridWide,
+                  requiredSection === 'dateTime' && { transform: [{ translateX: requiredFieldShake }] },
+                ]}
+              >
                 <View style={styles.dateTimeField}>
                   <Text style={styles.sectionFieldLabel}>DATE</Text>
-                  <View style={styles.iconInputShell}>
+                  <View style={[styles.iconInputShell, requiredSection === 'dateTime' && styles.requiredInputBorder]}>
                     <Pressable
                       accessibilityLabel="Open full event calendar"
                       accessibilityRole="button"
@@ -706,24 +966,33 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                     >
                       <MaterialIcons color={palette.burgundy} name="calendar-month" size={22} />
                     </Pressable>
-                    <TextInput
-                      accessibilityLabel="Event date"
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
-                      maxLength={10}
-                      onChangeText={handleManualDateChange}
-                      placeholder="MM/DD/YYYY"
-                      placeholderTextColor="#A3A4A4"
-                      style={styles.dateTimeTextInput}
-                      value={date}
-                    />
+                    <View style={styles.dateTimeInputFrame}>
+                      <ProgressiveInputMask mask="MM/DD/YYYY" value={date} />
+                      <TextInput
+                        accessibilityLabel="Event date"
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        cursorColor={palette.burgundy}
+                        keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
+                        maxLength={10}
+                        onChangeText={handleManualDateChange}
+                        onFocus={() => setIsMeridiemMenuOpen(false)}
+                        selectionColor={palette.burgundy}
+                        style={[
+                          styles.dateTimeTextInput,
+                          Platform.OS === 'web'
+                            ? ({ caretColor: palette.burgundy } as unknown as TextStyle)
+                            : null,
+                        ]}
+                        value={date}
+                      />
+                    </View>
                   </View>
                 </View>
 
-                <View style={styles.dateTimeField}>
+                <View style={[styles.dateTimeField, isMeridiemMenuOpen && styles.dateTimeFieldMenuOpen]}>
                   <Text style={styles.sectionFieldLabel}>TIME</Text>
-                  <View style={styles.iconInputShell}>
+                  <View style={[styles.iconInputShell, requiredSection === 'dateTime' && styles.requiredInputBorder]}>
                     <Pressable
                       accessibilityLabel="Open event time picker"
                       accessibilityRole="button"
@@ -733,26 +1002,71 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                     >
                       <MaterialIcons color={palette.burgundy} name="timer" size={22} />
                     </Pressable>
-                    <TextInput
-                      accessibilityLabel="Event time"
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
-                      maxLength={5}
-                      onChangeText={handleManualTimeChange}
-                      placeholder="HH:MM"
-                      placeholderTextColor="#A3A4A4"
-                      style={styles.dateTimeTextInput}
-                      value={timeInput}
-                    />
+                    <View style={styles.dateTimeInputFrame}>
+                      <ProgressiveInputMask
+                        complete={Boolean(parseManualTimeInput(timeInput))}
+                        mask="HH:MM"
+                        value={timeInput}
+                      />
+                      <TextInput
+                        accessibilityLabel="Event time"
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        cursorColor={palette.burgundy}
+                        keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
+                        maxLength={5}
+                        onChangeText={handleManualTimeChange}
+                        onFocus={() => setIsMeridiemMenuOpen(false)}
+                        selectionColor={palette.burgundy}
+                        style={[
+                          styles.dateTimeTextInput,
+                          Platform.OS === 'web'
+                            ? ({ caretColor: palette.burgundy } as unknown as TextStyle)
+                            : null,
+                        ]}
+                        value={timeInput}
+                      />
+                    </View>
+                    <View style={styles.meridiemSelector}>
+                      <Pressable
+                        accessibilityLabel={`Select AM or PM, currently ${timeMeridiem}`}
+                        accessibilityRole="button"
+                        accessibilityState={{ expanded: isMeridiemMenuOpen }}
+                        onPress={() => setIsMeridiemMenuOpen((open) => !open)}
+                        style={({ pressed }) => [styles.meridiemButton, pressed && styles.pressed]}
+                      >
+                        <Text style={styles.meridiemButtonText}>{timeMeridiem}</Text>
+                        <MaterialIcons color={palette.burgundy} name="keyboard-arrow-down" size={18} />
+                      </Pressable>
+                      {isMeridiemMenuOpen ? (
+                        <View style={styles.meridiemMenu}>
+                          {meridiemOptions.map((option) => (
+                            <Pressable
+                              key={option}
+                              accessibilityRole="button"
+                              accessibilityState={{ selected: option === timeMeridiem }}
+                              onPress={() => handleMeridiemChange(option)}
+                              style={({ pressed }) => [
+                                styles.meridiemOption,
+                                option === timeMeridiem && styles.meridiemOptionSelected,
+                                pressed && styles.pressed,
+                              ]}
+                            >
+                              <Text style={[styles.meridiemOptionText, option === timeMeridiem && styles.meridiemOptionTextSelected]}>
+                                {option}
+                              </Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      ) : null}
+                    </View>
                   </View>
                 </View>
-              </View>
-              {dateTimeError ? (
-                <Text accessibilityRole="alert" style={styles.dateTimeError}>
-                  {dateTimeError}
-                </Text>
-              ) : null}
+              </Animated.View>
+              <RequiredFieldAlert
+                message={requiredSection === 'dateTime' ? requiredNotice : dateTimeError}
+                visible={requiredSection === 'dateTime' || Boolean(dateTimeError)}
+              />
               <View
                 accessibilityLiveRegion="polite"
                 style={[styles.timeGuidanceNotice, isWide && styles.timeGuidanceNoticeWide]}
@@ -764,9 +1078,22 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
               </View>
             </View>
 
-            <View style={[styles.fieldGroup, styles.venueStatusSection]}>
+            <View
+              onLayout={(event) => {
+                sectionOffsets.current.venueStatus = event.nativeEvent.layout.y
+                sectionOffsets.current.venue = event.nativeEvent.layout.y
+              }}
+              style={[styles.fieldGroup, styles.venueStatusSection]}
+            >
               <Text style={styles.sectionFieldLabel}>VENUE STATUS</Text>
-              <View style={styles.venueGrid}>
+              <Animated.View
+                style={[
+                  styles.venueGrid,
+                  requiredSection === 'venueStatus' && {
+                    transform: [{ translateX: requiredFieldShake }],
+                  },
+                ]}
+              >
                 {venueOptions.map((option) => {
                   const selected = hasVenueStatusSelection && venueStatus === option.id
                   return (
@@ -775,14 +1102,21 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                         accessibilityRole="radio"
                         accessibilityState={{ checked: selected }}
                         onPress={() => {
+                          if (selected) {
+                            setHasVenueStatusSelection(false)
+                            setVenueStatus('searching')
+                            setVenueError('')
+                            return
+                          }
                           setVenueStatus(option.id)
                           setHasVenueStatusSelection(true)
-                          if (option.id !== 'secured') setExternalVenueConfirmed(false)
                           setVenueError('')
                         }}
                         style={({ pressed }) => [
                           styles.venueCard,
                           selected && styles.selectionCardActive,
+                          selected && requiredSection === 'venue' && styles.requiredChoiceBorder,
+                          requiredSection === 'venueStatus' && styles.requiredChoiceBorder,
                           pressed && styles.cardPressed,
                         ]}
                       >
@@ -804,20 +1138,13 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                         {selected ? (
                           <View style={styles.venueSelectionActions}>
                             <SelectionCheck />
-                            {option.id === 'secured' ? (
-                              <MaterialIcons
-                                color={palette.burgundy}
-                                name="keyboard-arrow-down"
-                                size={23}
-                              />
-                            ) : null}
                           </View>
                         ) : null}
                       </Pressable>
 
                       {option.id === 'secured' ? (
                         <Animated.View
-                          pointerEvents={venueStatus === 'secured' ? 'auto' : 'none'}
+                          pointerEvents={isSecuredVenueExpanded ? 'auto' : 'none'}
                           style={[
                             styles.venueMapReveal,
                             {
@@ -841,15 +1168,9 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                             <View style={styles.venueMapConnectorDiamond} />
                           </View>
                           <VenueLocationPicker
-                            confirmed={externalVenueConfirmed}
                             error={venueError}
                             onChange={(nextValue) => {
                               setVenueMap(nextValue)
-                              setExternalVenueConfirmed(false)
-                              setVenueError('')
-                            }}
-                            onConfirm={() => {
-                              setExternalVenueConfirmed(true)
                               setVenueError('')
                             }}
                             value={venueMap}
@@ -859,12 +1180,21 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                     </React.Fragment>
                   )
                 })}
-              </View>
+              </Animated.View>
+              <RequiredFieldAlert
+                message={requiredNotice}
+                visible={requiredSection === 'venueStatus' || requiredSection === 'venue'}
+              />
             </View>
 
-            <View style={styles.guestSection}>
+            <View
+              onLayout={(event) => {
+                sectionOffsets.current.guestCount = event.nativeEvent.layout.y
+              }}
+              style={styles.guestSection}
+            >
               <View style={styles.guestLabelRow}>
-                <Text style={[styles.fieldLabel, styles.guestLabelCentered]}>
+                <Text style={[styles.sectionFieldLabel, styles.guestLabelCentered]}>
                   ESTIMATED GUEST COUNT
                 </Text>
               </View>
@@ -884,7 +1214,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                     </Text>
                   )}
                 </Pressable>
-                <View style={styles.guestInputShell}>
+                <View style={[styles.guestInputShell, requiredSection === 'guestCount' && styles.requiredInputBorder]}>
                   <TextInput
                     accessibilityLabel="Estimated guest count"
                     keyboardType="number-pad"
@@ -892,6 +1222,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                       const parsed = Number.parseInt(text.replace(/\D/g, ''), 10)
                       setGuestCount(Number.isFinite(parsed) ? parsed : 0)
                     }}
+                    onFocus={handleGuestInputFocus}
                     style={styles.guestInput}
                     value={String(guestCount)}
                   />
@@ -912,6 +1243,10 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                   )}
                 </Pressable>
               </View>
+              <RequiredFieldAlert
+                message={requiredNotice}
+                visible={requiredSection === 'guestCount'}
+              />
             </View>
           </View>
 
@@ -935,19 +1270,18 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
             </View>
           )}
         </View>
-      </ScrollView>
 
-      <View style={styles.footer}>
+        <View style={styles.footer}>
         <View style={[styles.footerContent, isWide && styles.horizontalPaddingWide]}>
           <Pressable
             accessibilityRole="button"
-            accessibilityState={{ busy: isProcessing, disabled: !isStepComplete || isProcessing }}
-            disabled={!isStepComplete || isProcessing}
+            accessibilityState={{ busy: isProcessing, disabled: isProcessing }}
+            disabled={isProcessing}
             onPress={handleContinue}
             style={({ pressed }) => [
               styles.continueButton,
               isWide && styles.continueButtonWide,
-              (!isStepComplete || isProcessing) && styles.continueDisabled,
+              isProcessing && styles.continueDisabled,
               pressed && styles.continuePressed,
             ]}
           >
@@ -959,6 +1293,8 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
           </Pressable>
         </View>
       </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       {activePicker === 'calendar' ? (
         <CalendarPickerModal
@@ -980,24 +1316,20 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
 }
 
 interface VenueLocationPickerProps {
-  confirmed: boolean
   error: string
   onChange: (value: VenueMapValue) => void
-  onConfirm: () => void
   value: VenueMapValue
 }
 
 const VenueLocationPicker: React.FC<VenueLocationPickerProps> = ({
-  confirmed,
   error,
   onChange,
-  onConfirm,
   value,
 }) => {
   const [query, setQuery] = React.useState(value.name)
   const [isFullscreen, setIsFullscreen] = React.useState(false)
   const [remoteResults, setRemoteResults] = React.useState<VenueMapValue[] | null>(null)
-  const [isSearching, setIsSearching] = React.useState(false)
+  const [, setIsSearching] = React.useState(false)
   const pinLookupRequestRef = React.useRef(0)
   const normalizedQuery = query.trim().toLowerCase()
   const suggestedResults = normalizedQuery
@@ -1146,15 +1478,6 @@ const VenueLocationPicker: React.FC<VenueLocationPickerProps> = ({
           style={styles.venueSearchInput}
           value={query}
         />
-        <Pressable
-          accessibilityLabel="Search for venue location"
-          accessibilityRole="button"
-          disabled={isSearching || !normalizedQuery}
-          onPress={() => void searchVenue()}
-          style={({ pressed }) => [styles.venueSearchButton, (pressed || isSearching || !normalizedQuery) && styles.venueSearchButtonPressed]}
-        >
-          {isSearching ? <ActivityIndicator color={palette.surface} size="small" /> : <MaterialIcons color={palette.surface} name="arrow-forward" size={19} />}
-        </Pressable>
       </View>
       {normalizedQuery ? (
         <View style={styles.venueResults}>
@@ -1196,9 +1519,6 @@ const VenueLocationPicker: React.FC<VenueLocationPickerProps> = ({
             Search the venue you already booked, then fine-tune the pin on the Bacolod map.
           </Text>
         </View>
-        <View style={styles.venueStepBadge}>
-          <Text style={styles.venueStepBadgeText}>PIN</Text>
-        </View>
       </View>
 
       {searchBox()}
@@ -1231,20 +1551,6 @@ const VenueLocationPicker: React.FC<VenueLocationPickerProps> = ({
           <MaterialIcons color={palette.burgundy} name="check-circle" size={23} />
         </View>
       ) : null}
-
-      <Pressable
-        accessibilityLabel="Use this external venue"
-        accessibilityRole="button"
-        disabled={!value.name.trim()}
-        onPress={onConfirm}
-        style={({ pressed }) => [styles.useVenueButton, confirmed && styles.useVenueButtonConfirmed, (!value.name.trim() || pressed) && styles.useVenueButtonPressed]}
-      >
-        <MaterialIcons color={palette.surface} name={confirmed ? 'check-circle' : 'location-on'} size={18} />
-        <View style={styles.useVenueButtonCopy}>
-          <Text style={styles.useVenueButtonText}>{confirmed ? 'External Venue Confirmed' : 'Use This Venue'}</Text>
-          <Text style={styles.useVenueButtonHint}>{confirmed ? 'This is your event location. Venue booking is not required.' : 'Already secured this venue? Use this location without booking a venue through MULTIVENT.'}</Text>
-        </View>
-      </Pressable>
 
       {error ? (
         <Text accessibilityRole="alert" style={styles.venueError}>
@@ -1585,7 +1891,7 @@ const CalendarPickerModal: React.FC<CalendarPickerModalProps> = ({ onChange, onC
   const initialDate = parsedValue && parsedValue >= minimumDate && parsedValue <= maximumDate
     ? parsedValue
     : minimumDate
-  const [draftDate, setDraftDate] = React.useState(initialDate)
+  const draftDate = initialDate
   const [visibleMonth, setVisibleMonth] = React.useState(
     () => new Date(initialDate.getFullYear(), initialDate.getMonth(), 1)
   )
@@ -1619,26 +1925,25 @@ const CalendarPickerModal: React.FC<CalendarPickerModalProps> = ({ onChange, onC
   return (
     <Modal animationType="fade" onRequestClose={onClose} transparent visible>
       <View style={styles.modalOverlay}>
-        <Pressable
-          accessibilityLabel="Close event calendar"
-          accessibilityRole="button"
-          onPress={onClose}
-          style={styles.modalScrim}
-        />
+        <BlurView
+          blurMethod="dimezisBlurViewSdk31Plus"
+          blurReductionFactor={1}
+          intensity={42}
+          tint="dark"
+          style={StyleSheet.absoluteFill}
+        >
+          <Pressable
+            accessibilityLabel="Close event calendar"
+            accessibilityRole="button"
+            onPress={onClose}
+            style={styles.modalScrim}
+          />
+        </BlurView>
         <View accessibilityViewIsModal style={[styles.pickerSheet, styles.calendarSheet]}>
-          <View style={styles.pickerHeader}>
-            <Text style={styles.pickerTitle}>Select event date</Text>
-            <Pressable
-              accessibilityLabel="Confirm event calendar date"
-              accessibilityRole="button"
-              onPress={() => {
-                onChange(formatDateValue(draftDate))
-                onClose()
-              }}
-              style={({ pressed }) => [styles.modalCloseButton, pressed && styles.pressed]}
-            >
-              <Text style={styles.modalCloseText}>DONE</Text>
-            </Pressable>
+          <View style={[styles.pickerHeader, styles.pickerHeaderCentered]}>
+            <Text accessibilityRole="header" style={[styles.pickerTitle, styles.pickerTitleCentered]}>
+              Select event date
+            </Text>
           </View>
 
           <ScrollView
@@ -1732,7 +2037,10 @@ const CalendarPickerModal: React.FC<CalendarPickerModalProps> = ({ onChange, onC
                       accessibilityRole="button"
                       accessibilityState={{ disabled: !allowed, selected }}
                       disabled={!allowed}
-                      onPress={() => setDraftDate(candidate)}
+                      onPress={() => {
+                        onChange(formatDateValue(candidate))
+                        onClose()
+                      }}
                       style={({ pressed }) => [
                         styles.calendarDayButton,
                         today && styles.calendarDayButtonToday,
@@ -1753,9 +2061,6 @@ const CalendarPickerModal: React.FC<CalendarPickerModalProps> = ({ onChange, onC
                 )
               })}
             </View>
-            <Text style={styles.calendarHelper}>
-              Your selected date stays synchronized with the date wheel.
-            </Text>
           </ScrollView>
         </View>
       </View>
@@ -1816,7 +2121,10 @@ const TimePickerModal: React.FC<TimePickerModalProps> = ({
     const next = matching.find(
       (option) => option.hour === selected.hour && option.minute === selected.minute
     ) ?? matching[0]
-    if (next) setSelected(next)
+    if (next) {
+      setSelected(next)
+      onChange(formatTime(next.hour, next.minute, next.meridiem))
+    }
   }
 
   const selectHour = (hour: number) => {
@@ -1824,7 +2132,10 @@ const TimePickerModal: React.FC<TimePickerModalProps> = ({
       (option) => option.meridiem === selected.meridiem && option.hour === hour
     )
     const next = matching.find((option) => option.minute === selected.minute) ?? matching[0]
-    if (next) setSelected(next)
+    if (next) {
+      setSelected(next)
+      onChange(formatTime(next.hour, next.minute, next.meridiem))
+    }
   }
 
   const selectMinute = (minute: string) => {
@@ -1834,35 +2145,35 @@ const TimePickerModal: React.FC<TimePickerModalProps> = ({
         option.hour === selected.hour &&
         option.minute === minute
     )
-    if (next) setSelected(next)
+    if (next) {
+      setSelected(next)
+      onChange(formatTime(next.hour, next.minute, next.meridiem))
+    }
   }
 
   return (
     <Modal animationType="fade" onRequestClose={onClose} transparent visible>
       <View style={styles.modalOverlay}>
-        <Pressable style={styles.modalScrim} onPress={onClose} />
-        <View style={styles.pickerSheet}>
-          <View style={styles.pickerHeader}>
-            <Text style={styles.pickerTitle}>Pick event time</Text>
-            <Pressable
-              accessibilityLabel="Confirm event time"
-              accessibilityRole="button"
-              accessibilityState={{ disabled: validTimes.length === 0 }}
-              disabled={validTimes.length === 0}
-              onPress={() => {
-                onChange(formatTime(selected.hour, selected.minute, selected.meridiem))
-                onClose()
-              }}
-              style={({ pressed }) => [styles.modalCloseButton, pressed && styles.pressed]}
-            >
-              <Text style={styles.modalCloseText}>DONE</Text>
-            </Pressable>
+        <BlurView
+          blurMethod="dimezisBlurViewSdk31Plus"
+          blurReductionFactor={1}
+          intensity={42}
+          tint="dark"
+          style={StyleSheet.absoluteFill}
+        >
+          <Pressable
+            accessibilityLabel="Close event time picker"
+            accessibilityRole="button"
+            onPress={onClose}
+            style={styles.modalScrim}
+          />
+        </BlurView>
+        <View accessibilityViewIsModal style={styles.pickerSheet}>
+          <View style={[styles.pickerHeader, styles.pickerHeaderCentered]}>
+            <Text accessibilityRole="header" style={[styles.pickerTitle, styles.pickerTitleCentered]}>
+              Pick event time
+            </Text>
           </View>
-          <Text style={styles.pickerHelper}>
-            {dateValue
-              ? 'Times earlier than the current time are removed when today is selected.'
-              : 'Choose a time now, or select the event date first.'}
-          </Text>
           <View style={styles.pickerColumns}>
             <PickerColumn
               accessibilityLabel="Event hour wheel"
@@ -1909,6 +2220,7 @@ const palette = {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.background },
+  keyboardAwareContent: { flex: 1 },
   topAppBar: {
     zIndex: 40,
     borderBottomWidth: 1,
@@ -1941,7 +2253,7 @@ const styles = StyleSheet.create({
   saveButton: { minHeight: 40, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
   saveButtonText: { color: palette.surface, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 1.1 },
   headerSpacer: { width: 36, height: 36 },
-  scrollContent: { paddingBottom: 128 },
+  scrollContent: { paddingBottom: 32 },
   progressSection: {
     zIndex: 20,
     width: '100%',
@@ -1998,6 +2310,8 @@ const styles = StyleSheet.create({
     boxShadow: 'inset 4px 4px 8px rgba(160, 171, 180, 0.54), inset -4px -4px 8px rgba(255, 255, 255, 0.96)',
   },
   textInputShellFocused: { borderColor: '#6B1E2E' },
+  requiredInputBorder: { borderColor: '#BA1A1A' },
+  requiredChoiceBorder: { borderColor: '#BA1A1A' },
   eventNameIcon: { marginLeft: 16 },
   textInput: { minHeight: 52, borderWidth: 0, borderColor: 'transparent', borderRadius: 0, color: palette.text, fontSize: 15, lineHeight: 22, paddingHorizontal: 16, paddingVertical: 14 },
   textInputWithIcon: {
@@ -2032,6 +2346,12 @@ const styles = StyleSheet.create({
   dateTimeGridWide: { flexDirection: 'row' },
   dateTimeError: { color: '#BA1A1A', fontSize: 13, lineHeight: 19 },
   dateTimeField: { flex: 1, gap: 12 },
+  dateTimeFieldMenuOpen: {
+    zIndex: 10,
+    // The AM/PM menu is positioned over the input shell. Reserve its full
+    // height in the field so validation and guidance content starts below it.
+    paddingBottom: 80,
+  },
   timeGuidanceNotice: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -2064,17 +2384,77 @@ const styles = StyleSheet.create({
     backgroundColor: '#E9EDF0',
     boxShadow: '2px 2px 5px rgba(160, 171, 180, 0.46), -2px -2px 5px rgba(255, 255, 255, 0.92)',
   },
+  dateTimeInputFrame: {
+    position: 'relative',
+    minWidth: 0,
+    minHeight: 50,
+    flex: 1,
+  },
+  dateTimeInputMask: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 0,
+    fontSize: 16,
+    lineHeight: 24,
+    paddingHorizontal: 12,
+    paddingVertical: 13,
+  },
+  dateTimeInputSpacer: { color: 'transparent' },
+  dateTimeInputRemaining: { color: '#A3A4A4' },
   dateTimeTextInput: {
     flex: 1,
     minWidth: 0,
     minHeight: 50,
     color: palette.text,
+    fontFamily: 'Inter_400Regular',
     fontSize: 16,
     lineHeight: 24,
     paddingHorizontal: 12,
     paddingVertical: 13,
     outlineWidth: 0,
   },
+  meridiemSelector: { position: 'relative', zIndex: 20 },
+  meridiemButton: {
+    minWidth: 64,
+    minHeight: 36,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.68)',
+    borderRadius: 12,
+    backgroundColor: '#E9EDF0',
+    paddingHorizontal: 7,
+    boxShadow: '2px 2px 5px rgba(160, 171, 180, 0.46), -2px -2px 5px rgba(255, 255, 255, 0.92)',
+  },
+  meridiemButtonText: { color: palette.burgundy, fontSize: 12, lineHeight: 16, fontWeight: '800' },
+  meridiemMenu: {
+    position: 'absolute',
+    top: 42,
+    right: 0,
+    minWidth: 64,
+    gap: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.68)',
+    borderRadius: 12,
+    backgroundColor: '#E9EDF0',
+    padding: 4,
+    boxShadow: '4px 4px 8px rgba(160, 171, 180, 0.52), -4px -4px 8px rgba(255, 255, 255, 0.96)',
+  },
+  meridiemOption: {
+    minHeight: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+  },
+  meridiemOptionSelected: { backgroundColor: 'rgba(107, 30, 46, 0.12)' },
+  meridiemOptionText: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: '700' },
+  meridiemOptionTextSelected: { color: palette.burgundy, fontWeight: '800' },
   venueStatusSection: {
     borderTopWidth: 1,
     borderTopColor: 'rgba(107, 30, 46, 0.16)',
@@ -2083,7 +2463,11 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    justifyContent: 'flex-end',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(35, 43, 48, 0.14)',
+    paddingHorizontal: 24,
+    paddingVertical: 32,
   },
   modalScrim: {
     position: 'absolute',
@@ -2091,22 +2475,17 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     left: 0,
-    backgroundColor: 'rgba(26, 28, 28, 0.35)',
   },
   pickerSheet: {
-    maxHeight: '72%',
+    maxHeight: '86%',
     width: '100%',
-    maxWidth: 560,
+    maxWidth: 420,
     alignSelf: 'center',
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
+    borderRadius: 20,
     borderWidth: 1,
-    borderBottomWidth: 0,
-    borderColor: palette.border,
-    backgroundColor: palette.surface,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 28,
+    borderColor: 'rgba(255, 255, 255, 0.62)',
+    backgroundColor: palette.background,
+    padding: 24,
   },
   calendarSheet: { maxWidth: 480, maxHeight: '86%' },
   pickerHeader: {
@@ -2116,6 +2495,7 @@ const styles = StyleSheet.create({
     gap: 16,
     marginBottom: 18,
   },
+  pickerHeaderCentered: { justifyContent: 'center' },
   pickerTitle: {
     flex: 1,
     color: palette.text,
@@ -2123,20 +2503,7 @@ const styles = StyleSheet.create({
     lineHeight: 28,
     fontWeight: '700',
   },
-  modalCloseButton: {
-    minHeight: 38,
-    justifyContent: 'center',
-    borderRadius: 19,
-    backgroundColor: palette.surfaceLow,
-    paddingHorizontal: 16,
-  },
-  modalCloseText: {
-    color: palette.burgundy,
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: '800',
-    letterSpacing: 1.1,
-  },
+  pickerTitleCentered: { textAlign: 'center' },
   calendarMonthHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2149,8 +2516,11 @@ const styles = StyleSheet.create({
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.62)',
     borderRadius: 20,
-    backgroundColor: '#F8EDEF',
+    backgroundColor: palette.background,
+    boxShadow: '4px 4px 8px rgba(160, 171, 180, 0.52), -4px -4px 8px rgba(255, 255, 255, 0.96)',
   },
   calendarNavigationDisabled: { opacity: 0.38 },
   calendarMonthLabel: {
@@ -2170,14 +2540,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: 'rgba(255, 255, 255, 0.62)',
     borderRadius: 16,
-    backgroundColor: palette.surface,
+    backgroundColor: palette.background,
     paddingHorizontal: 10,
+    boxShadow: 'inset 3px 3px 6px rgba(166, 175, 183, 0.57), inset -3px -3px 6px rgba(255, 255, 255, 0.97)',
   },
-  calendarYearButtonSelected: { borderColor: palette.burgundy, backgroundColor: palette.burgundy },
+  calendarYearButtonSelected: {
+    borderColor: 'rgba(255, 255, 255, 0.72)',
+    backgroundColor: palette.background,
+    boxShadow: '4px 4px 8px rgba(160, 171, 180, 0.52), -4px -4px 8px rgba(255, 255, 255, 0.96)',
+  },
   calendarYearText: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: '700' },
-  calendarYearTextSelected: { color: palette.surface },
+  calendarYearTextSelected: { color: palette.burgundy, fontWeight: '800' },
   calendarWeekdays: { flexDirection: 'row', marginBottom: 5 },
   calendarWeekday: {
     width: '14.2857%',
@@ -2197,25 +2572,14 @@ const styles = StyleSheet.create({
     borderRadius: 18,
   },
   calendarDayButtonToday: { borderWidth: 1, borderColor: '#C99AA4' },
-  calendarDayButtonSelected: { backgroundColor: palette.burgundy },
+  calendarDayButtonSelected: {
+    backgroundColor: palette.burgundy,
+    boxShadow: '3px 4px 7px rgba(43, 7, 18, 0.42), -3px -3px 6px rgba(255, 237, 243, 0.36), inset 1px 1px 1px rgba(255, 255, 255, 0.16)',
+  },
   calendarDayButtonDisabled: { opacity: 0.32 },
   calendarDayText: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '600' },
   calendarDayTextSelected: { color: palette.surface, fontWeight: '800' },
   calendarDayTextDisabled: { color: palette.muted },
-  calendarHelper: {
-    marginTop: 12,
-    color: palette.muted,
-    fontSize: 12,
-    lineHeight: 16,
-    textAlign: 'center',
-  },
-  pickerHelper: {
-    color: palette.muted,
-    fontSize: 12,
-    lineHeight: 18,
-    textAlign: 'center',
-    marginBottom: 14,
-  },
   pickerColumns: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -2236,8 +2600,11 @@ const styles = StyleSheet.create({
     flex: 1,
     height: wheelRowHeight * wheelVisibleRows,
     overflow: 'hidden',
-    borderRadius: 10,
-    backgroundColor: '#FBF8F9',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.62)',
+    borderRadius: 12,
+    backgroundColor: palette.background,
+    boxShadow: 'inset 4px 4px 8px rgba(160, 171, 180, 0.54), inset -4px -4px 8px rgba(255, 255, 255, 0.96)',
   },
   pickerColumnWide: { flex: 1 },
   wheelSelectionBand: {
@@ -2249,8 +2616,8 @@ const styles = StyleSheet.create({
     height: wheelRowHeight,
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: '#C99AA4',
-    backgroundColor: '#F8EDEF',
+    borderColor: 'rgba(107, 30, 46, 0.26)',
+    backgroundColor: 'rgba(107, 30, 46, 0.09)',
   },
   wheelList: { zIndex: 1, height: wheelRowHeight * wheelVisibleRows },
   pickerOptionList: {
@@ -2523,6 +2890,12 @@ const styles = StyleSheet.create({
   churchWeddingTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '700' },
   churchWeddingDescription: { color: palette.muted, fontSize: 12, lineHeight: 18, marginTop: 2 },
   preferenceRequiredText: { color: '#BA1A1A', fontSize: 12, lineHeight: 18, fontWeight: '600' },
+  requiredFieldWarning: {
+    color: '#8F1010',
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: '600',
+  },
   guestSection: {
     alignItems: 'center',
     borderTopWidth: 1,
@@ -2593,14 +2966,11 @@ const styles = StyleSheet.create({
   tipDescription: { color: palette.muted, fontSize: 16, lineHeight: 26, marginBottom: 24 },
   tipImage: { width: '100%', height: 192, borderRadius: 8, backgroundColor: palette.surfaceLow },
   footer: {
-    position: 'absolute',
-    right: 0,
-    bottom: 0,
-    left: 0,
-    zIndex: 50,
+    width: '100%',
     borderTopWidth: 1,
     borderTopColor: 'rgba(226, 226, 226, 0.5)',
-    backgroundColor: 'rgba(233, 237, 240, 0.96)',
+    backgroundColor: palette.background,
+    marginTop: 32,
     paddingHorizontal: 20,
     paddingVertical: 16,
   },

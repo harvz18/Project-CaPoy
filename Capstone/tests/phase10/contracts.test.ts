@@ -4,7 +4,7 @@ import { resolve } from 'node:path'
 import test from 'node:test'
 
 const root = resolve(import.meta.dirname, '../..')
-const read = (path: string) => readFileSync(resolve(root, path), 'utf8')
+const read = (path: string) => readFileSync(resolve(root, path), 'utf8').replace(/\r\n/g, '\n')
 const mustContain = (source: string, fragments: string[], label: string) => {
   fragments.forEach((fragment) => {
     assert.ok(source.includes(fragment), `${label} is missing: ${fragment}`)
@@ -163,8 +163,9 @@ test('service selection keeps option-aware budget fits while exposing exact sche
   ], 'marketplace schedule migration')
   mustContain(browse, [
     'vendor.budgetRecommendation.categoryBudget > 0',
-    '!vendor.budgetRecommendation.isWithinBudget',
-    'Not Available on Your Schedule',
+    '!vendor.budgetRecommendation?.isWithinBudget',
+    'Outside Your Category Budget',
+    'NOT AVAILABLE ON YOUR SCHEDULE',
     'vendorCardUnavailable',
     'disabled={isScheduleUnavailable(vendor)}',
   ], 'service selection marketplace UI')
@@ -269,7 +270,7 @@ test('V8 Phase 3 filters venues by an eligible option-level starting configurati
   mustContain(browse, [
     'marketplaceStartingPrice(vendor)',
     "vendor.categoryId === 'venues' ? 'Starting estimate' : 'Event estimate'",
-    'No available venue configuration fits this category budget.',
+    'No available venue configuration matches the current event requirements.',
   ], 'venue-aware marketplace filtering and presentation')
   mustContain(details, [
     'categoryBudgetOverage',
@@ -530,30 +531,34 @@ test('category budget edits, locks, removal, replacement, and checkout validatio
     "result.message?.includes('Category allocations cannot exceed')",
   ], 'category budget and service-selection coordination')
   mustContain(browse, [
-    'isSavingCategoryBudgetRef.current',
-    'categoryBudgetMaximum >= CATEGORY_BUDGET_STEP',
-  ], 'serialized category budget slider')
+    'Within Your Category Budget',
+    'Outside Your Category Budget',
+  ], 'read-only category budget grouping')
+  assert.doesNotMatch(browse, /CategoryBudgetSlider|isSavingCategoryBudgetRef/,
+    'Step 3 must keep category budget editing in Step 2')
   mustContain(details, [
     'exceedsAvailableCategoryBudget',
     'Over Available Category Budget',
   ], 'service budget guard')
 })
 
-test('budget allocation cards keep controls inside selected, expanded categories', () => {
+test('budget allocation cards move selected controls into the shared budget overlay', () => {
   const budgetScreen = read('src/screens/05-BudgetAllocation.tsx')
 
   mustContain(budgetScreen, [
     'const [expandedCategories, setExpandedCategories]',
     'const handleCategoryPress',
     'handleAllocationChange(categoryKey, startingAmount)',
-    'setExpandedCategories((current) => new Set(current).add(categoryKey))',
-    'if (next.has(categoryKey)) next.delete(categoryKey)',
-    'selected && expanded ? (',
+    'setIsCategoryBudgetOverlayOpen(true)',
+    'const selectedCategories = selectableCategoryOptions.filter(',
+    'Set Budget for Selected Categories',
+    'isCategoryBudgetOverlayOpen ? (',
     'REMOVE CATEGORY',
     'lockedCategories.has(categoryKey)',
     'reserveCoordinatorAllocation',
+    'coordinatorRequired',
     'Allocated category budgets are above the event budget.',
-  ], 'expandable budget allocation UI')
+  ], 'selected-category budget overlay UI')
 })
 
 test('budget inputs have a contained focus treatment and live available amount', () => {
@@ -564,7 +569,8 @@ test('budget inputs have a contained focus treatment and live available amount',
     "width: '100%'",
     'minWidth: 0',
     'borderWidth: 2',
-    'budgetInputCardFocused: { borderColor: palette.primaryContainer }',
+    'isBudgetInputFocused && styles.totalBudgetInputShellFocused',
+    'totalBudgetInputShellFocused: {',
     'flexShrink: 1',
     'outlineWidth: 0',
     'amountInputShellFocused: { borderWidth: 2, borderColor: palette.primaryContainer }',
@@ -596,7 +602,7 @@ test('Step 1 coordinator preference replaces the redundant coordinator choice sc
   assert.doesNotMatch(app, /coordinatorChoice/, 'the retired coordinator choice route must not be reachable')
   mustContain(creation, [
     'WOULD YOU LIKE AN EVENT COORDINATOR?',
-    'typeof wantsCoordinator === \'boolean\'',
+    "if (typeof wantsCoordinator !== 'boolean')",
     'Include Event Coordinator in your budget and browse coordinators when you are ready.',
   ], 'required Step 1 coordinator preference')
   mustContain(planning, [
@@ -630,6 +636,10 @@ test('planning categories, progression, and budget re-entry share one allocation
   const app = read('src/App.tsx')
   const browse = read('src/screens/06-CategoryBrowse.tsx')
   const categories = read('src/lib/planning-categories.ts')
+  const addCategoryFlow = app.slice(
+    app.indexOf('onAddCategory={async (category) => {'),
+    app.indexOf('onRemoveCategory={async (category) => {')
+  )
 
   mustContain(categories, [
     'PLANNING_CATEGORY_PRIORITY',
@@ -644,13 +654,46 @@ test('planning categories, progression, and budget re-entry share one allocation
     'unallocatedPlanBudget',
     'unallocatedCategoryCount={unallocatedPlanningCategoryCount}',
     "openPlanningHub(undefined, nextPlanningCategory ?? categoryNameToId(nextSelection.category))",
+    'onRemoveCategory={async (category) => {',
+    '.then(setCatalogServices)',
+    "setToastMessage('Remove the selected service before removing this category.')",
+    'allocations: nextAllocations',
   ], 'allocation-driven planning flow')
   mustContain(browse, [
-    'You still have unallocated budget',
-    '+ Add More Category',
-    'All of your budget is currently allocated',
+    'brandTitle',
+    'SERVICE CATEGORY',
+    'Choose a Category',
+    'categorySelectionOptions',
+    'categorySelectionDivider',
+    'categorySelectionSectionHeader',
+    'categorySelectionOptionCompleted',
+    'activeSelectedCategoryIds.has(categoryId as CatalogCategoryId)',
+    "action: 'add' | 'remove'",
+    'onRemoveCategory',
+    "void updateCategoryPlan(category, isInPlan ? 'remove' : 'add')",
+    "{isInPlan ? 'REMOVE' : 'ADD'}",
+    'optimisticCategoryMembership',
+    'categoryDisplayOrder',
+    'movingCategoryId',
+    'categoryTransferDirectionsRef',
+    'categoryCardAnimationTokensRef',
+    'getCategoryCardTranslation',
+    'startCategoryCardAnimation',
+    'handleCategoryCardLayout',
+    'translation.setValue(previousY - nextY)',
+    'const initialOffset = sourceY - destinationY',
+    'order.filter((id) => id !== categoryId), categoryId',
+    'duration: 560',
+    'removeClippedSubviews={false}',
+    "action === 'add' && Math.abs(initialOffset) < 1 ? 18 : initialOffset",
+    'categorySelectionOptionGroupMoving',
+    'zIndex: 30',
     'Allocated categories complete',
-  ], 'planning budget guidance')
+  ], 'Step 3 category selection and planning guidance')
+  assert.doesNotMatch(browse, /You still have unallocated budget|\+ Add More Category|All of your budget is currently allocated/,
+    'Step 3 must use the shared category selector instead of the old unallocated-budget section')
+  assert.doesNotMatch(addCategoryFlow, /setSelectedCategory|loadClientCatalogServices/,
+    'Adding a category must not implicitly select it or refresh the marketplace catalog')
 })
 
 test('service changes use the in-app comparison confirmation before preserving the existing save flow', () => {
@@ -683,7 +726,7 @@ test('standalone service changes keep budget edits provisional until the replace
   mustContain(browse, [
     ') : isChangingService ? (',
     'CHANGE SERVICE',
-    '!isChangingService && hasSetBudget',
+    'const hasCategoryRecommendationBudget = !isExploreMode && !isChangingService && !replacementContext',
     '!isChangingService',
     'vendor.budgetRecommendation',
   ], 'standalone service-change browse UI')
@@ -813,7 +856,7 @@ test('V9 Phase 5 category tags count eligible services and mark active selection
     'ref={categoryTagScrollerRef}',
     'onLayout={(event) => categoryTagOffsetsRef.current.set(option.id, event.nativeEvent.layout.x)}',
     'scrollCategoryTagToStart(option.id)',
-    'categories.map((option)',
+    'categorySelectionOptions.map(({ category, isInPlan, section }, index)',
     'exploreCategories.map((option)',
     'name="check"',
     'eligible services.',
@@ -870,7 +913,7 @@ test('V10 Phase 3 keeps Explore outside the event-planning navigator', () => {
   ], 'read-only service details outside an event')
 })
 
-test('V10 Phase 5 uses explicit wizard controls and live local budget feedback', () => {
+test('V10 Phase 5 uses explicit wizard controls and separates services by category budget fit', () => {
   const app = read('src/App.tsx')
   const header = read('src/components/PlanningScreenHeader.tsx')
   const browse = read('src/screens/06-CategoryBrowse.tsx')
@@ -886,14 +929,16 @@ test('V10 Phase 5 uses explicit wizard controls and live local budget feedback',
     'nextPressLockedRef',
   ], 'explicit header navigation controls')
   mustContain(browse, [
-    'const CategoryBudgetSlider = React.memo',
-    'Keep drag feedback local to the control.',
-    'setDraftBudget(normalized)',
-    'onPanResponderMove',
-    'void commitCategoryBudgetRef.current(amount)',
-    'await saveCategoryBudget(amount)',
-    'CATEGORY_BUDGET_STEP = 500',
-  ], 'live, deferred category budget slider')
+    "id: 'within-budget'",
+    "label: 'Within Your Category Budget'",
+    'horizontal: true',
+    "id: 'outside-budget'",
+    "label: 'Outside Your Category Budget'",
+    'vendor.budgetRecommendation?.isWithinBudget',
+    '<ServiceSectionList horizontal={section.horizontal}>',
+  ], 'budget-fit service presentation')
+  assert.doesNotMatch(browse, /CategoryBudgetSlider|onPanResponderMove/,
+    'Step 3 must not expose category budget adjustment controls')
 })
 
 test('V10 Phase 4 guest-count rules remain intact through the V15 catering selection entry point', () => {
@@ -1333,7 +1378,7 @@ test('Phase 2 saves church wedding preference without creating a church booking 
     "eventType === 'wedding'",
     'IS THIS A CHURCH WEDDING?',
     'Yes — Church Wedding',
-    'No — Non-Church / Outdoor Wedding',
+    'No - Non-Church / Outdoor Wedding',
     'isChurchWedding,',
   ], 'church wedding creation UI')
   mustContain(planning, [
@@ -1879,8 +1924,8 @@ test('optional zero budgets and explainable DSS marketplace signals stay connect
     'const BUDGET_ALLOCATION_STEP = 500',
     'dragStartPositionRef.current + gestureState.dx',
     'onPanResponderTerminationRequest: () => false',
-    '<Text style={styles.optionalBudgetAmount}>₱0</Text>',
-    'ENTER BUDGET',
+    '<Text style={styles.fieldLabel}>SET YOUR EVENT BUDGET</Text>',
+    '<Text style={styles.optionalLabel}>OPTIONAL</Text>',
   ], 'optional zero-budget UI')
   mustContain(catalog, [
     "supabase.rpc('list_public_service_decision_signals')",
@@ -1893,10 +1938,9 @@ test('optional zero budgets and explainable DSS marketplace signals stay connect
     'RECOMMENDED FOR YOU',
     'MOST BOOKED',
     'const [selectedFilters, setSelectedFilters]',
-    'const CATEGORY_BUDGET_STEP = 500',
-    'budgetDragStartRef.current + gestureState.dx',
-    'onPanResponderTerminationRequest: () => false',
-    'void commitCategoryBudgetRef.current(draftCategoryBudgetRef.current)',
+    "id: 'within-budget'",
+    "id: 'outside-budget'",
+    '<ServiceSectionList horizontal={section.horizontal}>',
   ], 'client DSS controls and badges')
 })
 
@@ -2831,7 +2875,8 @@ test('V14 Phase 1 asks for coordinator planning before conditionally asking abou
     'if (!nextPreference) {',
     'setIsChurchWedding(undefined)',
     "const shouldAskChurchQuestion = eventType === 'wedding' && wantsCoordinator === true",
-    "(!shouldAskChurchQuestion || typeof isChurchWedding === 'boolean')",
+    "if (typeof wantsCoordinator !== 'boolean')",
+    "if (shouldAskChurchQuestion && typeof isChurchWedding !== 'boolean')",
     'onPress={() => handleCoordinatorPreferenceChange(option.value)}',
     '{shouldAskChurchQuestion ? (',
   ], 'V14 coordinator-first event creation')

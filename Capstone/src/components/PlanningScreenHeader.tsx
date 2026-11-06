@@ -118,7 +118,11 @@ export const PlanningScreenHeader: React.FC<PlanningScreenHeaderProps> = ({
 
       {showProgress ? (
         <View style={[styles.progressWrapper, isWide && styles.progressWrapperWide]}>
-          <PlanningStepIndicator currentStep={currentStep} label={label} />
+          <PlanningStepIndicator
+            currentStep={currentStep}
+            label={label}
+            onNextStepPress={canGoForward ? handleNext : undefined}
+          />
         </View>
       ) : null}
     </>

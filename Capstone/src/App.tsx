@@ -4076,12 +4076,14 @@ export const App: React.FC<AppProps> = ({
         setMaxPlanningStep((current) => Math.min(4, Math.max(current, 2)))
         budgetAllocationEntrance.setValue(width)
         setScreen(nextScreen)
-        Animated.timing(budgetAllocationEntrance, {
-          toValue: 0,
-          duration: 360,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }).start()
+        requestAnimationFrame(() => {
+          Animated.timing(budgetAllocationEntrance, {
+            toValue: 0,
+            duration: 540,
+            easing: Easing.inOut(Easing.cubic),
+            useNativeDriver: true,
+          }).start()
+        })
         setIsBudgetMarketplacePricingLoading(true)
         void loadClientCatalogServices()
           .then(setCatalogServices)
@@ -7502,8 +7504,57 @@ export const App: React.FC<AppProps> = ({
                   { amount: 0, categoryKey: planningCategory.categoryKey, label: category.name },
                 ]
               })
-              setSelectedCategory(categoryId)
-              setCatalogServices(await loadClientCatalogServices())
+              // Adding a category changes plan membership only. Browsing that
+              // category remains an explicit action so the popup can finish
+              // its transfer animation without also refreshing this screen.
+              return true
+            }}
+            onRemoveCategory={async (category) => {
+              const categoryId = categoryNameToId(category.name)
+              const planningCategory = PLANNING_CATEGORY_PRIORITY.find(
+                (item) => item.categoryId === categoryId
+              )
+              if (!planningCategory || planningCategory.categoryId === 'eventOrganizers') {
+                setToastMessage('This category cannot be removed from the service marketplace.')
+                return false
+              }
+              if (selectedPlanningCategoryIds.has(categoryId)) {
+                setToastMessage('Remove the selected service before removing this category.')
+                return false
+              }
+
+              const nextAllocations = budgetAllocations.filter(
+                (allocation) => allocation.categoryKey !== planningCategory.categoryKey
+              )
+              const nextAllocationKeys = new Set(nextAllocations.map((allocation) => allocation.categoryKey))
+              const nextPriorities = [
+                ...budgetPriorities.filter((priority) => nextAllocationKeys.has(priority)),
+                ...nextAllocations
+                  .map((allocation) => allocation.categoryKey)
+                  .filter((priority) => !budgetPriorities.includes(priority)),
+              ]
+              const result = await saveBudgetPlan({
+                allocations: nextAllocations,
+                budget: totalBudget,
+                priorities: nextPriorities,
+              })
+              if (!result.ok) {
+                await refreshLiveData()
+                setToastMessage(result.message ?? 'Unable to remove this service category.')
+                return false
+              }
+
+              setBudgetAllocations(nextAllocations)
+              setBudgetPriorities(nextPriorities)
+              const fallbackCategory = selectedCategory === categoryId
+                ? getFirstServicePlanningCategory(nextAllocations)
+                : undefined
+              setTimeout(() => {
+                if (fallbackCategory) setSelectedCategory(fallbackCategory)
+                void loadClientCatalogServices()
+                  .then(setCatalogServices)
+                  .catch(() => undefined)
+              }, 620)
               return true
             }}
             onAddService={() => {

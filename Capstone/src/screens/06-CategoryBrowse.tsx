@@ -2,19 +2,19 @@ import { Text } from '../components/AppText'
 import React from 'react'
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
-import { BlurView } from 'expo-blur'
+import { BlurTargetView, BlurView } from 'expo-blur'
 import {
   Animated,
   Easing,
   Image,
   Modal,
-  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
   TextInput,
   useWindowDimensions,
   View,
+  type LayoutChangeEvent,
 } from 'react-native'
 import { PlanningScreenHeader } from '../components/PlanningScreenHeader'
 import { ReviewedServicesTab } from '../components/ReviewedServicesTab'
@@ -93,7 +93,12 @@ interface CategoryBrowseScreenProps {
   onCategoryBudgetChange?: (amount: number) => Promise<boolean> | boolean
   onChangeService?: (service: SelectedSummaryService) => void
   onContinueSelectedServices?: () => void
-  onAddCategory?: (category: ServiceCategoryOption) => Promise<boolean> | boolean
+  onAddCategory?: (
+    category: ServiceCategoryOption
+  ) => Promise<boolean> | boolean
+  onRemoveCategory?: (
+    category: ServiceCategoryOption
+  ) => Promise<boolean> | boolean
   onAddService?: () => void
   onRemoveCoordinator?: () => void
   onRemoveService?: (service: SelectedSummaryService) => void
@@ -129,7 +134,6 @@ const sortOptions: ReadonlyArray<{ id: CategoryBrowseSort; label: string }> = [
 ]
 
 const HIGH_RATING_THRESHOLD = 4
-const CATEGORY_BUDGET_STEP = 500
 const completionConfettiPieces = [
   { color: '#6B1E2E', drift: -54, left: 8, rotate: -110 },
   { color: '#D99A44', drift: 42, left: 18, rotate: 96 },
@@ -151,288 +155,11 @@ export const categoryBrowseNavigationTabs = [
 
 const formatCurrency = formatPeso
 
-const formatBudgetInput = (value: number) =>
-  Math.max(0, Math.round(value * 100) / 100).toLocaleString('en-PH', {
-    maximumFractionDigits: 2,
-    minimumFractionDigits: 0,
-  })
-
-const normalizeBudgetInput = (value: string) => {
-  const filtered = value.replace(/[^\d.]/g, '')
-  const [whole = '', ...decimals] = filtered.split('.')
-  if (decimals.length === 0) return whole
-
-  return `${whole}.${decimals.join('').slice(0, 2)}`
-}
-
-const parseBudgetInput = (value: string): number | undefined => {
-  const normalized = value.replace(/[₱,\s]/g, '')
-  if (!normalized || !/^\d+(?:\.\d{1,2})?$/.test(normalized)) return undefined
-
-  const parsed = Number(normalized)
-  return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed * 100) / 100) : undefined
-}
-
 // Database category options retain their UUID for provider-management work,
 // while marketplace services use the canonical client category IDs. Always
 // derive the latter from the option name when comparing tags to services.
 const marketplaceCategoryId = (option: ServiceCategoryOption) =>
   option.id === 'all' ? 'all' : categoryNameToId(option.name)
-
-interface CategoryBudgetSliderProps {
-  categoryBudget: number
-  categoryBudgetLocked: boolean
-  categoryBudgetMaximum: number
-  categoryName: string
-  onCommit?: (amount: number) => Promise<boolean> | boolean
-  remainingBudget: number
-}
-
-// Keep drag feedback local to the control. This lets the amount, thumb, and
-// accessibility value repaint as the client moves the slider without making
-// the marketplace list, filters, or service cards rerender for every pixel.
-const CategoryBudgetSlider = React.memo<CategoryBudgetSliderProps>(({
-  categoryBudget,
-  categoryBudgetLocked,
-  categoryBudgetMaximum,
-  categoryName,
-  onCommit,
-  remainingBudget,
-}) => {
-  const [budgetTrackWidth, setBudgetTrackWidth] = React.useState(1)
-  const [draftCategoryBudget, setDraftCategoryBudget] = React.useState(categoryBudget)
-  const [categoryBudgetText, setCategoryBudgetText] = React.useState(() => formatBudgetInput(categoryBudget))
-  const [isCategoryBudgetInputFocused, setIsCategoryBudgetInputFocused] = React.useState(false)
-  const [categoryBudgetInputMessage, setCategoryBudgetInputMessage] = React.useState('')
-  const [isSavingCategoryBudget, setIsSavingCategoryBudget] = React.useState(false)
-  const isSavingCategoryBudgetRef = React.useRef(false)
-  const isBudgetDraggingRef = React.useRef(false)
-  const previousCategoryBudgetRef = React.useRef(categoryBudget)
-  const draftCategoryBudgetRef = React.useRef(draftCategoryBudget)
-  const canAdjustBudgetRef = React.useRef(false)
-  const budgetDragStartRef = React.useRef(0)
-
-  React.useEffect(() => {
-    if (
-      !isBudgetDraggingRef.current
-      && !isCategoryBudgetInputFocused
-      && previousCategoryBudgetRef.current !== categoryBudget
-    ) {
-      draftCategoryBudgetRef.current = categoryBudget
-      setDraftCategoryBudget(categoryBudget)
-      setCategoryBudgetText(formatBudgetInput(categoryBudget))
-    }
-    previousCategoryBudgetRef.current = categoryBudget
-  }, [categoryBudget, isCategoryBudgetInputFocused])
-
-  const normalizeCategoryBudget = React.useCallback((amount: number) => {
-    const maximum = Math.max(0, categoryBudgetMaximum)
-    const steppedMaximum = Math.floor(maximum / CATEGORY_BUDGET_STEP) * CATEGORY_BUDGET_STEP
-    return Math.max(
-      0,
-      Math.min(
-        Math.round(Math.max(0, amount) / CATEGORY_BUDGET_STEP) * CATEGORY_BUDGET_STEP,
-        steppedMaximum
-      )
-    )
-  }, [categoryBudgetMaximum])
-
-  const setDraftBudget = React.useCallback((amount: number) => {
-    if (draftCategoryBudgetRef.current === amount) return
-    draftCategoryBudgetRef.current = amount
-    setDraftCategoryBudget(amount)
-  }, [])
-
-  const saveCategoryBudget = React.useCallback(async (amount: number) => {
-    if (categoryBudgetLocked || isSavingCategoryBudgetRef.current) return
-
-    setDraftBudget(amount)
-    isSavingCategoryBudgetRef.current = true
-    setIsSavingCategoryBudget(true)
-    try {
-      const saved = await onCommit?.(amount)
-      if (saved === false) {
-        draftCategoryBudgetRef.current = categoryBudget
-        setDraftCategoryBudget(categoryBudget)
-        setCategoryBudgetText(formatBudgetInput(categoryBudget))
-      }
-    } finally {
-      isSavingCategoryBudgetRef.current = false
-      setIsSavingCategoryBudget(false)
-    }
-  }, [categoryBudget, categoryBudgetLocked, onCommit, setDraftBudget])
-
-  const commitCategoryBudget = React.useCallback(async (amount: number) => {
-    await saveCategoryBudget(normalizeCategoryBudget(amount))
-  }, [normalizeCategoryBudget, saveCategoryBudget])
-
-  const commitExactCategoryBudget = async () => {
-    const amount = parseBudgetInput(categoryBudgetText)
-    const maximum = Math.max(0, categoryBudgetMaximum)
-
-    if (amount === undefined) {
-      setCategoryBudgetInputMessage('Enter a valid budget amount.')
-      return false
-    }
-    if (amount > maximum) {
-      setCategoryBudgetInputMessage(`Only ${formatCurrency(maximum)} is available for this category.`)
-      return false
-    }
-
-    setCategoryBudgetInputMessage('')
-    setCategoryBudgetText(formatBudgetInput(amount))
-    await saveCategoryBudget(amount)
-    return true
-  }
-
-  const updateDraftBudgetFromPosition = React.useCallback((position: number) => {
-    if (categoryBudgetLocked || budgetTrackWidth <= 1 || categoryBudgetMaximum < CATEGORY_BUDGET_STEP) {
-      return draftCategoryBudgetRef.current
-    }
-    const ratio = Math.max(0, Math.min(position / budgetTrackWidth, 1))
-    const normalized = normalizeCategoryBudget(ratio * categoryBudgetMaximum)
-    setDraftBudget(normalized)
-    return normalized
-  }, [budgetTrackWidth, categoryBudgetLocked, categoryBudgetMaximum, normalizeCategoryBudget, setDraftBudget])
-
-  const updateDraftBudgetFromPositionRef = React.useRef(updateDraftBudgetFromPosition)
-  const commitCategoryBudgetRef = React.useRef(commitCategoryBudget)
-  canAdjustBudgetRef.current = !categoryBudgetLocked
-    && !isSavingCategoryBudget
-    && categoryBudgetMaximum >= CATEGORY_BUDGET_STEP
-  updateDraftBudgetFromPositionRef.current = updateDraftBudgetFromPosition
-  commitCategoryBudgetRef.current = commitCategoryBudget
-
-  const categoryBudgetPanResponder = React.useMemo(
-    () => PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gestureState) =>
-        canAdjustBudgetRef.current
-        && Math.abs(gestureState.dx) >= 2
-        && Math.abs(gestureState.dx) >= Math.abs(gestureState.dy),
-      onPanResponderGrant: (event) => {
-        isBudgetDraggingRef.current = true
-        budgetDragStartRef.current = event.nativeEvent.locationX
-        updateDraftBudgetFromPositionRef.current(budgetDragStartRef.current)
-      },
-      onPanResponderMove: (_, gestureState) => {
-        updateDraftBudgetFromPositionRef.current(budgetDragStartRef.current + gestureState.dx)
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        const amount = updateDraftBudgetFromPositionRef.current(
-          budgetDragStartRef.current + gestureState.dx
-        )
-        isBudgetDraggingRef.current = false
-        void commitCategoryBudgetRef.current(amount)
-      },
-      onPanResponderTerminate: () => {
-        isBudgetDraggingRef.current = false
-        void commitCategoryBudgetRef.current(draftCategoryBudgetRef.current)
-      },
-      onPanResponderTerminationRequest: () => false,
-      onShouldBlockNativeResponder: () => true,
-      onStartShouldSetPanResponder: () => canAdjustBudgetRef.current,
-    }),
-    []
-  )
-
-  const budgetPercent = categoryBudgetMaximum > 0
-    ? Math.min(draftCategoryBudget / categoryBudgetMaximum, 1) * 100
-    : 0
-
-  return (
-    <View style={styles.categoryBudgetCard}>
-      <View style={styles.categoryBudgetHeading}>
-        <View>
-          <Text style={styles.categoryBudgetEyebrow}>{categoryName.toUpperCase()} BUDGET</Text>
-          {categoryBudgetLocked ? (
-            <Text style={styles.categoryBudgetAmount}>{formatCurrency(draftCategoryBudget)}</Text>
-          ) : (
-            <>
-              <View
-                style={[
-                  styles.categoryBudgetInputShell,
-                  isCategoryBudgetInputFocused && styles.categoryBudgetInputShellFocused,
-                  categoryBudgetInputMessage && styles.categoryBudgetInputShellError,
-                ]}
-              >
-                <Text style={styles.categoryBudgetInputCurrency}>₱</Text>
-                <TextInput
-                  accessibilityLabel={`${categoryName} budget amount`}
-                  accessibilityHint="Enter an exact peso amount, or use the slider and 500-peso controls."
-                  editable={!isSavingCategoryBudget}
-                  inputMode="decimal"
-                  keyboardType="decimal-pad"
-                  onBlur={() => {
-                    setIsCategoryBudgetInputFocused(false)
-                    void commitExactCategoryBudget()
-                  }}
-                  onChangeText={(value) => {
-                    setCategoryBudgetText(normalizeBudgetInput(value))
-                    if (categoryBudgetInputMessage) setCategoryBudgetInputMessage('')
-                  }}
-                  onFocus={() => {
-                    setIsCategoryBudgetInputFocused(true)
-                    setCategoryBudgetText(String(Math.max(0, draftCategoryBudget)))
-                  }}
-                  onSubmitEditing={() => void commitExactCategoryBudget()}
-                  selectTextOnFocus
-                  style={styles.categoryBudgetInput}
-                  value={categoryBudgetText}
-                />
-              </View>
-              {categoryBudgetInputMessage ? (
-                <Text style={styles.categoryBudgetInputError}>{categoryBudgetInputMessage}</Text>
-              ) : null}
-            </>
-          )}
-        </View>
-        <Text style={categoryBudgetLocked ? styles.categoryBudgetLocked : styles.categoryBudgetEditable}>
-          {categoryBudgetLocked ? 'Locked to selection' : isSavingCategoryBudget ? 'Saving...' : 'Adjustable'}
-        </Text>
-      </View>
-      <View
-        accessible
-        accessibilityActions={[
-          { name: 'increment', label: `Increase ${categoryName} budget` },
-          { name: 'decrement', label: `Decrease ${categoryName} budget` },
-        ]}
-        accessibilityLabel={`${categoryName} budget ${formatCurrency(draftCategoryBudget)} pesos`}
-        accessibilityRole="adjustable"
-        accessibilityState={{ disabled: categoryBudgetLocked || isSavingCategoryBudget }}
-        accessibilityValue={{
-          max: Math.max(0, categoryBudgetMaximum),
-          min: 0,
-          now: draftCategoryBudget,
-        }}
-        onAccessibilityAction={(event) => {
-          if (event.nativeEvent.actionName === 'increment') {
-            void commitCategoryBudget(draftCategoryBudget + CATEGORY_BUDGET_STEP)
-          }
-          if (event.nativeEvent.actionName === 'decrement') {
-            void commitCategoryBudget(draftCategoryBudget - CATEGORY_BUDGET_STEP)
-          }
-        }}
-        onLayout={(event) => setBudgetTrackWidth(Math.max(event.nativeEvent.layout.width, 1))}
-        style={styles.categoryBudgetTrackTouch}
-        {...categoryBudgetPanResponder.panHandlers}
-      >
-        <View style={styles.categoryBudgetTrack}>
-          <View style={[styles.categoryBudgetFill, { width: `${budgetPercent}%` }]} />
-          <View style={[styles.categoryBudgetThumb, { left: `${budgetPercent}%` }]} />
-        </View>
-      </View>
-      <View style={styles.categoryBudgetFooter}>
-        <Text style={styles.categoryBudgetHint}>Unallocated budget: {formatCurrency(remainingBudget)}</Text>
-        {!categoryBudgetLocked ? (
-          <View style={styles.categoryBudgetButtons}>
-            <Pressable disabled={isSavingCategoryBudget} onPress={() => void commitCategoryBudget(draftCategoryBudget - CATEGORY_BUDGET_STEP)} style={styles.categoryBudgetStep}><Text style={styles.categoryBudgetStepText}>-500</Text></Pressable>
-            <Pressable disabled={isSavingCategoryBudget} onPress={() => void commitCategoryBudget(draftCategoryBudget + CATEGORY_BUDGET_STEP)} style={styles.categoryBudgetStep}><Text style={styles.categoryBudgetStepText}>+500</Text></Pressable>
-          </View>
-        ) : null}
-      </View>
-    </View>
-  )
-})
 
 const SelectionCompletionConfetti: React.FC<{ visible: boolean }> = ({ visible }) => {
   const progress = React.useRef(new Animated.Value(0)).current
@@ -497,6 +224,23 @@ const SelectionCompletionConfetti: React.FC<{ visible: boolean }> = ({ visible }
   )
 }
 
+const ServiceSectionList: React.FC<React.PropsWithChildren<{ horizontal: boolean }>> = ({
+  children,
+  horizontal,
+}) => horizontal ? (
+  <ScrollView
+    contentContainerStyle={styles.horizontalServiceContent}
+    horizontal
+    nestedScrollEnabled
+    showsHorizontalScrollIndicator={false}
+    style={styles.horizontalServiceScroller}
+  >
+    {children}
+  </ScrollView>
+) : (
+  <View style={styles.verticalServiceList}>{children}</View>
+)
+
 export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   categoryCountServices,
   categoryBudgets = {},
@@ -507,7 +251,6 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   showFavoritesOnly = false,
   addableCategories = [],
   eventGuestCount = 0,
-  hasBudget,
   mode = 'planning',
   services = [],
   selectedServiceCount = 0,
@@ -517,14 +260,11 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   coordinatorPackage,
   budget = 0,
   categoryBudget = 0,
-  categoryBudgetLocked = false,
-  categoryBudgetMaximum = budget,
   cateringIncludedInVenuePackage = false,
   venueCateringPackage,
   totalEstimatedCost = 0,
   removingServiceId = '',
   remainingBudget = 45000,
-  unallocatedCategoryCount = 0,
   planningSelectionsComplete = false,
   showSelectionCompletionModal = false,
   changeServiceContext,
@@ -536,10 +276,10 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   sortLabel = 'Recommended',
   onBack,
   onChangeSearch,
-  onCategoryBudgetChange,
   onChangeService,
   onContinueSelectedServices,
   onAddCategory,
+  onRemoveCategory,
   onAddService,
   onRemoveCoordinator,
   onRemoveService,
@@ -564,7 +304,6 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   const isChangingService = Boolean(changeServiceContext)
   // Provider replacements compare against the current booking, not the old
   // planning allocation. Keep the normal allocation behavior everywhere else.
-  const hasSetBudget = replacementContext ? false : hasBudget ?? remainingBudget > 0
   const hasPlanSelections = selectedServiceCount > 0
     || Boolean(assignedCoordinator)
     || coordinatorAssignmentStatus === 'awaiting_assignment'
@@ -585,8 +324,19 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   const categoryTagScrollerRef = React.useRef<React.ComponentRef<typeof ScrollView>>(null)
   const categoryTagOffsetsRef = React.useRef(new Map<string, number>())
   const [isSelectedServicesOpen, setIsSelectedServicesOpen] = React.useState(false)
-  const [isAddCategoryOpen, setIsAddCategoryOpen] = React.useState(false)
-  const [isAddingCategory, setIsAddingCategory] = React.useState(false)
+  const [isCategorySelectionOpen, setIsCategorySelectionOpen] = React.useState(false)
+  const [isCategorySelectionClosing, setIsCategorySelectionClosing] = React.useState(false)
+  const [isUpdatingCategory, setIsUpdatingCategory] = React.useState(false)
+  const [optimisticCategoryMembership, setOptimisticCategoryMembership] = React.useState<Record<string, boolean>>({})
+  const [categoryDisplayOrder, setCategoryDisplayOrder] = React.useState<string[]>([])
+  const [movingCategoryId, setMovingCategoryId] = React.useState('')
+  const categorySelectionScale = React.useRef(new Animated.Value(0.82)).current
+  const categorySelectionBlurTargetRef = React.useRef<React.ComponentRef<typeof BlurTargetView>>(null)
+  const categoryCardPositionsRef = React.useRef(new Map<string, number>())
+  const categoryCardTranslationsRef = React.useRef(new Map<string, Animated.Value>())
+  const categoryTransferDirectionsRef = React.useRef(new Map<string, 'add' | 'remove'>())
+  const categoryCardAnimationTokensRef = React.useRef(new Map<string, number>())
+  const categoryCardAnimationSequenceRef = React.useRef(0)
   const selectedServicesSheetOffset = React.useRef(new Animated.Value(480)).current
   const query = searchValue ?? internalSearch
   const servicesForCategoryCounts = categoryCountServices ?? services
@@ -611,6 +361,229 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     if (assignedCoordinator) categoryIds.add('eventOrganizers')
     return categoryIds
   }, [assignedCoordinator, selectedServices])
+  const categorySelectionOptions = React.useMemo(() => {
+    const plannedCategoryIds = new Set(
+      categories.map((category) => marketplaceCategoryId(category))
+    )
+    const allCategories = Array.from(new Map(
+      [...categories, ...addableCategories]
+        .filter((category) => category.id !== 'all')
+        .map((category) => [marketplaceCategoryId(category), category])
+    ).values())
+    const displayOrder = new Map(categoryDisplayOrder.map((categoryId, index) => [categoryId, index]))
+    const orderedCategories = categoryDisplayOrder.length > 0
+      ? [...allCategories].sort((left, right) => {
+        const leftOrder = displayOrder.get(marketplaceCategoryId(left)) ?? Number.MAX_SAFE_INTEGER
+        const rightOrder = displayOrder.get(marketplaceCategoryId(right)) ?? Number.MAX_SAFE_INTEGER
+        return leftOrder - rightOrder
+      })
+      : allCategories
+    const isInPlan = (category: ServiceCategoryOption) => {
+      const categoryId = marketplaceCategoryId(category)
+      return optimisticCategoryMembership[categoryId] ?? plannedCategoryIds.has(categoryId)
+    }
+    const completed = orderedCategories
+      .filter((category) => isInPlan(category) && activeSelectedCategoryIds.has(
+        marketplaceCategoryId(category) as CatalogCategoryId
+      ))
+      .map((category) => ({ category, isInPlan: true, section: 'completed' as const }))
+    const added = orderedCategories
+      .filter((category) => isInPlan(category) && !activeSelectedCategoryIds.has(
+        marketplaceCategoryId(category) as CatalogCategoryId
+      ))
+      .map((category) => ({ category, isInPlan: true, section: 'added' as const }))
+    const unadded = orderedCategories
+      .filter((category) => !isInPlan(category))
+      .map((category) => ({ category, isInPlan: false, section: 'unadded' as const }))
+
+    return [...completed, ...added, ...unadded]
+  }, [
+    activeSelectedCategoryIds,
+    addableCategories,
+    categories,
+    categoryDisplayOrder,
+    optimisticCategoryMembership,
+  ])
+  const getCategoryCardTranslation = React.useCallback((categoryId: string) => {
+    const existing = categoryCardTranslationsRef.current.get(categoryId)
+    if (existing) return existing
+
+    const value = new Animated.Value(0)
+    categoryCardTranslationsRef.current.set(categoryId, value)
+    return value
+  }, [])
+  const startCategoryCardAnimation = React.useCallback((
+    categoryId: string,
+    transferDirection?: 'add' | 'remove'
+  ) => {
+    const translation = getCategoryCardTranslation(categoryId)
+    translation.stopAnimation()
+    const animationToken = categoryCardAnimationSequenceRef.current + 1
+    categoryCardAnimationSequenceRef.current = animationToken
+    categoryCardAnimationTokensRef.current.set(categoryId, animationToken)
+
+    requestAnimationFrame(() => {
+      if (categoryCardAnimationTokensRef.current.get(categoryId) !== animationToken) return
+
+      Animated.timing(translation, {
+        duration: 560,
+        easing: Easing.out(Easing.cubic),
+        toValue: 0,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (categoryCardAnimationTokensRef.current.get(categoryId) !== animationToken) return
+
+        categoryCardAnimationTokensRef.current.delete(categoryId)
+        if (!finished || !transferDirection) return
+
+        categoryTransferDirectionsRef.current.delete(categoryId)
+        setMovingCategoryId((current) => current === categoryId ? '' : current)
+      })
+    })
+  }, [getCategoryCardTranslation])
+  const handleCategoryCardLayout = React.useCallback((
+    categoryId: string,
+    event: LayoutChangeEvent
+  ) => {
+    const nextY = event.nativeEvent.layout.y
+    const previousY = categoryCardPositionsRef.current.get(categoryId)
+    categoryCardPositionsRef.current.set(categoryId, nextY)
+    const transferDirection = categoryTransferDirectionsRef.current.get(categoryId)
+    if (previousY === undefined || Math.abs(previousY - nextY) < 1) {
+      if (transferDirection && !categoryCardAnimationTokensRef.current.has(categoryId)) {
+        startCategoryCardAnimation(categoryId, transferDirection)
+      }
+      return
+    }
+
+    const translation = getCategoryCardTranslation(categoryId)
+    translation.stopAnimation()
+    translation.setValue(previousY - nextY)
+    startCategoryCardAnimation(categoryId, transferDirection)
+  }, [getCategoryCardTranslation, startCategoryCardAnimation])
+  React.useEffect(() => () => {
+    categoryCardTranslationsRef.current.forEach((translation) => {
+      translation.stopAnimation()
+    })
+    categoryTransferDirectionsRef.current.clear()
+    categoryCardAnimationTokensRef.current.clear()
+  }, [])
+  const clearOptimisticCategoryMembership = React.useCallback((categoryId: string) => {
+    setOptimisticCategoryMembership((current) => {
+      const next = { ...current }
+      delete next[categoryId]
+      return next
+    })
+  }, [])
+  const updateCategoryPlan = React.useCallback(async (
+    category: ServiceCategoryOption,
+    action: 'add' | 'remove'
+  ) => {
+    if (isUpdatingCategory) return
+
+    const update = action === 'add' ? onAddCategory : onRemoveCategory
+    if (!update) return
+
+    const categoryId = marketplaceCategoryId(category)
+    const sourceY = categoryCardPositionsRef.current.get(categoryId)
+    const destinationAnchor = action === 'add'
+      ? categorySelectionOptions.find((option) => !option.isInPlan)
+      : undefined
+    const destinationY = destinationAnchor
+      ? categoryCardPositionsRef.current.get(marketplaceCategoryId(destinationAnchor.category))
+      : undefined
+
+    // Seed the active card at its current visual position before membership
+    // changes. Its next layout can then glide from source to destination
+    // without briefly painting at the destination first.
+    if (sourceY !== undefined && destinationY !== undefined) {
+      const translation = getCategoryCardTranslation(categoryId)
+      translation.stopAnimation()
+      const initialOffset = sourceY - destinationY
+      translation.setValue(action === 'add' && Math.abs(initialOffset) < 1 ? 18 : initialOffset)
+    }
+
+    categoryTransferDirectionsRef.current.set(categoryId, action)
+    setMovingCategoryId(categoryId)
+    setCategoryDisplayOrder((current) => {
+      const order = current.length > 0
+        ? current
+        : categorySelectionOptions.map((option) => marketplaceCategoryId(option.category))
+      return [...order.filter((id) => id !== categoryId), categoryId]
+    })
+    setOptimisticCategoryMembership((current) => ({
+      ...current,
+      [categoryId]: action === 'add',
+    }))
+    setIsUpdatingCategory(true)
+    try {
+      const updated = await update(category)
+      if (updated === false) {
+        categoryTransferDirectionsRef.current.set(categoryId, action === 'add' ? 'remove' : 'add')
+        setMovingCategoryId(categoryId)
+        clearOptimisticCategoryMembership(categoryId)
+      }
+    } catch {
+      categoryTransferDirectionsRef.current.set(categoryId, action === 'add' ? 'remove' : 'add')
+      setMovingCategoryId(categoryId)
+      clearOptimisticCategoryMembership(categoryId)
+    } finally {
+      setIsUpdatingCategory(false)
+    }
+  }, [
+    categorySelectionOptions,
+    clearOptimisticCategoryMembership,
+    getCategoryCardTranslation,
+    isUpdatingCategory,
+    onAddCategory,
+    onRemoveCategory,
+  ])
+  React.useEffect(() => {
+    if (!isCategorySelectionOpen) return undefined
+
+    setIsCategorySelectionClosing(false)
+    categorySelectionScale.setValue(0.82)
+    const animation = Animated.sequence([
+      Animated.timing(categorySelectionScale, {
+        toValue: 1.045,
+        duration: 180,
+        useNativeDriver: true,
+      }),
+      Animated.spring(categorySelectionScale, {
+        toValue: 1,
+        friction: 5,
+        tension: 140,
+        useNativeDriver: true,
+      }),
+    ])
+
+    animation.start()
+    return () => animation.stop()
+  }, [categorySelectionScale, isCategorySelectionOpen])
+  const dismissCategorySelection = React.useCallback((afterClose?: () => void) => {
+    if (isCategorySelectionClosing || isUpdatingCategory) return
+
+    setIsCategorySelectionClosing(true)
+    categorySelectionScale.stopAnimation()
+    Animated.sequence([
+      Animated.timing(categorySelectionScale, {
+        toValue: 1.035,
+        duration: 80,
+        useNativeDriver: true,
+      }),
+      Animated.timing(categorySelectionScale, {
+        toValue: 0.82,
+        duration: 160,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start(({ finished }) => {
+      if (!finished) return
+      setIsCategorySelectionOpen(false)
+      setIsCategorySelectionClosing(false)
+      afterClose?.()
+    })
+  }, [categorySelectionScale, isCategorySelectionClosing, isUpdatingCategory])
   const requestCateringBrowse = React.useCallback((isCatering: boolean, action: () => void) => {
     if (!isCatering || !cateringIncludedInVenuePackage) {
       action()
@@ -746,25 +719,6 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
       return false
     }
 
-    // Recommendations price catering with the lowest option that supports the
-    // event guest count. Keep a provider in the selection list whenever one
-    // of its options fits the allocated category budget, but do not offer a
-    // provider when none of its options can fit it.
-    //
-    // Availability is intentionally not part of this filter: a service that
-    // fits the budget but conflicts with the event schedule remains searchable
-    // below as a disabled, clearly labelled result.
-    if (
-      !isExploreMode
-      && !isChangingService
-      && !replacementContext
-      && vendor.budgetRecommendation
-      && vendor.budgetRecommendation.categoryBudget > 0
-      && !vendor.budgetRecommendation.isWithinBudget
-    ) {
-      return false
-    }
-
     if (!isExploreMode && selectedFilters.size > 0) {
       const details: Record<string, unknown> = vendor.categoryDetails ?? {}
       const recommendation = vendor.budgetRecommendation
@@ -881,33 +835,19 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   const vendorSections = hasCategoryRecommendationBudget
     ? [
         {
-          id: 'recommended',
-          label: 'Recommended for You',
-          vendors: visibleVendors.filter(isPersonalizedRecommendation),
+          horizontal: true,
+          id: 'within-budget',
+          label: 'Within Your Category Budget',
+          vendors: visibleVendors.filter((vendor) => vendor.budgetRecommendation?.isWithinBudget),
         },
         {
-          id: 'budget-fits',
-          label: 'Other Budget Fits',
-          vendors: visibleVendors.filter((vendor) =>
-            vendor.budgetRecommendation?.isRecommended
-            && !isPersonalizedRecommendation(vendor)
-          ),
-        },
-        {
-          id: 'schedule-unavailable',
-          label: 'Not Available on Your Schedule',
-          vendors: visibleVendors.filter(isScheduleUnavailable),
-        },
-        {
-          id: 'review',
-          label: 'Needs Price Review',
-          vendors: visibleVendors.filter((vendor) => (
-            !vendor.budgetRecommendation?.isRecommended
-            && !isScheduleUnavailable(vendor)
-          )),
+          horizontal: false,
+          id: 'outside-budget',
+          label: 'Outside Your Category Budget',
+          vendors: visibleVendors.filter((vendor) => !vendor.budgetRecommendation?.isWithinBudget),
         },
       ].filter((section) => section.vendors.length > 0)
-    : [{ id: 'all', label: '', vendors: visibleVendors }]
+    : [{ horizontal: false, id: 'all', label: '', vendors: visibleVendors }]
 
   const handleSearchChange = (value: string) => {
     setInternalSearch(value)
@@ -982,7 +922,10 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     && showSelectionCompletionModal
 
   return (
-    <View style={styles.screen}>
+    <BlurTargetView
+      ref={categorySelectionBlurTargetRef}
+      style={[styles.screen, !isExploreMode && styles.planningScreen]}
+    >
       {isExploreMode ? (
         <View style={styles.topAppBar}>
           <View style={[styles.topAppBarContent, isWide && styles.horizontalPaddingWide]}>
@@ -1033,6 +976,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
         </View>
       ) : (
         <PlanningScreenHeader
+          brandTitle
           currentStep={3}
           label="Choose Services"
           nextAccessibilityLabel="Review selected services"
@@ -1105,44 +1049,45 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
               Your current selection of {formatCurrency(changeServiceContext.currentAmount)} stays in place while you compare alternatives.
             </Text>
           </View>
-        ) : !isExploreMode ? (
-          <View
-            accessibilityLabel={
-              hasSetBudget
-                ? `Unallocated budget: ${formatCurrency(remainingBudget)} Philippine pesos`
-                : 'No budget set. Pay actual service costs'
-            }
-            style={styles.budgetPill}
-          >
-            <Text style={styles.budgetText}>
-              {hasSetBudget
-                ? `Unallocated Budget: ${formatCurrency(remainingBudget)}`
-                : 'Pay actual service costs'}
-            </Text>
-          </View>
         ) : null}
 
-        {!isExploreMode && !replacementContext && !isChangingService && hasSetBudget && unallocatedCategoryCount > 0 ? (
-          <View style={styles.unallocatedBudgetCard}>
-            <View style={styles.unallocatedBudgetCopy}>
-              <Text style={styles.unallocatedBudgetTitle}>
-                {remainingBudget > 0
-                  ? 'You still have unallocated budget'
-                  : 'All of your budget is currently allocated'}
-              </Text>
-              <Text style={styles.unallocatedBudgetText}>
-                {remainingBudget > 0
-                  ? 'Assign it to an additional service category whenever you are ready.'
-                  : 'You can browse it now, then reallocate funds before selecting a service.'}
+        {!isExploreMode && !replacementContext && !isChangingService ? (
+          <View style={styles.categorySelectionSection}>
+            <View style={styles.categorySelectionHeading}>
+              <Text style={styles.categorySelectionEyebrow}>SERVICE CATEGORY</Text>
+              <Text style={styles.categorySelectionCount}>
+                {categories.length} {categories.length === 1 ? 'category' : 'categories'} in your plan
               </Text>
             </View>
             <Pressable
-              accessibilityLabel="Add another budget category"
+              accessibilityLabel={`Change service category. Currently ${categoryName}`}
               accessibilityRole="button"
-              onPress={() => setIsAddCategoryOpen(true)}
-              style={({ pressed }) => [styles.addCategoryButton, pressed && styles.pressed]}
+              onPress={() => {
+                setCategoryDisplayOrder(categorySelectionOptions.map(
+                  (option) => marketplaceCategoryId(option.category)
+                ))
+                categoryCardPositionsRef.current.clear()
+                categoryTransferDirectionsRef.current.clear()
+                setMovingCategoryId('')
+                setOptimisticCategoryMembership({})
+                setIsCategorySelectionOpen(true)
+              }}
+              style={({ pressed }) => [
+                styles.categorySelectionCard,
+                pressed && styles.neumorphicPressed,
+              ]}
             >
-              <Text style={styles.addCategoryButtonText}>+ Add More Category</Text>
+              <View style={styles.categorySelectionIcon}>
+                <MaterialIcons color={palette.primaryContainer} name="category" size={21} />
+              </View>
+              <View style={styles.categorySelectionCopy}>
+                <Text style={styles.categorySelectionTitle}>{categoryName}</Text>
+                <Text style={styles.categorySelectionHint}>Tap to browse or add another category</Text>
+              </View>
+              <View style={styles.categorySelectionAction}>
+                <Text style={styles.categorySelectionActionText}>CHANGE</Text>
+                <MaterialIcons color={palette.primaryContainer} name="chevron-right" size={19} />
+              </View>
             </Pressable>
           </View>
         ) : null}
@@ -1157,7 +1102,11 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
         ) : null}
 
         <View style={styles.categoryHeader}>
-          {!isExploreMode ? <Text style={styles.categoryIcon}>♨</Text> : null}
+          {!isExploreMode ? (
+            <View style={styles.categoryHeaderIcon}>
+              <MaterialIcons color={palette.primaryContainer} name="design-services" size={20} />
+            </View>
+          ) : null}
           <Text style={styles.categoryTitle}>
             {isExploreMode
               ? activeExploreTab === 'reviewed'
@@ -1176,18 +1125,6 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
             </Pressable>
           ) : null}
         </View>
-
-        {!isExploreMode && !replacementContext && !isChangingService && hasSetBudget ? (
-          <CategoryBudgetSlider
-            key={categoryName}
-            categoryBudget={categoryBudget}
-            categoryBudgetLocked={categoryBudgetLocked}
-            categoryBudgetMaximum={categoryBudgetMaximum}
-            categoryName={categoryName}
-            onCommit={onCategoryBudgetChange}
-            remainingBudget={remainingBudget}
-          />
-        ) : null}
 
         {isExploreMode && activeExploreTab === 'explore' ? (
           <ScrollView
@@ -1253,70 +1190,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
               )
             })}
           </ScrollView>
-        ) : replacementContext ? null : (
-          <ScrollView
-            contentContainerStyle={styles.exploreCategoryContent}
-            horizontal
-            ref={categoryTagScrollerRef}
-            showsHorizontalScrollIndicator={false}
-            style={styles.exploreCategoryScroller}
-          >
-            {categories.map((option) => {
-              const categoryId = marketplaceCategoryId(option)
-              const isSelected = categoryId === categoryNameToId(categoryName)
-              const isCompleted = activeSelectedCategoryIds.has(categoryId as CatalogCategoryId)
-              const isIncludedInVenuePackage = categoryId === 'catering' && cateringIncludedInVenuePackage
-              const serviceCount = marketplaceCategoryCounts.get(categoryId) ?? 0
-
-              return (
-                <Pressable
-                  key={option.id}
-                  accessibilityLabel={isCompleted
-                    ? `Browse ${option.name}. A service is selected for this category.`
-                    : isIncludedInVenuePackage
-                      ? `Browse ${option.name}. Included in Venue Package; no standalone caterer is selected.`
-                    : `Browse ${option.name}. ${serviceCount} eligible services.`}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: isSelected }}
-                  onLayout={(event) => categoryTagOffsetsRef.current.set(option.id, event.nativeEvent.layout.x)}
-                  onPress={() => requestCateringBrowse(categoryId === 'catering', () => {
-                    onSelectCategory?.(option)
-                    scrollCategoryTagToStart(option.id)
-                  })}
-                  style={({ pressed }) => [
-                    styles.categoryTag,
-                    isSelected && styles.categoryTagSelected,
-                    pressed && styles.chipPressed,
-                  ]}
-                >
-                  <View style={[styles.categoryTagIndicator, isSelected && styles.categoryTagIndicatorSelected]}>
-                    {isCompleted ? (
-                      <MaterialCommunityIcons
-                        color={isSelected ? palette.onPrimary : palette.primaryContainer}
-                        name="check"
-                        size={15}
-                      />
-                    ) : isIncludedInVenuePackage ? (
-                      <MaterialCommunityIcons
-                        color={isSelected ? palette.onPrimary : palette.primaryContainer}
-                        name="package-variant-closed"
-                        size={14}
-                      />
-                    ) : (
-                      <Text style={[styles.categoryTagCount, isSelected && styles.categoryTagCountSelected]}>
-                        {serviceCount}
-                      </Text>
-                    )}
-                  </View>
-                  <View>
-                    <Text numberOfLines={1} style={[styles.categoryTagLabel, isSelected && styles.categoryTagLabelSelected]}>{option.name}</Text>
-                    {isIncludedInVenuePackage ? <Text style={[styles.categoryTagIncluded, isSelected && styles.categoryTagIncludedSelected]}>Included in Venue Package</Text> : null}
-                  </View>
-                </Pressable>
-              )
-            })}
-          </ScrollView>
-        )}
+        ) : null}
 
         {!isExploreMode || activeExploreTab === 'explore' ? <View style={styles.searchField}>
           <Text style={styles.searchIcon}>⌕</Text>
@@ -1397,7 +1271,8 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                   <Text style={styles.recommendationSectionCount}>{section.vendors.length}</Text>
                 </View>
               ) : null}
-              {section.vendors.map((vendor) => (
+              <ServiceSectionList horizontal={section.horizontal}>
+                {section.vendors.map((vendor) => (
             <Pressable
               key={vendor.id}
               accessibilityLabel={isScheduleUnavailable(vendor)
@@ -1409,7 +1284,9 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
               onPress={() => requestCateringBrowse(vendor.categoryId === 'catering', () => onSelectVendor?.(vendor.id))}
               style={({ pressed }) => [
                 styles.vendorCard,
-                useHorizontalCards && styles.vendorCardHorizontal,
+                section.horizontal
+                  ? [styles.vendorCardCarousel, { width: Math.min(310, width - 56) }]
+                  : useHorizontalCards && styles.vendorCardHorizontal,
                 isScheduleUnavailable(vendor) && styles.vendorCardUnavailable,
                 pressed && styles.cardPressed,
               ]}
@@ -1441,7 +1318,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                 <View
                 style={[
                   styles.imagePanel,
-                  useHorizontalCards && styles.imagePanelHorizontal,
+                  !section.horizontal && useHorizontalCards && styles.imagePanelHorizontal,
                 ]}
               >
                 {vendor.imageUrl ? (
@@ -1464,7 +1341,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
               <View
                 style={[
                   styles.vendorCopy,
-                  useHorizontalCards && styles.vendorCopyHorizontal,
+                  !section.horizontal && useHorizontalCards && styles.vendorCopyHorizontal,
                 ]}
               >
                 {isScheduleUnavailable(vendor) ? (
@@ -1623,7 +1500,8 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                 ) : null}
               </View>
             </Pressable>
-              ))}
+                ))}
+              </ServiceSectionList>
             </View>
           ))}
 
@@ -1640,9 +1518,9 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                 {replacementContext
                   ? 'Another published provider in this category is required before this service can be changed.'
                   : services.length > 0
-                    ? 'Try clearing filters, adjusting this category budget, or selecting another category.'
+                    ? 'Try clearing filters or selecting another category.'
                   : categoryName.toLowerCase().includes('venue') && categoryBudget > 0
-                    ? 'No available venue configuration fits this category budget. Adjust the budget or try another category.'
+                    ? 'No available venue configuration matches the current event requirements. Try another category.'
                     : 'Services will appear here after providers publish them.'}
               </Text>
             </View>
@@ -1651,61 +1529,179 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
       </ScrollView>
 
       <Modal
-        animationType="fade"
-        onRequestClose={() => {
-          if (!isAddingCategory) setIsAddCategoryOpen(false)
-        }}
+        animationType="none"
+        onRequestClose={() => dismissCategorySelection()}
         transparent
-        visible={isAddCategoryOpen}
+        visible={isCategorySelectionOpen}
       >
-        <View style={styles.confirmationOverlay}>
-          <View accessibilityViewIsModal style={styles.confirmationCard}>
-            <View style={styles.confirmationIcon}>
-              <MaterialCommunityIcons color={palette.primaryContainer} name="shape-plus" size={25} />
-            </View>
-            <Text style={styles.confirmationTitle}>Add a service category</Text>
-            <Text style={styles.confirmationCopy}>
-              Choose a category to add to this event. You can browse it now and set its budget when you are ready.
-            </Text>
-            <View style={styles.addCategoryOptions}>
-              {addableCategories.map((category) => (
-                <Pressable
-                  key={category.id}
-                  accessibilityLabel={`Add ${category.name} to this event`}
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: isAddingCategory }}
-                  disabled={isAddingCategory}
-                  onPress={async () => {
-                    if (isAddingCategory) return
-                    setIsAddingCategory(true)
-                    try {
-                      const added = await onAddCategory?.(category)
-                      if (added !== false) setIsAddCategoryOpen(false)
-                    } finally {
-                      setIsAddingCategory(false)
-                    }
-                  }}
-                  style={({ pressed }) => [
-                    styles.addCategoryOption,
-                    isAddingCategory && styles.confirmationDisabled,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <Text style={styles.addCategoryOptionText}>{category.name}</Text>
-                  <MaterialIcons color={palette.primaryContainer} name="add-circle-outline" size={20} />
-                </Pressable>
-              ))}
-            </View>
+        <View
+          pointerEvents={isCategorySelectionClosing ? 'none' : 'auto'}
+          style={styles.categorySelectionOverlay}
+        >
+          <BlurView
+            blurReductionFactor={1}
+            blurMethod="dimezisBlurViewSdk31Plus"
+            blurTarget={categorySelectionBlurTargetRef}
+            intensity={42}
+            tint="dark"
+            style={StyleSheet.absoluteFill}
+          >
             <Pressable
-              accessibilityLabel="Cancel adding a category"
+              accessibilityLabel="Close category selection"
               accessibilityRole="button"
-              disabled={isAddingCategory}
-              onPress={() => setIsAddCategoryOpen(false)}
-              style={({ pressed }) => [styles.confirmationCancel, pressed && styles.pressed]}
+              onPress={() => dismissCategorySelection()}
+              style={StyleSheet.absoluteFill}
+            />
+          </BlurView>
+          <Animated.View
+            accessibilityViewIsModal
+            style={[
+              styles.categorySelectionDialog,
+              {
+                opacity: categorySelectionScale.interpolate({
+                  inputRange: [0.82, 1],
+                  outputRange: [0, 1],
+                  extrapolate: 'clamp',
+                }),
+                transform: [{ scale: categorySelectionScale }],
+              },
+            ]}
+          >
+            <View style={styles.categorySelectionDialogHeader}>
+              <View style={styles.categorySelectionDialogCopy}>
+                <Text style={styles.categorySelectionDialogEyebrow}>STEP 3 SERVICE CATEGORIES</Text>
+                <Text style={styles.categorySelectionDialogTitle}>Choose a Category</Text>
+              </View>
+              <Pressable
+                accessibilityLabel="Close category selection"
+                accessibilityRole="button"
+                disabled={isUpdatingCategory}
+                onPress={() => dismissCategorySelection()}
+                style={({ pressed }) => [
+                  styles.categorySelectionClose,
+                  pressed && styles.neumorphicPressed,
+                ]}
+              >
+                <MaterialIcons color={palette.error} name="close" size={21} />
+              </Pressable>
+            </View>
+            <Text style={styles.categorySelectionDialogDescription}>
+              Browse a category already in your plan or add another service category.
+            </Text>
+            <ScrollView
+              contentContainerStyle={styles.categorySelectionOptions}
+              keyboardShouldPersistTaps="handled"
+              removeClippedSubviews={false}
+              showsVerticalScrollIndicator={false}
             >
-              <Text style={styles.confirmationCancelText}>CANCEL</Text>
-            </Pressable>
-          </View>
+              {categorySelectionOptions.map(({ category, isInPlan, section }, index) => {
+                const categoryId = marketplaceCategoryId(category)
+                const isCurrent = categoryId === categoryNameToId(categoryName)
+                const isCompleted = activeSelectedCategoryIds.has(categoryId as CatalogCategoryId)
+                const serviceCount = marketplaceCategoryCounts.get(categoryId) ?? 0
+                const previousSection = categorySelectionOptions[index - 1]?.section
+                const showCompletedHeader = section === 'completed' && previousSection !== 'completed'
+                const showSectionDivider = index > 0 && section !== previousSection
+                const cardTranslation = getCategoryCardTranslation(categoryId)
+
+                return (
+                  <Animated.View
+                    key={`category-${categoryId}`}
+                    onLayout={(event) => handleCategoryCardLayout(categoryId, event)}
+                    style={[
+                      styles.categorySelectionOptionGroup,
+                      movingCategoryId === categoryId && styles.categorySelectionOptionGroupMoving,
+                      { transform: [{ translateY: cardTranslation }] },
+                    ]}
+                  >
+                    {showSectionDivider ? <View style={styles.categorySelectionDivider} /> : null}
+                    {showCompletedHeader ? (
+                      <Text style={styles.categorySelectionSectionHeader}>Completed</Text>
+                    ) : null}
+                    <Pressable
+                      accessibilityLabel={isInPlan
+                        ? `Browse ${category.name}`
+                        : `Add ${category.name} to this event`}
+                      accessibilityRole="button"
+                      accessibilityState={{ busy: isUpdatingCategory, disabled: isUpdatingCategory, selected: isCurrent }}
+                      disabled={isUpdatingCategory}
+                      onPress={() => {
+                        if (!isInPlan) {
+                          void updateCategoryPlan(category, 'add')
+                          return
+                        }
+                        dismissCategorySelection(() => {
+                          requestCateringBrowse(categoryId === 'catering', () => {
+                            onSelectCategory?.(category)
+                          })
+                        })
+                      }}
+                      style={({ pressed }) => [
+                        styles.categorySelectionOption,
+                        !isInPlan && styles.categorySelectionOptionSunken,
+                        isCurrent && styles.categorySelectionOptionCurrent,
+                        isCompleted && styles.categorySelectionOptionCompleted,
+                        pressed && styles.neumorphicPressed,
+                      ]}
+                    >
+                      <View style={[
+                        styles.categorySelectionOptionIcon,
+                        isCompleted && styles.categorySelectionOptionIconCompleted,
+                      ]}>
+                        <MaterialIcons
+                          color={isCompleted ? '#1F6B42' : palette.primaryContainer}
+                          name={isCompleted ? 'check' : 'category'}
+                          size={19}
+                        />
+                      </View>
+                      <View style={styles.categorySelectionOptionCopy}>
+                        <Text style={[
+                          styles.categorySelectionOptionTitle,
+                          isCompleted && styles.categorySelectionOptionTitleCompleted,
+                        ]}>{category.name}</Text>
+                        <Text style={[
+                          styles.categorySelectionOptionMeta,
+                          isCompleted && styles.categorySelectionOptionMetaCompleted,
+                        ]}>
+                          {serviceCount} eligible {serviceCount === 1 ? 'service' : 'services'}
+                        </Text>
+                      </View>
+                      {!isCompleted ? (
+                        <Pressable
+                          accessibilityLabel={isInPlan
+                            ? `Remove ${category.name} from this event`
+                            : `Add ${category.name} to this event`}
+                          accessibilityRole="button"
+                          disabled={isUpdatingCategory}
+                          onPress={(event) => {
+                            event.stopPropagation()
+                            void updateCategoryPlan(category, isInPlan ? 'remove' : 'add')
+                          }}
+                          style={({ pressed }) => [
+                            styles.categorySelectionOptionAction,
+                            isInPlan && styles.categorySelectionOptionRemoveAction,
+                            pressed && styles.neumorphicPressed,
+                          ]}
+                        >
+                          <Text style={[
+                            styles.categorySelectionOptionActionText,
+                            isInPlan && styles.categorySelectionOptionRemoveText,
+                          ]}>
+                            {isInPlan ? 'REMOVE' : 'ADD'}
+                          </Text>
+                          <MaterialIcons
+                            color={isInPlan ? palette.error : palette.primaryContainer}
+                            name={isInPlan ? 'remove' : 'add'}
+                            size={19}
+                          />
+                        </Pressable>
+                      ) : null}
+                    </Pressable>
+                  </Animated.View>
+                )
+              })}
+            </ScrollView>
+          </Animated.View>
         </View>
       </Modal>
 
@@ -2127,16 +2123,16 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
       {showBottomNavigation && !isWide ? (
         <ClientBottomNavigation activeTab="explore" onSelectTab={onSelectTab} />
       ) : null}
-    </View>
+    </BlurTargetView>
   )
 }
 
 const palette = {
-  background: '#F9F9F9',
+  background: '#E9EDF0',
   error: '#B3261E',
-  surfaceContainerHigh: '#E8E8E8',
-  surfaceHighest: '#E2E2E2',
-  surfaceVariant: '#E2E2E2',
+  surfaceContainerHigh: '#E9EDF0',
+  surfaceHighest: '#E9EDF0',
+  surfaceVariant: '#DCE2E6',
   primary: '#4E061A',
   primaryContainer: '#6B1E2E',
   onPrimary: '#FFFFFF',
@@ -2150,6 +2146,11 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: palette.background,
+  },
+  planningScreen: { backgroundColor: palette.background },
+  neumorphicPressed: {
+    boxShadow: 'inset 3px 3px 6px rgba(160, 171, 180, 0.52), inset -3px -3px 6px rgba(255, 255, 255, 0.94)',
+    transform: [{ scale: 0.99 }],
   },
   topAppBar: {
     zIndex: 40,
@@ -2286,6 +2287,163 @@ const styles = StyleSheet.create({
     opacity: 0.9,
     transform: [{ scale: 0.99 }],
   },
+  categorySelectionOverlay: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(35, 43, 48, 0.14)',
+    padding: 20,
+  },
+  categorySelectionDialog: {
+    width: '100%',
+    maxWidth: 480,
+    maxHeight: '82%',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.84)',
+    borderRadius: 22,
+    backgroundColor: palette.background,
+    padding: 20,
+    boxShadow: '10px 12px 26px rgba(62, 75, 84, 0.28), -6px -6px 16px rgba(255, 255, 255, 0.72)',
+  },
+  categorySelectionDialogHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 14,
+  },
+  categorySelectionDialogCopy: { minWidth: 0, flex: 1 },
+  categorySelectionDialogEyebrow: {
+    color: palette.primaryContainer,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  categorySelectionDialogTitle: {
+    color: '#57636C',
+    fontSize: 24,
+    lineHeight: 30,
+    fontWeight: '800',
+    marginTop: 4,
+  },
+  categorySelectionClose: {
+    width: 42,
+    height: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.80)',
+    borderRadius: 21,
+    backgroundColor: palette.background,
+    boxShadow: '4px 4px 9px rgba(156, 169, 180, 0.42), -4px -4px 9px rgba(255, 255, 255, 0.94)',
+  },
+  categorySelectionDialogDescription: {
+    color: '#73808A',
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 10,
+    marginBottom: 16,
+  },
+  categorySelectionOptions: { gap: 12, paddingHorizontal: 2, paddingBottom: 4 },
+  categorySelectionOptionGroup: { gap: 12 },
+  categorySelectionOptionGroupMoving: {
+    zIndex: 30,
+    elevation: 30,
+  },
+  categorySelectionDivider: {
+    alignSelf: 'center',
+    width: '76%',
+    height: 1,
+    backgroundColor: 'rgba(115, 128, 138, 0.42)',
+    marginVertical: 2,
+  },
+  categorySelectionSectionHeader: {
+    color: '#1F6B42',
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '800',
+    letterSpacing: 0.9,
+    textTransform: 'uppercase',
+    marginHorizontal: 4,
+  },
+  categorySelectionOption: {
+    minHeight: 72,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.78)',
+    borderRadius: 16,
+    backgroundColor: palette.background,
+    padding: 12,
+    boxShadow: '5px 5px 11px rgba(156, 169, 180, 0.42), -5px -5px 11px rgba(255, 255, 255, 0.94)',
+  },
+  categorySelectionOptionCurrent: {
+    borderColor: 'rgba(107, 30, 46, 0.42)',
+    backgroundColor: '#F0E8EA',
+  },
+  categorySelectionOptionSunken: {
+    borderColor: 'rgba(255,255,255,0.70)',
+    backgroundColor: palette.background,
+    boxShadow: 'inset 4px 4px 9px rgba(160, 171, 180, 0.52), inset -4px -4px 9px rgba(255, 255, 255, 0.94)',
+  },
+  categorySelectionOptionCompleted: {
+    borderColor: 'rgba(62, 139, 91, 0.48)',
+    backgroundColor: '#DCEFE3',
+    boxShadow: '5px 5px 11px rgba(102, 143, 117, 0.34), -5px -5px 11px rgba(255, 255, 255, 0.82)',
+  },
+  categorySelectionOptionIcon: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 20,
+    backgroundColor: palette.background,
+    boxShadow: 'inset 3px 3px 7px rgba(170, 181, 190, 0.48), inset -3px -3px 7px rgba(255, 255, 255, 0.94)',
+  },
+  categorySelectionOptionIconCompleted: {
+    backgroundColor: '#DCEFE3',
+    boxShadow: 'inset 3px 3px 7px rgba(104, 153, 121, 0.36), inset -3px -3px 7px rgba(255, 255, 255, 0.76)',
+  },
+  categorySelectionOptionCopy: { minWidth: 0, flex: 1 },
+  categorySelectionOptionTitle: {
+    color: palette.text,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '800',
+  },
+  categorySelectionOptionTitleCompleted: { color: '#195C38' },
+  categorySelectionOptionMeta: {
+    color: '#73808A',
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 2,
+  },
+  categorySelectionOptionMetaCompleted: { color: '#387552' },
+  categorySelectionOptionAction: {
+    minHeight: 34,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.76)',
+    borderRadius: 17,
+    backgroundColor: palette.background,
+    paddingHorizontal: 9,
+    boxShadow: '3px 3px 7px rgba(156, 169, 180, 0.40), -3px -3px 7px rgba(255, 255, 255, 0.92)',
+  },
+  categorySelectionOptionRemoveAction: {
+    borderColor: 'rgba(179, 38, 30, 0.22)',
+  },
+  categorySelectionOptionActionText: {
+    color: palette.primaryContainer,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  categorySelectionOptionRemoveText: { color: palette.error },
   selectedServicesOverlay: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -2669,44 +2827,80 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     fontWeight: '600',
   },
-  unallocatedBudgetCard: {
-    alignItems: 'center',
-    backgroundColor: '#F8FBF7',
-    borderColor: '#C8DDC4',
-    borderRadius: 16,
-    borderWidth: 1,
+  categorySelectionSection: { marginBottom: 6 },
+  categorySelectionHeading: {
     flexDirection: 'row',
-    gap: 12,
-    marginTop: 14,
-    padding: 14,
-  },
-  unallocatedBudgetCopy: { flex: 1, gap: 3 },
-  unallocatedBudgetTitle: {
-    color: palette.primaryContainer,
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '800',
-  },
-  unallocatedBudgetText: {
-    color: palette.secondary,
-    fontSize: 11,
-    lineHeight: 16,
-  },
-  addCategoryButton: {
     alignItems: 'center',
-    backgroundColor: palette.primaryContainer,
-    borderRadius: 12,
-    justifyContent: 'center',
-    minHeight: 38,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 10,
   },
-  addCategoryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    lineHeight: 15,
+  categorySelectionEyebrow: {
+    color: palette.primaryContainer,
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: '800',
-    textAlign: 'center',
+    letterSpacing: 1,
+  },
+  categorySelectionCount: {
+    color: '#73808A',
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '600',
+  },
+  categorySelectionCard: {
+    minHeight: 78,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.78)',
+    borderRadius: 18,
+    backgroundColor: palette.background,
+    padding: 14,
+    boxShadow: '7px 7px 15px rgba(156, 169, 180, 0.44), -7px -7px 15px rgba(255, 255, 255, 0.94)',
+  },
+  categorySelectionIcon: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 22,
+    backgroundColor: palette.background,
+    boxShadow: 'inset 3px 3px 7px rgba(170, 181, 190, 0.48), inset -3px -3px 7px rgba(255, 255, 255, 0.94)',
+  },
+  categorySelectionCopy: { minWidth: 0, flex: 1 },
+  categorySelectionTitle: {
+    color: palette.text,
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: '800',
+  },
+  categorySelectionHint: {
+    color: '#73808A',
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 2,
+  },
+  categorySelectionAction: {
+    minHeight: 36,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.78)',
+    borderRadius: 18,
+    backgroundColor: palette.background,
+    paddingHorizontal: 11,
+    boxShadow: '4px 4px 9px rgba(156, 169, 180, 0.42), -4px -4px 9px rgba(255, 255, 255, 0.94)',
+  },
+  categorySelectionActionText: {
+    color: palette.primaryContainer,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '800',
+    letterSpacing: 0.4,
   },
   planningCompleteCard: {
     backgroundColor: '#F7FAFF',
@@ -2787,11 +2981,14 @@ const styles = StyleSheet.create({
   exploreTabActive: { borderBottomColor: palette.primaryContainer },
   exploreTabText: { color: palette.secondary, fontSize: 14, fontWeight: '600' },
   exploreTabTextActive: { color: palette.primaryContainer, fontWeight: '800' },
-  categoryIcon: {
-    color: palette.primaryContainer,
-    fontSize: 29,
-    lineHeight: 32,
-    fontWeight: '600',
+  categoryHeaderIcon: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 20,
+    backgroundColor: palette.background,
+    boxShadow: 'inset 3px 3px 7px rgba(170, 181, 190, 0.48), inset -3px -3px 7px rgba(255, 255, 255, 0.94)',
   },
   categoryTitle: {
     color: palette.primaryContainer,
@@ -2799,61 +2996,17 @@ const styles = StyleSheet.create({
     lineHeight: 29,
     fontWeight: '700',
   },
-  categoryBudgetCard: {
-    gap: 12,
-    borderWidth: 1,
-    borderColor: palette.outlineVariant,
-    borderRadius: 16,
-    backgroundColor: '#FFFFFF',
-    padding: 16,
-    marginBottom: 18,
-  },
-  categoryBudgetHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  categoryBudgetEyebrow: { color: palette.secondary, fontSize: 10, lineHeight: 14, fontWeight: '800', letterSpacing: 1 },
-  categoryBudgetAmount: { color: palette.primaryContainer, fontSize: 22, lineHeight: 29, fontWeight: '800', marginTop: 2 },
-  categoryBudgetInputShell: {
-    width: 150,
-    height: 36,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 2,
-    borderWidth: 1,
-    borderColor: palette.outlineVariant,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-  },
-  categoryBudgetInputShellFocused: { borderWidth: 2, borderColor: palette.primaryContainer },
-  categoryBudgetInputShellError: { borderWidth: 2, borderColor: palette.error },
-  categoryBudgetInputCurrency: { color: palette.primaryContainer, fontSize: 18, fontWeight: '800' },
-  categoryBudgetInput: {
-    minWidth: 0,
-    flex: 1,
-    color: palette.primaryContainer,
-    fontSize: 18,
-    fontWeight: '800',
-    textAlign: 'right',
-    paddingVertical: 4,
-  },
-  categoryBudgetInputError: { maxWidth: 210, marginTop: 5, color: palette.error, fontSize: 10, lineHeight: 14 },
-  categoryBudgetLocked: { color: palette.primaryContainer, fontSize: 11, lineHeight: 16, fontWeight: '700' },
-  categoryBudgetEditable: { color: '#287A49', fontSize: 11, lineHeight: 16, fontWeight: '700' },
-  categoryBudgetTrackTouch: { paddingVertical: 10 },
-  categoryBudgetTrack: { height: 6, borderRadius: 3, backgroundColor: palette.surfaceContainerHigh },
-  categoryBudgetFill: { height: 6, borderRadius: 3, backgroundColor: palette.primaryContainer },
-  categoryBudgetThumb: { position: 'absolute', top: -6, width: 18, height: 18, borderRadius: 9, marginLeft: -9, backgroundColor: palette.primaryContainer, borderWidth: 3, borderColor: '#FFFFFF' },
-  categoryBudgetFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  categoryBudgetHint: { flex: 1, color: palette.secondary, fontSize: 11, lineHeight: 16 },
-  categoryBudgetButtons: { flexDirection: 'row', gap: 6 },
-  categoryBudgetStep: { borderRadius: 12, backgroundColor: palette.surfaceContainerHigh, paddingHorizontal: 10, paddingVertical: 6 },
-  categoryBudgetStepText: { color: palette.primaryContainer, fontSize: 11, lineHeight: 14, fontWeight: '700' },
   searchField: {
     width: '100%',
     height: 50,
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: 25,
-    backgroundColor: palette.surfaceContainerHigh,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.82)',
+    backgroundColor: palette.background,
     paddingHorizontal: 16,
+    boxShadow: 'inset 4px 4px 9px rgba(170, 181, 190, 0.50), inset -4px -4px 9px rgba(255, 255, 255, 0.94)',
   },
   searchIcon: {
     color: palette.secondary,
@@ -2882,11 +3035,12 @@ const styles = StyleSheet.create({
   },
   filterChip: {
     borderWidth: 1,
-    borderColor: palette.surfaceContainerHigh,
+    borderColor: 'rgba(255,255,255,0.76)',
     borderRadius: 20,
-    backgroundColor: palette.surfaceContainerHigh,
+    backgroundColor: palette.background,
     paddingHorizontal: 16,
     paddingVertical: 8,
+    boxShadow: '4px 4px 9px rgba(156, 169, 180, 0.38), -4px -4px 9px rgba(255, 255, 255, 0.92)',
   },
   filterChipSelected: {
     borderColor: palette.primaryContainer,
@@ -2904,12 +3058,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     borderWidth: 1,
-    borderColor: palette.surfaceContainerHigh,
+    borderColor: 'rgba(255,255,255,0.76)',
     borderRadius: 20,
-    backgroundColor: palette.surfaceContainerHigh,
+    backgroundColor: palette.background,
     paddingLeft: 8,
     paddingRight: 14,
     paddingVertical: 6,
+    boxShadow: '4px 4px 9px rgba(156, 169, 180, 0.38), -4px -4px 9px rgba(255, 255, 255, 0.92)',
   },
   categoryTagSelected: {
     borderColor: palette.primaryContainer,
@@ -3017,8 +3172,11 @@ const styles = StyleSheet.create({
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.76)',
     borderRadius: 20,
-    backgroundColor: palette.surfaceContainerHigh,
+    backgroundColor: palette.background,
+    boxShadow: '4px 4px 9px rgba(156, 169, 180, 0.40), -4px -4px 9px rgba(255, 255, 255, 0.92)',
   },
   sortSheetDescription: {
     color: palette.secondary,
@@ -3051,6 +3209,14 @@ const styles = StyleSheet.create({
     gap: 16,
     marginBottom: 80,
   },
+  horizontalServiceScroller: { marginHorizontal: -20 },
+  horizontalServiceContent: {
+    gap: 14,
+    paddingHorizontal: 20,
+    paddingTop: 2,
+    paddingBottom: 18,
+  },
+  verticalServiceList: { gap: 16 },
   recommendationSection: {
     gap: 14,
   },
@@ -3082,9 +3248,10 @@ const styles = StyleSheet.create({
     position: 'relative',
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: palette.surfaceVariant,
-    borderRadius: 8,
-    backgroundColor: palette.surfaceHighest,
+    borderColor: 'rgba(255,255,255,0.76)',
+    borderRadius: 16,
+    backgroundColor: palette.background,
+    boxShadow: '7px 7px 15px rgba(156, 169, 180, 0.44), -7px -7px 15px rgba(255, 255, 255, 0.94)',
   },
   favoriteButton: {
     position: 'absolute',
@@ -3121,6 +3288,9 @@ const styles = StyleSheet.create({
   vendorCardHorizontal: {
     minHeight: 190,
     flexDirection: 'row',
+  },
+  vendorCardCarousel: {
+    flexShrink: 0,
   },
   imagePanel: {
     width: '100%',
@@ -3389,29 +3559,6 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     textAlign: 'center',
     marginTop: 8,
-  },
-  addCategoryOptions: {
-    width: '100%',
-    gap: 8,
-    marginTop: 20,
-    marginBottom: 16,
-  },
-  addCategoryOption: {
-    minHeight: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: palette.outlineVariant,
-    borderRadius: 12,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 14,
-  },
-  addCategoryOptionText: {
-    color: palette.text,
-    fontSize: 14,
-    lineHeight: 20,
-    fontWeight: '700',
   },
   confirmationActions: { width: '100%', flexDirection: 'row', gap: 10, marginTop: 24 },
   confirmationCancel: {
