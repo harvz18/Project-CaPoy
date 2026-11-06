@@ -1990,12 +1990,16 @@ test("task chat is writable only by a task participant", async () => {
   const clientDb = dbFor(CLIENT_ID);
   const replyAt = "2026-01-01T00:01:00.000Z";
   const replyBatch = writeBatch(clientDb);
-  replyBatch.update(doc(clientDb, "chats", conversationId), {
+  replyBatch.set(doc(clientDb, "chats", conversationId), {
+    id: conversationId,
+    taskId: TASK_ID,
+    workerId: WORKER_ID,
+    participantIds: [CLIENT_ID, WORKER_ID],
     lastMessage: "Thanks for the update.",
     lastMessageAt: replyAt,
     lastSenderId: CLIENT_ID,
     updatedAt: replyAt
-  });
+  }, { merge: true });
   replyBatch.set(doc(clientDb, "messages", "employer-reply"), {
     conversationId,
     taskId: TASK_ID,

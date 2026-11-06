@@ -1,7 +1,6 @@
 import {
   collection,
   doc,
-  getDoc,
   getDocs,
   limit,
   onSnapshot,
@@ -81,12 +80,7 @@ export async function sendMessageToFirestore(message: Omit<ChatMessage, "id">, w
   const firestore = requireDb();
   const conversationId = message.conversationId ?? getConversationId(message.taskId, workerId);
   const chatRef = doc(firestore, "chats", conversationId);
-  const chatSnapshot = await getDoc(chatRef);
-  const participantIds = getConversationParticipants(
-    chatSnapshot.exists() ? chatSnapshot.data().participantIds : undefined,
-    message.senderId,
-    message.receiverId
-  );
+  const participantIds = getConversationParticipants(undefined, message.senderId, message.receiverId);
   const messageRef = doc(collection(firestore, "messages"));
   const batch = writeBatch(firestore);
 
@@ -96,17 +90,16 @@ export async function sendMessageToFirestore(message: Omit<ChatMessage, "id">, w
     lastSenderId: message.senderId,
     updatedAt: message.timestamp
   };
-  if (chatSnapshot.exists()) {
-    batch.update(chatRef, latestMessage);
-  } else {
-    batch.set(chatRef, {
-      id: conversationId,
-      workerId,
-      taskId: message.taskId,
-      participantIds,
-      ...latestMessage
-    });
-  }
+  // Do not read the chat first. Firestore must deny reads of a document that
+  // does not exist, which previously blocked every first message. A merge set
+  // creates the chat and message together, or safely refreshes its preview.
+  batch.set(chatRef, {
+    id: conversationId,
+    workerId,
+    taskId: message.taskId,
+    participantIds,
+    ...latestMessage
+  }, { merge: true });
 
   batch.set(messageRef, {
     ...message,

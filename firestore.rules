@@ -1442,14 +1442,18 @@ service cloud.firestore {
         && request.resource.data.id == resource.data.id
         && request.resource.data.taskId == resource.data.taskId
         && request.resource.data.workerId == resource.data.workerId
-        && request.resource.data.participantIds == resource.data.participantIds
+        && validConversationParticipants(
+          task(resource.data.taskId),
+          resource.data.workerId,
+          request.resource.data.participantIds
+        )
         && request.resource.data.lastSenderId == request.auth.uid
         && request.resource.data.lastMessage is string
         && request.resource.data.lastMessage.size() > 0
         && request.resource.data.lastMessage.size() <= 2000
         && request.resource.data.lastMessageAt is string
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'lastMessage', 'lastMessageAt', 'lastSenderId', 'updatedAt'
+          'participantIds', 'lastMessage', 'lastMessageAt', 'lastSenderId', 'updatedAt'
         ]);
       allow delete: if false;
     }
