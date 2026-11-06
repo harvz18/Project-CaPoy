@@ -7549,12 +7549,9 @@ export const App: React.FC<AppProps> = ({
               const fallbackCategory = selectedCategory === categoryId
                 ? getFirstServicePlanningCategory(nextAllocations)
                 : undefined
-              setTimeout(() => {
-                if (fallbackCategory) setSelectedCategory(fallbackCategory)
-                void loadClientCatalogServices()
-                  .then(setCatalogServices)
-                  .catch(() => undefined)
-              }, 620)
+              if (fallbackCategory) {
+                setTimeout(() => setSelectedCategory(fallbackCategory), 620)
+              }
               return true
             }}
             onAddService={() => {

@@ -640,6 +640,10 @@ test('planning categories, progression, and budget re-entry share one allocation
     app.indexOf('onAddCategory={async (category) => {'),
     app.indexOf('onRemoveCategory={async (category) => {')
   )
+  const removeCategoryFlow = app.slice(
+    app.indexOf('onRemoveCategory={async (category) => {'),
+    app.indexOf('onAddService={() => {')
+  )
 
   mustContain(categories, [
     'PLANNING_CATEGORY_PRIORITY',
@@ -677,6 +681,7 @@ test('planning categories, progression, and budget re-entry share one allocation
     'movingCategoryId',
     'categoryTransferDirectionsRef',
     'categoryCardAnimationTokensRef',
+    'if (!transferDirection || categoryCardAnimationTokensRef.current.has(categoryId)) return',
     'getCategoryCardTranslation',
     'startCategoryCardAnimation',
     'handleCategoryCardLayout',
@@ -694,6 +699,8 @@ test('planning categories, progression, and budget re-entry share one allocation
     'Step 3 must use the shared category selector instead of the old unallocated-budget section')
   assert.doesNotMatch(addCategoryFlow, /setSelectedCategory|loadClientCatalogServices/,
     'Adding a category must not implicitly select it or refresh the marketplace catalog')
+  assert.doesNotMatch(removeCategoryFlow, /loadClientCatalogServices/,
+    'Removing a category must not reload an unchanged marketplace catalog')
 })
 
 test('service changes use the in-app comparison confirmation before preserving the existing save flow', () => {

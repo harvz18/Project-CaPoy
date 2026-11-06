@@ -449,8 +449,10 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     const previousY = categoryCardPositionsRef.current.get(categoryId)
     categoryCardPositionsRef.current.set(categoryId, nextY)
     const transferDirection = categoryTransferDirectionsRef.current.get(categoryId)
+    if (!transferDirection || categoryCardAnimationTokensRef.current.has(categoryId)) return
+
     if (previousY === undefined || Math.abs(previousY - nextY) < 1) {
-      if (transferDirection && !categoryCardAnimationTokensRef.current.has(categoryId)) {
+      if (transferDirection === 'add') {
         startCategoryCardAnimation(categoryId, transferDirection)
       }
       return
@@ -519,11 +521,15 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     try {
       const updated = await update(category)
       if (updated === false) {
+        getCategoryCardTranslation(categoryId).stopAnimation()
+        categoryCardAnimationTokensRef.current.delete(categoryId)
         categoryTransferDirectionsRef.current.set(categoryId, action === 'add' ? 'remove' : 'add')
         setMovingCategoryId(categoryId)
         clearOptimisticCategoryMembership(categoryId)
       }
     } catch {
+      getCategoryCardTranslation(categoryId).stopAnimation()
+      categoryCardAnimationTokensRef.current.delete(categoryId)
       categoryTransferDirectionsRef.current.set(categoryId, action === 'add' ? 'remove' : 'add')
       setMovingCategoryId(categoryId)
       clearOptimisticCategoryMembership(categoryId)
