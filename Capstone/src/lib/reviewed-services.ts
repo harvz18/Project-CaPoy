@@ -7,6 +7,7 @@ export type ReviewedService = {
   id: string
   imageUrl?: string
   isAvailable: boolean
+  marketplacePrice?: number
   providerName: string
   rating: number
   reviewDate: string
@@ -25,7 +26,12 @@ const number = (value: unknown) => typeof value === 'number' && Number.isFinite(
 
 export const fetchMyReviewedServices = async (): Promise<ReviewedService[]> => {
   if (!supabase || !supabaseConfig.isConfigured) return []
-  const { data, error } = await supabase.rpc('get_my_reviewed_services_v22')
+  // v23 adds the immutable client-facing booking total used by the reviewed
+  // history cards. Keep the V22 fallback for a brief rolling-deployment
+  // window so this client still displays existing review history if the app
+  // update reaches a device before the additive database migration.
+  let { data, error } = await supabase.rpc('get_my_reviewed_services_v23')
+  if (error) ({ data, error } = await supabase.rpc('get_my_reviewed_services_v22'))
   if (error || !Array.isArray(data)) return []
 
   return data.flatMap((entry) => {
@@ -42,6 +48,9 @@ export const fetchMyReviewedServices = async (): Promise<ReviewedService[]> => {
       id,
       imageUrl: text(row.image_url) || undefined,
       isAvailable: row.is_available === true,
+      marketplacePrice: number(row.marketplace_price) > 0
+        ? number(row.marketplace_price)
+        : undefined,
       providerName: text(row.provider_name, 'Service provider'),
       rating,
       reviewDate: text(row.reviewed_at),
