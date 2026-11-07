@@ -2224,7 +2224,6 @@ const TimePickerModal: React.FC<TimePickerModalProps> = ({
     ) ?? matching[0]
     if (next) {
       setSelected(next)
-      onChange(formatTime(next.hour, next.minute, next.meridiem))
     }
   }
 
@@ -2235,7 +2234,6 @@ const TimePickerModal: React.FC<TimePickerModalProps> = ({
     const next = matching.find((option) => option.minute === selected.minute) ?? matching[0]
     if (next) {
       setSelected(next)
-      onChange(formatTime(next.hour, next.minute, next.meridiem))
     }
   }
 
@@ -2248,8 +2246,21 @@ const TimePickerModal: React.FC<TimePickerModalProps> = ({
     )
     if (next) {
       setSelected(next)
-      onChange(formatTime(next.hour, next.minute, next.meridiem))
     }
+  }
+
+  const confirmTime = () => {
+    const confirmed = validTimes.find(
+      (option) =>
+        option.hour === selected.hour &&
+        option.minute === selected.minute &&
+        option.meridiem === selected.meridiem
+    ) ?? validTimes[0]
+
+    if (!confirmed) return
+
+    onChange(formatTime(confirmed.hour, confirmed.minute, confirmed.meridiem))
+    onClose()
   }
 
   return (
@@ -2295,6 +2306,14 @@ const TimePickerModal: React.FC<TimePickerModalProps> = ({
               selected={selected.meridiem}
             />
           </View>
+          <Pressable
+            accessibilityLabel="Confirm event time"
+            accessibilityRole="button"
+            onPress={confirmTime}
+            style={({ pressed }) => [styles.timePickerConfirmButton, pressed && styles.continuePressed]}
+          >
+            <Text style={styles.timePickerConfirmText}>CONFIRM TIME</Text>
+          </Pressable>
         </View>
       </View>
     </Modal>
@@ -2709,6 +2728,24 @@ const styles = StyleSheet.create({
     boxShadow: 'inset 4px 4px 8px rgba(160, 171, 180, 0.54), inset -4px -4px 8px rgba(255, 255, 255, 0.96)',
   },
   pickerColumnWide: { flex: 1 },
+  timePickerConfirmButton: {
+    minHeight: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 25,
+    backgroundColor: palette.burgundyDark,
+    marginTop: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    boxShadow: '4px 5px 10px rgba(43, 7, 18, 0.38), -3px -3px 7px rgba(255, 255, 255, 0.42), inset 1px 1px 1px rgba(255, 255, 255, 0.14)',
+  },
+  timePickerConfirmText: {
+    color: palette.surface,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+  },
   wheelSelectionBand: {
     position: 'absolute',
     top: wheelRowHeight * 2,
