@@ -162,9 +162,9 @@ test('service selection keeps option-aware budget fits while exposing exact sche
     'current_availability_status',
   ], 'marketplace schedule migration')
   mustContain(browse, [
-    'vendor.budgetRecommendation.categoryBudget > 0',
-    '!vendor.budgetRecommendation?.isWithinBudget',
-    'You Might Also Like',
+    'categoryBudgetForVendor(vendor) > 0',
+    '!isVendorWithinBudget(vendor)',
+    "label: 'You Might Also Like'",
     'NOT AVAILABLE ON YOUR SCHEDULE',
     'vendorCardUnavailable',
     'disabled={isScheduleUnavailable(vendor)}',
@@ -272,11 +272,8 @@ test('V8 Phase 3 filters venues by an eligible option-level starting configurati
     "vendor.categoryId === 'venues' ? 'Starting estimate' : 'Event estimate'",
     'No available venue configuration matches the current event requirements.',
   ], 'venue-aware marketplace filtering and presentation')
-  mustContain(details, [
-    'categoryBudgetOverage',
-    'over your {service.categoryName} budget allocation',
-    'the allocation is guidance only',
-  ], 'final venue selection budget guidance')
+  assert.doesNotMatch(details, /categoryBudgetOverage|budgetOverageNotice|allocation is guidance only/,
+    'final venue selection must not show redundant budget-overage guidance')
   assert.doesNotMatch(migration, /update\s+public\.(bookings|event_service_selections)\s+set/i,
     'Phase 3 must not rewrite existing booking or selection prices')
 })
@@ -342,7 +339,20 @@ test('V8 Phase 5 removes only the redundant service-detail dietary input', () =>
   mustContain(instructions, [
     'DIETARY RESTRICTIONS / ALLERGIES',
     'SPECIAL MENU REQUESTS',
+    'neumorphicNavigation',
+    'styles.neumorphicPressed',
+    'styles.neumorphicBurgundyPressed',
+    "background: '#E9EDF0'",
+    "boxShadow: 'inset 4px 4px 9px",
+    "inputPlaceholder: '#68747D'",
+    'placeholderTextColor={palette.inputPlaceholder}',
+    "backgroundColor: '#E1E6E9'",
+    "boxShadow: 'inset 5px 5px 11px",
+    'accessibilityState={{ busy: isSaving, disabled: isSaving }}',
   ], 'existing instruction module')
+  const saveButtonStyle = instructions.match(/saveButton:\s*\{([\s\S]*?)\n\s*\},\n\s*saveText:/)?.[1] ?? ''
+  assert.doesNotMatch(saveButtonStyle, /boxShadow/,
+    'Save & Continue must not have an outer halo')
   mustContain(app, [
     "setScreen('instructionModule')",
     'saveProviderInstructions(value)',
@@ -532,8 +542,16 @@ test('category budgets remain visible guidance without restricting service selec
     "result.message?.includes('Category allocations cannot exceed')",
   ], 'category budget and service-selection coordination')
   mustContain(browse, [
-    'Services That Fits Your Budget',
-    'You Might Also Like',
+    "label: 'Services That Fits Your Budget'",
+    "label: 'You Might Also Like'",
+    "label: 'Perfect For Your Wedding'",
+    'categoryBudgets = {}',
+    'const categoryBudgetForVendor',
+    'const fallbackBudgetEstimate',
+    'const budgetEstimateForVendor',
+    'const isVendorWithinBudget',
+    'customerPriceFromProviderPrice(calculation.providerSubtotal, vendor.commissionRate)',
+    "vendor.pricingUnit === 'person' && eventGuestCount > 0",
     'style={styles.serviceImageBadges}',
     'style={styles.vendorMeta}',
     'style={styles.vendorDescription}',
@@ -549,7 +567,7 @@ test('category budgets remain visible guidance without restricting service selec
     'minHeight: 282',
     "&& !isScheduleUnavailable(vendor)",
     'styles.serviceBudgetBadge',
-    "{vendor.budgetRecommendation.isWithinBudget ? 'WITHIN BUDGET' : 'OVER BUDGET'}",
+    "{isVendorWithinBudget(vendor) ? 'WITHIN BUDGET' : 'OVER BUDGET'}",
     'style={styles.vendorIdentityRow}',
     'style={[styles.rating, styles.compactRating]}',
     'style={styles.searchToolbar}',
@@ -566,13 +584,10 @@ test('category budgets remain visible guidance without restricting service selec
   ], 'read-only category budget grouping')
   assert.doesNotMatch(browse, /CategoryBudgetSlider|isSavingCategoryBudgetRef/,
     'Step 3 must keep category budget editing in Step 2')
-  assert.doesNotMatch(browse, /Within Budget|4\+ Rating|categoryFilters|selectedFilters|filterChip/,
+  assert.doesNotMatch(browse, /4\+ Rating|categoryFilters|selectedFilters|filterChip/,
     'Step 3 must not render the removed nonessential filter tags')
-  mustContain(details, [
-    'isOverCategoryBudget',
-    'You can still select it; the allocation is guidance only.',
-    'You can still continue.',
-  ], 'service budget guidance')
+  assert.doesNotMatch(details, /isOverCategoryBudget|budgetOverageNotice|You can still continue/,
+    'service details must not show redundant budget-overage guidance')
   assert.doesNotMatch(details, /\|\| isOverCategoryBudget/,
     'an over-budget service must not disable or block the selection action')
   mustContain(guidanceOnly, [
@@ -845,16 +860,16 @@ test('standalone service changes keep budget edits provisional until the replace
   mustContain(browse, [
     ') : isChangingService ? (',
     'CHANGE SERVICE',
-    'const hasCategoryRecommendationBudget = !isExploreMode && !isChangingService && !replacementContext',
+    'const isPlanningCategoryBrowse = !isExploreMode && !isChangingService && !replacementContext',
     '!isChangingService',
     'vendor.budgetRecommendation',
   ], 'standalone service-change browse UI')
   mustContain(details, [
     'isChangingSelection?: boolean',
-    'estimatedTotal > categoryBudget',
     'Review Service Change',
-    'the allocation is guidance only.',
   ], 'provisional service-change details UI')
+  assert.doesNotMatch(details, /allocation is guidance only/,
+    'service-change details must not show redundant budget-overage guidance')
 })
 
 test('completed service selection has a contained celebration and still opens the existing review flow', () => {
@@ -1035,7 +1050,10 @@ test('V10 Phase 3 keeps Explore outside the event-planning navigator', () => {
 test('V10 Phase 5 uses explicit wizard controls and separates services by category budget fit', () => {
   const app = read('src/App.tsx')
   const header = read('src/components/PlanningScreenHeader.tsx')
+  const budget = read('src/screens/05-BudgetAllocation.tsx')
   const browse = read('src/screens/06-CategoryBrowse.tsx')
+  const instructions = read('src/screens/10-InstructionModule.tsx')
+  const summary = read('src/screens/12-EventSummary.tsx')
 
   assert.doesNotMatch(app, /PlanningSwipeContainer/, 'planning steps must not be changed by swiping')
   mustContain(header, [
@@ -1047,16 +1065,52 @@ test('V10 Phase 5 uses explicit wizard controls and separates services by catego
     'name="chevron-right"',
     'nextPressLockedRef',
   ], 'explicit header navigation controls')
+  ;[
+    budget,
+    browse,
+    instructions,
+    summary,
+    read('src/screens/04-EventCreation.tsx'),
+  ].forEach((source) => {
+    mustContain(source, ['neumorphicNavigation'], 'uniform planning header navigation depth')
+  })
+  mustContain(header, [
+    'accessibilityLabel="Go to homepage"',
+    'onPress={onBrandPress}',
+  ], 'accessible planning wordmark navigation')
+  mustContain(budget, [
+    'onBrandPress?: () => void',
+    'onBrandPress={isProcessing ? undefined : onBrandPress}',
+  ], 'Step 2 homepage wordmark')
   mustContain(browse, [
+    'onBrandPress?: () => void',
+    'onBrandPress={onBrandPress}',
     "id: 'within-budget'",
     "label: 'Services That Fits Your Budget'",
     'horizontal: true',
     "id: 'outside-budget'",
     "label: 'You Might Also Like'",
-    "vendors: visibleVendors.filter((vendor) => !vendor.budgetRecommendation?.isWithinBudget)",
-    'vendor.budgetRecommendation?.isWithinBudget',
+    "vendors: visibleVendors.filter((vendor) => !isVendorWithinBudget(vendor))",
+    "id: 'perfect-for-wedding'",
+    "label: 'Perfect For Your Wedding'",
+    'vendors: visibleVendors.filter(isVendorWithinBudget)',
     '<ServiceSectionList horizontal={section.horizontal}>',
+    'contentContainerStyle={styles.sortOptionsContent}',
+    'style={styles.sortOptionsScroll}',
+    'boxShadow: neutralSelection.sunkenShadow',
   ], 'budget-fit service presentation')
+  mustContain(instructions, [
+    'brandTitle',
+    'onBrandPress?: () => void',
+    'onBrandPress={onBrandPress}',
+  ], 'Step 4 homepage wordmark')
+  mustContain(summary, [
+    'brandTitle',
+    'onBrandPress?: () => void',
+    'onBrandPress={onBrandPress}',
+  ], 'Step 5 homepage wordmark')
+  assert.ok((app.match(/onBrandPress=\{\(\) => setScreen\('clientHome'\)\}/g) ?? []).length >= 4,
+    'Steps 2 through 5 must route their wordmarks to client Home')
   assert.doesNotMatch(browse, /CategoryBudgetSlider|onPanResponderMove/,
     'Step 3 must not expose category budget adjustment controls')
 })
@@ -1108,13 +1162,13 @@ test('Step 3 service cards keep full service details inside the shared popup ove
   ], 'uniform neumorphic service sections and guest reviews')
   mustContain(floristConfigurator, [
     'neumorphic?: boolean',
-    'neumorphic && styles.neoInset',
-    'neumorphic && styles.neoRaised',
+    'neumorphic && (active ? styles.neoRaised : styles.neoInset)',
+    'neumorphic && (picked ? styles.neoRaised : styles.neoInset)',
   ], 'neumorphic florist options')
   mustContain(photoVideoConfigurator, [
     'neumorphic?: boolean',
-    'neumorphic && styles.neoInset',
-    'neumorphic && styles.neoRaised',
+    'neumorphic && (active ? styles.neoRaised : styles.neoInset)',
+    'neumorphic && (selected ? styles.neoRaised : styles.neoInset)',
   ], 'neumorphic photo and video options')
   mustContain(coordinatorDetails, [
     'isOverlay && styles.neoReviewsSection',
@@ -1773,12 +1827,20 @@ test('V9 Phase 6 removes only the redundant venue schedule field', () => {
   mustContain(details, [
     'eventDate',
     'eventTime',
-    'Set the event date and start time before choosing a venue.',
+    "Set your event date and start time to check this venue's availability.",
+    'firstValidVenueDuration',
+    'canEditMissingVenueSchedule',
+    "onEditEventDetails?.()",
     'selectedVenueHours',
     'RENTAL DURATION',
     'Fixed per-event rate',
     'venueSelections: !usesSelectedProviderPackage && isVenue ? selectedVenueSelections : undefined',
   ], 'venue date, time, duration, and selection controls')
+  mustContain(read('src/App.tsx'), [
+    "onEditEventDetails={() => setScreen('eventCreation')}",
+    'setHomeServiceProfile(undefined)',
+    "setScreen('eventCreation')",
+  ], 'venue schedule recovery action')
   assert.doesNotMatch(details, /EVENT SCHEDULE/)
   assert.doesNotMatch(details, /Venue duration is set on each selected hourly option/)
   mustContain(planning, [
@@ -1866,8 +1928,11 @@ test('V9 Phase 8 completes allocated selections once and safely changes an unsub
     'Review Selected Services',
     'revealSelectedServicesAfterCompletion',
     'accessibilityLabel={`Change ${service.name}`}',
+    '<MaterialCommunityIcons color={palette.primaryContainer} name="plus" size={20} />',
     'changeServiceContext',
   ], 'V9 marketplace completion and change-service UI')
+  assert.doesNotMatch(browse, /reviewAddServiceIcon/,
+    'Add Service must use a vertically centered icon instead of a text glyph')
   mustContain(details, [
     'authoritativeQuoteUnavailable',
     'estimatedTotal,',
@@ -2385,6 +2450,7 @@ test('V10 Phase 6 keeps the mobile brand and navigation treatment consistent', (
   mustContain(tokens, [
     "primary: '#6B1E2E'",
     "primaryDark: '#4E061A'",
+    "closeIcon: '#E53935'",
     "backgroundSecondary: '#F8EFF1'",
     "surface: '#FFF7F2'",
     "border: '#E4D8DA'",
@@ -2428,6 +2494,140 @@ test('V10 Phase 6 keeps the mobile brand and navigation treatment consistent', (
     'width: 40',
     'height: 40',
   ], 'planning navigation header')
+})
+
+test('visible X close controls use the shared red close-icon token', () => {
+  const closeControlSources = [
+    'src/screens/01.1.1-ForgotPassword.tsx',
+    'src/screens/04-EventCreation.tsx',
+    'src/screens/05-BudgetAllocation.tsx',
+    'src/screens/06-CategoryBrowse.tsx',
+    'src/screens/11.1-BookingDetails.tsx',
+    'src/screens/15-SubmitReview.tsx',
+    'src/screens/22.2-PayoutEarnings.tsx',
+    'src/screens/23-Coordinator.tsx',
+    'src/screens/25-Support.tsx',
+    'src/components/BusinessProfileOverlay.tsx',
+    'src/components/ChurchArrangementControls.tsx',
+    'src/components/CoordinatorProfileOverlay.tsx',
+    'src/components/MultiSelectField.tsx',
+    'src/components/PolicyDocumentOverlay.tsx',
+    'src/components/ServiceProfileOverlay.tsx',
+  ]
+
+  closeControlSources.forEach((source) => {
+    mustContain(read(source), ['colors.closeIcon'], `${source} close control`)
+  })
+})
+
+test('neumorphic choices rise from a neutral sunken state without selection fills', () => {
+  const selectionTheme = read('src/theme/neumorphism.ts')
+  const eventCreation = read('src/screens/04-EventCreation.tsx')
+  const budgetAllocation = read('src/screens/05-BudgetAllocation.tsx')
+  const categoryBrowse = read('src/screens/06-CategoryBrowse.tsx')
+  const serviceDetails = read('src/screens/08-ServiceDetails.tsx')
+  const instructionModule = read('src/screens/10-InstructionModule.tsx')
+  const bookingDetails = read('src/screens/11.1-BookingDetails.tsx')
+  const payment = read('src/screens/12-Payment.tsx')
+  const florist = read('src/components/FloristBookingConfigurator.tsx')
+  const multiSelect = read('src/components/MultiSelectField.tsx')
+  const photoVideo = read('src/components/PhotoVideoBookingConfigurator.tsx')
+
+  mustContain(selectionTheme, [
+    'export const neutralSelection',
+    'raisedShadow:',
+    'sunkenShadow:',
+    "surface: '#E9EDF0'",
+  ], 'shared neutral neumorphic selection contract')
+
+  ;[
+    eventCreation,
+    budgetAllocation,
+    categoryBrowse,
+    serviceDetails,
+    instructionModule,
+    bookingDetails,
+    payment,
+    florist,
+    multiSelect,
+    photoVideo,
+  ].forEach((source) => {
+    mustContain(source, [
+      'neutralSelection.sunkenShadow',
+      'neutralSelection.raisedShadow',
+      'neutralSelection.surface',
+    ], 'neutral sunken-to-raised option state')
+  })
+
+  mustContain(serviceDetails, [
+    'venueOptionChoiceSelected: { backgroundColor: neutralSelection.surface, boxShadow: neutralSelection.raisedShadow }',
+    'packageCardSelected: { borderWidth: 1, borderColor: neutralSelection.edge, backgroundColor: neutralSelection.surface, boxShadow: neutralSelection.raisedShadow }',
+    'cateringOptionCardSelected: { borderWidth: 1, borderColor: neutralSelection.edge, backgroundColor: neutralSelection.surface, boxShadow: neutralSelection.raisedShadow }',
+  ], 'service configuration choices')
+  assert.doesNotMatch(serviceDetails, /venueOptionChoiceSelected:\s*\{[^}]*#F6EAEC/)
+  assert.doesNotMatch(florist, /(choiceRowActive|optionRowActive):\s*\{[^}]*#(?:FDF4F6|FFF8F9)/)
+  assert.doesNotMatch(photoVideo, /(choiceActive|optionCardActive):\s*\{[^}]*#FDF4F6/)
+})
+
+test('dynamic client choices animate layout changes and bring the chosen option into focus', () => {
+  const eventCreation = read('src/screens/04-EventCreation.tsx')
+  const serviceDetails = read('src/screens/08-ServiceDetails.tsx')
+  const bookingDetails = read('src/screens/11.1-BookingDetails.tsx')
+  const payment = read('src/screens/12-Payment.tsx')
+  const florist = read('src/components/FloristBookingConfigurator.tsx')
+  const photoVideo = read('src/components/PhotoVideoBookingConfigurator.tsx')
+  const optionMotion = read('src/theme/option-motion.ts')
+
+  mustContain(optionMotion, [
+    'optionSelectionMotionDuration = 220',
+    'property: LayoutAnimation.Properties.opacity',
+    'LayoutAnimation.configureNext(optionSelectionLayoutAnimation)',
+  ], 'shared option layout motion')
+  mustContain(serviceDetails, [
+    'animateOptionLayout()',
+    'scrollOptionToTop(`venue:${option.id}`)',
+    "scrollOptionToTop(`food-tasting:${next ? 'yes' : 'no'}`)",
+    'onOptionSelected={(node) => scrollOptionNodeToTop(() => node)}',
+    'scrollView.measureInWindow',
+    'optionNode.measureInWindow',
+    'scrollView.scrollTo({ animated: true',
+    'scrollEventThrottle={16}',
+    "Set your event date and start time to check this venue's availability.",
+    "'Set Event Date and Start Time'",
+    'numberOfLines={1} style={styles.venueDurationUnit}>hours</Text>',
+    'venueSelectionHeadingCopy: { minWidth: 0, flex: 1',
+    'venueDurationUnit: { minWidth: 42, flexGrow: 0, flexShrink: 0',
+  ], 'animated service choice focus and conflict-warning layout')
+  mustContain(eventCreation, [
+    'animateOptionLayout()',
+    "focusSelectedSection('coordinator')",
+    "focusSelectedSection('churchWedding')",
+    "focusSelectedSection('venueStatus')",
+  ], 'event preference focus and expansion motion')
+  mustContain(florist, [
+    'onOptionSelected?:',
+    'focusSelectedOption(`method:${method}`)',
+    'focusSelectedOption(`package:${packageId}`)',
+    'focusSelectedOption(`arrangement:${arrangement.id}`)',
+  ], 'florist option focus and expansion motion')
+  mustContain(photoVideo, [
+    'onOptionSelected?:',
+    'focusSelectedOption(`package:${packageId}`)',
+    'focusSelectedOption(`deliverable:${deliverableId}`)',
+    'focusSelectedOption(`additional:${serviceId}`)',
+  ], 'photo and video option focus and expansion motion')
+  mustContain(bookingDetails, [
+    'const chooseTastingSlot =',
+    'animateOptionLayout()',
+    'tastingScrollRef.current',
+    'tastingSlotRefs.current[optionKey]',
+  ], 'food tasting slot focus and summary motion')
+  mustContain(payment, [
+    'const choosePaymentType =',
+    'const choosePaymentMethod =',
+    'focusBookingOption(`payment-type:${nextType}`)',
+    'focusBookingOption(`payment-method:${nextMethod}`)',
+  ], 'payment option focus and instruction motion')
 })
 
 test('provider root tabs share the metallic-wordmark header and use global navigation', () => {
@@ -2497,6 +2697,7 @@ test('in-progress client planning autosaves without forcing a draft over the lat
     'onDraftChange={queueBudgetAutosave}',
     'initialValue={instructionDraft}',
     'onDraftChange={handleInstructionDraftChange}',
+    'const instructionServices = React.useMemo<InstructionModuleService[]>',
     'clearClientPlanningResume()',
   ], 'client planning autosave and resume flow')
   assert.doesNotMatch(eventCreation, /SAVE DRAFT/,
@@ -2509,6 +2710,8 @@ test('in-progress client planning autosaves without forcing a draft over the lat
     'initialValue?: InstructionModuleValue',
     'onDraftChange?: (value: InstructionModuleValue) => void',
     'draftsForServices',
+    'services = emptyInstructionServices',
+    'return changed ? next : current',
   ], 'instruction draft resume contract')
   mustContain(planning, ['planningStep = 3', 'ensureDraftEvent(undefined, undefined, false, false, planningStep)'],
     'budget autosave planning-step contract')
@@ -3481,8 +3684,10 @@ test('V15 Phase 1 shows catering pricing and requires an explicit tasting prefer
     'the deployed V15 catering-preference migration must exactly match the reviewed database source'
   )
   mustContain(details, [
-    'Price starts at ${formatPeso(cateringStartingPrice)}',
+    'const serviceStartingPrice = isCatering',
+    'Price starts at ${formatPeso(serviceStartingPrice)}',
     '<Text style={styles.priceSummaryLabel}>PRICE</Text>',
+    '<Text style={styles.priceSummaryValue}>{serviceStartingPriceText}</Text>',
     'Would you like to have a food tasting?',
     "Yes, I&apos;d like a food tasting.",
     "No, I&apos;ll choose my menu directly.",

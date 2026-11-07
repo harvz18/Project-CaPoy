@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native'
 import { PlanningScreenHeader } from '../components/PlanningScreenHeader'
+import { neutralSelection } from '../theme/neumorphism'
 
 export interface InstructionModuleService {
   category: string
@@ -44,6 +45,7 @@ export interface InstructionModuleValue {
 
 interface InstructionModuleScreenProps {
   onBack?: () => void
+  onBrandPress?: () => void
   onDraftChange?: (value: InstructionModuleValue) => void
   onSaveContinue?: (value: InstructionModuleValue) => Promise<void> | void
   initialValue?: InstructionModuleValue
@@ -51,6 +53,7 @@ interface InstructionModuleScreenProps {
 }
 
 const commonTags = ['Vegetarian', 'Vegan', 'Gluten-Free', 'Nut Allergy', 'Dairy-Free']
+const emptyInstructionServices: InstructionModuleService[] = []
 
 type InstructionDraft = {
   dietaryRestrictions: string
@@ -112,9 +115,10 @@ const generalRequestCopy = (category: string): [string, string] => {
 export const InstructionModuleScreen: React.FC<InstructionModuleScreenProps> = ({
   initialValue,
   onBack,
+  onBrandPress,
   onDraftChange,
   onSaveContinue,
-  services = [],
+  services = emptyInstructionServices,
 }) => {
   const [expandedProviders, setExpandedProviders] = React.useState<string[]>(() =>
     services[0]?.id ? [services[0].id] : []
@@ -128,10 +132,16 @@ export const InstructionModuleScreen: React.FC<InstructionModuleScreenProps> = (
     setDrafts((current) => {
       const next = { ...current }
       const initialDrafts = draftsForServices(services, initialValue)
+      let changed = false
+
       services.forEach((service) => {
-        if (!next[service.id]) next[service.id] = initialDrafts[service.id] ?? emptyDraft()
+        if (next[service.id]) return
+
+        next[service.id] = initialDrafts[service.id] ?? emptyDraft()
+        changed = true
       })
-      return next
+
+      return changed ? next : current
     })
     setExpandedProviders((current) =>
       current.length > 0 || !services[0]?.id ? current : [services[0].id]
@@ -196,11 +206,14 @@ export const InstructionModuleScreen: React.FC<InstructionModuleScreenProps> = (
       style={styles.screen}
     >
       <PlanningScreenHeader
+        brandTitle
         currentStep={4}
         label="Provider Requests"
+        neumorphicNavigation
         nextAccessibilityLabel="Save provider requests and continue to payment"
         nextEnabled={services.length > 0 && !isSaving}
         onBack={onBack}
+        onBrandPress={onBrandPress}
         onNext={handleSave}
         title="Provider Requests"
       />
@@ -247,7 +260,9 @@ export const InstructionModuleScreen: React.FC<InstructionModuleScreenProps> = (
                             style={({ pressed }) => [
                               styles.tag,
                               isSelected && styles.tagSelected,
-                              pressed && styles.tagPressed,
+                              pressed && (isSelected
+                                ? styles.tagSelectedPressed
+                                : styles.neumorphicPressed),
                             ]}
                           >
                             <Text style={[styles.tagText, isSelected && styles.tagTextSelected]}>
@@ -326,13 +341,13 @@ export const InstructionModuleScreen: React.FC<InstructionModuleScreenProps> = (
           <Pressable
             accessibilityLabel="Save requests and continue"
             accessibilityRole="button"
-            accessibilityState={{ disabled: isSaving }}
+            accessibilityState={{ busy: isSaving, disabled: isSaving }}
             disabled={isSaving}
             onPress={handleSave}
             style={({ pressed }) => [
               styles.saveButton,
               isSaving && styles.saveDisabled,
-              pressed && styles.savePressed,
+              pressed && styles.neumorphicBurgundyPressed,
             ]}
           >
             <Text style={styles.saveText}>{isSaving ? 'Saving...' : 'Save & Continue'}</Text>
@@ -423,7 +438,7 @@ const RequestField: React.FC<RequestFieldProps> = ({
       numberOfLines={numberOfLines}
       onChangeText={onChangeText}
       placeholder={placeholder}
-      placeholderTextColor={palette.secondaryFixedDim}
+      placeholderTextColor={palette.inputPlaceholder}
       style={[styles.textArea, numberOfLines >= 3 && styles.textAreaTall]}
       textAlignVertical="top"
       value={value}
@@ -432,16 +447,16 @@ const RequestField: React.FC<RequestFieldProps> = ({
 )
 
 const palette = {
-  background: '#FFFFFF',
-  surfaceLow: '#F3F3F4',
-  surfaceDim: '#DADADA',
-  surfaceHighest: '#E2E2E2',
-  surfaceVariant: '#E2E2E2',
-  surfaceLowest: '#FFFFFF',
+  background: '#E9EDF0',
+  surfaceLow: '#E9EDF0',
+  surfaceDim: '#D8DEE2',
+  surfaceHighest: '#E9EDF0',
+  surfaceVariant: '#D8DEE2',
+  surfaceLowest: '#E9EDF0',
   primary: '#4E061A',
   primaryContainer: '#6B1E2E',
   secondary: '#5E5E5E',
-  secondaryFixedDim: '#C7C6C6',
+  inputPlaceholder: '#68747D',
   text: '#1A1C1C',
   textVariant: '#544244',
   white: '#FFFFFF',
@@ -450,6 +465,14 @@ const palette = {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.background },
+  neumorphicPressed: {
+    boxShadow: 'inset 3px 3px 7px rgba(160, 171, 180, 0.54), inset -3px -3px 7px rgba(255, 255, 255, 0.96)',
+    transform: [{ scale: 0.98 }],
+  },
+  neumorphicBurgundyPressed: {
+    boxShadow: 'inset 3px 3px 7px rgba(44, 3, 15, 0.66), inset -3px -3px 7px rgba(146, 48, 72, 0.56)',
+    transform: [{ scale: 0.99 }],
+  },
   topAppBar: {
     zIndex: 40,
     height: 64,
@@ -511,9 +534,10 @@ const styles = StyleSheet.create({
   providerCard: {
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: palette.surfaceVariant,
-    borderRadius: 12,
+    borderColor: 'rgba(255, 255, 255, 0.78)',
+    borderRadius: 18,
     backgroundColor: palette.surfaceHighest,
+    boxShadow: '7px 7px 15px rgba(156, 169, 180, 0.46), -7px -7px 15px rgba(255, 255, 255, 0.96)',
   },
   providerHeader: {
     minHeight: 80,
@@ -524,13 +548,18 @@ const styles = StyleSheet.create({
     backgroundColor: palette.surfaceHighest,
     padding: 16,
   },
-  providerHeaderPressed: { backgroundColor: palette.surfaceDim },
+  providerHeaderPressed: {
+    boxShadow: 'inset 4px 4px 9px rgba(160, 171, 180, 0.52), inset -4px -4px 9px rgba(255, 255, 255, 0.94)',
+  },
   providerIdentity: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 16 },
   providerImage: {
     width: 48,
     height: 48,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.78)',
     borderRadius: 24,
     backgroundColor: palette.surfaceDim,
+    boxShadow: '3px 3px 7px rgba(156, 169, 180, 0.42), -3px -3px 7px rgba(255, 255, 255, 0.94)',
   },
   providerImagePlaceholder: { alignItems: 'center', justifyContent: 'center' },
   providerImageInitial: { color: palette.primaryContainer, fontSize: 18, fontWeight: '700' },
@@ -539,8 +568,8 @@ const styles = StyleSheet.create({
   providerBusiness: { color: palette.textVariant, fontSize: 12, lineHeight: 17, marginTop: 1 },
   providerCategory: {
     color: palette.secondary,
-    fontSize: 11,
-    lineHeight: 15,
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: '700',
     letterSpacing: 1.1,
     marginTop: 2,
@@ -555,72 +584,97 @@ const styles = StyleSheet.create({
   providerContent: {
     gap: 16,
     borderTopWidth: 1,
-    borderTopColor: palette.surfaceVariant,
+    borderTopColor: 'rgba(255, 255, 255, 0.72)',
     backgroundColor: palette.surfaceLowest,
     padding: 16,
+    boxShadow: 'inset 4px 4px 9px rgba(160, 171, 180, 0.42), inset -4px -4px 9px rgba(255, 255, 255, 0.92)',
   },
   emptyState: {
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: palette.surfaceVariant,
-    borderRadius: 12,
+    borderColor: 'rgba(255, 255, 255, 0.78)',
+    borderRadius: 18,
+    backgroundColor: palette.background,
     padding: 24,
+    boxShadow: '6px 6px 13px rgba(156, 169, 180, 0.44), -6px -6px 13px rgba(255, 255, 255, 0.96)',
   },
   emptyTitle: { color: palette.text, fontSize: 16, lineHeight: 22, fontWeight: '700' },
   emptyText: { color: palette.secondary, fontSize: 13, lineHeight: 20, textAlign: 'center', marginTop: 4 },
   tagsCaption: {
     color: palette.secondary,
-    fontSize: 10,
-    lineHeight: 14,
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: '700',
     letterSpacing: 1,
   },
   tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   tag: {
+    borderWidth: 1,
+    borderColor: neutralSelection.edge,
     borderRadius: 16,
-    backgroundColor: palette.surfaceVariant,
+    backgroundColor: neutralSelection.surface,
     paddingHorizontal: 12,
     paddingVertical: 6,
+    boxShadow: neutralSelection.sunkenShadow,
   },
-  tagSelected: { backgroundColor: palette.primaryContainer },
-  tagText: { color: palette.textVariant, fontSize: 11, lineHeight: 15, fontWeight: '600' },
-  tagTextSelected: { color: palette.white },
-  tagPressed: { opacity: 0.75, transform: [{ scale: 0.96 }] },
-  fieldGroup: { gap: 7 },
+  tagSelected: {
+    borderColor: neutralSelection.edge,
+    backgroundColor: neutralSelection.surface,
+    boxShadow: neutralSelection.raisedShadow,
+  },
+  tagText: { color: palette.textVariant, fontSize: 12, lineHeight: 16, fontWeight: '600' },
+  tagTextSelected: { color: palette.textVariant, fontWeight: '800' },
+  tagSelectedPressed: {
+    boxShadow: neutralSelection.sunkenShadow,
+    transform: [{ scale: 0.98 }],
+  },
+  fieldGroup: { gap: 12 },
   fieldHeading: {
+    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.78)',
+    borderRadius: 14,
+    backgroundColor: palette.background,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    boxShadow: '4px 4px 9px rgba(156, 169, 180, 0.44), -4px -4px 9px rgba(255, 255, 255, 0.96)',
   },
   fieldLabel: {
     flex: 1,
     color: palette.textVariant,
-    fontSize: 11,
-    lineHeight: 15,
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: '700',
     letterSpacing: 0.8,
   },
   fieldBadge: {
-    borderRadius: 4,
-    backgroundColor: palette.surfaceVariant,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.72)',
+    borderRadius: 10,
+    backgroundColor: palette.background,
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 3,
+    boxShadow: 'inset 2px 2px 5px rgba(160, 171, 180, 0.42), inset -2px -2px 5px rgba(255, 255, 255, 0.92)',
   },
   requiredBadge: { backgroundColor: 'rgba(255, 218, 214, 0.45)' },
-  fieldBadgeText: { color: palette.secondary, fontSize: 10, lineHeight: 13, fontWeight: '600' },
+  fieldBadgeText: { color: palette.secondary, fontSize: 12, lineHeight: 16, fontWeight: '600' },
   requiredBadgeText: { color: palette.primaryContainer },
   textArea: {
     minHeight: 68,
-    color: palette.text,
+    color: '#36424A',
     fontSize: 14,
     lineHeight: 21,
     borderWidth: 1,
-    borderColor: palette.surfaceVariant,
-    borderRadius: 8,
-    backgroundColor: palette.surfaceLow,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    borderColor: 'rgba(132, 146, 156, 0.26)',
+    borderRadius: 14,
+    backgroundColor: '#E1E6E9',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    boxShadow: 'inset 5px 5px 11px rgba(139, 151, 161, 0.58), inset -5px -5px 11px rgba(255, 255, 255, 0.96)',
   },
   textAreaTall: { minHeight: 88 },
   generalNotesSection: { marginTop: 32, marginBottom: 32 },
@@ -634,13 +688,11 @@ const styles = StyleSheet.create({
   generalNotesInput: {
     minHeight: 128,
     backgroundColor: palette.surfaceLowest,
-    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.72)',
+    borderRadius: 14,
     padding: 14,
-    shadowColor: palette.primaryContainer,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.08,
-    shadowRadius: 15,
-    elevation: 3,
+    boxShadow: 'inset 4px 4px 9px rgba(160, 171, 180, 0.52), inset -4px -4px 9px rgba(255, 255, 255, 0.94)',
   },
   footer: {
     position: 'absolute',
@@ -651,15 +703,11 @@ const styles = StyleSheet.create({
     minHeight: 88,
     justifyContent: 'center',
     borderTopWidth: 1,
-    borderTopColor: palette.surfaceVariant,
+    borderTopColor: 'rgba(255, 255, 255, 0.72)',
     backgroundColor: palette.surfaceLowest,
     paddingHorizontal: 20,
     paddingVertical: 16,
-    shadowColor: palette.primaryContainer,
-    shadowOffset: { width: 0, height: -10 },
-    shadowOpacity: 0.08,
-    shadowRadius: 15,
-    elevation: 8,
+    boxShadow: '0px -5px 12px rgba(62, 75, 84, 0.18)',
   },
   footerContent: { width: '100%', maxWidth: 600, alignSelf: 'center' },
   saveButton: {
@@ -667,13 +715,14 @@ const styles = StyleSheet.create({
     minHeight: 52,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.22)',
+    borderRadius: 26,
     backgroundColor: palette.primaryContainer,
     paddingHorizontal: 24,
     paddingVertical: 14,
   },
   saveText: { color: palette.white, fontSize: 16, lineHeight: 22, fontWeight: '600' },
   saveDisabled: { opacity: 0.65 },
-  savePressed: { backgroundColor: palette.primary, transform: [{ scale: 0.985 }] },
   pressed: { opacity: 0.55, transform: [{ scale: 0.95 }] },
 })

@@ -46,6 +46,7 @@ interface EventSummaryScreenProps {
   isSubmittingRequests?: boolean
   items: EventSummaryOrderItem[]
   onBack?: () => void
+  onBrandPress?: () => void
   onEditEventDetails?: () => void
   onModifyServices?: () => void
   onReviewSavedPlan?: () => void
@@ -63,6 +64,7 @@ export const EventSummaryScreen: React.FC<EventSummaryScreenProps> = ({
   isSubmittingRequests = false,
   items,
   onBack,
+  onBrandPress,
   onEditEventDetails,
   onModifyServices,
   onReviewSavedPlan,
@@ -106,10 +108,13 @@ export const EventSummaryScreen: React.FC<EventSummaryScreenProps> = ({
   return (
     <View style={styles.screen}>
       <PlanningScreenHeader
+        brandTitle
         currentStep={5}
         label="Event Summary"
+        neumorphicNavigation
         nextAccessibilityLabel="Event summary is the final planning step"
         onBack={onBack}
+        onBrandPress={onBrandPress}
         showProgress={!isSavedPlan}
         title="Event Summary"
       />

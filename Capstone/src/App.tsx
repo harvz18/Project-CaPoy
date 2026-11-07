@@ -2471,7 +2471,7 @@ export const App: React.FC<AppProps> = ({
             providerPrice: 0,
           },
         ]
-  const instructionServices: InstructionModuleService[] = [
+  const instructionServices = React.useMemo<InstructionModuleService[]>(() => [
     ...selectedServices.map((selected) => {
       const catalogService = catalogServices.find((service) => service.id === selected.id)
 
@@ -2500,7 +2500,7 @@ export const App: React.FC<AppProps> = ({
               : 'Assigned event coordinator',
         }]
       : []),
-  ]
+  ], [assignedCoordinator, catalogServices, selectedServices])
   const eventSummary: EventSummaryDetails = {
     churchWedding: eventDetails.eventType === 'wedding' && eventDetails.wantsCoordinator === true
       ? (typeof eventDetails.isChurchWedding === 'boolean'
@@ -7331,6 +7331,7 @@ export const App: React.FC<AppProps> = ({
               isProcessing={activeGuardedActionCount > 0}
               isMarketplacePricingLoading={isBudgetMarketplacePricingLoading}
               onBack={openEventCreationFromBudget}
+              onBrandPress={() => setScreen('clientHome')}
               onContinue={handleBudgetContinue}
               onDraftChange={queueBudgetAutosave}
               onRemoveCommittedCoordinator={
@@ -7509,6 +7510,7 @@ export const App: React.FC<AppProps> = ({
               if (serviceBrowseMode === 'planning') openBudgetAllocationFromServices()
               else setScreen('clientHome')
             }}
+            onBrandPress={() => setScreen('clientHome')}
             onCategoryBudgetChange={async (amount) => {
               if (changingServiceSelection) {
                 setToastMessage('Your budget remains unchanged while you compare a replacement service.')
@@ -7733,6 +7735,7 @@ export const App: React.FC<AppProps> = ({
             onSaveFoodTastingDraft={handleSaveCateringTastingDraft}
             onCalculateQuote={calculateServiceDetailsQuote}
             onBack={() => setScreen('categoryBrowse')}
+            onEditEventDetails={() => setScreen('eventCreation')}
             onReadAllReviews={() => setScreen('serviceDetails')}
             onPhotoVideoSelectionChange={(selection) => {
               if (!currentService) return
@@ -7755,6 +7758,7 @@ export const App: React.FC<AppProps> = ({
               }
               openPlanningHub('back')
             }}
+            onBrandPress={() => setScreen('clientHome')}
             onDraftChange={handleInstructionDraftChange}
             services={instructionServices}
             onSaveContinue={async (value) => {
@@ -7917,6 +7921,7 @@ export const App: React.FC<AppProps> = ({
             isSubmittingRequests={isSubmittingBookingRequests}
             items={summaryItems}
             onBack={() => savedPlanReview?.eventId ? setScreen('clientPlans') : setScreen('instructionModule')}
+            onBrandPress={() => setScreen('clientHome')}
             onEditEventDetails={openSavedPlanDetailsEditor}
             onModifyServices={openSavedPlanServices}
             onReviewSavedPlan={reviewSavedPlanChanges}
@@ -8303,6 +8308,10 @@ export const App: React.FC<AppProps> = ({
               mode: serviceBrowseMode,
               onAddSelection: handleAddSelection,
               onCalculateQuote: calculateServiceDetailsQuote,
+              onEditEventDetails: () => {
+                setHomeServiceProfile(undefined)
+                setScreen('eventCreation')
+              },
               onLoadFoodTastingDraft: handleLoadCateringTastingDraft,
               onPhotoVideoSelectionChange: (selection) => {
                 const draft = { selection, serviceId: homeServiceProfile.service.id }

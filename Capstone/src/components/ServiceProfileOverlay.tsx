@@ -4,6 +4,7 @@ import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native'
 
 import { type CatalogService } from '../lib/catalog'
 import { type ServiceReviewInsights } from '../lib/reviews'
+import { colors } from '../theme/tokens'
 import {
   ServiceDetailsScreen,
   type ServiceDetailsScreenProps,
@@ -211,7 +212,7 @@ const styles = StyleSheet.create({
     elevation: 4,
     boxShadow: '3px 3px 6px rgba(0, 0, 0, 0.38)',
   },
-  closeButtonGlyph: { color: '#E53935', fontSize: 26, lineHeight: 28, fontWeight: '400' },
+  closeButtonGlyph: { color: colors.closeIcon, fontSize: 26, lineHeight: 28, fontWeight: '400' },
   closeButtonPressed: { opacity: 0.72 },
   planActionBar: {
     borderTopWidth: 1,

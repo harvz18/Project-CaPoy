@@ -17,6 +17,8 @@ import { formatPeso } from '../lib/catalog'
 import { calculatePaymentBreakdown } from '../lib/pricing'
 import type { PaymentBreakdown } from '../lib/pricing'
 import type { SavedPlanReview, V14PaymentSettlementContext } from '../lib/planning'
+import { neutralSelection } from '../theme/neumorphism'
+import { animateOptionLayout, optionSelectionMotionDuration } from '../theme/option-motion'
 
 export type PaymentType = 'deposit' | 'full'
 export type PaymentMethod = 'eWallet' | 'bankTransfer'
@@ -572,6 +574,10 @@ export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
   const [showTermsError, setShowTermsError] = React.useState(false)
   const [summaryExpanded, setSummaryExpanded] = React.useState(false)
   const [receiptHeight, setReceiptHeight] = React.useState(0)
+  const bookingSheetScrollRef = React.useRef<React.ElementRef<typeof ScrollView>>(null)
+  const bookingSheetScrollOffsetRef = React.useRef(0)
+  const bookingOptionRefs = React.useRef<Record<string, React.ElementRef<typeof Pressable> | null>>({})
+  const bookingOptionFocusTimerRef = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const sheetTranslateY = React.useRef(new Animated.Value(480)).current
   const receiptProgress = React.useRef(new Animated.Value(0)).current
   const breakdown = paymentBreakdown ?? calculatePaymentBreakdown([])
@@ -580,6 +586,37 @@ export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
     ? paymentSettlementContext?.manualBankTransfer
     : paymentSettlementContext?.eWalletCheckout
   const selectedMethodEnabled = !isLoading && (usePaymongoCheckout || selectedSettlement?.enabled !== false)
+
+  React.useEffect(() => () => {
+    if (bookingOptionFocusTimerRef.current) clearTimeout(bookingOptionFocusTimerRef.current)
+  }, [])
+
+  const focusBookingOption = (optionKey: string) => {
+    if (bookingOptionFocusTimerRef.current) clearTimeout(bookingOptionFocusTimerRef.current)
+    bookingOptionFocusTimerRef.current = setTimeout(() => {
+      const scrollView = bookingSheetScrollRef.current
+      const optionNode = bookingOptionRefs.current[optionKey]
+      if (!scrollView || !optionNode) return
+      scrollView.measureInWindow((_scrollX, scrollY) => {
+        optionNode.measureInWindow((_optionX, optionY) => {
+          const nextOffset = bookingSheetScrollOffsetRef.current + optionY - scrollY - 12
+          scrollView.scrollTo({ animated: true, y: Math.max(0, nextOffset) })
+        })
+      })
+    }, optionSelectionMotionDuration)
+  }
+
+  const choosePaymentType = (nextType: PaymentType) => {
+    animateOptionLayout()
+    setPaymentType(nextType)
+    focusBookingOption(`payment-type:${nextType}`)
+  }
+
+  const choosePaymentMethod = (nextMethod: PaymentMethod) => {
+    animateOptionLayout()
+    setPaymentMethod(nextMethod)
+    focusBookingOption(`payment-method:${nextMethod}`)
+  }
 
   const dismiss = React.useCallback(() => {
     Animated.timing(sheetTranslateY, {
@@ -627,6 +664,7 @@ export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
   const submit = () => {
     if (isProcessing || isLoading || !selectedMethodEnabled) return
     if (!termsAccepted) {
+      animateOptionLayout()
       setShowTermsError(true)
       return
     }
@@ -668,7 +706,16 @@ export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
               <Text style={styles.bookingSheetSubtitle}>Review your payment without leaving this booking.</Text>
             </View>
           </View>
-          <ScrollView contentContainerStyle={styles.bookingSheetContent} showsVerticalScrollIndicator={false} style={styles.bookingSheetScroll}>
+          <ScrollView
+            ref={bookingSheetScrollRef}
+            contentContainerStyle={styles.bookingSheetContent}
+            onScroll={(event) => {
+              bookingSheetScrollOffsetRef.current = event.nativeEvent.contentOffset.y
+            }}
+            scrollEventThrottle={16}
+            showsVerticalScrollIndicator={false}
+            style={styles.bookingSheetScroll}
+          >
             <Pressable
               accessibilityLabel={`${summaryExpanded ? 'Hide' : 'Show'} payment receipt`}
               accessibilityRole="button"
@@ -708,18 +755,24 @@ export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
             <Text style={styles.bookingSheetSectionTitle}>Payment option</Text>
             <View style={styles.bookingSheetOptionRow}>
               <Pressable
+                ref={(node) => {
+                  bookingOptionRefs.current['payment-type:deposit'] = node
+                }}
                 accessibilityRole="radio"
                 accessibilityState={{ checked: paymentType === 'deposit' }}
-                onPress={() => setPaymentType('deposit')}
+                onPress={() => choosePaymentType('deposit')}
                 style={[styles.bookingSheetOption, paymentType === 'deposit' && styles.bookingSheetOptionSelected]}
               >
                 <Text style={styles.bookingSheetOptionLabel}>Required downpayment</Text>
                 <Text style={styles.bookingSheetOptionValue}>{formatCurrency(breakdown.initialPayment)}</Text>
               </Pressable>
               <Pressable
+                ref={(node) => {
+                  bookingOptionRefs.current['payment-type:full'] = node
+                }}
                 accessibilityRole="radio"
                 accessibilityState={{ checked: paymentType === 'full' }}
-                onPress={() => setPaymentType('full')}
+                onPress={() => choosePaymentType('full')}
                 style={[styles.bookingSheetOption, paymentType === 'full' && styles.bookingSheetOptionSelected]}
               >
                 <Text style={styles.bookingSheetOptionLabel}>Pay in full</Text>
@@ -737,11 +790,14 @@ export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
                   : true)
                 return (
                   <Pressable
+                    ref={(node) => {
+                      bookingOptionRefs.current[`payment-method:${method.id}`] = node
+                    }}
                     key={method.id}
                     accessibilityRole="radio"
                     accessibilityState={{ checked: selected, disabled: !enabled }}
                     disabled={!enabled}
-                    onPress={() => setPaymentMethod(method.id)}
+                    onPress={() => choosePaymentMethod(method.id)}
                     style={[styles.bookingSheetMethod, selected && styles.bookingSheetMethodSelected, !enabled && styles.bookingSheetMethodDisabled]}
                   >
                     <MaterialCommunityIcons color={palette.burgundy} name={method.icon} size={20} />
@@ -1189,13 +1245,13 @@ const styles = StyleSheet.create({
   bookingSheetLoading: { color: palette.muted, fontSize: 13, lineHeight: 19, paddingVertical: 12, textAlign: 'center' },
   bookingSheetSectionTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '700', marginTop: 2 },
   bookingSheetOptionRow: { flexDirection: 'row', gap: 10 },
-  bookingSheetOption: { flex: 1, borderWidth: 1, borderColor: palette.border, borderRadius: 10, backgroundColor: palette.surface, padding: 12 },
-  bookingSheetOptionSelected: { borderColor: palette.burgundy, backgroundColor: '#FCF5F6' },
+  bookingSheetOption: { flex: 1, borderWidth: 1, borderColor: neutralSelection.edge, borderRadius: 10, backgroundColor: neutralSelection.surface, padding: 12, boxShadow: neutralSelection.sunkenShadow },
+  bookingSheetOptionSelected: { borderColor: neutralSelection.edge, backgroundColor: neutralSelection.surface, boxShadow: neutralSelection.raisedShadow },
   bookingSheetOptionLabel: { color: palette.text, fontSize: 12, lineHeight: 17, fontWeight: '700' },
   bookingSheetOptionValue: { color: palette.burgundy, fontSize: 13, lineHeight: 18, fontWeight: '700', marginTop: 5 },
   bookingSheetMethodRow: { flexDirection: 'row', gap: 10 },
-  bookingSheetMethod: { flex: 1, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderWidth: 1, borderColor: palette.border, borderRadius: 10, backgroundColor: palette.surface, paddingHorizontal: 8 },
-  bookingSheetMethodSelected: { borderColor: palette.burgundy, backgroundColor: '#FCF5F6' },
+  bookingSheetMethod: { flex: 1, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderWidth: 1, borderColor: neutralSelection.edge, borderRadius: 10, backgroundColor: neutralSelection.surface, paddingHorizontal: 8, boxShadow: neutralSelection.sunkenShadow },
+  bookingSheetMethodSelected: { borderColor: neutralSelection.edge, backgroundColor: neutralSelection.surface, boxShadow: neutralSelection.raisedShadow },
   bookingSheetMethodDisabled: { opacity: 0.48 },
   bookingSheetMethodText: { color: palette.text, fontSize: 12, lineHeight: 17, fontWeight: '600' },
   bookingSheetTerms: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 2 },

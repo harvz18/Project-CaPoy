@@ -18,6 +18,7 @@ import {
 import { Text } from '../components/AppText'
 import { BrandIdentity } from '../components/BrandIdentity'
 import { CoordinatorBottomNavigation } from '../components/CoordinatorBottomNavigation'
+import { colors } from '../theme/tokens'
 import {
   ChurchLocationMap,
   ChurchTimePickerModal,
@@ -966,7 +967,7 @@ const ChurchArrangementPanel: React.FC<{
                 <Text style={styles.churchModalText}>Are you sure this church arrangement has already been confirmed?</Text>
               </View>
               <Pressable accessibilityLabel="Close confirmation" accessibilityRole="button" disabled={confirming} onPress={closeConfirmation}>
-                <MaterialIcons color={palette.secondary} name="close" size={22} />
+                <MaterialIcons color={colors.closeIcon} name="close" size={22} />
               </Pressable>
             </View>
             <Text style={styles.inputLabel}>CONFIRMATION METHOD</Text>
@@ -1037,7 +1038,7 @@ const ChurchArrangementPanel: React.FC<{
                   <Text style={styles.churchModalText}>Tap the demo coordinate map to place or move the pin. Confirm only coordinates you have checked.</Text>
                 </View>
                 <Pressable accessibilityLabel="Close location picker" accessibilityRole="button" onPress={() => setShowLocationPicker(false)}>
-                  <MaterialIcons color={palette.secondary} name="close" size={22} />
+                  <MaterialIcons color={colors.closeIcon} name="close" size={22} />
                 </Pressable>
               </View>
               <ChurchLocationMap coordinates={draftCoordinates} interactive onChange={setDraftCoordinates} showOpenStreetMapLink={false} />

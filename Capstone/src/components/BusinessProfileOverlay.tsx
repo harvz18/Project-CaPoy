@@ -5,6 +5,7 @@ import { Animated, Easing, Image, Pressable, ScrollView, StyleSheet, View } from
 
 import { formatServicePrice, type CatalogService } from '../lib/catalog'
 import type { ProviderBusinessRating } from '../lib/provider-business'
+import { colors } from '../theme/tokens'
 import { Text } from './AppText'
 
 interface BusinessProfileOverlayProps {
@@ -220,7 +221,7 @@ const styles = StyleSheet.create({
   modalShell: { width: '100%', maxWidth: 760, height: '90%' },
   modalCard: { flex: 1, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.66)', borderRadius: 24, backgroundColor: '#E9EDF0', boxShadow: '9px 9px 20px rgba(157, 169, 178, 0.5)' },
   closeButton: { position: 'absolute', top: 12, right: 12, zIndex: 3, width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.66)', borderRadius: 18, backgroundColor: '#E9EDF0', shadowColor: '#000000', shadowOffset: { width: 3, height: 3 }, shadowOpacity: 0.38, shadowRadius: 6, elevation: 4, boxShadow: '3px 3px 6px rgba(0, 0, 0, 0.38), -3px -3px 6px rgba(255, 255, 255, 0.94)' },
-  closeButtonGlyph: { color: '#E53935', fontSize: 26, lineHeight: 28, fontWeight: '400' },
+  closeButtonGlyph: { color: colors.closeIcon, fontSize: 26, lineHeight: 28, fontWeight: '400' },
   closeButtonPressed: { opacity: 0.72 },
   content: { paddingBottom: 26 },
   hero: { height: 204, overflow: 'visible', position: 'relative', backgroundColor: '#722F37' },

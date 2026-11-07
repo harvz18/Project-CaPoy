@@ -149,7 +149,7 @@ export const SupportScreen = ({ onBack }: { onBack: () => void }) => {
         ))}
 
         {selected ? <View style={styles.thread}>
-          <View style={styles.threadHeader}><View style={styles.ticketMain}><Text style={styles.ticketId}>MV-{String(selected.ticketNumber).padStart(6, '0')}</Text><Text style={styles.ticketTitle}>{selected.subject}</Text></View><Pressable onPress={() => setSelected(undefined)}><MaterialCommunityIcons name="close" color={colors.primaryDark} size={20}/></Pressable></View>
+          <View style={styles.threadHeader}><View style={styles.ticketMain}><Text style={styles.ticketId}>MV-{String(selected.ticketNumber).padStart(6, '0')}</Text><Text style={styles.ticketTitle}>{selected.subject}</Text></View><Pressable onPress={() => setSelected(undefined)}><MaterialCommunityIcons name="close" color={colors.closeIcon} size={20}/></Pressable></View>
           <Text style={styles.threadStatus}>{selected.status.replaceAll('_', ' ')} · {selected.priority} priority</Text>
           {messages.length === 0 ? <Text style={styles.empty}>No replies yet.</Text> : messages.map((item) => <View key={item.id} style={[styles.bubble, item.mine && styles.bubbleMine]}><Text style={styles.bubbleAuthor}>{item.mine ? 'You' : 'MULTIVENT Support'}</Text><Text style={styles.bubbleText}>{item.body}</Text></View>)}
           {selected.status !== 'closed' ? <><TextInput maxLength={4000} multiline style={[styles.input, styles.reply]} value={reply} onChangeText={setReply} placeholder="Reply to support" placeholderTextColor={colors.textMuted}/><Pressable disabled={sending || !reply.trim()} onPress={() => void replyToTicket()} style={[styles.submit, (sending || !reply.trim()) && styles.disabled]}><Text style={styles.submitText}>Send reply</Text></Pressable></> : <Text style={styles.empty}>This ticket is closed. Create a new ticket if you need more help.</Text>}
@@ -165,7 +165,7 @@ export const SupportScreen = ({ onBack }: { onBack: () => void }) => {
                 <Text style={styles.pickerSubtitle}>Choose the event or booking connected to this concern.</Text>
               </View>
               <Pressable accessibilityLabel="Close related record selector" accessibilityRole="button" onPress={() => setContextPickerOpen(false)} style={styles.pickerClose}>
-                <MaterialCommunityIcons name="close" color={colors.primaryDark} size={20}/>
+                <MaterialCommunityIcons name="close" color={colors.closeIcon} size={20}/>
               </Pressable>
             </View>
             <ScrollView contentContainerStyle={styles.pickerOptions} keyboardShouldPersistTaps="handled" style={styles.pickerList}>
