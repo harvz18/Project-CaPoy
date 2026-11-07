@@ -1088,7 +1088,6 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                         value={date}
                       />
                     </View>
-                    <Text style={styles.dateLeadTimeHint}>{EVENT_BOOKING_LEAD_TIME_MESSAGE}</Text>
                   </View>
                 </View>
 
@@ -2049,6 +2048,7 @@ const CalendarPickerModal: React.FC<CalendarPickerModalProps> = ({ onChange, onC
             showsVerticalScrollIndicator={false}
             style={styles.calendarScroll}
           >
+            <Text style={styles.calendarLeadTimeHint}>{EVENT_BOOKING_LEAD_TIME_MESSAGE}</Text>
             <View style={styles.calendarMonthHeader}>
             <Pressable
               accessibilityLabel="Previous calendar month"
@@ -2444,7 +2444,6 @@ const styles = StyleSheet.create({
   dateTimeGridWide: { flexDirection: 'row' },
   dateTimeError: { color: '#BA1A1A', fontSize: 13, lineHeight: 19 },
   dateTimeField: { flex: 1, gap: 12 },
-  dateLeadTimeHint: { color: palette.muted, fontSize: 11, lineHeight: 16, marginTop: -5 },
   dateTimeFieldMenuOpen: {
     zIndex: 10,
     // The AM/PM menu is positioned over the input shell. Reserve its full
@@ -2632,6 +2631,13 @@ const styles = StyleSheet.create({
   },
   calendarScroll: { flexShrink: 1 },
   calendarContent: { paddingBottom: 2 },
+  calendarLeadTimeHint: {
+    color: palette.muted,
+    fontSize: 12,
+    lineHeight: 17,
+    marginBottom: 14,
+    textAlign: 'center',
+  },
   calendarYearList: { gap: 8, paddingBottom: 14 },
   calendarYearButton: {
     minWidth: 62,
