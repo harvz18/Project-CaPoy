@@ -405,6 +405,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
   )
   const [isMeridiemMenuOpen, setIsMeridiemMenuOpen] = React.useState(false)
   const [dateTimeError, setDateTimeError] = React.useState('')
+  const [hasManualDateLeadTimeError, setHasManualDateLeadTimeError] = React.useState(false)
   const [isEventNameFocused, setIsEventNameFocused] = React.useState(false)
   const [activePicker, setActivePicker] = React.useState<'calendar' | 'time' | null>(null)
   const [venueStatus, setVenueStatus] = React.useState<VenueStatus>(
@@ -444,6 +445,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
   const eventScrollRef = React.useRef<React.ComponentRef<typeof ScrollView>>(null)
   const guestInputScrollTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const requiredFieldShake = React.useRef(new Animated.Value(0)).current
+  const manualDateFieldShake = React.useRef(new Animated.Value(0)).current
   const requiredShakeTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingRequiredShake = React.useRef<RequiredSection | undefined>(undefined)
   const sectionOffsets = React.useRef<Partial<Record<RequiredSection, number>>>({})
@@ -463,8 +465,9 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
         clearTimeout(requiredShakeTimer.current)
       }
       requiredFieldShake.stopAnimation()
+      manualDateFieldShake.stopAnimation()
     },
-    [requiredFieldShake]
+    [manualDateFieldShake, requiredFieldShake]
   )
 
   React.useEffect(() => {
@@ -524,6 +527,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
   const handleDateChange = (nextDate: string) => {
     setDate(nextDate)
     setDateTimeError('')
+    setHasManualDateLeadTimeError(false)
 
     if (time && isPastDateTime(nextDate, time)) {
       const nextAvailableTime = validTimePartsForDate(nextDate, new Date())[0]
@@ -546,7 +550,43 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
     const editableValue = date.endsWith('/') && nextValue === date.slice(0, -1)
       ? nextValue.slice(0, -1)
       : nextValue
-    handleDateChange(formatManualDateInput(editableValue))
+    const formattedDate = formatManualDateInput(editableValue)
+    const normalizedDate = normalizeDateValue(formattedDate)
+    const hasLeadTimeError = Boolean(normalizedDate && !isEventDateBookable(normalizedDate))
+
+    handleDateChange(formattedDate)
+    setHasManualDateLeadTimeError(hasLeadTimeError)
+
+    if (hasLeadTimeError) {
+      manualDateFieldShake.stopAnimation()
+      manualDateFieldShake.setValue(0)
+      Animated.sequence([
+        Animated.timing(manualDateFieldShake, {
+          duration: 85,
+          easing: Easing.inOut(Easing.ease),
+          toValue: 7,
+          useNativeDriver: true,
+        }),
+        Animated.timing(manualDateFieldShake, {
+          duration: 85,
+          easing: Easing.inOut(Easing.ease),
+          toValue: -7,
+          useNativeDriver: true,
+        }),
+        Animated.timing(manualDateFieldShake, {
+          duration: 85,
+          easing: Easing.inOut(Easing.ease),
+          toValue: 4,
+          useNativeDriver: true,
+        }),
+        Animated.timing(manualDateFieldShake, {
+          duration: 110,
+          easing: Easing.inOut(Easing.ease),
+          toValue: 0,
+          useNativeDriver: true,
+        }),
+      ]).start()
+    }
   }
 
   const normalizeManualSchedule = () => {
@@ -1051,44 +1091,61 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                 style={[
                   styles.dateTimeGrid,
                   isWide && styles.dateTimeGridWide,
-                  requiredSection === 'dateTime' && { transform: [{ translateX: requiredFieldShake }] },
+                  requiredSection === 'dateTime'
+                  && !hasManualDateLeadTimeError
+                  && { transform: [{ translateX: requiredFieldShake }] },
                 ]}
               >
                 <View style={styles.dateTimeField}>
                   <Text style={styles.sectionFieldLabel}>DATE</Text>
-                  <View style={[styles.iconInputShell, requiredSection === 'dateTime' && styles.requiredInputBorder]}>
-                    <Pressable
-                      accessibilityLabel="Open full event calendar"
-                      accessibilityRole="button"
-                      hitSlop={6}
-                      onPress={() => setActivePicker('calendar')}
-                      style={({ pressed }) => [styles.inputIconButton, pressed && styles.pressed]}
+                  <Animated.View
+                    style={{ transform: [{ translateX: manualDateFieldShake }] }}
+                  >
+                    <View
+                      style={[
+                        styles.iconInputShell,
+                        (requiredSection === 'dateTime' || hasManualDateLeadTimeError) && styles.requiredInputBorder,
+                      ]}
                     >
-                      <MaterialIcons color={palette.burgundy} name="calendar-month" size={22} />
-                    </Pressable>
-                    <View style={styles.dateTimeInputFrame}>
-                      <ProgressiveInputMask mask="MM/DD/YYYY" value={date} />
-                      <TextInput
-                        accessibilityLabel="Event date"
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        cursorColor={palette.burgundy}
-                        keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
-                        maxLength={10}
-                        onBlur={handleManualDateBlur}
-                        onChangeText={handleManualDateChange}
-                        onFocus={() => setIsMeridiemMenuOpen(false)}
-                        selectionColor={palette.burgundy}
-                        style={[
-                          styles.dateTimeTextInput,
-                          Platform.OS === 'web'
-                            ? ({ caretColor: palette.burgundy } as unknown as TextStyle)
-                            : null,
-                        ]}
-                        value={date}
-                      />
+                      <Pressable
+                        accessibilityLabel="Open full event calendar"
+                        accessibilityRole="button"
+                        hitSlop={6}
+                        onPress={() => setActivePicker('calendar')}
+                        style={({ pressed }) => [styles.inputIconButton, pressed && styles.pressed]}
+                      >
+                        <MaterialIcons color={palette.burgundy} name="calendar-month" size={22} />
+                      </Pressable>
+                      <View style={styles.dateTimeInputFrame}>
+                        <ProgressiveInputMask mask="MM/DD/YYYY" value={date} />
+                        <TextInput
+                          accessibilityLabel="Event date"
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                          cursorColor={palette.burgundy}
+                          keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
+                          maxLength={10}
+                          onBlur={handleManualDateBlur}
+                          onChangeText={handleManualDateChange}
+                          onFocus={() => setIsMeridiemMenuOpen(false)}
+                          selectionColor={palette.burgundy}
+                          style={[
+                            styles.dateTimeTextInput,
+                            Platform.OS === 'web'
+                              ? ({ caretColor: palette.burgundy } as unknown as TextStyle)
+                              : null,
+                          ]}
+                          value={date}
+                        />
+                      </View>
                     </View>
-                  </View>
+                  </Animated.View>
+                  {hasManualDateLeadTimeError ? (
+                    <View accessibilityLiveRegion="polite" style={styles.manualDateLeadTimeNotice}>
+                      <MaterialIcons color="#BA1A1A" name="info-outline" size={18} />
+                      <Text style={styles.timeGuidanceText}>{EVENT_BOOKING_LEAD_TIME_MESSAGE}</Text>
+                    </View>
+                  ) : null}
                 </View>
 
                 <View style={[styles.dateTimeField, isMeridiemMenuOpen && styles.dateTimeFieldMenuOpen]}>
@@ -1167,7 +1224,10 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
               </Animated.View>
               <RequiredFieldAlert
                 message={requiredSection === 'dateTime' ? requiredNotice : dateTimeError}
-                visible={requiredSection === 'dateTime' || Boolean(dateTimeError)}
+                visible={
+                  !hasManualDateLeadTimeError
+                  && (requiredSection === 'dateTime' || Boolean(dateTimeError))
+                }
               />
               <View
                 accessibilityLiveRegion="polite"
@@ -2484,6 +2544,16 @@ const styles = StyleSheet.create({
   },
   timeGuidanceNoticeWide: { alignSelf: 'flex-end', width: '48%' },
   timeGuidanceText: { flex: 1, color: '#8F1010', fontSize: 12, lineHeight: 18, fontWeight: '600' },
+  manualDateLeadTimeNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(186, 26, 26, 0.20)',
+    borderRadius: 12,
+    backgroundColor: 'rgba(186, 26, 26, 0.10)',
+    padding: 12,
+  },
   iconInputShell: {
     minHeight: 52,
     flexDirection: 'row',
