@@ -28,7 +28,7 @@ begin
     select pg_get_functiondef(function_oid) into function_sql;
     patched_sql := regexp_replace(
       function_sql,
-      E'\\n  if coalesce\\(event_row\\.total_budget, 0\\) > 0 then[[:space:][:print:]]*\\n  end if;\\n  update public\\.events',
+      E'[[:space:]]+if coalesce\\(event_row\\.total_budget, 0\\) > 0 then[[:space:][:print:]]*[[:space:]]+end if;[[:space:]]+update public\\.events',
       E'\n  update public.events'
     );
     if patched_sql = function_sql then
@@ -62,7 +62,7 @@ begin
     select pg_get_functiondef(function_oid) into function_sql;
     patched_sql := regexp_replace(
       function_sql,
-      E'\\n  select total_budget into event_total[[:space:][:print:]]*\\n  end if;\\n\\n?  update public\\.event_service_selections',
+      E'[[:space:]]+select total_budget into event_total[[:space:][:print:]]*[[:space:]]+end if;[[:space:]]+update public\\.event_service_selections',
       E'\n\n  update public.event_service_selections'
     );
     if patched_sql = function_sql then
@@ -71,7 +71,7 @@ begin
 
     without_allocation_write := regexp_replace(
       patched_sql,
-      E'\\n  perform set_config\\(''app\\.phase9_budget_lock_authorized'', ''true'', true\\);\\n  update public\\.event_budget_items[[:space:][:print:]]*;\\n\\n?  return',
+      E'[[:space:]]+perform set_config\\(''app\\.phase9_budget_lock_authorized'', ''true'', true\\);[[:space:]]+update public\\.event_budget_items[[:space:][:print:]]*;[[:space:]]+return',
       E'\n\n  return'
     );
     if without_allocation_write = patched_sql then
@@ -99,7 +99,7 @@ begin
   select pg_get_functiondef(function_oid) into function_sql;
   patched_sql := regexp_replace(
     function_sql,
-    E'\\n  select event\\.total_budget into event_budget[[:space:][:print:]]*\\n  end if;\\n  return result',
+    E'[[:space:]]+select event\\.total_budget into event_budget[[:space:][:print:]]*[[:space:]]+end if;[[:space:]]+return result',
     E'\n  return result'
   );
   if patched_sql = function_sql then
@@ -126,7 +126,7 @@ begin
   select pg_get_functiondef(function_oid) into function_sql;
   patched_sql := regexp_replace(
     function_sql,
-    E'\\n  if \\(event_row\\.coordinator_id is not null or event_row\\.pending_coordinator_id is not null\\)[[:space:][:print:]]*\\n  end if;\\n\\n  delete from public\\.event_budget_items',
+    E'[[:space:]]+if \\(event_row\\.coordinator_id is not null or event_row\\.pending_coordinator_id is not null\\)[[:space:][:print:]]*[[:space:]]+end if;[[:space:]]+delete from public\\.event_budget_items',
     E'\n\n  delete from public.event_budget_items'
   );
   if patched_sql = function_sql then
