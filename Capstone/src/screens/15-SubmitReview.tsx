@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native'
 import type { BookingItem } from './11-BookingScreen'
+import { colors } from '../theme/tokens'
 
 export type ReviewTag =
   | 'Great value'
@@ -308,7 +309,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   closeButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },
-  closeIcon: { color: palette.muted, fontSize: 27, lineHeight: 30 },
+  closeIcon: { color: colors.closeIcon, fontSize: 27, lineHeight: 30 },
   providerHeader: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 },
   providerImage: { width: 32, height: 32, borderWidth: 1, borderColor: palette.border, borderRadius: 16 },
   providerCopy: { maxWidth: 220, alignItems: 'flex-start' },

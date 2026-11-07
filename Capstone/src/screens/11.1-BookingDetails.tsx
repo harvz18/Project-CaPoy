@@ -12,6 +12,9 @@ import { formatPeso } from '../lib/catalog'
 import type { EventPaymentQuote } from '../lib/planning'
 import { canOpenEventLocation, openEventLocation } from '../lib/event-location'
 import { EVENT_BOOKING_LEAD_TIME_MESSAGE, isEventDateBookable } from '../lib/event-booking-lead-time'
+import { colors } from '../theme/tokens'
+import { neutralSelection } from '../theme/neumorphism'
+import { animateOptionLayout, optionSelectionMotionDuration } from '../theme/option-motion'
 import type { BookingItem } from './11-BookingScreen'
 
 export interface BookingChangeActionResult {
@@ -457,6 +460,10 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
   const [tastingServiceId, setTastingServiceId] = React.useState('')
   const [tastingSlots, setTastingSlots] = React.useState<CateringFoodTastingSlot[]>([])
   const [selectedTastingSlot, setSelectedTastingSlot] = React.useState<CateringFoodTastingSlot>()
+  const tastingScrollRef = React.useRef<React.ElementRef<typeof ScrollView>>(null)
+  const tastingScrollOffsetRef = React.useRef(0)
+  const tastingSlotRefs = React.useRef<Record<string, React.ElementRef<typeof Pressable> | null>>({})
+  const tastingFocusTimerRef = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const [tastingNote, setTastingNote] = React.useState('')
   const [tastingScheduleMode, setTastingScheduleMode] = React.useState<'initial' | 'reschedule'>('initial')
   const [tastingUsesV15, setTastingUsesV15] = React.useState(false)
@@ -473,6 +480,28 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
   const [churchDeclineReason, setChurchDeclineReason] = React.useState('')
   const [churchResponseError, setChurchResponseError] = React.useState('')
   const [isSavingChurchResponse, setIsSavingChurchResponse] = React.useState(false)
+
+  React.useEffect(() => () => {
+    if (tastingFocusTimerRef.current) clearTimeout(tastingFocusTimerRef.current)
+  }, [])
+
+  const chooseTastingSlot = (slot: CateringFoodTastingSlot) => {
+    const optionKey = `${slot.scheduledDate}-${slot.startTime}`
+    animateOptionLayout()
+    setSelectedTastingSlot(slot)
+    if (tastingFocusTimerRef.current) clearTimeout(tastingFocusTimerRef.current)
+    tastingFocusTimerRef.current = setTimeout(() => {
+      const scrollView = tastingScrollRef.current
+      const optionNode = tastingSlotRefs.current[optionKey]
+      if (!scrollView || !optionNode) return
+      scrollView.measureInWindow((_scrollX, scrollY) => {
+        optionNode.measureInWindow((_optionX, optionY) => {
+          const nextOffset = tastingScrollOffsetRef.current + optionY - scrollY - 12
+          scrollView.scrollTo({ animated: true, y: Math.max(0, nextOffset) })
+        })
+      })
+    }, optionSelectionMotionDuration)
+  }
   const value = {
     ...defaultDetails,
     ...(booking
@@ -1746,7 +1775,7 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                 onPress={closeChurchResponse}
                 style={styles.changeClose}
               >
-                <MaterialIcons color={palette.muted} name="close" size={23} />
+                <MaterialIcons color={colors.closeIcon} name="close" size={23} />
               </Pressable>
             </View>
 
@@ -1830,11 +1859,19 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                 onPress={closeTastingModal}
                 style={styles.changeClose}
               >
-                <MaterialIcons color={palette.muted} name="close" size={23} />
+                <MaterialIcons color={colors.closeIcon} name="close" size={23} />
               </Pressable>
             </View>
 
-            <ScrollView contentContainerStyle={styles.tastingCalendarContent} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              ref={tastingScrollRef}
+              contentContainerStyle={styles.tastingCalendarContent}
+              onScroll={(event) => {
+                tastingScrollOffsetRef.current = event.nativeEvent.contentOffset.y
+              }}
+              scrollEventThrottle={16}
+              showsVerticalScrollIndicator={false}
+            >
               {isLoadingTastingSlots ? (
                 <Text style={styles.tastingEmpty}>Loading provider availability...</Text>
               ) : Object.keys(tastingSlotsByDate).length ? (
@@ -1847,11 +1884,14 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                           && selectedTastingSlot.startTime === slot.startTime
                         return (
                           <Pressable
+                            ref={(node) => {
+                              tastingSlotRefs.current[`${slot.scheduledDate}-${slot.startTime}`] = node
+                            }}
                             accessibilityLabel={`Choose ${formatTastingDate(slot.scheduledDate)} at ${formatTastingTime(slot.startTime)}`}
                             accessibilityRole="radio"
                             accessibilityState={{ selected }}
                             key={`${slot.scheduledDate}-${slot.startTime}`}
-                            onPress={() => setSelectedTastingSlot(slot)}
+                            onPress={() => chooseTastingSlot(slot)}
                             style={({ pressed }) => [
                               styles.tastingSlot,
                               selected && styles.tastingSlotSelected,
@@ -1982,7 +2022,7 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                 onPress={closeChangeModal}
                 style={styles.changeClose}
               >
-                <MaterialIcons color={palette.muted} name="close" size={23} />
+                <MaterialIcons color={colors.closeIcon} name="close" size={23} />
               </Pressable>
             </View>
 
@@ -2544,10 +2584,10 @@ const styles = StyleSheet.create({
   tastingDateGroup: { gap: 8, borderBottomWidth: 1, borderBottomColor: palette.card, paddingBottom: 12 },
   tastingDateTitle: { color: palette.text, fontSize: 13, lineHeight: 19, fontWeight: '700' },
   tastingSlotRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  tastingSlot: { minHeight: 36, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 8, backgroundColor: palette.background, paddingHorizontal: 11 },
-  tastingSlotSelected: { borderColor: palette.burgundy, backgroundColor: '#F4E7EA' },
+  tastingSlot: { minHeight: 36, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: neutralSelection.edge, borderRadius: 8, backgroundColor: neutralSelection.surface, paddingHorizontal: 11, boxShadow: neutralSelection.sunkenShadow },
+  tastingSlotSelected: { borderColor: neutralSelection.edge, backgroundColor: neutralSelection.surface, boxShadow: neutralSelection.raisedShadow },
   tastingSlotText: { color: palette.text, fontSize: 11, lineHeight: 15, fontWeight: '600' },
-  tastingSlotTextSelected: { color: palette.burgundy, fontWeight: '700' },
+  tastingSlotTextSelected: { color: palette.text, fontWeight: '700' },
   tastingSelectionSummary: { gap: 3, borderRadius: 10, backgroundColor: '#F4E7EA', padding: 12 },
   tastingSelectionTitle: { color: palette.burgundy, fontSize: 11, lineHeight: 15, fontWeight: '700' },
   tastingSelectionText: { color: palette.text, fontSize: 11, lineHeight: 16 },

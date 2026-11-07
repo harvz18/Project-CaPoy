@@ -11,6 +11,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native'
+import { colors } from '../theme/tokens'
 
 export type PayoutEarningsPeriod = '7d' | '30d' | '90d' | 'year'
 export type PayoutTransactionStatus = 'completed' | 'pending' | 'failed'
@@ -1510,7 +1511,7 @@ const styles = StyleSheet.create({
   modalHeaderCopy: { minWidth: 0, flex: 1 },
   modalTitle: { color: palette.text, fontSize: 18, lineHeight: 24, fontWeight: '700' },
   modalSubtitle: { color: palette.secondary, fontSize: 12, lineHeight: 17, marginTop: 3 },
-  modalClose: { color: palette.secondary, fontSize: 28, lineHeight: 30 },
+  modalClose: { color: colors.closeIcon, fontSize: 28, lineHeight: 30 },
   inputLabel: {
     color: palette.muted,
     fontSize: 12,

@@ -23,6 +23,9 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { BlurView } from 'expo-blur'
 import { PlanningScreenHeader } from '../components/PlanningScreenHeader'
 import { hasMapTilerVenueMap, MapTilerVenueMap } from '../components/MapTilerVenueMap'
+import { colors } from '../theme/tokens'
+import { neutralSelection } from '../theme/neumorphism'
+import { animateOptionLayout, optionSelectionMotionDuration } from '../theme/option-motion'
 import {
   EVENT_BOOKING_LEAD_TIME_MESSAGE,
   isEventDateBookable,
@@ -442,6 +445,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
   const [themeLimitMessage, setThemeLimitMessage] = React.useState(false)
   const themeLimitTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const eventScrollRef = React.useRef<React.ComponentRef<typeof ScrollView>>(null)
+  const optionFocusTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const guestInputScrollTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const requiredFieldShake = React.useRef(new Animated.Value(0)).current
   const requiredShakeTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -458,6 +462,9 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
       }
       if (guestInputScrollTimer.current) {
         clearTimeout(guestInputScrollTimer.current)
+      }
+      if (optionFocusTimer.current) {
+        clearTimeout(optionFocusTimer.current)
       }
       if (requiredShakeTimer.current) {
         clearTimeout(requiredShakeTimer.current)
@@ -514,6 +521,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
   }
 
   const handleMeridiemChange = (nextMeridiem: Meridiem) => {
+    animateOptionLayout()
     const parsedTime = parseManualTimeInput(timeInput)
     setTimeMeridiem(nextMeridiem)
     setIsMeridiemMenuOpen(false)
@@ -684,6 +692,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
   ])
 
   const handleCoordinatorPreferenceChange = (nextPreference: boolean) => {
+    animateOptionLayout()
     setWantsCoordinator(nextPreference)
 
     // Church-arrangement details apply only while coordinator planning is
@@ -692,6 +701,23 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
     if (!nextPreference) {
       setIsChurchWedding(undefined)
     }
+    focusSelectedSection('coordinator')
+  }
+
+  const focusSelectedSection = (section: RequiredSection) => {
+    if (optionFocusTimer.current) clearTimeout(optionFocusTimer.current)
+    optionFocusTimer.current = setTimeout(() => {
+      eventScrollRef.current?.scrollTo({
+        animated: true,
+        y: Math.max(0, (sectionOffsets.current[section] ?? 0) - 18),
+      })
+    }, optionSelectionMotionDuration)
+  }
+
+  const handleChurchWeddingChange = (nextPreference: boolean) => {
+    animateOptionLayout()
+    setIsChurchWedding(nextPreference)
+    focusSelectedSection('churchWedding')
   }
 
   const handleContinue = () => {
@@ -799,6 +825,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
         brandTitle={presentation !== 'savedPlan'}
         currentStep={1}
         label={presentation === 'savedPlan' ? 'Saved Plan' : 'CREATE EVENT'}
+        neumorphicNavigation
         nextEnabled={!isProcessing}
         onBack={isProcessing ? undefined : onClose}
         onBrandPress={presentation === 'savedPlan' || isProcessing ? undefined : onClose}
@@ -951,7 +978,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                     >
                       <View style={[styles.churchWeddingIcon, selected && styles.churchWeddingIconSelected]}>
                         <MaterialIcons
-                          color={selected ? palette.surface : palette.burgundy}
+                          color={palette.burgundy}
                           name={option.value ? 'support-agent' : 'event-busy'}
                           size={21}
                         />
@@ -1010,7 +1037,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                         accessibilityLabel={option.label}
                         accessibilityRole="radio"
                         accessibilityState={{ checked: selected }}
-                        onPress={() => setIsChurchWedding(option.value)}
+                        onPress={() => handleChurchWeddingChange(option.value)}
                         style={({ pressed }) => [
                           styles.churchWeddingChoice,
                           selected && styles.selectionCardActive,
@@ -1020,7 +1047,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                       >
                         <View style={[styles.churchWeddingIcon, selected && styles.churchWeddingIconSelected]}>
                           <MaterialIcons
-                            color={selected ? palette.surface : palette.burgundy}
+                            color={palette.burgundy}
                             name={option.value ? 'church' : 'location-on'}
                             size={21}
                           />
@@ -1204,6 +1231,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                         accessibilityRole="radio"
                         accessibilityState={{ checked: selected }}
                         onPress={() => {
+                          animateOptionLayout()
                           if (selected) {
                             setHasVenueStatusSelection(false)
                             setVenueStatus('searching')
@@ -1213,6 +1241,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                           setVenueStatus(option.id)
                           setHasVenueStatusSelection(true)
                           setVenueError('')
+                          focusSelectedSection('venueStatus')
                         }}
                         style={({ pressed }) => [
                           styles.venueCard,
@@ -1225,7 +1254,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                         <View style={[styles.venueIconCircle, selected && styles.venueIconSelected]}>
                           {React.isValidElement(option.icon) ? (
                             React.cloneElement(option.icon as React.ReactElement<{ color?: string }>, {
-                              color: selected ? palette.surface : palette.burgundyDark,
+                              color: palette.burgundyDark,
                             })
                           ) : (
                             <Text style={[styles.venueIcon, selected && styles.venueIconTextSelected]}>
@@ -1673,7 +1702,7 @@ const VenueLocationPicker: React.FC<VenueLocationPickerProps> = ({
               onPress={() => setIsFullscreen(false)}
               style={({ pressed }) => [styles.fullscreenMapClose, pressed && styles.pressed]}
             >
-              <MaterialIcons color={palette.surface} name="close" size={25} />
+              <MaterialIcons color={colors.closeIcon} name="close" size={25} />
             </Pressable>
             <View style={styles.fullscreenMapHeaderCopy}>
               <Text style={styles.fullscreenMapEyebrow}>BACOLOD CITY</Text>
@@ -2424,14 +2453,9 @@ const styles = StyleSheet.create({
   },
   selectionCardActive: {
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.72)',
-    backgroundColor: '#E9EDF0',
-    shadowColor: palette.burgundy,
-    shadowOffset: { width: 5, height: 5 },
-    shadowOpacity: 0.36,
-    shadowRadius: 11,
-    elevation: 6,
-    boxShadow: '5px 5px 11px rgba(107, 30, 46, 0.38), -5px -5px 11px rgba(255, 255, 255, 0.96)',
+    borderColor: neutralSelection.edge,
+    backgroundColor: neutralSelection.surface,
+    boxShadow: neutralSelection.raisedShadow,
   },
   selectionCheck: {
     width: 24,
@@ -2550,12 +2574,16 @@ const styles = StyleSheet.create({
     minHeight: 32,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: neutralSelection.edge,
     borderRadius: 8,
+    backgroundColor: neutralSelection.surface,
     paddingHorizontal: 8,
+    boxShadow: neutralSelection.sunkenShadow,
   },
-  meridiemOptionSelected: { backgroundColor: 'rgba(107, 30, 46, 0.12)' },
+  meridiemOptionSelected: { backgroundColor: neutralSelection.surface, boxShadow: neutralSelection.raisedShadow },
   meridiemOptionText: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: '700' },
-  meridiemOptionTextSelected: { color: palette.burgundy, fontWeight: '800' },
+  meridiemOptionTextSelected: { color: palette.muted, fontWeight: '800' },
   venueStatusSection: {
     borderTopWidth: 1,
     borderTopColor: 'rgba(107, 30, 46, 0.16)',
@@ -2751,11 +2779,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.62)',
+    borderColor: neutralSelection.edge,
     borderRadius: 12,
-    backgroundColor: '#E9EDF0',
+    backgroundColor: neutralSelection.surface,
     padding: 16,
-    boxShadow: 'inset 4px 4px 8px rgba(160, 171, 180, 0.54), inset -4px -4px 8px rgba(255, 255, 255, 0.96)',
+    boxShadow: neutralSelection.sunkenShadow,
   },
   venueIconCircle: {
     width: 40,
@@ -2767,9 +2795,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#E9EDF0',
     boxShadow: 'inset 2px 2px 4px rgba(160, 171, 180, 0.44), inset -2px -2px 4px rgba(255, 255, 255, 0.92)',
   },
-  venueIconSelected: { backgroundColor: palette.burgundy },
+  venueIconSelected: { backgroundColor: neutralSelection.surface, boxShadow: neutralSelection.raisedShadow },
   venueIcon: { color: palette.burgundyDark, fontSize: 23, lineHeight: 26 },
-  venueIconTextSelected: { color: palette.surface },
+  venueIconTextSelected: { color: palette.burgundyDark },
   venueCopy: { flex: 1 },
   venueTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '600', marginBottom: 3 },
   venueDescription: { color: palette.muted, fontSize: 12, lineHeight: 18 },
@@ -2922,23 +2950,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 17,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.62)',
-    backgroundColor: '#E9EDF0',
+    borderColor: neutralSelection.edge,
+    backgroundColor: neutralSelection.surface,
     paddingHorizontal: 14,
-    shadowColor: '#9DA9B2',
-    shadowOffset: { width: 3, height: 3 },
-    shadowOpacity: 0.44,
-    shadowRadius: 6,
-    elevation: 3,
-    boxShadow: '3px 3px 6px rgba(157, 169, 178, 0.44), -3px -3px 6px rgba(255, 255, 255, 0.94)',
+    boxShadow: neutralSelection.sunkenShadow,
   },
   themeChipSelected: {
-    borderColor: 'rgba(107, 30, 46, 0.34)',
-    shadowColor: '#6B1E2E',
-    boxShadow: '3px 3px 6px rgba(107, 30, 46, 0.36), -3px -3px 6px rgba(255, 255, 255, 0.94)',
+    borderColor: neutralSelection.edge,
+    backgroundColor: neutralSelection.surface,
+    boxShadow: neutralSelection.raisedShadow,
   },
   themeChipText: { color: '#8A8A8A', fontSize: 12, lineHeight: 16, fontWeight: '600' },
-  themeChipTextSelected: { color: palette.burgundy, fontWeight: '800' },
+  themeChipTextSelected: { color: '#8A8A8A', fontWeight: '800' },
   themeLimitMessage: { color: '#8A8A8A', fontSize: 12, lineHeight: 18 },
   churchWeddingSection: {
     gap: 12,
@@ -2972,11 +2995,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.62)',
+    borderColor: neutralSelection.edge,
     borderRadius: 16,
-    backgroundColor: '#E9EDF0',
+    backgroundColor: neutralSelection.surface,
     padding: 14,
-    boxShadow: 'inset 4px 4px 8px rgba(160, 171, 180, 0.54), inset -4px -4px 8px rgba(255, 255, 255, 0.96)',
+    boxShadow: neutralSelection.sunkenShadow,
   },
   churchWeddingIcon: {
     width: 40,
@@ -2987,7 +3010,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#E9EDF0',
     boxShadow: 'inset 2px 2px 4px rgba(160, 171, 180, 0.44), inset -2px -2px 4px rgba(255, 255, 255, 0.92)',
   },
-  churchWeddingIconSelected: { backgroundColor: palette.burgundy },
+  churchWeddingIconSelected: { backgroundColor: neutralSelection.surface, boxShadow: neutralSelection.raisedShadow },
   churchWeddingCopy: { minWidth: 0, flex: 1 },
   churchWeddingTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '700' },
   churchWeddingDescription: { color: palette.muted, fontSize: 12, lineHeight: 18, marginTop: 2 },

@@ -6,6 +6,7 @@ import { Animated, Easing, Image, Pressable, StyleSheet, View } from 'react-nati
 
 import { type CatalogService } from '../lib/catalog'
 import { CoordinatorDetailsScreen } from '../screens/06.1-CoordinatorDetails'
+import { colors } from '../theme/tokens'
 
 interface CoordinatorProfileOverlayProps {
   assigning?: boolean
@@ -284,7 +285,7 @@ const styles = StyleSheet.create({
     boxShadow: '3px 3px 6px rgba(0, 0, 0, 0.38), -3px -3px 6px rgba(255, 255, 255, 0.94)',
   },
   closeButtonGlyph: {
-    color: '#E53935',
+    color: colors.closeIcon,
     fontSize: 26,
     lineHeight: 28,
     fontWeight: '400',

@@ -9,6 +9,7 @@ interface PlanningScreenHeaderProps {
   brandTitle?: boolean
   currentStep: number
   label: string
+  neumorphicNavigation?: boolean
   nextAccessibilityLabel?: string
   nextEnabled?: boolean
   onBack?: () => void
@@ -23,6 +24,7 @@ export const PlanningScreenHeader: React.FC<PlanningScreenHeaderProps> = ({
   brandTitle = false,
   currentStep,
   label,
+  neumorphicNavigation = false,
   nextAccessibilityLabel = 'Continue to the next planning step',
   nextEnabled,
   onBack,
@@ -62,7 +64,13 @@ export const PlanningScreenHeader: React.FC<PlanningScreenHeaderProps> = ({
               accessibilityRole="button"
               hitSlop={8}
               onPress={onBack}
-              style={({ pressed }) => [styles.navigationButton, pressed && styles.pressed]}
+              style={({ pressed }) => [
+                styles.navigationButton,
+                neumorphicNavigation && styles.navigationButtonNeumorphic,
+                pressed && (neumorphicNavigation
+                  ? styles.navigationButtonNeumorphicPressed
+                  : styles.pressed),
+              ]}
             >
               <MaterialCommunityIcons color="#FFFFFF" name="chevron-left" size={28} />
             </Pressable>
@@ -107,8 +115,11 @@ export const PlanningScreenHeader: React.FC<PlanningScreenHeaderProps> = ({
             onPress={handleNext}
             style={({ pressed }) => [
               styles.navigationButton,
+              neumorphicNavigation && styles.navigationButtonNeumorphic,
               !canGoForward && styles.navigationButtonDisabled,
-              pressed && canGoForward && styles.pressed,
+              pressed && canGoForward && (neumorphicNavigation
+                ? styles.navigationButtonNeumorphicPressed
+                : styles.pressed),
             ]}
           >
             <MaterialCommunityIcons color="#FFFFFF" name="chevron-right" size={28} />
@@ -156,6 +167,16 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   navigationButtonDisabled: { opacity: 0.32 },
+  navigationButtonNeumorphic: {
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.16)',
+    backgroundColor: '#6B1E2E',
+    boxShadow: '3px 3px 7px rgba(44, 3, 15, 0.58), -3px -3px 7px rgba(143, 48, 72, 0.46)',
+  },
+  navigationButtonNeumorphicPressed: {
+    boxShadow: 'inset 3px 3px 7px rgba(44, 3, 15, 0.66), inset -3px -3px 7px rgba(143, 48, 72, 0.46)',
+    transform: [{ scale: 0.96 }],
+  },
   title: {
     minWidth: 0,
     flex: 1,

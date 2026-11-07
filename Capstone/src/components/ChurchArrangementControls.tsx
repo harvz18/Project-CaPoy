@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native'
 import { Text } from './AppText'
+import { colors } from '../theme/tokens'
 
 export interface ChurchCoordinates {
   latitude: number
@@ -303,7 +304,7 @@ export const ChurchTimePickerModal: React.FC<TimePickerProps> = ({ onClose, onCo
 }
 
 const PickerHeader = ({ onClose, title }: { onClose: () => void; title: string }) => (
-  <View style={styles.header}><View style={styles.headerCopy}><Text style={styles.eyebrow}>CHURCH CEREMONY</Text><Text style={styles.title}>{title}</Text></View><Pressable accessibilityLabel="Close picker" accessibilityRole="button" onPress={onClose}><MaterialIcons color={palette.muted} name="close" size={23} /></Pressable></View>
+  <View style={styles.header}><View style={styles.headerCopy}><Text style={styles.eyebrow}>CHURCH CEREMONY</Text><Text style={styles.title}>{title}</Text></View><Pressable accessibilityLabel="Close picker" accessibilityRole="button" onPress={onClose}><MaterialIcons color={colors.closeIcon} name="close" size={23} /></Pressable></View>
 )
 
 const MonthButton = ({ direction, label, onPress }: {

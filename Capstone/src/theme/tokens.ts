@@ -23,6 +23,7 @@ export const colors = {
   success: '#4CAF50',
   warning: '#FFC107',
   error: '#F44336',
+  closeIcon: '#E53935',
   info: '#2196F3',
 
   // Text

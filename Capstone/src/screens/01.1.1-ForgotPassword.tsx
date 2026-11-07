@@ -280,7 +280,7 @@ const styles = StyleSheet.create({
     boxShadow: `3px 3px 6px ${neo.darkShadow}, -3px -3px 6px ${neo.lightShadow}`,
   },
   closeButtonLabel: {
-    color: neo.text,
+    color: colors.closeIcon,
     fontSize: 24,
     lineHeight: 26,
     fontWeight: '400',

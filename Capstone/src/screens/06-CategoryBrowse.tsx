@@ -19,6 +19,8 @@ import {
 import { PlanningScreenHeader } from '../components/PlanningScreenHeader'
 import { ReviewedServicesTab } from '../components/ReviewedServicesTab'
 import { ClientBottomNavigation, ClientMainTab } from '../components/ClientBottomNavigation'
+import { colors } from '../theme/tokens'
+import { neutralSelection } from '../theme/neumorphism'
 import {
   categoryNameToId,
   CatalogLoadStatus,
@@ -29,6 +31,7 @@ import {
   ServiceCategoryOption,
   type CatalogCategoryId,
 } from '../lib/catalog'
+import { customerPriceFromProviderPrice } from '../lib/pricing'
 import { calculateCateringPrice, getCateringPricingOptions } from '../lib/service-category-details'
 import type { ReviewedService } from '../lib/reviewed-services'
 import type { AssignedCoordinatorSummary, SelectedSummaryService } from './07-SelectedSummary'
@@ -90,6 +93,7 @@ interface CategoryBrowseScreenProps {
   searchValue?: string
   sortLabel?: string
   onBack?: () => void
+  onBrandPress?: () => void
   onChangeSearch?: (value: string) => void
   onCategoryBudgetChange?: (amount: number) => Promise<boolean> | boolean
   onChangeService?: (service: SelectedSummaryService) => void
@@ -239,6 +243,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   catalogLoadStatus,
   blurTarget,
   categoryCountServices,
+  categoryBudgets = {},
   categoryName = 'Services',
   categories = [],
   favoritePendingServiceIds = new Set(),
@@ -269,6 +274,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   searchValue,
   sortLabel = 'Recommended',
   onBack,
+  onBrandPress,
   onChangeSearch,
   onChangeService,
   onContinueSelectedServices,
@@ -635,6 +641,57 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
       : { fits: false, reason: calculations[0]?.reason ?? 'Guest count not supported' }
   }, [eventGuestCount])
 
+  const categoryBudgetForVendor = React.useCallback((vendor: CatalogService) => {
+    if (Object.prototype.hasOwnProperty.call(categoryBudgets, vendor.categoryId)) {
+      return Math.max(0, Number(categoryBudgets[vendor.categoryId]) || 0)
+    }
+
+    return vendor.categoryId === categoryNameToId(categoryName)
+      ? Math.max(0, Number(categoryBudget) || 0)
+      : 0
+  }, [categoryBudget, categoryBudgets, categoryName])
+
+  const fallbackBudgetEstimate = React.useCallback((vendor: CatalogService) => {
+    if (vendor.categoryId === 'catering' && eventGuestCount > 0) {
+      const options = getCateringPricingOptions(vendor.categoryDetails, vendor.providerMinPrice)
+      const calculations = options.map((option) => calculateCateringPrice(option, eventGuestCount))
+      const calculation = calculations.find((candidate) => candidate.fitsGuestCount)
+        ?? calculations.find((candidate) => candidate.providerSubtotal > 0)
+
+      if (calculation?.providerSubtotal) {
+        return customerPriceFromProviderPrice(calculation.providerSubtotal, vendor.commissionRate)
+      }
+    }
+
+    const startingPrice = marketplaceStartingPrice(vendor)
+    if (vendor.pricingUnit === 'person' && eventGuestCount > 0) {
+      return Math.round(startingPrice * eventGuestCount * 100) / 100
+    }
+    return startingPrice
+  }, [eventGuestCount])
+
+  const budgetEstimateForVendor = React.useCallback((vendor: CatalogService) => {
+    const authoritativeEstimate = Number(vendor.budgetRecommendation?.calculatedAmount)
+    return Number.isFinite(authoritativeEstimate) && authoritativeEstimate > 0
+      ? authoritativeEstimate
+      : fallbackBudgetEstimate(vendor)
+  }, [fallbackBudgetEstimate])
+
+  const isVendorWithinBudget = React.useCallback((vendor: CatalogService) => {
+    const allocatedBudget = categoryBudgetForVendor(vendor)
+    if (allocatedBudget <= 0) return false
+
+    const estimatedPrice = budgetEstimateForVendor(vendor)
+    if (estimatedPrice > 0) return estimatedPrice <= allocatedBudget
+
+    const recommendation = vendor.budgetRecommendation
+    return Boolean(
+      recommendation
+      && recommendation.categoryBudget === allocatedBudget
+      && recommendation.isWithinBudget
+    )
+  }, [budgetEstimateForVendor, categoryBudgetForVendor])
+
   const recommendationRank = React.useCallback((vendor: CatalogService) => {
     const recommendation = vendor.budgetRecommendation
     if (!recommendation || recommendation.categoryBudget <= 0) return 1
@@ -755,24 +812,26 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
       || rightBookings - leftBookings
       || left.name.localeCompare(right.name)
   })
-  const hasCategoryRecommendationBudget = !isExploreMode && !isChangingService && !replacementContext && visibleVendors.some(
-    (vendor) => (vendor.budgetRecommendation?.categoryBudget ?? 0) > 0
-  )
-  const vendorSections = hasCategoryRecommendationBudget
-    ? [
+  const isPlanningCategoryBrowse = !isExploreMode && !isChangingService && !replacementContext
+  const hasStepTwoCategoryBudget = isPlanningCategoryBrowse
+    && visibleVendors.some((vendor) => categoryBudgetForVendor(vendor) > 0)
+  const vendorSections = isPlanningCategoryBrowse
+    ? hasStepTwoCategoryBudget
+      ? [
         {
           horizontal: true,
           id: 'within-budget',
           label: 'Services That Fits Your Budget',
-          vendors: visibleVendors.filter((vendor) => vendor.budgetRecommendation?.isWithinBudget),
+          vendors: visibleVendors.filter(isVendorWithinBudget),
         },
         {
           horizontal: true,
           id: 'outside-budget',
           label: 'You Might Also Like',
-          vendors: visibleVendors.filter((vendor) => !vendor.budgetRecommendation?.isWithinBudget),
+          vendors: visibleVendors.filter((vendor) => !isVendorWithinBudget(vendor)),
         },
       ].filter((section) => section.vendors.length > 0)
+      : [{ horizontal: true, id: 'perfect-for-wedding', label: 'Perfect For Your Wedding', vendors: visibleVendors }]
     : [{ horizontal: false, id: 'all', label: '', vendors: visibleVendors }]
 
   const handleSearchChange = (value: string) => {
@@ -895,9 +954,11 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
           brandTitle
           currentStep={3}
           label="Choose Services"
+          neumorphicNavigation
           nextAccessibilityLabel="Review selected services"
           nextEnabled={hasReviewableSelections}
           onBack={onBack}
+          onBrandPress={onBrandPress}
           onNext={() => setIsSelectedServicesOpen(true)}
           title="Choose Services"
         />
@@ -1259,12 +1320,11 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                 {!isExploreMode
                   && !isChangingService
                   && !isScheduleUnavailable(vendor)
-                  && vendor.budgetRecommendation
-                  && vendor.budgetRecommendation.categoryBudget > 0 ? (
+                  && categoryBudgetForVendor(vendor) > 0 ? (
                   <View
                     style={[
                       styles.serviceBudgetBadge,
-                      vendor.budgetRecommendation.isWithinBudget
+                      isVendorWithinBudget(vendor)
                         ? styles.serviceBudgetBadgeFit
                         : styles.serviceBudgetBadgeOver,
                     ]}
@@ -1272,12 +1332,12 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                     <Text
                       style={[
                         styles.serviceBudgetBadgeText,
-                        vendor.budgetRecommendation.isWithinBudget
+                        isVendorWithinBudget(vendor)
                           ? styles.serviceBudgetBadgeTextFit
                           : styles.serviceBudgetBadgeTextOver,
                       ]}
                     >
-                      {vendor.budgetRecommendation.isWithinBudget ? 'WITHIN BUDGET' : 'OVER BUDGET'}
+                      {isVendorWithinBudget(vendor) ? 'WITHIN BUDGET' : 'OVER BUDGET'}
                     </Text>
                   </View>
                 ) : null}
@@ -1478,7 +1538,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                   pressed && styles.neumorphicPressed,
                 ]}
               >
-                <MaterialIcons color={palette.error} name="close" size={21} />
+                <MaterialIcons color={colors.closeIcon} name="close" size={21} />
               </Pressable>
             </View>
             <Text style={styles.categorySelectionDialogDescription}>
@@ -1608,12 +1668,21 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
         visible={isSortOpen}
       >
         <View style={styles.sortOverlay}>
-          <Pressable
-            accessibilityLabel="Close sort options"
-            accessibilityRole="button"
-            onPress={() => setIsSortOpen(false)}
+          <BlurView
+            blurReductionFactor={1}
+            blurMethod="dimezisBlurViewSdk31Plus"
+            blurTarget={blurTarget ?? categorySelectionBlurTargetRef}
+            intensity={42}
+            tint="dark"
             style={StyleSheet.absoluteFill}
-          />
+          >
+            <Pressable
+              accessibilityLabel="Close sort options"
+              accessibilityRole="button"
+              onPress={() => setIsSortOpen(false)}
+              style={StyleSheet.absoluteFill}
+            />
+          </BlurView>
           <View accessibilityViewIsModal style={styles.sortSheet}>
             <View style={styles.sortSheetHeader}>
               <View>
@@ -1625,44 +1694,50 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                 accessibilityRole="button"
                 hitSlop={8}
                 onPress={() => setIsSortOpen(false)}
-                style={({ pressed }) => [styles.sortCloseButton, pressed && styles.pressed]}
+                style={({ pressed }) => [styles.sortCloseButton, pressed && styles.neumorphicPressed]}
               >
-                <MaterialIcons color={palette.primaryContainer} name="close" size={22} />
+                <MaterialIcons color={colors.closeIcon} name="close" size={22} />
               </Pressable>
             </View>
             <Text style={styles.sortSheetDescription}>
               Recommended combines category budget fit, availability, guest requirements,
               ratings, and booking popularity.
             </Text>
-            {sortOptions.map((option) => {
-              const selected = sortMode === option.id
-              return (
-                <Pressable
-                  key={option.id}
-                  accessibilityLabel={`Sort by ${option.label}`}
-                  accessibilityRole="radio"
-                  accessibilityState={{ checked: selected }}
-                  onPress={() => {
-                    setSortMode(option.id)
-                    setIsSortOpen(false)
-                  }}
-                  style={({ pressed }) => [
-                    styles.sortOption,
-                    selected && styles.sortOptionSelected,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <Text style={[styles.sortOptionText, selected && styles.sortOptionTextSelected]}>
-                    {option.label}
-                  </Text>
-                  <MaterialIcons
-                    color={selected ? palette.primaryContainer : palette.secondary}
-                    name={selected ? 'radio-button-checked' : 'radio-button-unchecked'}
-                    size={21}
-                  />
-                </Pressable>
-              )
-            })}
+            <ScrollView
+              contentContainerStyle={styles.sortOptionsContent}
+              showsVerticalScrollIndicator={false}
+              style={styles.sortOptionsScroll}
+            >
+              {sortOptions.map((option) => {
+                const selected = sortMode === option.id
+                return (
+                  <Pressable
+                    key={option.id}
+                    accessibilityLabel={`Sort by ${option.label}`}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: selected }}
+                    onPress={() => {
+                      setSortMode(option.id)
+                      setIsSortOpen(false)
+                    }}
+                    style={({ pressed }) => [
+                      styles.sortOption,
+                      selected && styles.sortOptionSelected,
+                      pressed && styles.neumorphicPressed,
+                    ]}
+                  >
+                    <Text style={[styles.sortOptionText, selected && styles.sortOptionTextSelected]}>
+                      {option.label}
+                    </Text>
+                    <MaterialIcons
+                      color={selected ? palette.primaryContainer : palette.secondary}
+                      name={selected ? 'radio-button-checked' : 'radio-button-unchecked'}
+                      size={21}
+                    />
+                  </Pressable>
+                )
+              })}
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -1736,7 +1811,14 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
         visible={isSelectedServicesOpen}
       >
         <View style={styles.selectedServicesOverlay}>
-          <BlurView intensity={36} tint="dark" style={StyleSheet.absoluteFill} />
+          <BlurView
+            blurReductionFactor={1}
+            blurMethod="dimezisBlurViewSdk31Plus"
+            blurTarget={blurTarget ?? categorySelectionBlurTargetRef}
+            intensity={42}
+            tint="dark"
+            style={StyleSheet.absoluteFill}
+          />
           <View pointerEvents="none" style={styles.selectedServicesScrim} />
           <Animated.View
             accessibilityViewIsModal
@@ -1755,7 +1837,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                 accessibilityRole="button"
                 hitSlop={8}
                 onPress={closeSelectedServices}
-                style={({ pressed }) => [styles.sheetCloseButton, pressed && styles.pressed]}
+                style={({ pressed }) => [styles.sheetCloseButton, pressed && styles.neumorphicPressed]}
               >
                 <Text style={styles.sheetCloseText}>×</Text>
               </Pressable>
@@ -1852,7 +1934,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                     accessibilityRole="button"
                     hitSlop={8}
                     onPress={onRemoveCoordinator}
-                    style={({ pressed }) => [styles.reviewRemoveButton, pressed && styles.pressed]}
+                    style={({ pressed }) => [styles.reviewRemoveButton, pressed && styles.neumorphicPressed]}
                   >
                     <MaterialCommunityIcons color={palette.primaryContainer} name="close" size={20} />
                   </Pressable>
@@ -1879,7 +1961,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                     closeSelectedServices()
                     onSelectService?.(service.id)
                   }}
-                  style={({ pressed }) => [styles.selectedServiceRow, pressed && styles.pressed]}
+                  style={({ pressed }) => [styles.selectedServiceRow, pressed && styles.neumorphicPressed]}
                 >
                   <Image
                     accessibilityLabel={service.imageLabel}
@@ -1902,7 +1984,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                           closeSelectedServices()
                           onChangeService?.(service)
                         }}
-                        style={({ pressed }) => [styles.reviewChangeButton, pressed && styles.pressed]}
+                        style={({ pressed }) => [styles.reviewChangeButton, pressed && styles.neumorphicPressed]}
                       >
                         <MaterialCommunityIcons color={palette.primaryContainer} name="swap-horizontal" size={18} />
                       </Pressable>
@@ -1919,7 +2001,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                         style={({ pressed }) => [
                           styles.reviewRemoveButton,
                           removingServiceId === service.id && styles.reviewRemoveButtonDisabled,
-                          pressed && styles.pressed,
+                          pressed && styles.neumorphicPressed,
                         ]}
                       >
                         <MaterialCommunityIcons
@@ -1943,9 +2025,9 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                   closeSelectedServices()
                   onAddService?.()
                 }}
-                style={({ pressed }) => [styles.reviewAddServiceButton, pressed && styles.pressed]}
+                style={({ pressed }) => [styles.reviewAddServiceButton, pressed && styles.neumorphicPressed]}
               >
-                <Text style={styles.reviewAddServiceIcon}>+</Text>
+                <MaterialCommunityIcons color={palette.primaryContainer} name="plus" size={20} />
                 <Text style={styles.reviewAddServiceText}>Add Service</Text>
               </Pressable>
             </ScrollView>
@@ -1962,7 +2044,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
               style={({ pressed }) => [
                 styles.sheetContinueButton,
                 !hasReviewableSelections && styles.sheetContinueButtonDisabled,
-                pressed && styles.pressed,
+                pressed && styles.neumorphicBurgundyPressed,
               ]}
             >
               <Text style={styles.sheetContinueText}>CONTINUE</Text>
@@ -2046,6 +2128,10 @@ const styles = StyleSheet.create({
   planningScreen: { backgroundColor: palette.background },
   neumorphicPressed: {
     boxShadow: 'inset 3px 3px 6px rgba(160, 171, 180, 0.52), inset -3px -3px 6px rgba(255, 255, 255, 0.94)',
+    transform: [{ scale: 0.99 }],
+  },
+  neumorphicBurgundyPressed: {
+    boxShadow: 'inset 3px 3px 7px rgba(44, 3, 15, 0.66), inset -3px -3px 7px rgba(146, 48, 72, 0.56)',
     transform: [{ scale: 0.99 }],
   },
   topAppBar: {
@@ -2350,17 +2436,21 @@ const styles = StyleSheet.create({
   },
   selectedServicesScrim: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(0, 0, 0, 0.24)',
+    backgroundColor: 'rgba(35, 43, 48, 0.14)',
   },
   selectedServicesSheet: {
     width: '100%',
     maxHeight: '82%',
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    borderColor: 'rgba(255, 255, 255, 0.72)',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    backgroundColor: palette.background,
+    backgroundColor: '#E9EDF0',
     paddingHorizontal: 20,
     paddingTop: 22,
     paddingBottom: 24,
+    boxShadow: '0px -4px 12px rgba(62, 75, 84, 0.20)',
   },
   selectedServicesSheetHeader: {
     flexDirection: 'row',
@@ -2370,8 +2460,8 @@ const styles = StyleSheet.create({
   },
   selectedServicesSheetEyebrow: {
     color: palette.primaryContainer,
-    fontSize: 10,
-    lineHeight: 14,
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: '800',
     letterSpacing: 1.2,
   },
@@ -2387,11 +2477,14 @@ const styles = StyleSheet.create({
     height: 36,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.78)',
     borderRadius: 18,
-    backgroundColor: palette.surfaceContainerHigh,
+    backgroundColor: '#E9EDF0',
+    boxShadow: '4px 4px 9px rgba(156, 169, 180, 0.44), -4px -4px 9px rgba(255, 255, 255, 0.94)',
   },
   sheetCloseText: {
-    color: palette.text,
+    color: colors.closeIcon,
     fontSize: 26,
     lineHeight: 28,
     fontWeight: '300',
@@ -2403,18 +2496,19 @@ const styles = StyleSheet.create({
   reviewBudgetCard: {
     gap: 16,
     borderWidth: 1,
-    borderColor: palette.outlineVariant,
+    borderColor: 'rgba(255, 255, 255, 0.78)',
     borderRadius: 16,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#E9EDF0',
     padding: 16,
+    boxShadow: '6px 6px 13px rgba(156, 169, 180, 0.44), -6px -6px 13px rgba(255, 255, 255, 0.94)',
   },
   reviewTotalCopy: {
     gap: 4,
   },
   reviewTotalLabel: {
     color: palette.secondary,
-    fontSize: 10,
-    lineHeight: 14,
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: '800',
     letterSpacing: 1,
   },
@@ -2435,20 +2529,21 @@ const styles = StyleSheet.create({
   reviewBudgetLabel: {
     flex: 1,
     color: palette.secondary,
-    fontSize: 11,
-    lineHeight: 15,
+    fontSize: 12,
+    lineHeight: 17,
   },
   reviewAllocatedLabel: {
     color: palette.primaryContainer,
-    fontSize: 11,
-    lineHeight: 15,
+    fontSize: 12,
+    lineHeight: 17,
     fontWeight: '700',
   },
   reviewProgressTrack: {
     height: 8,
     overflow: 'hidden',
     borderRadius: 4,
-    backgroundColor: palette.surfaceContainerHigh,
+    backgroundColor: '#E9EDF0',
+    boxShadow: 'inset 2px 2px 5px rgba(160, 171, 180, 0.52), inset -2px -2px 5px rgba(255, 255, 255, 0.94)',
   },
   reviewProgressFill: {
     height: '100%',
@@ -2460,8 +2555,8 @@ const styles = StyleSheet.create({
   },
   reviewActualCostEyebrow: {
     color: palette.primaryContainer,
-    fontSize: 10,
-    lineHeight: 14,
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: '800',
     letterSpacing: 1,
   },
@@ -2477,7 +2572,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 12,
   },
-  combinedPackageBudgetTitle: { color: palette.primaryContainer, fontSize: 10, lineHeight: 14, fontWeight: '800', letterSpacing: 1 },
+  combinedPackageBudgetTitle: { color: palette.primaryContainer, fontSize: 12, lineHeight: 16, fontWeight: '800', letterSpacing: 1 },
   combinedPackageBudgetText: { color: palette.secondary, fontSize: 12, lineHeight: 17 },
   combinedPackageBudgetOverage: { color: palette.error, fontSize: 12, lineHeight: 17, fontWeight: '800' },
   reviewCoordinatorCard: {
@@ -2485,10 +2580,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     borderWidth: 1,
-    borderColor: palette.outlineVariant,
+    borderColor: 'rgba(255, 255, 255, 0.78)',
     borderRadius: 14,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#E9EDF0',
     padding: 12,
+    boxShadow: '5px 5px 11px rgba(156, 169, 180, 0.42), -5px -5px 11px rgba(255, 255, 255, 0.94)',
   },
   reviewCoordinatorAvatar: {
     width: 42,
@@ -2509,8 +2605,8 @@ const styles = StyleSheet.create({
   },
   reviewCoordinatorEyebrow: {
     color: palette.primaryContainer,
-    fontSize: 9,
-    lineHeight: 13,
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: '800',
     letterSpacing: 0.7,
   },
@@ -2522,8 +2618,8 @@ const styles = StyleSheet.create({
   },
   reviewCoordinatorPackage: {
     color: palette.secondary,
-    fontSize: 11,
-    lineHeight: 16,
+    fontSize: 12,
+    lineHeight: 17,
     fontWeight: '600',
   },
   reviewServicesHeading: {
@@ -2539,10 +2635,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     borderWidth: 1,
-    borderColor: palette.surfaceVariant,
+    borderColor: 'rgba(255, 255, 255, 0.78)',
     borderRadius: 14,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#E9EDF0',
     padding: 10,
+    boxShadow: '5px 5px 11px rgba(156, 169, 180, 0.42), -5px -5px 11px rgba(255, 255, 255, 0.94)',
   },
   selectedServiceImage: {
     width: 56,
@@ -2555,8 +2652,8 @@ const styles = StyleSheet.create({
   },
   selectedServiceCategory: {
     color: palette.primaryContainer,
-    fontSize: 10,
-    lineHeight: 14,
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: '800',
     letterSpacing: 0.8,
   },
@@ -2568,8 +2665,8 @@ const styles = StyleSheet.create({
   },
   selectedServiceDetail: {
     color: palette.secondary,
-    fontSize: 11,
-    lineHeight: 15,
+    fontSize: 12,
+    lineHeight: 17,
   },
   selectedServicePrice: {
     maxWidth: 92,
@@ -2583,8 +2680,11 @@ const styles = StyleSheet.create({
     height: 32,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.78)',
     borderRadius: 16,
-    backgroundColor: '#F8EDEF',
+    backgroundColor: '#E9EDF0',
+    boxShadow: '3px 3px 7px rgba(156, 169, 180, 0.42), -3px -3px 7px rgba(255, 255, 255, 0.94)',
   },
   reviewServiceActions: { alignItems: 'flex-end', gap: 8 },
   reviewChangeButton: {
@@ -2592,8 +2692,11 @@ const styles = StyleSheet.create({
     height: 32,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.78)',
     borderRadius: 16,
-    backgroundColor: '#F8EDEF',
+    backgroundColor: '#E9EDF0',
+    boxShadow: '3px 3px 7px rgba(156, 169, 180, 0.42), -3px -3px 7px rgba(255, 255, 255, 0.94)',
   },
   reviewRemoveButtonDisabled: {
     opacity: 0.55,
@@ -2605,17 +2708,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     borderWidth: 1,
-    borderColor: palette.primaryContainer,
+    borderColor: 'rgba(255, 255, 255, 0.78)',
     borderRadius: 24,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#E9EDF0',
     paddingHorizontal: 20,
     paddingVertical: 12,
-  },
-  reviewAddServiceIcon: {
-    color: palette.primaryContainer,
-    fontSize: 22,
-    lineHeight: 24,
-    fontWeight: '500',
+    boxShadow: '5px 5px 11px rgba(156, 169, 180, 0.44), -5px -5px 11px rgba(255, 255, 255, 0.94)',
   },
   reviewAddServiceText: {
     color: palette.primaryContainer,
@@ -2634,6 +2732,9 @@ const styles = StyleSheet.create({
     backgroundColor: palette.primary,
     paddingHorizontal: 24,
     paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.22)',
+    boxShadow: '5px 5px 11px rgba(62, 12, 28, 0.56), -5px -5px 11px rgba(181, 98, 121, 0.50)',
   },
   sheetContinueButtonDisabled: { opacity: 0.48 },
   sheetContinueText: {
@@ -2996,19 +3097,23 @@ const styles = StyleSheet.create({
   sortOverlay: {
     flex: 1,
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(26, 10, 15, 0.42)',
+    backgroundColor: 'rgba(35, 43, 48, 0.14)',
   },
   sortSheet: {
     width: '100%',
     maxWidth: 540,
+    maxHeight: '82%',
     alignSelf: 'center',
-    gap: 8,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.84)',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: palette.background,
     paddingHorizontal: 22,
     paddingTop: 20,
     paddingBottom: 30,
+    boxShadow: '0px -4px 12px rgba(62, 75, 84, 0.22)',
   },
   sortSheetHeader: {
     flexDirection: 'row',
@@ -3016,9 +3121,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   sortSheetEyebrow: {
-    color: palette.secondary,
-    fontSize: 10,
-    lineHeight: 14,
+    color: palette.primaryContainer,
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: '800',
     letterSpacing: 1,
   },
@@ -3040,24 +3145,29 @@ const styles = StyleSheet.create({
     boxShadow: '4px 4px 9px rgba(156, 169, 180, 0.40), -4px -4px 9px rgba(255, 255, 255, 0.92)',
   },
   sortSheetDescription: {
-    color: palette.secondary,
-    fontSize: 12,
-    lineHeight: 18,
+    color: '#57636C',
+    fontSize: 13,
+    lineHeight: 19,
     marginBottom: 4,
   },
+  sortOptionsScroll: { maxHeight: 330 },
+  sortOptionsContent: { gap: 12, paddingHorizontal: 2, paddingVertical: 2 },
   sortOption: {
-    minHeight: 50,
+    minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: 1,
-    borderColor: palette.surfaceContainerHigh,
-    borderRadius: 14,
-    paddingHorizontal: 15,
+    borderColor: neutralSelection.edge,
+    borderRadius: 16,
+    backgroundColor: neutralSelection.surface,
+    paddingHorizontal: 16,
+    boxShadow: neutralSelection.sunkenShadow,
   },
   sortOptionSelected: {
     borderColor: palette.primaryContainer,
-    backgroundColor: '#F7ECEE',
+    backgroundColor: neutralSelection.surface,
+    boxShadow: neutralSelection.raisedShadow,
   },
   sortOptionText: {
     color: palette.text,

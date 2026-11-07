@@ -9,6 +9,8 @@ import {
   View,
 } from 'react-native'
 import { Text } from './AppText'
+import { colors } from '../theme/tokens'
+import { neutralSelection } from '../theme/neumorphism'
 
 export interface MultiSelectOption {
   description?: string
@@ -124,7 +126,7 @@ export const MultiSelectField: React.FC<MultiSelectFieldProps> = ({
                 onPress={() => setIsOpen(false)}
                 style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}
               >
-                <MaterialCommunityIcons color={palette.secondary} name="close" size={22} />
+                <MaterialCommunityIcons color={colors.closeIcon} name="close" size={22} />
               </Pressable>
             </View>
 
@@ -263,15 +265,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: neutralSelection.edge,
     borderRadius: 10,
+    backgroundColor: neutralSelection.surface,
     paddingHorizontal: 14,
     paddingVertical: 10,
+    boxShadow: neutralSelection.sunkenShadow,
   },
-  optionSelected: { borderColor: palette.primary, backgroundColor: palette.primarySoft },
+  optionSelected: {
+    borderColor: neutralSelection.edge,
+    backgroundColor: neutralSelection.surface,
+    boxShadow: neutralSelection.raisedShadow,
+  },
   optionCopy: { minWidth: 0, flex: 1 },
   optionLabel: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '600' },
-  optionLabelSelected: { color: palette.primary },
+  optionLabelSelected: { color: palette.text, fontWeight: '800' },
   optionDescription: { color: palette.secondary, fontSize: 11, lineHeight: 16, marginTop: 2 },
   actions: {
     flexDirection: 'row',

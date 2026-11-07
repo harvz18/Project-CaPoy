@@ -12,7 +12,7 @@ import {
 import { BlurView } from 'expo-blur'
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { radius, spacing } from '../theme/tokens'
+import { colors, radius, spacing } from '../theme/tokens'
 
 interface PolicyDocumentOverlayProps {
   blurTarget: React.RefObject<React.ComponentRef<typeof View> | null>
@@ -98,7 +98,7 @@ export const PolicyDocumentOverlay: React.FC<PolicyDocumentOverlayProps> = ({
             onPress={dismiss}
             style={({ pressed }) => [styles.closeButton, pressed && styles.closeButtonPressed]}
           >
-            <MaterialCommunityIcons color={neo.text} name="close" size={23} />
+            <MaterialCommunityIcons color={colors.closeIcon} name="close" size={23} />
           </Pressable>
         </View>
 

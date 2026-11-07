@@ -24,6 +24,8 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { Text } from '../components/AppText'
 import { PlanningScreenHeader } from '../components/PlanningScreenHeader'
 import { formatPeso } from '../lib/catalog'
+import { colors } from '../theme/tokens'
+import { neutralSelection } from '../theme/neumorphism'
 
 type MaterialIconName = React.ComponentProps<typeof MaterialIcons>['name']
 type TextInputInstance = React.ComponentRef<typeof TextInput>
@@ -70,6 +72,7 @@ interface BudgetAllocationScreenProps {
   isProcessing?: boolean
   isMarketplacePricingLoading?: boolean
   onBack?: () => void
+  onBrandPress?: () => void
   onBudgetChange?: (budget: number) => void
   onContinue?: (value: BudgetAllocationValue) => void
   onDraftChange?: (value: BudgetAllocationValue) => void
@@ -399,6 +402,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
   isProcessing = false,
   isMarketplacePricingLoading = false,
   onBack,
+  onBrandPress,
   onBudgetChange,
   onContinue,
   onDraftChange,
@@ -1061,8 +1065,10 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
         brandTitle
         currentStep={2}
         label="Budget"
+        neumorphicNavigation
         nextEnabled={canContinue}
         onBack={isProcessing ? undefined : onBack}
+        onBrandPress={isProcessing ? undefined : onBrandPress}
         onNext={canContinue ? handleContinue : undefined}
         title="Budget"
       />
@@ -1423,7 +1429,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
                     onPress={dismissCategoryBudgetOverlay}
                     style={({ pressed }) => [styles.categoryBudgetClose, pressed && styles.pressed]}
                   >
-                    <MaterialIcons color={palette.error} name="close" size={20} />
+                    <MaterialIcons color={colors.closeIcon} name="close" size={20} />
                   </Pressable>
                 </View>
 
@@ -1895,13 +1901,13 @@ const styles = StyleSheet.create({
   allocationList: { gap: 12 },
   categoryCard: {
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.78)',
+    borderColor: neutralSelection.edge,
     borderRadius: 14,
-    backgroundColor: palette.background,
+    backgroundColor: neutralSelection.surface,
     overflow: 'hidden',
-    boxShadow: '5px 5px 10px rgba(156, 169, 180, 0.40), -5px -5px 10px rgba(255, 255, 255, 0.92)',
+    boxShadow: neutralSelection.sunkenShadow,
   },
-  categoryCardSelected: { borderColor: 'rgba(107,30,46,0.34)' },
+  categoryCardSelected: { borderColor: neutralSelection.edge, backgroundColor: neutralSelection.surface, boxShadow: neutralSelection.raisedShadow },
   categoryHeader: {
     minHeight: 72,
     flexDirection: 'row',
@@ -1928,7 +1934,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.background,
     boxShadow: 'inset 3px 3px 6px rgba(170, 181, 190, 0.34), inset -3px -3px 6px rgba(255, 255, 255, 0.90)',
   },
-  categoryIconSelected: { backgroundColor: 'rgba(107,30,46,0.11)' },
+  categoryIconSelected: { backgroundColor: neutralSelection.surface, boxShadow: neutralSelection.raisedShadow },
   categoryCopy: { minWidth: 0, flex: 1 },
   categoryLabel: { color: palette.text, fontSize: 14, lineHeight: 19, fontWeight: '700' },
   categoryStatus: { marginTop: 2, color: palette.secondary, fontSize: 12, lineHeight: 16 },
