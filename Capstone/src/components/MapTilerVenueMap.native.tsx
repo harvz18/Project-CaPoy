@@ -11,6 +11,7 @@ interface MapTilerVenueMapProps {
   coordinates: MapCoordinates
   fullscreen?: boolean
   onPin: (coordinates: MapCoordinates) => void
+  onUnavailable?: () => void
 }
 
 const mapTilerKey = process.env.EXPO_PUBLIC_MAPTILER_API_KEY?.trim() ?? ''
@@ -37,6 +38,15 @@ const parseMapMessage = (value: string): MapMessage | undefined => {
   }
 }
 
+const isMapFailureMessage = (value: string) => {
+  try {
+    const message = JSON.parse(value) as Record<string, unknown>
+    return message.source === 'multivent-maptiler' && message.type === 'map-error'
+  } catch {
+    return false
+  }
+}
+
 const sameCoordinates = (left: MapCoordinates, right: MapCoordinates) => (
   Math.abs(left.latitude - right.latitude) < 0.000001
   && Math.abs(left.longitude - right.longitude) < 0.000001
@@ -52,10 +62,16 @@ const mapUrl = (coordinates: MapCoordinates) => {
 // in this map-only native WebView without exposing a second mobile key.
 export const hasMapTilerVenueMap = Boolean(mapTilerKey && /^https:\/\//i.test(hostedMapPageUrl))
 
-export const MapTilerVenueMap: React.FC<MapTilerVenueMapProps> = ({ coordinates, fullscreen = false, onPin }) => {
+export const MapTilerVenueMap: React.FC<MapTilerVenueMapProps> = ({
+  coordinates,
+  fullscreen = false,
+  onPin,
+  onUnavailable,
+}) => {
   const webViewRef = React.useRef<WebView<object>>(null)
   const initialMapUrlRef = React.useRef<string | null>(null)
   const lastPinnedCoordinatesRef = React.useRef<MapCoordinates | null>(null)
+  const hasReportedUnavailableRef = React.useRef(false)
 
   if (!initialMapUrlRef.current) initialMapUrlRef.current = mapUrl(coordinates)
 
@@ -82,12 +98,25 @@ export const MapTilerVenueMap: React.FC<MapTilerVenueMapProps> = ({ coordinates,
   }, [coordinates, sendPinCommand])
 
   const onMessage = React.useCallback((event: WebViewMessageEvent) => {
+    if (isMapFailureMessage(event.nativeEvent.data)) {
+      if (!hasReportedUnavailableRef.current) {
+        hasReportedUnavailableRef.current = true
+        onUnavailable?.()
+      }
+      return
+    }
     const message = parseMapMessage(event.nativeEvent.data)
     if (!message) return
     const nextCoordinates = { latitude: message.latitude, longitude: message.longitude }
     lastPinnedCoordinatesRef.current = nextCoordinates
     onPin(nextCoordinates)
-  }, [onPin])
+  }, [onPin, onUnavailable])
+
+  const handleLoadFailure = React.useCallback(() => {
+    if (hasReportedUnavailableRef.current) return
+    hasReportedUnavailableRef.current = true
+    onUnavailable?.()
+  }, [onUnavailable])
 
   if (!hasMapTilerVenueMap) return <View />
 
@@ -97,6 +126,8 @@ export const MapTilerVenueMap: React.FC<MapTilerVenueMapProps> = ({ coordinates,
         accessibilityLabel="Interactive venue map"
         domStorageEnabled
         javaScriptEnabled
+        onError={handleLoadFailure}
+        onHttpError={handleLoadFailure}
         onLoad={() => sendPinCommand(false)}
         onMessage={onMessage}
         originWhitelist={['https://*']}

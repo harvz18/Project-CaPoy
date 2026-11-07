@@ -1804,8 +1804,21 @@ const VenueMapSurface: React.FC<VenueMapSurfaceProps> = ({
   value,
 }) => {
   const [size, setSize] = React.useState({ height: 1, width: 1 })
+  const [isHostedMapUnavailable, setIsHostedMapUnavailable] = React.useState(false)
+  const [mapRetryKey, setMapRetryKey] = React.useState(0)
+
   if (hasMapTilerVenueMap) {
-    return <MapTilerVenueMap coordinates={{ latitude: value.latitude, longitude: value.longitude }} fullscreen={fullscreen} onPin={({ latitude, longitude }) => onPin(latitude, longitude)} />
+    if (!isHostedMapUnavailable) {
+      return (
+        <MapTilerVenueMap
+          key={mapRetryKey}
+          coordinates={{ latitude: value.latitude, longitude: value.longitude }}
+          fullscreen={fullscreen}
+          onPin={({ latitude, longitude }) => onPin(latitude, longitude)}
+          onUnavailable={() => setIsHostedMapUnavailable(true)}
+        />
+      )
+    }
   }
 
   const west = 122.91
@@ -1815,7 +1828,7 @@ const VenueMapSurface: React.FC<VenueMapSurfaceProps> = ({
   const pinX = Math.max(0, Math.min(1, (value.longitude - west) / (east - west)))
   const pinY = Math.max(0, Math.min(1, (north - value.latitude) / (north - south)))
 
-  return (
+  const localFallback = (
     <Pressable
       accessibilityHint="Tap to move the venue pin"
       accessibilityLabel="Bacolod venue map"
@@ -1858,6 +1871,26 @@ const VenueMapSurface: React.FC<VenueMapSurfaceProps> = ({
         <Text style={styles.mapAttributionText}>Bacolod preview</Text>
       </View>
     </Pressable>
+  )
+
+  if (!isHostedMapUnavailable) return localFallback
+
+  return (
+    <View style={[styles.mapFallbackSurface, fullscreen && styles.mapSurfaceFullscreen]}>
+      {localFallback}
+      <Pressable
+        accessibilityLabel="Retry interactive venue map"
+        accessibilityRole="button"
+        onPress={() => {
+          setMapRetryKey((current) => current + 1)
+          setIsHostedMapUnavailable(false)
+        }}
+        style={({ pressed }) => [styles.mapRetryButton, pressed && styles.mapRetryButtonPressed]}
+      >
+        <MaterialIcons color={palette.surface} name="refresh" size={16} />
+        <Text style={styles.mapRetryText}>Retry map</Text>
+      </Pressable>
+    </View>
   )
 }
 
@@ -2980,6 +3013,7 @@ const styles = StyleSheet.create({
   venueResultAddress: { color: palette.muted, fontSize: 12, lineHeight: 18, marginTop: 1 },
   venueNoResults: { color: palette.muted, fontSize: 12, lineHeight: 18, padding: 12 },
   mapPreviewShell: { position: 'relative', overflow: 'hidden', borderRadius: 14 },
+  mapFallbackSurface: { position: 'relative', height: 250, overflow: 'hidden' },
   mapSurface: {
     position: 'relative',
     height: 250,
@@ -3009,6 +3043,9 @@ const styles = StyleSheet.create({
   mapPinPulse: { width: 15, height: 6, borderRadius: 8, backgroundColor: 'rgba(107,30,46,0.24)', marginTop: -6 },
   mapAttributionBadge: { position: 'absolute', right: 8, bottom: 8, borderRadius: 5, backgroundColor: 'rgba(255,255,255,0.84)', paddingHorizontal: 7, paddingVertical: 3 },
   mapAttributionText: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: '600' },
+  mapRetryButton: { position: 'absolute', left: 8, bottom: 8, zIndex: 8, flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 16, backgroundColor: palette.burgundy, paddingHorizontal: 10, paddingVertical: 7 },
+  mapRetryButtonPressed: { backgroundColor: palette.burgundyDark, transform: [{ scale: 0.97 }] },
+  mapRetryText: { color: palette.surface, fontSize: 11, lineHeight: 15, fontWeight: '800' },
   mapFullscreenButton: { position: 'absolute', top: 10, right: 10, zIndex: 7, flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 8, backgroundColor: palette.burgundy, paddingHorizontal: 10, paddingVertical: 8 },
   mapFullscreenButtonPressed: { backgroundColor: palette.burgundyDark, transform: [{ scale: 0.97 }] },
   mapFullscreenText: { color: palette.surface, fontSize: 12, lineHeight: 16, fontWeight: '800', letterSpacing: 0.7 },

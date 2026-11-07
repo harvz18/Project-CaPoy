@@ -10,6 +10,7 @@ interface MapTilerVenueMapProps {
   coordinates: MapCoordinates
   fullscreen?: boolean
   onPin: (coordinates: MapCoordinates) => void
+  onUnavailable?: () => void
 }
 
 const mapTilerKey = process.env.EXPO_PUBLIC_MAPTILER_API_KEY?.trim() ?? ''
