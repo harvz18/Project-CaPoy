@@ -2048,7 +2048,6 @@ const CalendarPickerModal: React.FC<CalendarPickerModalProps> = ({ onChange, onC
             showsVerticalScrollIndicator={false}
             style={styles.calendarScroll}
           >
-            <Text style={styles.calendarLeadTimeHint}>{EVENT_BOOKING_LEAD_TIME_MESSAGE}</Text>
             <View style={styles.calendarMonthHeader}>
             <Pressable
               accessibilityLabel="Previous calendar month"
@@ -2158,6 +2157,10 @@ const CalendarPickerModal: React.FC<CalendarPickerModalProps> = ({ onChange, onC
                   </View>
                 )
               })}
+            </View>
+            <View style={[styles.timeGuidanceNotice, styles.calendarLeadTimeNotice]}>
+              <MaterialIcons color="#BA1A1A" name="info-outline" size={18} />
+              <Text style={styles.timeGuidanceText}>{EVENT_BOOKING_LEAD_TIME_MESSAGE}</Text>
             </View>
           </ScrollView>
         </View>
@@ -2631,14 +2634,7 @@ const styles = StyleSheet.create({
   },
   calendarScroll: { flexShrink: 1 },
   calendarContent: { paddingBottom: 2 },
-  calendarLeadTimeHint: {
-    color: '#BA1A1A',
-    fontSize: 12,
-    fontWeight: '700',
-    lineHeight: 17,
-    marginBottom: 14,
-    textAlign: 'center',
-  },
+  calendarLeadTimeNotice: { marginTop: 16 },
   calendarYearList: { gap: 8, paddingBottom: 14 },
   calendarYearButton: {
     minWidth: 62,
