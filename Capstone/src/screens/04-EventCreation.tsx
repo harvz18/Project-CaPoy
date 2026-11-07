@@ -2632,8 +2632,9 @@ const styles = StyleSheet.create({
   calendarScroll: { flexShrink: 1 },
   calendarContent: { paddingBottom: 2 },
   calendarLeadTimeHint: {
-    color: palette.muted,
+    color: '#BA1A1A',
     fontSize: 12,
+    fontWeight: '700',
     lineHeight: 17,
     marginBottom: 14,
     textAlign: 'center',
