@@ -45,6 +45,7 @@ import {
   type PhotoVideoSelectionSnapshot,
 } from '../lib/photo-video-booking'
 import type { ReviewSentiment, ServiceReviewInsights } from '../lib/reviews'
+import { typography } from '../theme/typography'
 
 export type MealType = CateringServiceType
 type CateringOffering = 'custom' | 'preset'
@@ -69,28 +70,34 @@ export interface ServiceSelectionValue {
   venueSelections?: VenueOptionSelection[]
 }
 
-type ServiceQuotePreview = {
+export type ServiceQuotePreview = {
   calculatedAmount?: number
   message?: string
   ok: boolean
   providerAmount?: number
 }
 
-interface ServiceDetailsScreenProps {
-  availableCategoryBudget?: number
+type ServiceDetailItem = {
+  emphasis?: boolean
+  id: string
+  label: string
+  value: string
+}
+
+export interface ServiceDetailsScreenProps {
+  categoryBudget?: number
   eventGuestCount?: number
   eventDate?: string
   eventTime?: string
   hasBudget?: boolean
   isChangingSelection?: boolean
   isReplacementSelection?: boolean
-  allowBudgetOverage?: boolean
   initialFoodTastingPreference?: boolean
   initialPhotoVideoSelection?: PhotoVideoSelectionSnapshot
   mode?: 'explore' | 'planning'
   presentation?: 'overlay' | 'screen'
   service?: CatalogService
-  onAddSelection?: (value: ServiceSelectionValue) => Promise<void> | void
+  onAddSelection?: (value: ServiceSelectionValue) => boolean | Promise<boolean | void> | void
   onCalculateQuote?: (value: {
     attendeeCount?: number
     menuItemIds?: string[]
@@ -129,12 +136,6 @@ interface ServiceDetailsScreenProps {
     ok: boolean
     stale?: boolean
   }>
-}
-
-const cateringFormatLabels: Record<CateringServiceType, string> = {
-  buffet: 'Buffet Service',
-  packed: 'Packed Meals',
-  plated: 'Plated Dining',
 }
 
 const ratingDistribution = [
@@ -179,14 +180,13 @@ const pricingUnitLabel = (unit?: 'event' | 'person' | 'hour' | 'day') => {
 }
 
 export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
-  availableCategoryBudget = 0,
+  categoryBudget = 0,
   eventGuestCount = 0,
   eventDate = '',
   eventTime = '',
   hasBudget,
   isChangingSelection = false,
   isReplacementSelection = false,
-  allowBudgetOverage = false,
   initialFoodTastingPreference,
   initialPhotoVideoSelection,
   mode = 'planning',
@@ -206,7 +206,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   const isWide = width >= 768
   const isExploreMode = mode === 'explore'
   const isOverlay = presentation === 'overlay'
-  const hasSetBudget = hasBudget ?? availableCategoryBudget > 0
+  const hasSetBudget = hasBudget ?? categoryBudget > 0
   const heroWidth = Math.min(width, 1200)
   const heroHeight = Math.max(280, Math.min(460, height * 0.42))
   const [heroIndex, setHeroIndex] = React.useState(0)
@@ -238,6 +238,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   const [quoteError, setQuoteError] = React.useState('')
   const [quoteLoading, setQuoteLoading] = React.useState(false)
   const [expandedSentiment, setExpandedSentiment] = React.useState<ReviewSentiment>()
+  const [expandedServiceDetails, setExpandedServiceDetails] = React.useState<Set<string>>(new Set())
   const [selectedPackageId, setSelectedPackageId] = React.useState(
     service?.packageId ?? ''
   )
@@ -313,6 +314,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     setExpandedVenueOptions(new Set())
     setHeroIndex(0)
     setExpandedSentiment(undefined)
+    setExpandedServiceDetails(new Set())
     setAuthoritativeQuote(undefined)
     setQuoteError('')
     setQuoteLoading(false)
@@ -546,6 +548,30 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   }
 
   const categoryFacts = summarizeCategoryDetails(service.categoryName, service.categoryDetails)
+  const serviceDetailItems: ServiceDetailItem[] = [
+    {
+      id: 'service-provider',
+      label: 'Service provider',
+      value: service.providerName,
+    },
+    {
+      emphasis: true,
+      id: 'price',
+      label: 'Price',
+      value: formatServicePrice(service),
+    },
+    ...(service.location
+      ? [{ id: 'location', label: 'Location', value: service.location }]
+      : []),
+    ...(service.pricingDetails
+      ? [{ id: 'pricing-details', label: 'Pricing details', value: service.pricingDetails }]
+      : []),
+    ...categoryFacts.map((fact, index) => ({
+      id: `category-${index}-${fact.label}`,
+      label: fact.label,
+      value: fact.value,
+    })),
+  ]
   const isVenue = service.categoryId === 'venues'
   const isFlorist = service.categoryId === 'florists'
   const isPhotoVideo = service.categoryId === 'photography' && Boolean(service.photoVideoConfiguration)
@@ -566,9 +592,21 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     isVenue && selectedPackage?.isVenueCatering && selectedPackage.cateringDetails && selectedPackage.cateringServiceId
   )
   const isCatering = service.categoryId === 'catering' || isVenueCateringPackage
+  const visibleServiceDetailItems = isCatering
+    ? serviceDetailItems.filter((detail) => detail.id !== 'price')
+    : serviceDetailItems
   const cateringConfigurationDetails = isVenueCateringPackage
     ? selectedPackage?.cateringDetails
     : service.categoryDetails
+  const cateringStartingPrice = isVenueCateringPackage
+    ? selectedPackage?.price ?? service.minPrice
+    : service.minPrice
+  const cateringStartingUnit = isVenueCateringPackage
+    ? selectedPackage?.unit ?? service.pricingUnit
+    : service.pricingUnit
+  const cateringStartingPriceText = cateringStartingPrice > 0
+    ? `Price starts at ${formatPeso(cateringStartingPrice)}${cateringStartingUnit ? ` / ${pricingUnitLabel(cateringStartingUnit)}` : ''}`
+    : 'Price available by request'
   const attendeeCount = isCatering
     ? cateringGuestCount
     : Math.max(0, Math.floor(eventGuestCount || 0))
@@ -627,16 +665,6 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
           ? `This service supports up to ${cateringGuestMaximum} guests.`
           : cateringGuestCountMessage
   const budgetPerHead = activeCateringOption?.pricePerHead ?? 0
-  const providerCateringFormats = Array.isArray(cateringConfigurationDetails?.cateringTypes)
-    ? cateringConfigurationDetails.cateringTypes
-      .filter((format): format is string => typeof format === 'string' && format.trim().length > 0)
-      .map((format) => format.trim())
-    : []
-  // Newer listings retain every provider-configured format in category details;
-  // legacy listings fall back to their established pricing-format catalogue.
-  const cateringFormats = providerCateringFormats.length > 0
-    ? Array.from(new Set(providerCateringFormats))
-    : (service.cateringServiceTypes ?? []).map((format) => cateringFormatLabels[format])
   const cateringTastingSettings = getCateringTastingSettings(cateringConfigurationDetails)
   const cateringTastingMenu = getCateringTastingMenu(cateringConfigurationDetails)
   const foodTastingAvailable = Boolean(cateringTastingSettings && cateringTastingMenu)
@@ -778,12 +806,11 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
   )
   const authoritativeQuoteUnavailable = requiresAuthoritativeQuote
     && (quoteLoading || Boolean(quoteError) || !authoritativeQuote)
-  const exceedsAvailableCategoryBudget = !isFoodTastingFlow
+  const isOverCategoryBudget = !isFoodTastingFlow
     && hasSetBudget
-    && !allowBudgetOverage
-    && estimatedTotal > availableCategoryBudget
-  const categoryBudgetOverage = exceedsAvailableCategoryBudget
-    ? Math.max(0, estimatedTotal - availableCategoryBudget)
+    && estimatedTotal > categoryBudget
+  const categoryBudgetOverage = isOverCategoryBudget
+    ? Math.max(0, estimatedTotal - categoryBudget)
     : 0
   const estimatedDisplay =
     quoteLoading
@@ -804,7 +831,6 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     || foodTastingPreferenceRequired
     || foodTastingMenuSelectionPending
     || authoritativeQuoteUnavailable
-    || exceedsAvailableCategoryBudget
     || scheduleUnavailable
   const foodTastingRequestDisabled = isAddingSelection
     || Boolean(cateringGuestCountIssue)
@@ -892,7 +918,6 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
       || foodTastingPreferenceRequired
       || foodTastingMenuSelectionPending
       || authoritativeQuoteUnavailable
-      || exceedsAvailableCategoryBudget
       || scheduleUnavailable
     ) return
 
@@ -1023,12 +1048,24 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
     return next
   })
 
+  const toggleExpandedServiceDetail = (detailId: string) => setExpandedServiceDetails((current) => {
+    const next = new Set(current)
+    if (next.has(detailId)) next.delete(detailId)
+    else next.add(detailId)
+    return next
+  })
+
   return (
     <View style={styles.screen}>
       <ScrollView
-        contentContainerStyle={[styles.scrollContent, isOverlay && styles.overlayScrollContent]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          isOverlay && styles.overlayScrollContent,
+          isOverlay && !isExploreMode && styles.overlayScrollContentWithAction,
+        ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        style={styles.detailsScroll}
       >
         <View style={[styles.hero, { height: heroHeight }]}>
           <ScrollView
@@ -1095,88 +1132,118 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
 
           <View pointerEvents="none" style={[styles.heroCopy, isWide && styles.heroCopyWide]}>
             <View style={styles.badgeRow}>
-              <View style={[styles.categoryBadge, isOverlay && styles.overlayHeroBadge]}>
-                <Text style={styles.categoryBadgeText}>{service.categoryId === 'venues' ? 'VENUE' : service.categoryName.toUpperCase()}</Text>
+              <View style={[styles.heroBadge, styles.categoryBadge, isOverlay && styles.overlayHeroBadge]}>
+                <Text numberOfLines={1} style={styles.categoryBadgeText}>{service.categoryId === 'venues' ? 'VENUE' : service.categoryName.toUpperCase()}</Text>
               </View>
-              <View style={[styles.ratingBadge, isOverlay && styles.overlayHeroBadge]}>
-                <MaterialCommunityIcons color={palette.gold} name="star" size={17} />
-                <Text style={styles.ratingBadgeText}>{service.rating}</Text>
+              <View style={[styles.heroBadge, styles.ratingBadge, isOverlay && styles.overlayHeroBadge]}>
+                <MaterialCommunityIcons color={palette.gold} name="star" size={16} />
+                <Text numberOfLines={1} style={styles.ratingBadgeText}>{service.rating}</Text>
               </View>
             </View>
             <Text numberOfLines={2} style={styles.serviceTitle}>{service.name}</Text>
           </View>
         </View>
 
-        {!isExploreMode ? (
-          <View style={[styles.heroSummary, isWide && styles.contentPaddingWide]}>
-            <View style={styles.heroBudgetBadge}>
-              <MaterialCommunityIcons color={palette.primary} name="wallet-outline" size={19} />
-              <Text style={styles.heroBudgetText}>
-                {hasSetBudget
-                  ? `${isChangingSelection ? 'Available for this change' : `Available for ${service.categoryName}`}: ${formatPeso(availableCategoryBudget)}`
-                  : 'Pay actual service costs'}
-                </Text>
-            </View>
-          </View>
-        ) : null}
-
         <View style={[styles.content, isWide && styles.contentPaddingWide, isOverlay && styles.overlayContent]}>
-          {exceedsAvailableCategoryBudget ? (
+          {isOverCategoryBudget ? (
             <View style={styles.budgetOverageNotice}>
               <MaterialCommunityIcons color={palette.primary} name="alert-circle-outline" size={20} />
               <Text style={styles.budgetOverageNoticeText}>
-                {isChangingSelection ? (
-                  <>This configuration is {formatPeso(categoryBudgetOverage)} over the available amount for this change. Your current service remains unchanged until a valid replacement is confirmed.</>
-                ) : (
-                  <>This configuration is {formatPeso(categoryBudgetOverage)} over the available {service.categoryName} budget. {isVenue
-                    ? 'Adjust the venue options or rental duration, or return to update the category budget.'
-                    : 'Adjust the service selection or return to update the category budget.'}</>
-                )}
+                This configuration is {formatPeso(categoryBudgetOverage)} over your {service.categoryName} budget allocation. You can still select it; the allocation is guidance only.
               </Text>
             </View>
           ) : null}
           <View style={[styles.descriptionSection, isOverlay && styles.overlayDetailCard]}>
-            <Text style={styles.description}>{service.description}</Text>
-            {isCatering && cateringFormats.length > 0 ? (
-              <View style={styles.cateringFormatsSection}>
-                <Text style={styles.cateringFormatsLabel}>CATERING SERVICES OFFERED</Text>
-                <View style={styles.cateringFormatsList}>
-                  {cateringFormats.map((format) => (
-                    <View key={format} style={styles.cateringFormatChip}>
-                      <MaterialCommunityIcons color={palette.primary} name="check-circle-outline" size={15} />
-                      <Text style={styles.cateringFormatText}>{format}</Text>
-                    </View>
-                  ))}
-                </View>
+            {!isOverlay ? <Text style={styles.description}>{service.description}</Text> : null}
+            {isCatering ? (
+              <View style={[
+                styles.priceSummarySection,
+                isOverlay && styles.overlayPriceSummaryContainer,
+                isOverlay && styles.overlayFirstDetailContent,
+              ]}>
+                <Text style={styles.priceSummaryLabel}>PRICE</Text>
+                <Text style={styles.priceSummaryValue}>{cateringStartingPriceText}</Text>
               </View>
             ) : null}
-            <View style={[styles.serviceFacts, isOverlay && styles.overlayServiceFacts]}>
-              <View style={styles.serviceFactRow}>
-                <Text style={styles.serviceFactLabel}>SERVICE PROVIDER</Text>
-                <Text style={styles.serviceFactValue}>{service.providerName}</Text>
-              </View>
-              <View style={styles.serviceFactRow}>
-                <Text style={styles.serviceFactLabel}>PRICE</Text>
-                <Text style={styles.servicePriceValue}>{formatServicePrice(service)}</Text>
-              </View>
-              {service.location ? (
-                <View style={styles.serviceFactRow}>
-                  <Text style={styles.serviceFactLabel}>LOCATION</Text>
-                  <Text style={styles.serviceFactValue}>{service.location}</Text>
-                </View>
-              ) : null}
-              {service.pricingDetails ? (
-                <View style={styles.pricingNotes}>
-                  <Text style={styles.serviceFactLabel}>PRICING DETAILS</Text>
-                  <Text style={styles.pricingNotesText}>{service.pricingDetails}</Text>
-                </View>
-              ) : null}
-              {categoryFacts.map((fact) => (
-                <View key={`${fact.label}-${fact.value}`} style={styles.serviceFactRow}>
-                  <Text style={styles.serviceFactLabel}>{fact.label.toUpperCase()}</Text>
-                  <Text style={styles.serviceFactValue}>{fact.value}</Text>
-                </View>
-              ))}
+            <View style={[
+              styles.serviceFacts,
+              isOverlay && styles.overlayServiceFacts,
+              isOverlay && !isCatering && styles.overlayFirstDetailContent,
+            ]}>
+              {isOverlay ? visibleServiceDetailItems.map((detail, index) => {
+                const isExpanded = expandedServiceDetails.has(detail.id)
+                const isLast = index === visibleServiceDetailItems.length - 1
+
+                return (
+                  <View
+                    key={detail.id}
+                    style={[
+                      styles.overlayServiceFactItem,
+                      isLast && styles.overlayServiceFactItemLast,
+                    ]}
+                  >
+                    <Pressable
+                      accessibilityLabel={`${isExpanded ? 'Collapse' : 'Expand'} ${detail.label}`}
+                      accessibilityRole="button"
+                      accessibilityState={{ expanded: isExpanded }}
+                      onPress={() => toggleExpandedServiceDetail(detail.id)}
+                      style={({ pressed }) => [
+                        styles.overlayServiceFactHeader,
+                        pressed && styles.overlayServiceFactHeaderPressed,
+                      ]}
+                    >
+                      <Text style={styles.serviceFactLabel}>{detail.label.toUpperCase()}</Text>
+                      <MaterialCommunityIcons
+                        color={palette.primary}
+                        name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                        size={22}
+                      />
+                    </Pressable>
+                    {isExpanded ? (
+                      <View style={styles.overlayServiceFactContent}>
+                        <Text
+                          style={detail.emphasis
+                            ? styles.overlayServicePriceValue
+                            : styles.overlayServiceFactValue}
+                        >
+                          {detail.value}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                )
+              }) : (
+                <>
+                  <View style={styles.serviceFactRow}>
+                    <Text style={styles.serviceFactLabel}>SERVICE PROVIDER</Text>
+                    <Text style={styles.serviceFactValue}>{service.providerName}</Text>
+                  </View>
+                  {!isCatering ? (
+                    <View style={styles.serviceFactRow}>
+                      <Text style={styles.serviceFactLabel}>PRICE</Text>
+                      <Text style={styles.servicePriceValue}>{formatServicePrice(service)}</Text>
+                    </View>
+                  ) : null}
+                  {service.location ? (
+                    <View style={styles.serviceFactRow}>
+                      <Text style={styles.serviceFactLabel}>LOCATION</Text>
+                      <Text style={styles.serviceFactValue}>{service.location}</Text>
+                    </View>
+                  ) : null}
+                  {service.pricingDetails ? (
+                    <View style={styles.pricingNotes}>
+                      <Text style={styles.serviceFactLabel}>PRICING DETAILS</Text>
+                      <Text style={styles.pricingNotesText}>{service.pricingDetails}</Text>
+                    </View>
+                  ) : null}
+                  {categoryFacts.map((fact) => (
+                    <View key={`${fact.label}-${fact.value}`} style={styles.serviceFactRow}>
+                      <Text style={styles.serviceFactLabel}>{fact.label.toUpperCase()}</Text>
+                      <Text style={styles.serviceFactValue}>{fact.value}</Text>
+                    </View>
+                  ))}
+                </>
+              )}
             </View>
             <PublishedBusinessPolicies neumorphic={isOverlay} ownerId={service.providerUserId} />
           </View>
@@ -1204,6 +1271,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                       }
                       style={({ pressed }) => [
                         styles.packageCard,
+                        isOverlay && styles.overlayInsetCard,
                         isSelected && !isExploreMode && styles.packageCardSelected,
                         pressed && styles.packageCardPressed,
                       ]}
@@ -1278,13 +1346,13 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
           </View>
 
           {!isExploreMode ? (
-            <View style={styles.bookingSection}>
+            <View style={[styles.bookingSection, isOverlay && styles.overlayDetailCard]}>
             <Text style={styles.sectionHeading}>
               {service.categoryId === 'catering' ? 'Booking Details' : 'Request This Service'}
             </Text>
 
             {scheduleUnavailable ? (
-              <View style={styles.scheduleUnavailableNotice}>
+              <View style={[styles.scheduleUnavailableNotice, isOverlay && styles.overlayInsetCard]}>
                 <MaterialCommunityIcons color={palette.secondary} name="calendar-remove-outline" size={21} />
                 <View style={styles.scheduleUnavailableCopy}>
                   <Text style={styles.scheduleUnavailableTitle}>Not available on your event schedule</Text>
@@ -1360,7 +1428,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                   </View>
                   <MaterialCommunityIcons color={palette.primary} name="account-group-outline" size={28} />
                 </View>
-                <View style={styles.foodTastingPreferenceCard}>
+                <View style={[styles.foodTastingPreferenceCard, isOverlay && styles.overlayInsetCard]}>
                   <View style={styles.foodTastingPreferenceHeading}>
                     <MaterialCommunityIcons color={palette.primary} name="silverware-fork-knife" size={22} />
                     <View style={styles.foodTastingPreferenceCopy}>
@@ -1379,6 +1447,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                       onPress={() => chooseFoodTastingPreference(true)}
                       style={({ pressed }) => [
                         styles.foodTastingPreferenceOption,
+                        isOverlay && styles.overlayRaisedInnerCard,
                         foodTastingPreference === true && styles.foodTastingPreferenceOptionSelected,
                         !foodTastingAvailable && styles.foodTastingPreferenceOptionDisabled,
                         pressed && styles.mealCardPressed,
@@ -1401,6 +1470,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                       onPress={() => chooseFoodTastingPreference(false)}
                       style={({ pressed }) => [
                         styles.foodTastingPreferenceOption,
+                        isOverlay && styles.overlayRaisedInnerCard,
                         foodTastingPreference === false && styles.foodTastingPreferenceOptionSelected,
                         pressed && styles.mealCardPressed,
                       ]}
@@ -1424,7 +1494,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                 </View>
                 {foodTastingPreference === true ? (
                   <>
-                    <View style={styles.foodTastingPhaseNotice}>
+                    <View style={[styles.foodTastingPhaseNotice, isOverlay && styles.overlayRaisedInnerCard]}>
                       <MaterialCommunityIcons color={palette.primary} name="silverware-fork-knife" size={20} />
                       <View style={styles.foodTastingPreferenceCopy}>
                         <Text style={styles.foodTastingPhaseNoticeTitle}>Proposed Food Tasting Menu</Text>
@@ -1439,7 +1509,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                         item.isActive && selectedTastingMenuItemIdSet.has(item.id)
                       ).length
                       return (
-                        <View key={section.id} style={styles.foodTastingCourseCard}>
+                        <View key={section.id} style={[styles.foodTastingCourseCard, isOverlay && styles.overlayInsetCard]}>
                           <Pressable
                             accessibilityRole="button"
                             accessibilityState={{ expanded }}
@@ -1496,7 +1566,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                         </View>
                       )
                     })}
-                    <View style={styles.foodTastingPricingNotice}>
+                    <View style={[styles.foodTastingPricingNotice, isOverlay && styles.overlayInsetCard]}>
                       <MaterialCommunityIcons color={palette.secondary} name="information-outline" size={20} />
                       <View style={styles.foodTastingPreferenceCopy}>
                         <Text style={styles.foodTastingPricingTitle}>Final catering price pending</Text>
@@ -1516,7 +1586,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                   </>
                 ) : foodTastingPreference === false ? <>
                 {usesSelectedProviderPackage && !isVenueCateringPackage ? (
-                  <View style={styles.cateringSummaryCard}>
+                  <View style={[styles.cateringSummaryCard, isOverlay && styles.overlayInsetCard]}>
                     <Text style={styles.cateringOptionName}>{selectedPackage?.name}</Text>
                     <Text style={styles.cateringOptionRange}>
                       Provider package · {selectedUnit === 'person'
@@ -1546,11 +1616,11 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                   </View>
                 ) : hasCustomCateringMenu && hasPresetCateringMenus ? (
                   <View style={styles.mealTypeGrid}>
-                    <Pressable accessibilityRole="radio" accessibilityState={{ checked: selectedCateringOffering === 'preset' }} onPress={() => setSelectedCateringOffering('preset')} style={[styles.mealCard, selectedCateringOffering === 'preset' && styles.mealCardSelected]}>
+                    <Pressable accessibilityRole="radio" accessibilityState={{ checked: selectedCateringOffering === 'preset' }} onPress={() => setSelectedCateringOffering('preset')} style={[styles.mealCard, isOverlay && styles.overlayRaisedInnerCard, selectedCateringOffering === 'preset' && styles.mealCardSelected]}>
                       <MaterialCommunityIcons color={selectedCateringOffering === 'preset' ? palette.primary : palette.secondary} name="food-variant" size={27} />
                       <Text style={[styles.mealLabel, selectedCateringOffering === 'preset' && styles.mealSelectedContent]}>Choose Preset Package</Text>
                     </Pressable>
-                    <Pressable accessibilityRole="radio" accessibilityState={{ checked: selectedCateringOffering === 'custom' }} onPress={() => setSelectedCateringOffering('custom')} style={[styles.mealCard, selectedCateringOffering === 'custom' && styles.mealCardSelected]}>
+                    <Pressable accessibilityRole="radio" accessibilityState={{ checked: selectedCateringOffering === 'custom' }} onPress={() => setSelectedCateringOffering('custom')} style={[styles.mealCard, isOverlay && styles.overlayRaisedInnerCard, selectedCateringOffering === 'custom' && styles.mealCardSelected]}>
                       <MaterialCommunityIcons color={selectedCateringOffering === 'custom' ? palette.primary : palette.secondary} name="format-list-checks" size={27} />
                       <Text style={[styles.mealLabel, selectedCateringOffering === 'custom' && styles.mealSelectedContent]}>Customize Your Menu</Text>
                     </Pressable>
@@ -1562,7 +1632,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                     const expanded = expandedCateringMenuSections.has(section.id)
                     const selectedCount = section.items.filter((item) => selectedCateringMenuItemIds.includes(item.id)).length
                     return (
-                    <View key={section.id} style={styles.cateringOptionCard}>
+                    <View key={section.id} style={[styles.cateringOptionCard, isOverlay && styles.overlayInsetCard]}>
                       <Pressable
                         accessibilityRole="button"
                         accessibilityState={{ expanded }}
@@ -1615,7 +1685,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                     </View>
                     )
                   })}
-                  <View style={styles.cateringSummaryCard}>
+                  <View style={[styles.cateringSummaryCard, isOverlay && styles.overlayInsetCard]}>
                     <Text style={styles.cateringOptionName}>Selected menu total</Text>
                     <Text style={styles.cateringOptionUnit}>{formatPeso(customerPriceFromProviderPrice(customCateringCalculation.unitPrice, service.commissionRate))} / head</Text>
                     <Text style={styles.cateringOptionSubtotal}>{formatPeso(customerPriceFromProviderPrice(customCateringCalculation.providerSubtotal, service.commissionRate))} for {attendeeCount.toLocaleString('en-PH')} guests</Text>
@@ -1635,13 +1705,13 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                       accessibilityState={{ checked: selected, disabled: !calculation.fitsGuestCount }}
                       disabled={!calculation.fitsGuestCount}
                       onPress={() => setSelectedCateringOptionId(option.id)}
-                      style={[styles.cateringOptionCard, selected && styles.cateringOptionCardSelected, !calculation.fitsGuestCount && styles.cateringOptionCardDisabled]}
+                      style={[styles.cateringOptionCard, isOverlay && styles.overlayInsetCard, selected && styles.cateringOptionCardSelected, !calculation.fitsGuestCount && styles.cateringOptionCardDisabled]}
                     >
                       <View style={styles.cateringOptionHeading}>
                         <View style={styles.packageTitleRow}>
                           <MaterialCommunityIcons color={selected ? palette.primary : palette.secondary} name={selected ? 'radiobox-marked' : 'radiobox-blank'} size={22} />
                           <View>
-                            <Text style={styles.cateringOptionName}>{option.name}</Text>
+                            <Text style={styles.venueOptionName}>{option.name}</Text>
                             <Text style={styles.cateringOptionRange}>{option.minimumGuests}-{option.maximumGuests} guests</Text>
                           </View>
                         </View>
@@ -1672,19 +1742,27 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
             ) : null}
 
             {isVenue ? (
-              <View style={styles.cateringOptionsSection}>
+              <View style={[
+                styles.cateringOptionsSection,
+                isOverlay && styles.overlayVenueRequestSection,
+              ]}>
                 <View style={styles.guestCountCard}>
-                  <View>
+                  <View style={styles.guestCountCopy}>
                     <Text style={styles.inputLabel}>EVENT REQUIREMENT</Text>
-                    <Text style={styles.guestCountValue}>{attendeeCount.toLocaleString('en-PH')} guests</Text>
+                    <View
+                      accessibilityLabel={`Event requirement: ${attendeeCount.toLocaleString('en-PH')} guests`}
+                      style={styles.guestCountCounter}
+                    >
+                      <Text style={styles.guestCountValue}>{attendeeCount.toLocaleString('en-PH')}</Text>
+                      <Text style={styles.guestCountUnit}>guests</Text>
+                    </View>
                     {eventDate && eventTime ? (
                       <Text style={styles.cateringOptionRange}>{eventDate} at {eventTime}</Text>
                     ) : null}
                   </View>
-                  <MaterialCommunityIcons color={palette.primary} name="office-building-marker-outline" size={28} />
                 </View>
                 {usesSelectedProviderPackage ? (
-                  <View style={styles.cateringSummaryCard}>
+                  <View style={[styles.cateringSummaryCard, isOverlay && styles.overlayInsetCard]}>
                     <Text style={styles.cateringOptionName}>{selectedPackage?.name}</Text>
                     <Text style={styles.cateringOptionRange}>Provider package · fixed total for the event</Text>
                     <Text style={styles.cateringOptionUnit}>{formatPeso(selectedPackage?.price ?? 0)} total</Text>
@@ -1703,22 +1781,31 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                   </View>
                 ) : <>
                 <Text style={styles.cateringInstruction}>Choose available venue options. Select more than one only when every option allows combination.</Text>
-                {venueOptions.map((option) => {
+                {venueOptions.length > 0 ? (
+                  <View style={styles.venueOptionsContainer}>
+                {venueOptions.map((option, index) => {
                   const selected = Object.prototype.hasOwnProperty.call(selectedVenueHours, option.id)
                   const canSelect = selected || canAddVenueOption(option)
                   return (
                     <Pressable
                       key={option.id}
+                      accessibilityLabel={`${option.name}. ${option.kind === 'combination' ? 'Expandable combination' : 'Individual space'}. Capacity ${option.capacity} guests.`}
                       accessibilityRole="checkbox"
                       accessibilityState={{ checked: selected, disabled: !canSelect }}
                       disabled={!canSelect}
                       onPress={() => toggleVenueOption(option)}
-                      style={[styles.cateringOptionCard, selected && styles.cateringOptionCardSelected, !canSelect && styles.cateringOptionCardDisabled]}
+                      style={({ pressed }) => [
+                        styles.venueOptionChoice,
+                        index < venueOptions.length - 1 && styles.venueOptionChoiceDivider,
+                        selected && styles.venueOptionChoiceSelected,
+                        !canSelect && styles.cateringOptionCardDisabled,
+                        pressed && styles.venueOptionChoicePressed,
+                      ]}
                     >
                       <View style={styles.cateringOptionHeading}>
-                        <View style={styles.packageTitleRow}>
-                          <MaterialCommunityIcons color={selected ? palette.primary : palette.secondary} name={selected ? 'checkbox-marked' : 'checkbox-blank-outline'} size={22} />
-                          <View>
+                        <View style={styles.venueOptionStack}>
+                          <MaterialCommunityIcons color={selected ? palette.primary : palette.secondary} name={selected ? 'checkbox-marked' : 'checkbox-blank-outline'} size={24} />
+                          <View style={styles.venueOptionCopy}>
                             <Text style={styles.cateringOptionName}>{option.name}</Text>
                             <Text style={styles.cateringOptionRange}>{option.kind === 'combination' ? 'Expandable combination' : 'Individual space'} · {option.spaceType}</Text>
                           </View>
@@ -1729,6 +1816,8 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                     </Pressable>
                   )
                 })}
+                  </View>
+                ) : null}
                 {selectedVenueOptions.map((option) => {
                   const expanded = expandedVenueOptions.has(option.id)
                   const isHourly = isHourlyVenueOption(option)
@@ -1812,6 +1901,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                 {floristConfiguration ? (
                   <FloristBookingConfigurator
                     configuration={floristConfiguration}
+                    neumorphic={isOverlay}
                     onChange={setFloristSelection}
                     value={floristSelection}
                   />
@@ -1831,6 +1921,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                   <PhotoVideoBookingConfigurator
                     commissionRate={service.commissionRate}
                     configuration={photoVideoConfiguration}
+                    neumorphic={isOverlay}
                     onChange={(next) => {
                       const normalized = normalizePhotoVideoSelection(next)
                       setPhotoVideoSelection(normalized)
@@ -1851,13 +1942,15 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
             </View>
           ) : null}
 
+          {isVenue ? <View style={styles.venueReviewsDivider} /> : null}
+
           <View style={[styles.reviewsSection, isOverlay && styles.overlayDetailCard]}>
             <Text style={styles.sectionHeading}>Guest Reviews</Text>
 
             {service.isMock && !service.bookingServiceId ? (
               <>
             <View style={[styles.reviewSummary, isWide && styles.reviewSummaryWide]}>
-              <View style={styles.ratingCard}>
+              <View style={[styles.ratingCard, isOverlay && styles.overlayInsetCard]}>
                 <Text style={styles.bigRating}>4.8</Text>
                 <Text style={styles.summaryStars}>****-</Text>
                 <Text style={styles.reviewCount}>120 REVIEWS</Text>
@@ -1875,7 +1968,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
               </View>
             </View>
 
-            <View style={styles.insightCard}>
+            <View style={[styles.insightCard, isOverlay && styles.overlayRaisedInnerCard]}>
               <View style={styles.insightHeadingRow}>
                 <Text style={styles.insightIcon}>*</Text>
                 <Text style={styles.insightHeading}>EXPERT INSIGHT</Text>
@@ -1892,7 +1985,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
 
             <View style={styles.reviewChips}>
               {reviewChips.map((chip) => (
-                <View key={chip} style={styles.reviewChip}>
+                <View key={chip} style={[styles.reviewChip, isOverlay && styles.overlayRaisedInnerCard]}>
                   <Text style={styles.reviewChipText}>{chip}</Text>
                 </View>
               ))}
@@ -1900,7 +1993,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
 
             <View style={styles.reviewList}>
               {reviews.map((review) => (
-                <View key={review.id} style={styles.reviewItem}>
+                <View key={review.id} style={[styles.reviewItem, isOverlay && styles.overlayReviewItem]}>
                   <View style={styles.reviewHeader}>
                     <View style={styles.reviewerIdentity}>
                       <Image
@@ -1926,7 +2019,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
               accessibilityLabel="Read all 120 reviews"
               accessibilityRole="button"
               onPress={onReadAllReviews}
-              style={({ pressed }) => [styles.readReviewsButton, pressed && styles.outlinePressed]}
+              style={({ pressed }) => [styles.readReviewsButton, isOverlay && styles.overlayRaisedInnerCard, pressed && styles.outlinePressed]}
             >
               <Text style={styles.readReviewsText}>Read All 120 Reviews</Text>
             </Pressable>
@@ -1939,7 +2032,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
               ) : reviewInsights && reviewInsights.totalRatings > 0 ? (
                 <>
                   <View style={[styles.reviewSummary, isWide && styles.reviewSummaryWide]}>
-                    <View style={styles.ratingCard}>
+                    <View style={[styles.ratingCard, isOverlay && styles.overlayInsetCard]}>
                       <Text style={styles.bigRating}>{reviewInsights.averageRating.toFixed(1)}</Text>
                       <Text style={styles.summaryStars}>
                         {'\u2605'.repeat(Math.round(reviewInsights.averageRating))}
@@ -1985,6 +2078,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                             style={({ pressed }) => [
                               styles.sentimentCard,
                               positive ? styles.positiveCard : styles.negativeCard,
+                              isOverlay && styles.overlayRaisedInnerCard,
                               pressed && styles.outlinePressed,
                             ]}
                           >
@@ -2006,7 +2100,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                           </Pressable>
 
                           {expanded && group.reviews.length > 0 ? (
-                            <View style={styles.sentimentReviewList}>
+                            <View style={[styles.sentimentReviewList, isOverlay && styles.overlayInsetCard]}>
                               {group.reviews.map((review) => (
                                 <View key={review.id} style={styles.sentimentReviewItem}>
                                   <View style={styles.sentimentReviewHeader}>
@@ -2065,9 +2159,9 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                 <Text style={styles.estimatedLabel}>{isFoodTastingFlow ? 'PRELIMINARY MENU' : 'ESTIMATED TOTAL'}</Text>
                 <Text style={styles.estimatedValue}>{isFoodTastingFlow ? 'Final price pending' : estimatedDisplay}</Text>
                 {!isFoodTastingFlow && quoteError ? <Text style={styles.quoteError}>{quoteError}</Text> : null}
-                {exceedsAvailableCategoryBudget ? (
+                {isOverCategoryBudget ? (
                   <Text style={styles.quoteError}>
-                    {formatPeso(categoryBudgetOverage)} over the available {isChangingSelection ? 'amount for this change' : 'category budget'}. Adjust the selection before continuing.
+                    {formatPeso(categoryBudgetOverage)} over the category budget allocation. You can still continue.
                   </Text>
                 ) : null}
               </View>
@@ -2098,7 +2192,7 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                 pressed && styles.addPressed,
               ]}
             >
-              <Text style={styles.addButtonText}>
+              <Text numberOfLines={2} style={styles.addButtonText}>
                 {isFoodTastingFlow
                   ? isAddingSelection
                     ? 'Submitting Tasting Request...'
@@ -2127,16 +2221,14 @@ export const ServiceDetailsScreen: React.FC<ServiceDetailsScreenProps> = ({
                       ? 'Calculating Event Price...'
                       : quoteError
                         ? 'Event Price Unavailable'
-                      : exceedsAvailableCategoryBudget
-                        ? 'Over Available Category Budget'
-                    : scheduleUnavailable
+                      : scheduleUnavailable
                       ? 'Unavailable on Your Schedule'
                     : isChangingSelection
                       ? 'Review Service Change'
                       : 'Add to Selection'}
               </Text>
-              {!isWide ? <Text style={styles.addDivider}>|</Text> : null}
-              {!isWide ? (
+              {!isWide && !currentActionDisabled ? <Text style={styles.addDivider}>|</Text> : null}
+              {!isWide && !currentActionDisabled ? (
                 <Text style={styles.addPrice}>{isFoodTastingFlow ? 'Final price pending' : estimatedDisplay}</Text>
               ) : null}
             </Pressable>
@@ -2167,6 +2259,7 @@ const palette = {
 const styles = StyleSheet.create({
   floristConfigurationSection: { borderTopColor: '#E2E2E2', borderTopWidth: 1, marginTop: 24, paddingTop: 24 },
   screen: { flex: 1, backgroundColor: palette.background },
+  detailsScroll: { flex: 1 },
   scrollContent: { paddingBottom: 112 },
   hero: {
     width: '100%',
@@ -2281,44 +2374,37 @@ const styles = StyleSheet.create({
     right: 88,
     left: 24,
   },
-  heroSummary: {
-    width: '100%',
-    maxWidth: 1200,
-    alignSelf: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: palette.surfaceVariant,
-    backgroundColor: palette.surfaceLowest,
-    paddingHorizontal: 20,
-    paddingTop: 14,
-    paddingBottom: 14,
-  },
   contentPaddingWide: { paddingHorizontal: 24 },
-  overlayScrollContent: { paddingBottom: 28 },
+  overlayScrollContent: { paddingBottom: 40 },
+  overlayScrollContentWithAction: { paddingBottom: 140 },
   overlayContent: { paddingTop: 20 },
-  badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 },
+  badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  heroBadge: {
+    alignSelf: 'flex-start',
+    minHeight: 28,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+  },
   categoryBadge: {
-    borderRadius: 16,
     backgroundColor: 'rgba(112, 27, 48, 0.94)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
   },
   categoryBadgeText: {
     color: palette.white,
-    fontSize: 11,
-    lineHeight: 15,
+    fontSize: typography.caption,
+    lineHeight: 17,
     fontWeight: '700',
-    letterSpacing: 1.1,
+    letterSpacing: 0.7,
+    textAlign: 'center',
   },
   ratingBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    borderRadius: 16,
+    gap: 6,
     backgroundColor: 'rgba(25, 20, 20, 0.72)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
   },
-  ratingBadgeText: { color: palette.white, fontSize: 14, lineHeight: 18, fontWeight: '700' },
+  ratingBadgeText: { color: palette.white, fontSize: typography.caption, lineHeight: 17, fontWeight: '700' },
   overlayHeroBadge: {
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.28)',
@@ -2334,19 +2420,6 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 5,
   },
-  heroBudgetBadge: {
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    borderWidth: 1,
-    borderColor: palette.surfaceVariant,
-    borderRadius: 8,
-    backgroundColor: palette.surfaceLow,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  heroBudgetText: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '600', letterSpacing: 0.2 },
   content: {
     width: '100%',
     maxWidth: 1200,
@@ -2372,12 +2445,40 @@ const styles = StyleSheet.create({
     elevation: 4,
     boxShadow: '6px 6px 12px rgba(157, 169, 178, 0.46), -6px -6px 12px rgba(255, 255, 255, 0.94)',
   },
+  overlayRaisedInnerCard: {
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.72)',
+    backgroundColor: '#E9EDF0',
+    boxShadow: '4px 4px 9px rgba(157, 169, 178, 0.42), -4px -4px 9px rgba(255, 255, 255, 0.92)',
+    elevation: 2,
+  },
+  overlayInsetCard: {
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.72)',
+    backgroundColor: '#E9EDF0',
+    boxShadow: 'inset 3px 3px 7px rgba(157, 169, 178, 0.42), inset -3px -3px 7px rgba(255, 255, 255, 0.94)',
+  },
+  overlayReviewItem: {
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.72)',
+    borderRadius: 14,
+    backgroundColor: '#E9EDF0',
+    padding: 16,
+    boxShadow: '4px 4px 9px rgba(157, 169, 178, 0.40), -4px -4px 9px rgba(255, 255, 255, 0.90)',
+    elevation: 2,
+  },
   description: { maxWidth: 680, color: palette.secondary, fontSize: 18, lineHeight: 30 },
-  cateringFormatsSection: { gap: 10, marginTop: 20 },
-  cateringFormatsLabel: { color: palette.secondary, fontSize: 11, lineHeight: 15, fontWeight: '700', letterSpacing: 1 },
-  cateringFormatsList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  cateringFormatChip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 16, backgroundColor: '#F8EFF1', paddingHorizontal: 10, paddingVertical: 7 },
-  cateringFormatText: { color: palette.text, fontSize: 12, lineHeight: 17, fontWeight: '600' },
+  priceSummarySection: { gap: 8, marginTop: 20 },
+  overlayPriceSummaryContainer: {
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.72)',
+    borderRadius: 15,
+    backgroundColor: '#E9EDF0',
+    padding: 14,
+    boxShadow: 'inset 3px 3px 7px rgba(157, 169, 178, 0.40), inset -3px -3px 7px rgba(255, 255, 255, 0.92)',
+  },
+  priceSummaryLabel: { color: palette.secondary, fontSize: 11, lineHeight: 15, fontWeight: '700', letterSpacing: 1 },
+  priceSummaryValue: { color: palette.primary, fontSize: 17, lineHeight: 24, fontWeight: '700' },
   serviceFacts: {
     overflow: 'hidden',
     borderWidth: 1,
@@ -2390,6 +2491,47 @@ const styles = StyleSheet.create({
     borderWidth: 0,
     backgroundColor: '#E9EDF0',
     boxShadow: 'inset 3px 3px 7px rgba(157, 169, 178, 0.46), inset -3px -3px 7px rgba(255, 255, 255, 0.94)',
+  },
+  overlayFirstDetailContent: { marginTop: 0 },
+  overlayServiceFactItem: {
+    borderBottomWidth: 1,
+    borderBottomColor: palette.surfaceVariant,
+  },
+  overlayServiceFactItemLast: { borderBottomWidth: 0 },
+  overlayServiceFactHeader: {
+    minHeight: 58,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+  },
+  overlayServiceFactHeaderPressed: { opacity: 0.62 },
+  overlayServiceFactContent: {
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.74)',
+    borderRadius: 12,
+    backgroundColor: '#F1F4F6',
+    marginHorizontal: 14,
+    marginBottom: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    boxShadow: 'inset 2px 2px 5px rgba(157, 169, 178, 0.32), inset -2px -2px 5px rgba(255, 255, 255, 0.90)',
+  },
+  overlayServiceFactValue: {
+    color: palette.text,
+    fontSize: 15,
+    lineHeight: 23,
+    fontWeight: '600',
+    textAlign: 'left',
+  },
+  overlayServicePriceValue: {
+    color: palette.primary,
+    fontSize: 17,
+    lineHeight: 24,
+    fontWeight: '700',
+    textAlign: 'left',
   },
   serviceFactRow: {
     minHeight: 58,
@@ -2459,7 +2601,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontWeight: '800',
   },
-  sectionHeading: { color: palette.text, fontSize: 24, lineHeight: 32, fontWeight: '700', marginBottom: 24 },
+  sectionHeading: { color: palette.text, fontSize: typography.h2, lineHeight: 29, fontWeight: '700', marginBottom: 24 },
   mealTypeGrid: { flexDirection: 'row', gap: 12, marginBottom: 32 },
   mealCard: {
     minWidth: 0,
@@ -2491,7 +2633,20 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   unavailableNoticeText: { minWidth: 0, flex: 1, color: palette.secondary, fontSize: 12, lineHeight: 18 },
-  cateringOptionsSection: { gap: 12, marginBottom: 32 },
+  cateringOptionsSection: { gap: 14, marginBottom: 32 },
+  overlayVenueRequestSection: {
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.72)',
+    borderRadius: 20,
+    backgroundColor: '#E9EDF0',
+    padding: 16,
+    boxShadow: '6px 6px 13px rgba(157, 169, 178, 0.44), -6px -6px 13px rgba(255, 255, 255, 0.92)',
+  },
+  venueReviewsDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(125, 135, 143, 0.42)',
+    marginBottom: 18,
+  },
   foodTastingPreferenceCard: { gap: 14, borderWidth: 1, borderColor: '#E6C4C8', borderRadius: 14, backgroundColor: '#FCF5F6', padding: 16 },
   foodTastingPreferenceHeading: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   foodTastingPreferenceCopy: { minWidth: 0, flex: 1, gap: 4 },
@@ -2517,7 +2672,14 @@ const styles = StyleSheet.create({
   foodTastingPricingText: { color: palette.secondary, fontSize: 12, lineHeight: 18 },
   foodTastingReferencePrice: { color: palette.primary, fontSize: 12, lineHeight: 18, fontWeight: '700', marginTop: 2 },
   foodTastingDraftMessage: { color: palette.primary, fontSize: 12, lineHeight: 18, fontWeight: '600' },
-  guestCountCard: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14, borderRadius: 14, backgroundColor: '#F8EFF1', padding: 16 },
+  guestCountCard: {
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.74)',
+    borderRadius: 15,
+    backgroundColor: '#E9EDF0',
+    padding: 16,
+    boxShadow: 'inset 3px 3px 7px rgba(157, 169, 178, 0.42), inset -3px -3px 7px rgba(255, 255, 255, 0.94)',
+  },
   guestCountCopy: { minWidth: 0, flex: 1, gap: 6 },
   guestCountHint: { color: palette.secondary, fontSize: 11, lineHeight: 16 },
   guestCountControl: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 3 },
@@ -2526,27 +2688,60 @@ const styles = StyleSheet.create({
   guestCountButtonPressed: { opacity: 0.72, transform: [{ scale: 0.94 }] },
   guestCountInput: { width: 76, minHeight: 42, borderWidth: 1, borderColor: '#D8B5BA', borderRadius: 9, backgroundColor: palette.surfaceLowest, color: palette.primary, fontSize: 20, lineHeight: 26, fontWeight: '700', textAlign: 'center', paddingHorizontal: 8 },
   guestCountRange: { color: palette.secondary, fontSize: 11, lineHeight: 16 },
-  guestCountValue: { color: palette.primary, fontSize: 22, lineHeight: 29, fontWeight: '700', marginTop: 5 },
-  cateringInstruction: { color: palette.secondary, fontSize: 13, lineHeight: 19 },
+  guestCountCounter: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.76)',
+    borderRadius: 18,
+    backgroundColor: '#E9EDF0',
+    paddingHorizontal: 13,
+    paddingVertical: 6,
+    boxShadow: '3px 3px 7px rgba(157, 169, 178, 0.40), -3px -3px 7px rgba(255, 255, 255, 0.92)',
+  },
+  guestCountValue: { color: palette.primary, fontSize: typography.h2, lineHeight: 28, fontWeight: '700' },
+  guestCountUnit: { color: palette.primary, fontSize: typography.body, lineHeight: 20, fontWeight: '600' },
+  cateringInstruction: { color: palette.secondary, fontSize: typography.body, lineHeight: 21 },
+  venueOptionsContainer: {
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.74)',
+    borderRadius: 16,
+    backgroundColor: '#E9EDF0',
+    boxShadow: 'inset 4px 4px 9px rgba(157, 169, 178, 0.42), inset -4px -4px 9px rgba(255, 255, 255, 0.94)',
+  },
+  venueOptionChoice: {
+    gap: 12,
+    backgroundColor: 'transparent',
+    padding: 16,
+  },
+  venueOptionChoiceDivider: { borderBottomWidth: 1, borderBottomColor: 'rgba(157, 169, 178, 0.28)' },
+  venueOptionChoiceSelected: { backgroundColor: '#F6EAEC' },
+  venueOptionChoicePressed: { opacity: 0.76 },
+  venueOptionStack: { width: '100%', alignItems: 'flex-start', gap: 10 },
+  venueOptionCopy: { width: '100%', gap: 3 },
+  venueOptionName: { color: palette.text, fontSize: typography.h3, lineHeight: 24, fontWeight: '700' },
   cateringOptionCard: { gap: 10, borderWidth: 1, borderColor: palette.surfaceVariant, borderRadius: 14, backgroundColor: palette.surfaceLowest, padding: 16 },
   cateringOptionCardSelected: { borderWidth: 2, borderColor: palette.primary, backgroundColor: '#FCF5F6' },
   cateringOptionCardDisabled: { opacity: 0.62, backgroundColor: palette.surfaceLow },
   cateringOptionHeading: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
-  cateringOptionName: { color: palette.text, fontSize: 16, lineHeight: 22, fontWeight: '700' },
-  cateringOptionRange: { color: palette.secondary, fontSize: 11, lineHeight: 16, marginTop: 2 },
+  cateringOptionName: { color: palette.text, fontSize: typography.h3, lineHeight: 24, fontWeight: '700' },
+  cateringOptionRange: { color: palette.secondary, fontSize: typography.caption, lineHeight: 17, marginTop: 2 },
   cateringOptionPriceGroup: { alignItems: 'flex-end' },
-  cateringOptionUnit: { color: palette.primary, fontSize: 13, lineHeight: 19, fontWeight: '700' },
-  cateringOptionSubtotal: { color: palette.text, fontSize: 11, lineHeight: 16, marginTop: 2 },
+  cateringOptionUnit: { color: palette.primary, fontSize: typography.body, lineHeight: 20, fontWeight: '700' },
+  cateringOptionSubtotal: { color: palette.text, fontSize: typography.caption, lineHeight: 17, marginTop: 2 },
   cateringMenuSection: { borderTopWidth: 1, borderTopColor: palette.surfaceVariant, paddingTop: 8 },
   venueSelectionCard: { gap: 10, borderWidth: 1, borderColor: '#E6C4C8', borderRadius: 12, backgroundColor: '#FCF5F6', padding: 14 },
   venueDurationRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   venueDurationButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: palette.primary },
   venueDurationButtonText: { color: palette.white, fontSize: 21, lineHeight: 24, fontWeight: '700' },
   venueDurationInput: { width: 72, minHeight: 42, borderWidth: 1, borderColor: palette.surfaceVariant, borderRadius: 8, backgroundColor: palette.surfaceLowest, color: palette.text, fontSize: 16, fontWeight: '700', textAlign: 'center', paddingHorizontal: 8 },
-  venueDurationUnit: { flex: 1, color: palette.secondary, fontSize: 13, lineHeight: 18 },
+  venueDurationUnit: { flex: 1, color: palette.secondary, fontSize: typography.body, lineHeight: 20 },
   venueTermsCard: { gap: 3, borderRadius: 8, backgroundColor: palette.surfaceLow, padding: 11 },
   venueDetailsToggle: { alignSelf: 'flex-start', paddingVertical: 4 },
-  venueDetailsToggleText: { color: palette.primary, fontSize: 11, lineHeight: 16, fontWeight: '800', letterSpacing: 0.7 },
+  venueDetailsToggleText: { color: palette.primary, fontSize: typography.caption, lineHeight: 17, fontWeight: '800', letterSpacing: 0.7 },
   venueExpandedDetails: { gap: 7, borderTopWidth: 1, borderTopColor: '#E6C4C8', paddingTop: 12 },
   venueDetailCopy: { color: palette.secondary, fontSize: 12, lineHeight: 18 },
   venuePhotoRow: { flexDirection: 'row', gap: 8, paddingVertical: 2 },
@@ -2556,11 +2751,11 @@ const styles = StyleSheet.create({
   menuItemChoiceCopy: { minWidth: 0, flex: 1 },
   cateringSummaryCard: { gap: 4, borderRadius: 12, backgroundColor: '#F8EFF1', padding: 14 },
   cateringMenuName: { color: palette.text, fontSize: 12, lineHeight: 17, fontWeight: '700' },
-  cateringMenuItems: { color: palette.secondary, fontSize: 11, lineHeight: 17, marginTop: 2 },
-  cateringMismatch: { color: '#A12A35', fontSize: 11, lineHeight: 17, fontWeight: '700' },
+  cateringMenuItems: { color: palette.secondary, fontSize: typography.body, lineHeight: 21, marginTop: 2 },
+  cateringMismatch: { color: '#A12A35', fontSize: typography.caption, lineHeight: 17, fontWeight: '700' },
   inputGrid: { gap: 24, marginBottom: 40 },
   inputGridWide: { flexDirection: 'row' },
-  inputLabel: { color: palette.secondary, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 1.2 },
+  inputLabel: { color: palette.secondary, fontSize: typography.caption, lineHeight: 17, fontWeight: '700', letterSpacing: 1.2 },
   inputShell: {
     minHeight: 58,
     flexDirection: 'row',
@@ -2723,11 +2918,11 @@ const styles = StyleSheet.create({
   quoteError: { color: palette.primary, fontSize: 11, lineHeight: 15, marginTop: 2, maxWidth: 420 },
   budgetOverageNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 9, borderWidth: 1, borderColor: '#E6C4C8', borderRadius: 12, backgroundColor: '#FCF5F6', padding: 13, marginBottom: 18 },
   budgetOverageNoticeText: { flex: 1, color: palette.primary, fontSize: 13, lineHeight: 19, fontWeight: '600' },
-  addButton: { width: '100%', minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, borderRadius: 25, backgroundColor: palette.primary, paddingHorizontal: 24, paddingVertical: 13 },
+  addButton: { width: '100%', minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', gap: 8, borderRadius: 25, backgroundColor: palette.primary, paddingHorizontal: 16, paddingVertical: 13 },
   addButtonWide: { width: 'auto', minWidth: 280 },
-  addButtonText: { color: palette.white, fontSize: 16, lineHeight: 22, fontWeight: '500' },
-  addDivider: { color: 'rgba(255,255,255,0.5)', fontSize: 16 },
-  addPrice: { color: palette.white, fontSize: 16, lineHeight: 22, fontWeight: '700' },
+  addButtonText: { minWidth: 0, flex: 1, color: palette.white, fontSize: typography.button, lineHeight: 22, fontWeight: '500', textAlign: 'center' },
+  addDivider: { flexShrink: 0, color: 'rgba(255,255,255,0.5)', fontSize: typography.button },
+  addPrice: { flexShrink: 0, color: palette.white, fontSize: typography.button, lineHeight: 22, fontWeight: '700' },
   addPressed: { opacity: 0.88, transform: [{ scale: 0.985 }] },
   addButtonDisabled: { opacity: 0.62 },
   outlinePressed: { backgroundColor: '#FCF5F6', transform: [{ scale: 0.99 }] },

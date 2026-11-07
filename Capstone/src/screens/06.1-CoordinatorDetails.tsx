@@ -37,6 +37,40 @@ const ItemList = ({ isRaised = false, values }: { isRaised?: boolean; values: st
   </View>
 )
 
+interface DropdownSectionProps {
+  children: React.ReactNode
+  expanded: boolean
+  isRaised: boolean
+  label: string
+  onToggle: () => void
+}
+
+const DropdownSection: React.FC<DropdownSectionProps> = ({
+  children,
+  expanded,
+  isRaised,
+  label,
+  onToggle,
+}) => (
+  <View style={[styles.sectionCard, isRaised && styles.neoRaisedCard]}>
+    <Pressable
+      accessibilityLabel={`${expanded ? 'Collapse' : 'Expand'} ${label}`}
+      accessibilityRole="button"
+      accessibilityState={{ expanded }}
+      onPress={onToggle}
+      style={({ pressed }) => [styles.dropdownHeader, pressed && styles.dropdownHeaderPressed]}
+    >
+      <Text style={styles.sectionTitle}>{label}</Text>
+      <MaterialCommunityIcons
+        color={palette.primaryContainer}
+        name={expanded ? 'chevron-up' : 'chevron-down'}
+        size={22}
+      />
+    </Pressable>
+    {expanded ? <View style={styles.dropdownContent}>{children}</View> : null}
+  </View>
+)
+
 export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> = ({
   assigning = false,
   coordinatorBookingEnabled = false,
@@ -72,6 +106,18 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
   ].filter((group) => group.values.length > 0)
   const eventTypes = service?.coordinatorEventTypesHandled ?? []
   const inclusions = service?.coordinatorServiceInclusions ?? []
+  const [expandedSections, setExpandedSections] = React.useState<Set<string>>(() => new Set())
+
+  React.useEffect(() => setExpandedSections(new Set()), [service?.id])
+
+  const toggleSection = (section: string) => {
+    setExpandedSections((current) => {
+      const next = new Set(current)
+      if (next.has(section)) next.delete(section)
+      else next.add(section)
+      return next
+    })
+  }
 
   return (
     <View style={[styles.screen, isOverlay && styles.overlayScreen]}>
@@ -97,6 +143,7 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
         contentContainerStyle={[
           styles.content,
           isOverlay && styles.overlayContent,
+          canAssign && styles.contentWithActionBar,
           isWide ? styles.horizontalWide : styles.horizontalMobile,
         ]}
         showsVerticalScrollIndicator={false}
@@ -138,11 +185,12 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
           </View>
         </View>
 
-        <View style={[styles.sectionCard, isOverlay && styles.neoRaisedCard]}>
-          <View style={styles.sectionHeading}>
-            <MaterialCommunityIcons color={palette.primaryContainer} name="calendar-check-outline" size={22} />
-            <Text style={styles.sectionTitle}>Pricing and Availability</Text>
-          </View>
+        <DropdownSection
+          expanded={expandedSections.has('pricing')}
+          isRaised={isOverlay}
+          label="Pricing & Availability"
+          onToggle={() => toggleSection('pricing')}
+        >
           <View style={[styles.pricingRow, isOverlay && styles.neoRaisedPriceRow]}>
             <Text style={styles.pricingLabel}>Price Range</Text>
             <Text style={styles.pricingValue}>{formatPeso(service?.minPrice ?? 0)}</Text>
@@ -151,21 +199,23 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
             {isAvailable ? 'Available for the selected event schedule' : service?.coordinatorUnavailableReason || 'Unavailable for the selected event schedule'}
           </Text>
           {service?.coordinatorAvailabilityNotes ? <Text style={styles.sectionCopy}>{service.coordinatorAvailabilityNotes}</Text> : null}
-        </View>
+        </DropdownSection>
 
-        <View style={[styles.detailCard, isOverlay && styles.neoRaisedCard]}>
-          <View style={styles.detailHeading}>
-            <MaterialCommunityIcons color={palette.primaryContainer} name="calendar-star-outline" size={23} />
-            <Text numberOfLines={1} style={styles.detailTitle}>Events Handled</Text>
-          </View>
+        <DropdownSection
+          expanded={expandedSections.has('events')}
+          isRaised={isOverlay}
+          label="Events Handled"
+          onToggle={() => toggleSection('events')}
+        >
           {eventTypes.length ? <ItemList isRaised={isOverlay} values={eventTypes} /> : <Text style={styles.detailCopy}>Event types have not been specified.</Text>}
-        </View>
+        </DropdownSection>
 
-        <View style={[styles.sectionCard, isOverlay && styles.neoRaisedCard]}>
-          <View style={styles.sectionHeading}>
-            <MaterialCommunityIcons color={palette.primaryContainer} name="star-shooting-outline" size={22} />
-            <Text style={styles.sectionTitle}>Skills and Specialties</Text>
-          </View>
+        <DropdownSection
+          expanded={expandedSections.has('skills')}
+          isRaised={isOverlay}
+          label="Skills & Specialties"
+          onToggle={() => toggleSection('skills')}
+        >
           {specialtyGroups.map((group, index) => (
             <View key={group.label} style={[styles.specialtyGroup, index > 0 && styles.specialtyGroupDivider]}>
               <Text style={styles.listLabel}>{group.label}</Text>
@@ -175,15 +225,16 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
           {!specialtyGroups.length ? (
             <Text style={styles.sectionCopy}>Skills and specialties have not been specified yet.</Text>
           ) : null}
-        </View>
+        </DropdownSection>
 
-        <View style={[styles.sectionCard, isOverlay && styles.neoRaisedCard]}>
-          <View style={styles.sectionHeading}>
-            <MaterialCommunityIcons color={palette.primaryContainer} name="clipboard-list-outline" size={22} />
-            <Text style={styles.sectionTitle}>Services and Inclusions</Text>
-          </View>
+        <DropdownSection
+          expanded={expandedSections.has('services')}
+          isRaised={isOverlay}
+          label="Services & Inclusions"
+          onToggle={() => toggleSection('services')}
+        >
           {inclusions.length ? <ItemList isRaised={isOverlay} values={inclusions} /> : <Text style={styles.sectionCopy}>Service inclusions have not been specified yet.</Text>}
-        </View>
+        </DropdownSection>
 
         <PublishedBusinessPolicies neumorphic={isOverlay} ownerId={service?.coordinatorUserId} />
 
@@ -195,7 +246,7 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
           </View>
         </View>
 
-        <View style={styles.reviewsSection}>
+        <View style={[styles.reviewsSection, isOverlay && styles.neoReviewsSection]}>
           <View style={styles.reviewsHeading}>
             <View><Text style={styles.reviewsTitle}>Reviews &amp; feedback</Text></View>
             <View style={styles.ratingSummary}>
@@ -206,14 +257,20 @@ export const CoordinatorDetailsScreen: React.FC<CoordinatorDetailsScreenProps> =
         </View>
       </ScrollView>
 
-      {canAssign ? <View style={styles.actionBar}>
+      {canAssign ? <View style={[styles.actionBar, isOverlay && styles.neoActionBar]}>
         <Pressable
           accessibilityLabel={isAssigned ? `${name} is already selected` : `Select ${name} for this event`}
           accessibilityRole="button"
           accessibilityState={{ disabled: assigning || isAssigned || !isAvailable }}
           disabled={assigning || isAssigned || !isAvailable}
           onPress={onSelectProvider}
-          style={({ pressed }) => [styles.assignButton, (assigning || isAssigned || !isAvailable) && styles.assignButtonDisabled, pressed && styles.assignButtonPressed]}
+          style={({ pressed }) => [
+            styles.assignButton,
+            isOverlay && styles.neoAssignButton,
+            (assigning || isAssigned || !isAvailable) && styles.assignButtonDisabled,
+            isOverlay && (assigning || isAssigned || !isAvailable) && styles.neoAssignButtonDisabled,
+            pressed && (isOverlay ? styles.neoAssignButtonPressed : styles.assignButtonPressed),
+          ]}
         >
           {assigning ? <ActivityIndicator color="#FFFFFF" size="small" /> : <MaterialCommunityIcons color="#FFFFFF" name={isAssigned ? 'account-check-outline' : 'account-plus-outline'} size={20} />}
           <Text style={styles.assignButtonText}>{assigning ? 'Selecting Coordinator...' : isAssigned ? 'Coordinator Selected' : !isAvailable ? 'Unavailable for this schedule' : 'Select Coordinator'}</Text>
@@ -248,6 +305,7 @@ const styles = StyleSheet.create({
   headerTitle: { color: palette.primary, fontSize: typography.body, lineHeight: 20, fontWeight: '700', letterSpacing: 0.6 },
   content: { width: '100%', maxWidth: 1120, alignSelf: 'center', paddingTop: 28, paddingBottom: 120, gap: 20 },
   overlayContent: { paddingTop: 20, paddingBottom: 32, gap: 18 },
+  contentWithActionBar: { paddingBottom: 120 },
   profileCard: { borderRadius: 24, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface, padding: 22, gap: 20 },
   profileCardWide: { flexDirection: 'row', alignItems: 'center', padding: 30 },
   profileCardWithoutAvatar: { alignItems: 'stretch', gap: 12 },
@@ -269,8 +327,21 @@ const styles = StyleSheet.create({
   unavailable: { color: '#A12A35', fontSize: typography.caption, lineHeight: 18, fontWeight: '700' },
   available: { color: palette.success, fontSize: typography.caption, lineHeight: 18, fontWeight: '700' },
   sectionCard: { borderRadius: 18, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface, padding: 20, gap: 10 },
-  sectionHeading: { flexDirection: 'row', alignItems: 'center', gap: 9 },
   sectionTitle: { color: palette.text, fontSize: typography.h3, lineHeight: 24, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' },
+  dropdownHeader: {
+    minHeight: 28,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  dropdownHeaderPressed: { opacity: 0.68 },
+  dropdownContent: {
+    gap: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(157, 169, 178, 0.42)',
+    paddingTop: 12,
+  },
   sectionCopy: { color: palette.muted, fontSize: typography.body, lineHeight: 21 },
   listLabel: { color: palette.text, fontSize: 13, lineHeight: 19, letterSpacing: 0.6, fontWeight: '800', marginTop: 3, textTransform: 'uppercase' },
   specialtyGroup: { gap: 8 },
@@ -289,9 +360,6 @@ const styles = StyleSheet.create({
     boxShadow: `3px 3px 6px ${neo.darkShadow}, -3px -3px 6px ${neo.lightShadow}`,
   },
   pillText: { color: palette.primaryContainer, fontSize: typography.caption, lineHeight: 16, fontWeight: '700' },
-  detailCard: { flex: 1, gap: 10, borderRadius: 18, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface, padding: 20 },
-  detailHeading: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-  detailTitle: { color: palette.text, fontSize: typography.h3, lineHeight: 24, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' },
   detailCopy: { color: palette.muted, fontSize: typography.body, lineHeight: 21 },
   pricingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 14, borderRadius: 10, backgroundColor: palette.surfaceTint, padding: 12 },
   neoRaisedPriceRow: {
@@ -325,6 +393,7 @@ const styles = StyleSheet.create({
   privacyText: { color: '#486052', fontSize: typography.body, lineHeight: 21 },
   neoInfoText: { color: neo.mutedText, fontSize: typography.caption, lineHeight: 18 },
   reviewsSection: { borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 22, gap: 15 },
+  neoReviewsSection: { borderWidth: 1, borderColor: neo.edge, borderRadius: 20, backgroundColor: neo.surface, padding: 18, boxShadow: `7px 7px 15px ${neo.darkShadow}` },
   reviewsHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 },
   reviewsTitle: { color: palette.text, fontSize: typography.h3, lineHeight: 24, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' },
   ratingSummary: { alignItems: 'flex-end' },
@@ -343,6 +412,28 @@ const styles = StyleSheet.create({
   emptyReviewsCopy: { maxWidth: 420, color: palette.muted, fontSize: typography.caption, lineHeight: 18, textAlign: 'center', marginTop: 3 },
   actionBar: { position: 'absolute', left: 0, right: 0, bottom: 0, borderTopWidth: 1, borderTopColor: palette.border, backgroundColor: palette.surface, paddingHorizontal: 20, paddingVertical: 14 },
   assignButton: { width: '100%', maxWidth: 520, alignSelf: 'center', minHeight: 50, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, backgroundColor: palette.primaryContainer, paddingHorizontal: 20 },
+  neoActionBar: { borderTopColor: 'rgba(157, 169, 178, 0.42)', backgroundColor: neo.surface },
+  neoAssignButton: {
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.24)',
+    borderRadius: 999,
+    shadowColor: '#3E0C1C',
+    shadowOffset: { width: 5, height: 5 },
+    shadowOpacity: 0.56,
+    shadowRadius: 11,
+    elevation: 7,
+    boxShadow: '5px 5px 11px rgba(62, 12, 28, 0.56)',
+  },
+  neoAssignButtonDisabled: {
+    shadowColor: '#7D7074',
+    shadowOpacity: 0.3,
+    elevation: 3,
+    boxShadow: '3px 3px 7px rgba(105, 92, 97, 0.34)',
+  },
+  neoAssignButtonPressed: {
+    transform: [{ scale: 0.99 }],
+    boxShadow: 'inset 3px 3px 7px rgba(62, 12, 28, 0.58)',
+  },
   assignButtonDisabled: { backgroundColor: '#8F7A80' },
   assignButtonPressed: { opacity: 0.86, transform: [{ scale: 0.99 }] },
   assignButtonText: { color: '#FFFFFF', fontSize: typography.body, lineHeight: 20, fontWeight: '700' },

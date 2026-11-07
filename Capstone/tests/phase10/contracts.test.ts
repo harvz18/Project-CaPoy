@@ -164,7 +164,7 @@ test('service selection keeps option-aware budget fits while exposing exact sche
   mustContain(browse, [
     'vendor.budgetRecommendation.categoryBudget > 0',
     '!vendor.budgetRecommendation?.isWithinBudget',
-    'Outside Your Category Budget',
+    'You Might Also Like',
     'NOT AVAILABLE ON YOUR SCHEDULE',
     'vendorCardUnavailable',
     'disabled={isScheduleUnavailable(vendor)}',
@@ -268,15 +268,15 @@ test('V8 Phase 3 filters venues by an eligible option-level starting configurati
     "return 'No eligible venue option'",
   ], 'venue card starting price')
   mustContain(browse, [
-    'marketplaceStartingPrice(vendor)',
+    'marketplaceStartingPrice(left)',
     "vendor.categoryId === 'venues' ? 'Starting estimate' : 'Event estimate'",
     'No available venue configuration matches the current event requirements.',
   ], 'venue-aware marketplace filtering and presentation')
   mustContain(details, [
     'categoryBudgetOverage',
-    'over the available {service.categoryName} budget',
-    'Adjust the venue options or rental duration',
-  ], 'final venue selection budget warning')
+    'over your {service.categoryName} budget allocation',
+    'the allocation is guidance only',
+  ], 'final venue selection budget guidance')
   assert.doesNotMatch(migration, /update\s+public\.(bookings|event_service_selections)\s+set/i,
     'Phase 3 must not rewrite existing booking or selection prices')
 })
@@ -488,10 +488,11 @@ test('food tastings stay optional, booking-bound, availability-checked, and hist
   ], 'food tasting RPC integration')
 })
 
-test('category budget edits, locks, removal, replacement, and checkout validation share one contract', () => {
+test('category budgets remain visible guidance without restricting service selection', () => {
   const budgets = read(migrations[5])
   const selection = read(migrations[7])
   const allocationCorrection = read(migrations[14])
+  const guidanceOnly = read('supabase/migrations/20261107000100_budget_guidance_only_service_selection.sql')
   const planning = read('src/lib/planning.ts')
   const app = read('src/App.tsx')
   const browse = read('src/screens/06-CategoryBrowse.tsx')
@@ -527,19 +528,64 @@ test('category budget edits, locks, removal, replacement, and checkout validatio
     ".delete()",
   ], 'client planning integration')
   mustContain(app, [
-    'availableCategoryBudget={categoryBudgetMaximum}',
+    'categoryBudget={selectedCategoryBudget}',
     "result.message?.includes('Category allocations cannot exceed')",
   ], 'category budget and service-selection coordination')
   mustContain(browse, [
-    'Within Your Category Budget',
-    'Outside Your Category Budget',
+    'Services That Fits Your Budget',
+    'You Might Also Like',
+    'style={styles.serviceImageBadges}',
+    'style={styles.vendorMeta}',
+    'style={styles.vendorDescription}',
+    'style={styles.serviceEstimate}',
+    "borderRadius: 28",
+    "height: 104",
+    'const usesCompactPlanningCards = !isExploreMode && !isChangingService && !replacementContext',
+    "(usesCompactPlanningCards || vendor.kind === 'coordinator') && [",
+    'styles.compactVendorCard',
+    '{ width: Math.min(220, width - 72) }',
+    "usesCompactPlanningCards || vendor.kind === 'coordinator' ? (",
+    'compactImagePanel: { height: 210 }',
+    'minHeight: 282',
+    "&& !isScheduleUnavailable(vendor)",
+    'styles.serviceBudgetBadge',
+    "{vendor.budgetRecommendation.isWithinBudget ? 'WITHIN BUDGET' : 'OVER BUDGET'}",
+    'style={styles.vendorIdentityRow}',
+    'style={[styles.rating, styles.compactRating]}',
+    'style={styles.searchToolbar}',
+    'style={styles.categorySearchDivider}',
+    'showBottomNavigation && !isWide && styles.contentWithBottomNavigation',
+    'name="filter-outline"',
+    'color="#2F80ED"',
+    'marginVertical: 10',
+    'width: 42',
+    'height: 42',
+    "backgroundColor: 'rgba(190, 35, 52, 0.78)'",
+    'scheduleUnavailableBadgeText: {',
+    "color: '#FFFFFF'",
   ], 'read-only category budget grouping')
   assert.doesNotMatch(browse, /CategoryBudgetSlider|isSavingCategoryBudgetRef/,
     'Step 3 must keep category budget editing in Step 2')
+  assert.doesNotMatch(browse, /Within Budget|4\+ Rating|categoryFilters|selectedFilters|filterChip/,
+    'Step 3 must not render the removed nonessential filter tags')
   mustContain(details, [
-    'exceedsAvailableCategoryBudget',
-    'Over Available Category Budget',
-  ], 'service budget guard')
+    'isOverCategoryBudget',
+    'You can still select it; the allocation is guidance only.',
+    'You can still continue.',
+  ], 'service budget guidance')
+  assert.doesNotMatch(details, /\|\| isOverCategoryBudget/,
+    'an over-budget service must not disable or block the selection action')
+  mustContain(guidanceOnly, [
+    'Category allocations are planning guidance.',
+    'public.save_my_event_service_selection(uuid,uuid,uuid,text,numeric,text,text,boolean)',
+    'public.save_my_catering_service_selection_v10(uuid,uuid,integer,text,uuid,jsonb,text,text,boolean)',
+    'public.save_my_venue_service_selection_v8(uuid,uuid,jsonb,text,boolean)',
+    'public.save_my_florist_service_selection_v17(uuid,uuid,jsonb,text,boolean)',
+    'public.save_my_photo_video_service_selection_v18(uuid,uuid,jsonb,text,boolean)',
+    'drop trigger if exists protect_phase9_locked_budget_item_trigger',
+    'drop trigger if exists unlock_phase9_category_budget_trigger',
+    'is_selection_locked = false',
+  ], 'guidance-only service selection migration')
 })
 
 test('budget allocation cards move selected controls into the shared budget overlay', () => {
@@ -557,8 +603,18 @@ test('budget allocation cards move selected controls into the shared budget over
     'lockedCategories.has(categoryKey)',
     'reserveCoordinatorAllocation',
     'coordinatorRequired',
-    'Allocated category budgets are above the event budget.',
+    '{onSkip ? (',
+    'SKIP FOR NOW',
+    'showCategoryErrorNotice',
+    'mainScrollRef.current?.scrollTo({ animated: true, y: targetY })',
+    'Animated.delay(240)',
+    'translateX: categoryNoticeShake',
   ], 'selected-category budget overlay UI')
+  assert.doesNotMatch(
+    budgetScreen,
+    /onSkip && coordinatorMinimum === 0 && !coordinatorRequired/,
+    'Step 2 must keep its optional skip action visible regardless of coordinator pricing'
+  )
 })
 
 test('budget inputs have a contained focus treatment and live available amount', () => {
@@ -586,6 +642,7 @@ test('Step 1 coordinator preference replaces the redundant coordinator choice sc
   const planning = read('src/lib/planning.ts')
   const budgetScreen = read('src/screens/05-BudgetAllocation.tsx')
   const details = read('src/screens/06.1-CoordinatorDetails.tsx')
+  const profileOverlay = read('src/components/CoordinatorProfileOverlay.tsx')
   const migration = read('database/68_conditional_event_coordinator_step.sql')
   const phase4Migration = read('supabase/migrations/20261020001200_step1_coordinator_and_church_preferences.sql')
 
@@ -598,6 +655,10 @@ test('Step 1 coordinator preference replaces the redundant coordinator choice sc
     'coordinatorBookingEnabled={hasEventOrganizerBudget}',
     'confirmDestructiveAction',
     'Remove coordinator booking?',
+    'setExpertCoordinatorProfile(selectedVendor)',
+    'blurTarget={expertCoordinatorBlurTargetRef}',
+    'handleAssignCoordinator(false)',
+    'coordinatorOverlaySelectionCompletedRef.current',
   ], 'Step 1 coordinator flow')
   assert.doesNotMatch(app, /coordinatorChoice/, 'the retired coordinator choice route must not be reachable')
   mustContain(creation, [
@@ -618,7 +679,37 @@ test('Step 1 coordinator preference replaces the redundant coordinator choice sc
   mustContain(details, [
     'coordinatorBookingEnabled = false',
     '&& coordinatorBookingEnabled',
+    'const DropdownSection:',
+    'accessibilityState={{ expanded }}',
+    'label="Pricing & Availability"',
+    'label="Events Handled"',
+    'label="Skills & Specialties"',
+    'label="Services & Inclusions"',
+    'canAssign && styles.contentWithActionBar',
+    'contentWithActionBar: { paddingBottom: 120 }',
+    'isOverlay && styles.neoActionBar',
+    'isOverlay && styles.neoAssignButton',
+    'borderRadius: 999',
+    "boxShadow: '5px 5px 11px rgba(62, 12, 28, 0.56)'",
+    'styles.neoAssignButtonPressed',
   ], 'conditional coordinator details actions')
+  assert.doesNotMatch(
+    details,
+    /calendar-check-outline|calendar-star-outline|star-shooting-outline|clipboard-list-outline/,
+    'coordinator detail dropdown headings must not retain decorative icons'
+  )
+  mustContain(profileOverlay, [
+    'new Animated.Value(0.82)',
+    'toValue: 1.045',
+    'friction: 5',
+    'tension: 140',
+    'toValue: 1.035',
+    'toValue: 0.82',
+    'if (isClosing || assigning) return',
+    'coordinatorBookingEnabled={coordinatorBookingEnabled}',
+    'mode={mode}',
+    'onSelectProvider={() => void selectCoordinator()}',
+  ], 'shared coordinator expert overlay')
   mustContain(migration, [
     'require_event_organizer_budget_for_coordinator_assignment',
     "item.category_key = 'eventOrganizer'",
@@ -640,9 +731,10 @@ test('planning categories, progression, and budget re-entry share one allocation
     app.indexOf('onAddCategory={async (category) => {'),
     app.indexOf('onRemoveCategory={async (category) => {')
   )
+  const removeCategoryStart = app.indexOf('onRemoveCategory={async (category) => {')
   const removeCategoryFlow = app.slice(
-    app.indexOf('onRemoveCategory={async (category) => {'),
-    app.indexOf('onAddService={() => {')
+    removeCategoryStart,
+    app.indexOf('onAddService={() => {', removeCategoryStart)
   )
 
   mustContain(categories, [
@@ -679,6 +771,8 @@ test('planning categories, progression, and budget re-entry share one allocation
     'optimisticCategoryMembership',
     'categoryDisplayOrder',
     'movingCategoryId',
+    'isUpdatingCategoryRef',
+    'if (isUpdatingCategoryRef.current) return',
     'categoryTransferDirectionsRef',
     'categoryCardAnimationTokensRef',
     'if (!transferDirection || categoryCardAnimationTokensRef.current.has(categoryId)) return',
@@ -691,16 +785,34 @@ test('planning categories, progression, and budget re-entry share one allocation
     'duration: 560',
     'removeClippedSubviews={false}',
     "action === 'add' && Math.abs(initialOffset) < 1 ? 18 : initialOffset",
+    "boxShadow: '0px 6px 14px rgba(62, 75, 84, 0.22)'",
     'categorySelectionOptionGroupMoving',
     'zIndex: 30',
+    'elevation: 2',
     'Allocated categories complete',
   ], 'Step 3 category selection and planning guidance')
   assert.doesNotMatch(browse, /You still have unallocated budget|\+ Add More Category|All of your budget is currently allocated/,
     'Step 3 must use the shared category selector instead of the old unallocated-budget section')
+  assert.doesNotMatch(browse, /categoryHeaderIcon|name="design-services"/,
+    'Step 3 must not render the removed redundant category title block')
+  assert.doesNotMatch(browse, /10px 12px 26px rgba\(62, 75, 84, 0\.28\), -6px -6px 16px rgba\(255, 255, 255, 0\.72\)/,
+    'The Step 3 popup container must not render the removed exterior light halo')
   assert.doesNotMatch(addCategoryFlow, /setSelectedCategory|loadClientCatalogServices/,
     'Adding a category must not implicitly select it or refresh the marketplace catalog')
+  mustContain(addCategoryFlow, [
+    'React.startTransition(() => setBudgetAllocations(nextAllocations))',
+    'persistClientPlanningResume({',
+    'budgetDraft: {',
+    'allocations: nextAllocations',
+  ], 'added categories update the authoritative local planning resume')
   assert.doesNotMatch(removeCategoryFlow, /loadClientCatalogServices/,
     'Removing a category must not reload an unchanged marketplace catalog')
+  mustContain(removeCategoryFlow, [
+    'persistClientPlanningResume({',
+    'budgetDraft: {',
+    'allocations: nextAllocations',
+    'priorities: nextPriorities',
+  ], 'removed categories cannot be restored by a stale local planning resume')
 })
 
 test('service changes use the in-app comparison confirmation before preserving the existing save flow', () => {
@@ -739,9 +851,9 @@ test('standalone service changes keep budget edits provisional until the replace
   ], 'standalone service-change browse UI')
   mustContain(details, [
     'isChangingSelection?: boolean',
-    'Available for this change',
+    'estimatedTotal > categoryBudget',
     'Review Service Change',
-    'current service remains unchanged until a valid replacement is confirmed.',
+    'the allocation is guidance only.',
   ], 'provisional service-change details UI')
 })
 
@@ -937,15 +1049,76 @@ test('V10 Phase 5 uses explicit wizard controls and separates services by catego
   ], 'explicit header navigation controls')
   mustContain(browse, [
     "id: 'within-budget'",
-    "label: 'Within Your Category Budget'",
+    "label: 'Services That Fits Your Budget'",
     'horizontal: true',
     "id: 'outside-budget'",
-    "label: 'Outside Your Category Budget'",
+    "label: 'You Might Also Like'",
+    "vendors: visibleVendors.filter((vendor) => !vendor.budgetRecommendation?.isWithinBudget)",
     'vendor.budgetRecommendation?.isWithinBudget',
     '<ServiceSectionList horizontal={section.horizontal}>',
   ], 'budget-fit service presentation')
   assert.doesNotMatch(browse, /CategoryBudgetSlider|onPanResponderMove/,
     'Step 3 must not expose category budget adjustment controls')
+})
+
+test('Step 3 service cards keep full service details inside the shared popup overlay', () => {
+  const app = read('src/App.tsx')
+  const browse = read('src/screens/06-CategoryBrowse.tsx')
+  const overlay = read('src/components/ServiceProfileOverlay.tsx')
+  const details = read('src/screens/08-ServiceDetails.tsx')
+  const coordinatorDetails = read('src/screens/06.1-CoordinatorDetails.tsx')
+  const floristConfigurator = read('src/components/FloristBookingConfigurator.tsx')
+  const photoVideoConfigurator = read('src/components/PhotoVideoBookingConfigurator.tsx')
+  const vendorSelectionFlow = app.slice(
+    app.indexOf('onSelectVendor={(vendorId) => {'),
+    app.indexOf('onSelectTab={(tab) => {', app.indexOf('onSelectVendor={(vendorId) => {'))
+  )
+
+  mustContain(app, [
+    "setHomeServiceProfile({ service: selectedVendor, source: 'marketplace' })",
+    "detailsProps={homeServiceProfile.source === 'marketplace' ? {",
+    'onAddSelection: handleAddSelection',
+    'onCalculateQuote: calculateServiceDetailsQuote',
+    'onLoadFoodTastingDraft: handleLoadCateringTastingDraft',
+    'onSaveFoodTastingDraft: handleSaveCateringTastingDraft',
+  ], 'Step 3 service details overlay wiring')
+  assert.doesNotMatch(
+    vendorSelectionFlow,
+    /setScreen\('serviceDetails'\)/,
+    'service-card viewing must not navigate to the standalone details screen'
+  )
+  mustContain(overlay, [
+    'new Animated.Value(0.82)',
+    'toValue: 1.045',
+    'toValue: 1.035',
+    'detailsProps?: Omit<ServiceDetailsScreenProps',
+    'onAddSelection={detailsProps?.onAddSelection ? addSelection : undefined}',
+    'if (isClosing || isSubmittingSelection) return',
+  ], 'shared service popup interaction')
+  mustContain(browse, [
+    'contentWithSelectedServicesAction: {',
+    'paddingBottom: 8',
+  ], 'compact Event Plan spacing')
+  mustContain(details, [
+    'styles.bookingSection, isOverlay && styles.overlayDetailCard',
+    'styles.ratingCard, isOverlay && styles.overlayInsetCard',
+    'styles.sentimentCard,',
+    'styles.overlayRaisedInnerCard',
+    'neumorphic={isOverlay}',
+  ], 'uniform neumorphic service sections and guest reviews')
+  mustContain(floristConfigurator, [
+    'neumorphic?: boolean',
+    'neumorphic && styles.neoInset',
+    'neumorphic && styles.neoRaised',
+  ], 'neumorphic florist options')
+  mustContain(photoVideoConfigurator, [
+    'neumorphic?: boolean',
+    'neumorphic && styles.neoInset',
+    'neumorphic && styles.neoRaised',
+  ], 'neumorphic photo and video options')
+  mustContain(coordinatorDetails, [
+    'isOverlay && styles.neoReviewsSection',
+  ], 'neumorphic coordinator reviews')
 })
 
 test('V10 Phase 4 guest-count rules remain intact through the V15 catering selection entry point', () => {
@@ -1658,10 +1831,10 @@ test('V9 Phase 7 keeps historical packages while presenting coordinator-led prof
   mustContain(details, [
     'About the Coordinator',
     'Experience',
-    'Skills and Specialties',
+    'Skills & Specialties',
     'Events Handled',
-    'Services and Inclusions',
-    'Pricing and Availability',
+    'Services & Inclusions',
+    'Pricing & Availability',
     "'Select Coordinator'",
   ], 'V9 client coordinator details')
   assert.doesNotMatch(details, /Coordinator packages|Choose coordinator package|Book coordinator only/)
@@ -1944,7 +2117,6 @@ test('optional zero budgets and explainable DSS marketplace signals stay connect
     "{ id: 'bookings', label: 'Most Booked' }",
     'RECOMMENDED FOR YOU',
     'MOST BOOKED',
-    'const [selectedFilters, setSelectedFilters]',
     "id: 'within-budget'",
     "id: 'outside-budget'",
     '<ServiceSectionList horizontal={section.horizontal}>',
@@ -2871,6 +3043,8 @@ test('redesigned client home preserves drafts, bookings, search, and marketplace
   ], 'redesigned client-home data and action contract')
   assert.doesNotMatch(home, /ModernHomeScreen|client-home-appearance/,
     'The redesigned home must not retain the removed Classic/Modern appearance switch.')
+  assert.doesNotMatch(home, /ADVERTISEMENTS|ADS HERE|advertisementSection/,
+    'The homepage must not retain the removed advertisement carousel or its spacing.')
 })
 
 test('V14 Phase 1 asks for coordinator planning before conditionally asking about a church wedding', () => {
@@ -3294,7 +3468,7 @@ test('V14 refunds are isolated to the affected payout allocation', () => {
   )
 })
 
-test('V15 Phase 1 makes catering formats informational and requires an explicit tasting preference', () => {
+test('V15 Phase 1 shows catering pricing and requires an explicit tasting preference', () => {
   const sourceMigration = read('database/95_v15_catering_preference.sql')
   const deployMigration = read('supabase/migrations/20261025000800_v15_catering_preference.sql')
   const details = read('src/screens/08-ServiceDetails.tsx')
@@ -3307,7 +3481,8 @@ test('V15 Phase 1 makes catering formats informational and requires an explicit 
     'the deployed V15 catering-preference migration must exactly match the reviewed database source'
   )
   mustContain(details, [
-    'CATERING SERVICES OFFERED',
+    'Price starts at ${formatPeso(cateringStartingPrice)}',
+    '<Text style={styles.priceSummaryLabel}>PRICE</Text>',
     'Would you like to have a food tasting?',
     "Yes, I&apos;d like a food tasting.",
     "No, I&apos;ll choose my menu directly.",
@@ -3318,6 +3493,8 @@ test('V15 Phase 1 makes catering formats informational and requires an explicit 
   ], 'V15 Phase 1 client catering details')
   assert.doesNotMatch(details, /const mealTypes\s*=/,
     'catering formats must no longer be rendered as client booking choices')
+  assert.doesNotMatch(details, /CATERING SERVICES OFFERED/,
+    'the client details overlay must show starting price instead of catering-format chips')
   mustContain(providerDetails, [
     'Catering Formats Offered',
   ], 'V15 Phase 1 provider catering configuration')

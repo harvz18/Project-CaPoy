@@ -29,18 +29,17 @@ import {
   ServiceCategoryOption,
   type CatalogCategoryId,
 } from '../lib/catalog'
-import { customerPriceFromProviderPrice } from '../lib/pricing'
-import { calculateCateringPrice, getCateringPricingOptions, getVenueBookingOptions } from '../lib/service-category-details'
+import { calculateCateringPrice, getCateringPricingOptions } from '../lib/service-category-details'
 import type { ReviewedService } from '../lib/reviewed-services'
 import type { AssignedCoordinatorSummary, SelectedSummaryService } from './07-SelectedSummary'
 
-export type CategoryBrowseFilter = string
 export type CategoryBrowseVendor = string
 export type CategoryBrowseTab = ClientMainTab | 'vendors' | 'budget'
 type CategoryBrowseSort = 'recommended' | 'rating' | 'bookings' | 'priceLow' | 'priceHigh'
 
 interface CategoryBrowseScreenProps {
   catalogLoadStatus?: CatalogLoadStatus
+  blurTarget?: React.RefObject<React.ComponentRef<typeof View> | null>
   categoryCountServices?: CatalogService[]
   categoryBudgets?: Partial<Record<CatalogCategoryId, number>>
   categoryName?: string
@@ -108,7 +107,6 @@ interface CategoryBrowseScreenProps {
   onSelectService?: (serviceId: string) => void
   onOpenSort?: () => void
   onConfirmReplacement?: (vendorId: string) => boolean | Promise<boolean>
-  onSelectFilter?: (filter: CategoryBrowseFilter) => void
   onSelectCategory?: (category: ServiceCategoryOption) => void
   onReviewVenuePackage?: () => void
   onSelectTab?: (tab: CategoryBrowseTab) => void
@@ -120,13 +118,6 @@ interface CategoryBrowseScreenProps {
   onToggleFavorite?: (serviceId: string) => void
   onSelectReviewedService?: (serviceId: string) => void
 }
-
-const filters = [
-  { id: 'plated' as const, label: 'Plated' },
-  { id: 'buffet' as const, label: 'Buffet' },
-  { id: 'packed' as const, label: 'Packed' },
-  { id: 'under500' as const, label: 'Under ₱500/head' },
-] as const
 
 const sortOptions: ReadonlyArray<{ id: CategoryBrowseSort; label: string }> = [
   { id: 'recommended', label: 'Recommended' },
@@ -246,8 +237,8 @@ const ServiceSectionList: React.FC<React.PropsWithChildren<{ horizontal: boolean
 
 export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   catalogLoadStatus,
+  blurTarget,
   categoryCountServices,
-  categoryBudgets = {},
   categoryName = 'Services',
   categories = [],
   favoritePendingServiceIds = new Set(),
@@ -268,7 +259,6 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   venueCateringPackage,
   totalEstimatedCost = 0,
   removingServiceId = '',
-  remainingBudget = 45000,
   planningSelectionsComplete = false,
   showSelectionCompletionModal = false,
   changeServiceContext,
@@ -291,7 +281,6 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   onSelectService,
   onOpenSort,
   onConfirmReplacement,
-  onSelectFilter,
   onSelectCategory,
   onReviewVenuePackage,
   onSelectTab,
@@ -307,6 +296,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   const isWide = width >= 768
   const isExploreMode = mode === 'explore'
   const isChangingService = Boolean(changeServiceContext)
+  const usesCompactPlanningCards = !isExploreMode && !isChangingService && !replacementContext
   // Provider replacements compare against the current booking, not the old
   // planning allocation. Keep the normal allocation behavior everywhere else.
   const hasPlanSelections = selectedServiceCount > 0
@@ -314,11 +304,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     || coordinatorAssignmentStatus === 'awaiting_assignment'
   const hasReviewableSelections = selectedServiceCount > 0 || Boolean(assignedCoordinator)
   const selectedPlanItemCount = selectedServiceCount + (assignedCoordinator ? 1 : 0)
-  const useHorizontalCards = width >= 640
   const [internalSearch, setInternalSearch] = React.useState('')
-  const [selectedFilters, setSelectedFilters] = React.useState<Set<CategoryBrowseFilter>>(
-    () => new Set()
-  )
   const [sortMode, setSortMode] = React.useState<CategoryBrowseSort>('recommended')
   const [isSortOpen, setIsSortOpen] = React.useState(false)
   const [selectedExploreCategory, setSelectedExploreCategory] = React.useState('All')
@@ -332,6 +318,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   const [isCategorySelectionOpen, setIsCategorySelectionOpen] = React.useState(false)
   const [isCategorySelectionClosing, setIsCategorySelectionClosing] = React.useState(false)
   const [isUpdatingCategory, setIsUpdatingCategory] = React.useState(false)
+  const isUpdatingCategoryRef = React.useRef(false)
   const [optimisticCategoryMembership, setOptimisticCategoryMembership] = React.useState<Record<string, boolean>>({})
   const [categoryDisplayOrder, setCategoryDisplayOrder] = React.useState<string[]>([])
   const [movingCategoryId, setMovingCategoryId] = React.useState('')
@@ -491,10 +478,12 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     category: ServiceCategoryOption,
     action: 'add' | 'remove'
   ) => {
-    if (isUpdatingCategory) return
+    if (isUpdatingCategoryRef.current) return
 
     const update = action === 'add' ? onAddCategory : onRemoveCategory
     if (!update) return
+
+    isUpdatingCategoryRef.current = true
 
     const categoryId = marketplaceCategoryId(category)
     const sourceY = categoryCardPositionsRef.current.get(categoryId)
@@ -544,13 +533,13 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
       setMovingCategoryId(categoryId)
       clearOptimisticCategoryMembership(categoryId)
     } finally {
+      isUpdatingCategoryRef.current = false
       setIsUpdatingCategory(false)
     }
   }, [
     categorySelectionOptions,
     clearOptimisticCategoryMembership,
     getCategoryCardTranslation,
-    isUpdatingCategory,
     onAddCategory,
     onRemoveCategory,
   ])
@@ -616,7 +605,6 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
       categoryTagScrollerRef.current?.scrollTo({ animated: true, x: Math.max(0, offset) })
     })
   }, [])
-  React.useEffect(() => setSelectedFilters(new Set()), [categoryName])
   React.useEffect(() => {
     if (!isExploreMode) setActiveExploreTab('explore')
   }, [isExploreMode])
@@ -635,51 +623,6 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     cateringWarningShownForCategoryRef.current = true
     setCateringWarningAction(() => () => undefined)
   }, [cateringIncludedInVenuePackage, categoryName, isExploreMode])
-
-  const categoryFilters = React.useMemo(() => {
-    const options: Array<{ id: string; label: string }> = [
-      { id: 'withinBudget', label: 'Within Budget' },
-      { id: 'available', label: 'Available' },
-      { id: 'rating4', label: '4+ Rating' },
-      { id: 'priceLow', label: 'Lower Price' },
-    ]
-    const records: Array<Record<string, unknown>> = services.map(
-      (service) => service.categoryDetails ?? {}
-    )
-    if (categoryName.toLowerCase().includes('venue')) {
-      options.push(
-        { id: 'capacity', label: `Fits ${eventGuestCount} Guests` },
-        { id: 'indoor', label: 'Indoor' },
-        { id: 'outdoor', label: 'Outdoor' },
-        { id: 'amenities', label: 'With Amenities' }
-      )
-    } else if (categoryName.toLowerCase().includes('cater')) {
-      options.push(
-        ...filters,
-        { id: 'guestCapacity', label: 'Fits Guest Count' }
-      )
-      Array.from(new Set(records.flatMap((record) => Array.isArray(record.cuisines)
-        ? record.cuisines.filter((item): item is string => typeof item === 'string') : [])))
-        .slice(0, 4).forEach((value) => options.push({ id: `cuisine:${value}`, label: value }))
-      Array.from(new Set(records.flatMap((record) => Array.isArray(record.cateringTypes)
-        ? record.cateringTypes.filter((item): item is string => typeof item === 'string') : [])))
-        .slice(0, 4).forEach((value) => options.push({ id: `cateringType:${value}`, label: value }))
-    } else if (categoryName.toLowerCase().includes('photo')) {
-      options.push(
-        { id: 'photoVideo', label: 'Photo + Video' },
-        { id: 'drone', label: 'Drone' },
-        { id: 'coverage8', label: '8+ Hours' }
-      )
-    } else if (categoryName.toLowerCase().includes('host')) {
-      Array.from(new Set(records.flatMap((record) => Array.isArray(record.languages)
-        ? record.languages.filter((item): item is string => typeof item === 'string') : [])))
-        .slice(0, 5).forEach((value) => options.push({ id: `language:${value}`, label: value }))
-      Array.from(new Set(records.flatMap((record) => Array.isArray(record.hostingStyles)
-        ? record.hostingStyles.filter((item): item is string => typeof item === 'string') : [])))
-        .slice(0, 5).forEach((value) => options.push({ id: `style:${value}`, label: value }))
-    }
-    return options
-  }, [categoryName, eventGuestCount, services])
 
   const cateringFit = React.useCallback((vendor: CatalogService) => {
     if (vendor.categoryId !== 'catering') return { fits: true, reason: '' }
@@ -733,39 +676,6 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
       vendor.categoryName !== selectedExploreCategory
     ) {
       return false
-    }
-
-    if (!isExploreMode && selectedFilters.size > 0) {
-      const details: Record<string, unknown> = vendor.categoryDetails ?? {}
-      const recommendation = vendor.budgetRecommendation
-      const vendorCategoryBudget = categoryBudgets[vendor.categoryId] ?? categoryBudget
-      const stringList = (key: string) => Array.isArray(details[key])
-        ? (details[key] as unknown[]).filter((item): item is string => typeof item === 'string')
-        : []
-      for (const selectedFilter of selectedFilters) {
-        if (selectedFilter === 'withinBudget' && !recommendation?.isWithinBudget) return false
-        if (selectedFilter === 'available' && recommendation?.availabilityStatus === 'unavailable') return false
-        if (selectedFilter === 'rating4' && (Number.parseFloat(vendor.rating) || 0) < 4) return false
-        if (selectedFilter === 'priceLow' && marketplaceStartingPrice(vendor) > Math.max(vendorCategoryBudget, remainingBudget)) return false
-        if (selectedFilter === 'under500') {
-          const options = getCateringPricingOptions(vendor.categoryDetails, vendor.providerMinPrice)
-          if (!options.some((option) => customerPriceFromProviderPrice(option.pricePerHead, vendor.commissionRate) < 500)) return false
-        }
-        if (['plated', 'buffet', 'packed'].includes(selectedFilter)
-          && !vendor.cateringServiceTypes?.includes(selectedFilter as 'plated' | 'buffet' | 'packed')) return false
-        if (selectedFilter === 'guestCapacity' && !cateringFit(vendor).fits) return false
-        if (selectedFilter.startsWith('cuisine:') && !stringList('cuisines').includes(selectedFilter.slice(8))) return false
-        if (selectedFilter.startsWith('cateringType:') && !stringList('cateringTypes').includes(selectedFilter.slice(14))) return false
-        if (selectedFilter === 'capacity' && !getVenueBookingOptions(details).some((option) => option.capacity >= eventGuestCount)) return false
-        if (selectedFilter === 'indoor' && !getVenueBookingOptions(details).some((option) => option.spaceType.toLowerCase().includes('indoor'))) return false
-        if (selectedFilter === 'outdoor' && !getVenueBookingOptions(details).some((option) => option.spaceType.toLowerCase().includes('outdoor'))) return false
-        if (selectedFilter === 'amenities' && !['airConditioning', 'chairs', 'tables', 'parking', 'restrooms', 'dressingRoom', 'kitchen', 'wifi', 'stage', 'pwdAccessibility'].some((key) => details[key] === true)) return false
-        if (selectedFilter === 'photoVideo' && !(details.photoCoverage === true && details.videoCoverage === true)) return false
-        if (selectedFilter === 'drone' && details.droneCoverage !== true) return false
-        if (selectedFilter === 'coverage8' && Number(details.coverageDurationHours ?? 0) < 8) return false
-        if (selectedFilter.startsWith('language:') && !stringList('languages').includes(selectedFilter.slice(9))) return false
-        if (selectedFilter.startsWith('style:') && !stringList('hostingStyles').includes(selectedFilter.slice(6))) return false
-      }
     }
 
     if (!normalizedQuery) return true
@@ -853,13 +763,13 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
         {
           horizontal: true,
           id: 'within-budget',
-          label: 'Within Your Category Budget',
+          label: 'Services That Fits Your Budget',
           vendors: visibleVendors.filter((vendor) => vendor.budgetRecommendation?.isWithinBudget),
         },
         {
-          horizontal: false,
+          horizontal: true,
           id: 'outside-budget',
-          label: 'Outside Your Category Budget',
+          label: 'You Might Also Like',
           vendors: visibleVendors.filter((vendor) => !vendor.budgetRecommendation?.isWithinBudget),
         },
       ].filter((section) => section.vendors.length > 0)
@@ -868,16 +778,6 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   const handleSearchChange = (value: string) => {
     setInternalSearch(value)
     onChangeSearch?.(value)
-  }
-
-  const handleFilterChange = (filter: CategoryBrowseFilter) => {
-    setSelectedFilters((current) => {
-      const next = new Set(current)
-      if (next.has(filter)) next.delete(filter)
-      else next.add(filter)
-      return next
-    })
-    onSelectFilter?.(filter)
   }
 
   const activeSortLabel = sortOptions.find((option) => option.id === sortMode)?.label ?? sortLabel
@@ -939,7 +839,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
 
   return (
     <BlurTargetView
-      ref={categorySelectionBlurTargetRef}
+      ref={blurTarget ?? categorySelectionBlurTargetRef}
       style={[styles.screen, !isExploreMode && styles.planningScreen]}
     >
       {isExploreMode ? (
@@ -1030,6 +930,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
       <ScrollView
         contentContainerStyle={[
           styles.content,
+          showBottomNavigation && !isWide && styles.contentWithBottomNavigation,
           !isExploreMode &&
           !replacementContext &&
             !isChangingService &&
@@ -1117,20 +1018,13 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
           </View>
         ) : null}
 
-        <View style={styles.categoryHeader}>
-          {!isExploreMode ? (
-            <View style={styles.categoryHeaderIcon}>
-              <MaterialIcons color={palette.primaryContainer} name="design-services" size={20} />
-            </View>
-          ) : null}
+        {isExploreMode ? <View style={styles.categoryHeader}>
           <Text style={styles.categoryTitle}>
-            {isExploreMode
-              ? activeExploreTab === 'reviewed'
-                ? 'Reviewed Services'
-                : showFavoritesOnly ? 'Saved Services' : 'All Services'
-              : categoryName}
+            {activeExploreTab === 'reviewed'
+              ? 'Reviewed Services'
+              : showFavoritesOnly ? 'Saved Services' : 'All Services'}
           </Text>
-          {isExploreMode && activeExploreTab === 'explore' && showFavoritesOnly ? (
+          {activeExploreTab === 'explore' && showFavoritesOnly ? (
             <Pressable
               accessibilityLabel="Show all services"
               accessibilityRole="button"
@@ -1140,7 +1034,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
               <Text style={styles.clearFavoritesFilterText}>Show all</Text>
             </Pressable>
           ) : null}
-        </View>
+        </View> : null}
 
         {isExploreMode && activeExploreTab === 'explore' ? (
           <ScrollView
@@ -1208,66 +1102,41 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
           </ScrollView>
         ) : null}
 
-        {!isExploreMode || activeExploreTab === 'explore' ? <View style={styles.searchField}>
-          <Text style={styles.searchIcon}>⌕</Text>
-          <TextInput
-            accessibilityLabel={
-              isExploreMode ? 'Search services' : `Search ${categoryName} services`
-            }
-            onChangeText={handleSearchChange}
-            placeholder={isExploreMode ? 'Search services' : `Search ${categoryName}`}
-            placeholderTextColor={palette.secondary}
-            returnKeyType="search"
-            style={styles.searchInput}
-            value={query}
-          />
-        </View> : null}
+        {!isExploreMode && !replacementContext && !isChangingService ? (
+          <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.categorySearchDivider} />
+        ) : null}
 
-        {!isExploreMode ? (
-          <>
-            <ScrollView
-              contentContainerStyle={styles.filterContent}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.filterScroller}
-            >
-              {categoryFilters.map((filter) => {
-                const isSelected = selectedFilters.has(filter.id)
+        {!isExploreMode || activeExploreTab === 'explore' ? (
+          <View style={styles.searchToolbar}>
+            <View style={styles.searchField}>
+              <Text style={styles.searchIcon}>⌕</Text>
+              <TextInput
+                accessibilityLabel={
+                  isExploreMode ? 'Search services' : `Search ${categoryName} services`
+                }
+                onChangeText={handleSearchChange}
+                placeholder={isExploreMode ? 'Search services' : `Search ${categoryName}`}
+                placeholderTextColor={palette.secondary}
+                returnKeyType="search"
+                style={styles.searchInput}
+                value={query}
+              />
+            </View>
 
-                return (
-                  <Pressable
-                    key={filter.id}
-                    accessibilityLabel={`Filter by ${filter.label}`}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: isSelected }}
-                    onPress={() => handleFilterChange(filter.id)}
-                    style={({ pressed }) => [
-                      styles.filterChip,
-                      isSelected && styles.filterChipSelected,
-                      pressed && styles.chipPressed,
-                    ]}
-                  >
-                    <Text style={[styles.filterLabel, isSelected && styles.filterLabelSelected]}>
-                      {filter.label}
-                    </Text>
-                  </Pressable>
-                )
-              })}
-            </ScrollView>
-
-            <Pressable
-              accessibilityLabel={`Sort results. Current sort: ${activeSortLabel}`}
-              accessibilityRole="button"
-              onPress={() => {
-                setIsSortOpen(true)
-                onOpenSort?.()
-              }}
-              style={({ pressed }) => [styles.sortControl, pressed && styles.pressed]}
-            >
-              <Text style={styles.sortText}>Sort: {activeSortLabel}</Text>
-              <Text style={styles.sortChevron}>⌄</Text>
-            </Pressable>
-          </>
+            {!isExploreMode ? (
+              <Pressable
+                accessibilityLabel={`Sort results. Current sort: ${activeSortLabel}`}
+                accessibilityRole="button"
+                onPress={() => {
+                  setIsSortOpen(true)
+                  onOpenSort?.()
+                }}
+                style={({ pressed }) => [styles.sortControl, pressed && styles.sortControlPressed]}
+              >
+                <MaterialCommunityIcons color="#2F80ED" name="filter-outline" size={21} />
+              </Pressable>
+            ) : null}
+          </View>
         ) : null}
 
         {isExploreMode && activeExploreTab === 'reviewed' ? (
@@ -1301,8 +1170,12 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
               style={({ pressed }) => [
                 styles.vendorCard,
                 section.horizontal
-                  ? [styles.vendorCardCarousel, { width: Math.min(310, width - 56) }]
-                  : useHorizontalCards && styles.vendorCardHorizontal,
+                  ? [styles.vendorCardCarousel, { width: isWide ? 324 : Math.max(252, width - 56) }]
+                  : null,
+                (usesCompactPlanningCards || vendor.kind === 'coordinator') && [
+                  styles.compactVendorCard,
+                  { width: Math.min(220, width - 72) },
+                ],
                 isScheduleUnavailable(vendor) && styles.vendorCardUnavailable,
                 pressed && styles.cardPressed,
               ]}
@@ -1327,16 +1200,17 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                       pressed && styles.favoriteButtonPressed,
                     ]}
                   >
-                    <MaterialIcons color="#701B30" name={isFavorited ? 'favorite' : 'favorite-border'} size={20} />
+                    <BlurView intensity={22} pointerEvents="none" tint="light" style={styles.favoriteButtonGlass} />
+                    <MaterialIcons
+                      color="#701B30"
+                      name={isFavorited ? 'favorite' : 'favorite-border'}
+                      size={19}
+                      style={styles.favoriteButtonIcon}
+                    />
                   </Pressable>
                 )
               })() : null}
-                <View
-                style={[
-                  styles.imagePanel,
-                  !section.horizontal && useHorizontalCards && styles.imagePanelHorizontal,
-                ]}
-              >
+              <View style={[styles.imagePanel, (usesCompactPlanningCards || vendor.kind === 'coordinator') && styles.compactImagePanel]}>
                 {vendor.imageUrl ? (
                   <Image
                     accessibilityLabel={vendor.imageLabel}
@@ -1352,56 +1226,86 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                     <Text style={styles.vendorImagePlaceholderText}>{vendor.name}</Text>
                   </View>
                 )}
+                {isScheduleUnavailable(vendor) || vendor.kind !== 'coordinator' ? <View style={styles.serviceImageBadges}>
+                  {isScheduleUnavailable(vendor) ? (
+                    <View style={styles.scheduleUnavailableBadge}>
+                      <MaterialCommunityIcons color="#FFFFFF" name="calendar-remove-outline" size={13} />
+                      <Text style={styles.scheduleUnavailableBadgeText}>NOT AVAILABLE ON YOUR SCHEDULE</Text>
+                    </View>
+                  ) : null}
+                  {vendor.kind !== 'coordinator'
+                    && !usesCompactPlanningCards
+                    && (isPersonalizedRecommendation(vendor) || vendor.isMostBooked) ? (
+                    <View style={styles.decisionBadges}>
+                      {isPersonalizedRecommendation(vendor) ? (
+                        <View style={[styles.decisionBadge, styles.recommendedDecisionBadge]}>
+                          <MaterialCommunityIcons color="#245E43" name="star-circle" size={13} />
+                          <Text style={[styles.decisionBadgeText, styles.recommendedDecisionBadgeText]}>
+                            RECOMMENDED FOR YOU
+                          </Text>
+                        </View>
+                      ) : null}
+                      {vendor.isMostBooked ? (
+                        <View style={[styles.decisionBadge, styles.mostBookedDecisionBadge]}>
+                          <MaterialCommunityIcons color="#6B1E2E" name="fire" size={13} />
+                          <Text style={[styles.decisionBadgeText, styles.mostBookedDecisionBadgeText]}>
+                            MOST BOOKED
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+                  ) : null}
+                </View> : null}
+                {!isExploreMode
+                  && !isChangingService
+                  && !isScheduleUnavailable(vendor)
+                  && vendor.budgetRecommendation
+                  && vendor.budgetRecommendation.categoryBudget > 0 ? (
+                  <View
+                    style={[
+                      styles.serviceBudgetBadge,
+                      vendor.budgetRecommendation.isWithinBudget
+                        ? styles.serviceBudgetBadgeFit
+                        : styles.serviceBudgetBadgeOver,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.serviceBudgetBadgeText,
+                        vendor.budgetRecommendation.isWithinBudget
+                          ? styles.serviceBudgetBadgeTextFit
+                          : styles.serviceBudgetBadgeTextOver,
+                      ]}
+                    >
+                      {vendor.budgetRecommendation.isWithinBudget ? 'WITHIN BUDGET' : 'OVER BUDGET'}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
 
-              <View
-                style={[
-                  styles.vendorCopy,
-                  !section.horizontal && useHorizontalCards && styles.vendorCopyHorizontal,
-                ]}
-              >
-                {isScheduleUnavailable(vendor) ? (
-                  <View style={styles.scheduleUnavailableBadge}>
-                    <MaterialCommunityIcons color="#5E5E5E" name="calendar-remove-outline" size={14} />
-                    <Text style={styles.scheduleUnavailableBadgeText}>
-                      NOT AVAILABLE ON YOUR SCHEDULE
+              <View style={[styles.vendorCopy, (usesCompactPlanningCards || vendor.kind === 'coordinator') && styles.compactVendorCopy]}>
+                {usesCompactPlanningCards || vendor.kind === 'coordinator' ? (
+                  <View style={styles.vendorIdentityRow}>
+                    <Text numberOfLines={1} style={[styles.vendorName, styles.compactVendorName]}>
+                      {vendor.name}
+                    </Text>
+                    <Text numberOfLines={1} style={[styles.rating, styles.compactRating]}>
+                      {vendor.reviewCount > 0 ? `${vendor.rating} ★ (${vendor.reviewCount})` : 'New'}
                     </Text>
                   </View>
-                ) : null}
-                {isPersonalizedRecommendation(vendor) || vendor.isMostBooked ? (
-                  <View style={styles.decisionBadges}>
-                    {isPersonalizedRecommendation(vendor) ? (
-                      <View style={[styles.decisionBadge, styles.recommendedDecisionBadge]}>
-                        <MaterialCommunityIcons color="#245E43" name="star-circle" size={14} />
-                        <Text style={[styles.decisionBadgeText, styles.recommendedDecisionBadgeText]}>
-                          RECOMMENDED FOR YOU
-                        </Text>
-                      </View>
-                    ) : null}
-                    {vendor.isMostBooked ? (
-                      <View style={[styles.decisionBadge, styles.mostBookedDecisionBadge]}>
-                        <MaterialCommunityIcons color="#6B1E2E" name="fire" size={14} />
-                        <Text style={[styles.decisionBadgeText, styles.mostBookedDecisionBadgeText]}>
-                          MOST BOOKED
-                        </Text>
-                      </View>
-                    ) : null}
-                  </View>
-                ) : null}
-                <View style={styles.vendorHeadingRow}>
-                  <Text style={styles.vendorName}>{vendor.name}</Text>
-                  <View style={styles.ratingGroup}>
-                    <Text style={styles.star}>★</Text>
+                ) : (
+                  <>
+                    <Text numberOfLines={1} style={styles.vendorName}>{vendor.name}</Text>
+                    <Text numberOfLines={1} style={styles.vendorMeta}>
+                      {vendor.categoryName} · {vendor.providerName}
+                    </Text>
+                    <Text numberOfLines={2} style={styles.vendorDescription}>{vendor.description}</Text>
                     <Text style={styles.rating}>
-                      {vendor.reviewCount > 0
-                        ? `${vendor.rating} (${vendor.reviewCount})`
-                        : vendor.rating}
+                      {vendor.reviewCount > 0 ? `${vendor.rating} ★ (${vendor.reviewCount})` : 'New'}
                     </Text>
-                  </View>
-                </View>
-
-                <Text style={styles.price}>{formatServicePrice(vendor)}</Text>
-                {replacementContext ? (() => {
+                  </>
+                )}
+                {vendor.kind !== 'coordinator' && replacementContext ? (() => {
                   const alternativeAmount = vendor.budgetRecommendation?.calculatedAmount
                   if (vendor.categoryId === 'catering' && !alternativeAmount) {
                     return (
@@ -1424,81 +1328,30 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                   )
                 })() : null}
 
-                {!isExploreMode
+                {!usesCompactPlanningCards
+                  && vendor.kind !== 'coordinator'
+                  && !isExploreMode
                   && !isChangingService
                   && vendor.budgetRecommendation
-                  && vendor.budgetRecommendation.categoryBudget > 0 ? (
-                  <View style={styles.recommendationBlock}>
-                    <View style={styles.recommendationHeadingRow}>
-                      <View
-                        style={[
-                          styles.recommendationBadge,
-                          vendor.budgetRecommendation.isRecommended
-                            ? styles.recommendationBadgeFit
-                            : styles.recommendationBadgeReview,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.recommendationBadgeText,
-                            vendor.budgetRecommendation.isRecommended
-                              ? styles.recommendationBadgeTextFit
-                              : styles.recommendationBadgeTextReview,
-                          ]}
-                        >
-                          {vendor.budgetRecommendation.isWithinBudget
-                            ? 'WITHIN BUDGET'
-                            : vendor.budgetRecommendation.calculatedAmount
-                              ? 'OVER BUDGET'
-                              : 'PRICE CHECK NEEDED'}
-                        </Text>
-                      </View>
-                      <Text style={styles.categoryBudgetText}>
-                        Category: {formatCurrency(vendor.budgetRecommendation.categoryBudget)}
-                      </Text>
-                    </View>
-                    {vendor.budgetRecommendation.calculatedAmount ? (
-                      <>
-                        <Text style={styles.calculatedPrice}>
-                          {vendor.categoryId === 'venues' ? 'Starting estimate' : 'Event estimate'}: {formatCurrency(vendor.budgetRecommendation.calculatedAmount)}
-                        </Text>
-                        {vendor.budgetRecommendation.pricingBasis ? (
-                          <Text style={styles.pricingBasis}>
-                            {vendor.budgetRecommendation.pricingBasis}
-                          </Text>
-                        ) : null}
-                      </>
-                    ) : null}
-                    {vendor.budgetRecommendation.recommendedOptionName ? (
-                      <Text style={styles.recommendedOption}>
-                        Best fitting option: {vendor.budgetRecommendation.recommendedOptionName}
-                      </Text>
-                    ) : null}
-                    <Text
-                      style={
-                        vendor.budgetRecommendation.isRecommended
-                          ? styles.recommendationReasonFit
-                          : styles.recommendationReasonReview
-                      }
-                    >
-                      {vendor.budgetRecommendation.reason}
-                    </Text>
-                  </View>
-                ) : vendor.categoryId === 'catering' && eventGuestCount > 0 ? (
+                  && vendor.budgetRecommendation.calculatedAmount ? (
+                  <Text numberOfLines={1} style={styles.serviceEstimate}>
+                    {vendor.categoryId === 'venues' ? 'Starting estimate' : 'Event estimate'}: {formatCurrency(vendor.budgetRecommendation.calculatedAmount)}
+                  </Text>
+                ) : !usesCompactPlanningCards && vendor.categoryId === 'catering' && eventGuestCount > 0 ? (
                   <Text style={cateringFit(vendor).fits ? styles.guestFit : styles.guestMismatch}>
                     {cateringFit(vendor).fits ? 'Fits event guest count' : cateringFit(vendor).reason}
                   </Text>
                 ) : null}
 
-                <View style={styles.tagsRow}>
-                  {vendor.tags.map((tag) => (
-                    <View key={tag} style={styles.tag}>
-                      <Text style={styles.tagText}>{tag}</Text>
-                    </View>
-                  ))}
-                </View>
+                {!usesCompactPlanningCards && vendor.kind !== 'coordinator' ? <View style={styles.vendorFooter} /> : null}
+                <Text
+                  numberOfLines={1}
+                  style={[styles.price, (usesCompactPlanningCards || vendor.kind === 'coordinator') && styles.compactPrice]}
+                >
+                  {formatServicePrice(vendor)}
+                </Text>
 
-                {replacementContext && !isScheduleUnavailable(vendor) ? (
+                {vendor.kind !== 'coordinator' && replacementContext && !isScheduleUnavailable(vendor) ? (
                   <Pressable
                     accessibilityLabel={`Change to ${vendor.providerName}`}
                     accessibilityRole="button"
@@ -1538,7 +1391,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                   : replacementContext
                   ? 'Another published provider in this category is required before this service can be changed.'
                   : services.length > 0
-                    ? 'Try clearing filters or selecting another category.'
+                    ? 'Try another search or select a different category.'
                   : categoryName.toLowerCase().includes('venue') && categoryBudget > 0
                     ? 'No available venue configuration matches the current event requirements. Try another category.'
                     : 'Services will appear here after providers publish them.'}
@@ -1551,16 +1404,6 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                   style={({ pressed }) => [styles.emptyAction, pressed && styles.emptyActionPressed]}
                 >
                   <Text style={styles.emptyActionText}>RETRY</Text>
-                </Pressable>
-              ) : null}
-              {!catalogUnavailable && services.length > 0 && selectedFilters.size > 0 ? (
-                <Pressable
-                  accessibilityLabel="Clear service filters"
-                  accessibilityRole="button"
-                  onPress={() => setSelectedFilters(new Set())}
-                  style={({ pressed }) => [styles.emptyAction, pressed && styles.emptyActionPressed]}
-                >
-                  <Text style={styles.emptyActionText}>CLEAR FILTERS</Text>
                 </Pressable>
               ) : null}
             </View>
@@ -1594,7 +1437,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
           <BlurView
             blurReductionFactor={1}
             blurMethod="dimezisBlurViewSdk31Plus"
-            blurTarget={categorySelectionBlurTargetRef}
+            blurTarget={blurTarget ?? categorySelectionBlurTargetRef}
             intensity={42}
             tint="dark"
             style={StyleSheet.absoluteFill}
@@ -2271,10 +2114,13 @@ const styles = StyleSheet.create({
     maxWidth: 1200,
     alignSelf: 'center',
     paddingTop: 16,
+    paddingBottom: 24,
+  },
+  contentWithBottomNavigation: {
     paddingBottom: 112,
   },
   contentWithSelectedServicesAction: {
-    paddingBottom: 32,
+    paddingBottom: 8,
   },
   selectedServicesBar: {
     borderTopWidth: 1,
@@ -2356,7 +2202,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     backgroundColor: palette.background,
     padding: 20,
-    boxShadow: '10px 12px 26px rgba(62, 75, 84, 0.28), -6px -6px 16px rgba(255, 255, 255, 0.72)',
+    boxShadow: '0px 6px 14px rgba(62, 75, 84, 0.22)',
   },
   categorySelectionDialogHeader: {
     flexDirection: 'row',
@@ -2401,7 +2247,7 @@ const styles = StyleSheet.create({
   categorySelectionOptionGroup: { gap: 12 },
   categorySelectionOptionGroupMoving: {
     zIndex: 30,
-    elevation: 30,
+    elevation: 2,
   },
   categorySelectionDivider: {
     alignSelf: 'center',
@@ -3034,76 +2880,55 @@ const styles = StyleSheet.create({
   exploreTabActive: { borderBottomColor: palette.primaryContainer },
   exploreTabText: { color: palette.secondary, fontSize: 14, fontWeight: '600' },
   exploreTabTextActive: { color: palette.primaryContainer, fontWeight: '800' },
-  categoryHeaderIcon: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 20,
-    backgroundColor: palette.background,
-    boxShadow: 'inset 3px 3px 7px rgba(170, 181, 190, 0.48), inset -3px -3px 7px rgba(255, 255, 255, 0.94)',
-  },
   categoryTitle: {
     color: palette.primaryContainer,
     fontSize: 22,
     lineHeight: 29,
     fontWeight: '700',
   },
-  searchField: {
+  searchToolbar: {
     width: '100%',
-    height: 50,
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 25,
+    gap: 9,
+    marginVertical: 10,
+  },
+  categorySearchDivider: {
+    width: '94%',
+    height: StyleSheet.hairlineWidth,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(118, 118, 118, 0.42)',
+    marginTop: 18,
+    marginBottom: 8,
+  },
+  searchField: {
+    flex: 1,
+    height: 42,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 21,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.82)',
     backgroundColor: palette.background,
-    paddingHorizontal: 16,
+    paddingHorizontal: 13,
     boxShadow: 'inset 4px 4px 9px rgba(170, 181, 190, 0.50), inset -4px -4px 9px rgba(255, 255, 255, 0.94)',
   },
   searchIcon: {
     color: palette.secondary,
-    fontSize: 24,
-    lineHeight: 26,
-    marginRight: 8,
+    fontSize: 20,
+    lineHeight: 22,
+    marginRight: 6,
   },
   searchInput: {
     height: '100%',
     flex: 1,
     color: palette.text,
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 14,
+    lineHeight: 20,
     paddingVertical: 0,
-  },
-  filterScroller: {
-    marginHorizontal: -20,
-    marginTop: 12,
   },
   exploreCategoryScroller: { marginBottom: 12 },
   exploreCategoryContent: { gap: 8, paddingRight: 20, paddingBottom: 4 },
-  filterContent: {
-    gap: 8,
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-  },
-  filterChip: {
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.76)',
-    borderRadius: 20,
-    backgroundColor: palette.background,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    boxShadow: '4px 4px 9px rgba(156, 169, 180, 0.38), -4px -4px 9px rgba(255, 255, 255, 0.92)',
-  },
-  filterChipSelected: {
-    borderColor: palette.primaryContainer,
-    backgroundColor: palette.primaryContainer,
-    shadowColor: palette.primaryContainer,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
   categoryTag: {
     maxWidth: 220,
     minHeight: 40,
@@ -3155,36 +2980,19 @@ const styles = StyleSheet.create({
   categoryTagLabelSelected: { color: palette.onPrimary },
   categoryTagIncluded: { color: palette.primaryContainer, fontSize: 9, lineHeight: 12, fontWeight: '800' },
   categoryTagIncludedSelected: { color: palette.onPrimary },
-  filterLabel: {
-    color: palette.secondary,
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: '700',
-    letterSpacing: 1,
-  },
-  filterLabelSelected: {
-    color: palette.onPrimary,
-  },
   sortControl: {
-    alignSelf: 'flex-end',
-    flexDirection: 'row',
+    width: 42,
+    height: 42,
     alignItems: 'center',
-    gap: 4,
-    paddingVertical: 8,
-    marginTop: 8,
-    marginBottom: 8,
+    justifyContent: 'center',
+    flexShrink: 0,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.86)',
+    borderRadius: 21,
+    backgroundColor: palette.background,
+    boxShadow: '5px 5px 11px rgba(166, 177, 186, 0.48), -5px -5px 11px rgba(255, 255, 255, 0.96)',
   },
-  sortText: {
-    color: palette.secondary,
-    fontSize: 16,
-    lineHeight: 24,
-  },
-  sortChevron: {
-    color: palette.primaryContainer,
-    fontSize: 16,
-    lineHeight: 18,
-    fontWeight: '700',
-  },
+  sortControlPressed: { transform: [{ scale: 0.94 }], opacity: 0.86 },
   sortOverlay: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -3300,29 +3108,34 @@ const styles = StyleSheet.create({
   vendorCard: {
     position: 'relative',
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.76)',
-    borderRadius: 16,
-    backgroundColor: palette.background,
-    boxShadow: '7px 7px 15px rgba(156, 169, 180, 0.44), -7px -7px 15px rgba(255, 255, 255, 0.94)',
+    borderRadius: 28,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#4E061A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
+    elevation: 4,
   },
   favoriteButton: {
     position: 'absolute',
-    top: 10,
-    right: 10,
+    top: 8,
+    right: 8,
     zIndex: 4,
-    width: 36,
-    height: 36,
+    width: 30,
+    height: 30,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(112, 27, 48, 0.16)',
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    borderColor: 'rgba(255, 255, 255, 0.46)',
+    borderRadius: 15,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
+  favoriteButtonGlass: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+  favoriteButtonIcon: { transform: [{ translateY: 1 }] },
   favoriteButtonPending: { opacity: 0.58 },
   favoriteButtonPressed: { transform: [{ scale: 0.92 }] },
-  favoriteButtonSelected: { borderColor: 'rgba(112, 27, 48, 0.35)', backgroundColor: '#FFF4F6' },
+  favoriteButtonSelected: { borderColor: 'rgba(112, 27, 48, 0.35)', backgroundColor: 'rgba(255, 245, 247, 0.84)' },
   clearFavoritesFilter: {
     marginLeft: 'auto',
     minHeight: 30,
@@ -3338,23 +3151,21 @@ const styles = StyleSheet.create({
   vendorCardUnavailable: {
     opacity: 0.52,
   },
-  vendorCardHorizontal: {
-    minHeight: 190,
-    flexDirection: 'row',
-  },
   vendorCardCarousel: {
     flexShrink: 0,
   },
+  compactVendorCard: {
+    minHeight: 282,
+    alignSelf: 'center',
+  },
   imagePanel: {
     width: '100%',
-    height: 192,
-    backgroundColor: palette.surfaceVariant,
+    height: 104,
+    position: 'relative',
+    overflow: 'hidden',
+    backgroundColor: '#EDE4DF',
   },
-  imagePanelHorizontal: {
-    width: '33.333%',
-    height: '100%',
-    minHeight: 190,
-  },
+  compactImagePanel: { height: 210 },
   vendorImage: {
     width: '100%',
     height: '100%',
@@ -3375,11 +3186,27 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   vendorCopy: {
-    padding: 16,
+    position: 'relative',
+    minHeight: 150,
+    paddingTop: 7,
+    paddingHorizontal: 9,
+    paddingBottom: 12,
   },
-  vendorCopyHorizontal: {
-    flex: 1,
-    justifyContent: 'center',
+  compactVendorCopy: { minHeight: 72, paddingTop: 9, paddingHorizontal: 11, paddingBottom: 9 },
+  vendorIdentityRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  serviceImageBadges: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    right: 44,
+    zIndex: 3,
+    alignItems: 'flex-start',
+    gap: 5,
   },
   scheduleUnavailableBadge: {
     alignSelf: 'flex-start',
@@ -3387,15 +3214,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 5,
     borderWidth: 1,
-    borderColor: '#A9A9A9',
-    borderRadius: 12,
-    backgroundColor: '#EEEEEE',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    marginBottom: 9,
+    borderColor: 'rgba(255, 255, 255, 0.42)',
+    borderRadius: 999,
+    backgroundColor: 'rgba(190, 35, 52, 0.78)',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
   },
   scheduleUnavailableBadgeText: {
-    color: '#4F4F4F',
+    color: '#FFFFFF',
     fontSize: 9,
     lineHeight: 12,
     fontWeight: '900',
@@ -3404,20 +3230,19 @@ const styles = StyleSheet.create({
   decisionBadges: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 7,
-    marginBottom: 9,
+    gap: 5,
   },
   decisionBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    borderRadius: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
   },
-  recommendedDecisionBadge: { borderColor: '#9CCEB1', backgroundColor: '#E5F4EB' },
-  mostBookedDecisionBadge: { borderColor: '#D9B6BD', backgroundColor: '#F7E9EC' },
+  recommendedDecisionBadge: { borderColor: '#9CCEB1', backgroundColor: 'rgba(229, 244, 235, 0.94)' },
+  mostBookedDecisionBadge: { borderColor: '#D9B6BD', backgroundColor: 'rgba(247, 233, 236, 0.94)' },
   decisionBadgeText: {
     fontSize: 9,
     lineHeight: 12,
@@ -3426,133 +3251,104 @@ const styles = StyleSheet.create({
   },
   recommendedDecisionBadgeText: { color: '#245E43' },
   mostBookedDecisionBadgeText: { color: '#6B1E2E' },
-  vendorHeadingRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginBottom: 8,
+  serviceBudgetBadge: {
+    position: 'absolute',
+    right: 7,
+    bottom: 7,
+    zIndex: 3,
+    borderRadius: 999,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
   },
+  serviceBudgetBadgeFit: { backgroundColor: 'rgba(61, 155, 98, 0.78)' },
+  serviceBudgetBadgeOver: { backgroundColor: 'rgba(190, 35, 52, 0.78)' },
+  serviceBudgetBadgeText: { color: '#FFFFFF', fontSize: 12, lineHeight: 14, fontWeight: '900', letterSpacing: 0.25 },
+  serviceBudgetBadgeTextFit: { color: '#FFFFFF' },
+  serviceBudgetBadgeTextOver: { color: '#FFFFFF' },
   vendorName: {
-    flex: 1,
-    color: palette.primary,
-    fontSize: 18,
-    lineHeight: 25,
-    fontWeight: '600',
+    color: '#2B2323',
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '700',
+    paddingRight: 78,
   },
-  ratingGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+  compactVendorName: { flex: 1, fontSize: 15, lineHeight: 21, paddingRight: 0 },
+  vendorMeta: {
+    color: '#847977',
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 2,
   },
-  star: {
-    color: palette.primaryContainer,
-    fontSize: 15,
-    lineHeight: 17,
+  vendorDescription: {
+    color: '#6F6463',
+    fontSize: 13,
+    lineHeight: 15,
+    marginTop: 5,
   },
   rating: {
-    color: palette.secondary,
-    fontSize: 12,
-    lineHeight: 16,
+    position: 'absolute',
+    top: 9,
+    right: 12,
+    zIndex: 2,
+    color: '#8A2944',
+    fontSize: 13,
+    lineHeight: 18,
     fontWeight: '700',
   },
+  compactRating: {
+    position: 'relative',
+    top: 0,
+    right: 0,
+    flexShrink: 0,
+    lineHeight: 21,
+  },
   price: {
-    color: palette.primaryContainer,
-    fontSize: 16,
-    lineHeight: 26,
-    fontWeight: '500',
+    position: 'absolute',
+    bottom: 12,
+    left: 12,
+    zIndex: 2,
+    maxWidth: '58%',
+    color: '#847977',
+    fontSize: 13,
+    lineHeight: 18,
   },
-  recommendationBlock: {
-    gap: 4,
-    marginTop: 9,
-    borderRadius: 10,
-    backgroundColor: '#FFFFFF',
-    padding: 10,
+  compactPrice: { bottom: 9, left: 11, maxWidth: '82%' },
+  serviceEstimate: {
+    color: '#8A2944',
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: '700',
+    marginTop: 6,
   },
-  recommendationHeadingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
+  vendorFooter: { minHeight: 34, marginTop: 4 },
   recommendationBadge: {
+    alignSelf: 'flex-start',
     borderRadius: 10,
     paddingHorizontal: 8,
     paddingVertical: 3,
+    marginTop: 6,
   },
-  recommendationBadgeFit: { backgroundColor: '#DDEFE5' },
-  recommendationBadgeReview: { backgroundColor: '#F8E0E2' },
   recommendationBadgeText: {
+    color: '#8E2430',
     fontSize: 9,
     lineHeight: 13,
     fontWeight: '800',
     letterSpacing: 0.6,
   },
-  recommendationBadgeTextFit: { color: '#245E43' },
-  recommendationBadgeTextReview: { color: '#8E2430' },
-  categoryBudgetText: {
-    color: palette.secondary,
-    fontSize: 10,
-    lineHeight: 14,
-    fontWeight: '700',
-  },
-  calculatedPrice: {
-    color: palette.primaryContainer,
-    fontSize: 12,
-    lineHeight: 17,
-    fontWeight: '700',
-  },
-  pricingBasis: {
-    color: palette.secondary,
-    fontSize: 10,
-    lineHeight: 14,
-  },
-  recommendedOption: {
-    color: palette.secondary,
-    fontSize: 11,
-    lineHeight: 16,
-  },
-  recommendationReasonFit: {
-    color: '#2E6D4E',
-    fontSize: 10,
-    lineHeight: 15,
-  },
-  recommendationReasonReview: {
-    color: '#8E2430',
-    fontSize: 10,
-    lineHeight: 15,
-  },
   guestFit: { color: '#2E6D4E', fontSize: 11, lineHeight: 16, fontWeight: '700', marginTop: 3 },
   guestMismatch: { color: '#A12A35', fontSize: 11, lineHeight: 16, fontWeight: '700', marginTop: 3 },
-  tagsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 16,
-  },
-  tag: {
-    borderRadius: 3,
-    backgroundColor: palette.background,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  tagText: {
-    color: palette.secondary,
-    fontSize: 10,
-    lineHeight: 13,
-    fontWeight: '700',
-    letterSpacing: 0.9,
-  },
   changeProviderButton: {
-    minHeight: 42,
+    position: 'absolute',
+    right: 10,
+    bottom: 8,
+    zIndex: 3,
+    minHeight: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 21,
+    borderRadius: 16,
     backgroundColor: palette.primaryContainer,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    marginTop: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
   },
   changeProviderButtonText: {
     color: palette.onPrimary,
