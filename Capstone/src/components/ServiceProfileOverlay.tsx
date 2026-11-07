@@ -4,11 +4,16 @@ import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native'
 
 import { type CatalogService } from '../lib/catalog'
 import { type ServiceReviewInsights } from '../lib/reviews'
-import { ServiceDetailsScreen } from '../screens/08-ServiceDetails'
+import {
+  ServiceDetailsScreen,
+  type ServiceDetailsScreenProps,
+  type ServiceSelectionValue,
+} from '../screens/08-ServiceDetails'
 import { Text } from './AppText'
 
 interface ServiceProfileOverlayProps {
   blurTarget?: React.RefObject<React.ComponentRef<typeof View> | null>
+  detailsProps?: Omit<ServiceDetailsScreenProps, 'onBack' | 'presentation' | 'service'>
   onClose: () => void
   onPlanWithService?: () => void
   reviewInsights?: ServiceReviewInsights
@@ -24,6 +29,7 @@ interface ServiceProfileOverlayProps {
  */
 export const ServiceProfileOverlay: React.FC<ServiceProfileOverlayProps> = ({
   blurTarget,
+  detailsProps,
   onClose,
   onPlanWithService,
   reviewInsights,
@@ -32,21 +38,22 @@ export const ServiceProfileOverlay: React.FC<ServiceProfileOverlayProps> = ({
   showPlanAction = false,
 }) => {
   const [isClosing, setIsClosing] = React.useState(false)
-  const popupScale = React.useRef(new Animated.Value(0.9)).current
+  const [isSubmittingSelection, setIsSubmittingSelection] = React.useState(false)
+  const popupScale = React.useRef(new Animated.Value(0.82)).current
 
   React.useEffect(() => {
-    popupScale.setValue(0.9)
+    popupScale.setValue(0.82)
     const animation = Animated.sequence([
       Animated.timing(popupScale, {
-        toValue: 1.025,
+        toValue: 1.045,
         duration: 180,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
       Animated.spring(popupScale, {
         toValue: 1,
-        friction: 6,
-        tension: 130,
+        friction: 5,
+        tension: 140,
         useNativeDriver: true,
       }),
     ])
@@ -56,18 +63,18 @@ export const ServiceProfileOverlay: React.FC<ServiceProfileOverlayProps> = ({
   }, [popupScale])
 
   const dismissOverlay = () => {
-    if (isClosing) return
+    if (isClosing || isSubmittingSelection) return
 
     setIsClosing(true)
     popupScale.stopAnimation()
     Animated.sequence([
       Animated.timing(popupScale, {
-        toValue: 1.02,
+        toValue: 1.035,
         duration: 80,
         useNativeDriver: true,
       }),
       Animated.timing(popupScale, {
-        toValue: 0.9,
+        toValue: 0.82,
         duration: 160,
         easing: Easing.in(Easing.cubic),
         useNativeDriver: true,
@@ -75,6 +82,18 @@ export const ServiceProfileOverlay: React.FC<ServiceProfileOverlayProps> = ({
     ]).start(({ finished }) => {
       if (finished) onClose()
     })
+  }
+
+  const addSelection = async (value: ServiceSelectionValue) => {
+    if (!detailsProps?.onAddSelection || isSubmittingSelection) return false
+    setIsSubmittingSelection(true)
+    try {
+      const selected = await detailsProps.onAddSelection(value)
+      if (selected === true) dismissOverlay()
+      return selected
+    } finally {
+      setIsSubmittingSelection(false)
+    }
   }
 
   return (
@@ -102,7 +121,7 @@ export const ServiceProfileOverlay: React.FC<ServiceProfileOverlayProps> = ({
             styles.modalShell,
             {
               opacity: popupScale.interpolate({
-                inputRange: [0.9, 1],
+                inputRange: [0.82, 1],
                 outputRange: [0, 1],
                 extrapolate: 'clamp',
               }),
@@ -121,11 +140,13 @@ export const ServiceProfileOverlay: React.FC<ServiceProfileOverlayProps> = ({
               <Text style={styles.closeButtonGlyph}>{'\u00D7'}</Text>
             </Pressable>
             <ServiceDetailsScreen
-              mode="explore"
+              {...detailsProps}
+              mode={detailsProps?.mode ?? 'explore'}
+              onAddSelection={detailsProps?.onAddSelection ? addSelection : undefined}
               onBack={dismissOverlay}
               presentation="overlay"
-              reviewInsights={reviewInsights}
-              reviewInsightsLoading={reviewInsightsLoading}
+              reviewInsights={detailsProps?.reviewInsights ?? reviewInsights}
+              reviewInsightsLoading={detailsProps?.reviewInsightsLoading ?? reviewInsightsLoading}
               service={service}
             />
             {showPlanAction ? (
@@ -168,7 +189,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.66)',
     borderRadius: 24,
     backgroundColor: '#E9EDF0',
-    boxShadow: '9px 9px 20px rgba(157, 169, 178, 0.5)',
+    boxShadow: '3px 4px 8px rgba(62, 72, 80, 0.28)',
   },
   closeButton: {
     position: 'absolute',
@@ -188,7 +209,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.38,
     shadowRadius: 6,
     elevation: 4,
-    boxShadow: '3px 3px 6px rgba(0, 0, 0, 0.38), -3px -3px 6px rgba(255, 255, 255, 0.94)',
+    boxShadow: '3px 3px 6px rgba(0, 0, 0, 0.38)',
   },
   closeButtonGlyph: { color: '#E53935', fontSize: 26, lineHeight: 28, fontWeight: '400' },
   closeButtonPressed: { opacity: 0.72 },

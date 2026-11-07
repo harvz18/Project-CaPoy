@@ -150,7 +150,6 @@ export { BudgetTrackerScreen } from './04.1-BudgetTracker'
 export type { BudgetTrackerTab, MerchantCategory } from './04.1-BudgetTracker'
 export { CategoryBrowseScreen } from './06-CategoryBrowse'
 export type {
-  CategoryBrowseFilter,
   CategoryBrowseTab,
   CategoryBrowseVendor,
 } from './06-CategoryBrowse'

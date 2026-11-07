@@ -13,12 +13,13 @@ import {
 type Props = {
   commissionRate: number
   configuration: PhotoVideoBookingConfiguration
+  neumorphic?: boolean
   onChange: (selection: PhotoVideoSelectionSnapshot) => void
   value?: PhotoVideoSelectionSnapshot
 }
 
-const PackageChoice = ({ active, children, onPress }: React.PropsWithChildren<{ active: boolean; onPress: () => void }>) => (
-  <Pressable accessibilityRole="radio" accessibilityState={{ checked: active }} onPress={onPress} style={[styles.choice, active && styles.choiceActive]}>
+const PackageChoice = ({ active, children, neumorphic, onPress }: React.PropsWithChildren<{ active: boolean; neumorphic: boolean; onPress: () => void }>) => (
+  <Pressable accessibilityRole="radio" accessibilityState={{ checked: active }} onPress={onPress} style={[styles.choice, neumorphic && styles.neoInset, active && styles.choiceActive]}>
     {children}
   </Pressable>
 )
@@ -32,7 +33,7 @@ const Quantity = ({ label, onChange, value }: { label: string; onChange: (value:
   </View>
 )
 
-export const PhotoVideoBookingConfigurator: React.FC<Props> = ({ commissionRate, configuration, onChange, value }) => {
+export const PhotoVideoBookingConfigurator: React.FC<Props> = ({ commissionRate, configuration, neumorphic = false, onChange, value }) => {
   const selection = normalizePhotoVideoSelection(value ?? defaultPhotoVideoSelection())
   const selectedPackage = configuration.packages.find((item) => item.id === selection.packageId)
   const calculation = calculatePhotoVideoSelectionPrice(configuration, selection, commissionRate)
@@ -79,7 +80,7 @@ export const PhotoVideoBookingConfigurator: React.FC<Props> = ({ commissionRate,
       {configuration.packages.map((pkg) => {
         const coverage = configuration.coverageConfigurations.find((item) => item.id === pkg.coverageConfigurationId)
         const inclusions = configuration.deliverables.filter((item) => pkg.deliverableIds.includes(item.id))
-        return <PackageChoice active={selection.selectionMethod === 'package' && pkg.id === selection.packageId} key={pkg.id ?? pkg.name} onPress={() => choosePackage(pkg.id)}>
+        return <PackageChoice active={selection.selectionMethod === 'package' && pkg.id === selection.packageId} key={pkg.id ?? pkg.name} neumorphic={neumorphic} onPress={() => choosePackage(pkg.id)}>
           <View style={styles.choiceHeading}>
             <View style={styles.choiceCopy}>
               <Text style={styles.choiceTitle}>{pkg.name}</Text>
@@ -102,7 +103,7 @@ export const PhotoVideoBookingConfigurator: React.FC<Props> = ({ commissionRate,
         const label = included ? 'Included' : deliverable.pricingMode === 'included'
           ? 'Included'
           : `+${formatPeso(deliverable.price * (1 + commissionRate))}${deliverable.pricingMode === 'per_hour' ? ' / hour' : deliverable.pricingMode === 'per_unit' ? ' / unit' : ''}`
-        return <View key={deliverable.id} style={[styles.optionCard, selected && styles.optionCardActive]}>
+        return <View key={deliverable.id} style={[styles.optionCard, neumorphic && styles.neoInset, selected && styles.optionCardActive]}>
           <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: selected, disabled: included }} disabled={included} onPress={() => toggleDeliverable(deliverable.id)} style={styles.optionHeader}>
             <View style={styles.choiceCopy}><Text style={styles.choiceTitle}>{selected ? '✓ ' : ''}{deliverable.name}</Text><Text style={styles.choiceCaption}>{deliverable.deliveryFormat || deliverable.mediaType}</Text></View>
             <Text style={styles.price}>{label}</Text>
@@ -116,7 +117,7 @@ export const PhotoVideoBookingConfigurator: React.FC<Props> = ({ commissionRate,
       <Text style={styles.sectionTitle}>Optional services</Text>
       {allowedAdditionalServices.map((service) => {
         const entry = selection.additionalServices.find((item) => item.serviceId === service.id)
-        return <View key={service.id} style={[styles.optionCard, entry && styles.optionCardActive]}>
+        return <View key={service.id} style={[styles.optionCard, neumorphic && styles.neoInset, entry && styles.optionCardActive]}>
           <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: Boolean(entry) }} onPress={() => toggleAdditionalService(service.id)} style={styles.optionHeader}>
             <View style={styles.choiceCopy}><Text style={styles.choiceTitle}>{entry ? '✓ ' : ''}{service.name}</Text><Text style={styles.choiceCaption}>Provider optional inclusion</Text></View>
             <Text style={styles.price}>+{formatPeso(service.price * (1 + commissionRate))}{service.pricingUnit === 'hour' ? ' / hour' : service.pricingUnit === 'unit' ? ' / unit' : ''}</Text>
@@ -128,10 +129,10 @@ export const PhotoVideoBookingConfigurator: React.FC<Props> = ({ commissionRate,
 
     {selectedPackage && configuration.supportsAdditionalHours && selectedPackage.maximumCoverageExtensionHours > 0 ? <View style={styles.section}>
       <Text style={styles.sectionTitle}>Additional coverage hours</Text>
-      {selection.additionalHours > 0 ? <><Quantity label={`Up to ${selectedPackage.maximumCoverageExtensionHours} extra hours · ${formatPeso(configuration.additionalHourRate * (1 + commissionRate))}/hour`} onChange={(hours) => set({ additionalHours: Math.min(selectedPackage.maximumCoverageExtensionHours, hours) })} value={selection.additionalHours} /><Pressable onPress={() => set({ additionalHours: 0 })}><Text style={styles.removeText}>Remove additional hours</Text></Pressable></> : <Pressable onPress={() => set({ additionalHours: 1 })} style={styles.addHoursButton}><Text style={styles.selectText}>Add additional hour · {formatPeso(configuration.additionalHourRate * (1 + commissionRate))}/hour</Text></Pressable>}
+      {selection.additionalHours > 0 ? <><Quantity label={`Up to ${selectedPackage.maximumCoverageExtensionHours} extra hours · ${formatPeso(configuration.additionalHourRate * (1 + commissionRate))}/hour`} onChange={(hours) => set({ additionalHours: Math.min(selectedPackage.maximumCoverageExtensionHours, hours) })} value={selection.additionalHours} /><Pressable onPress={() => set({ additionalHours: 0 })}><Text style={styles.removeText}>Remove additional hours</Text></Pressable></> : <Pressable onPress={() => set({ additionalHours: 1 })} style={[styles.addHoursButton, neumorphic && styles.neoRaised]}><Text style={styles.selectText}>Add additional hour · {formatPeso(configuration.additionalHourRate * (1 + commissionRate))}/hour</Text></Pressable>}
     </View> : null}
 
-    <View style={styles.priceSummary}><Text style={styles.priceSummaryLabel}>Current marketplace price</Text><Text style={styles.priceSummaryValue}>{formatPeso(calculation.clientTotal)}</Text><Text style={styles.priceSummaryCopy}>Your selected package and optional inclusions are saved with the booking for provider review.</Text></View>
+    <View style={[styles.priceSummary, neumorphic && styles.neoInset]}><Text style={styles.priceSummaryLabel}>Current marketplace price</Text><Text style={styles.priceSummaryValue}>{formatPeso(calculation.clientTotal)}</Text><Text style={styles.priceSummaryCopy}>Your selected package and optional inclusions are saved with the booking for provider review.</Text></View>
   </View>
 }
 
@@ -164,4 +165,6 @@ const styles = StyleSheet.create({
   priceSummaryLabel: { color: '#5E5E5E', fontSize: 12, fontWeight: '700' },
   priceSummaryValue: { color: '#4E061A', fontSize: 22, fontWeight: '900' },
   priceSummaryCopy: { color: '#5E5E5E', fontSize: 12, lineHeight: 18 },
+  neoRaised: { borderColor: 'rgba(255, 255, 255, 0.72)', backgroundColor: '#E9EDF0', boxShadow: '3px 3px 7px rgba(157, 169, 178, 0.40), -3px -3px 7px rgba(255, 255, 255, 0.92)', elevation: 2 },
+  neoInset: { borderColor: 'rgba(255, 255, 255, 0.72)', backgroundColor: '#E9EDF0', boxShadow: 'inset 3px 3px 7px rgba(157, 169, 178, 0.42), inset -3px -3px 7px rgba(255, 255, 255, 0.94)' },
 })

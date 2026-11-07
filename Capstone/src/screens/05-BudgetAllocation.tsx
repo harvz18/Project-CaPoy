@@ -464,6 +464,14 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
       )
   )
   const [categoryNotice, setCategoryNotice] = React.useState('')
+  const mainScrollRef = React.useRef<React.ComponentRef<typeof ScrollView>>(null)
+  const budgetStickyHeightRef = React.useRef(0)
+  const categoryContentOffsetRef = React.useRef(0)
+  const allocationsSectionOffsetRef = React.useRef(0)
+  const categoryNoticeOffsetRef = React.useRef(0)
+  const categoryNoticeLayoutReadyRef = React.useRef(false)
+  const shouldRevealCategoryNoticeRef = React.useRef(false)
+  const categoryNoticeShake = React.useRef(new Animated.Value(0)).current
   const [pendingRemoval, setPendingRemoval] = React.useState<{
     categoryKey: BudgetPriority
     label: string
@@ -699,6 +707,60 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
     [animateCategoryLayout, categoryDeparture]
   )
 
+  const revealCategoryNotice = React.useCallback(() => {
+    if (!shouldRevealCategoryNoticeRef.current || !categoryNoticeLayoutReadyRef.current) return
+
+    shouldRevealCategoryNoticeRef.current = false
+    const noticeY = categoryContentOffsetRef.current
+      + allocationsSectionOffsetRef.current
+      + categoryNoticeOffsetRef.current
+    const targetY = Math.max(noticeY - budgetStickyHeightRef.current - 12, 0)
+
+    mainScrollRef.current?.scrollTo({ animated: true, y: targetY })
+    categoryNoticeShake.stopAnimation()
+    categoryNoticeShake.setValue(0)
+    Animated.sequence([
+      Animated.delay(240),
+      Animated.timing(categoryNoticeShake, {
+        toValue: -8,
+        duration: 55,
+        useNativeDriver: true,
+      }),
+      Animated.timing(categoryNoticeShake, {
+        toValue: 8,
+        duration: 70,
+        useNativeDriver: true,
+      }),
+      Animated.timing(categoryNoticeShake, {
+        toValue: -6,
+        duration: 65,
+        useNativeDriver: true,
+      }),
+      Animated.timing(categoryNoticeShake, {
+        toValue: 5,
+        duration: 60,
+        useNativeDriver: true,
+      }),
+      Animated.timing(categoryNoticeShake, {
+        toValue: 0,
+        duration: 65,
+        useNativeDriver: true,
+      }),
+    ]).start()
+  }, [categoryNoticeShake])
+
+  const showCategoryErrorNotice = React.useCallback((message: string) => {
+    shouldRevealCategoryNoticeRef.current = true
+    setCategoryNotice(message)
+    requestAnimationFrame(() => {
+      if (categoryNoticeLayoutReadyRef.current) revealCategoryNotice()
+    })
+  }, [revealCategoryNotice])
+
+  React.useEffect(() => {
+    if (!categoryNotice) categoryNoticeLayoutReadyRef.current = false
+  }, [categoryNotice])
+
   const handleCategoryPress = React.useCallback(
     (categoryKey: BudgetPriority) => {
       const currentAmount = allocations[categoryKey]
@@ -710,12 +772,12 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
       }
 
       if (budget <= 0) {
-        setCategoryNotice('Enter an event budget before selecting a service category.')
+        showCategoryErrorNotice('Enter an event budget before selecting a service category.')
         return
       }
 
       if (isMarketplacePricingLoading && categoryKey !== 'eventOrganizer') {
-        setCategoryNotice('Marketplace prices are still loading. Please try this category again in a moment.')
+        showCategoryErrorNotice('Marketplace prices are still loading. Please try this category again in a moment.')
         return
       }
 
@@ -723,14 +785,14 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
       const minimum = minimumForCategory(categoryKey)
 
       if (minimum <= 0) {
-        setCategoryNotice(
+        showCategoryErrorNotice(
           `No eligible ${categoryOptions.find((item) => item.id === categoryKey)?.label ?? 'service'} price can be calculated for this event. Adjust the event details or choose another category.`
         )
         return
       }
 
       if (minimum > available) {
-        setCategoryNotice(
+        showCategoryErrorNotice(
           `At least ${formatMoney(minimum)} remains available to add this category.`
         )
         return
@@ -760,6 +822,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
       isMarketplacePricingLoading,
       lockedCategories,
       minimumForCategory,
+      showCategoryErrorNotice,
       totalAllocated,
     ]
   )
@@ -767,7 +830,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
   const requestCategoryRemoval = React.useCallback(
     (categoryKey: BudgetPriority, label: string) => {
       if (lockedCategories.has(categoryKey)) {
-        setCategoryNotice(`${label} cannot be removed while it has a selected service.`)
+        showCategoryErrorNotice(`${label} cannot be removed while it has a selected service.`)
         return
       }
       if (categoryKey === 'eventOrganizer' && coordinatorMinimum > 0) {
@@ -775,13 +838,13 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
           onRemoveCommittedCoordinator()
           return
         }
-        setCategoryNotice('Event Coordinator cannot be removed while a coordinator cost is committed.')
+        showCategoryErrorNotice('Event Coordinator cannot be removed while a coordinator cost is committed.')
         return
       }
 
       setPendingRemoval({ categoryKey, label })
     },
-    [coordinatorMinimum, lockedCategories, onRemoveCommittedCoordinator]
+    [coordinatorMinimum, lockedCategories, onRemoveCommittedCoordinator, showCategoryErrorNotice]
   )
 
   const confirmCategoryRemoval = React.useCallback(() => {
@@ -919,7 +982,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
 
       const available = Math.max(budget - totalAllocated, 0)
       if (removed.previousAmount > available) {
-        setCategoryNotice(
+        showCategoryErrorNotice(
           `Reselect is unavailable because restoring ${formatMoney(removed.previousAmount)} for ${label} would exceed the remaining budget.`
         )
         return
@@ -946,7 +1009,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
       setCategoryNotice(`${label} was reselected with its previous allocation.`)
       animateCategoryDeparture(categoryKey, true)
     },
-    [animateCategoryDeparture, budget, removedCategories, totalAllocated]
+    [animateCategoryDeparture, budget, removedCategories, showCategoryErrorNotice, totalAllocated]
   )
 
   const draftValue = React.useMemo<BudgetAllocationValue>(() => {
@@ -972,7 +1035,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
 
   const handleContinue = () => {
     if (hasAllocationValidationErrors) {
-      setCategoryNotice('Correct the highlighted category budget before continuing.')
+      showCategoryErrorNotice('Correct the highlighted category budget before continuing.')
       return
     }
 
@@ -1007,6 +1070,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
       <ScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
+        ref={mainScrollRef}
         showsVerticalScrollIndicator={false}
         stickyHeaderIndices={[1]}
         style={styles.mainScroll}
@@ -1020,7 +1084,12 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
           </View>
         </View>
 
-        <View style={styles.budgetStickyContainer}>
+        <View
+          onLayout={(event) => {
+            budgetStickyHeightRef.current = event.nativeEvent.layout.height
+          }}
+          style={styles.budgetStickyContainer}
+        >
           <View style={styles.budgetStickyInner}>
             <View style={styles.budgetSummaryCard}>
           <View style={styles.budgetInputCard}>
@@ -1072,17 +1141,12 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
           />
         </View>
 
-        <View style={styles.contentBody}>
-        {budgetTooLow ? (
-          <View style={styles.errorBanner}>
-            <MaterialIcons color={palette.error} name="error-outline" size={20} />
-            <Text style={styles.errorText}>
-              Raise the event budget to at least {formatMoney(coordinatorMinimum)} to cover the
-              committed coordinator cost.
-            </Text>
-          </View>
-        ) : null}
-
+        <View
+          onLayout={(event) => {
+            categoryContentOffsetRef.current = event.nativeEvent.layout.y
+          }}
+          style={styles.contentBody}
+        >
         {coordinatorPriceUnavailable ? (
           <View style={styles.errorBanner}>
             <MaterialIcons color={palette.error} name="event-busy" size={20} />
@@ -1094,17 +1158,12 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
           </View>
         ) : null}
 
-        {allocationExceeded ? (
-          <View style={styles.errorBanner}>
-            <MaterialIcons color={palette.error} name="error-outline" size={20} />
-            <Text style={styles.errorText}>
-              Allocated category budgets are above the event budget. Raise the total budget or
-              reduce an unlocked category before continuing.
-            </Text>
-          </View>
-        ) : null}
-
-        <View style={styles.allocationsSection}>
+        <View
+          onLayout={(event) => {
+            allocationsSectionOffsetRef.current = event.nativeEvent.layout.y
+          }}
+          style={styles.allocationsSection}
+        >
           <View style={styles.sectionHeading}>
             <Text style={styles.sectionTitle}>CATEGORY BUDGETS</Text>
             <Text style={styles.sectionSubtitle}>
@@ -1113,10 +1172,22 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
           </View>
 
           {categoryNotice ? (
-            <View accessibilityLiveRegion="polite" style={styles.categoryNotice}>
+            <Animated.View
+              accessibilityLiveRegion="polite"
+              accessibilityRole="alert"
+              onLayout={(event) => {
+                categoryNoticeOffsetRef.current = event.nativeEvent.layout.y
+                categoryNoticeLayoutReadyRef.current = true
+                revealCategoryNotice()
+              }}
+              style={[
+                styles.categoryNotice,
+                { transform: [{ translateX: categoryNoticeShake }] },
+              ]}
+            >
               <MaterialIcons color={palette.primaryContainer} name="info-outline" size={18} />
               <Text style={styles.categoryNoticeText}>{categoryNotice}</Text>
-            </View>
+            </Animated.View>
           ) : null}
 
           <View style={styles.categorySelectionContainer}>
@@ -1292,7 +1363,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
         </View>
         </View>
       </ScrollView>
-      {onSkip && coordinatorMinimum === 0 && !coordinatorRequired ? (
+      {onSkip ? (
         <View style={styles.footer}>
           <View style={styles.footerContent}>
             <Pressable

@@ -8,7 +8,6 @@ import {
   Easing,
   Image,
   Modal,
-  PanResponder,
   Platform,
   Pressable,
   RefreshControl,
@@ -81,14 +80,6 @@ const WORDMARK_EXIT_START = 82
 const WORDMARK_EXIT_END = 148
 const HEADER_PLAN_FADE_START = 164
 const HEADER_PLAN_FADE_END = 252
-
-const ADVERTISEMENTS = [
-  { colors: ['#7B1E37', '#C65B76'] as const, id: 'ad-1' },
-  { colors: ['#2B5268', '#6097B1'] as const, id: 'ad-2' },
-  { colors: ['#76512E', '#C49A66'] as const, id: 'ad-3' },
-  { colors: ['#4A3D76', '#9382C1'] as const, id: 'ad-4' },
-  { colors: ['#2E6258', '#6EB19E'] as const, id: 'ad-5' },
-] as const
 
 type QuickAccessId = (typeof QUICK_ACCESS_ITEMS)[number]['id']
 
@@ -299,8 +290,6 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   const searchPromptCharacters = React.useRef(
     Array.from(SEARCH_PROMPT, () => new Animated.Value(0))
   ).current
-  const advertisementFade = React.useRef(new Animated.Value(1)).current
-  const isAdvertisementFading = React.useRef(false)
   const [isDraftPromptVisible, setIsDraftPromptVisible] = React.useState(false)
   const [isStartingNewEvent, setIsStartingNewEvent] = React.useState(false)
   const [showAllBookingProgress, setShowAllBookingProgress] = React.useState(false)
@@ -312,7 +301,6 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   const [isSearchFieldEngaged, setIsSearchFieldEngaged] = React.useState(false)
   const [searchQuery, setSearchQuery] = React.useState('')
   const [searchActivityVersion, setSearchActivityVersion] = React.useState(0)
-  const [activeAdvertisementIndex, setActiveAdvertisementIndex] = React.useState(0)
   const [isHeroPlanCtaInteractive, setIsHeroPlanCtaInteractive] = React.useState(true)
   const [isHeaderPlanCtaInteractive, setIsHeaderPlanCtaInteractive] = React.useState(false)
   const deferredRecommendations = React.useDeferredValue(recommendations)
@@ -502,56 +490,6 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
     const timeout = setTimeout(collapseSearch, 10000)
     return () => clearTimeout(timeout)
   }, [collapseSearch, isSearchExpanded, isSearchFieldEngaged, searchActivityVersion])
-
-  const advanceAdvertisement = React.useCallback((direction = 1) => {
-    if (isAdvertisementFading.current) return
-    isAdvertisementFading.current = true
-
-    Animated.timing(advertisementFade, {
-      duration: 140,
-      easing: Easing.in(Easing.quad),
-      toValue: 0,
-      useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (!finished) {
-        advertisementFade.setValue(1)
-        isAdvertisementFading.current = false
-        return
-      }
-
-      setActiveAdvertisementIndex((current) => (
-        (current + direction + ADVERTISEMENTS.length) % ADVERTISEMENTS.length
-      ))
-      Animated.timing(advertisementFade, {
-        duration: 220,
-        easing: Easing.out(Easing.quad),
-        toValue: 1,
-        useNativeDriver: true,
-      }).start(() => {
-        isAdvertisementFading.current = false
-      })
-    })
-  }, [advertisementFade])
-
-  React.useEffect(() => {
-    const interval = setInterval(() => advanceAdvertisement(), 5000)
-    return () => clearInterval(interval)
-  }, [advanceAdvertisement])
-
-  const advertisementPanResponder = React.useMemo(() => PanResponder.create({
-    onMoveShouldSetPanResponder: (_, gesture) => (
-      Math.abs(gesture.dx) > 8 && Math.abs(gesture.dx) > Math.abs(gesture.dy)
-    ),
-    onPanResponderRelease: (_, gesture) => {
-      if (gesture.dx <= -44) {
-        advanceAdvertisement(1)
-        return
-      }
-      if (gesture.dx >= 44) {
-        advanceAdvertisement(-1)
-      }
-    },
-  }), [advanceAdvertisement])
 
   const handleSearchFocus = () => {
     setIsSearchFieldEngaged(true)
@@ -941,38 +879,6 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
               <View style={styles.featuredBusinessEmpty}><Text style={styles.emptyDraftTitle}>Featured businesses will appear here</Text></View>
             ) : null}
           </ScrollView>
-        </View>
-
-        <View style={styles.advertisementSection}>
-          <View
-            accessibilityHint="Swipe left or right to browse advertisements"
-            accessibilityLabel={`Advertisement ${activeAdvertisementIndex + 1} of ${ADVERTISEMENTS.length}`}
-            accessibilityRole="adjustable"
-            style={styles.advertisementCardWrap}
-          >
-            <Animated.View style={[styles.advertisementFadeLayer, { opacity: advertisementFade }]}>
-              <View style={styles.advertisementCard}>
-                <LinearGradient
-                  colors={ADVERTISEMENTS[activeAdvertisementIndex].colors}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.advertisementGradient}
-                  start={{ x: 0, y: 0 }}
-                >
-                  <Text style={styles.advertisementText}>ADS HERE</Text>
-                </LinearGradient>
-              </View>
-            </Animated.View>
-            <View
-              accessible={false}
-              {...advertisementPanResponder.panHandlers}
-              style={styles.advertisementGestureOverlay}
-            />
-          </View>
-          <View style={styles.advertisementIndicators}>
-            {ADVERTISEMENTS.map((advertisement, index) => (
-              <View key={advertisement.id} style={[styles.advertisementIndicator, index === activeAdvertisementIndex && styles.advertisementIndicatorActive]} />
-            ))}
-          </View>
         </View>
 
         <View style={styles.expertsSection}>
@@ -2015,22 +1921,6 @@ const styles = StyleSheet.create({
   featuredBusinessCopy: { position: 'absolute', right: 12, bottom: 12, left: 12 },
   featuredBusinessName: { color: '#FFFFFF', fontFamily: 'Inter_900Black', fontSize: 18, lineHeight: 22 },
   featuredBusinessEmpty: { width: 220, minHeight: 140, justifyContent: 'center', borderRadius: 24, backgroundColor: '#F2E8E7', padding: 16 },
-  advertisementSection: { marginTop: 12, marginBottom: 4 },
-  advertisementCardWrap: {
-    borderRadius: 28,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.72)',
-    backgroundColor: '#E9EDF0',
-    boxShadow: '8px 8px 17px rgba(157, 169, 178, 0.48), -8px -8px 17px rgba(255, 255, 255, 0.9)',
-  },
-  advertisementFadeLayer: { overflow: 'hidden', borderRadius: 27 },
-  advertisementCard: { height: 168, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderRadius: 27 },
-  advertisementGestureOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
-  advertisementGradient: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center' },
-  advertisementText: { color: '#FFFFFF', fontFamily: 'Inter_900Black', fontSize: 22, letterSpacing: 1.4 },
-  advertisementIndicators: { flexDirection: 'row', alignSelf: 'center', gap: 6, marginTop: 10 },
-  advertisementIndicator: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#D8CECC' },
-  advertisementIndicatorActive: { width: 20, backgroundColor: '#701B30' },
   expertsSection: { position: 'relative', marginTop: 24, marginBottom: 12, paddingTop: 24 },
   expertsBurgundyFade: { position: 'absolute', top: 0, right: -14, left: -14, height: 230 },
   expertsHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 4 },

@@ -1232,9 +1232,10 @@ export const App: React.FC<AppProps> = ({
   }>()
   const [currentServiceId, setCurrentServiceId] = React.useState('')
   const [expertCoordinatorProfile, setExpertCoordinatorProfile] = React.useState<CatalogService>()
+  const coordinatorOverlaySelectionCompletedRef = React.useRef(false)
   const [homeServiceProfile, setHomeServiceProfile] = React.useState<{
     service: CatalogService
-    source: 'featured' | 'recommended'
+    source: 'featured' | 'marketplace' | 'recommended'
   }>()
   const [homeBusinessProfile, setHomeBusinessProfile] = React.useState<CatalogService>()
   const [homeBusinessProfileRating, setHomeBusinessProfileRating] =
@@ -4319,7 +4320,7 @@ export const App: React.FC<AppProps> = ({
   const handleAddSelection = async (value: Parameters<typeof saveServiceSelection>[0]) => {
     if (!supabase) {
       setToastMessage('Supabase is not configured. Check the app environment settings.')
-      return
+      return false
     }
 
     const existingCategorySelection = changingServiceSelection ?? selectedServices.find((service) =>
@@ -4341,7 +4342,7 @@ export const App: React.FC<AppProps> = ({
         nextProviderName: value.service.providerName || 'New provider',
         variant: 'replacement',
       })
-      if (!confirmed) return
+      if (!confirmed) return false
     } else if (existingCategorySelection && existingCategorySelection.id !== value.service.id) {
       const currentProviderName = catalogServices.find((service) => (
         service.id === existingCategorySelection.id
@@ -4355,7 +4356,7 @@ export const App: React.FC<AppProps> = ({
         nextPrice: value.estimatedTotal,
         nextProviderName: value.service.providerName || 'New provider',
       })
-      if (!confirmed) return
+      if (!confirmed) return false
     }
 
     const isNewCategorySelection = !replacementBooking
@@ -4460,7 +4461,7 @@ export const App: React.FC<AppProps> = ({
         setSelectedServices((current) => current.filter((service) => service.id !== optimisticSelection.id))
         setToastMessage('Unable to add the service. Your selection was restored.')
       })
-      return
+      return true
     }
 
     const {
@@ -4471,7 +4472,7 @@ export const App: React.FC<AppProps> = ({
     if (sessionError || !session?.user) {
       setToastMessage('Your session expired. Sign in again with your client account.')
       openLogin('roleSelection')
-      return
+      return false
     }
 
     let result = await saveServiceSelection({
@@ -4495,7 +4496,7 @@ export const App: React.FC<AppProps> = ({
         ? 'This service is above the budget available for its category. Increase the event budget or reduce another category allocation.'
         : result.message
       setToastMessage(message ?? 'Unable to save the service selection.')
-      return
+      return false
     }
 
     if (directCateringFallbackServiceId === value.service.id) {
@@ -4561,7 +4562,7 @@ export const App: React.FC<AppProps> = ({
       const replacementSubmission = await submitBookingReplacementRequest(selectedBooking?.eventId ?? '')
       if (!replacementSubmission.ok) {
         setToastMessage(replacementSubmission.message ?? 'Unable to send the replacement booking request.')
-        return
+        return false
       }
       setReplacementBooking(undefined)
       setCurrentServiceId('')
@@ -4571,7 +4572,7 @@ export const App: React.FC<AppProps> = ({
       setScreen('bookingDetails')
       setReplacementRequestSuccess(submittedReplacement)
       if (replacementEventId) void loadBookingPaymentQuote(replacementEventId)
-      return
+      return true
     }
 
     if (changingServiceSelection) {
@@ -4580,7 +4581,7 @@ export const App: React.FC<AppProps> = ({
       await refreshLiveData()
       await recheckSavedPlan()
       openPlanningHub(undefined, categoryNameToId(nextSelection.category))
-      return
+      return true
     }
 
     setToastMessage(foodTastingPricePending
@@ -4591,6 +4592,7 @@ export const App: React.FC<AppProps> = ({
     await refreshLiveData()
     await recheckSavedPlan()
     openPlanningHub(undefined, nextPlanningCategory ?? categoryNameToId(nextSelection.category))
+    return true
   }
 
   const handleFindAlternativeServices = async (service: NonNullable<BookingItem['services']>[number]) => {
@@ -4665,18 +4667,18 @@ export const App: React.FC<AppProps> = ({
     }
   }
 
-  const handleAssignCoordinator = async () => {
+  const handleAssignCoordinator = async (openPlanningAfterSuccess = true) => {
     if (
       !currentService?.coordinatorUserId ||
       assigningCoordinatorId ||
       assignedCoordinator?.id === currentService.id
     ) {
-      return
+      return false
     }
 
     if (!hasEventOrganizerBudget) {
       setToastMessage('Allocate a positive Event Organizer budget before choosing a coordinator.')
-      return
+      return false
     }
 
     setAssigningCoordinatorId(currentService.id)
@@ -4685,7 +4687,7 @@ export const App: React.FC<AppProps> = ({
 
     if (!result.ok) {
       setToastMessage(result.message ?? 'Unable to assign this coordinator.')
-      return
+      return false
     }
 
     setAssignedCoordinator({
@@ -4706,7 +4708,8 @@ export const App: React.FC<AppProps> = ({
     )
     await refreshLiveData()
     await recheckSavedPlan()
-    openPlanningHub(undefined, defaultPlanningCategory)
+    if (openPlanningAfterSuccess) openPlanningHub(undefined, defaultPlanningCategory)
+    return true
   }
 
   const handleRemoveCoordinator = async () => {
@@ -7379,17 +7382,18 @@ export const App: React.FC<AppProps> = ({
             style={[styles.screenTransition, { transform: [{ translateX: categoryBrowseEntrance }] }]}
           >
             <CategoryBrowseScreen
-            catalogLoadStatus={catalogLoadStatus}
-            categoryCountServices={replacementBooking
-              ? catalogServices
-              : serviceBrowseMode === 'planning' ? planningCatalogServices : catalogServices}
-            categoryBudgets={planningCategoryBudgets}
-            favoritePendingServiceIds={favoritePendingServiceIds}
-            favoriteServiceIds={favoriteServiceIds}
-            showFavoritesOnly={serviceBrowseMode === 'explore' && exploreFavoritesOnly}
-            addableCategories={serviceBrowseMode === 'planning' && !changingServiceSelection
-              ? addablePlanningServiceCategories
-              : []}
+              catalogLoadStatus={catalogLoadStatus}
+              blurTarget={expertCoordinatorBlurTargetRef}
+              categoryCountServices={replacementBooking
+                ? catalogServices
+                : serviceBrowseMode === 'planning' ? planningCatalogServices : catalogServices}
+              categoryBudgets={planningCategoryBudgets}
+              favoritePendingServiceIds={favoritePendingServiceIds}
+              favoriteServiceIds={favoriteServiceIds}
+              showFavoritesOnly={serviceBrowseMode === 'explore' && exploreFavoritesOnly}
+              addableCategories={serviceBrowseMode === 'planning' && !changingServiceSelection
+                ? addablePlanningServiceCategories
+                : []}
             categories={replacementBooking
               ? serviceCategories.filter((category) => (
                   categoryNameToId(category.name) === categoryNameToId(replacementBooking.category)
@@ -7560,14 +7564,21 @@ export const App: React.FC<AppProps> = ({
                 return false
               }
 
-              setBudgetAllocations((current) => {
-                if (current.some((item) => item.categoryKey === planningCategory.categoryKey)) {
-                  return current
-                }
-                return [
-                  ...current,
-                  { amount: 0, categoryKey: planningCategory.categoryKey, label: category.name },
-                ]
+              const nextAllocations = budgetAllocations.some(
+                (item) => item.categoryKey === planningCategory.categoryKey
+              )
+                ? budgetAllocations
+                : [
+                    ...budgetAllocations,
+                    { amount: 0, categoryKey: planningCategory.categoryKey, label: category.name },
+                  ]
+              React.startTransition(() => setBudgetAllocations(nextAllocations))
+              persistClientPlanningResume({
+                budgetDraft: {
+                  allocations: nextAllocations,
+                  budget: totalBudget,
+                  priorities: budgetPriorities,
+                },
               })
               // Adding a category changes plan membership only. Browsing that
               // category remains an explicit action so the popup can finish
@@ -7611,6 +7622,13 @@ export const App: React.FC<AppProps> = ({
 
               setBudgetAllocations(nextAllocations)
               setBudgetPriorities(nextPriorities)
+              persistClientPlanningResume({
+                budgetDraft: {
+                  allocations: nextAllocations,
+                  budget: totalBudget,
+                  priorities: nextPriorities,
+                },
+              })
               const fallbackCategory = selectedCategory === categoryId
                 ? getFirstServicePlanningCategory(nextAllocations)
                 : undefined
@@ -7660,11 +7678,15 @@ export const App: React.FC<AppProps> = ({
                 return
               }
               setCurrentServiceId(vendorId)
-              setScreen(
-                selectedVendor?.kind === 'coordinator'
-                  ? 'coordinatorDetails'
-                  : 'serviceDetails'
-              )
+              if (selectedVendor?.kind === 'coordinator') {
+                setExpertCoordinatorProfile(selectedVendor)
+                return
+              }
+              if (selectedVendor) {
+                setHomeServiceProfile({ service: selectedVendor, source: 'marketplace' })
+                return
+              }
+              setToastMessage('This service is no longer available.')
             }}
             onSelectTab={(tab) => {
               if (tab === 'budget') setScreen('budgetAllocation')
@@ -7689,7 +7711,7 @@ export const App: React.FC<AppProps> = ({
       case 'serviceDetails':
         return (
           <ServiceDetailsScreen
-            availableCategoryBudget={categoryBudgetMaximum}
+            categoryBudget={selectedCategoryBudget}
             eventDate={eventDetails.date}
             eventGuestCount={eventDetails.guestCount}
             eventTime={eventDetails.time}
@@ -7698,7 +7720,6 @@ export const App: React.FC<AppProps> = ({
             hasBudget={hasConfiguredPlanningBudget}
             isChangingSelection={Boolean(changingServiceSelection)}
             isReplacementSelection={Boolean(replacementBooking)}
-            allowBudgetOverage={Boolean(replacementBooking)}
             initialFoodTastingPreference={
               directCateringFallbackServiceId === currentService?.id ? false : undefined
             }
@@ -8240,15 +8261,62 @@ export const App: React.FC<AppProps> = ({
         />
         {expertCoordinatorProfile ? (
           <CoordinatorProfileOverlay
+            assigning={assigningCoordinatorId === expertCoordinatorProfile.id}
             blurTarget={expertCoordinatorBlurTargetRef}
-            onClose={() => setExpertCoordinatorProfile(undefined)}
+            coordinatorBookingEnabled={screen === 'categoryBrowse' && hasEventOrganizerBudget}
+            isAssigned={assignedCoordinator?.id === expertCoordinatorProfile.id}
+            mode={screen === 'categoryBrowse' ? serviceBrowseMode : 'explore'}
+            onClose={() => {
+              setExpertCoordinatorProfile(undefined)
+              if (coordinatorOverlaySelectionCompletedRef.current) {
+                coordinatorOverlaySelectionCompletedRef.current = false
+                openPlanningHub(undefined, defaultPlanningCategory)
+              }
+            }}
+            onSelectProvider={screen === 'categoryBrowse' && serviceBrowseMode === 'planning'
+              ? async () => {
+                  const selected = await handleAssignCoordinator(false)
+                  coordinatorOverlaySelectionCompletedRef.current = selected
+                  return selected
+                }
+              : undefined}
             service={expertCoordinatorProfile}
           />
         ) : null}
         {homeServiceProfile ? (
           <ServiceProfileOverlay
             blurTarget={expertCoordinatorBlurTargetRef}
-            onClose={() => setHomeServiceProfile(undefined)}
+            detailsProps={homeServiceProfile.source === 'marketplace' ? {
+              categoryBudget: selectedCategoryBudget,
+              eventDate: eventDetails.date,
+              eventGuestCount: eventDetails.guestCount,
+              eventTime: eventDetails.time,
+              hasBudget: hasConfiguredPlanningBudget,
+              initialFoodTastingPreference:
+                directCateringFallbackServiceId === homeServiceProfile.service.id ? false : undefined,
+              initialPhotoVideoSelection:
+                photoVideoSelectionDraft?.serviceId === homeServiceProfile.service.id
+                  ? photoVideoSelectionDraft.selection
+                  : undefined,
+              isChangingSelection: Boolean(changingServiceSelection),
+              isReplacementSelection: Boolean(replacementBooking),
+              mode: serviceBrowseMode,
+              onAddSelection: handleAddSelection,
+              onCalculateQuote: calculateServiceDetailsQuote,
+              onLoadFoodTastingDraft: handleLoadCateringTastingDraft,
+              onPhotoVideoSelectionChange: (selection) => {
+                const draft = { selection, serviceId: homeServiceProfile.service.id }
+                setPhotoVideoSelectionDraft(draft)
+                persistClientPlanningResume({ photoVideoSelectionDraft: draft })
+              },
+              onSaveFoodTastingDraft: handleSaveCateringTastingDraft,
+              reviewInsights: serviceReviewInsights,
+              reviewInsightsLoading: serviceReviewInsightsLoading,
+            } : undefined}
+            onClose={() => {
+              if (homeServiceProfile.source === 'marketplace') setCurrentServiceId('')
+              setHomeServiceProfile(undefined)
+            }}
             onPlanWithService={() => {
               setHomeServiceProfile(undefined)
               void startNewClientEvent()

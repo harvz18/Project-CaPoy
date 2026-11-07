@@ -8,8 +8,13 @@ import { type CatalogService } from '../lib/catalog'
 import { CoordinatorDetailsScreen } from '../screens/06.1-CoordinatorDetails'
 
 interface CoordinatorProfileOverlayProps {
+  assigning?: boolean
   blurTarget?: React.RefObject<React.ComponentRef<typeof View> | null>
+  coordinatorBookingEnabled?: boolean
+  isAssigned?: boolean
+  mode?: 'explore' | 'planning'
   onClose: () => void
+  onSelectProvider?: () => boolean | Promise<boolean>
   service: CatalogService
 }
 
@@ -18,27 +23,32 @@ const initialsFrom = (name: string) => (
 )
 
 export const CoordinatorProfileOverlay: React.FC<CoordinatorProfileOverlayProps> = ({
+  assigning = false,
   blurTarget,
+  coordinatorBookingEnabled = false,
+  isAssigned = false,
+  mode = 'explore',
   onClose,
+  onSelectProvider,
   service,
 }) => {
   const [isClosing, setIsClosing] = React.useState(false)
-  const popupScale = React.useRef(new Animated.Value(0.9)).current
+  const popupScale = React.useRef(new Animated.Value(0.82)).current
   const coordinatorName = service.name || 'Event Coordinator'
 
   React.useEffect(() => {
-    popupScale.setValue(0.9)
+    popupScale.setValue(0.82)
     const animation = Animated.sequence([
       Animated.timing(popupScale, {
-        toValue: 1.025,
+        toValue: 1.045,
         duration: 180,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
       Animated.spring(popupScale, {
         toValue: 1,
-        friction: 6,
-        tension: 130,
+        friction: 5,
+        tension: 140,
         useNativeDriver: true,
       }),
     ])
@@ -48,18 +58,18 @@ export const CoordinatorProfileOverlay: React.FC<CoordinatorProfileOverlayProps>
   }, [popupScale])
 
   const dismissOverlay = () => {
-    if (isClosing) return
+    if (isClosing || assigning) return
 
     setIsClosing(true)
     popupScale.stopAnimation()
     Animated.sequence([
       Animated.timing(popupScale, {
-        toValue: 1.02,
+        toValue: 1.035,
         duration: 80,
         useNativeDriver: true,
       }),
       Animated.timing(popupScale, {
-        toValue: 0.9,
+        toValue: 0.82,
         duration: 160,
         easing: Easing.in(Easing.cubic),
         useNativeDriver: true,
@@ -67,6 +77,12 @@ export const CoordinatorProfileOverlay: React.FC<CoordinatorProfileOverlayProps>
     ]).start(({ finished }) => {
       if (finished) onClose()
     })
+  }
+
+  const selectCoordinator = async () => {
+    if (!onSelectProvider || assigning || isClosing) return
+    const selected = await onSelectProvider()
+    if (selected) dismissOverlay()
   }
 
   return (
@@ -94,7 +110,7 @@ export const CoordinatorProfileOverlay: React.FC<CoordinatorProfileOverlayProps>
             styles.modalShell,
             {
               opacity: popupScale.interpolate({
-                inputRange: [0.9, 1],
+                  inputRange: [0.82, 1],
                 outputRange: [0, 1],
                 extrapolate: 'clamp',
               }),
@@ -136,7 +152,11 @@ export const CoordinatorProfileOverlay: React.FC<CoordinatorProfileOverlayProps>
             </Pressable>
             <View style={styles.detailsClip}>
               <CoordinatorDetailsScreen
-                mode="explore"
+                assigning={assigning}
+                coordinatorBookingEnabled={coordinatorBookingEnabled}
+                isAssigned={isAssigned}
+                mode={mode}
+                onSelectProvider={() => void selectCoordinator()}
                 presentation="overlay"
                 service={service}
                 showProfileImage={false}
@@ -176,7 +196,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.66)',
     borderRadius: 24,
     backgroundColor: '#E9EDF0',
-    boxShadow: '9px 9px 20px rgba(157, 169, 178, 0.5)',
+    boxShadow: '3px 4px 8px rgba(62, 72, 80, 0.28)',
   },
   detailsClip: { flex: 1, overflow: 'hidden', borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
   profileHeader: {

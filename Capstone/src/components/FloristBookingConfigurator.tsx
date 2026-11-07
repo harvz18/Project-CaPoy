@@ -12,6 +12,7 @@ import { formatPeso } from '../lib/catalog'
 
 type Props = {
   configuration: FloristServiceConfiguration
+  neumorphic?: boolean
   onChange: (selection: FloristSelectionSnapshot) => void
   value: FloristSelectionSnapshot
 }
@@ -29,7 +30,7 @@ const updateArrangement = (
   ),
 })
 
-export const FloristBookingConfigurator: React.FC<Props> = ({ configuration, onChange, value }) => {
+export const FloristBookingConfigurator: React.FC<Props> = ({ configuration, neumorphic = false, onChange, value }) => {
   const selected = value ?? defaultSelection()
   const selectedPackage = configuration.packages.find((item) => item.id === selected.packageId)
   const selectedArrangements = new Map(selected.selectedArrangements.map((item) => [item.arrangementId, item]))
@@ -88,7 +89,7 @@ export const FloristBookingConfigurator: React.FC<Props> = ({ configuration, onC
       {configuration.packages.length > 0 && configuration.arrangements.length > 0 ? <View style={styles.methodRow}>
         {(['custom', 'package'] as const).map((method) => {
           const active = method === 'package' ? Boolean(selected.packageId) : !selected.packageId
-          return <Pressable key={method} accessibilityRole="button" onPress={() => setMethod(method)} style={[styles.methodButton, active && styles.methodButtonActive]}>
+          return <Pressable key={method} accessibilityRole="button" onPress={() => setMethod(method)} style={[styles.methodButton, neumorphic && styles.neoRaised, active && styles.methodButtonActive]}>
             <Text style={[styles.methodText, active && styles.methodTextActive]}>{method === 'package' ? 'Wedding package' : 'Customize flowers'}</Text>
           </Pressable>
         })}
@@ -96,7 +97,7 @@ export const FloristBookingConfigurator: React.FC<Props> = ({ configuration, onC
 
       {configuration.packages.length > 0 && (selected.packageId || configuration.arrangements.length === 0) ? <View style={styles.section}>
         <Text style={styles.sectionTitle}>Packages</Text>
-        {configuration.packages.map((pkg) => <Pressable key={pkg.id} accessibilityRole="button" onPress={() => choosePackage(pkg.id)} style={[styles.choiceRow, selected.packageId === pkg.id && styles.choiceRowActive]}>
+        {configuration.packages.map((pkg) => <Pressable key={pkg.id} accessibilityRole="button" onPress={() => choosePackage(pkg.id)} style={[styles.choiceRow, neumorphic && styles.neoInset, selected.packageId === pkg.id && styles.choiceRowActive]}>
           <View><Text style={styles.choiceTitle}>{pkg.name}</Text><Text style={styles.choiceCaption}>{pkg.inclusions.length} included arrangement{pkg.inclusions.length === 1 ? '' : 's'}</Text></View>
           <Text style={styles.price}>{formatPeso(pkg.price)}</Text>
         </Pressable>)}
@@ -107,7 +108,7 @@ export const FloristBookingConfigurator: React.FC<Props> = ({ configuration, onC
             return <Pressable key={addOn.id} accessibilityRole="checkbox" accessibilityState={{ checked: active }} onPress={() => onChange({
               ...selected,
               packageAddOnIds: active ? selected.packageAddOnIds?.filter((id) => id !== addOn.id) : [...(selected.packageAddOnIds ?? []), addOn.id],
-            })} style={[styles.choiceRow, active && styles.choiceRowActive]}>
+            })} style={[styles.choiceRow, neumorphic && styles.neoInset, active && styles.choiceRowActive]}>
               <Text style={styles.choiceTitle}>{active ? '✓ ' : ''}{addOn.name}</Text><Text style={styles.price}>+{formatPeso(addOn.price)}</Text>
             </Pressable>
           })}
@@ -119,12 +120,12 @@ export const FloristBookingConfigurator: React.FC<Props> = ({ configuration, onC
         {selectableArrangements.map((arrangement) => {
           const current = selectedArrangements.get(arrangement.id)
           const packageItem = selectedPackage?.inclusions.find((item) => item.arrangementId === arrangement.id)
-          return <View key={arrangement.id} style={[styles.arrangement, current && styles.arrangementActive]}>
+          return <View key={arrangement.id} style={[styles.arrangement, neumorphic && styles.neoInset, current && styles.arrangementActive]}>
             <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: Boolean(current) }} onPress={() => toggleArrangement(arrangement)} style={styles.arrangementHeader}>
               <View><Text style={styles.choiceTitle}>{current ? '✓ ' : ''}{arrangement.name}</Text><Text style={styles.choiceCaption}>{arrangement.category} · {formatPeso(arrangement.basePrice)} / {arrangement.pricingUnit}</Text></View>
               <Text style={styles.selectLabel}>{current ? 'Selected' : 'Select'}</Text>
             </Pressable>
-            {current ? <View style={styles.configBody}>
+            {current ? <View style={[styles.configBody, neumorphic && styles.neoConfigBody]}>
               {!packageItem ? <View style={styles.quantityRow}>
                 <Text style={styles.inputLabel}>Quantity</Text>
                 <Pressable accessibilityLabel={`Decrease ${arrangement.name} quantity`} onPress={() => onChange(updateArrangement(selected, arrangement, (item) => ({ ...item, quantity: Math.max(arrangement.minimumQuantity, item.quantity - 1) })))} style={styles.quantityButton}><Text style={styles.quantityButtonText}>−</Text></Pressable>
@@ -145,7 +146,7 @@ export const FloristBookingConfigurator: React.FC<Props> = ({ configuration, onC
                     }}
                     placeholder={group.selectionType === 'image' ? 'Reference image link (optional)' : 'Add instructions'}
                     placeholderTextColor="#777"
-                    style={styles.textInput}
+                    style={[styles.textInput, neumorphic && styles.neoInput]}
                     value={groupSelections[0]?.value ?? ''}
                   /> : group.selectionType === 'quantity' ? group.options.map((option) => {
                     const quantity = groupSelections.find((item) => item.optionId === option.id)?.quantity ?? 0
@@ -156,7 +157,7 @@ export const FloristBookingConfigurator: React.FC<Props> = ({ configuration, onC
                         ...(nextQuantity > 0 ? [{ optionId: option.id, optionGroupId: group.id, quantity: nextQuantity }] : []),
                       ],
                     })))
-                    return <View key={option.id} style={styles.quantityOptionRow}>
+                    return <View key={option.id} style={[styles.quantityOptionRow, neumorphic && styles.neoRaised]}>
                       <View><Text style={styles.optionText}>{option.name}</Text><Text style={styles.choiceCaption}>+{formatPeso(option.priceModifier)} each</Text></View>
                       <View style={styles.quantityControls}>
                         <Pressable accessibilityLabel={`Decrease ${option.name}`} disabled={quantity === 0} onPress={() => setQuantity(quantity - 1)} style={[styles.quantityButton, quantity === 0 && styles.quantityButtonDisabled]}><Text style={styles.quantityButtonText}>−</Text></Pressable>
@@ -170,7 +171,7 @@ export const FloristBookingConfigurator: React.FC<Props> = ({ configuration, onC
                       if (group.selectionType === 'single') {
                         onChange(updateArrangement(selected, arrangement, (item) => ({ ...item, selectedOptions: [...item.selectedOptions.filter((entry) => entry.optionGroupId !== group.id), { optionId: option.id, optionGroupId: group.id }] })))
                       } else updateOption(arrangement, { optionId: option.id, optionGroupId: group.id }, !picked)
-                    }} style={[styles.optionRow, picked && styles.optionRowActive]}>
+                    }} style={[styles.optionRow, neumorphic && styles.neoRaised, picked && styles.optionRowActive]}>
                       <Text style={styles.optionText}>{picked ? '✓ ' : ''}{option.name}</Text><Text style={styles.choiceCaption}>{option.priceModifier > 0 ? `+${formatPeso(option.priceModifier)}` : 'Included'}</Text>
                     </Pressable>
                   })}
@@ -183,7 +184,7 @@ export const FloristBookingConfigurator: React.FC<Props> = ({ configuration, onC
 
       {configuration.fulfillmentOptions.length > 0 ? <View style={styles.section}>
         <Text style={styles.sectionTitle}>Fulfillment</Text>
-        {configuration.fulfillmentOptions.map((option) => <Pressable key={option.id} accessibilityRole="radio" accessibilityState={{ checked: selected.fulfillmentOptionId === option.id }} onPress={() => onChange({ ...selected, fulfillmentOptionId: option.id })} style={[styles.choiceRow, selected.fulfillmentOptionId === option.id && styles.choiceRowActive]}>
+        {configuration.fulfillmentOptions.map((option) => <Pressable key={option.id} accessibilityRole="radio" accessibilityState={{ checked: selected.fulfillmentOptionId === option.id }} onPress={() => onChange({ ...selected, fulfillmentOptionId: option.id })} style={[styles.choiceRow, neumorphic && styles.neoInset, selected.fulfillmentOptionId === option.id && styles.choiceRowActive]}>
           <Text style={styles.choiceTitle}>{selected.fulfillmentOptionId === option.id ? '✓ ' : ''}{option.name}</Text><Text style={styles.price}>{option.price > 0 ? `+${formatPeso(option.price)}` : 'Included'}</Text>
         </Pressable>)}
       </View> : null}
@@ -193,4 +194,8 @@ export const FloristBookingConfigurator: React.FC<Props> = ({ configuration, onC
 
 const styles = StyleSheet.create({
   root: { gap: 12 }, heading: { color: '#4E061A', fontSize: 20, fontWeight: '800' }, caption: { color: '#5E5E5E', fontSize: 13, lineHeight: 19 }, section: { borderTopColor: '#E2E2E2', borderTopWidth: 1, gap: 8, paddingTop: 14 }, sectionTitle: { color: '#1A1C1C', fontSize: 16, fontWeight: '800' }, methodRow: { flexDirection: 'row', gap: 8 }, methodButton: { borderColor: '#D8CDD0', borderRadius: 10, borderWidth: 1, flex: 1, padding: 11 }, methodButtonActive: { backgroundColor: '#FDF4F6', borderColor: '#4E061A' }, methodText: { color: '#4E061A', fontWeight: '700', textAlign: 'center' }, methodTextActive: { color: '#4E061A' }, choiceRow: { alignItems: 'center', borderColor: '#E2E2E2', borderRadius: 10, borderWidth: 1, flexDirection: 'row', justifyContent: 'space-between', padding: 12 }, choiceRowActive: { backgroundColor: '#FDF4F6', borderColor: '#6B1E2E' }, choiceTitle: { color: '#1A1C1C', fontSize: 14, fontWeight: '700' }, choiceCaption: { color: '#5E5E5E', fontSize: 12, marginTop: 3 }, price: { color: '#4E061A', fontSize: 13, fontWeight: '800' }, addOnList: { gap: 8, marginTop: 4 }, arrangement: { borderColor: '#E2E2E2', borderRadius: 12, borderWidth: 1, marginTop: 8, overflow: 'hidden' }, arrangementActive: { borderColor: '#6B1E2E' }, arrangementHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', padding: 12 }, selectLabel: { color: '#4E061A', fontSize: 12, fontWeight: '800' }, configBody: { backgroundColor: '#FAF8F8', gap: 10, padding: 12 }, quantityRow: { alignItems: 'center', flexDirection: 'row', gap: 10 }, quantityOptionRow: { alignItems: 'center', borderColor: '#E2E2E2', borderRadius: 8, borderWidth: 1, flexDirection: 'row', justifyContent: 'space-between', padding: 10 }, quantityControls: { alignItems: 'center', flexDirection: 'row', gap: 8 }, inputLabel: { color: '#303033', fontSize: 12, fontWeight: '800' }, quantityButton: { alignItems: 'center', backgroundColor: '#4E061A', borderRadius: 16, height: 32, justifyContent: 'center', width: 32 }, quantityButtonDisabled: { backgroundColor: '#B7A7AA' }, quantityButtonText: { color: '#FFF', fontSize: 20, fontWeight: '800' }, quantityValue: { color: '#1A1C1C', fontSize: 15, fontWeight: '800', minWidth: 20, textAlign: 'center' }, group: { gap: 6 }, optionRow: { alignItems: 'center', borderColor: '#E2E2E2', borderRadius: 8, borderWidth: 1, flexDirection: 'row', justifyContent: 'space-between', padding: 10 }, optionRowActive: { borderColor: '#6B1E2E', backgroundColor: '#FFF8F9' }, optionText: { color: '#303033', fontSize: 13, fontWeight: '600' }, textInput: { backgroundColor: '#FFF', borderColor: '#D8CDD0', borderRadius: 8, borderWidth: 1, color: '#1A1C1C', minHeight: 40, paddingHorizontal: 10, paddingVertical: 8 },
+  neoRaised: { borderColor: 'rgba(255, 255, 255, 0.72)', backgroundColor: '#E9EDF0', boxShadow: '3px 3px 7px rgba(157, 169, 178, 0.40), -3px -3px 7px rgba(255, 255, 255, 0.92)', elevation: 2 },
+  neoInset: { borderColor: 'rgba(255, 255, 255, 0.72)', backgroundColor: '#E9EDF0', boxShadow: 'inset 3px 3px 7px rgba(157, 169, 178, 0.42), inset -3px -3px 7px rgba(255, 255, 255, 0.94)' },
+  neoConfigBody: { backgroundColor: '#E9EDF0', borderTopWidth: 1, borderTopColor: 'rgba(157, 169, 178, 0.24)' },
+  neoInput: { borderColor: 'rgba(255, 255, 255, 0.72)', backgroundColor: '#E9EDF0', boxShadow: 'inset 2px 2px 5px rgba(157, 169, 178, 0.40), inset -2px -2px 5px rgba(255, 255, 255, 0.92)' },
 })
