@@ -2,6 +2,10 @@ import { Text } from '../components/AppText'
 import React from 'react'
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { PlanningScreenHeader } from '../components/PlanningScreenHeader'
+import {
+  EVENT_BOOKING_LEAD_TIME_MESSAGE,
+  minimumEventBookingDate,
+} from '../lib/event-booking-lead-time'
 
 export interface ScheduleConflictProvider {
   available: boolean
@@ -49,8 +53,6 @@ const defaultProviders: ScheduleConflictProvider[] = [
 
 const weekdays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 const padTwo = (value: number) => value.toString().padStart(2, '0')
-const startOfDay = (value: Date) =>
-  new Date(value.getFullYear(), value.getMonth(), value.getDate())
 const parseEventDate = (value?: string) => {
   if (!value) return null
   const slashMatch = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(value)
@@ -79,11 +81,11 @@ export const ScheduleConflictScreen: React.FC<ScheduleConflictScreenProps> = ({
   onMessageProvider,
   onRecheckAvailability,
 }) => {
-  const today = React.useMemo(() => startOfDay(new Date()), [])
+  const minimumDate = React.useMemo(() => minimumEventBookingDate(), [])
   const initialDate = React.useMemo(() => {
     const parsed = parseEventDate(eventDate)
-    return parsed && parsed >= today ? parsed : today
-  }, [eventDate, today])
+    return parsed && parsed >= minimumDate ? parsed : minimumDate
+  }, [eventDate, minimumDate])
   const [dateProvider, setDateProvider] = React.useState<ScheduleConflictProvider>()
   const [selectedDate, setSelectedDate] = React.useState(initialDate)
   const [visibleMonth, setVisibleMonth] = React.useState(
@@ -103,9 +105,9 @@ export const ScheduleConflictScreen: React.FC<ScheduleConflictScreenProps> = ({
     1
   ).getDay()
   const canGoToPreviousMonth =
-    visibleMonth.getFullYear() > today.getFullYear() ||
-    (visibleMonth.getFullYear() === today.getFullYear() &&
-      visibleMonth.getMonth() > today.getMonth())
+    visibleMonth.getFullYear() > minimumDate.getFullYear() ||
+    (visibleMonth.getFullYear() === minimumDate.getFullYear() &&
+      visibleMonth.getMonth() > minimumDate.getMonth())
   const dateIsUnchanged = isSameDay(selectedDate, initialDate)
 
   const openDateCalendar = (provider: ScheduleConflictProvider) => {
@@ -286,6 +288,7 @@ export const ScheduleConflictScreen: React.FC<ScheduleConflictScreenProps> = ({
             <Text style={styles.calendarSubtitle}>
               We&apos;ll recheck every selected provider after you confirm.
             </Text>
+            <Text style={styles.calendarLeadTimeHint}>{EVENT_BOOKING_LEAD_TIME_MESSAGE}</Text>
 
             <View style={styles.monthHeader}>
               <Pressable
@@ -341,7 +344,7 @@ export const ScheduleConflictScreen: React.FC<ScheduleConflictScreenProps> = ({
                   visibleMonth.getMonth(),
                   index + 1
                 )
-                const disabled = date < today
+                const disabled = date < minimumDate
                 const selected = isSameDay(date, selectedDate)
 
                 return (
@@ -735,6 +738,13 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     textAlign: 'center',
     marginTop: 5,
+  },
+  calendarLeadTimeHint: {
+    color: palette.greyMid,
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 14,
+    textAlign: 'center',
   },
   monthHeader: {
     flexDirection: 'row',

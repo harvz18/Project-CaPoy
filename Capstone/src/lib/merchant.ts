@@ -1,4 +1,5 @@
 import { supabase, supabaseConfig } from './supabase'
+import { EVENT_BOOKING_LEAD_TIME_MESSAGE, isEventDateBookable } from './event-booking-lead-time'
 import type { CateringServiceType } from './catalog'
 import {
   categoryDetailsForStorage,
@@ -1349,6 +1350,9 @@ export const rescheduleClientEventBookings = async (
     }
     if (!date) {
       return { ok: false, message: 'Enter the new date as YYYY-MM-DD or MM/DD/YYYY.' }
+    }
+    if (!isEventDateBookable(date)) {
+      return { ok: false, message: EVENT_BOOKING_LEAD_TIME_MESSAGE }
     }
     if (!time) {
       return { ok: false, message: 'Enter a valid time, such as 2:30 PM.' }

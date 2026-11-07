@@ -11,6 +11,7 @@ import type { CateringFoodTastingSlot, CateringFoodTastingSlotsResult } from '..
 import { formatPeso } from '../lib/catalog'
 import type { EventPaymentQuote } from '../lib/planning'
 import { canOpenEventLocation, openEventLocation } from '../lib/event-location'
+import { EVENT_BOOKING_LEAD_TIME_MESSAGE, isEventDateBookable } from '../lib/event-booking-lead-time'
 import type { BookingItem } from './11-BookingScreen'
 
 export interface BookingChangeActionResult {
@@ -598,6 +599,10 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
 
   const submitReschedule = async () => {
     if (!onRescheduleBooking || isSubmittingChange) return
+    if (!isEventDateBookable(newDate)) {
+      setChangeError(EVENT_BOOKING_LEAD_TIME_MESSAGE)
+      return
+    }
     setIsSubmittingChange(true)
     setChangeError('')
     const result = await onRescheduleBooking({ date: newDate, time: newTime })

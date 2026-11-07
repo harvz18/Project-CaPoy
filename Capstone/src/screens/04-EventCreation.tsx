@@ -23,6 +23,11 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { BlurView } from 'expo-blur'
 import { PlanningScreenHeader } from '../components/PlanningScreenHeader'
 import { hasMapTilerVenueMap, MapTilerVenueMap } from '../components/MapTilerVenueMap'
+import {
+  EVENT_BOOKING_LEAD_TIME_MESSAGE,
+  isEventDateBookable,
+  minimumEventBookingDate,
+} from '../lib/event-booking-lead-time'
 
 export type EventType = 'wedding' | 'preWedding' | 'postWedding'
 export type VenueStatus = 'secured' | 'searching'
@@ -230,9 +235,6 @@ const isSameLocalDay = (first: Date, second: Date) =>
   first.getFullYear() === second.getFullYear() &&
   first.getMonth() === second.getMonth() &&
   first.getDate() === second.getDate()
-
-const addLocalDays = (date: Date, days: number) =>
-  new Date(date.getFullYear(), date.getMonth(), date.getDate() + days)
 
 const parseTimeParts = (value: string) => {
   const match = value.trim().match(/^(\d{1,2}):(\d{2})\s?(AM|PM)$/i)
@@ -652,7 +654,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
     const isStillIncomplete = {
       churchWedding: shouldAskChurchQuestion && typeof isChurchWedding !== 'boolean',
       coordinator: typeof wantsCoordinator !== 'boolean',
-      dateTime: !date || !time || isPastDateTime(date, time),
+      dateTime: !date || !time || !isEventDateBookable(date) || isPastDateTime(date, time),
       eventName: !eventName.trim(),
       guestCount: guestCount <= 0,
       venue: isSecuredVenueExpanded && !venueMap.name.trim(),
@@ -718,6 +720,12 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
     if (isPastDateTime(normalizedSchedule.date, normalizedSchedule.time)) {
       setDateTimeError('Choose a date and time later than the current local time.')
       revealRequiredSection('dateTime', 'Choose a date and time later than the current local time.')
+      return
+    }
+
+    if (!isEventDateBookable(normalizedSchedule.date)) {
+      setDateTimeError(EVENT_BOOKING_LEAD_TIME_MESSAGE)
+      revealRequiredSection('dateTime', EVENT_BOOKING_LEAD_TIME_MESSAGE)
       return
     }
 
@@ -1080,6 +1088,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                         value={date}
                       />
                     </View>
+                    <Text style={styles.dateLeadTimeHint}>{EVENT_BOOKING_LEAD_TIME_MESSAGE}</Text>
                   </View>
                 </View>
 
@@ -1970,12 +1979,7 @@ interface CalendarPickerModalProps {
 
 const CalendarPickerModal: React.FC<CalendarPickerModalProps> = ({ onChange, onClose, value }) => {
   const now = React.useRef(new Date()).current
-  const minimumDate = React.useMemo(() => {
-    const today = startOfLocalDay(now)
-    return validTimePartsForDate(formatDateValue(today), now).length > 0
-      ? today
-      : addLocalDays(today, 1)
-  }, [now])
+  const minimumDate = React.useMemo(() => minimumEventBookingDate(now), [now])
   const maximumYear = minimumDate.getFullYear() + 7
   const maximumDate = React.useMemo(
     () => new Date(maximumYear, 11, 31),
@@ -2440,6 +2444,7 @@ const styles = StyleSheet.create({
   dateTimeGridWide: { flexDirection: 'row' },
   dateTimeError: { color: '#BA1A1A', fontSize: 13, lineHeight: 19 },
   dateTimeField: { flex: 1, gap: 12 },
+  dateLeadTimeHint: { color: palette.muted, fontSize: 11, lineHeight: 16, marginTop: -5 },
   dateTimeFieldMenuOpen: {
     zIndex: 10,
     // The AM/PM menu is positioned over the input shell. Reserve its full

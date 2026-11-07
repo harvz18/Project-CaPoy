@@ -4893,3 +4893,51 @@ test('V16 reconciles a returned hosted checkout only through PayMongo server ver
     'Payment was not completed. You can retry payment when ready.',
   ], 'V16 post-browser reconciliation')
 })
+
+test('minimum seven-calendar-day event booking lead time is enforced in the client and backend', () => {
+  const leadTime = read('src/lib/event-booking-lead-time.ts')
+  const eventCreation = read('src/screens/04-EventCreation.tsx')
+  const scheduleConflict = read('src/screens/09-Schedule(Conflict).tsx')
+  const bookingDetails = read('src/screens/11.1-BookingDetails.tsx')
+  const merchant = read('src/lib/merchant.ts')
+  const planning = read('src/lib/planning.ts')
+  const migration = read('supabase/migrations/20261107000300_minimum_advance_event_booking.sql')
+
+  mustContain(leadTime, [
+    'EVENT_BOOKING_MINIMUM_LEAD_DAYS = 7',
+    "timeZone: 'Asia/Manila'",
+    'minimumEventBookingDate',
+    'isEventDateBookable',
+  ], 'shared event booking lead-time utility')
+  mustContain(eventCreation, [
+    'minimumEventBookingDate(now)',
+    'isEventDateBookable(normalizedSchedule.date)',
+    'EVENT_BOOKING_LEAD_TIME_MESSAGE',
+  ], 'event creation lead-time validation')
+  mustContain(scheduleConflict, [
+    'minimumEventBookingDate()',
+    'const disabled = date < minimumDate',
+  ], 'schedule conflict calendar lead-time validation')
+  mustContain(bookingDetails, [
+    'isEventDateBookable(newDate)',
+    'EVENT_BOOKING_LEAD_TIME_MESSAGE',
+  ], 'booking-details reschedule validation')
+  mustContain(merchant, [
+    'isEventDateBookable(date)',
+    'EVENT_BOOKING_LEAD_TIME_MESSAGE',
+  ], 'reschedule request validation')
+  mustContain(planning, [
+    'isEventDateBookable(activeEvent.event_date)',
+    'EVENT_BOOKING_LEAD_TIME_MESSAGE',
+  ], 'draft submission validation')
+  mustContain(migration, [
+    "(now() at time zone 'Asia/Manila')::date + 7",
+    'assert_minimum_event_booking_lead',
+    'before insert or update of event_date, status on public.events',
+    'before insert on public.bookings',
+    'before insert on public.payments',
+    "'public.submit_my_event_booking_requests_v14(uuid)'",
+    "'public.initiate_my_event_payment_v14(uuid,text,text,boolean)'",
+    "'public.prepare_my_paymongo_checkout_v16(uuid,text,boolean,text)'",
+  ], 'authoritative minimum event booking lead-time migration')
+})

@@ -1,4 +1,5 @@
 import { supabase, supabaseConfig } from './supabase'
+import { EVENT_BOOKING_LEAD_TIME_MESSAGE, isEventDateBookable } from './event-booking-lead-time'
 import { CatalogService } from './catalog'
 import {
   calculatePaymentBreakdown,
@@ -786,13 +787,16 @@ export const submitPlanningBookingRequests = async (): Promise<PlanningResult> =
     let targetEventId = event.eventId
     const { data: activeEvent, error: activeEventError } = await client
       .from('events')
-      .select('id, saved_plan_at')
+      .select('id, event_date, saved_plan_at')
       .eq('id', event.eventId)
       .eq('client_id', event.userId)
       .maybeSingle()
 
     if (activeEventError) return { ok: false, message: activeEventError.message }
     if (!activeEvent?.id) return { ok: false, message: 'This event plan is no longer available.' }
+    if (!isEventDateBookable(activeEvent.event_date)) {
+      return { ok: false, message: EVENT_BOOKING_LEAD_TIME_MESSAGE }
+    }
 
     // Saved plans are reusable templates. Clone the editable planning data to
     // a fresh event before provider requests are created, so a booking never
