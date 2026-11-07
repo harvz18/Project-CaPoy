@@ -492,7 +492,7 @@ test('category budgets remain visible guidance without restricting service selec
   const budgets = read(migrations[5])
   const selection = read(migrations[7])
   const allocationCorrection = read(migrations[14])
-  const guidanceOnly = read('supabase/migrations/20261107000100_budget_guidance_only_service_selection.sql')
+  const guidanceOnly = read('supabase/migrations/20261107000200_budget_guidance_only_service_selection.sql')
   const planning = read('src/lib/planning.ts')
   const app = read('src/App.tsx')
   const browse = read('src/screens/06-CategoryBrowse.tsx')
