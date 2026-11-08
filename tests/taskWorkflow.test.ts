@@ -128,6 +128,14 @@ test("requires verified payment before completion", () => {
       CLIENT
     )
   );
+
+  assert.throws(() =>
+    assertTaskTransition(
+      task("Pending Approval", { workerId: WORKER.id, paymentMethod: "GCash link", paymentStatus: "Pending" }),
+      "Finished",
+      CLIENT
+    )
+  );
 });
 
 test("blocks task progress while assigned terms are awaiting the tasker's review", () => {

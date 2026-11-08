@@ -1,7 +1,8 @@
 import Feather from "@expo/vector-icons/Feather";
+import * as Clipboard from "expo-clipboard";
 import { Href, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import LocationMap from "../../src/components/LocationMap";
 import { StatusBadge } from "../../src/components/StatusBadge";
@@ -9,7 +10,7 @@ import { useApp } from "../../src/context/AppContext";
 import { formatPaymentMethod, formatRequiredCapabilities, formatTaskDuration, formatTaskPrice, formatTaskSchedule } from "../../src/domain/taskMarketplace";
 import { useForegroundLocationWatch } from "../../src/hooks/useForegroundLocationWatch";
 import { useTasklinkBack } from "../../src/hooks/useTasklinkBack";
-import { PaymentStatus, Task, TaskLiveLocation, TaskStatus } from "../../src/types";
+import { Payment, PaymentStatus, Task, TaskLiveLocation, TaskStatus } from "../../src/types";
 import {
   calculateDistanceKm,
   formatDistance,
@@ -18,7 +19,9 @@ import {
   getTaskCheckDistanceKm,
   shouldTrackTaskLocation
 } from "../../src/utils/location";
-import { getPaymentProofDownloadUrl, pickAndUploadPaymentProof } from "../../src/services/fileUploadService";
+import { getPaymentProofDownloadUrl, pickAndUploadGcashQr, pickAndUploadPaymentProof } from "../../src/services/fileUploadService";
+import { formatPhilippineMobileNumber, normalizePhilippineMobileNumber } from "../../src/domain/gcashPayment";
+import { subscribeToPayment } from "../../src/services/taskRepository";
 import { hasPendingTaskChange, summarizeTaskTermChanges } from "../../src/domain/taskTerms";
 import { getCancellationEligibility } from "../../src/domain/cancellation";
 import { clearTaskLiveLocation, publishTaskLiveLocation, subscribeToTaskLiveLocation } from "../../src/services/taskLiveLocationService";
@@ -47,7 +50,7 @@ export default function TaskStatusScreen() {
   const router = useRouter();
   const goBack = useTasklinkBack();
   const insets = useSafeAreaInsets();
-  const { acceptTask, actionLoading, cancelTask, clearError, confirmCashPayment, currentUser, getUserById, ratings, respondToTaskChangeRequest, tasks, submitPaymentProof, submitWorkerPaymentProof, updateTaskStatus, withdrawApplication } = useApp();
+  const { acceptTask, actionLoading, cancelTask, clearError, confirmCashPayment, confirmGcashPaymentReceived, confirmGcashPaymentSent, currentUser, getUserById, ratings, reportGcashPaymentNotReceived, respondToTaskChangeRequest, submitGcashReceivingDetails, tasks, submitPaymentProof, submitWorkerPaymentProof, updateTaskStatus, withdrawApplication } = useApp();
   const task = tasks.find((item) => item.id === id);
   const taskClient = getUserById(task?.clientId) ?? (currentUser?.id === task?.clientId ? currentUser : undefined);
   const [actionWarning, setActionWarning] = useState("");
@@ -62,6 +65,20 @@ export default function TaskStatusScreen() {
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [cancellationReason, setCancellationReason] = useState("");
   const [sharedWorkerLocation, setSharedWorkerLocation] = useState<TaskLiveLocation>();
+  const [payment, setPayment] = useState<Payment>();
+  const [gcashDetailsOpen, setGcashDetailsOpen] = useState(false);
+  const [gcashMobileNumber, setGcashMobileNumber] = useState("");
+  const [gcashDetailsConfirmed, setGcashDetailsConfirmed] = useState(false);
+  const [gcashQrPath, setGcashQrPath] = useState("");
+  const [gcashQrRemoved, setGcashQrRemoved] = useState(false);
+  const [gcashQrFileName, setGcashQrFileName] = useState("");
+  const [uploadingGcashQr, setUploadingGcashQr] = useState(false);
+  const [gcashPayOpen, setGcashPayOpen] = useState(false);
+  const [gcashReference, setGcashReference] = useState("");
+  const [gcashProofPath, setGcashProofPath] = useState("");
+  const [gcashProofFileName, setGcashProofFileName] = useState("");
+  const [uploadingGcashProof, setUploadingGcashProof] = useState(false);
+  const [gcashQrPreviewUri, setGcashQrPreviewUri] = useState("");
 
   // Task data is delivered by a Firestore listener, so it can arrive after this
   // screen's first render. Keep an already-uploaded local receipt, while also
@@ -71,6 +88,26 @@ export default function TaskStatusScreen() {
     setProofOfPaymentUrl((current) => current || task.proofOfPaymentUrl || "");
     setProofFileName((current) => current || task.proofOfPaymentUrl?.split("/").pop() || "");
   }, [task?.proofOfPaymentUrl]);
+
+  useEffect(() => {
+    if (!task?.id || task.paymentMethod !== "GCash link") {
+      setPayment(undefined);
+      return;
+    }
+    return subscribeToPayment(task.id, setPayment, () => setPayment(undefined));
+  }, [task?.id, task?.paymentMethod]);
+
+  useEffect(() => {
+    if (!task?.id || !payment?.gcashQrPath) {
+      setGcashQrPreviewUri("");
+      return;
+    }
+    let active = true;
+    void getPaymentProofDownloadUrl(task.id, payment.gcashQrPath)
+      .then((uri) => { if (active) setGcashQrPreviewUri(uri); })
+      .catch(() => { if (active) setGcashQrPreviewUri(""); });
+    return () => { active = false; };
+  }, [payment?.gcashQrPath, task?.id]);
 
   const clientProofPath = proofOfPaymentUrl || task?.proofOfPaymentUrl || "";
   const liveTrackingEnabled = shouldTrackTaskLocation(
@@ -204,6 +241,14 @@ export default function TaskStatusScreen() {
         return;
       }
 
+      if (action.nextStatus === "Pending Approval" && currentUser?.role === "worker" && task.paymentMethod === "GCash link") {
+        setGcashMobileNumber(normalizePhilippineMobileNumber(currentUser.mobileNumber) ?? "0");
+        setGcashQrRemoved(false);
+        setGcashDetailsConfirmed(false);
+        setGcashDetailsOpen(true);
+        return;
+      }
+
       await updateTaskStatus(
         task.id,
         action.nextStatus,
@@ -300,6 +345,90 @@ export default function TaskStatusScreen() {
       await Linking.openURL(await getPaymentProofDownloadUrl(task.id, path));
     } catch (error) {
       setActionWarning(error instanceof Error ? error.message : "Unable to open the payment receipt.");
+    }
+  }
+
+  async function handleUploadGcashQr() {
+    if (!task) return;
+    setUploadingGcashQr(true);
+    setActionWarning("");
+    try {
+      const uploaded = await pickAndUploadGcashQr(task.id);
+      if (uploaded) {
+        setGcashQrPath(uploaded.path);
+        setGcashQrRemoved(false);
+        setGcashQrFileName(uploaded.name);
+      }
+    } catch (error) {
+      setActionWarning(error instanceof Error ? error.message : "Unable to upload the GCash QR image.");
+    } finally {
+      setUploadingGcashQr(false);
+    }
+  }
+
+  async function handleSubmitGcashDetails() {
+    if (!task || !gcashDetailsConfirmed) return;
+    try {
+      setActionWarning("");
+      await submitGcashReceivingDetails(task.id, gcashMobileNumber, gcashQrPath || undefined, gcashQrRemoved);
+      setGcashDetailsOpen(false);
+    } catch (error) {
+      setActionWarning(error instanceof Error ? error.message : "Unable to save GCash receiving details.");
+    }
+  }
+
+  async function handleCopyGcashNumber() {
+    const number = payment?.gcashRecipientMobile;
+    if (!number) return;
+    await Clipboard.setStringAsync(number);
+    setActionWarning("GCash number copied.");
+  }
+
+  async function handleUploadGcashProof() {
+    if (!task) return;
+    setUploadingGcashProof(true);
+    setActionWarning("");
+    try {
+      const uploaded = await pickAndUploadPaymentProof(task.id, "client");
+      if (uploaded) {
+        setGcashProofPath(uploaded.path);
+        setGcashProofFileName(uploaded.name);
+      }
+    } catch (error) {
+      setActionWarning(error instanceof Error ? error.message : "Unable to upload optional payment evidence.");
+    } finally {
+      setUploadingGcashProof(false);
+    }
+  }
+
+  async function handleConfirmGcashSent() {
+    if (!task) return;
+    try {
+      setActionWarning("");
+      await confirmGcashPaymentSent(task.id, gcashReference, gcashProofPath || undefined);
+      setGcashPayOpen(false);
+    } catch (error) {
+      setActionWarning(error instanceof Error ? error.message : "Unable to confirm that the GCash payment was sent.");
+    }
+  }
+
+  async function handleConfirmGcashReceived() {
+    if (!task) return;
+    try {
+      setActionWarning("");
+      await confirmGcashPaymentReceived(task.id);
+    } catch (error) {
+      setActionWarning(error instanceof Error ? error.message : "Unable to confirm payment receipt.");
+    }
+  }
+
+  async function handleGcashNotReceived() {
+    if (!task) return;
+    try {
+      setActionWarning("");
+      await reportGcashPaymentNotReceived(task.id);
+    } catch (error) {
+      setActionWarning(error instanceof Error ? error.message : "Unable to report the missing payment.");
     }
   }
 
@@ -517,7 +646,43 @@ export default function TaskStatusScreen() {
                 <Text style={styles.paymentBadge}>{task.paymentStatus ?? "Pending"}</Text>
               </View>
               <Text style={styles.geoText}>Method: {formatPaymentMethod(task.paymentMethod)}</Text>
-              {currentUser?.role === "client" ? (
+              {task.paymentMethod === "GCash link" ? (
+                <>
+                  <Text style={styles.geoHint}>TaskLink does not process GCash payments. The employer pays the worker directly, then both participants confirm manually.</Text>
+                  {currentUser?.role === "client" ? (
+                    <>
+                      {task.status === "Pending Approval" && task.paymentStatus === "Pending" ? <Text style={styles.geoHint}>Review the worker's receiving details, then pay before confirming task completion. The details are private to assigned participants.</Text> : null}
+                      {task.status === "Pending Approval" && task.paymentStatus === "Pending" ? (
+                        <Pressable accessibilityRole="button" disabled={!payment?.gcashRecipientMobile || actionLoading} onPress={() => setGcashPayOpen(true)} style={[styles.paymentButton, (!payment?.gcashRecipientMobile || actionLoading) && styles.primaryActionDisabled]}>
+                          <Text style={styles.paymentButtonText}>Pay Now</Text>
+                        </Pressable>
+                      ) : null}
+                      {task.paymentStatus === "Awaiting Worker Confirmation" ? <Text style={styles.geoHint}>You marked this payment as sent. Waiting for the worker to confirm receipt.</Text> : null}
+                      {task.paymentStatus === "Verified" ? <Text style={styles.geoHint}>Both participants confirmed the manual GCash payment.</Text> : null}
+                      {payment?.proofOfPaymentUrl ? <Pressable accessibilityRole="button" onPress={() => handleOpenPaymentProof(payment.proofOfPaymentUrl)} style={styles.paymentOutlineButton}><Text style={styles.paymentOutlineButtonText}>Open Optional Payment Evidence</Text></Pressable> : null}
+                    </>
+                  ) : (
+                    <>
+                      {task.status === "In Progress" ? <Text style={styles.geoHint}>When you finish work, add and confirm your GCash receiving number before submitting for approval.</Text> : null}
+                      {task.status === "Pending Approval" && task.paymentStatus === "Pending" ? (
+                        <>
+                          <Text style={styles.geoHint}>Your GCash receiving details were submitted. You can update them until the employer starts payment.</Text>
+                          <Pressable accessibilityRole="button" disabled={actionLoading} onPress={() => { setGcashMobileNumber(normalizePhilippineMobileNumber(payment?.gcashRecipientMobile ?? currentUser?.mobileNumber ?? "") ?? "0"); setGcashQrPath(payment?.gcashQrPath ?? ""); setGcashQrFileName(payment?.gcashQrPath?.split("/").pop() ?? ""); setGcashQrRemoved(false); setGcashDetailsConfirmed(false); setGcashDetailsOpen(true); }} style={styles.paymentOutlineButton}><Text style={styles.paymentOutlineButtonText}>Update GCash Receiving Details</Text></Pressable>
+                        </>
+                      ) : null}
+                      {task.status === "Pending Approval" && task.paymentStatus === "Awaiting Worker Confirmation" ? (
+                        <>
+                          <Text style={styles.geoHint}>The employer marked the GCash payment as sent. Check your GCash account before confirming.</Text>
+                          {payment?.gcashPaymentNotReceivedAt ? <Text style={styles.warningText}>You reported that this payment was not received. The employer has been notified.</Text> : null}
+                          <Pressable accessibilityRole="button" disabled={actionLoading} onPress={handleConfirmGcashReceived} style={styles.paymentButton}><Text style={styles.paymentButtonText}>Payment Received</Text></Pressable>
+                          <Pressable accessibilityRole="button" disabled={actionLoading} onPress={handleGcashNotReceived} style={styles.paymentOutlineButton}><Text style={styles.paymentOutlineButtonText}>Payment Not Received</Text></Pressable>
+                        </>
+                      ) : null}
+                      {task.paymentStatus === "Verified" ? <Text style={styles.geoHint}>Both participants confirmed the manual GCash payment.</Text> : null}
+                    </>
+                  )}
+                </>
+              ) : currentUser?.role === "client" ? (
                 <>
                   <TextInput
                     editable={task.paymentStatus !== "Submitted" && task.paymentStatus !== "Verified"}
@@ -536,19 +701,17 @@ export default function TaskStatusScreen() {
                     style={styles.paymentOutlineButton}
                   >
                     <Text style={styles.paymentOutlineButtonText}>
-                      {uploadingProof ? "Uploading..." : proofFileName || "Upload receipt image or PDF (required, max 5 MB)"}
+                      {uploadingProof ? "Uploading..." : proofFileName || "Upload receipt image or PDF (optional, max 5 MB)"}
                     </Text>
                   </Pressable>
-                  {!clientProofPath && task.paymentStatus !== "Submitted" && task.paymentStatus !== "Verified" ? (
-                    <Text style={styles.geoHint}>A receipt image or PDF is required before payment confirmation.</Text>
-                  ) : null}
+                  {!clientProofPath && task.paymentStatus !== "Submitted" && task.paymentStatus !== "Verified" ? <Text style={styles.geoHint}>Evidence is optional. Both participants still confirm the cash payment.</Text> : null}
                   <Pressable
                     accessibilityRole="button"
-                    disabled={uploadingProof || actionLoading || !clientProofPath || task.paymentStatus === "Submitted" || task.paymentStatus === "Verified"}
+                    disabled={uploadingProof || actionLoading || task.paymentStatus === "Submitted" || task.paymentStatus === "Verified"}
                     onPress={handleSubmitPaymentProof}
                     style={({ pressed }) => [
                       styles.paymentButton,
-                      (uploadingProof || actionLoading || !clientProofPath || task.paymentStatus === "Submitted" || task.paymentStatus === "Verified") && styles.primaryActionDisabled,
+                      (uploadingProof || actionLoading || task.paymentStatus === "Submitted" || task.paymentStatus === "Verified") && styles.primaryActionDisabled,
                       pressed && styles.pressed
                     ]}
                   >
@@ -604,7 +767,7 @@ export default function TaskStatusScreen() {
                       <Text style={styles.geoHint}>
                         {workerProofOfPaymentUrl || task.workerProofOfPaymentUrl
                           ? "Your receipt is stored privately and attached to this payment."
-                          : "Upload your receipt before confirming a cash payment."}
+                          : "Evidence is optional before confirming a cash payment."}
                       </Text>
                       {workerProofOfPaymentUrl || task.workerProofOfPaymentUrl ? (
                         <Pressable
@@ -625,9 +788,9 @@ export default function TaskStatusScreen() {
                   {currentUser?.id === task.workerId && task.status === "Pending Approval" && task.paymentMethod === "COD" && task.paymentStatus === "Submitted" ? (
                     <Pressable
                       accessibilityRole="button"
-                      disabled={actionLoading || !(workerProofOfPaymentUrl || task.workerProofOfPaymentUrl)}
+                      disabled={actionLoading}
                       onPress={handleConfirmCashPayment}
-                      style={[styles.paymentButton, !(workerProofOfPaymentUrl || task.workerProofOfPaymentUrl) && styles.primaryActionDisabled]}
+                      style={styles.paymentButton}
                     >
                       <Text style={styles.paymentButtonText}>{actionLoading ? "Confirming..." : "Confirm Cash Received"}</Text>
                     </Pressable>
@@ -772,6 +935,55 @@ export default function TaskStatusScreen() {
         </Pressable>
         <Text style={styles.guidelineText}>By clicking, you agree to the TaskLink Community Guidelines.</Text>
       </View>
+      <Modal animationType="slide" transparent visible={gcashDetailsOpen} onRequestClose={() => setGcashDetailsOpen(false)}>
+        <View accessibilityViewIsModal style={styles.dialogBackdrop}>
+          <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled" style={styles.modalScrollView}>
+            <View style={styles.dialogCard}>
+              <Text style={styles.dialogTitle}>Confirm GCash receiving details</Text>
+              <Text style={styles.dialogMessage}>Enter the GCash number where you want to receive payment. These details are visible only to you, the assigned employer, and authorized administrators.</Text>
+              <Text style={styles.modalFieldLabel}>GCash mobile number</Text>
+              <TextInput accessibilityLabel="GCash mobile number" autoComplete="tel" keyboardType="phone-pad" onChangeText={(value) => setGcashMobileNumber(value || "0")} placeholder="09XXXXXXXXX" placeholderTextColor={palette.outline} style={styles.modalInput} value={gcashMobileNumber} />
+              <Pressable accessibilityRole="button" disabled={uploadingGcashQr || actionLoading} onPress={handleUploadGcashQr} style={styles.paymentOutlineButton}>
+                <Text style={styles.paymentOutlineButtonText}>{uploadingGcashQr ? "Uploading QR..." : gcashQrFileName || "Upload GCash QR Image (optional)"}</Text>
+              </Pressable>
+              {gcashQrPath && !gcashQrRemoved ? <Pressable accessibilityRole="button" disabled={actionLoading} onPress={() => { setGcashQrPath(""); setGcashQrFileName(""); setGcashQrRemoved(true); }} style={styles.paymentOutlineButton}><Text style={styles.paymentOutlineButtonText}>Remove QR Image</Text></Pressable> : null}
+              <Text style={styles.geoHint}>A QR image is optional. Your details lock after the employer starts payment.</Text>
+              <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: gcashDetailsConfirmed }} onPress={() => setGcashDetailsConfirmed((current) => !current)} style={styles.checkboxRow}>
+                <View style={[styles.checkbox, gcashDetailsConfirmed && styles.checkboxChecked]}>{gcashDetailsConfirmed ? <Feather color={palette.white} name="check" size={15} /> : null}</View>
+                <Text style={styles.checkboxText}>I confirm this is my GCash receiving number.</Text>
+              </Pressable>
+              <View style={styles.dialogActions}>
+                <Pressable accessibilityRole="button" disabled={actionLoading} onPress={() => setGcashDetailsOpen(false)} style={styles.dialogCancel}><Text style={styles.dialogCancelText}>Cancel</Text></Pressable>
+                <Pressable accessibilityRole="button" disabled={actionLoading || !gcashDetailsConfirmed || !gcashMobileNumber.trim()} onPress={() => void handleSubmitGcashDetails()} style={[styles.dialogConfirm, (actionLoading || !gcashDetailsConfirmed || !gcashMobileNumber.trim()) && styles.primaryActionDisabled]}><Text style={styles.dialogConfirmText}>{actionLoading ? "Saving..." : "Submit for Approval"}</Text></Pressable>
+              </View>
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
+      <Modal animationType="slide" transparent visible={gcashPayOpen} onRequestClose={() => setGcashPayOpen(false)}>
+        <View accessibilityViewIsModal style={styles.dialogBackdrop}>
+          <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled" style={styles.modalScrollView}>
+            <View style={styles.dialogCard}>
+              <Text style={styles.dialogTitle}>Pay worker via GCash</Text>
+              <Text style={styles.dialogMessage}>Make the payment directly in your GCash app. TaskLink does not send or verify the transfer.</Text>
+              <Text style={styles.modalFieldLabel}>Worker GCash number</Text>
+              <Pressable accessibilityRole="button" onPress={() => void handleCopyGcashNumber()} style={styles.gcashNumberButton}>
+                <Text style={styles.gcashNumber}>{formatPhilippineMobileNumber(payment?.gcashRecipientMobile)}</Text>
+                <Text style={styles.gcashCopyText}>Copy number</Text>
+              </Pressable>
+              {gcashQrPreviewUri ? <Image accessibilityLabel="Worker GCash QR code" resizeMode="contain" source={{ uri: gcashQrPreviewUri }} style={styles.gcashQrPreview} /> : null}
+              {payment?.gcashQrPath ? <Pressable accessibilityRole="button" onPress={() => handleOpenPaymentProof(payment.gcashQrPath)} style={styles.paymentOutlineButton}><Text style={styles.paymentOutlineButtonText}>Open QR Image</Text></Pressable> : null}
+              <TextInput accessibilityLabel="Optional GCash reference" maxLength={500} onChangeText={setGcashReference} placeholder="Optional transaction reference or note" placeholderTextColor={palette.outline} style={styles.modalInput} value={gcashReference} />
+              <Pressable accessibilityRole="button" disabled={uploadingGcashProof || actionLoading} onPress={handleUploadGcashProof} style={styles.paymentOutlineButton}><Text style={styles.paymentOutlineButtonText}>{uploadingGcashProof ? "Uploading..." : gcashProofFileName || "Upload Payment Evidence (optional)"}</Text></Pressable>
+              <Text style={styles.geoHint}>After you confirm, the worker will be asked to confirm whether the payment was received. Optional evidence remains private to participants and authorized administrators.</Text>
+              <View style={styles.dialogActions}>
+                <Pressable accessibilityRole="button" disabled={actionLoading} onPress={() => setGcashPayOpen(false)} style={styles.dialogCancel}><Text style={styles.dialogCancelText}>Cancel</Text></Pressable>
+                <Pressable accessibilityRole="button" disabled={actionLoading || !payment?.gcashRecipientMobile} onPress={() => void handleConfirmGcashSent()} style={[styles.dialogConfirm, (actionLoading || !payment?.gcashRecipientMobile) && styles.primaryActionDisabled]}><Text style={styles.dialogConfirmText}>{actionLoading ? "Saving..." : "I Sent Payment"}</Text></Pressable>
+              </View>
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
       <Modal animationType="fade" transparent visible={cancelDialogOpen} onRequestClose={() => setCancelDialogOpen(false)}>
         <View accessibilityViewIsModal style={styles.dialogBackdrop}>
           <View style={styles.dialogCard}>
@@ -1187,7 +1399,7 @@ const styles = StyleSheet.create({
   paymentOutlineButton: { minHeight: 42, borderRadius: 8, borderWidth: 1, borderColor: palette.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: 12 },
   paymentOutlineButtonText: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "900", textAlign: "center" },
   warningText: { color: "#684000", fontSize: 12, lineHeight: 16, fontWeight: "800" },
-  dialogBackdrop: { flex: 1, padding: 24, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(17,24,39,0.55)" },
+  dialogBackdrop: { flex: 1, paddingHorizontal: 20, paddingVertical: 16, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(17,24,39,0.55)" },
   dialogCard: { width: "100%", maxWidth: 460, padding: 20, borderRadius: 16, backgroundColor: palette.surface, gap: 12, elevation: 16 },
   dialogTitle: { color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "900" },
   dialogMessage: { color: palette.muted, fontSize: 14, lineHeight: 21 },
@@ -1196,6 +1408,18 @@ const styles = StyleSheet.create({
   dialogCancelText: { color: palette.text, fontSize: 13, fontWeight: "900", textAlign: "center" },
   dialogConfirm: { flex: 1, minHeight: 46, borderRadius: 10, alignItems: "center", justifyContent: "center", paddingHorizontal: 10, backgroundColor: "#B91C1C" },
   dialogConfirmText: { color: palette.white, fontSize: 13, fontWeight: "900", textAlign: "center" },
+  modalScrollView: { alignSelf: "stretch", width: "100%" },
+  modalScroll: { flexGrow: 1, width: "100%", justifyContent: "center", alignItems: "center", paddingVertical: 16 },
+  modalFieldLabel: { color: palette.textStrong, fontSize: 13, lineHeight: 18, fontWeight: "900" },
+  modalInput: { minHeight: 46, borderRadius: 8, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow, color: palette.text, fontSize: 14, paddingHorizontal: 12 },
+  checkboxRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, paddingVertical: 4 },
+  checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 1, borderColor: palette.outline, alignItems: "center", justifyContent: "center" },
+  checkboxChecked: { borderColor: palette.primary, backgroundColor: palette.primary },
+  checkboxText: { flex: 1, color: palette.text, fontSize: 13, lineHeight: 19, fontWeight: "700" },
+  gcashNumberButton: { minHeight: 56, borderRadius: 10, borderWidth: 1, borderColor: palette.primary, backgroundColor: "#EAF8F1", paddingHorizontal: 14, justifyContent: "center", gap: 2 },
+  gcashNumber: { color: palette.textStrong, fontSize: 18, lineHeight: 24, fontWeight: "900" },
+  gcashCopyText: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
+  gcashQrPreview: { width: "100%", height: 220, borderRadius: 10, backgroundColor: palette.surfaceLow },
   clientRatingPanel: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, gap: 12, elevation: 2 },
   clientRatingCopy: { gap: 4 },
   clientRatingTitle: { color: palette.textStrong, fontSize: 16, lineHeight: 22, fontWeight: "900" },

@@ -53,7 +53,10 @@ import {
   applyToTask,
   cancelTaskInFirestore,
   confirmCashPaymentReceipt,
+  confirmGcashPaymentReceived,
+  confirmGcashPaymentSent,
   createTaskInFirestore,
+  reportGcashPaymentNotReceived,
   reconcileDisputedTaskerAvailability,
   rejectTaskApplication,
   subscribeToTaskMatchesForUser,
@@ -61,6 +64,7 @@ import {
   respondToTaskChangeRequestInFirestore,
   updateTaskTermsInFirestore,
   updateTaskPaymentVerification,
+  submitGcashTaskForApproval,
   updateWorkerPaymentEvidence,
   updateTaskStatusInFirestore,
   withdrawTaskApplication
@@ -152,6 +156,10 @@ type AppContextValue = {
   submitPaymentProof: (taskId: string, proofOfPaymentText: string, proofOfPaymentUrl?: string) => Promise<void>;
   submitWorkerPaymentProof: (taskId: string, proofOfPaymentText: string, proofOfPaymentUrl?: string) => Promise<void>;
   confirmCashPayment: (taskId: string) => Promise<void>;
+  submitGcashReceivingDetails: (taskId: string, mobileNumber: string, qrPath?: string, removeQr?: boolean) => Promise<void>;
+  confirmGcashPaymentSent: (taskId: string, reference?: string, proofPath?: string) => Promise<void>;
+  confirmGcashPaymentReceived: (taskId: string) => Promise<void>;
+  reportGcashPaymentNotReceived: (taskId: string) => Promise<void>;
   sendMessage: (taskId: string, message: string, receiverId?: string) => Promise<void>;
   markMessagesRead: (taskId: string, otherParticipantId: string) => Promise<void>;
   loadOlderChatMessages: () => Promise<number>;
@@ -639,9 +647,6 @@ export function AppProvider({ children }: PropsWithChildren) {
         throw new Error("Only the client who posted this task can submit payment proof.");
       }
 
-      if (!proofOfPaymentUrl) {
-        throw new Error("Upload an image or PDF payment receipt before submitting.");
-      }
       await updateTaskPaymentVerification(
         taskId,
         currentUser.id,
@@ -656,6 +661,34 @@ export function AppProvider({ children }: PropsWithChildren) {
     await runAction(async () => {
       if (!currentUser || currentUser.role !== "worker") throw new Error("Only the assigned worker can confirm cash receipt.");
       await confirmCashPaymentReceipt(taskId, currentUser);
+    });
+  }
+
+  async function submitGcashReceivingDetails(taskId: string, mobileNumber: string, qrPath?: string, removeQr?: boolean) {
+    await runAction(async () => {
+      if (!currentUser || currentUser.role !== "worker") throw new Error("Only the assigned worker can submit GCash receiving details.");
+      await submitGcashTaskForApproval(taskId, currentUser, { mobileNumber, qrPath, removeQr });
+    });
+  }
+
+  async function confirmGcashPaymentSentForTask(taskId: string, reference?: string, proofPath?: string) {
+    await runAction(async () => {
+      if (!currentUser || currentUser.role !== "client") throw new Error("Only the employer can confirm that a GCash payment was sent.");
+      await confirmGcashPaymentSent(taskId, currentUser, reference, proofPath);
+    });
+  }
+
+  async function confirmGcashPaymentReceivedForTask(taskId: string) {
+    await runAction(async () => {
+      if (!currentUser || currentUser.role !== "worker") throw new Error("Only the assigned worker can confirm payment receipt.");
+      await confirmGcashPaymentReceived(taskId, currentUser);
+    });
+  }
+
+  async function reportGcashPaymentNotReceivedForTask(taskId: string) {
+    await runAction(async () => {
+      if (!currentUser || currentUser.role !== "worker") throw new Error("Only the assigned worker can report a missing payment.");
+      await reportGcashPaymentNotReceived(taskId, currentUser);
     });
   }
 
@@ -862,6 +895,10 @@ export function AppProvider({ children }: PropsWithChildren) {
       submitPaymentProof,
       submitWorkerPaymentProof,
       confirmCashPayment,
+      submitGcashReceivingDetails,
+      confirmGcashPaymentSent: confirmGcashPaymentSentForTask,
+      confirmGcashPaymentReceived: confirmGcashPaymentReceivedForTask,
+      reportGcashPaymentNotReceived: reportGcashPaymentNotReceivedForTask,
       sendMessage,
       markMessagesRead,
       loadOlderChatMessages,

@@ -100,9 +100,14 @@ export async function pickAndUploadPrivateDocument(
   return { name: file.name, path };
 }
 
-export async function pickAndUploadPaymentProof(taskId: string, party: PaymentProofParty) {
+async function pickAndUploadPrivatePaymentFile(
+  taskId: string,
+  party: PaymentProofParty,
+  allowPdf: boolean,
+  label: string
+) {
   const result = await DocumentPicker.getDocumentAsync({
-    type: ["image/*", "application/pdf"],
+    type: allowPdf ? ["image/*", "application/pdf"] : ["image/*"],
     copyToCacheDirectory: true,
     multiple: false
   });
@@ -114,14 +119,14 @@ export async function pickAndUploadPaymentProof(taskId: string, party: PaymentPr
     mimeType: asset.mimeType ?? "application/octet-stream",
     size: asset.size
   };
-  validateFile(file, true);
+  validateFile(file, allowPdf);
   const { firestore, user } = requireFirestoreReceiptServices();
   const response = await fetch(file.uri);
-  if (!response.ok) throw new Error("Unable to read the selected receipt.");
+  if (!response.ok) throw new Error(`Unable to read the selected ${label}.`);
   const blob = await response.blob();
-  if (blob.size === 0) throw new Error("The selected receipt is empty.");
+  if (blob.size === 0) throw new Error(`The selected ${label} is empty.`);
   if (blob.size > maxFirestorePaymentProofBytes) {
-    throw new Error("Receipt images and PDFs must be smaller than 5 MB.");
+    throw new Error(`${allowPdf ? "Files" : "Images"} must be smaller than 5 MB.`);
   }
   const base64 = await blobToBase64(blob);
   const chunks = splitPaymentProofBase64(base64);
@@ -156,6 +161,14 @@ export async function pickAndUploadPaymentProof(taskId: string, party: PaymentPr
   }
   const path = createFirestorePaymentProofPath(taskId, party);
   return { name: file.name, path };
+}
+
+export function pickAndUploadPaymentProof(taskId: string, party: Exclude<PaymentProofParty, "worker-gcash-qr">) {
+  return pickAndUploadPrivatePaymentFile(taskId, party, true, "payment receipt");
+}
+
+export function pickAndUploadGcashQr(taskId: string) {
+  return pickAndUploadPrivatePaymentFile(taskId, "worker-gcash-qr", false, "GCash QR image");
 }
 
 export async function getPaymentProofDownloadUrl(taskId: string, path: string) {

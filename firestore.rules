@@ -129,6 +129,17 @@ service cloud.firestore {
             && paymentProofFile(taskId, 'worker').uploaderId == request.auth.uid));
     }
 
+    function validGcashQrPath(taskId, proofPath) {
+      return proofPath is string
+        && proofPath == 'firestorePaymentProofs/' + taskId + '/worker-gcash-qr'
+        && paymentProofFile(taskId, 'worker-gcash-qr').status == 'ready'
+        && paymentProofFile(taskId, 'worker-gcash-qr').uploaderId == request.auth.uid;
+    }
+
+    function validGcashRecipientMobile(value) {
+      return value is string && value.matches('09[0-9]{9}');
+    }
+
     function validOwnUserDocument(userId) {
       return signedIn()
         && request.auth.uid == userId
@@ -625,7 +636,7 @@ service cloud.firestore {
         );
     }
 
-    function validAssignedWorkerUpdate() {
+    function validAssignedWorkerUpdate(taskId) {
       return hasRole('worker')
         && resource.data.workerId == request.auth.uid
         && request.resource.data.workerId == request.auth.uid
@@ -637,6 +648,14 @@ service cloud.firestore {
           ||
           (resource.data.status == 'In Progress'
             && request.resource.data.status == 'Pending Approval'
+            && (resource.data.paymentMethod != 'GCash link'
+              || (getAfter(/databases/$(database)/documents/payments/$(taskId)).data.paymentMethod == 'GCash link'
+                && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.paymentStatus == 'Pending'
+                && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.workerId == request.auth.uid
+                && validGcashRecipientMobile(getAfter(/databases/$(database)/documents/payments/$(taskId)).data.gcashRecipientMobile)
+                && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.gcashDetailsConfirmedAt is string
+                && (!('gcashQrPath' in getAfter(/databases/$(database)/documents/payments/$(taskId)).data)
+                  || validGcashQrPath(taskId, getAfter(/databases/$(database)/documents/payments/$(taskId)).data.gcashQrPath))))
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'workerFinishedAt', 'updatedAt']))
           ||
           (resource.data.status in ['Accepted', 'In Progress', 'Pending Approval']
@@ -664,7 +683,6 @@ service cloud.firestore {
         && request.resource.data.status == 'Pending Approval'
         && resource.data.paymentMethod == 'COD'
         && resource.data.paymentStatus == 'Submitted'
-        && validWorkerPaymentProofPath(taskId, resource.data.workerProofOfPaymentUrl)
         && request.resource.data.paymentStatus == 'Verified'
         && request.resource.data.workerConfirmedAt is string
         && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.paymentMethod == 'COD'
@@ -676,6 +694,27 @@ service cloud.firestore {
           'paymentStatus',
           'workerConfirmedAt',
           'updatedAt'
+        ]);
+    }
+
+    function validAssignedWorkerGcashPaymentConfirmation(taskId) {
+      return hasRole('worker')
+        && resource.data.workerId == request.auth.uid
+        && request.resource.data.workerId == request.auth.uid
+        && resource.data.status == 'Pending Approval'
+        && request.resource.data.status == 'Pending Approval'
+        && resource.data.paymentMethod == 'GCash link'
+        && resource.data.paymentStatus == 'Awaiting Worker Confirmation'
+        && request.resource.data.paymentStatus == 'Verified'
+        && request.resource.data.workerConfirmedAt is string
+        && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.paymentMethod == 'GCash link'
+        && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.paymentStatus == 'Verified'
+        && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.workerId == request.auth.uid
+        && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.workerConfirmedAt
+          == request.resource.data.workerConfirmedAt
+        && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.gcashPaymentReceivedAt is string
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'paymentStatus', 'workerConfirmedAt', 'updatedAt'
         ]);
     }
 
@@ -727,6 +766,103 @@ service cloud.firestore {
           'workerProofOfPaymentText',
           'workerProofSubmittedAt',
           'updatedAt'
+        ]);
+    }
+
+    function validClientGcashPaymentSent(taskId) {
+      return hasRole('client')
+        && resource.data.clientId == request.auth.uid
+        && request.resource.data.clientId == request.auth.uid
+        && resource.data.status == 'Pending Approval'
+        && request.resource.data.status == 'Pending Approval'
+        && resource.data.paymentMethod == 'GCash link'
+        && resource.data.paymentStatus == 'Pending'
+        && request.resource.data.paymentStatus == 'Awaiting Worker Confirmation'
+        && request.resource.data.clientConfirmedAt is string
+        && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.paymentMethod == 'GCash link'
+        && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.paymentStatus
+          == 'Awaiting Worker Confirmation'
+        && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.clientConfirmedAt
+          == request.resource.data.clientConfirmedAt
+        && getAfter(/databases/$(database)/documents/payments/$(taskId)).data.gcashPaymentSentAt is string
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'paymentStatus', 'clientConfirmedAt', 'updatedAt'
+        ]);
+    }
+
+    function validGcashReceivingDetailsUpdate(taskId) {
+      return hasRole('worker')
+        && task(taskId).workerId == request.auth.uid
+        && ((task(taskId).status == 'In Progress'
+          && taskAfter(taskId).status == 'Pending Approval')
+          || (task(taskId).status == 'Pending Approval'
+            && taskAfter(taskId).status == 'Pending Approval'))
+        && resource.data.workerId == request.auth.uid
+        && resource.data.paymentMethod == 'GCash link'
+        && resource.data.paymentStatus == 'Pending'
+        && request.resource.data.paymentStatus == 'Pending'
+        && validGcashRecipientMobile(request.resource.data.gcashRecipientMobile)
+        && request.resource.data.gcashDetailsConfirmedAt is string
+        && (!('gcashQrPath' in request.resource.data)
+          || validGcashQrPath(taskId, request.resource.data.gcashQrPath))
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'gcashRecipientMobile', 'gcashQrPath', 'gcashDetailsConfirmedAt', 'updatedAt'
+        ]);
+    }
+
+    function validGcashClientPaymentSentUpdate(taskId) {
+      return hasRole('client')
+        && task(taskId).clientId == request.auth.uid
+        && task(taskId).status == 'Pending Approval'
+        && resource.data.clientId == request.auth.uid
+        && resource.data.paymentMethod == 'GCash link'
+        && resource.data.paymentStatus == 'Pending'
+        && request.resource.data.paymentStatus == 'Awaiting Worker Confirmation'
+        && taskAfter(taskId).paymentStatus == 'Awaiting Worker Confirmation'
+        && validGcashRecipientMobile(resource.data.gcashRecipientMobile)
+        && request.resource.data.clientConfirmedAt is string
+        && request.resource.data.gcashPaymentSentAt is string
+        && (!('proofOfPaymentUrl' in request.resource.data)
+          || validClientPaymentProofPath(taskId, request.resource.data.proofOfPaymentUrl))
+        && (!('proofOfPaymentText' in request.resource.data)
+          || (request.resource.data.proofOfPaymentText is string
+            && request.resource.data.proofOfPaymentText.size() <= 500))
+        && (!('gcashTransactionReference' in request.resource.data)
+          || (request.resource.data.gcashTransactionReference is string
+            && request.resource.data.gcashTransactionReference.size() <= 500))
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'paymentStatus', 'proofOfPaymentText', 'proofOfPaymentUrl', 'clientConfirmedAt',
+          'gcashPaymentSentAt', 'gcashTransactionReference', 'updatedAt'
+        ]);
+    }
+
+    function validGcashWorkerPaymentReceivedUpdate(taskId) {
+      return hasRole('worker')
+        && task(taskId).workerId == request.auth.uid
+        && task(taskId).status == 'Pending Approval'
+        && resource.data.workerId == request.auth.uid
+        && resource.data.paymentMethod == 'GCash link'
+        && resource.data.paymentStatus == 'Awaiting Worker Confirmation'
+        && request.resource.data.paymentStatus == 'Verified'
+        && taskAfter(taskId).paymentStatus == 'Verified'
+        && request.resource.data.workerConfirmedAt is string
+        && request.resource.data.gcashPaymentReceivedAt is string
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'paymentStatus', 'workerConfirmedAt', 'gcashPaymentReceivedAt', 'updatedAt'
+        ]);
+    }
+
+    function validGcashWorkerNotReceivedUpdate(taskId) {
+      return hasRole('worker')
+        && task(taskId).workerId == request.auth.uid
+        && task(taskId).status == 'Pending Approval'
+        && resource.data.workerId == request.auth.uid
+        && resource.data.paymentMethod == 'GCash link'
+        && resource.data.paymentStatus == 'Awaiting Worker Confirmation'
+        && request.resource.data.paymentStatus == 'Awaiting Worker Confirmation'
+        && request.resource.data.gcashPaymentNotReceivedAt is string
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'gcashPaymentNotReceivedAt', 'updatedAt'
         ]);
     }
 
@@ -805,7 +941,8 @@ service cloud.firestore {
               'updatedAt'
             ])
             && request.resource.data.paymentStatus == 'Submitted'
-            && validClientPaymentProofPath(taskId, request.resource.data.proofOfPaymentUrl)
+            && (!('proofOfPaymentUrl' in request.resource.data)
+              || validClientPaymentProofPath(taskId, request.resource.data.proofOfPaymentUrl))
             && (!('proofOfPaymentText' in request.resource.data)
               || (request.resource.data.proofOfPaymentText is string
                 && request.resource.data.proofOfPaymentText.size() > 0))
@@ -814,6 +951,7 @@ service cloud.firestore {
                 ? request.resource.data.clientConfirmedAt is string
                 : true
             ))
+          || validClientGcashPaymentSent(taskId)
           ||
           (resource.data.acceptanceStatus == 'Accepted'
             && request.resource.data.acceptanceStatus == 'Cancelled'
@@ -1139,8 +1277,9 @@ service cloud.firestore {
           : (validClientTaskUpdate(taskId)
           || validApplicationUpdate(taskId)
           || validApplicationRemoval(taskId)
-          || validAssignedWorkerUpdate()
+          || validAssignedWorkerUpdate(taskId)
           || validAssignedWorkerPaymentConfirmation(taskId)
+          || validAssignedWorkerGcashPaymentConfirmation(taskId)
           || validAssignedWorkerPaymentProof(taskId)));
       allow delete: if false;
 
@@ -1290,15 +1429,24 @@ service cloud.firestore {
         ])
         && request.resource.data.taskId == taskId
         && request.resource.data.party == party
-        && party in ['client', 'worker']
+        && party in ['client', 'worker', 'worker-gcash-qr']
         && request.resource.data.uploaderId == request.auth.uid
         && isAssignedPaymentParticipant(task(taskId))
-        && task(taskId).status in ['Accepted', 'In Progress', 'Pending Approval']
+        && (task(taskId).status in ['Accepted', 'In Progress', 'Pending Approval']
+          || (party == 'client'
+            && task(taskId).paymentMethod == 'GCash link'
+            && task(taskId).status == 'Finished'
+            && task(taskId).paymentStatus == 'Pending'))
         && ((party == 'client' && task(taskId).paymentStatus == 'Pending')
           || (party == 'worker'
-            && task(taskId).paymentStatus != 'Verified'))
+            && task(taskId).paymentStatus != 'Verified')
+          || (party == 'worker-gcash-qr'
+            && task(taskId).paymentMethod == 'GCash link'
+            && task(taskId).status in ['In Progress', 'Pending Approval']
+            && task(taskId).paymentStatus == 'Pending'))
         && ((party == 'client' && task(taskId).clientId == request.auth.uid)
-          || (party == 'worker' && task(taskId).workerId == request.auth.uid))
+          || ((party == 'worker' || party == 'worker-gcash-qr')
+            && task(taskId).workerId == request.auth.uid))
         && request.resource.data.fileName is string
         && request.resource.data.fileName.size() > 0
         && request.resource.data.fileName.size() <= 100
@@ -1344,10 +1492,18 @@ service cloud.firestore {
           && request.resource.data.data.size() > 0
           && request.resource.data.data.size() <= 450000
           && isAssignedPaymentParticipant(task(taskId))
-          && task(taskId).status in ['Accepted', 'In Progress', 'Pending Approval']
+          && (task(taskId).status in ['Accepted', 'In Progress', 'Pending Approval']
+            || (party == 'client'
+              && task(taskId).paymentMethod == 'GCash link'
+              && task(taskId).status == 'Finished'
+              && task(taskId).paymentStatus == 'Pending'))
           && ((party == 'client' && task(taskId).paymentStatus == 'Pending')
             || (party == 'worker'
-              && task(taskId).paymentStatus != 'Verified'));
+              && task(taskId).paymentStatus != 'Verified')
+            || (party == 'worker-gcash-qr'
+              && task(taskId).paymentMethod == 'GCash link'
+              && task(taskId).status in ['In Progress', 'Pending Approval']
+              && task(taskId).paymentStatus == 'Pending'));
         allow delete: if false;
       }
     }
@@ -1393,6 +1549,7 @@ service cloud.firestore {
                 == request.resource.data.get('proofOfPaymentUrl', null)
               && taskAfter(taskId).get('clientConfirmedAt', null)
                 == request.resource.data.get('clientConfirmedAt', null))
+            || validGcashClientPaymentSentUpdate(taskId)
           )
         ) || (
           hasRole('worker')
@@ -1402,7 +1559,6 @@ service cloud.firestore {
           && resource.data.workerId == request.auth.uid
           && resource.data.paymentMethod == 'COD'
           && resource.data.paymentStatus == 'Submitted'
-          && validWorkerPaymentProofPath(taskId, resource.data.workerProofOfPaymentUrl)
           && request.resource.data.paymentStatus == 'Verified'
           && request.resource.data.workerConfirmedAt is string
           && taskAfter(taskId).paymentStatus == 'Verified'
@@ -1412,7 +1568,9 @@ service cloud.firestore {
             'workerConfirmedAt',
             'updatedAt'
           ])
-        ));
+        ) || validGcashReceivingDetailsUpdate(taskId)
+          || validGcashWorkerPaymentReceivedUpdate(taskId)
+          || validGcashWorkerNotReceivedUpdate(taskId));
       allow delete: if false;
     }
 

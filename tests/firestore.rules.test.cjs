@@ -1280,7 +1280,16 @@ test("client and worker accounts can complete the full canonical task lifecycle"
     clientConfirmedAt: now,
     updatedAt: now
   });
-  await assertFails(textOnlyConfirmation.commit());
+  await assertSucceeds(textOnlyConfirmation.commit());
+
+  // Reset the pending state so the optional-evidence path is independently tested.
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
+    await Promise.all([
+      updateDoc(doc(db, "tasks", TASK_ID), { paymentStatus: "Pending", proofOfPaymentText: deleteField(), clientConfirmedAt: deleteField() }),
+      updateDoc(doc(db, "payments", TASK_ID), { paymentStatus: "Pending", proofOfPaymentText: deleteField(), clientConfirmedAt: deleteField() })
+    ]);
+  });
 
   batch = writeBatch(clientDb);
   batch.update(taskRef, {

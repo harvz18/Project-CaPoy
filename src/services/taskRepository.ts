@@ -19,7 +19,8 @@ import {
   assertTaskTransition,
   TaskActor
 } from "../domain/taskWorkflow";
-import { DurationUnit, PaymentMethod, PaymentStatus, PricingMode, ScheduleMode, Task, TaskHistoryEvent, TaskMatch, TaskStatus, TaskTerms, UserProfile } from "../types";
+import { DurationUnit, Payment, PaymentMethod, PaymentStatus, PricingMode, ScheduleMode, Task, TaskHistoryEvent, TaskMatch, TaskStatus, TaskTerms, UserProfile } from "../types";
+import { normalizePhilippineMobileNumber } from "../domain/gcashPayment";
 import { isPaymentProofPathForTask } from "../utils/paymentProof";
 import { canEditTaskTerms, getChangedTaskTermKeys, getTaskTerms, hasPendingTaskChange, makeTaskChangeRequest, summarizeTaskTermChanges } from "../domain/taskTerms";
 import { assertCanCancelTask, assertValidCancellationReason, isCancellationActorRole } from "../domain/cancellation";
@@ -120,6 +121,20 @@ export function subscribeToTaskMatchesForUser(
     )),
     onError
   );
+}
+
+export function subscribeToPayment(
+  taskId: string,
+  onChange: (payment: Payment | undefined) => void,
+  onError: (error: Error) => void
+) {
+  if (!db) {
+    onChange(undefined);
+    return () => undefined;
+  }
+  return onSnapshot(doc(db, "payments", taskId), (snapshot) => {
+    onChange(snapshot.exists() ? ({ id: snapshot.id, ...snapshot.data() } as Payment) : undefined);
+  }, onError);
 }
 
 export async function createTaskInFirestore(input: TaskInput) {
@@ -676,6 +691,156 @@ async function finishTaskInTransaction(transaction: Transaction, task: Task, cli
   });
 }
 
+export type GcashReceivingDetails = {
+  mobileNumber: string;
+  qrPath?: string;
+  removeQr?: boolean;
+};
+
+/** Saves the assigned worker's receiving details at the same time as work is
+ * submitted for approval. No payment provider is contacted. */
+export async function submitGcashTaskForApproval(
+  taskId: string,
+  worker: UserProfile,
+  details: GcashReceivingDetails
+) {
+  const firestore = requireDb();
+  requireAuthActor({ id: worker.id, role: worker.role });
+  if (worker.role !== "worker") throw new Error("Only the assigned worker can submit GCash receiving details.");
+  const mobileNumber = normalizePhilippineMobileNumber(details.mobileNumber);
+  if (!mobileNumber) throw new Error("Enter a valid Philippine GCash number (09XXXXXXXXX or +639XXXXXXXXX).");
+  if (details.qrPath && !isPaymentProofPathForTask(taskId, details.qrPath, "worker-gcash-qr")) {
+    throw new Error("The GCash QR image is invalid. Upload it again.");
+  }
+
+  const taskRef = doc(firestore, "tasks", taskId);
+  const paymentRef = doc(firestore, "payments", taskId);
+  const now = new Date().toISOString();
+  await runTransaction(firestore, async (transaction) => {
+    const [taskSnapshot, paymentSnapshot] = await Promise.all([transaction.get(taskRef), transaction.get(paymentRef)]);
+    if (!taskSnapshot.exists() || !paymentSnapshot.exists()) throw new Error("Task payment record not found.");
+    const task = { id: taskSnapshot.id, ...taskSnapshot.data() } as Task;
+    const payment = paymentSnapshot.data() as Payment;
+    if (task.workerId !== worker.id || payment.workerId !== worker.id) throw new Error("Only the assigned worker can submit GCash receiving details.");
+    if (!["In Progress", "Pending Approval"].includes(task.status) || task.paymentMethod !== "GCash link" || payment.paymentMethod !== "GCash link") {
+      throw new Error("GCash receiving details can be updated only before the employer starts payment.");
+    }
+    if (payment.paymentStatus !== "Pending") throw new Error("The payment details are already locked for this task.");
+
+    if (task.status === "In Progress") {
+      transaction.update(taskRef, { status: "Pending Approval", workerFinishedAt: now, updatedAt: now });
+    }
+    transaction.update(paymentRef, withoutUndefined({
+      gcashRecipientMobile: mobileNumber,
+      gcashQrPath: details.removeQr ? deleteField() : details.qrPath,
+      gcashDetailsConfirmedAt: now,
+      updatedAt: now
+    }));
+    if (task.status === "In Progress") {
+      setWorkflowNotification(transaction, {
+        id: `${taskId}_gcash-details_${task.clientId}`, userId: task.clientId, taskId, createdBy: worker.id,
+        notificationType: "Completion approval", message: `${task.title} is ready for completion approval and has GCash payment details.`, createdAt: now
+      });
+    }
+  });
+}
+
+/** The employer's manual claim that the direct GCash transfer was sent. */
+export async function confirmGcashPaymentSent(
+  taskId: string,
+  client: UserProfile,
+  reference?: string,
+  proofPath?: string
+) {
+  const firestore = requireDb();
+  requireAuthActor({ id: client.id, role: client.role });
+  if (client.role !== "client") throw new Error("Only the employer can confirm that a GCash payment was sent.");
+  if (proofPath && !isPaymentProofPathForTask(taskId, proofPath, "client")) throw new Error("The payment evidence is invalid. Upload it again.");
+
+  const taskRef = doc(firestore, "tasks", taskId);
+  const paymentRef = doc(firestore, "payments", taskId);
+  const now = new Date().toISOString();
+  await runTransaction(firestore, async (transaction) => {
+    const [taskSnapshot, paymentSnapshot] = await Promise.all([transaction.get(taskRef), transaction.get(paymentRef)]);
+    if (!taskSnapshot.exists() || !paymentSnapshot.exists()) throw new Error("Task payment record not found.");
+    const task = { id: taskSnapshot.id, ...taskSnapshot.data() } as Task;
+    const payment = paymentSnapshot.data() as Payment;
+    if (task.clientId !== client.id || payment.clientId !== client.id) throw new Error("Only the employer who posted this task can confirm payment.");
+    if (task.status !== "Pending Approval") throw new Error("Wait for the worker to submit the completed work before confirming the GCash payment.");
+    if (task.paymentMethod !== "GCash link" || payment.paymentMethod !== "GCash link") throw new Error("This action is available only for GCash payments.");
+    if (task.paymentStatus !== "Pending" || payment.paymentStatus !== "Pending") throw new Error("This payment has already been confirmed or is under review.");
+    if (!normalizePhilippineMobileNumber(payment.gcashRecipientMobile ?? "")) throw new Error("The worker's GCash receiving number is missing or invalid.");
+    const normalizedReference = reference?.trim();
+    const updates = withoutUndefined({
+      paymentStatus: "Awaiting Worker Confirmation" as const,
+      proofOfPaymentText: normalizedReference || undefined,
+      proofOfPaymentUrl: proofPath,
+      clientConfirmedAt: now,
+      gcashPaymentSentAt: now,
+      gcashTransactionReference: normalizedReference || undefined,
+      updatedAt: now
+    });
+    transaction.update(taskRef, { paymentStatus: "Awaiting Worker Confirmation", clientConfirmedAt: now, updatedAt: now });
+    transaction.update(paymentRef, updates);
+    if (task.workerId) {
+      setWorkflowNotification(transaction, {
+        id: `${taskId}_gcash-sent_${task.workerId}`, userId: task.workerId, taskId, createdBy: client.id,
+        notificationType: "GCash payment awaiting confirmation", message: `The employer marked the GCash payment for ${task.title} as sent. Confirm whether you received it.`, createdAt: now
+      });
+    }
+  });
+}
+
+export async function confirmGcashPaymentReceived(taskId: string, worker: UserProfile) {
+  const firestore = requireDb();
+  requireAuthActor({ id: worker.id, role: worker.role });
+  if (worker.role !== "worker") throw new Error("Only the assigned worker can confirm receipt.");
+  const taskRef = doc(firestore, "tasks", taskId);
+  const paymentRef = doc(firestore, "payments", taskId);
+  const now = new Date().toISOString();
+  await runTransaction(firestore, async (transaction) => {
+    const [taskSnapshot, paymentSnapshot] = await Promise.all([transaction.get(taskRef), transaction.get(paymentRef)]);
+    if (!taskSnapshot.exists() || !paymentSnapshot.exists()) throw new Error("Task payment record not found.");
+    const task = { id: taskSnapshot.id, ...taskSnapshot.data() } as Task;
+    const payment = paymentSnapshot.data() as Payment;
+    if (task.workerId !== worker.id || payment.workerId !== worker.id) throw new Error("Only the assigned worker can confirm receipt.");
+    if (task.status !== "Pending Approval" || task.paymentMethod !== "GCash link" || payment.paymentMethod !== "GCash link") throw new Error("This confirmation is unavailable for this task.");
+    if (task.paymentStatus !== "Awaiting Worker Confirmation" || payment.paymentStatus !== "Awaiting Worker Confirmation") throw new Error("Wait for the employer to mark the GCash payment as sent.");
+    transaction.update(taskRef, { paymentStatus: "Verified", workerConfirmedAt: now, updatedAt: now });
+    transaction.update(paymentRef, { paymentStatus: "Verified", workerConfirmedAt: now, gcashPaymentReceivedAt: now, updatedAt: now });
+    setWorkflowNotification(transaction, {
+      id: `${taskId}_gcash-received_${task.clientId}`, userId: task.clientId, taskId, createdBy: worker.id,
+      notificationType: "GCash payment confirmed", message: `The worker confirmed receipt of the GCash payment for ${task.title}.`, createdAt: now
+    });
+  });
+}
+
+export async function reportGcashPaymentNotReceived(taskId: string, worker: UserProfile) {
+  const firestore = requireDb();
+  requireAuthActor({ id: worker.id, role: worker.role });
+  if (worker.role !== "worker") throw new Error("Only the assigned worker can report a missing payment.");
+  const taskRef = doc(firestore, "tasks", taskId);
+  const paymentRef = doc(firestore, "payments", taskId);
+  const now = new Date().toISOString();
+  await runTransaction(firestore, async (transaction) => {
+    const [taskSnapshot, paymentSnapshot] = await Promise.all([transaction.get(taskRef), transaction.get(paymentRef)]);
+    if (!taskSnapshot.exists() || !paymentSnapshot.exists()) throw new Error("Task payment record not found.");
+    const task = { id: taskSnapshot.id, ...taskSnapshot.data() } as Task;
+    const payment = paymentSnapshot.data() as Payment;
+    if (task.workerId !== worker.id || payment.workerId !== worker.id || task.status !== "Pending Approval" || task.paymentMethod !== "GCash link") {
+      throw new Error("This report is unavailable for this task.");
+    }
+    if (task.paymentStatus !== "Awaiting Worker Confirmation" || payment.paymentStatus !== "Awaiting Worker Confirmation") {
+      throw new Error("Wait for the employer to mark the GCash payment as sent.");
+    }
+    transaction.update(paymentRef, { gcashPaymentNotReceivedAt: now, updatedAt: now });
+    setWorkflowNotification(transaction, {
+      id: `${taskId}_gcash-not-received_${task.clientId}`, userId: task.clientId, taskId, createdBy: worker.id,
+      notificationType: "GCash payment needs attention", message: `The worker reported that the GCash payment for ${task.title} was not received.`, createdAt: now
+    });
+  });
+}
+
 export async function updateTaskPaymentVerification(
   taskId: string,
   clientId: string,
@@ -697,9 +862,8 @@ export async function updateTaskPaymentVerification(
       throw new Error("Payment confirmation is available after a worker is accepted and before completion.");
     }
     if (paymentStatus !== "Submitted" ||
-        !proofOfPaymentUrl ||
-        !isPaymentProofPathForTask(taskId, proofOfPaymentUrl, "client")) {
-      throw new Error("Upload an image or PDF payment receipt before submitting.");
+        (proofOfPaymentUrl && !isPaymentProofPathForTask(taskId, proofOfPaymentUrl, "client"))) {
+      throw new Error("The payment receipt is invalid. Upload it again or continue without optional evidence.");
     }
     const normalizedNote = proofOfPaymentText?.trim();
     const updates = withoutUndefined({
@@ -747,12 +911,6 @@ export async function confirmCashPaymentReceipt(taskId: string, worker: UserProf
     if (task.paymentStatus !== "Submitted" || payment.paymentStatus !== "Submitted") {
       throw new Error("Wait for the employer to submit the cash payment confirmation.");
     }
-    if (!task.workerProofOfPaymentUrl ||
-        !isPaymentProofPathForTask(taskId, task.workerProofOfPaymentUrl, "worker") ||
-        payment.workerProofOfPaymentUrl !== task.workerProofOfPaymentUrl) {
-      throw new Error("Upload your receipt image or PDF before confirming cash payment.");
-    }
-
     const updates = { paymentStatus: "Verified" as const, workerConfirmedAt: now, updatedAt: now };
     transaction.update(taskRef, updates);
     transaction.update(paymentRef, updates);

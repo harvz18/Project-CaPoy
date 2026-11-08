@@ -18,7 +18,7 @@ export type PaymentMethod = "COD" | "GCash link";
 export type DurationUnit = "hour" | "day" | "week" | "month";
 export type PricingMode = "fixed" | "bidding";
 export type ScheduleMode = "fixed" | "anytime";
-export type PaymentStatus = "Pending" | "Submitted" | "Verified" | "Rejected";
+export type PaymentStatus = "Pending" | "Submitted" | "Awaiting Worker Confirmation" | "Verified" | "Rejected";
 export type VerificationStatus = "Not Submitted" | "Pending Verification" | "Verified" | "Rejected" | "Needs Resubmission";
 export type IdentityStatus = "Unverified" | "Pending Approval" | "Approved" | "Rejected" | "Needs Resubmission";
 export type AccountStatus = "active" | "pending_verification" | "suspended" | "deleted";
@@ -285,6 +285,15 @@ export type Payment = {
   agreedAmount?: string;
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
+  // GCash receiving details live only on the participant-only payment document,
+  // never on the task document (which can be visible to applicants).
+  gcashRecipientMobile?: string;
+  gcashQrPath?: string;
+  gcashDetailsConfirmedAt?: string;
+  gcashPaymentSentAt?: string;
+  gcashPaymentReceivedAt?: string;
+  gcashPaymentNotReceivedAt?: string;
+  gcashTransactionReference?: string;
   proofOfPaymentUrl?: string;
   proofOfPaymentText?: string;
   workerProofOfPaymentUrl?: string;

@@ -85,8 +85,8 @@ export default function AdminScreen() {
     () => data.verifications.filter((item) => item.status === "Pending Verification"),
     [data.verifications]
   );
-  const submittedPayments = useMemo(
-    () => data.payments.filter((item) => item.paymentMethod === "GCash link" && item.paymentStatus === "Submitted"),
+  const gcashPayments = useMemo(
+    () => data.payments.filter((item) => item.paymentMethod === "GCash link"),
     [data.payments]
   );
   const disputedTasks = useMemo(() => data.tasks.filter((item) => item.status === "Disputed"), [data.tasks]);
@@ -185,19 +185,26 @@ export default function AdminScreen() {
           ))}
         </Section>
 
-        <Section title="GCash payment evidence" empty="No submitted GCash proof is waiting for review.">
-          {submittedPayments.map((payment) => {
+        <Section title="GCash direct-payment records" empty="No GCash payment records are available.">
+          {gcashPayments.map((payment) => {
             const task = taskFor(payment.taskId);
             return (
               <View key={payment.id} style={styles.card}>
                 <Text style={styles.cardTitle}>{task?.title ?? payment.taskId}</Text>
                 <Text style={styles.meta}>Client: {nameFor(payment.clientId)} · Worker: {nameFor(payment.workerId)}</Text>
-                <Text style={styles.body}>{payment.proofOfPaymentText || "No payment note"}</Text>
+                <Text style={styles.meta}>Status: {payment.paymentStatus}</Text>
+                {payment.gcashRecipientMobile ? <Text style={styles.body}>Receiving number: {payment.gcashRecipientMobile}</Text> : null}
+                {payment.gcashDetailsConfirmedAt ? <Text style={styles.meta}>Worker details confirmed: {formatDate(payment.gcashDetailsConfirmedAt)}</Text> : null}
+                {payment.gcashPaymentSentAt ? <Text style={styles.meta}>Employer marked sent: {formatDate(payment.gcashPaymentSentAt)}</Text> : null}
+                {payment.gcashPaymentReceivedAt ? <Text style={styles.meta}>Worker confirmed received: {formatDate(payment.gcashPaymentReceivedAt)}</Text> : null}
+                {payment.gcashPaymentNotReceivedAt ? <Text style={styles.meta}>Worker reported not received: {formatDate(payment.gcashPaymentNotReceivedAt)}</Text> : null}
+                <Text style={styles.body}>{payment.gcashTransactionReference || payment.proofOfPaymentText || "No transaction reference or note"}</Text>
                 {payment.proofOfPaymentUrl ? <Action label="Open payment proof" tone="neutral" disabled={Boolean(busyKey)} onPress={() => openPrivateFile(payment.proofOfPaymentUrl!)} /> : null}
-                <View style={styles.row}>
+                {payment.gcashQrPath ? <Action label="Open worker QR image" tone="neutral" disabled={Boolean(busyKey)} onPress={() => openPrivateFile(payment.gcashQrPath!)} /> : null}
+                {payment.paymentStatus === "Submitted" ? <View style={styles.row}>
                   <Action label="Verify payment" tone="positive" disabled={Boolean(busyKey)} onPress={() => run(`pay-ok:${payment.id}`, () => reviewPayment(payment.taskId, "Verified", reason))} />
                   <Action label="Reject payment" tone="danger" disabled={Boolean(busyKey)} onPress={() => run(`pay-no:${payment.id}`, () => reviewPayment(payment.taskId, "Rejected", reason))} />
-                </View>
+                </View> : null}
               </View>
             );
           })}

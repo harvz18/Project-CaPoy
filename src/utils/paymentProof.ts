@@ -2,7 +2,7 @@ export const firestorePaymentProofPrefix = "firestorePaymentProofs";
 export const maxFirestorePaymentProofBytes = 5 * 1024 * 1024;
 export const paymentProofChunkCharacters = 450_000;
 
-export type PaymentProofParty = "client" | "worker";
+export type PaymentProofParty = "client" | "worker" | "worker-gcash-qr";
 
 export function createFirestorePaymentProofPath(taskId: string, party: PaymentProofParty) {
   return `${firestorePaymentProofPrefix}/${taskId}/${party}`;
@@ -13,7 +13,7 @@ export function parseFirestorePaymentProofPath(path: string) {
   if (
     prefix !== firestorePaymentProofPrefix ||
     !taskId ||
-    (party !== "client" && party !== "worker") ||
+    (party !== "client" && party !== "worker" && party !== "worker-gcash-qr") ||
     extra.length > 0
   ) {
     return undefined;
