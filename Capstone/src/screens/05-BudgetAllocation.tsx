@@ -26,6 +26,7 @@ import { PlanningScreenHeader } from '../components/PlanningScreenHeader'
 import { formatPeso } from '../lib/catalog'
 import { colors } from '../theme/tokens'
 import { neutralSelection } from '../theme/neumorphism'
+import { warningNotice } from '../theme/notices'
 
 type MaterialIconName = React.ComponentProps<typeof MaterialIcons>['name']
 type TextInputInstance = React.ComponentRef<typeof TextInput>
@@ -1191,7 +1192,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
                 { transform: [{ translateX: categoryNoticeShake }] },
               ]}
             >
-              <MaterialIcons color={palette.primaryContainer} name="info-outline" size={18} />
+              <MaterialIcons color={warningNotice.icon} name="warning-amber" size={20} />
               <Text style={styles.categoryNoticeText}>{categoryNotice}</Text>
             </Animated.View>
           ) : null}
@@ -1287,7 +1288,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
                         {visuallySelected ? (expanded ? 'HIDE' : 'SHOW') : visuallyRemoved ? 'RESELECT' : 'SELECT'}
                       </Text>
                       <MaterialIcons
-                        color={visuallySelected ? palette.white : palette.primaryContainer}
+                        color={visuallySelected ? neutralSelection.selectedText : palette.primaryContainer}
                         name={visuallySelected && expanded ? 'expand-less' : visuallySelected ? 'expand-more' : visuallyRemoved ? 'undo' : 'chevron-right'}
                         size={18}
                       />
@@ -1378,7 +1379,10 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
               onPress={onSkip}
               style={({ pressed }) => [styles.skipButton, pressed && styles.pressed]}
             >
-              <Text style={styles.skipText}>SKIP FOR NOW</Text>
+              <View style={styles.skipLabel}>
+                <Text style={styles.skipText}>SKIP FOR NOW</Text>
+                <View style={styles.skipUnderline} />
+              </View>
             </Pressable>
           </View>
         </View>
@@ -1487,7 +1491,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
                   >
                     <Text style={styles.categoryBudgetDialogTitle}>Set Budget for Selected Categories</Text>
 
-                {selectedCategories.map((category) => {
+                {selectedCategories.map((category, categoryIndex) => {
                   const amount = allocations[category.id]
                   const otherTotal = totalAllocated - amount
                   const maximum = Math.max(budget - otherTotal, 0)
@@ -1536,7 +1540,7 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
                             <MaterialIcons color={palette.primaryContainer} name={category.icon} size={20} />
                           </View>
                           <View style={styles.categoryCopy}>
-                            <Text style={styles.categoryLabel}>{category.label}</Text>
+                            <Text style={[styles.categoryLabel, styles.categoryBudgetEditorLabel]}>{category.label}</Text>
                           </View>
                         </View>
                         <Pressable
@@ -1585,6 +1589,9 @@ export const BudgetAllocationScreen: React.FC<BudgetAllocationScreenProps> = ({
                             ? ` · ${categoryMinimums[category.id]?.pricingBasis}`
                             : ''}
                         </Text>
+                      ) : null}
+                      {categoryIndex < selectedCategories.length - 1 ? (
+                        <View style={styles.categoryBudgetCategoryDivider} />
                       ) : null}
                     </Animated.View>
                   )
@@ -1885,11 +1892,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: warningNotice.border,
     borderRadius: 12,
-    backgroundColor: '#F8EDEF',
+    backgroundColor: warningNotice.background,
     padding: 12,
   },
-  categoryNoticeText: { flex: 1, color: palette.primaryContainer, fontSize: 12, lineHeight: 18 },
+  categoryNoticeText: { flex: 1, color: warningNotice.text, fontSize: 12, lineHeight: 18 },
   categorySelectionContainer: {
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.76)',
@@ -1905,9 +1914,9 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: neutralSelection.surface,
     overflow: 'hidden',
-    boxShadow: neutralSelection.sunkenShadow,
+    boxShadow: neutralSelection.raisedShadow,
   },
-  categoryCardSelected: { borderColor: neutralSelection.edge, backgroundColor: neutralSelection.surface, boxShadow: neutralSelection.raisedShadow },
+  categoryCardSelected: { borderColor: neutralSelection.selectedEdge, backgroundColor: neutralSelection.selectedSurface, boxShadow: neutralSelection.selectedRaisedShadow },
   categoryHeader: {
     minHeight: 72,
     flexDirection: 'row',
@@ -1934,7 +1943,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.background,
     boxShadow: 'inset 3px 3px 6px rgba(170, 181, 190, 0.34), inset -3px -3px 6px rgba(255, 255, 255, 0.90)',
   },
-  categoryIconSelected: { backgroundColor: neutralSelection.surface, boxShadow: neutralSelection.raisedShadow },
+  categoryIconSelected: { backgroundColor: 'rgba(255, 255, 255, 0.14)', boxShadow: 'none' },
   categoryCopy: { minWidth: 0, flex: 1 },
   categoryLabel: { color: palette.text, fontSize: 14, lineHeight: 19, fontWeight: '700' },
   categoryStatus: { marginTop: 2, color: palette.secondary, fontSize: 12, lineHeight: 16 },
@@ -1953,12 +1962,12 @@ const styles = StyleSheet.create({
     boxShadow: '3px 3px 6px rgba(156, 169, 180, 0.40), -3px -3px 6px rgba(255, 255, 255, 0.92)',
   },
   categoryActionSelected: {
-    borderColor: palette.primaryContainer,
-    backgroundColor: palette.primaryContainer,
-    boxShadow: '3px 3px 7px rgba(78, 6, 26, 0.36), -2px -2px 5px rgba(255, 255, 255, 0.62)',
+    borderColor: neutralSelection.selectedEdge,
+    backgroundColor: neutralSelection.selectedSurface,
+    boxShadow: neutralSelection.selectedRaisedShadow,
   },
   categoryActionText: { color: palette.primaryContainer, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 0.6 },
-  categoryActionTextSelected: { color: palette.white },
+  categoryActionTextSelected: { color: neutralSelection.selectedText },
   categoryAllocationPanel: {
     borderTopWidth: 1,
     borderTopColor: '#EFE4E6',
@@ -2188,6 +2197,7 @@ const styles = StyleSheet.create({
     height: 36,
   },
   categoryBudgetEditorCard: {
+    position: 'relative',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.78)',
     borderRadius: 16,
@@ -2203,6 +2213,15 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   categoryBudgetEditorIcon: { width: 34, height: 34, borderRadius: 17 },
+  categoryBudgetEditorLabel: { fontSize: 16, lineHeight: 22 },
+  categoryBudgetCategoryDivider: {
+    position: 'absolute',
+    right: 14,
+    bottom: -3,
+    left: 14,
+    height: 1,
+    backgroundColor: 'rgba(94, 94, 94, 0.28)',
+  },
   categoryBudgetRemoveButton: {
     width: 32,
     height: 32,
@@ -2328,17 +2347,18 @@ const styles = StyleSheet.create({
   footerContent: { width: '100%', maxWidth: 760, alignSelf: 'center', alignItems: 'center' },
   skipButton: {
     alignSelf: 'center',
+    alignItems: 'center',
     paddingHorizontal: 8,
     paddingVertical: 6,
   },
+  skipLabel: { alignItems: 'stretch' },
   skipText: {
     color: palette.secondary,
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 1.1,
-    textDecorationLine: 'underline',
-    textDecorationColor: palette.secondary,
   },
+  skipUnderline: { height: 2, borderRadius: 1, backgroundColor: palette.secondary, marginTop: 1 },
   continueDisabled: { opacity: 0.5, boxShadow: 'none' },
   pressed: { opacity: 0.82, transform: [{ scale: 0.99 }] },
 })

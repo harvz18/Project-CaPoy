@@ -14,6 +14,7 @@ import { canOpenEventLocation, openEventLocation } from '../lib/event-location'
 import { EVENT_BOOKING_LEAD_TIME_MESSAGE, isEventDateBookable } from '../lib/event-booking-lead-time'
 import { colors } from '../theme/tokens'
 import { neutralSelection } from '../theme/neumorphism'
+import { warningNotice } from '../theme/notices'
 import { animateOptionLayout, optionSelectionMotionDuration } from '../theme/option-motion'
 import type { BookingItem } from './11-BookingScreen'
 
@@ -937,11 +938,11 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
             ) : null}
             {booking.churchArrangement?.clientResponseStatus === 'declined' ? (
               <View style={[styles.churchResponseNotice, styles.churchDeclinedNotice]}>
-                <MaterialIcons color={palette.error} name="cancel" size={18} />
+                <MaterialIcons color={warningNotice.icon} name="cancel" size={18} />
                 <View style={styles.churchResponseNoticeCopy}>
                   <Text style={styles.churchDeclinedNoticeTitle}>You declined this proposal.</Text>
                   {booking.churchArrangement.clientResponseReason ? (
-                    <Text style={styles.churchResponseNoticeText}>Reason: {booking.churchArrangement.clientResponseReason}</Text>
+                    <Text style={[styles.churchResponseNoticeText, styles.warningNoticeText]}>Reason: {booking.churchArrangement.clientResponseReason}</Text>
                   ) : null}
                 </View>
               </View>
@@ -1214,14 +1215,14 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                       </View>
                     ) : null}
                   {service.status === 'declined' && service.replacementAvailable ? (
-                    <View style={styles.tastingCard}>
+                    <View style={[styles.tastingCard, styles.tastingWarningCard]}>
                       <View style={styles.tastingHeading}>
-                        <View style={styles.tastingIcon}>
-                          <MaterialIcons color={palette.error} name="warning-amber" size={19} />
+                        <View style={[styles.tastingIcon, styles.tastingWarningIcon]}>
+                          <MaterialIcons color={warningNotice.icon} name="warning-amber" size={19} />
                         </View>
                         <View style={styles.tastingCopy}>
-                          <Text style={styles.tastingTitle}>Service Booking Declined</Text>
-                          <Text style={styles.tastingText}>
+                          <Text style={[styles.tastingTitle, styles.warningNoticeTitle]}>Service Booking Declined</Text>
+                          <Text style={[styles.tastingText, styles.warningNoticeText]}>
                             This provider could not accept your request. Find a similar {service.category} service without changing the held payment for this booking.
                           </Text>
                         </View>
@@ -2110,8 +2111,8 @@ export const BookingDetailsScreen: React.FC<BookingDetailsScreenProps> = ({
                   />
                 </View>
                 <View style={[styles.changeNotice, styles.cancelNotice]}>
-                  <MaterialIcons color={palette.error} name="warning-amber" size={19} />
-                  <Text style={styles.changeNoticeText}>
+                  <MaterialIcons color={warningNotice.icon} name="warning-amber" size={19} />
+                  <Text style={[styles.changeNoticeText, styles.warningNoticeText]}>
                     More than 14 days before the event, the eligible refund is recorded for external bank or e-wallet disbursement. Cancellations at 14 days or sooner are non-refundable.
                   </Text>
                 </View>
@@ -2375,8 +2376,8 @@ const styles = StyleSheet.create({
   churchMapFallback: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 9, backgroundColor: '#F8F3F4', padding: 10, marginBottom: 12 },
   churchMapFallbackText: { minWidth: 0, flex: 1, color: palette.muted, fontSize: 10, lineHeight: 15 },
   churchResponseNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, borderColor: '#CDE1D3', borderRadius: 10, backgroundColor: '#F2F8F4', padding: 11, marginTop: 10 },
-  churchDeclinedNotice: { borderColor: '#EDCDD3', backgroundColor: '#FFF6F7' },
-  churchDeclinedNoticeTitle: { color: palette.error, fontSize: 12, lineHeight: 17, fontWeight: '700' },
+  churchDeclinedNotice: { borderColor: warningNotice.border, backgroundColor: warningNotice.background },
+  churchDeclinedNoticeTitle: { color: warningNotice.text, fontSize: 12, lineHeight: 17, fontWeight: '700' },
   churchResponseNoticeCopy: { minWidth: 0, flex: 1 },
   churchResponseNoticeText: { color: palette.muted, fontSize: 11, lineHeight: 17 },
   coordinatorConfirmationNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, borderColor: '#D9C6CA', borderRadius: 10, backgroundColor: '#F9F1F3', padding: 11, marginTop: 10 },
@@ -2565,8 +2566,10 @@ const styles = StyleSheet.create({
     letterSpacing: 1.1,
   },
   tastingCard: { gap: 9, borderRadius: 10, backgroundColor: '#F8F0F1', padding: 11, marginTop: 12 },
+  tastingWarningCard: { borderWidth: 1, borderColor: warningNotice.border, backgroundColor: warningNotice.background },
   tastingHeading: { flexDirection: 'row', alignItems: 'flex-start', gap: 9 },
   tastingIcon: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: '#F0DDE1' },
+  tastingWarningIcon: { backgroundColor: 'rgba(186, 26, 26, 0.06)' },
   tastingCopy: { minWidth: 0, flex: 1 },
   tastingTitle: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '700' },
   tastingText: { color: palette.muted, fontSize: 11, lineHeight: 16, marginTop: 1 },
@@ -2585,9 +2588,9 @@ const styles = StyleSheet.create({
   tastingDateTitle: { color: palette.text, fontSize: 13, lineHeight: 19, fontWeight: '700' },
   tastingSlotRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   tastingSlot: { minHeight: 36, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: neutralSelection.edge, borderRadius: 8, backgroundColor: neutralSelection.surface, paddingHorizontal: 11, boxShadow: neutralSelection.sunkenShadow },
-  tastingSlotSelected: { borderColor: neutralSelection.edge, backgroundColor: neutralSelection.surface, boxShadow: neutralSelection.raisedShadow },
+  tastingSlotSelected: { borderColor: neutralSelection.selectedEdge, backgroundColor: neutralSelection.selectedSurface, boxShadow: neutralSelection.selectedRaisedShadow },
   tastingSlotText: { color: palette.text, fontSize: 11, lineHeight: 15, fontWeight: '600' },
-  tastingSlotTextSelected: { color: palette.text, fontWeight: '700' },
+  tastingSlotTextSelected: { color: neutralSelection.selectedText, fontWeight: '700' },
   tastingSelectionSummary: { gap: 3, borderRadius: 10, backgroundColor: '#F4E7EA', padding: 12 },
   tastingSelectionTitle: { color: palette.burgundy, fontSize: 11, lineHeight: 15, fontWeight: '700' },
   tastingSelectionText: { color: palette.text, fontSize: 11, lineHeight: 16 },
@@ -2681,8 +2684,10 @@ const styles = StyleSheet.create({
     backgroundColor: palette.card,
     padding: 12,
   },
-  cancelNotice: { backgroundColor: '#FCEFED' },
+  cancelNotice: { borderColor: warningNotice.border, backgroundColor: warningNotice.background },
   changeNoticeText: { minWidth: 0, flex: 1, color: palette.muted, fontSize: 12, lineHeight: 18 },
+  warningNoticeTitle: { color: warningNotice.text },
+  warningNoticeText: { color: warningNotice.mutedText },
   changeError: {
     color: palette.error,
     fontSize: 12,

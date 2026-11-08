@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Text } from '../components/AppText'
 import { BrandIdentity } from '../components/BrandIdentity'
 import { BusinessPoliciesEditor } from '../components/BusinessPolicies'
@@ -64,6 +65,7 @@ export const AccountProfileScreen: React.FC<AccountProfileScreenProps> = ({
   onSignOut,
   profile,
 }) => {
+  const safeAreaInsets = useSafeAreaInsets()
   const [value, setValue] = React.useState(profile ?? fallbackProfile)
   const lastScrollY = React.useRef(0)
 
@@ -72,6 +74,7 @@ export const AccountProfileScreen: React.FC<AccountProfileScreenProps> = ({
   }, [profile])
 
   const isProvider = value.role === 'service_provider'
+  const isClient = value.role === 'client'
   const initials = (isProvider ? value.businessName : value.fullName)
     .split(/\s+/)
     .filter(Boolean)
@@ -89,10 +92,82 @@ export const AccountProfileScreen: React.FC<AccountProfileScreenProps> = ({
     if (avatarUrl) setValue((current) => ({ ...current, avatarUrl }))
   }
 
+  const avatarControl = (
+    <Pressable
+      accessibilityLabel={value.avatarUrl ? 'Change profile photo' : 'Add profile photo'}
+      accessibilityRole="button"
+      accessibilityState={{ busy: isUploadingPhoto, disabled: isUploadingPhoto }}
+      disabled={!onChoosePhoto || isUploadingPhoto}
+      onPress={() => void choosePhoto()}
+      style={({ pressed }) => [
+        styles.avatarButton,
+        isClient && styles.avatarButtonCompact,
+        pressed && styles.avatarButtonPressed,
+      ]}
+    >
+      <View style={[styles.avatar, isClient && styles.avatarCompact]}>
+        {value.avatarUrl ? (
+          <Image
+            accessibilityLabel="Your profile photo"
+            resizeMode="cover"
+            source={{ uri: value.avatarUrl }}
+            style={[styles.avatarImage, isClient && styles.avatarImageCompact]}
+          />
+        ) : (
+          <Text style={[styles.avatarText, isClient && styles.avatarTextCompact]}>{initials}</Text>
+        )}
+      </View>
+      <View style={[styles.cameraBadge, isClient && styles.cameraBadgeCompact]}>
+        {isUploadingPhoto ? (
+          <ActivityIndicator color={colors.textInverse} size="small" />
+        ) : (
+          <MaterialIcons color={colors.textInverse} name="photo-camera" size={16} />
+        )}
+      </View>
+    </Pressable>
+  )
+
+  const supportAction = onOpenSupport ? (
+    <Pressable
+      accessibilityLabel="Contact MULTIVENT Support"
+      accessibilityRole="button"
+      onPress={onOpenSupport}
+      style={({ pressed }) => [styles.supportButton, isClient && styles.clientSupportButton, pressed && styles.secondaryButtonPressed]}
+    >
+      {isClient ? <MaterialIcons color={colors.primaryDark} name="support-agent" size={20} /> : null}
+      <Text style={styles.supportText}>Contact MULTIVENT Support</Text>
+    </Pressable>
+  ) : null
+
+  const logoutAction = onSignOut ? (
+    <Pressable
+      accessibilityLabel="Log out of MULTIVENT"
+      accessibilityRole="button"
+      accessibilityState={{ busy: isSigningOut, disabled: isSigningOut }}
+      disabled={isSigningOut}
+      onPress={onSignOut}
+      style={({ pressed }) => [
+        styles.logoutButton,
+        isClient && styles.clientLogoutButton,
+        pressed && styles.logoutButtonPressed,
+        isSigningOut && styles.logoutButtonDisabled,
+      ]}
+    >
+      {isSigningOut ? (
+        <ActivityIndicator color={colors.error} size="small" />
+      ) : (
+        <MaterialIcons color={colors.error} name="logout" size={20} />
+      )}
+      <Text style={styles.logoutText}>
+        {isSigningOut ? 'Logging out...' : 'Log out'}
+      </Text>
+    </Pressable>
+  ) : null
+
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={styles.screen}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={[styles.screen, isClient && styles.clientScreen]}
     >
       <View style={styles.header}>
         <Pressable
@@ -100,7 +175,11 @@ export const AccountProfileScreen: React.FC<AccountProfileScreenProps> = ({
           accessibilityRole="button"
           hitSlop={8}
           onPress={onBack}
-          style={({ pressed }) => [styles.backButton, pressed && styles.backButtonPressed]}
+          style={({ pressed }) => [
+            styles.backButton,
+            isClient && styles.clientBackButton,
+            pressed && styles.backButtonPressed,
+          ]}
         >
           <MaterialIcons color={colors.textInverse} name="arrow-back" size={22} />
         </Pressable>
@@ -111,7 +190,13 @@ export const AccountProfileScreen: React.FC<AccountProfileScreenProps> = ({
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.content}
+        automaticallyAdjustKeyboardInsets
+        contentContainerStyle={[
+          styles.content,
+          isClient && styles.clientContent,
+          { paddingBottom: 132 + safeAreaInsets.bottom },
+        ]}
+        keyboardDismissMode="interactive"
         keyboardShouldPersistTaps="handled"
         onScroll={(event) => {
           const scrollY = Math.max(0, event.nativeEvent.contentOffset.y)
@@ -122,60 +207,49 @@ export const AccountProfileScreen: React.FC<AccountProfileScreenProps> = ({
         }}
         scrollEventThrottle={16}
       >
-        <Pressable
-          accessibilityLabel={value.avatarUrl ? 'Change profile photo' : 'Add profile photo'}
-          accessibilityRole="button"
-          accessibilityState={{ busy: isUploadingPhoto, disabled: isUploadingPhoto }}
-          disabled={!onChoosePhoto || isUploadingPhoto}
-          onPress={() => void choosePhoto()}
-          style={({ pressed }) => [styles.avatarButton, pressed && styles.avatarButtonPressed]}
-        >
-          <View style={styles.avatar}>
-            {value.avatarUrl ? (
-              <Image
-                accessibilityLabel="Your profile photo"
-                resizeMode="cover"
-                source={{ uri: value.avatarUrl }}
-                style={styles.avatarImage}
-              />
-            ) : (
-              <Text style={styles.avatarText}>{initials}</Text>
-            )}
+        {!isClient ? (
+          <>
+            {avatarControl}
+            <Text style={styles.photoActionText}>
+              {isUploadingPhoto ? 'Uploading photo...' : value.avatarUrl ? 'Change profile photo' : 'Add profile photo'}
+            </Text>
+            <Text style={styles.introTitle}>Edit your profile</Text>
+            <Text style={styles.introCopy}>
+              Keep your contact details accurate. Account role and status can only be changed by authorized staff.
+            </Text>
+          </>
+        ) : (
+          <View style={styles.clientProfileHeader}>
+            {avatarControl}
+            <View style={styles.clientProfileHeaderCopy}>
+              <Text style={styles.clientIntroTitle}>Edit Your Profile</Text>
+              <Text style={styles.clientIntroCopy}>Manage your personal and contact information.</Text>
+              <Text style={styles.clientPhotoActionText}>
+                {isUploadingPhoto ? 'Uploading photo...' : value.avatarUrl ? 'Change profile photo' : 'Add profile photo'}
+              </Text>
+            </View>
           </View>
-          <View style={styles.cameraBadge}>
-            {isUploadingPhoto ? (
-              <ActivityIndicator color={colors.textInverse} size="small" />
-            ) : (
-              <MaterialIcons color={colors.textInverse} name="photo-camera" size={17} />
-            )}
-          </View>
-        </Pressable>
-        <Text style={styles.photoActionText}>
-          {isUploadingPhoto ? 'Uploading photo...' : value.avatarUrl ? 'Change profile photo' : 'Add profile photo'}
-        </Text>
-        <Text style={styles.introTitle}>Edit your profile</Text>
-        <Text style={styles.introCopy}>
-          Keep your contact details accurate. Account role and status can only be changed by authorized staff.
-        </Text>
+        )}
 
         {isLoading ? (
           <View style={styles.loading}><ActivityIndicator color={colors.primary} /><Text style={styles.loadingText}>Loading profile...</Text></View>
         ) : (
-          <View style={styles.card}>
+          <>
+          <View style={[styles.card, isClient && styles.clientCard]}>
             {value.hasStructuredName ? (
-              <View style={styles.nameRow}>
+              <View style={[styles.nameRow, isClient && styles.clientNameRow]}>
                 <View style={styles.nameInput}>
-                  <Field autoCapitalize="words" autoComplete="name-given" label="First name" onChangeText={(text) => update('firstName', text)} value={value.firstName} />
+                  <Field autoCapitalize="words" autoComplete="name-given" label="First name" neumorphic={isClient} onChangeText={(text) => update('firstName', text)} value={value.firstName} />
                 </View>
                 <View style={styles.nameInput}>
-                  <Field autoCapitalize="words" autoComplete="name-family" label="Last name" onChangeText={(text) => update('lastName', text)} value={value.lastName} />
+                  <Field autoCapitalize="words" autoComplete="name-family" label="Last name" neumorphic={isClient} onChangeText={(text) => update('lastName', text)} value={value.lastName} />
                 </View>
               </View>
             ) : (
-              <Field autoCapitalize="words" autoComplete="name" label="Full name" onChangeText={(text) => update('fullName', text)} value={value.fullName} />
+              <Field autoCapitalize="words" autoComplete="name" label="Full name" neumorphic={isClient} onChangeText={(text) => update('fullName', text)} value={value.fullName} />
             )}
-            <Field label="Email" editable={false} helper="Email changes require account verification." value={value.email} />
-            <Field keyboardType="phone-pad" label="Phone number" onChangeText={(text) => update('phone', text)} placeholder="e.g. +63 917 123 4567" value={value.phone} />
+            <Field label="Email" editable={false} helper="Email changes require account verification." neumorphic={isClient} value={value.email} />
+            <Field keyboardType="phone-pad" label="Phone number" neumorphic={isClient} onChangeText={(text) => update('phone', text)} placeholder="e.g. +63 917 123 4567" value={value.phone} />
 
             {isProvider ? (
               <>
@@ -195,39 +269,20 @@ export const AccountProfileScreen: React.FC<AccountProfileScreenProps> = ({
               accessibilityRole="button"
               disabled={isSaving || isLoading}
               onPress={() => onSave(value)}
-              style={({ pressed }) => [styles.saveButton, pressed && styles.saveButtonPressed, (isSaving || isLoading) && styles.saveButtonDisabled]}
+              style={({ pressed }) => [styles.saveButton, isClient && styles.clientSaveButton, pressed && styles.saveButtonPressed, (isSaving || isLoading) && styles.saveButtonDisabled]}
             >
               {isSaving ? <ActivityIndicator color={colors.textInverse} /> : <Text style={styles.saveText}>Save changes</Text>}
             </Pressable>
-            {onOpenSupport ? (
-              <Pressable accessibilityRole="button" onPress={onOpenSupport} style={styles.supportButton}>
-                <Text style={styles.supportText}>Contact MULTIVENT Support</Text>
-              </Pressable>
-            ) : null}
-            {onSignOut ? (
-              <Pressable
-                accessibilityLabel="Log out of MULTIVENT"
-                accessibilityRole="button"
-                accessibilityState={{ busy: isSigningOut, disabled: isSigningOut }}
-                disabled={isSigningOut}
-                onPress={onSignOut}
-                style={({ pressed }) => [
-                  styles.logoutButton,
-                  pressed && styles.logoutButtonPressed,
-                  isSigningOut && styles.logoutButtonDisabled,
-                ]}
-              >
-                {isSigningOut ? (
-                  <ActivityIndicator color={colors.error} size="small" />
-                ) : (
-                  <MaterialIcons color={colors.error} name="logout" size={20} />
-                )}
-                <Text style={styles.logoutText}>
-                  {isSigningOut ? 'Logging out...' : 'Log out'}
-                </Text>
-              </Pressable>
-            ) : null}
+            {!isClient ? supportAction : null}
+            {!isClient ? logoutAction : null}
           </View>
+          {isClient ? (
+            <View style={styles.clientAccountActions}>
+              {supportAction}
+              {logoutAction}
+            </View>
+          ) : null}
+          </>
         )}
       </ScrollView>
     </KeyboardAvoidingView>
@@ -237,15 +292,23 @@ export const AccountProfileScreen: React.FC<AccountProfileScreenProps> = ({
 type FieldProps = React.ComponentProps<typeof TextInput> & {
   helper?: string
   label: string
+  neumorphic?: boolean
 }
 
-const Field: React.FC<FieldProps> = ({ helper, label, multiline, style, ...props }) => (
-  <View style={styles.field}>
+const Field: React.FC<FieldProps> = ({ helper, label, multiline, neumorphic = false, style, ...props }) => (
+  <View style={[styles.field, neumorphic && styles.clientField]}>
     <Text style={styles.label}>{label}</Text>
     <TextInput
       placeholderTextColor={colors.textMuted}
       selectionColor={colors.primary}
-      style={[styles.input, multiline && styles.textarea, props.editable === false && styles.inputDisabled, style]}
+      style={[
+        styles.input,
+        neumorphic && styles.clientInput,
+        multiline && styles.textarea,
+        props.editable === false && styles.inputDisabled,
+        neumorphic && props.editable === false && styles.clientInputDisabled,
+        style,
+      ]}
       multiline={multiline}
       {...props}
     />
@@ -256,13 +319,17 @@ const Field: React.FC<FieldProps> = ({ helper, label, multiline, style, ...props
 const styles = StyleSheet.create({
   avatar: { alignItems: 'center', alignSelf: 'center', backgroundColor: '#F1E2E3', borderColor: '#E4C8CB', borderRadius: 44, borderWidth: 1, height: 88, justifyContent: 'center', width: 88 },
   avatarButton: { alignSelf: 'center', position: 'relative' },
+  avatarButtonCompact: { flexShrink: 0, margin: 7 },
   avatarButtonPressed: { opacity: 0.72 },
   avatarImage: { borderRadius: 43, height: '100%', width: '100%' },
+  avatarImageCompact: { borderRadius: 35 },
   avatarText: { color: colors.primaryDark, fontFamily: 'Inter_700Bold', fontSize: 25 },
+  avatarTextCompact: { fontSize: 21 },
   backButton: { alignItems: 'center', borderRadius: 20, height: 40, justifyContent: 'center', width: 40 },
-  backButtonPressed: { backgroundColor: 'rgba(255, 255, 255, 0.12)', opacity: 0.78 },
+  backButtonPressed: { boxShadow: 'inset 3px 3px 7px rgba(44, 3, 15, 0.66), inset -3px -3px 7px rgba(143, 48, 72, 0.46)', transform: [{ scale: 0.96 }] },
   card: { alignSelf: 'center', backgroundColor: colors.surfaceElevated, borderColor: colors.border, borderRadius: 18, borderWidth: 1, maxWidth: 680, padding: 20, width: '100%' },
   cameraBadge: { alignItems: 'center', backgroundColor: colors.primary, borderColor: colors.surfaceElevated, borderRadius: 17, borderWidth: 3, bottom: -1, height: 34, justifyContent: 'center', position: 'absolute', right: -3, width: 34 },
+  cameraBadgeCompact: { borderColor: '#E9EDF0', borderRadius: 15, borderWidth: 2, bottom: -2, height: 30, right: -4, width: 30 },
   content: { paddingBottom: 112, paddingHorizontal: 18, paddingTop: 28 },
   divider: { backgroundColor: colors.divider, height: 1, marginBottom: 20, marginTop: 5 },
   error: { backgroundColor: '#FFF0F0', borderRadius: 8, color: colors.error, fontFamily: 'Inter_500Medium', fontSize: 13, marginBottom: 14, padding: 11 },
@@ -295,4 +362,23 @@ const styles = StyleSheet.create({
   sectionTitle: { color: colors.primaryDark, fontFamily: 'Inter_700Bold', fontSize: 16, marginBottom: 16 },
   textarea: { minHeight: 112, textAlignVertical: 'top' },
   title: { color: colors.textPrimary, fontFamily: 'Inter_600SemiBold', fontSize: 16, marginTop: 2 },
+  clientScreen: { backgroundColor: '#E9EDF0' },
+  clientBackButton: { borderColor: 'rgba(255, 255, 255, 0.16)', borderWidth: 1, backgroundColor: '#6B1E2E', boxShadow: '3px 3px 7px rgba(44, 3, 15, 0.58), -3px -3px 7px rgba(143, 48, 72, 0.46)' },
+  clientContent: { paddingHorizontal: 16, paddingTop: 18 },
+  clientProfileHeader: { alignItems: 'center', alignSelf: 'center', flexDirection: 'row', gap: 15, maxWidth: 680, paddingHorizontal: 6, width: '100%' },
+  clientProfileHeaderCopy: { flex: 1, minWidth: 0 },
+  clientIntroTitle: { color: '#57636C', fontFamily: 'Inter_700Bold', fontSize: 22, lineHeight: 28 },
+  clientIntroCopy: { color: '#6F7B84', fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 18, marginTop: 3 },
+  clientPhotoActionText: { color: colors.primaryDark, fontFamily: 'Inter_600SemiBold', fontSize: 11, lineHeight: 16, marginTop: 6 },
+  avatarCompact: { backgroundColor: '#E9EDF0', borderColor: 'rgba(255, 255, 255, 0.76)', borderRadius: 36, height: 72, width: 72, boxShadow: '5px 5px 11px rgba(161, 172, 180, 0.5), -5px -5px 11px rgba(255, 255, 255, 0.95)' },
+  clientCard: { backgroundColor: '#E9EDF0', borderColor: 'rgba(255, 255, 255, 0.76)', borderRadius: 20, marginTop: 18, padding: 18, boxShadow: '7px 7px 15px rgba(160, 171, 180, 0.48), -7px -7px 15px rgba(255, 255, 255, 0.95)' },
+  clientField: { marginBottom: 15 },
+  clientInput: { backgroundColor: '#E9EDF0', borderColor: 'rgba(255, 255, 255, 0.62)', borderRadius: 14, color: '#57636C', minHeight: 50, paddingHorizontal: 15, boxShadow: 'inset 4px 4px 8px rgba(165, 174, 182, 0.56), inset -4px -4px 8px rgba(255, 255, 255, 0.94)' },
+  clientInputDisabled: { backgroundColor: '#E2E6E9', color: '#6F7B84', boxShadow: 'inset 3px 3px 6px rgba(165, 174, 182, 0.48), inset -3px -3px 6px rgba(255, 255, 255, 0.84)' },
+  clientNameRow: { flexDirection: 'column', gap: 0 },
+  clientSaveButton: { borderRadius: 25, marginTop: 2, minHeight: 50 },
+  clientAccountActions: { alignSelf: 'center', gap: 11, marginTop: 18, maxWidth: 680, width: '100%' },
+  clientSupportButton: { backgroundColor: '#E9EDF0', borderColor: 'rgba(255, 255, 255, 0.76)', borderRadius: 23, flexDirection: 'row', gap: 9, marginTop: 0, minHeight: 46, boxShadow: '4px 4px 9px rgba(161, 172, 180, 0.46), -4px -4px 9px rgba(255, 255, 255, 0.94)' },
+  clientLogoutButton: { backgroundColor: '#E9EDF0', borderColor: 'rgba(185, 28, 28, 0.42)', borderRadius: 23, marginTop: 0, minHeight: 46 },
+  secondaryButtonPressed: { boxShadow: 'inset 3px 3px 7px rgba(161, 172, 180, 0.5), inset -3px -3px 7px rgba(255, 255, 255, 0.92)', transform: [{ scale: 0.98 }] },
 })

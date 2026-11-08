@@ -11,6 +11,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   TextInput,
   useWindowDimensions,
   View,
@@ -21,6 +22,7 @@ import { ReviewedServicesTab } from '../components/ReviewedServicesTab'
 import { ClientBottomNavigation, ClientMainTab } from '../components/ClientBottomNavigation'
 import { colors } from '../theme/tokens'
 import { neutralSelection } from '../theme/neumorphism'
+import { warningNotice } from '../theme/notices'
 import {
   categoryNameToId,
   CatalogLoadStatus,
@@ -302,6 +304,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
   const isWide = width >= 768
   const isExploreMode = mode === 'explore'
   const isChangingService = Boolean(changeServiceContext)
+  const isPlanningCategoryBrowse = !isExploreMode && !isChangingService && !replacementContext
   const usesCompactPlanningCards = !isExploreMode && !isChangingService && !replacementContext
   // Provider replacements compare against the current booking, not the old
   // planning allocation. Keep the normal allocation behavior everywhere else.
@@ -364,6 +367,31 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
     if (assignedCoordinator) categoryIds.add('eventOrganizers')
     return categoryIds
   }, [assignedCoordinator, selectedServices])
+  const activeSelectedServiceIds = React.useMemo(() => {
+    const serviceIds = new Set<string>()
+
+    selectedServices.forEach((service) => {
+      const status = service.status.trim().toLowerCase()
+      if (!['cancelled', 'deleted', 'rejected', 'removed'].includes(status)) {
+        serviceIds.add(service.id)
+      }
+    })
+
+    return serviceIds
+  }, [selectedServices])
+  const isServiceAlreadySelected = React.useCallback((service: CatalogService) => (
+    isPlanningCategoryBrowse
+    && (
+      activeSelectedServiceIds.has(service.id)
+      || Boolean(
+        service.bookingServiceId
+        && activeSelectedServiceIds.has(service.bookingServiceId)
+      )
+    )
+  ), [activeSelectedServiceIds, isPlanningCategoryBrowse])
+  const currentCategoryCompleted = activeSelectedCategoryIds.has(
+    categoryNameToId(categoryName) as CatalogCategoryId
+  )
   const categorySelectionOptions = React.useMemo(() => {
     const plannedCategoryIds = new Set(
       categories.map((category) => marketplaceCategoryId(category))
@@ -752,11 +780,15 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
       servicesForCategoryCounts.filter((vendor) => (
         (categoryId === 'all' || vendor.categoryId === categoryId)
         && matchesMarketplaceFilters(vendor, true)
+        && !isServiceAlreadySelected(vendor)
       )).length,
     ]
   }))
 
-  const visibleVendors = services.filter((vendor) => matchesMarketplaceFilters(vendor)).sort((left, right) => {
+  const visibleVendors = services.filter((vendor) => (
+    matchesMarketplaceFilters(vendor)
+    && !isServiceAlreadySelected(vendor)
+  )).sort((left, right) => {
     const leftRating = Number.parseFloat(left.rating) || 0
     const rightRating = Number.parseFloat(right.rating) || 0
     const leftBookings = left.bookingCount ?? 0
@@ -812,7 +844,6 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
       || rightBookings - leftBookings
       || left.name.localeCompare(right.name)
   })
-  const isPlanningCategoryBrowse = !isExploreMode && !isChangingService && !replacementContext
   const hasStepTwoCategoryBudget = isPlanningCategoryBrowse
     && visibleVendors.some((vendor) => categoryBudgetForVendor(vendor) > 0)
   const vendorSections = isPlanningCategoryBrowse
@@ -925,9 +956,13 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
               accessibilityRole="button"
               hitSlop={8}
               onPress={onBack}
-              style={({ pressed }) => [styles.headerButton, pressed && styles.headerButtonPressed]}
+              style={({ pressed }) => [
+                styles.headerButton,
+                styles.headerButtonNeumorphic,
+                pressed && styles.headerButtonNeumorphicPressed,
+              ]}
             >
-              <Text style={styles.backIcon}>{'‹'}</Text>
+              <MaterialCommunityIcons color="#FFFFFF" name="chevron-left" size={28} />
             </Pressable>
             <Text style={styles.headerTitle}>CHANGE SERVICE</Text>
             <View style={styles.headerButton} />
@@ -1020,7 +1055,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
             </Text>
           </View>
         ) : changeServiceContext ? (
-          <View style={styles.replacementBanner}>
+          <View style={[styles.replacementBanner, styles.changeServiceBanner]}>
             <Text style={styles.replacementEyebrow}>CHANGING SELECTED SERVICE</Text>
             <Text style={styles.replacementTitle}>{changeServiceContext.serviceName}</Text>
             <Text style={styles.replacementCopy}>
@@ -1052,19 +1087,39 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
               }}
               style={({ pressed }) => [
                 styles.categorySelectionCard,
+                currentCategoryCompleted && styles.categorySelectionCardCompleted,
                 pressed && styles.neumorphicPressed,
               ]}
             >
-              <View style={styles.categorySelectionIcon}>
-                <MaterialIcons color={palette.primaryContainer} name="category" size={21} />
+              <View style={[
+                styles.categorySelectionIcon,
+                currentCategoryCompleted && styles.categorySelectionIconCompleted,
+              ]}>
+                <MaterialIcons
+                  color={currentCategoryCompleted ? '#1F6B42' : palette.primaryContainer}
+                  name={currentCategoryCompleted ? 'check' : 'category'}
+                  size={21}
+                />
               </View>
               <View style={styles.categorySelectionCopy}>
-                <Text style={styles.categorySelectionTitle}>{categoryName}</Text>
-                <Text style={styles.categorySelectionHint}>Tap to browse or add another category</Text>
+                <Text style={[
+                  styles.categorySelectionTitle,
+                  currentCategoryCompleted && styles.categorySelectionTitleCompleted,
+                ]}>{categoryName}</Text>
+                <Text style={[
+                  styles.categorySelectionHint,
+                  currentCategoryCompleted && styles.categorySelectionHintCompleted,
+                ]}>Tap to browse or add another category</Text>
               </View>
-              <View style={styles.categorySelectionAction}>
-                <Text style={styles.categorySelectionActionText}>CHANGE</Text>
-                <MaterialIcons color={palette.primaryContainer} name="chevron-right" size={19} />
+              <View style={[
+                styles.categorySelectionAction,
+                currentCategoryCompleted && styles.categorySelectionActionCompleted,
+              ]}>
+                <Text style={[
+                  styles.categorySelectionActionText,
+                  currentCategoryCompleted && styles.categorySelectionActionTextCompleted,
+                ]}>CHANGE</Text>
+                <MaterialIcons color={currentCategoryCompleted ? '#1F6B42' : palette.primaryContainer} name="chevron-right" size={19} />
               </View>
             </Pressable>
           </View>
@@ -1470,7 +1525,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
           ) : null}
           {catalogShowingFallback ? (
             <View accessibilityLiveRegion="polite" style={styles.catalogFallbackNotice}>
-              <MaterialIcons color={palette.primary} name="sync-problem" size={16} />
+              <MaterialIcons color={warningNotice.icon} name="sync-problem" size={18} />
               <Text style={styles.catalogFallbackNoticeText}>
                 Showing last available services. Retry when your connection is ready.
               </Text>
@@ -1730,7 +1785,7 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                       {option.label}
                     </Text>
                     <MaterialIcons
-                      color={selected ? palette.primaryContainer : palette.secondary}
+                      color={selected ? neutralSelection.selectedText : palette.secondary}
                       name={selected ? 'radio-button-checked' : 'radio-button-unchecked'}
                       size={21}
                     />
@@ -1903,55 +1958,63 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                 })() : null}
               </View>
 
+              <Text style={styles.reviewServicesHeading}>Selected Services</Text>
               {assignedCoordinator ? (
-                <View style={styles.reviewCoordinatorCard}>
-                  {assignedCoordinator.avatarUrl ? (
-                    <Image
-                      accessibilityLabel={`${assignedCoordinator.name}, assigned event coordinator`}
-                      source={{ uri: assignedCoordinator.avatarUrl }}
-                      style={styles.reviewCoordinatorAvatar}
-                    />
-                  ) : (
-                    <View style={styles.reviewCoordinatorFallback}>
-                      <MaterialCommunityIcons color={palette.onPrimary} name="account-tie" size={22} />
+                <View style={styles.selectedServiceRow}>
+                  <View style={styles.selectedServiceTopSection}>
+                    {assignedCoordinator.avatarUrl ? (
+                      <Image
+                        accessibilityLabel={`${assignedCoordinator.name}, selected event coordinator`}
+                        source={{ uri: assignedCoordinator.avatarUrl }}
+                        style={styles.selectedServiceImage}
+                      />
+                    ) : (
+                      <View style={styles.reviewCoordinatorFallback}>
+                        <MaterialCommunityIcons color={palette.onPrimary} name="account-tie" size={26} />
+                      </View>
+                    )}
+                    <View style={styles.selectedServiceCopy}>
+                      <Text style={styles.selectedServiceCategory}>EVENT COORDINATOR</Text>
+                      <Text style={styles.selectedServiceName}>{assignedCoordinator.name}</Text>
+                      {coordinatorPackage ? (
+                        <Text style={styles.selectedServiceDetail}>{coordinatorPackage.name}</Text>
+                      ) : null}
                     </View>
-                  )}
-                  <View style={styles.reviewCoordinatorCopy}>
-                    <Text style={styles.reviewCoordinatorEyebrow}>
-                      {assignedCoordinator.status === 'pending'
-                        ? 'COORDINATOR INVITATION PENDING'
-                        : 'ASSIGNED EVENT COORDINATOR'}
-                    </Text>
-                    <Text style={styles.reviewCoordinatorName}>{assignedCoordinator.name}</Text>
-                    {coordinatorPackage ? (
-                      <Text style={styles.reviewCoordinatorPackage}>
-                        {coordinatorPackage.name} · {formatCurrency(coordinatorPackage.serviceSubtotal)}
-                      </Text>
-                    ) : null}
                   </View>
-                  <Pressable
-                    accessibilityLabel="Remove coordinator booking"
-                    accessibilityRole="button"
-                    hitSlop={8}
-                    onPress={onRemoveCoordinator}
-                    style={({ pressed }) => [styles.reviewRemoveButton, pressed && styles.neumorphicPressed]}
-                  >
-                    <MaterialCommunityIcons color={palette.primaryContainer} name="close" size={20} />
-                  </Pressable>
+
+                  <View style={styles.selectedServiceBottomSection}>
+                    <Text style={styles.selectedServicePrice}>{formatCurrency(assignedCoordinator.price)}</Text>
+                    <View style={styles.reviewCoordinatorSwitchGroup}>
+                      <Text style={styles.reviewCoordinatorSwitchLabel}>Included</Text>
+                      <Switch
+                        accessibilityLabel={`Include ${assignedCoordinator.name} in selected services`}
+                        accessibilityRole="switch"
+                        accessibilityState={{ checked: true }}
+                        onValueChange={(isIncluded) => {
+                          if (!isIncluded) onRemoveCoordinator?.()
+                        }}
+                        thumbColor="#FFFFFF"
+                        trackColor={{ false: '#B7C0C7', true: palette.primaryContainer }}
+                        value
+                      />
+                    </View>
+                  </View>
                 </View>
               ) : coordinatorAssignmentStatus === 'awaiting_assignment' ? (
-                <View style={styles.reviewCoordinatorCard}>
-                  <View style={styles.reviewCoordinatorFallback}>
-                    <MaterialCommunityIcons color={palette.onPrimary} name="account-search" size={22} />
-                  </View>
-                  <View style={styles.reviewCoordinatorCopy}>
-                    <Text style={styles.reviewCoordinatorEyebrow}>COORDINATOR ASSIGNMENT PENDING</Text>
-                    <Text style={styles.reviewCoordinatorName}>MULTIVENT is finding your coordinator</Text>
+                <View style={styles.selectedServiceRow}>
+                  <View style={styles.selectedServiceTopSection}>
+                    <View style={styles.reviewCoordinatorFallback}>
+                      <MaterialCommunityIcons color={palette.onPrimary} name="account-search" size={26} />
+                    </View>
+                    <View style={styles.selectedServiceCopy}>
+                      <Text style={styles.selectedServiceCategory}>EVENT COORDINATOR</Text>
+                      <Text style={styles.selectedServiceName}>MULTIVENT coordinator matching</Text>
+                      <Text style={styles.selectedServiceDetail}>Finding the best coordinator for your event</Text>
+                    </View>
                   </View>
                 </View>
               ) : null}
 
-              <Text style={styles.reviewServicesHeading}>Selected Services</Text>
               {selectedServices.map((service) => (
                 <Pressable
                   key={service.id}
@@ -1963,58 +2026,63 @@ export const CategoryBrowseScreen: React.FC<CategoryBrowseScreenProps> = ({
                   }}
                   style={({ pressed }) => [styles.selectedServiceRow, pressed && styles.neumorphicPressed]}
                 >
-                  <Image
-                    accessibilityLabel={service.imageLabel}
-                    source={{ uri: service.imageUrl }}
-                    style={styles.selectedServiceImage}
-                  />
-                  <View style={styles.selectedServiceCopy}>
-                    <Text style={styles.selectedServiceCategory}>{service.category}</Text>
-                    <Text style={styles.selectedServiceName}>{service.name}</Text>
-                    <Text style={styles.selectedServiceDetail}>{service.detail}</Text>
-                  </View>
-                  {service.status === 'Selected' ? (
-                    <View style={styles.reviewServiceActions}>
-                      <Pressable
-                        accessibilityLabel={`Change ${service.name}`}
-                        accessibilityRole="button"
-                        hitSlop={8}
-                        onPress={(event) => {
-                          event.stopPropagation()
-                          closeSelectedServices()
-                          onChangeService?.(service)
-                        }}
-                        style={({ pressed }) => [styles.reviewChangeButton, pressed && styles.neumorphicPressed]}
-                      >
-                        <MaterialCommunityIcons color={palette.primaryContainer} name="swap-horizontal" size={18} />
-                      </Pressable>
-                      <Pressable
-                        accessibilityLabel={`Remove ${service.name} from selected services`}
-                        accessibilityRole="button"
-                        accessibilityState={{ disabled: removingServiceId === service.id }}
-                        disabled={removingServiceId === service.id}
-                        hitSlop={8}
-                        onPress={(event) => {
-                          event.stopPropagation()
-                          onRemoveService?.(service)
-                        }}
-                        style={({ pressed }) => [
-                          styles.reviewRemoveButton,
-                          removingServiceId === service.id && styles.reviewRemoveButtonDisabled,
-                          pressed && styles.neumorphicPressed,
-                        ]}
-                      >
-                        <MaterialCommunityIcons
-                          color={palette.primaryContainer}
-                          name={removingServiceId === service.id ? 'progress-clock' : 'trash-can-outline'}
-                          size={18}
-                        />
-                      </Pressable>
+                  <View style={styles.selectedServiceTopSection}>
+                    <Image
+                      accessibilityLabel={service.imageLabel}
+                      source={{ uri: service.imageUrl }}
+                      style={styles.selectedServiceImage}
+                    />
+                    <View style={styles.selectedServiceCopy}>
+                      <Text style={styles.selectedServiceCategory}>{service.category}</Text>
+                      <Text style={styles.selectedServiceName}>{service.name}</Text>
+                      <Text style={styles.selectedServiceDetail}>{service.detail}</Text>
                     </View>
-                  ) : null}
-                  <Text style={styles.selectedServicePrice}>
-                    {service.pricePending ? 'Final price pending' : formatCurrency(service.price)}
-                  </Text>
+                  </View>
+
+                  <View style={styles.selectedServiceBottomSection}>
+                    <Text style={styles.selectedServicePrice}>
+                      {service.pricePending ? 'Final price pending' : formatCurrency(service.price)}
+                    </Text>
+                    {service.status === 'Selected' ? (
+                      <View style={styles.reviewServiceActions}>
+                        <Pressable
+                          accessibilityLabel={`Change ${service.name}`}
+                          accessibilityRole="button"
+                          hitSlop={4}
+                          onPress={(event) => {
+                            event.stopPropagation()
+                            closeSelectedServices()
+                            onChangeService?.(service)
+                          }}
+                          style={({ pressed }) => [styles.reviewChangeButton, pressed && styles.neumorphicPressed]}
+                        >
+                          <MaterialCommunityIcons color={palette.primaryContainer} name="swap-horizontal" size={18} />
+                        </Pressable>
+                        <Pressable
+                          accessibilityLabel={`Remove ${service.name} from selected services`}
+                          accessibilityRole="button"
+                          accessibilityState={{ disabled: removingServiceId === service.id }}
+                          disabled={removingServiceId === service.id}
+                          hitSlop={4}
+                          onPress={(event) => {
+                            event.stopPropagation()
+                            onRemoveService?.(service)
+                          }}
+                          style={({ pressed }) => [
+                            styles.reviewServiceRemoveButton,
+                            removingServiceId === service.id && styles.reviewRemoveButtonDisabled,
+                            pressed && styles.neumorphicPressed,
+                          ]}
+                        >
+                          <MaterialCommunityIcons
+                            color={palette.primaryContainer}
+                            name={removingServiceId === service.id ? 'progress-clock' : 'trash-can-outline'}
+                            size={18}
+                          />
+                        </Pressable>
+                      </View>
+                    ) : null}
+                  </View>
                 </Pressable>
               ))}
 
@@ -2175,6 +2243,16 @@ const styles = StyleSheet.create({
   headerButtonPressed: {
     backgroundColor: 'rgba(255,255,255,0.14)',
     opacity: 0.82,
+  },
+  headerButtonNeumorphic: {
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.16)',
+    backgroundColor: '#6B1E2E',
+    boxShadow: '3px 3px 7px rgba(44, 3, 15, 0.58), -3px -3px 7px rgba(143, 48, 72, 0.46)',
+  },
+  headerButtonNeumorphicPressed: {
+    boxShadow: 'inset 3px 3px 7px rgba(44, 3, 15, 0.66), inset -3px -3px 7px rgba(143, 48, 72, 0.46)',
+    transform: [{ scale: 0.96 }],
   },
   backIcon: {
     color: '#FFFFFF',
@@ -2491,7 +2569,7 @@ const styles = StyleSheet.create({
   },
   selectedServicesSheetContent: {
     gap: 12,
-    paddingBottom: 18,
+    paddingBottom: 30,
   },
   reviewBudgetCard: {
     gap: 16,
@@ -2575,52 +2653,26 @@ const styles = StyleSheet.create({
   combinedPackageBudgetTitle: { color: palette.primaryContainer, fontSize: 12, lineHeight: 16, fontWeight: '800', letterSpacing: 1 },
   combinedPackageBudgetText: { color: palette.secondary, fontSize: 12, lineHeight: 17 },
   combinedPackageBudgetOverage: { color: palette.error, fontSize: 12, lineHeight: 17, fontWeight: '800' },
-  reviewCoordinatorCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.78)',
-    borderRadius: 14,
-    backgroundColor: '#E9EDF0',
-    padding: 12,
-    boxShadow: '5px 5px 11px rgba(156, 169, 180, 0.42), -5px -5px 11px rgba(255, 255, 255, 0.94)',
-  },
-  reviewCoordinatorAvatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-  },
   reviewCoordinatorFallback: {
-    width: 42,
-    height: 42,
+    width: 56,
+    height: 56,
+    flexShrink: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 21,
+    borderRadius: 10,
     backgroundColor: palette.primaryContainer,
   },
-  reviewCoordinatorCopy: {
-    flex: 1,
-    gap: 2,
+  reviewCoordinatorSwitchGroup: {
+    flexShrink: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
-  reviewCoordinatorEyebrow: {
-    color: palette.primaryContainer,
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: '800',
-    letterSpacing: 0.7,
-  },
-  reviewCoordinatorName: {
-    color: palette.text,
-    fontSize: 14,
-    lineHeight: 19,
-    fontWeight: '700',
-  },
-  reviewCoordinatorPackage: {
+  reviewCoordinatorSwitchLabel: {
     color: palette.secondary,
     fontSize: 12,
-    lineHeight: 17,
-    fontWeight: '600',
+    lineHeight: 16,
+    fontWeight: '700',
   },
   reviewServicesHeading: {
     color: palette.text,
@@ -2630,25 +2682,32 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   selectedServiceRow: {
-    minHeight: 76,
-    flexDirection: 'row',
-    alignItems: 'center',
+    width: '100%',
+    alignSelf: 'stretch',
     gap: 12,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.78)',
     borderRadius: 14,
     backgroundColor: '#E9EDF0',
-    padding: 10,
-    boxShadow: '5px 5px 11px rgba(156, 169, 180, 0.42), -5px -5px 11px rgba(255, 255, 255, 0.94)',
+    padding: 12,
+    boxShadow: '4px 4px 9px rgba(156, 169, 180, 0.36), -4px -4px 9px rgba(255, 255, 255, 0.88)',
+  },
+  selectedServiceTopSection: {
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
   },
   selectedServiceImage: {
     width: 56,
     height: 56,
+    flexShrink: 0,
     borderRadius: 10,
   },
   selectedServiceCopy: {
+    minWidth: 0,
     flex: 1,
-    gap: 2,
+    gap: 3,
   },
   selectedServiceCategory: {
     color: palette.primaryContainer,
@@ -2666,13 +2725,24 @@ const styles = StyleSheet.create({
   selectedServiceDetail: {
     color: palette.secondary,
     fontSize: 12,
-    lineHeight: 17,
+    lineHeight: 18,
+  },
+  selectedServiceBottomSection: {
+    minHeight: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(156, 169, 180, 0.34)',
+    paddingTop: 10,
   },
   selectedServicePrice: {
-    maxWidth: 92,
+    minWidth: 0,
+    flex: 1,
     color: palette.primaryContainer,
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 14,
+    lineHeight: 19,
     fontWeight: '800',
   },
   reviewRemoveButton: {
@@ -2686,17 +2756,28 @@ const styles = StyleSheet.create({
     backgroundColor: '#E9EDF0',
     boxShadow: '3px 3px 7px rgba(156, 169, 180, 0.42), -3px -3px 7px rgba(255, 255, 255, 0.94)',
   },
-  reviewServiceActions: { alignItems: 'flex-end', gap: 8 },
+  reviewServiceActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   reviewChangeButton: {
-    width: 32,
-    height: 32,
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.78)',
-    borderRadius: 16,
+    borderRadius: 20,
     backgroundColor: '#E9EDF0',
-    boxShadow: '3px 3px 7px rgba(156, 169, 180, 0.42), -3px -3px 7px rgba(255, 255, 255, 0.94)',
+    boxShadow: '2px 2px 5px rgba(156, 169, 180, 0.34), -2px -2px 5px rgba(255, 255, 255, 0.86)',
+  },
+  reviewServiceRemoveButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.78)',
+    borderRadius: 20,
+    backgroundColor: '#E9EDF0',
+    boxShadow: '2px 2px 5px rgba(156, 169, 180, 0.34), -2px -2px 5px rgba(255, 255, 255, 0.86)',
   },
   reviewRemoveButtonDisabled: {
     opacity: 0.55,
@@ -2860,6 +2941,11 @@ const styles = StyleSheet.create({
     padding: 14,
     boxShadow: '7px 7px 15px rgba(156, 169, 180, 0.44), -7px -7px 15px rgba(255, 255, 255, 0.94)',
   },
+  categorySelectionCardCompleted: {
+    borderColor: 'rgba(62, 139, 91, 0.48)',
+    backgroundColor: '#DCEFE3',
+    boxShadow: '7px 7px 15px rgba(102, 143, 117, 0.34), -7px -7px 15px rgba(255, 255, 255, 0.82)',
+  },
   categorySelectionIcon: {
     width: 44,
     height: 44,
@@ -2869,6 +2955,10 @@ const styles = StyleSheet.create({
     backgroundColor: palette.background,
     boxShadow: 'inset 3px 3px 7px rgba(170, 181, 190, 0.48), inset -3px -3px 7px rgba(255, 255, 255, 0.94)',
   },
+  categorySelectionIconCompleted: {
+    backgroundColor: '#DCEFE3',
+    boxShadow: 'inset 3px 3px 7px rgba(104, 153, 121, 0.36), inset -3px -3px 7px rgba(255, 255, 255, 0.76)',
+  },
   categorySelectionCopy: { minWidth: 0, flex: 1 },
   categorySelectionTitle: {
     color: palette.text,
@@ -2876,12 +2966,14 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     fontWeight: '800',
   },
+  categorySelectionTitleCompleted: { color: '#195C38' },
   categorySelectionHint: {
     color: '#73808A',
     fontSize: 12,
     lineHeight: 17,
     marginTop: 2,
   },
+  categorySelectionHintCompleted: { color: '#387552' },
   categorySelectionAction: {
     minHeight: 36,
     flexDirection: 'row',
@@ -2895,6 +2987,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 11,
     boxShadow: '4px 4px 9px rgba(156, 169, 180, 0.42), -4px -4px 9px rgba(255, 255, 255, 0.94)',
   },
+  categorySelectionActionCompleted: {
+    borderColor: 'rgba(62, 139, 91, 0.40)',
+    backgroundColor: '#DCEFE3',
+    boxShadow: '4px 4px 9px rgba(102, 143, 117, 0.30), -4px -4px 9px rgba(255, 255, 255, 0.76)',
+  },
   categorySelectionActionText: {
     color: palette.primaryContainer,
     fontSize: 12,
@@ -2902,6 +2999,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.4,
   },
+  categorySelectionActionTextCompleted: { color: '#1F6B42' },
   planningCompleteCard: {
     backgroundColor: '#F7FAFF',
     borderColor: '#C6D6EC',
@@ -2929,6 +3027,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF7F8',
     padding: 18,
     marginBottom: 20,
+  },
+  changeServiceBanner: {
+    borderColor: 'rgba(255, 255, 255, 0.78)',
+    backgroundColor: palette.background,
+    boxShadow: '5px 5px 11px rgba(156, 169, 180, 0.42), -5px -5px 11px rgba(255, 255, 255, 0.94)',
   },
   replacementEyebrow: {
     color: palette.primaryContainer,
@@ -3165,9 +3268,9 @@ const styles = StyleSheet.create({
     boxShadow: neutralSelection.sunkenShadow,
   },
   sortOptionSelected: {
-    borderColor: palette.primaryContainer,
-    backgroundColor: neutralSelection.surface,
-    boxShadow: neutralSelection.raisedShadow,
+    borderColor: neutralSelection.selectedEdge,
+    backgroundColor: neutralSelection.selectedSurface,
+    boxShadow: neutralSelection.selectedRaisedShadow,
   },
   sortOptionText: {
     color: palette.text,
@@ -3175,7 +3278,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontWeight: '600',
   },
-  sortOptionTextSelected: { color: palette.primaryContainer, fontWeight: '800' },
+  sortOptionTextSelected: { color: neutralSelection.selectedText, fontWeight: '800' },
   resultsList: {
     gap: 16,
     marginBottom: 80,
@@ -3593,8 +3696,8 @@ const styles = StyleSheet.create({
   },
   catalogFallbackNotice: {
     alignItems: 'center',
-    backgroundColor: '#FFF7F8',
-    borderColor: '#E6B9C0',
+    backgroundColor: warningNotice.background,
+    borderColor: warningNotice.border,
     borderRadius: 12,
     borderWidth: 1,
     flexDirection: 'row',
@@ -3604,7 +3707,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   catalogFallbackNoticeText: {
-    color: palette.secondary,
+    color: warningNotice.text,
     flex: 1,
     fontSize: 12,
     lineHeight: 17,

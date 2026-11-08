@@ -6,6 +6,7 @@ import {
   EVENT_BOOKING_LEAD_TIME_MESSAGE,
   minimumEventBookingDate,
 } from '../lib/event-booking-lead-time'
+import { warningNotice } from '../theme/notices'
 
 export interface ScheduleConflictProvider {
   available: boolean
@@ -596,7 +597,7 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   actionRequired: {
-    color: palette.burgundy,
+    color: warningNotice.text,
     fontSize: 12,
     lineHeight: 16,
     fontWeight: '700',
@@ -610,18 +611,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 5,
-    backgroundColor: palette.burgundy,
+    borderWidth: 1,
+    borderColor: warningNotice.border,
+    backgroundColor: warningNotice.background,
   },
-  warningMark: { color: palette.surface, fontSize: 14, lineHeight: 17, fontWeight: '800' },
+  warningMark: { color: warningNotice.icon, fontSize: 14, lineHeight: 17, fontWeight: '800' },
   conflictMessage: {
     borderWidth: 1,
-    borderColor: palette.greyLight,
+    borderColor: warningNotice.border,
     borderRadius: 8,
-    backgroundColor: palette.background,
+    backgroundColor: warningNotice.background,
     padding: 12,
     marginTop: 16,
   },
-  conflictMessageText: { color: palette.secondary, fontSize: 14, lineHeight: 21 },
+  conflictMessageText: { color: warningNotice.mutedText, fontSize: 14, lineHeight: 21 },
   actions: { gap: 12, marginTop: 18 },
   outlineButton: {
     width: '100%',

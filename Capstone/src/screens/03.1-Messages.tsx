@@ -1,4 +1,5 @@
 import { Text } from '../components/AppText'
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
 import { InboxSelectionBox, InboxTrashButton } from '../components/InboxControls'
 import {
   CoordinatorBottomNavigation,
@@ -17,6 +18,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { ClientHomeTab } from './03-ClientHome'
 import type { MerchantHomeTab } from './16-MerchantHome'
 import type { BookingItem } from './11-BookingScreen'
@@ -193,6 +195,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
   userName = 'Planner',
 }) => {
   const { width } = useWindowDimensions()
+  const safeAreaInsets = useSafeAreaInsets()
   const isWide = width >= 760
   const isCompact = width < 390
   const isClientInbox = navigationVariant === 'client'
@@ -460,17 +463,23 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                   accessibilityRole="button"
                   hitSlop={8}
                   onPress={onBack}
-                  style={({ pressed }) => [styles.clientHeaderButton, pressed && styles.surfacePressed]}
+                  style={({ pressed }) => [
+                    styles.clientHeaderButton,
+                    styles.clientBackButtonNeumorphic,
+                    pressed && styles.clientBackButtonPressed,
+                  ]}
                 >
-                  <Text style={styles.coordinatorBackIcon}>{'\u2039'}</Text>
+                  <MaterialCommunityIcons color="#FFFFFF" name="chevron-left" size={28} />
                 </Pressable>
               ) : <View style={styles.clientHeaderButton} />}
-              <Text style={styles.clientHeaderTitle}>
+              <Text style={[styles.clientHeaderTitle, isClientInbox && styles.clientHeaderTitleCentered]}>
                 {isInboxSelectionMode ? `${activeSelectedCount} selected` : (
                   <>{navigationVariant === 'client' ? 'INBOX' : 'MESSAGES'}</>
                 )}
               </Text>
-              {isInboxSelectionMode ? (
+              {isClientInbox ? (
+                <View style={styles.clientHeaderButton} />
+              ) : isInboxSelectionMode ? (
                 <View style={styles.selectionHeaderActions}>
                   <Pressable
                     accessibilityLabel={activeAllSelected ? 'Deselect all Inbox items' : activeSomeSelected ? 'Select all remaining Inbox items' : 'Select all Inbox items'}
@@ -480,24 +489,6 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                     style={({ pressed }) => [styles.clientHeaderButton, pressed && styles.surfacePressed]}
                   ><InboxSelectionBox color="#FFFFFF" state={activeAllSelected ? 'checked' : activeSomeSelected ? 'mixed' : 'unchecked'} /></Pressable>
                   <InboxTrashButton accessibilityLabel="Move selected Inbox items to Trash" color="#FFFFFF" onPress={moveSelectedInboxItemsToTrash} />
-                </View>
-              ) : navigationVariant === 'client' && inboxTab === 'notifications' ? (
-                <View style={styles.selectionHeaderActions}>
-                  <Pressable
-                    accessibilityLabel="Mark all notifications as read"
-                    accessibilityRole="button"
-                    disabled={!hasUnreadInboxNotifications || !onMarkAllNotificationsRead}
-                    hitSlop={8}
-                    onPress={markAllInboxNotificationsRead}
-                    style={({ pressed }) => [
-                      styles.headerReadAll,
-                      (!hasUnreadInboxNotifications || !onMarkAllNotificationsRead) && styles.headerReadAllDisabled,
-                      pressed && styles.surfacePressed,
-                    ]}
-                  >
-                    <Text style={styles.headerReadAllText}>Read all</Text>
-                  </Pressable>
-                  <InboxTrashButton accessibilityLabel="Open Inbox Trash" color="#FFFFFF" onPress={() => onOpenTrash?.('notifications')} />
                 </View>
               ) : navigationVariant === 'coordinator' ? (
                 <Pressable
@@ -554,31 +545,83 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
       )}
 
       {isClientInbox ? (
-        <View style={[styles.inboxTabs, isWide && styles.inboxTabsWide]}>
-          {(['messages', 'notifications'] as ClientInboxTab[]).map((tab) => {
-            const selected = inboxTab === tab
-            const hasUnread = tab === 'messages'
-              ? unreadCount > 0
-              : hasUnreadInboxNotifications
-            return (
-              <Pressable
-                key={tab}
-                accessibilityRole="tab"
-                accessibilityState={{ selected }}
-                onPress={() => setInboxTab(tab)}
-                style={({ pressed }) => [styles.inboxTab, pressed && styles.inboxTabPressed]}
-              >
-                <View style={styles.inboxTabLabelRow}>
-                  <Text style={[styles.inboxTabLabel, selected && styles.inboxTabLabelSelected]}>
-                    {tab === 'messages' ? 'Messages' : 'Notifications'}
-                  </Text>
-                  {hasUnread ? <View style={styles.inboxTabUnreadDot} /> : null}
-                </View>
-                {selected ? <View style={styles.inboxTabIndicator} /> : null}
-              </Pressable>
-            )
-          })}
-        </View>
+        <>
+          <View style={[styles.inboxTabs, isWide && styles.inboxTabsWide]}>
+            {(['messages', 'notifications'] as ClientInboxTab[]).map((tab) => {
+              const selected = inboxTab === tab
+              const hasUnread = tab === 'messages'
+                ? unreadCount > 0
+                : hasUnreadInboxNotifications
+              return (
+                <Pressable
+                  key={tab}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected }}
+                  onPress={() => setInboxTab(tab)}
+                  style={({ pressed }) => [
+                    styles.inboxTab,
+                    selected && styles.inboxTabSelected,
+                    pressed && styles.inboxTabPressed,
+                  ]}
+                >
+                  <View style={styles.inboxTabLabelRow}>
+                    <Text style={[styles.inboxTabLabel, selected && styles.inboxTabLabelSelected]}>
+                      {tab === 'messages' ? 'Messages' : 'Notifications'}
+                    </Text>
+                    {hasUnread ? <View style={styles.inboxTabUnreadDot} /> : null}
+                  </View>
+                  {selected ? <View style={styles.inboxTabIndicator} /> : null}
+                </Pressable>
+              )
+            })}
+          </View>
+          <View style={[styles.inboxActionBar, isWide && styles.inboxActionBarWide]}>
+            {isInboxSelectionMode ? (
+              <>
+                <Pressable
+                  accessibilityLabel={activeAllSelected ? 'Deselect all Inbox items' : activeSomeSelected ? 'Select all remaining Inbox items' : 'Select all Inbox items'}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: activeAllSelected ? true : activeSomeSelected ? 'mixed' : false }}
+                  onPress={toggleAllInboxItems}
+                  style={({ pressed }) => [styles.inboxActionButton, pressed && styles.inboxActionButtonPressed]}
+                >
+                  <InboxSelectionBox color={palette.primaryContainer} state={activeAllSelected ? 'checked' : activeSomeSelected ? 'mixed' : 'unchecked'} />
+                </Pressable>
+                <InboxTrashButton
+                  accessibilityLabel="Move selected Inbox items to Trash"
+                  color={palette.primaryContainer}
+                  onPress={moveSelectedInboxItemsToTrash}
+                  style={styles.inboxActionButton}
+                />
+              </>
+            ) : (
+              <>
+                {inboxTab === 'notifications' ? (
+                  <Pressable
+                    accessibilityLabel="Mark all notifications as read"
+                    accessibilityRole="button"
+                    disabled={!hasUnreadInboxNotifications || !onMarkAllNotificationsRead}
+                    hitSlop={8}
+                    onPress={markAllInboxNotificationsRead}
+                    style={({ pressed }) => [
+                      styles.headerReadAll,
+                      (!hasUnreadInboxNotifications || !onMarkAllNotificationsRead) && styles.headerReadAllDisabled,
+                      pressed && styles.inboxActionButtonPressed,
+                    ]}
+                  >
+                    <Text style={styles.headerReadAllText}>Read all</Text>
+                  </Pressable>
+                ) : null}
+                <InboxTrashButton
+                  accessibilityLabel="Open Inbox Trash"
+                  color={palette.primaryContainer}
+                  onPress={() => onOpenTrash?.(inboxTab === 'notifications' ? 'notifications' : 'messages')}
+                  style={styles.inboxActionButton}
+                />
+              </>
+            )}
+          </View>
+        </>
       ) : null}
 
       {isClientInbox && inboxTab === 'notifications' ? (
@@ -602,6 +645,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
         contentContainerStyle={[
           styles.content,
           isWide ? styles.contentWide : styles.contentMobile,
+          { paddingBottom: (isWide ? 112 : 108) + safeAreaInsets.bottom },
         ]}
         keyboardShouldPersistTaps="handled"
         onScroll={(event) => {
@@ -743,7 +787,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                   >
                     {isConversationSelectionMode ? <InboxSelectionBox color={palette.primaryContainer} state={group.conversations.every((item) => item.isVirtualCoordinator || selectedConversationIds.has(item.id)) ? 'checked' : 'unchecked'} /> : null}
                     <View style={styles.eventCardCopy}>
-                      <Text numberOfLines={1} style={styles.eventName}>{group.name}</Text>
+                      <Text numberOfLines={2} style={styles.eventName}>{group.name}</Text>
                       <Text style={styles.eventDate}>{formatEventDate(group.date)}</Text>
                       <Text style={styles.eventAvailability}>
                         {group.conversations.length} available conversation{group.conversations.length === 1 ? '' : 's'}
@@ -751,7 +795,10 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                     </View>
                     <View style={styles.eventOpenArea}>
                       {unread ? <View style={styles.eventUnreadBadge}><Text style={styles.eventUnreadText}>{unread}</Text></View> : null}
-                      <Text style={styles.eventOpenText}>Open event ›</Text>
+                      <View style={styles.eventOpenLabelRow}>
+                        <Text style={styles.eventOpenText}>Open event</Text>
+                        <Text style={styles.eventOpenChevron}>{'\u203A'}</Text>
+                      </View>
                     </View>
                   </Pressable>
                 )
@@ -903,56 +950,54 @@ const ConversationRow = ({
       </View>
 
       <View style={styles.conversationCopy}>
-        <View style={styles.conversationTitleRow}>
-          <Text
-            numberOfLines={1}
-            style={[styles.participantName, isUnread && styles.participantNameUnread]}
-          >
-            {conversation.participantName}
-          </Text>
+        <Text
+          numberOfLines={2}
+          style={[styles.participantName, isUnread && styles.participantNameUnread]}
+        >
+          {conversation.participantName}
+        </Text>
+        <View style={styles.conversationContextRow}>
           <View style={styles.serviceCategoryBadge}>
             <Text numberOfLines={1} style={styles.serviceCategoryBadgeText}>{categoryLabel}</Text>
           </View>
-          <Text style={[styles.conversationTime, isUnread && styles.conversationTimeUnread]}>
-            {formatConversationTime(conversation.lastMessageAt)}
-          </Text>
-        </View>
-        <View style={styles.roleRow}>
           <Text numberOfLines={1} style={styles.participantRole}>
             {conversation.participantRole}
           </Text>
-          {conversation.isPinned ? <Text style={styles.pinGlyph}>{'\u25C6'}</Text> : null}
         </View>
-        <View style={styles.previewRow}>
-          <Text
-            numberOfLines={1}
-            style={[styles.lastMessage, isUnread && styles.lastMessageUnread]}
-          >
-            {conversation.lastMessage}
-          </Text>
-          {isUnread ? (
-            <View style={styles.messageCountBadge}>
-              <Text style={styles.messageCountText}>{conversation.unreadCount}</Text>
-            </View>
-          ) : null}
-        </View>
+        <Text
+          numberOfLines={2}
+          style={[styles.lastMessage, isUnread && styles.lastMessageUnread]}
+        >
+          {conversation.lastMessage}
+        </Text>
+      </View>
+      <View style={styles.conversationStatus}>
+        <Text style={[styles.conversationTime, isUnread && styles.conversationTimeUnread]}>
+          {formatConversationTime(conversation.lastMessageAt)}
+        </Text>
+        {conversation.isPinned ? <Text style={styles.pinGlyph}>{'\u25C6'}</Text> : null}
+        {isUnread ? (
+          <View style={styles.messageCountBadge}>
+            <Text style={styles.messageCountText}>{conversation.unreadCount}</Text>
+          </View>
+        ) : null}
       </View>
     </Pressable>
   )
 }
 
 const palette = {
-  background: '#FAF9F9',
-  border: '#E3E2E2',
-  muted: '#777879',
+  background: '#E9EDF0',
+  border: 'rgba(255, 255, 255, 0.76)',
+  muted: '#87929A',
   onPrimary: '#FFFFFF',
   positive: '#2F6B46',
   primary: '#4E061A',
   primaryContainer: '#6B1E2E',
   primarySoft: '#F5EDEF',
-  secondary: '#5D5F5F',
-  surfaceContainerLow: '#F5F3F3',
-  text: '#1B1C1C',
+  secondary: '#6F7B84',
+  surfaceContainerLow: '#E9EDF0',
+  text: '#57636C',
   white: '#FFFFFF',
 } as const
 
@@ -962,19 +1007,23 @@ const styles = StyleSheet.create({
   clientTopAppBar: { borderBottomColor: palette.primary, backgroundColor: palette.primaryContainer },
   merchantSelectionHeader: { minHeight: 64, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: palette.border, backgroundColor: palette.white, paddingHorizontal: 14 },
   merchantSelectionTitle: { minWidth: 0, flex: 1, color: palette.text, fontSize: 15, lineHeight: 20, fontWeight: '800' },
-  topAppBarContent: { width: '100%', maxWidth: 1200, minHeight: 64, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 8 },
+  topAppBarContent: { position: 'relative', width: '100%', maxWidth: 1200, minHeight: 64, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 8 },
   horizontalPaddingWide: { paddingHorizontal: 64 },
-  inboxTabs: { width: '100%', flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: palette.border, backgroundColor: palette.white, paddingHorizontal: 20 },
+  inboxTabs: { width: '100%', flexDirection: 'row', gap: 8, borderBottomWidth: 1, borderBottomColor: palette.border, backgroundColor: palette.background, paddingHorizontal: 16, paddingVertical: 10 },
   inboxTabsWide: { paddingHorizontal: 64 },
-  inboxTab: { minHeight: 48, flex: 1, alignItems: 'center', justifyContent: 'center' },
-  inboxTabPressed: { opacity: 0.62 },
+  inboxTab: { minHeight: 46, flex: 1, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 16, backgroundColor: palette.background, boxShadow: '4px 4px 9px rgba(161, 172, 180, 0.44), -4px -4px 9px rgba(255, 255, 255, 0.94)' },
+  inboxTabSelected: { backgroundColor: palette.primaryContainer, boxShadow: '3px 4px 8px rgba(78, 6, 26, 0.32), -3px -3px 7px rgba(255, 255, 255, 0.72)' },
+  inboxTabPressed: { boxShadow: 'inset 3px 3px 7px rgba(161, 172, 180, 0.45), inset -3px -3px 7px rgba(255, 255, 255, 0.88)' },
   inboxTabLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  inboxTabLabel: { color: palette.secondary, fontSize: 12, lineHeight: 16, fontWeight: '700' },
-  inboxTabLabelSelected: { color: palette.primaryContainer },
+  inboxTabLabel: { color: palette.secondary, fontSize: 13, lineHeight: 18, fontWeight: '700' },
+  inboxTabLabelSelected: { color: palette.white },
   inboxTabUnreadDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#B3261E' },
-  inboxTabIndicator: { position: 'absolute', right: 18, bottom: 0, left: 18, height: 3, borderRadius: 2, backgroundColor: palette.primaryContainer },
+  inboxTabIndicator: { display: 'none' },
   clientHeaderButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },
+  clientBackButtonNeumorphic: { borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.16)', backgroundColor: palette.primaryContainer, boxShadow: '3px 3px 7px rgba(44, 3, 15, 0.58), -3px -3px 7px rgba(143, 48, 72, 0.46)' },
+  clientBackButtonPressed: { boxShadow: 'inset 3px 3px 7px rgba(44, 3, 15, 0.66), inset -3px -3px 7px rgba(143, 48, 72, 0.46)', transform: [{ scale: 0.96 }] },
   clientHeaderTitle: { color: palette.white, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 1.2, textAlign: 'center' },
+  clientHeaderTitleCentered: { position: 'absolute', right: 72, left: 72 },
   coordinatorBackIcon: { color: palette.white, fontSize: 32, lineHeight: 34, fontWeight: '300' },
   userAvatar: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19, backgroundColor: palette.primaryContainer },
   userAvatarImage: { width: '100%', height: '100%', borderRadius: 19 },
@@ -987,7 +1036,7 @@ const styles = StyleSheet.create({
   bellClapper: { position: 'absolute', width: 6, height: 2, bottom: 1, borderRadius: 1, backgroundColor: palette.primary },
   notificationDot: { position: 'absolute', width: 9, height: 9, top: 5, right: 5, borderWidth: 2, borderColor: palette.background, borderRadius: 5, backgroundColor: palette.primaryContainer },
   content: { width: '100%', maxWidth: 820, alignSelf: 'center' },
-  contentMobile: { paddingTop: 16, paddingBottom: 108 },
+  contentMobile: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 108 },
   contentWide: { paddingHorizontal: 32, paddingTop: 32, paddingBottom: 112 },
   headingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 },
   headingCopy: { minWidth: 0, flex: 1 },
@@ -1000,64 +1049,69 @@ const styles = StyleSheet.create({
   primaryPressed: { opacity: 0.86, transform: [{ scale: 0.985 }] },
   newMessagePlus: { color: palette.onPrimary, fontSize: 19, lineHeight: 21, fontWeight: '400' },
   newMessageText: { color: palette.onPrimary, fontSize: 10, lineHeight: 15, fontWeight: '700' },
-  eventBackButton: { minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8, paddingHorizontal: 20 },
+  eventBackButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: palette.border, borderRadius: 15, backgroundColor: palette.background, marginBottom: 12, paddingHorizontal: 14, boxShadow: '3px 3px 7px rgba(161, 172, 180, 0.4), -3px -3px 7px rgba(255, 255, 255, 0.9)' },
   eventBackText: { color: palette.primaryContainer, fontSize: 11, lineHeight: 16, fontWeight: '700' },
   eventBackName: { minWidth: 0, flex: 1, color: palette.secondary, fontSize: 10, lineHeight: 15 },
-  searchShell: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: palette.border, borderRadius: 9, backgroundColor: palette.white, paddingHorizontal: 14, marginTop: 20 },
+  searchShell: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: palette.border, borderRadius: 25, backgroundColor: palette.background, paddingHorizontal: 16, marginTop: 4, boxShadow: '5px 5px 11px rgba(161, 172, 180, 0.46), -5px -5px 11px rgba(255, 255, 255, 0.95)' },
   searchIcon: { width: 18, height: 18 },
   searchLens: { width: 12, height: 12, borderWidth: 1.5, borderColor: palette.secondary, borderRadius: 6 },
   searchHandle: { position: 'absolute', width: 7, height: 1.5, right: 0, bottom: 3, borderRadius: 1, backgroundColor: palette.secondary, transform: [{ rotate: '45deg' }] },
   searchInput: { minWidth: 0, minHeight: 46, flex: 1, color: palette.text, fontSize: 11, lineHeight: 17, paddingVertical: 10 },
   clearSearch: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', borderRadius: 14 },
   clearSearchText: { color: palette.secondary, fontSize: 20, lineHeight: 22 },
-  filterBar: { flexDirection: 'row', gap: 7, marginVertical: 14 },
-  filterButton: { minWidth: 76, alignItems: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 999, backgroundColor: palette.white, paddingHorizontal: 13, paddingVertical: 7 },
-  filterButtonSelected: { borderColor: palette.primaryContainer, backgroundColor: palette.primarySoft },
-  filterButtonPressed: { opacity: 0.65 },
-  filterButtonText: { color: palette.secondary, fontSize: 9, lineHeight: 14, fontWeight: '600' },
-  filterButtonTextSelected: { color: palette.primaryContainer },
-  eventCardList: { borderTopWidth: 1, borderTopColor: palette.border, backgroundColor: palette.white },
-  eventCard: { minHeight: 84, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: 1, borderBottomColor: palette.border, backgroundColor: palette.white, paddingHorizontal: 20, paddingVertical: 13 },
+  filterBar: { flexDirection: 'row', gap: 8, marginVertical: 14 },
+  filterButton: { minWidth: 76, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 20, backgroundColor: palette.background, paddingHorizontal: 13, boxShadow: '3px 3px 7px rgba(161, 172, 180, 0.4), -3px -3px 7px rgba(255, 255, 255, 0.9)' },
+  filterButtonSelected: { borderColor: palette.primaryContainer, backgroundColor: palette.primaryContainer, boxShadow: '3px 4px 7px rgba(78, 6, 26, 0.3), -3px -3px 7px rgba(255, 255, 255, 0.68)' },
+  filterButtonPressed: { boxShadow: 'inset 3px 3px 6px rgba(161, 172, 180, 0.46), inset -3px -3px 6px rgba(255, 255, 255, 0.9)' },
+  filterButtonText: { color: palette.secondary, fontSize: 11, lineHeight: 15, fontWeight: '700' },
+  filterButtonTextSelected: { color: palette.white },
+  eventCardList: { borderTopWidth: 1, gap: 12, borderTopColor: 'transparent', backgroundColor: 'transparent', paddingTop: 1 },
+  eventCard: { minHeight: 92, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: palette.border, borderRadius: 18, backgroundColor: palette.background, paddingHorizontal: 16, paddingVertical: 14, boxShadow: '5px 5px 11px rgba(161, 172, 180, 0.44), -5px -5px 11px rgba(255, 255, 255, 0.94)' },
   eventCardCopy: { minWidth: 0, flex: 1 },
-  eventName: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '700' },
-  eventDate: { color: palette.secondary, fontSize: 10, lineHeight: 15, marginTop: 3 },
-  eventAvailability: { color: palette.muted, fontSize: 9, lineHeight: 14, marginTop: 8 },
-  eventOpenArea: { alignItems: 'flex-end', gap: 7 },
-  eventOpenText: { color: palette.primaryContainer, fontSize: 10, lineHeight: 15, fontWeight: '700' },
+  eventName: { color: palette.text, fontSize: 15, lineHeight: 20, fontWeight: '800' },
+  eventDate: { color: palette.secondary, fontSize: 11, lineHeight: 15, marginTop: 3 },
+  eventAvailability: { color: palette.muted, fontSize: 10, lineHeight: 14, marginTop: 6 },
+  eventOpenArea: { minWidth: 86, alignItems: 'flex-end', gap: 9 },
+  eventOpenLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  eventOpenText: { color: palette.primaryContainer, fontSize: 11, lineHeight: 15, fontWeight: '800' },
+  eventOpenChevron: { color: palette.primaryContainer, fontSize: 21, lineHeight: 21 },
   eventUnreadBadge: { minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: palette.primaryContainer, paddingHorizontal: 5 },
   eventUnreadText: { color: palette.onPrimary, fontSize: 8, lineHeight: 11, fontWeight: '700' },
-  conversationCard: { backgroundColor: palette.white, borderTopWidth: 1, borderTopColor: palette.border },
-  conversationRow: { minHeight: 82, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingVertical: 12 },
+  conversationCard: { gap: 11, backgroundColor: 'transparent', borderTopWidth: 1, borderTopColor: 'transparent' },
+  conversationRow: { minHeight: 104, flexDirection: 'row', alignItems: 'flex-start', gap: 12, borderWidth: 1, borderColor: palette.border, borderRadius: 18, backgroundColor: palette.background, paddingHorizontal: 14, paddingVertical: 13, boxShadow: '4px 4px 10px rgba(161, 172, 180, 0.4), -4px -4px 10px rgba(255, 255, 255, 0.92)' },
   rowSelected: { backgroundColor: '#F7ECEE' },
   selectionHeaderActions: { flexDirection: 'row', alignItems: 'center' },
-  headerReadAll: { minHeight: 40, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
+  inboxActionBar: { minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8, backgroundColor: palette.background, paddingHorizontal: 16, paddingBottom: 8 },
+  inboxActionBarWide: { paddingHorizontal: 64 },
+  inboxActionButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 21, backgroundColor: palette.background, boxShadow: '3px 3px 7px rgba(161, 172, 180, 0.42), -3px -3px 7px rgba(255, 255, 255, 0.92)' },
+  inboxActionButtonPressed: { boxShadow: 'inset 3px 3px 7px rgba(161, 172, 180, 0.48), inset -3px -3px 7px rgba(255, 255, 255, 0.9)', transform: [{ scale: 0.97 }] },
+  headerReadAll: { minHeight: 42, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 21, backgroundColor: palette.background, paddingHorizontal: 14, boxShadow: '3px 3px 7px rgba(161, 172, 180, 0.42), -3px -3px 7px rgba(255, 255, 255, 0.92)' },
   headerReadAllDisabled: { opacity: 0.5 },
-  headerReadAllText: { color: palette.white, fontSize: 11, lineHeight: 16, fontWeight: '800' },
-  conversationRowUnread: { backgroundColor: '#FCF8F9' },
+  headerReadAllText: { color: palette.primaryContainer, fontSize: 11, lineHeight: 16, fontWeight: '800' },
+  conversationRowUnread: { borderColor: 'rgba(107, 30, 46, 0.26)', backgroundColor: '#EDF0F2' },
   conversationRowBorder: { borderBottomWidth: 1, borderBottomColor: palette.border },
-  conversationRowPressed: { opacity: 0.66 },
-  avatarContainer: { width: 48, height: 48 },
-  avatarImage: { width: 48, height: 48, borderRadius: 24 },
-  avatarFallback: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24, backgroundColor: palette.primarySoft },
+  conversationRowPressed: { boxShadow: 'inset 4px 4px 9px rgba(161, 172, 180, 0.48), inset -4px -4px 9px rgba(255, 255, 255, 0.92)' },
+  avatarContainer: { width: 46, height: 46, marginTop: 1 },
+  avatarImage: { width: 46, height: 46, borderRadius: 23 },
+  avatarFallback: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 23, backgroundColor: palette.primarySoft },
   avatarFallbackText: { color: palette.primaryContainer, fontSize: 13, lineHeight: 18, fontWeight: '700' },
   onlineDot: { position: 'absolute', width: 12, height: 12, right: 0, bottom: 0, borderWidth: 2, borderColor: palette.white, borderRadius: 6, backgroundColor: palette.positive },
   conversationCopy: { minWidth: 0, flex: 1 },
-  conversationTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  participantName: { minWidth: 0, flexShrink: 1, color: palette.text, fontSize: 12, lineHeight: 17, fontWeight: '600' },
+  participantName: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '700' },
   participantNameUnread: { fontWeight: '700' },
-  serviceCategoryBadge: { maxWidth: 84, borderRadius: 999, backgroundColor: palette.primarySoft, paddingHorizontal: 6, paddingVertical: 2 },
-  serviceCategoryBadgeText: { color: palette.primaryContainer, fontSize: 7, lineHeight: 10, fontWeight: '800', textTransform: 'uppercase' },
-  conversationTime: { color: palette.muted, fontSize: 8, lineHeight: 12 },
+  conversationContextRow: { minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 4 },
+  serviceCategoryBadge: { maxWidth: 112, borderRadius: 999, backgroundColor: 'rgba(107, 30, 46, 0.10)', paddingHorizontal: 7, paddingVertical: 3 },
+  serviceCategoryBadgeText: { color: palette.primaryContainer, fontSize: 8, lineHeight: 11, fontWeight: '800', textTransform: 'uppercase' },
+  conversationStatus: { width: 62, alignItems: 'flex-end', gap: 8, paddingTop: 1 },
+  conversationTime: { color: palette.muted, fontSize: 9, lineHeight: 13, textAlign: 'right' },
   conversationTimeUnread: { color: palette.primaryContainer, fontWeight: '700' },
-  roleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 1 },
-  participantRole: { color: palette.muted, fontSize: 8, lineHeight: 12 },
+  participantRole: { minWidth: 0, flex: 1, color: palette.muted, fontSize: 9, lineHeight: 12 },
   pinGlyph: { color: palette.primaryContainer, fontSize: 6, lineHeight: 9 },
-  previewRow: { flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 5 },
-  lastMessage: { minWidth: 0, flex: 1, color: palette.secondary, fontSize: 10, lineHeight: 15 },
+  lastMessage: { color: palette.secondary, fontSize: 10, lineHeight: 15, marginTop: 7 },
   lastMessageUnread: { color: palette.text, fontWeight: '500' },
   messageCountBadge: { minWidth: 19, height: 19, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: palette.primaryContainer, paddingHorizontal: 5 },
   messageCountText: { color: palette.onPrimary, fontSize: 8, lineHeight: 11, fontWeight: '700' },
-  emptyState: { minHeight: 330, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 10, backgroundColor: palette.white, padding: 28 },
+  emptyState: { minHeight: 330, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 18, backgroundColor: palette.background, padding: 28, boxShadow: '5px 5px 11px rgba(161, 172, 180, 0.4), -5px -5px 11px rgba(255, 255, 255, 0.92)' },
   emptyMessageIcon: { width: 54, height: 54, alignItems: 'center', justifyContent: 'center', borderRadius: 27, backgroundColor: palette.primarySoft, marginBottom: 14 },
   emptyMessageBody: { width: 24, height: 18, borderWidth: 1.5, borderColor: palette.primaryContainer, borderRadius: 5 },
   emptyMessageTail: { position: 'absolute', width: 7, height: 7, bottom: 16, left: 17, borderBottomWidth: 1.5, borderLeftWidth: 1.5, borderColor: palette.primaryContainer, transform: [{ rotate: '-24deg' }] },

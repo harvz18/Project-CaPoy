@@ -13,6 +13,7 @@ import {
 } from 'react-native'
 import { Text } from './AppText'
 import { colors } from '../theme/tokens'
+import { warningNotice } from '../theme/notices'
 
 export interface ChurchCoordinates {
   latitude: number
@@ -232,7 +233,7 @@ export const ChurchDatePickerModal: React.FC<DatePickerProps> = ({ eventDate, on
           </View>
           {eventDate ? (
             <View style={[styles.notice, mismatch && styles.noticeError]}>
-              <MaterialIcons color={mismatch ? palette.error : palette.success} name={mismatch ? 'error-outline' : 'event-available'} size={18} />
+              <MaterialIcons color={mismatch ? warningNotice.icon : palette.success} name={mismatch ? 'error-outline' : 'event-available'} size={18} />
               <Text style={[styles.noticeText, mismatch && styles.noticeTextError]}>
                 {mismatch ? `The ceremony date must match the event date: ${formatChurchDate(eventDate)}.` : 'This date matches the configured event schedule.'}
               </Text>
@@ -536,7 +537,7 @@ const styles = StyleSheet.create({
   eyebrow: { color: palette.burgundy, fontSize: 9, lineHeight: 12, fontWeight: '800', letterSpacing: 1.1 }, title: { color: palette.text, fontSize: 20, lineHeight: 27, fontWeight: '800' },
   monthHeader: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, monthButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 19 }, monthLabel: { color: palette.text, fontSize: 15, lineHeight: 21, fontWeight: '800' },
   weekdayRow: { flexDirection: 'row' }, weekday: { width: '14.2857%', color: palette.muted, fontSize: 8, lineHeight: 12, fontWeight: '800', textAlign: 'center' }, calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' }, day: { width: '14.2857%', height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 21 }, daySelected: { backgroundColor: palette.burgundy }, dayText: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '600' }, dayTextSelected: { color: palette.surface, fontWeight: '800' }, scheduledDot: { width: 4, height: 4, marginTop: 1, borderRadius: 2, backgroundColor: palette.burgundy },
-  notice: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: 10, backgroundColor: '#E8F5EC' }, noticeError: { backgroundColor: '#FFF0F0' }, noticeText: { minWidth: 0, flex: 1, color: palette.success, fontSize: 11, lineHeight: 16, fontWeight: '600' }, noticeTextError: { color: palette.error },
+  notice: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: 10, backgroundColor: '#E8F5EC' }, noticeError: { borderWidth: 1, borderColor: warningNotice.border, backgroundColor: warningNotice.background }, noticeText: { minWidth: 0, flex: 1, color: palette.success, fontSize: 11, lineHeight: 16, fontWeight: '600' }, noticeTextError: { color: warningNotice.text },
   timePreview: { minHeight: 62, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, borderRadius: 12, backgroundColor: '#F7EFF1' }, timePreviewText: { color: palette.burgundy, fontSize: 25, lineHeight: 32, fontWeight: '800' },
   wheelColumnLabelRow: { flexDirection: 'row', gap: 8 }, wheelColumnLabel: { flex: 1, color: palette.muted, fontSize: 9, lineHeight: 12, fontWeight: '800', letterSpacing: 0.9, textAlign: 'center' }, wheelColumns: { flexDirection: 'row', gap: 8 }, wheelColumn: { flex: 1, height: wheelRowHeight * wheelVisibleRows, overflow: 'hidden', borderRadius: 10, backgroundColor: '#FBF8F9' }, wheelSelectionBand: { position: 'absolute', top: wheelRowHeight * 2, right: 0, left: 0, zIndex: 0, height: wheelRowHeight, borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#C99AA4', backgroundColor: '#F8EDEF' }, wheelList: { zIndex: 1, height: wheelRowHeight * wheelVisibleRows }, wheelOptionList: { paddingVertical: wheelRowHeight * 2 }, wheelOption: { height: wheelRowHeight, alignItems: 'center', justifyContent: 'center' }, wheelOptionText: { color: '#A9A2A4', fontSize: 14, lineHeight: 20, fontWeight: '500', opacity: 0.56 }, wheelOptionTextSelected: { color: palette.burgundy, fontSize: 16, fontWeight: '800', opacity: 1 }, timezoneNote: { color: palette.muted, fontSize: 10, lineHeight: 15, textAlign: 'center' },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 9, marginTop: 2 }, secondaryButton: { minHeight: 43, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 17, borderWidth: 1, borderColor: palette.border, borderRadius: 10 }, secondaryButtonText: { color: palette.burgundy, fontSize: 10, lineHeight: 14, fontWeight: '800', letterSpacing: 0.7 }, primaryButton: { minHeight: 43, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 17, borderRadius: 10, backgroundColor: palette.burgundy }, primaryButtonText: { color: palette.surface, fontSize: 10, lineHeight: 14, fontWeight: '800', letterSpacing: 0.7 }, disabled: { opacity: 0.42 }, pressed: { opacity: 0.72 },

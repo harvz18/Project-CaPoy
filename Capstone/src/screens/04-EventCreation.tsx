@@ -1018,14 +1018,14 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                     >
                       <View style={[styles.churchWeddingIcon, selected && styles.churchWeddingIconSelected]}>
                         <MaterialIcons
-                          color={palette.burgundy}
+                          color={selected ? neutralSelection.selectedText : palette.burgundy}
                           name={option.value ? 'support-agent' : 'event-busy'}
                           size={21}
                         />
                       </View>
                       <View style={styles.churchWeddingCopy}>
-                        <Text style={styles.churchWeddingTitle}>{option.label}</Text>
-                        <Text style={styles.churchWeddingDescription}>{option.description}</Text>
+                        <Text style={[styles.churchWeddingTitle, selected && styles.selectedOptionText]}>{option.label}</Text>
+                        <Text style={[styles.churchWeddingDescription, selected && styles.selectedOptionMutedText]}>{option.description}</Text>
                       </View>
                       {selected ? <SelectionCheck /> : null}
                     </Pressable>
@@ -1047,7 +1047,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
               >
                 <Text style={styles.sectionFieldLabel}>IS THIS A CHURCH WEDDING?</Text>
                 <View accessibilityLiveRegion="polite" style={styles.churchWeddingNotice}>
-                  <MaterialIcons color="#BA1A1A" name="error-outline" size={18} />
+                  <MaterialIcons color="#2196F3" name="info" size={22} />
                   <Text style={styles.churchWeddingNoticeText}>
                     This does not reserve a church or change your budget.
                   </Text>
@@ -1087,14 +1087,14 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                       >
                         <View style={[styles.churchWeddingIcon, selected && styles.churchWeddingIconSelected]}>
                           <MaterialIcons
-                            color={palette.burgundy}
+                            color={selected ? neutralSelection.selectedText : palette.burgundy}
                             name={option.value ? 'church' : 'location-on'}
                             size={21}
                           />
                         </View>
                         <View style={styles.churchWeddingCopy}>
-                          <Text style={styles.churchWeddingTitle}>{option.label}</Text>
-                          <Text style={styles.churchWeddingDescription}>{option.description}</Text>
+                          <Text style={[styles.churchWeddingTitle, selected && styles.selectedOptionText]}>{option.label}</Text>
+                          <Text style={[styles.churchWeddingDescription, selected && styles.selectedOptionMutedText]}>{option.description}</Text>
                         </View>
                         {selected ? <SelectionCheck /> : null}
                       </Pressable>
@@ -1170,7 +1170,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                   {hasManualDateLeadTimeError ? (
                     <View accessibilityLiveRegion="polite" style={styles.manualDateLeadTimeNotice}>
                       <MaterialIcons color="#BA1A1A" name="info-outline" size={18} />
-                      <Text style={styles.timeGuidanceText}>{EVENT_BOOKING_LEAD_TIME_MESSAGE}</Text>
+                      <Text style={styles.manualDateLeadTimeText}>{EVENT_BOOKING_LEAD_TIME_MESSAGE}</Text>
                     </View>
                   ) : null}
                 </View>
@@ -1260,7 +1260,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                 accessibilityLiveRegion="polite"
                 style={[styles.timeGuidanceNotice, isWide && styles.timeGuidanceNoticeWide]}
               >
-                <MaterialIcons color="#BA1A1A" name="info-outline" size={18} />
+                <MaterialIcons color="#2196F3" name="info" size={22} />
                 <Text style={styles.timeGuidanceText}>
                   {timeGuidance ?? 'Service operating hours may vary depending on the provider and selected package.'}
                 </Text>
@@ -1314,7 +1314,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                         <View style={[styles.venueIconCircle, selected && styles.venueIconSelected]}>
                           {React.isValidElement(option.icon) ? (
                             React.cloneElement(option.icon as React.ReactElement<{ color?: string }>, {
-                              color: palette.burgundyDark,
+                              color: selected ? neutralSelection.selectedText : palette.burgundyDark,
                             })
                           ) : (
                             <Text style={[styles.venueIcon, selected && styles.venueIconTextSelected]}>
@@ -1323,8 +1323,8 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
                           )}
                         </View>
                         <View style={styles.venueCopy}>
-                          <Text style={styles.venueTitle}>{option.title}</Text>
-                          <Text style={styles.venueDescription}>{option.description}</Text>
+                          <Text style={[styles.venueTitle, selected && styles.selectedOptionText]}>{option.title}</Text>
+                          <Text style={[styles.venueDescription, selected && styles.selectedOptionMutedText]}>{option.description}</Text>
                         </View>
                         {selected ? (
                           <View style={styles.venueSelectionActions}>
@@ -2165,11 +2165,7 @@ const CalendarPickerModal: React.FC<CalendarPickerModalProps> = ({ onChange, onC
             </Text>
           </View>
 
-          <ScrollView
-            contentContainerStyle={styles.calendarContent}
-            showsVerticalScrollIndicator={false}
-            style={styles.calendarScroll}
-          >
+          <View style={styles.calendarContent}>
             <View style={styles.calendarMonthHeader}>
             <Pressable
               accessibilityLabel="Previous calendar month"
@@ -2281,10 +2277,10 @@ const CalendarPickerModal: React.FC<CalendarPickerModalProps> = ({ onChange, onC
               })}
             </View>
             <View style={[styles.timeGuidanceNotice, styles.calendarLeadTimeNotice]}>
-              <MaterialIcons color="#BA1A1A" name="info-outline" size={18} />
+              <MaterialIcons color="#2196F3" name="info" size={22} />
               <Text style={styles.timeGuidanceText}>{EVENT_BOOKING_LEAD_TIME_MESSAGE}</Text>
             </View>
-          </ScrollView>
+          </View>
         </View>
       </View>
     </Modal>
@@ -2565,9 +2561,9 @@ const styles = StyleSheet.create({
   },
   selectionCardActive: {
     borderWidth: 1,
-    borderColor: neutralSelection.edge,
-    backgroundColor: neutralSelection.surface,
-    boxShadow: neutralSelection.raisedShadow,
+    borderColor: neutralSelection.selectedEdge,
+    backgroundColor: neutralSelection.selectedSurface,
+    boxShadow: neutralSelection.selectedRaisedShadow,
   },
   selectionCheck: {
     width: 24,
@@ -2575,9 +2571,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 12,
-    backgroundColor: palette.burgundy,
+    backgroundColor: neutralSelection.selectedText,
   },
-  selectionCheckText: { color: palette.surface, fontSize: 14, lineHeight: 16, fontWeight: '800' },
+  selectionCheckText: { color: neutralSelection.selectedSurface, fontSize: 14, lineHeight: 16, fontWeight: '800' },
+  selectedOptionText: { color: neutralSelection.selectedText },
+  selectedOptionMutedText: { color: neutralSelection.selectedMutedText },
   dateTimeSection: { gap: 12 },
   dateTimeGrid: { gap: 24 },
   dateTimeGridWide: { flexDirection: 'row' },
@@ -2591,16 +2589,16 @@ const styles = StyleSheet.create({
   },
   timeGuidanceNotice: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
+    alignItems: 'center',
+    gap: 10,
     borderWidth: 1,
-    borderColor: 'rgba(186, 26, 26, 0.20)',
+    borderColor: 'rgba(33, 150, 243, 0.28)',
     borderRadius: 12,
-    backgroundColor: 'rgba(186, 26, 26, 0.10)',
+    backgroundColor: 'rgba(33, 150, 243, 0.12)',
     padding: 12,
   },
   timeGuidanceNoticeWide: { alignSelf: 'flex-end', width: '48%' },
-  timeGuidanceText: { flex: 1, color: '#8F1010', fontSize: 12, lineHeight: 18, fontWeight: '600' },
+  timeGuidanceText: { minWidth: 0, flex: 1, color: '#0B5FA5', fontSize: 12, lineHeight: 18, fontWeight: '600' },
   manualDateLeadTimeNotice: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -2611,6 +2609,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(186, 26, 26, 0.10)',
     padding: 12,
   },
+  manualDateLeadTimeText: { minWidth: 0, flex: 1, color: '#8F1010', fontSize: 12, lineHeight: 18, fontWeight: '600' },
   iconInputShell: {
     minHeight: 52,
     flexDirection: 'row',
@@ -2703,9 +2702,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     boxShadow: neutralSelection.sunkenShadow,
   },
-  meridiemOptionSelected: { backgroundColor: neutralSelection.surface, boxShadow: neutralSelection.raisedShadow },
+  meridiemOptionSelected: { backgroundColor: neutralSelection.selectedSurface, boxShadow: neutralSelection.selectedRaisedShadow },
   meridiemOptionText: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: '700' },
-  meridiemOptionTextSelected: { color: palette.muted, fontWeight: '800' },
+  meridiemOptionTextSelected: { color: neutralSelection.selectedText, fontWeight: '800' },
   venueStatusSection: {
     borderTopWidth: 1,
     borderTopColor: 'rgba(107, 30, 46, 0.16)',
@@ -2782,10 +2781,9 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     textAlign: 'center',
   },
-  calendarScroll: { flexShrink: 1 },
   calendarContent: { paddingBottom: 2 },
   calendarLeadTimeNotice: { marginTop: 16 },
-  calendarYearList: { gap: 8, paddingBottom: 14 },
+  calendarYearList: { gap: 8, paddingHorizontal: 8, paddingTop: 5, paddingBottom: 14 },
   calendarYearButton: {
     minWidth: 62,
     minHeight: 32,
@@ -2935,9 +2933,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#E9EDF0',
     boxShadow: 'inset 2px 2px 4px rgba(160, 171, 180, 0.44), inset -2px -2px 4px rgba(255, 255, 255, 0.92)',
   },
-  venueIconSelected: { backgroundColor: neutralSelection.surface, boxShadow: neutralSelection.raisedShadow },
+  venueIconSelected: { backgroundColor: 'rgba(255, 255, 255, 0.14)', boxShadow: 'none' },
   venueIcon: { color: palette.burgundyDark, fontSize: 23, lineHeight: 26 },
-  venueIconTextSelected: { color: palette.burgundyDark },
+  venueIconTextSelected: { color: neutralSelection.selectedText },
   venueCopy: { flex: 1 },
   venueTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '600', marginBottom: 3 },
   venueDescription: { color: palette.muted, fontSize: 12, lineHeight: 18 },
@@ -3100,12 +3098,12 @@ const styles = StyleSheet.create({
     boxShadow: neutralSelection.sunkenShadow,
   },
   themeChipSelected: {
-    borderColor: neutralSelection.edge,
-    backgroundColor: neutralSelection.surface,
-    boxShadow: neutralSelection.raisedShadow,
+    borderColor: neutralSelection.selectedEdge,
+    backgroundColor: neutralSelection.selectedSurface,
+    boxShadow: neutralSelection.selectedRaisedShadow,
   },
   themeChipText: { color: '#8A8A8A', fontSize: 12, lineHeight: 16, fontWeight: '600' },
-  themeChipTextSelected: { color: '#8A8A8A', fontWeight: '800' },
+  themeChipTextSelected: { color: neutralSelection.selectedText, fontWeight: '800' },
   themeLimitMessage: { color: '#8A8A8A', fontSize: 12, lineHeight: 18 },
   churchWeddingSection: {
     gap: 12,
@@ -3123,15 +3121,15 @@ const styles = StyleSheet.create({
   },
   churchWeddingNotice: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
+    alignItems: 'center',
+    gap: 10,
     borderWidth: 1,
-    borderColor: 'rgba(186, 26, 26, 0.20)',
+    borderColor: 'rgba(33, 150, 243, 0.28)',
     borderRadius: 12,
-    backgroundColor: 'rgba(186, 26, 26, 0.10)',
+    backgroundColor: 'rgba(33, 150, 243, 0.12)',
     padding: 12,
   },
-  churchWeddingNoticeText: { minWidth: 0, flex: 1, color: '#8F1010', fontSize: 12, lineHeight: 18, fontWeight: '600' },
+  churchWeddingNoticeText: { minWidth: 0, flex: 1, color: '#0B5FA5', fontSize: 12, lineHeight: 18, fontWeight: '600' },
   churchWeddingChoices: { gap: 10 },
   churchWeddingChoice: {
     minHeight: 76,
@@ -3154,7 +3152,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#E9EDF0',
     boxShadow: 'inset 2px 2px 4px rgba(160, 171, 180, 0.44), inset -2px -2px 4px rgba(255, 255, 255, 0.92)',
   },
-  churchWeddingIconSelected: { backgroundColor: neutralSelection.surface, boxShadow: neutralSelection.raisedShadow },
+  churchWeddingIconSelected: { backgroundColor: 'rgba(255, 255, 255, 0.14)', boxShadow: 'none' },
   churchWeddingCopy: { minWidth: 0, flex: 1 },
   churchWeddingTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '700' },
   churchWeddingDescription: { color: palette.muted, fontSize: 12, lineHeight: 18, marginTop: 2 },

@@ -157,7 +157,7 @@ export const MultiSelectField: React.FC<MultiSelectFieldProps> = ({
                         {option.label}
                       </Text>
                       {option.description ? (
-                        <Text style={styles.optionDescription}>{option.description}</Text>
+                        <Text style={[styles.optionDescription, selected && styles.optionDescriptionSelected]}>{option.description}</Text>
                       ) : null}
                     </View>
                     <View pointerEvents="none">
@@ -273,14 +273,15 @@ const styles = StyleSheet.create({
     boxShadow: neutralSelection.sunkenShadow,
   },
   optionSelected: {
-    borderColor: neutralSelection.edge,
-    backgroundColor: neutralSelection.surface,
-    boxShadow: neutralSelection.raisedShadow,
+    borderColor: neutralSelection.selectedEdge,
+    backgroundColor: neutralSelection.selectedSurface,
+    boxShadow: neutralSelection.selectedRaisedShadow,
   },
   optionCopy: { minWidth: 0, flex: 1 },
   optionLabel: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '600' },
-  optionLabelSelected: { color: palette.text, fontWeight: '800' },
+  optionLabelSelected: { color: neutralSelection.selectedText, fontWeight: '800' },
   optionDescription: { color: palette.secondary, fontSize: 11, lineHeight: 16, marginTop: 2 },
+  optionDescriptionSelected: { color: neutralSelection.selectedMutedText },
   actions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',

@@ -10,10 +10,11 @@ import {
   saveMyBusinessPolicy,
 } from '../lib/business-policies'
 import { colors } from '../theme/tokens'
+import { animateOptionLayout } from '../theme/option-motion'
 import { Text } from './AppText'
 
 type EditorProps = { audience: 'provider' | 'coordinator' }
-type ViewerProps = { neumorphic?: boolean; ownerId?: string }
+type ViewerProps = { compact?: boolean; neumorphic?: boolean; ownerId?: string }
 
 const categoryLabel = (value: BusinessPolicy['category']) => value.replace(/_/g, ' ')
 
@@ -127,13 +128,14 @@ export const BusinessPoliciesEditor: React.FC<EditorProps> = ({ audience }) => {
   )
 }
 
-export const PublishedBusinessPolicies: React.FC<ViewerProps> = ({ neumorphic = false, ownerId }) => {
+export const PublishedBusinessPolicies: React.FC<ViewerProps> = ({ compact = false, neumorphic = false, ownerId }) => {
   const [expanded, setExpanded] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
   const [policies, setPolicies] = React.useState<BusinessPolicy[]>([])
 
   const open = () => {
     const nextExpanded = !expanded
+    animateOptionLayout()
     setExpanded(nextExpanded)
     if (!nextExpanded || policies.length || loading || !ownerId) return
     setLoading(true)
@@ -144,7 +146,7 @@ export const PublishedBusinessPolicies: React.FC<ViewerProps> = ({ neumorphic = 
   }
 
   if (!ownerId) return null
-  return <View style={[styles.viewer, neumorphic && styles.viewerNeumorphic]}>
+  return <View style={[styles.viewer, neumorphic && styles.viewerNeumorphic, compact && styles.viewerCompact]}>
     <Pressable
       accessibilityLabel="View business policies"
       accessibilityRole="button"
@@ -153,6 +155,7 @@ export const PublishedBusinessPolicies: React.FC<ViewerProps> = ({ neumorphic = 
       style={({ pressed }) => [
         styles.viewerButton,
         neumorphic && styles.viewerButtonNeumorphic,
+        compact && styles.viewerButtonCompact,
         pressed && neumorphic && styles.viewerButtonNeumorphicPressed,
       ]}
     >
@@ -162,7 +165,7 @@ export const PublishedBusinessPolicies: React.FC<ViewerProps> = ({ neumorphic = 
       </View>
       <MaterialCommunityIcons color={colors.primary} name={expanded ? 'chevron-up' : 'chevron-down'} size={neumorphic ? 20 : 22} />
     </Pressable>
-    {expanded ? <View style={[styles.viewerContent, neumorphic && styles.viewerContentNeumorphic]}>
+    {expanded ? <View style={[styles.viewerContent, neumorphic && styles.viewerContentNeumorphic, compact && styles.viewerContentCompact]}>
       <Text style={[styles.viewerNote, neumorphic && styles.viewerNoteNeumorphic]}>These policies are informational. MULTIVENT&apos;s payment, cancellation, refund, and booking rules continue to apply.</Text>
       {loading ? <ActivityIndicator color={colors.primary} /> : policies.length ? policies.map((policy) => (
         <View key={policy.id} style={[styles.publishedPolicy, neumorphic && styles.publishedPolicyNeumorphic]}>
@@ -220,11 +223,14 @@ const styles = StyleSheet.create({
     boxShadow: '7px 7px 15px rgba(157, 169, 178, 0.48), -7px -7px 15px rgba(255, 255, 255, 0.94)',
   },
   viewerButtonNeumorphic: { minHeight: 48 },
+  viewerButtonCompact: { minHeight: 40, paddingHorizontal: 0 },
   viewerButtonNeumorphicPressed: {
     backgroundColor: '#E9EDF0',
     boxShadow: 'inset 3px 3px 6px rgba(157, 169, 178, 0.48), inset -3px -3px 6px rgba(255, 255, 255, 0.94)',
   },
   viewerContent: { borderTopColor: colors.divider, borderTopWidth: 1, gap: 12, padding: 14 },
+  viewerContentCompact: { paddingHorizontal: 0, paddingBottom: 0 },
+  viewerCompact: { backgroundColor: 'transparent', borderWidth: 0, borderRadius: 0, boxShadow: 'none', elevation: 0, marginTop: 0 },
   viewerContentNeumorphic: { backgroundColor: '#E9EDF0', borderTopColor: 'rgba(255, 255, 255, 0.66)' },
   viewerNote: { color: colors.textMuted, fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 17 },
   viewerNoteNeumorphic: { color: '#73808A' },

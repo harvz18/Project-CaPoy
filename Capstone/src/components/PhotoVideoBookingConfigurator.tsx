@@ -99,15 +99,17 @@ export const PhotoVideoBookingConfigurator: React.FC<Props> = ({ commissionRate,
       {configuration.packages.map((pkg) => {
         const coverage = configuration.coverageConfigurations.find((item) => item.id === pkg.coverageConfigurationId)
         const inclusions = configuration.deliverables.filter((item) => pkg.deliverableIds.includes(item.id))
-        return <PackageChoice active={selection.selectionMethod === 'package' && pkg.id === selection.packageId} key={pkg.id ?? pkg.name} neumorphic={neumorphic} onPress={() => choosePackage(pkg.id)} setNode={(node) => { optionRefs.current[`package:${pkg.id}`] = node }}>
-          <View style={styles.choiceHeading}>
-            <View style={styles.choiceCopy}>
-              <Text style={styles.choiceTitle}>{pkg.name}</Text>
-              <Text style={styles.choiceCaption}>{coverage?.durationHours ?? 0} hours · {pkg.description || 'Provider preset package'}</Text>
-            </View>
-            <Text style={styles.price}>{formatPeso(pkg.price * (1 + commissionRate))}</Text>
+        const active = selection.selectionMethod === 'package' && pkg.id === selection.packageId
+        return <PackageChoice active={active} key={pkg.id ?? pkg.name} neumorphic={neumorphic} onPress={() => choosePackage(pkg.id)} setNode={(node) => { optionRefs.current[`package:${pkg.id}`] = node }}>
+          <View style={styles.packageTitleRow}>
+            <Text style={[styles.choiceTitle, styles.packageTitle, active && styles.selectedText]}>{pkg.name}</Text>
+            {active ? <View style={styles.packageSelectedMark}><Text style={styles.packageSelectedMarkText}>✓</Text></View> : null}
           </View>
-          {inclusions.length ? <Text style={styles.choiceCaption}>Includes: {inclusions.map((item) => item.name).join(', ')}</Text> : null}
+          <Text style={[styles.packagePrice, active && styles.selectedText]}>{formatPeso(pkg.price * (1 + commissionRate))} / event</Text>
+          <Text style={[styles.choiceCaption, active && styles.selectedMutedText]}>
+            {coverage?.durationHours ?? 0} hours of coverage{pkg.description ? ` · ${pkg.description}` : ''}
+          </Text>
+          {inclusions.length ? <Text style={[styles.packageDeliverables, active && styles.selectedMutedText]}>Deliverables: {inclusions.map((item) => item.name).join(', ')}</Text> : null}
         </PackageChoice>
       })}
       {configuration.packages.length === 0 ? <Text style={styles.unavailable}>This provider has no active packages available right now.</Text> : null}
@@ -124,8 +126,8 @@ export const PhotoVideoBookingConfigurator: React.FC<Props> = ({ commissionRate,
           : `+${formatPeso(deliverable.price * (1 + commissionRate))}${deliverable.pricingMode === 'per_hour' ? ' / hour' : deliverable.pricingMode === 'per_unit' ? ' / unit' : ''}`
         return <View ref={(node) => { optionRefs.current[`deliverable:${deliverable.id}`] = node }} key={deliverable.id} style={[styles.optionCard, neumorphic && (selected ? styles.neoRaised : styles.neoInset), selected && styles.optionCardActive]}>
           <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: selected, disabled: included }} disabled={included} onPress={() => toggleDeliverable(deliverable.id)} style={styles.optionHeader}>
-            <View style={styles.choiceCopy}><Text style={styles.choiceTitle}>{selected ? '✓ ' : ''}{deliverable.name}</Text><Text style={styles.choiceCaption}>{deliverable.deliveryFormat || deliverable.mediaType}</Text></View>
-            <Text style={styles.price}>{label}</Text>
+            <View style={styles.choiceCopy}><Text style={[styles.choiceTitle, selected && styles.selectedText]}>{selected ? '✓ ' : ''}{deliverable.name}</Text><Text style={[styles.choiceCaption, selected && styles.selectedMutedText]}>{deliverable.deliveryFormat || deliverable.mediaType}</Text></View>
+            <Text style={[styles.price, selected && styles.selectedText]}>{label}</Text>
           </Pressable>
           {entry && !included && deliverable.pricingMode !== 'included' ? <Quantity label="Quantity" onChange={(quantity) => updateDeliverableQuantity(deliverable.id, deliverable.maximumQuantity ? Math.min(deliverable.maximumQuantity, quantity) : quantity)} value={entry.quantity} /> : null}
         </View>
@@ -138,8 +140,8 @@ export const PhotoVideoBookingConfigurator: React.FC<Props> = ({ commissionRate,
         const entry = selection.additionalServices.find((item) => item.serviceId === service.id)
         return <View ref={(node) => { optionRefs.current[`additional:${service.id}`] = node }} key={service.id} style={[styles.optionCard, neumorphic && (entry ? styles.neoRaised : styles.neoInset), entry && styles.optionCardActive]}>
           <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: Boolean(entry) }} onPress={() => toggleAdditionalService(service.id)} style={styles.optionHeader}>
-            <View style={styles.choiceCopy}><Text style={styles.choiceTitle}>{entry ? '✓ ' : ''}{service.name}</Text><Text style={styles.choiceCaption}>Provider optional inclusion</Text></View>
-            <Text style={styles.price}>+{formatPeso(service.price * (1 + commissionRate))}{service.pricingUnit === 'hour' ? ' / hour' : service.pricingUnit === 'unit' ? ' / unit' : ''}</Text>
+            <View style={styles.choiceCopy}><Text style={[styles.choiceTitle, entry && styles.selectedText]}>{entry ? '✓ ' : ''}{service.name}</Text><Text style={[styles.choiceCaption, entry && styles.selectedMutedText]}>Provider optional inclusion</Text></View>
+            <Text style={[styles.price, entry && styles.selectedText]}>+{formatPeso(service.price * (1 + commissionRate))}{service.pricingUnit === 'hour' ? ' / hour' : service.pricingUnit === 'unit' ? ' / unit' : ''}</Text>
           </Pressable>
           {entry && service.pricingUnit !== 'event' ? <Quantity label="Quantity" onChange={(quantity) => updateServiceQuantity(service.id, service.maximumQuantity ? Math.min(service.maximumQuantity, quantity) : quantity)} value={entry.quantity} /> : null}
         </View>
@@ -151,28 +153,34 @@ export const PhotoVideoBookingConfigurator: React.FC<Props> = ({ commissionRate,
       {selection.additionalHours > 0 ? <><Quantity label={`Up to ${selectedPackage.maximumCoverageExtensionHours} extra hours · ${formatPeso(configuration.additionalHourRate * (1 + commissionRate))}/hour`} onChange={(hours) => set({ additionalHours: Math.min(selectedPackage.maximumCoverageExtensionHours, hours) })} value={selection.additionalHours} /><Pressable onPress={() => { animateOptionLayout(); set({ additionalHours: 0 }) }}><Text style={styles.removeText}>Remove additional hours</Text></Pressable></> : <Pressable onPress={() => { animateOptionLayout(); set({ additionalHours: 1 }) }} style={[styles.addHoursButton, neumorphic && styles.neoRaised]}><Text style={styles.selectText}>Add additional hour · {formatPeso(configuration.additionalHourRate * (1 + commissionRate))}/hour</Text></Pressable>}
     </View> : null}
 
-    <View style={[styles.priceSummary, neumorphic && styles.neoInset]}><Text style={styles.priceSummaryLabel}>Current marketplace price</Text><Text style={styles.priceSummaryValue}>{formatPeso(calculation.clientTotal)}</Text><Text style={styles.priceSummaryCopy}>Your selected package and optional inclusions are saved with the booking for provider review.</Text></View>
+    <View style={styles.priceSummary}><Text style={styles.priceSummaryValue}>{formatPeso(calculation.clientTotal)}</Text><Text style={styles.priceSummaryCopy}>Your selected package and optional inclusions are saved with the booking for provider review.</Text></View>
   </View>
 }
 
 const styles = StyleSheet.create({
   root: { gap: 12 },
-  heading: { color: '#4E061A', fontSize: 20, fontWeight: '800' },
+  heading: { color: '#1A1C1C', fontSize: 20, fontWeight: '800' },
   caption: { color: '#5E5E5E', fontSize: 13, lineHeight: 19 },
   section: { borderTopColor: '#E2E2E2', borderTopWidth: 1, gap: 8, paddingTop: 14 },
   sectionTitle: { color: '#1A1C1C', fontSize: 16, fontWeight: '800' },
-  choice: { borderColor: '#E2E2E2', borderRadius: 10, borderWidth: 1, gap: 5, padding: 12 },
-  choiceActive: { backgroundColor: neutralSelection.surface, borderColor: neutralSelection.edge },
+  choice: { borderColor: '#E2E2E2', borderRadius: 10, borderWidth: 1, gap: 6, padding: 14 },
+  choiceActive: { backgroundColor: neutralSelection.selectedSurface, borderColor: neutralSelection.selectedEdge, boxShadow: neutralSelection.selectedRaisedShadow },
   choiceHeading: { alignItems: 'center', flexDirection: 'row', gap: 12, justifyContent: 'space-between' },
   choiceCopy: { flex: 1, minWidth: 0 },
   choiceTitle: { color: '#1A1C1C', fontSize: 14, fontWeight: '700' },
+  packageTitleRow: { alignItems: 'flex-start', flexDirection: 'row', gap: 10 },
+  packageTitle: { flex: 1, fontSize: 16, lineHeight: 22 },
+  packageSelectedMark: { alignItems: 'center', borderColor: 'rgba(255, 255, 255, 0.76)', borderRadius: 10, borderWidth: 1, height: 20, justifyContent: 'center', width: 20 },
+  packageSelectedMarkText: { color: '#FFFFFF', fontSize: 13, fontWeight: '900', lineHeight: 17 },
+  packagePrice: { color: '#4E061A', fontSize: 15, fontWeight: '900', lineHeight: 21 },
+  packageDeliverables: { color: '#5E5E5E', fontSize: 12, lineHeight: 18, marginTop: 1 },
   choiceCaption: { color: '#5E5E5E', fontSize: 12, lineHeight: 17, marginTop: 3 },
   price: { color: '#4E061A', fontSize: 13, fontWeight: '800', textAlign: 'right' },
   unavailable: { color: '#5E5E5E', fontSize: 12, lineHeight: 18 },
   optionCard: { borderColor: '#E2E2E2', borderRadius: 10, borderWidth: 1, overflow: 'hidden' },
-  optionCardActive: { backgroundColor: neutralSelection.surface, borderColor: neutralSelection.edge },
+  optionCardActive: { backgroundColor: neutralSelection.selectedSurface, borderColor: neutralSelection.selectedEdge, boxShadow: neutralSelection.selectedRaisedShadow },
   optionHeader: { alignItems: 'center', flexDirection: 'row', gap: 12, justifyContent: 'space-between', padding: 12 },
-  quantityRow: { alignItems: 'center', borderTopColor: '#EEE7E9', borderTopWidth: 1, flexDirection: 'row', gap: 9, padding: 10 },
+  quantityRow: { alignItems: 'center', borderTopColor: '#EEE7E9', borderTopWidth: 1, backgroundColor: neutralSelection.surface, flexDirection: 'row', gap: 9, padding: 10 },
   quantityLabel: { color: '#303033', flex: 1, fontSize: 12, fontWeight: '700' },
   quantityButton: { alignItems: 'center', backgroundColor: '#4E061A', borderRadius: 15, height: 30, justifyContent: 'center', width: 30 },
   quantityButtonText: { color: '#FFF', fontSize: 18, fontWeight: '800' },
@@ -180,10 +188,11 @@ const styles = StyleSheet.create({
   addHoursButton: { borderColor: '#D8CDD0', borderRadius: 8, borderWidth: 1, padding: 11 },
   selectText: { color: '#4E061A', fontSize: 12, fontWeight: '800' },
   removeText: { color: '#7A1830', fontSize: 12, fontWeight: '800', textAlign: 'right' },
-  priceSummary: { backgroundColor: '#F7EFEF', borderColor: '#E7D9DD', borderRadius: 12, borderWidth: 1, gap: 3, padding: 14 },
-  priceSummaryLabel: { color: '#5E5E5E', fontSize: 12, fontWeight: '700' },
+  priceSummary: { gap: 3, paddingVertical: 4 },
   priceSummaryValue: { color: '#4E061A', fontSize: 22, fontWeight: '900' },
   priceSummaryCopy: { color: '#5E5E5E', fontSize: 12, lineHeight: 18 },
+  selectedText: { color: neutralSelection.selectedText },
+  selectedMutedText: { color: neutralSelection.selectedMutedText },
   neoRaised: { borderColor: neutralSelection.edge, backgroundColor: neutralSelection.surface, boxShadow: neutralSelection.raisedShadow },
   neoInset: { borderColor: neutralSelection.edge, backgroundColor: neutralSelection.surface, boxShadow: neutralSelection.sunkenShadow },
 })

@@ -10,6 +10,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 export type MerchantNotificationCategory =
   | 'booking'
@@ -250,6 +251,7 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({
   variant = 'merchant',
 }) => {
   const { width } = useWindowDimensions()
+  const safeAreaInsets = useSafeAreaInsets()
   const isWide = width >= 820
   const [filter, setFilter] = React.useState<MerchantNotificationFilter>(initialFilter)
   const [readIds, setReadIds] = React.useState(
@@ -278,21 +280,34 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({
   // Client messages belong in the dedicated Messages tab. They are still persisted
   // and delivered through the existing push-notification path; this only prevents
   // the same alert from being repeated in the client Notifications feed.
-  const feedNotifications = isClient
-    ? notifications.filter((notification) => notification.category !== 'message')
-    : notifications
-  const unreadNotifications = feedNotifications.filter((item) => !readIds.has(item.id))
-  const visibleNotifications =
-    filter === 'unread' ? unreadNotifications : feedNotifications
-  const groupedNotifications = visibleNotifications.reduce<
-    Array<{ items: MerchantNotification[]; label: string }>
-  >((groups, notification) => {
-    const label = getSectionLabel(notification.createdAt)
-    const existingGroup = groups.find((group) => group.label === label)
-    if (existingGroup) existingGroup.items.push(notification)
-    else groups.push({ items: [notification], label })
-    return groups
-  }, [])
+  const feedNotifications = React.useMemo(() => {
+    const source = isClient
+      ? notifications.filter((notification) => notification.category !== 'message')
+      : notifications
+    const renderedIds = new Set<string>()
+    return source.filter((notification) => {
+      if (renderedIds.has(notification.id)) return false
+      renderedIds.add(notification.id)
+      return true
+    })
+  }, [isClient, notifications])
+  const unreadNotifications = React.useMemo(
+    () => feedNotifications.filter((item) => !readIds.has(item.id)),
+    [feedNotifications, readIds]
+  )
+  const visibleNotifications = React.useMemo(
+    () => filter === 'unread' ? unreadNotifications : feedNotifications,
+    [feedNotifications, filter, unreadNotifications]
+  )
+  const groupedNotifications = React.useMemo(() => visibleNotifications.reduce<
+      Array<{ items: MerchantNotification[]; label: string }>
+    >((groups, notification) => {
+      const label = getSectionLabel(notification.createdAt)
+      const existingGroup = groups.find((group) => group.label === label)
+      if (existingGroup) existingGroup.items.push(notification)
+      else groups.push({ items: [notification], label })
+      return groups
+    }, []), [visibleNotifications])
   const selectionMode = selectedIds.size > 0
   const allSelected = visibleNotifications.length > 0
     && visibleNotifications.every((notification) => selectedIds.has(notification.id))
@@ -389,6 +404,7 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({
           styles.content,
           isWide ? styles.contentWide : styles.contentMobile,
           embedded && styles.embeddedContent,
+          { paddingBottom: (embedded ? 132 : isWide ? 56 : 48) + safeAreaInsets.bottom },
         ]}
         keyboardShouldPersistTaps="handled"
         onScroll={(event) => {
@@ -583,28 +599,29 @@ const NotificationRow = ({
         <Text style={[styles.categoryGlyph, { color: category.color }]}>{category.glyph}</Text>
       </View>
       <View style={styles.notificationCopy}>
-        <View style={styles.notificationTitleRow}>
-          <Text numberOfLines={2} style={styles.notificationTitle}>
-            {notification.title}
-          </Text>
-          {!isRead ? <View style={styles.rowUnreadDot} /> : null}
-        </View>
-        <Text numberOfLines={3} style={styles.notificationMessage}>
+        <Text numberOfLines={2} style={styles.notificationTitle}>
+          {notification.title}
+        </Text>
+        <Text numberOfLines={2} style={styles.notificationMessage}>
           {notification.message}
         </Text>
+        {notification.resourceType ? (
+          <Text numberOfLines={1} style={styles.notificationContext}>
+            {notification.resourceType}
+          </Text>
+        ) : null}
         <View style={styles.notificationMeta}>
           <Text style={[styles.categoryLabel, { color: category.color }]}>{category.label}</Text>
           <Text style={styles.metaDivider}>·</Text>
           <Text style={styles.notificationTime}>{formatTime(notification.createdAt)}</Text>
-          {notification.actionLabel ? (
-            <>
-              <Text style={styles.metaDivider}>·</Text>
-              <Text style={styles.actionLabel}>{notification.actionLabel}</Text>
-            </>
-          ) : null}
+          <Text style={styles.metaDivider}>·</Text>
+          <Text style={styles.actionLabel}>View details</Text>
         </View>
       </View>
-      <Text style={styles.chevron}>{'\u203A'}</Text>
+      <View style={styles.notificationStatus}>
+        {!isRead ? <View style={styles.rowUnreadDot} /> : null}
+        <Text style={styles.chevron}>{'\u203A'}</Text>
+      </View>
     </Pressable>
   )
 }
@@ -643,16 +660,16 @@ const PreferenceRow = ({
 )
 
 const palette = {
-  background: '#FAF9F9',
-  border: '#E3E2E2',
-  muted: '#777879',
+  background: '#E9EDF0',
+  border: 'rgba(255, 255, 255, 0.76)',
+  muted: '#87929A',
   onPrimary: '#FFFFFF',
   primary: '#4E061A',
   primaryContainer: '#6B1E2E',
   primarySoft: '#F5EDEF',
-  secondary: '#5D5F5F',
-  surfaceContainerLow: '#F5F3F3',
-  text: '#1B1C1C',
+  secondary: '#6F7B84',
+  surfaceContainerLow: '#E9EDF0',
+  text: '#57636C',
   white: '#FFFFFF',
 } as const
 
@@ -691,7 +708,7 @@ const styles = StyleSheet.create({
   contentMobile: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 48 },
   contentWide: { paddingHorizontal: 32, paddingTop: 30, paddingBottom: 56 },
   embeddedContent: { paddingTop: 16, paddingBottom: 132 },
-  embeddedReadAll: { minHeight: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18, backgroundColor: palette.primarySoft, paddingHorizontal: 11 },
+  embeddedReadAll: { minHeight: 40, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 20, backgroundColor: palette.background, paddingHorizontal: 13, boxShadow: '3px 3px 7px rgba(161, 172, 180, 0.4), -3px -3px 7px rgba(255, 255, 255, 0.9)' },
   embeddedReadAllText: { color: palette.primaryContainer, fontSize: 12, lineHeight: 16, fontWeight: '700' },
   intro: { flexDirection: 'row', alignItems: 'center', gap: 13, marginBottom: 20 },
   introIcon: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 23, backgroundColor: palette.primarySoft },
@@ -709,35 +726,36 @@ const styles = StyleSheet.create({
   feedColumn: { gap: 15 },
   feedColumnWide: { minWidth: 0, flex: 1 },
   filterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  filterBar: { flexDirection: 'row', gap: 6, alignSelf: 'flex-start', borderRadius: 9, backgroundColor: palette.surfaceContainerLow, padding: 4 },
-  filterButton: { minWidth: 92, alignItems: 'center', borderRadius: 6, paddingHorizontal: 12, paddingVertical: 7 },
-  filterButtonSelected: { backgroundColor: palette.white },
-  filterButtonPressed: { opacity: 0.65 },
-  filterButtonText: { color: palette.secondary, fontSize: 12, lineHeight: 16, fontWeight: '600' },
-  filterButtonTextSelected: { color: palette.primaryContainer },
-  notificationGroups: { gap: 17 },
-  notificationGroup: { gap: 7 },
+  filterBar: { flexDirection: 'row', gap: 8, alignSelf: 'flex-start' },
+  filterButton: { minWidth: 96, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 20, backgroundColor: palette.background, paddingHorizontal: 12, boxShadow: '3px 3px 7px rgba(161, 172, 180, 0.4), -3px -3px 7px rgba(255, 255, 255, 0.9)' },
+  filterButtonSelected: { borderColor: palette.primaryContainer, backgroundColor: palette.primaryContainer, boxShadow: '3px 4px 7px rgba(78, 6, 26, 0.3), -3px -3px 7px rgba(255, 255, 255, 0.68)' },
+  filterButtonPressed: { boxShadow: 'inset 3px 3px 6px rgba(161, 172, 180, 0.46), inset -3px -3px 6px rgba(255, 255, 255, 0.9)' },
+  filterButtonText: { color: palette.secondary, fontSize: 12, lineHeight: 16, fontWeight: '700' },
+  filterButtonTextSelected: { color: palette.white },
+  notificationGroups: { gap: 18 },
+  notificationGroup: { gap: 8 },
   groupLabel: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 0.75, marginLeft: 2 },
-  notificationCard: { overflow: 'hidden', borderWidth: 1, borderColor: palette.border, borderRadius: 10, backgroundColor: palette.white },
-  notificationRow: { minHeight: 94, flexDirection: 'row', alignItems: 'flex-start', gap: 11, padding: 14 },
-  notificationRowUnread: { backgroundColor: '#FCF8F9' },
+  notificationCard: { gap: 10, backgroundColor: 'transparent' },
+  notificationRow: { minHeight: 112, flexDirection: 'row', alignItems: 'flex-start', gap: 11, borderWidth: 1, borderColor: palette.border, borderRadius: 18, backgroundColor: palette.background, paddingHorizontal: 13, paddingVertical: 13, boxShadow: '4px 4px 10px rgba(161, 172, 180, 0.4), -4px -4px 10px rgba(255, 255, 255, 0.92)' },
+  notificationRowUnread: { borderColor: 'rgba(107, 30, 46, 0.27)', backgroundColor: '#EDF0F2' },
   notificationRowSelected: { backgroundColor: '#F7ECEE' },
   notificationRowBorder: { borderBottomWidth: 1, borderBottomColor: palette.border },
-  notificationRowPressed: { opacity: 0.68 },
-  categoryIcon: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18 },
+  notificationRowPressed: { boxShadow: 'inset 4px 4px 9px rgba(161, 172, 180, 0.48), inset -4px -4px 9px rgba(255, 255, 255, 0.92)' },
+  categoryIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19, marginTop: 1 },
   categoryGlyph: { fontSize: 14, lineHeight: 19, fontWeight: '700' },
   notificationCopy: { minWidth: 0, flex: 1 },
-  notificationTitleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 7 },
-  notificationTitle: { minWidth: 0, flex: 1, color: palette.text, fontSize: 12, lineHeight: 17, fontWeight: '700' },
-  rowUnreadDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: palette.primaryContainer, marginTop: 5 },
-  notificationMessage: { color: palette.secondary, fontSize: 12, lineHeight: 16, marginTop: 3 },
-  notificationMeta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 5, marginTop: 7 },
-  categoryLabel: { fontSize: 12, lineHeight: 16, fontWeight: '700' },
-  metaDivider: { color: palette.muted, fontSize: 12, lineHeight: 16 },
-  notificationTime: { color: palette.muted, fontSize: 12, lineHeight: 16 },
-  actionLabel: { color: palette.primaryContainer, fontSize: 12, lineHeight: 16, fontWeight: '700' },
-  chevron: { color: palette.secondary, fontSize: 23, lineHeight: 25, marginTop: 4 },
-  emptyState: { minHeight: 280, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 10, backgroundColor: palette.white, padding: 24 },
+  notificationTitle: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '800' },
+  notificationStatus: { width: 22, alignItems: 'center', gap: 12, paddingTop: 4 },
+  rowUnreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: palette.primaryContainer },
+  notificationMessage: { color: palette.secondary, fontSize: 11, lineHeight: 16, marginTop: 4 },
+  notificationContext: { color: palette.muted, fontSize: 9, lineHeight: 13, marginTop: 4, textTransform: 'capitalize' },
+  notificationMeta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', columnGap: 5, rowGap: 2, marginTop: 8 },
+  categoryLabel: { fontSize: 10, lineHeight: 14, fontWeight: '800' },
+  metaDivider: { color: palette.muted, fontSize: 10, lineHeight: 14 },
+  notificationTime: { color: palette.muted, fontSize: 10, lineHeight: 14 },
+  actionLabel: { color: palette.primaryContainer, fontSize: 10, lineHeight: 14, fontWeight: '800' },
+  chevron: { color: palette.primaryContainer, fontSize: 23, lineHeight: 25 },
+  emptyState: { minHeight: 280, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 18, backgroundColor: palette.background, padding: 24, boxShadow: '5px 5px 11px rgba(161, 172, 180, 0.4), -5px -5px 11px rgba(255, 255, 255, 0.92)' },
   emptyIcon: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24, backgroundColor: palette.surfaceContainerLow, marginBottom: 12 },
   emptyTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '700', textAlign: 'center' },
   emptyText: { color: palette.secondary, fontSize: 12, lineHeight: 16, textAlign: 'center', marginTop: 3 },

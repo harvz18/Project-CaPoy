@@ -618,12 +618,12 @@ const styles = StyleSheet.create({
     boxShadow: neutralSelection.sunkenShadow,
   },
   tagSelected: {
-    borderColor: neutralSelection.edge,
-    backgroundColor: neutralSelection.surface,
-    boxShadow: neutralSelection.raisedShadow,
+    borderColor: neutralSelection.selectedEdge,
+    backgroundColor: neutralSelection.selectedSurface,
+    boxShadow: neutralSelection.selectedRaisedShadow,
   },
   tagText: { color: palette.textVariant, fontSize: 12, lineHeight: 16, fontWeight: '600' },
-  tagTextSelected: { color: palette.textVariant, fontWeight: '800' },
+  tagTextSelected: { color: neutralSelection.selectedText, fontWeight: '800' },
   tagSelectedPressed: {
     boxShadow: neutralSelection.sunkenShadow,
     transform: [{ scale: 0.98 }],

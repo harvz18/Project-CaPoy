@@ -18,6 +18,7 @@ import { calculatePaymentBreakdown } from '../lib/pricing'
 import type { PaymentBreakdown } from '../lib/pricing'
 import type { SavedPlanReview, V14PaymentSettlementContext } from '../lib/planning'
 import { neutralSelection } from '../theme/neumorphism'
+import { warningNotice } from '../theme/notices'
 import { animateOptionLayout, optionSelectionMotionDuration } from '../theme/option-motion'
 
 export type PaymentType = 'deposit' | 'full'
@@ -236,19 +237,19 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
               ]}
             >
               <MaterialCommunityIcons
-                color={needsSavedPlanReview ? palette.burgundy : '#2E7D57'}
+                color={needsSavedPlanReview ? warningNotice.icon : '#2E7D57'}
                 name={needsSavedPlanReview ? 'alert-circle-outline' : 'check-circle-outline'}
                 size={23}
               />
               <View style={styles.savedPlanReviewCopy}>
-                <Text style={styles.savedPlanReviewTitle}>
+                <Text style={[styles.savedPlanReviewTitle, needsSavedPlanReview && styles.savedPlanReviewTitleAttention]}>
                   {savedPlanReview.hasUnavailableServices
                     ? 'Service update needed'
                     : savedPlanReview.hasPriceChanges
                       ? 'Price Updated'
                       : 'Saved plan rechecked'}
                 </Text>
-                <Text style={styles.savedPlanReviewText}>
+                <Text style={[styles.savedPlanReviewText, needsSavedPlanReview && styles.savedPlanReviewTextAttention]}>
                   {savedPlanReview.hasUnavailableServices
                     ? 'One or more saved services are no longer available. Review your selections before booking.'
                     : savedPlanReview.hasPriceChanges
@@ -392,12 +393,12 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
                   <View style={styles.methodCopy}>
                     <View style={styles.methodIconCircle}>
                       <MaterialCommunityIcons
-                        color={palette.burgundy}
+                        color={selected ? neutralSelection.selectedText : palette.burgundy}
                         name={method.icon}
                         size={21}
                       />
                     </View>
-                    <Text style={styles.methodLabel}>{method.label}</Text>
+                    <Text style={[styles.methodLabel, selected && styles.selectedOptionText]}>{method.label}</Text>
                   </View>
                   <Radio selected={selected} />
                 </Pressable>
@@ -763,8 +764,8 @@ export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
                 onPress={() => choosePaymentType('deposit')}
                 style={[styles.bookingSheetOption, paymentType === 'deposit' && styles.bookingSheetOptionSelected]}
               >
-                <Text style={styles.bookingSheetOptionLabel}>Required downpayment</Text>
-                <Text style={styles.bookingSheetOptionValue}>{formatCurrency(breakdown.initialPayment)}</Text>
+                <Text style={[styles.bookingSheetOptionLabel, paymentType === 'deposit' && styles.selectedOptionText]}>Required downpayment</Text>
+                <Text style={[styles.bookingSheetOptionValue, paymentType === 'deposit' && styles.selectedOptionText]}>{formatCurrency(breakdown.initialPayment)}</Text>
               </Pressable>
               <Pressable
                 ref={(node) => {
@@ -775,8 +776,8 @@ export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
                 onPress={() => choosePaymentType('full')}
                 style={[styles.bookingSheetOption, paymentType === 'full' && styles.bookingSheetOptionSelected]}
               >
-                <Text style={styles.bookingSheetOptionLabel}>Pay in full</Text>
-                <Text style={styles.bookingSheetOptionValue}>{formatCurrency(breakdown.clientTotal)}</Text>
+                <Text style={[styles.bookingSheetOptionLabel, paymentType === 'full' && styles.selectedOptionText]}>Pay in full</Text>
+                <Text style={[styles.bookingSheetOptionValue, paymentType === 'full' && styles.selectedOptionText]}>{formatCurrency(breakdown.clientTotal)}</Text>
               </Pressable>
             </View>
             <Text style={styles.bookingSheetSectionTitle}>Payment method</Text>
@@ -800,8 +801,8 @@ export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
                     onPress={() => choosePaymentMethod(method.id)}
                     style={[styles.bookingSheetMethod, selected && styles.bookingSheetMethodSelected, !enabled && styles.bookingSheetMethodDisabled]}
                   >
-                    <MaterialCommunityIcons color={palette.burgundy} name={method.icon} size={20} />
-                    <Text style={styles.bookingSheetMethodText}>{method.label}</Text>
+                    <MaterialCommunityIcons color={selected ? neutralSelection.selectedText : palette.burgundy} name={method.icon} size={20} />
+                    <Text style={[styles.bookingSheetMethodText, selected && styles.selectedOptionText]}>{method.label}</Text>
                   </Pressable>
                 )
               })}
@@ -894,14 +895,14 @@ const PaymentTypeCard: React.FC<PaymentTypeCardProps> = ({
     ]}
   >
     <View style={styles.paymentTypeHeader}>
-      <Text style={styles.paymentTypeLabel}>{label}</Text>
+      <Text style={[styles.paymentTypeLabel, selected && styles.selectedOptionText]}>{label}</Text>
       <Radio disabled={disabled} selected={selected} />
     </View>
-    <Text style={[styles.paymentTypePrice, !selected && styles.paymentTypePriceInactive]}>
+    <Text style={[styles.paymentTypePrice, !selected && styles.paymentTypePriceInactive, selected && styles.selectedOptionText]}>
       {price}{' '}
-      {detail && <Text style={styles.paymentTypeDetail}>{'\u00B7'} {detail}</Text>}
+      {detail && <Text style={[styles.paymentTypeDetail, selected && styles.selectedOptionMutedText]}>{'\u00B7'} {detail}</Text>}
     </Text>
-    <Text style={styles.paymentTypeDescription}>{description}</Text>
+    <Text style={[styles.paymentTypeDescription, selected && styles.selectedOptionMutedText]}>{description}</Text>
   </Pressable>
 )
 
@@ -1068,10 +1069,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#F2FAF5',
     padding: 16,
   },
-  savedPlanReviewCardAttention: { borderColor: palette.outline, backgroundColor: '#FCF5F6' },
+  savedPlanReviewCardAttention: { borderColor: warningNotice.border, backgroundColor: warningNotice.background },
   savedPlanReviewCopy: { flex: 1, minWidth: 0 },
   savedPlanReviewTitle: { color: palette.text, fontSize: 16, lineHeight: 22, fontWeight: '700' },
+  savedPlanReviewTitleAttention: { color: warningNotice.text },
   savedPlanReviewText: { color: palette.muted, fontSize: 14, lineHeight: 20, marginTop: 3 },
+  savedPlanReviewTextAttention: { color: warningNotice.mutedText },
   savedPlanReviewItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, borderTopWidth: 1, borderTopColor: '#E7D7D9', paddingTop: 7, marginTop: 7 },
   savedPlanReviewItemName: { flex: 1, color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '600' },
   savedPlanReviewItemDetail: { color: palette.burgundy, fontSize: 12, lineHeight: 18, fontWeight: '700', textAlign: 'right' },
@@ -1105,13 +1108,13 @@ const styles = StyleSheet.create({
     ...cardShadow,
   },
   paymentTypeCardDisabled: { opacity: 0.64 },
-  selectableCardActive: { borderColor: palette.burgundy, backgroundColor: '#FCF8F9' },
+  selectableCardActive: { borderColor: neutralSelection.selectedEdge, backgroundColor: neutralSelection.selectedSurface, boxShadow: neutralSelection.selectedRaisedShadow },
   paymentTypeHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 16 },
   paymentTypeLabel: { color: palette.text, fontSize: 18, lineHeight: 28, fontWeight: '600' },
   radioOuter: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: palette.muted, borderRadius: 12 },
-  radioOuterSelected: { borderColor: palette.burgundy, backgroundColor: palette.burgundy },
+  radioOuterSelected: { borderColor: neutralSelection.selectedText, backgroundColor: neutralSelection.selectedText },
   radioOuterDisabled: { borderColor: palette.border },
-  radioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: palette.surface },
+  radioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: neutralSelection.selectedSurface },
   paymentTypePrice: { color: palette.burgundy, fontSize: 24, lineHeight: 32, fontWeight: '600', marginBottom: 8 },
   paymentTypePriceInactive: { color: palette.text },
   paymentTypeDetail: { color: palette.muted, fontSize: 16, lineHeight: 24, fontWeight: '400' },
@@ -1145,6 +1148,8 @@ const styles = StyleSheet.create({
   methodCopy: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 16 },
   methodIconCircle: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: '#F3E8EA' },
   methodLabel: { color: palette.text, fontSize: 16, lineHeight: 24 },
+  selectedOptionText: { color: neutralSelection.selectedText },
+  selectedOptionMutedText: { color: neutralSelection.selectedMutedText },
   settlementCard: { backgroundColor: '#FCF5F6', borderColor: '#E8D0D4', borderRadius: 12, borderWidth: 1, marginTop: 16, padding: 16 },
   settlementHeading: { alignItems: 'center', flexDirection: 'row', gap: 8 },
   settlementTitle: { color: palette.burgundy, fontSize: 14, fontWeight: '700', lineHeight: 20 },
@@ -1246,12 +1251,12 @@ const styles = StyleSheet.create({
   bookingSheetSectionTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '700', marginTop: 2 },
   bookingSheetOptionRow: { flexDirection: 'row', gap: 10 },
   bookingSheetOption: { flex: 1, borderWidth: 1, borderColor: neutralSelection.edge, borderRadius: 10, backgroundColor: neutralSelection.surface, padding: 12, boxShadow: neutralSelection.sunkenShadow },
-  bookingSheetOptionSelected: { borderColor: neutralSelection.edge, backgroundColor: neutralSelection.surface, boxShadow: neutralSelection.raisedShadow },
+  bookingSheetOptionSelected: { borderColor: neutralSelection.selectedEdge, backgroundColor: neutralSelection.selectedSurface, boxShadow: neutralSelection.selectedRaisedShadow },
   bookingSheetOptionLabel: { color: palette.text, fontSize: 12, lineHeight: 17, fontWeight: '700' },
   bookingSheetOptionValue: { color: palette.burgundy, fontSize: 13, lineHeight: 18, fontWeight: '700', marginTop: 5 },
   bookingSheetMethodRow: { flexDirection: 'row', gap: 10 },
   bookingSheetMethod: { flex: 1, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderWidth: 1, borderColor: neutralSelection.edge, borderRadius: 10, backgroundColor: neutralSelection.surface, paddingHorizontal: 8, boxShadow: neutralSelection.sunkenShadow },
-  bookingSheetMethodSelected: { borderColor: neutralSelection.edge, backgroundColor: neutralSelection.surface, boxShadow: neutralSelection.raisedShadow },
+  bookingSheetMethodSelected: { borderColor: neutralSelection.selectedEdge, backgroundColor: neutralSelection.selectedSurface, boxShadow: neutralSelection.selectedRaisedShadow },
   bookingSheetMethodDisabled: { opacity: 0.48 },
   bookingSheetMethodText: { color: palette.text, fontSize: 12, lineHeight: 17, fontWeight: '600' },
   bookingSheetTerms: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 2 },

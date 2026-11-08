@@ -120,7 +120,7 @@ export const CoordinatorProfileOverlay: React.FC<CoordinatorProfileOverlayProps>
           ]}
         >
           <View style={styles.modalCard}>
-            <View style={styles.profileHeader}>
+            <View style={[styles.profileHeader, coordinatorName.length > 24 && styles.profileHeaderTall]}>
               <View pointerEvents="none" style={styles.profileHeaderIdentity}>
                 <View style={styles.avatarFrame}>
                   {service.imageUrl ? (
@@ -136,6 +136,7 @@ export const CoordinatorProfileOverlay: React.FC<CoordinatorProfileOverlayProps>
                     </View>
                   )}
                 </View>
+                <Text numberOfLines={2} style={styles.coordinatorName}>{coordinatorName}</Text>
                 <View style={styles.avatarRolePill}>
                   <MaterialCommunityIcons color="#6B1E2E" name="account-tie-outline" size={16} />
                   <Text style={styles.avatarRolePillText}>EVENT COORDINATOR</Text>
@@ -202,14 +203,20 @@ const styles = StyleSheet.create({
   detailsClip: { flex: 1, overflow: 'hidden', borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
   profileHeader: {
     position: 'relative',
-    height: 108,
+    height: 145,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'rgba(157, 169, 178, 0.42)',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     backgroundColor: '#E9EDF0',
   },
-  profileHeaderIdentity: { ...StyleSheet.absoluteFill, alignItems: 'center' },
+  profileHeaderTall: { height: 172 },
+  profileHeaderIdentity: {
+    ...StyleSheet.absoluteFill,
+    alignItems: 'center',
+    paddingTop: 60,
+    paddingHorizontal: 56,
+  },
   avatarFrame: {
     position: 'absolute',
     top: -52,
@@ -237,9 +244,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   avatarRolePill: {
-    position: 'absolute',
-    top: 60,
-    alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -256,6 +260,7 @@ const styles = StyleSheet.create({
     elevation: 3,
     boxShadow: '3px 3px 6px rgba(157, 169, 178, 0.48), -3px -3px 6px rgba(255, 255, 255, 0.94)',
     zIndex: 1,
+    marginTop: 5,
   },
   avatarRolePillText: {
     color: '#6B1E2E',
@@ -263,6 +268,14 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     fontWeight: '700',
     letterSpacing: 0.7,
+  },
+  coordinatorName: {
+    maxWidth: '100%',
+    color: '#1A1C1C',
+    fontSize: 22,
+    lineHeight: 27,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   closeButton: {
     position: 'absolute',

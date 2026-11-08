@@ -624,6 +624,8 @@ test('budget allocation cards move selected controls into the shared budget over
     'mainScrollRef.current?.scrollTo({ animated: true, y: targetY })',
     'Animated.delay(240)',
     'translateX: categoryNoticeShake',
+    'boxShadow: neutralSelection.raisedShadow',
+    "boxShadow: '3px 3px 6px rgba(156, 169, 180, 0.40), -3px -3px 6px rgba(255, 255, 255, 0.92)'",
   ], 'selected-category budget overlay UI')
   assert.doesNotMatch(
     budgetScreen,
@@ -680,6 +682,14 @@ test('Step 1 coordinator preference replaces the redundant coordinator choice sc
     'WOULD YOU LIKE AN EVENT COORDINATOR?',
     "if (typeof wantsCoordinator !== 'boolean')",
     'Include Event Coordinator in your budget and browse coordinators when you are ready.',
+    'themeChipSelected: {',
+    'backgroundColor: neutralSelection.selectedSurface',
+    'themeChipTextSelected: { color: neutralSelection.selectedText',
+    '<MaterialIcons color="#2196F3" name="info" size={22} />',
+    "backgroundColor: 'rgba(33, 150, 243, 0.12)'",
+    "churchWeddingNoticeText: { minWidth: 0, flex: 1, color: '#0B5FA5'",
+    "timeGuidanceText: { minWidth: 0, flex: 1, color: '#0B5FA5'",
+    'Service operating hours may vary depending on the provider and selected package.',
   ], 'required Step 1 coordinator preference')
   mustContain(planning, [
     'wantsCoordinator?: boolean',
@@ -1081,7 +1091,11 @@ test('V10 Phase 5 uses explicit wizard controls and separates services by catego
   mustContain(budget, [
     'onBrandPress?: () => void',
     'onBrandPress={isProcessing ? undefined : onBrandPress}',
-  ], 'Step 2 homepage wordmark')
+    'styles.categoryBudgetEditorLabel',
+    'styles.categoryBudgetCategoryDivider',
+    'categoryBudgetEditorLabel: { fontSize: 16, lineHeight: 22 }',
+    'bottom: -3',
+  ], 'Step 2 overlay and homepage wordmark')
   mustContain(browse, [
     'onBrandPress?: () => void',
     'onBrandPress={onBrandPress}',
@@ -1159,6 +1173,12 @@ test('Step 3 service cards keep full service details inside the shared popup ove
     'styles.sentimentCard,',
     'styles.overlayRaisedInnerCard',
     'neumorphic={isOverlay}',
+    'styles.reviewsSection, isOverlay && styles.overlayReviewsSection',
+    '<Text style={styles.reviewsTitle}>Reviews &amp; feedback</Text>',
+    '<ReviewFeedbackSummary',
+    'insights={displayedReviewInsights}',
+    'isLoading={reviewInsightsLoading && !usesMockReviewInsights}',
+    'neumorphic',
   ], 'uniform neumorphic service sections and guest reviews')
   mustContain(floristConfigurator, [
     'neumorphic?: boolean',
@@ -1172,7 +1192,38 @@ test('Step 3 service cards keep full service details inside the shared popup ove
   ], 'neumorphic photo and video options')
   mustContain(coordinatorDetails, [
     'isOverlay && styles.neoReviewsSection',
+    '<ReviewFeedbackSummary insights={reviewInsights} isWide={isWide} neumorphic={isOverlay} showReviewComments />',
   ], 'neumorphic coordinator reviews')
+})
+
+test('warning banners share the translucent red semantic treatment', () => {
+  const warningTheme = read('src/theme/notices.ts')
+  const warningSurfaces = [
+    read('src/screens/05-BudgetAllocation.tsx'),
+    read('src/screens/06-CategoryBrowse.tsx'),
+    read('src/screens/08-ServiceDetails.tsx'),
+    read('src/screens/09-Schedule(Conflict).tsx'),
+    read('src/screens/11.1-BookingDetails.tsx'),
+    read('src/screens/12-EventSummary.tsx'),
+    read('src/screens/12-Payment.tsx'),
+    read('src/components/ChurchArrangementControls.tsx'),
+    read('src/components/PhotoVideoPreEventPlanCard.tsx'),
+  ]
+
+  mustContain(warningTheme, [
+    "background: 'rgba(186, 26, 26, 0.075)'",
+    "border: 'rgba(186, 26, 26, 0.22)'",
+    "icon: '#BA1A1A'",
+    "mutedText: '#71383D'",
+    "text: '#8F1010'",
+  ], 'shared warning notice palette')
+  warningSurfaces.forEach((source) => {
+    mustContain(source, [
+      "import { warningNotice } from '../theme/notices'",
+      'warningNotice.background',
+      'warningNotice.border',
+    ], 'standard warning surface')
+  })
 })
 
 test('V10 Phase 4 guest-count rules remain intact through the V15 catering selection entry point', () => {
@@ -2520,10 +2571,9 @@ test('visible X close controls use the shared red close-icon token', () => {
   })
 })
 
-test('neumorphic choices rise from a neutral sunken state without selection fills', () => {
+test('neumorphic choices rise from a neutral sunken state with standardized burgundy selection fills', () => {
   const selectionTheme = read('src/theme/neumorphism.ts')
   const eventCreation = read('src/screens/04-EventCreation.tsx')
-  const budgetAllocation = read('src/screens/05-BudgetAllocation.tsx')
   const categoryBrowse = read('src/screens/06-CategoryBrowse.tsx')
   const serviceDetails = read('src/screens/08-ServiceDetails.tsx')
   const instructionModule = read('src/screens/10-InstructionModule.tsx')
@@ -2536,13 +2586,15 @@ test('neumorphic choices rise from a neutral sunken state without selection fill
   mustContain(selectionTheme, [
     'export const neutralSelection',
     'raisedShadow:',
+    'selectedRaisedShadow:',
+    "selectedSurface: '#6B1E2E'",
+    "selectedText: '#FFFFFF'",
     'sunkenShadow:',
     "surface: '#E9EDF0'",
   ], 'shared neutral neumorphic selection contract')
 
   ;[
     eventCreation,
-    budgetAllocation,
     categoryBrowse,
     serviceDetails,
     instructionModule,
@@ -2554,19 +2606,22 @@ test('neumorphic choices rise from a neutral sunken state without selection fill
   ].forEach((source) => {
     mustContain(source, [
       'neutralSelection.sunkenShadow',
-      'neutralSelection.raisedShadow',
       'neutralSelection.surface',
-    ], 'neutral sunken-to-raised option state')
+      'neutralSelection.selectedRaisedShadow',
+      'neutralSelection.selectedSurface',
+      'neutralSelection.selectedText',
+    ], 'neutral sunken-to-burgundy-raised option state')
   })
 
   mustContain(serviceDetails, [
-    'venueOptionChoiceSelected: { backgroundColor: neutralSelection.surface, boxShadow: neutralSelection.raisedShadow }',
-    'packageCardSelected: { borderWidth: 1, borderColor: neutralSelection.edge, backgroundColor: neutralSelection.surface, boxShadow: neutralSelection.raisedShadow }',
-    'cateringOptionCardSelected: { borderWidth: 1, borderColor: neutralSelection.edge, backgroundColor: neutralSelection.surface, boxShadow: neutralSelection.raisedShadow }',
+    'venueOptionChoiceSelected: { borderColor: neutralSelection.selectedEdge, backgroundColor: neutralSelection.selectedSurface, boxShadow: neutralSelection.selectedRaisedShadow }',
+    'packageCardSelected: { borderWidth: 1, borderColor: neutralSelection.selectedEdge, backgroundColor: neutralSelection.selectedSurface, boxShadow: neutralSelection.selectedRaisedShadow }',
+    'cateringOptionCardSelected: { borderWidth: 1, borderColor: neutralSelection.selectedEdge, backgroundColor: neutralSelection.selectedSurface, boxShadow: neutralSelection.selectedRaisedShadow }',
+    'selectedOptionText: { color: neutralSelection.selectedText }',
   ], 'service configuration choices')
-  assert.doesNotMatch(serviceDetails, /venueOptionChoiceSelected:\s*\{[^}]*#F6EAEC/)
-  assert.doesNotMatch(florist, /(choiceRowActive|optionRowActive):\s*\{[^}]*#(?:FDF4F6|FFF8F9)/)
-  assert.doesNotMatch(photoVideo, /(choiceActive|optionCardActive):\s*\{[^}]*#FDF4F6/)
+  assert.doesNotMatch(serviceDetails, /(packageCardSelected|mealCardSelected|venueOptionChoiceSelected|cateringOptionCardSelected):\s*\{[^}]*neutralSelection\.surface/)
+  assert.doesNotMatch(florist, /(methodButtonActive|choiceRowActive|arrangementActive|optionRowActive):\s*\{[^}]*neutralSelection\.surface/)
+  assert.doesNotMatch(photoVideo, /(choiceActive|optionCardActive):\s*\{[^}]*neutralSelection\.surface/)
 })
 
 test('dynamic client choices animate layout changes and bring the chosen option into focus', () => {
@@ -5118,6 +5173,9 @@ test('minimum seven-calendar-day event booking lead time is enforced in the clie
     'minimumEventBookingDate(now)',
     'isEventDateBookable(normalizedSchedule.date)',
     'EVENT_BOOKING_LEAD_TIME_MESSAGE',
+    '<MaterialIcons color="#2196F3" name="info" size={22} />',
+    '<View style={styles.calendarContent}>',
+    'calendarYearList: { gap: 8, paddingHorizontal: 8',
   ], 'event creation lead-time validation')
   mustContain(scheduleConflict, [
     'minimumEventBookingDate()',
