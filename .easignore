@@ -1,0 +1,29 @@
+node_modules/
+.expo/
+dist/
+dist-android/
+build/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+web-build/
+.env
+.env.local
+.npm-cache/
+secret.txt
+metro.log
+metro.err.log
+metro-ui.log
+metro-ui.err.log
+firebase-debug.log
+firestore-debug.log
+.firebase/
+beta-evidence/
+expo-env.d.ts
+
+# Local QA records contain test-account credentials and must not be uploaded.
+TL Full Test Results.md
+Tasklink Flow Test.md
