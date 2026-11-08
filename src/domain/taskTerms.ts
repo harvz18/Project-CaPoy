@@ -40,7 +40,9 @@ export function hasPendingTaskChange(task: Task) {
 }
 
 export function canEditTaskTerms(task: Task, clientId: string) {
-  return task.clientId === clientId && ["Finding Workers", "Applied", "Accepted"].includes(task.status);
+  // A task becomes immutable the moment it is posted. Employers can correct
+  // details in the mandatory overview before creation, never afterwards.
+  return false;
 }
 
 export function makeTaskChangeRequest(task: Task, proposedTerms: TaskTerms, requestedBy: string, now: string): TaskChangeRequest {

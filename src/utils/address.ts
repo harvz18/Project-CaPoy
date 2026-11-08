@@ -15,6 +15,15 @@ export function formatAddressDetails(details: AddressDetails) {
     .join(", ");
 }
 
+/** Task locations only need the pin's building, street, barangay, and city. */
+export function formatTaskAddressDetails(details: AddressDetails) {
+  const streetLine = [details.houseNumber, details.street].map(clean).filter(Boolean).join(" ");
+  return [streetLine, details.barangay, details.city]
+    .map(clean)
+    .filter(Boolean)
+    .join(", ");
+}
+
 export function hasAddressDetails(details: AddressDetails) {
   return Boolean(formatAddressDetails(details));
 }

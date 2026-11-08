@@ -1,7 +1,7 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { EmptyState } from "../../src/components/EmptyState";
 import { useApp } from "../../src/context/AppContext";
@@ -35,6 +35,7 @@ export default function RatingScreen() {
   const [score, setScore] = useState(5);
   const [feedback, setFeedback] = useState("");
   const [submitError, setSubmitError] = useState("");
+  const [successOpen, setSuccessOpen] = useState(false);
   const task = tasks.find((item) => item.id === id);
   const taskRatings = ratings.filter((rating) => rating.taskId === id);
 
@@ -42,7 +43,7 @@ export default function RatingScreen() {
     try {
       setSubmitError("");
       await submitRating(id, score, feedback.trim());
-      goBack();
+      setSuccessOpen(true);
     } catch (ratingError) {
       setSubmitError(ratingError instanceof Error ? ratingError.message : "Unable to submit this rating.");
     }
@@ -183,6 +184,17 @@ export default function RatingScreen() {
           ))}
         </View>
       </ScrollView>
+      <Modal animationType="fade" transparent visible={successOpen} onRequestClose={() => router.replace(currentUser?.role === "worker" ? "/worker-dashboard" : "/client-dashboard")}>
+        <View style={styles.successBackdrop}>
+          <View style={styles.successCard}>
+            <Text style={styles.successTitle}>Rating Submitted Successfully!</Text>
+            <Text style={styles.successText}>Thank you for sharing your feedback.</Text>
+            <Pressable accessibilityRole="button" onPress={() => router.replace(currentUser?.role === "worker" ? "/worker-dashboard" : "/client-dashboard")} style={styles.primaryButton}>
+              <Text style={styles.primaryButtonText}>Go to Dashboard</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -300,6 +312,10 @@ const styles = StyleSheet.create({
     gap: 8
   },
   primaryButtonText: { color: palette.white, fontSize: 14, lineHeight: 20, fontWeight: "900" },
+  successBackdrop: { flex: 1, padding: 24, backgroundColor: "rgba(24,28,28,0.48)", alignItems: "center", justifyContent: "center" },
+  successCard: { width: "100%", maxWidth: 420, padding: 24, borderRadius: 20, backgroundColor: palette.surface, alignItems: "center", gap: 12 },
+  successTitle: { color: palette.textStrong, fontSize: 21, lineHeight: 28, fontWeight: "900", textAlign: "center" },
+  successText: { color: palette.muted, fontSize: 14, lineHeight: 21, textAlign: "center", marginBottom: 4 },
   submitError: { color: "#BA1A1A", fontSize: 13, lineHeight: 18, fontWeight: "700", textAlign: "center" },
   sectionHeader: {
     flexDirection: "row",

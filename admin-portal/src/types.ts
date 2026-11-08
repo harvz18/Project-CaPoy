@@ -6,7 +6,7 @@ export type VerificationStatus = "Not Submitted" | "Pending Verification" | "Ver
 
 export type Profile = {
   id: string; fullName?: string; role?: Role; rating?: number; ratingCount?: number; createdAt?: string;
-  accountStatus?: AccountStatus; verificationStatus?: VerificationStatus; identityStatus?: string; businessName?: string;
+  accountStatus?: AccountStatus; verificationStatus?: VerificationStatus; identityStatus?: string; businessName?: string; profilePhotoUrl?: string;
 };
 
 export type Task = {

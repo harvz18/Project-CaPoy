@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Href, useRouter } from "expo-router";
 import { useApp } from "../src/context/AppContext";
@@ -146,6 +146,7 @@ export default function SuperadminScreen() {
             return (
               <View key={user.id} style={styles.userRow}>
                 <View style={styles.grow}>
+                  {user.profilePhotoUrl ? <Image source={{ uri: user.profilePhotoUrl }} style={styles.moderationAvatarImage} /> : null}
                   <Text style={styles.cardTitle}>{user.fullName}</Text>
                   <Text style={styles.meta}>{user.role} · {user.accountStatus ?? "active"} · identity {user.identityStatus ?? "legacy"}</Text>
                   {user.restrictionReason ? <Text style={styles.body}>Restriction: {user.restrictionReason}</Text> : null}
@@ -275,6 +276,7 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.5 },
   empty: { color: colors.muted, padding: 16, backgroundColor: "#FFFFFF", borderRadius: 12 },
   userRow: { gap: 10, backgroundColor: "#FFFFFF", padding: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.border },
+  moderationAvatarImage: { width: 44, height: 44, borderRadius: 22, marginBottom: 8 },
   grow: { flex: 1 },
   auditRow: { backgroundColor: "#FFFFFF", borderLeftWidth: 3, borderLeftColor: colors.primary, padding: 13, gap: 4 }
 });

@@ -153,6 +153,7 @@ function toModerationUser(id, profile) {
     id,
     role: profile.role,
     fullName: profile.fullName ?? "Unnamed account",
+    profilePhotoUrl: profile.profilePhotoUrl ?? null,
     accountStatus: profile.accountStatus ?? "active",
     identityStatus: profile.identityStatus ?? null,
     restrictionReason: profile.restrictionReason ?? null,

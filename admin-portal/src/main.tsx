@@ -630,7 +630,10 @@ function UsersPage({
           {filtered.map((user) => (
             <tr key={user.id}>
               <td>
-                <strong>{user.fullName || "Unnamed account"}</strong>
+                <div className="profile-cell">
+                  {user.profilePhotoUrl ? <img alt="" src={user.profilePhotoUrl} style={{ width: 34, height: 34, borderRadius: "50%", objectFit: "cover" }} /> : <span aria-hidden="true" style={{ alignItems: "center", background: "#e5f4f0", borderRadius: "50%", color: "#005d56", display: "inline-flex", fontSize: 12, fontWeight: 900, height: 34, justifyContent: "center", width: 34 }}>{(user.fullName || "U").charAt(0).toUpperCase()}</span>}
+                  <strong>{user.fullName || "Unnamed account"}</strong>
+                </div>
                 <small>{user.businessName || user.id}</small>
               </td>
               <td>

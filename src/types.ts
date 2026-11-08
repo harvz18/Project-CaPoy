@@ -187,6 +187,15 @@ export type Task = {
   changeRequest?: TaskChangeRequest;
 };
 
+export type TaskLiveLocation = {
+  workerId: string;
+  latitude: number;
+  longitude: number;
+  accuracyMeters: number;
+  capturedAt: string;
+  updatedAt: string;
+};
+
 export type ChatMessage = {
   id: string;
   conversationId?: string;
@@ -405,5 +414,5 @@ export type ViolationReport = {
 export type ModerationUser = Pick<
   UserProfile,
   "id" | "role" | "fullName" | "accountStatus" | "identityStatus" | "restrictionReason" |
-  "restrictionEvidenceReference" | "restrictedAt"
+  "restrictionEvidenceReference" | "restrictedAt" | "profilePhotoUrl"
 >;

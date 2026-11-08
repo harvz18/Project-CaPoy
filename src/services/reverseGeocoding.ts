@@ -90,12 +90,16 @@ export function parseNominatimReverseResponse(value: unknown): ReverseGeocodeRes
     }
     return undefined;
   };
+  const namedBarangay = Object.values(address).find((value): value is string => typeof value === "string" && /\bbarangay\b/i.test(value));
+  const barangay = field("barangay")
+    ?? namedBarangay
+    ?? field("village", "suburb", "neighbourhood", "quarter");
   return {
     formattedAddress,
     details: normalizeAddressDetails({
       houseNumber: field("house_number"),
       street: field("road", "pedestrian", "footway"),
-      barangay: field("village", "suburb", "neighbourhood", "quarter"),
+      barangay,
       city: field("city", "town", "municipality", "county"),
       province: field("state", "region"),
       postalCode: field("postcode")

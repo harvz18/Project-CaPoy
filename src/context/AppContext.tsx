@@ -29,6 +29,7 @@ import { getTaskTerms } from "../domain/taskTerms";
 import { workerCapabilities } from "../constants/capabilities";
 import { isValidMoneyAmount } from "../utils/numericInput";
 import { isValidScheduleDate } from "../domain/taskMarketplace";
+import { getTaskPostingErrors } from "../domain/taskPosting";
 import {
   markConversationMessagesRead,
   loadOlderMessages,
@@ -918,6 +919,15 @@ function validateRegistration(input: RegisterInput) {
 }
 
 function validateTask(input: TaskInput) {
+  const errors = getTaskPostingErrors({
+    ...input,
+    durationValue: input.durationValue,
+    scheduleMode: input.scheduleMode ?? "fixed",
+    paymentMethod: input.paymentMethod
+  });
+  const firstError = Object.values(errors)[0];
+  if (firstError) throw new Error(firstError);
+
   if (!input.title.trim()) {
     throw new Error("Task title is required.");
   }
@@ -938,8 +948,8 @@ function validateTask(input: TaskInput) {
     throw new Error("Choose a task service radius from 100 to 5,000 meters.");
   }
 
-  if (input.pricingMode === "fixed" && !isValidMoneyAmount(input.wage)) {
-    throw new Error("Enter a valid wage offer.");
+  if (input.pricingMode === "fixed" && (!isValidMoneyAmount(input.wage) || Number(input.wage) < 150)) {
+    throw new Error("Minimum budget is ₱150.");
   }
   if (!Number.isInteger(input.durationValue) || input.durationValue < 1 || input.durationValue > 365) {
     throw new Error("Enter a duration from 1 to 365.");

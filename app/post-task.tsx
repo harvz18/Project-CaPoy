@@ -1,7 +1,7 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useRouter } from "expo-router";
-import { useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useRef, useState } from "react";
+import { Modal, Pressable, ScrollView, ScrollViewInstance, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AnimatedBottomNav } from "../src/components/AnimatedBottomNav";
 import {
@@ -13,7 +13,7 @@ import {
   parseLocalDateTime
 } from "../src/components/DateTimePickerSheet";
 import LocationMap from "../src/components/LocationMap";
-import { getDefaultCapabilityForCategory, taskCategories, workerCapabilities } from "../src/constants/capabilities";
+import { taskCategories, workerCapabilities } from "../src/constants/capabilities";
 import { useApp } from "../src/context/AppContext";
 import { useTasklinkBack } from "../src/hooks/useTasklinkBack";
 import { captureForegroundLocation } from "../src/services/locationService";
@@ -21,8 +21,9 @@ import { DurationUnit, PaymentMethod, PricingMode, ScheduleMode } from "../src/t
 import { durationToMilliseconds, PAYMENT_METHOD_OPTIONS } from "../src/domain/taskMarketplace";
 import { parseCoordinate } from "../src/utils/location";
 import { sanitizeDurationInput, sanitizeMoneyInput } from "../src/utils/numericInput";
-import { AddressDetails, formatAddressDetails } from "../src/utils/address";
+import { AddressDetails, formatTaskAddressDetails } from "../src/utils/address";
 import { ReverseGeocodeResult, reverseGeocodeSelectedPin } from "../src/services/reverseGeocoding";
+import { getTaskPostingErrors, TaskPostingField } from "../src/domain/taskPosting";
 
 const palette = {
   background: "#F7FAF8",
@@ -60,10 +61,10 @@ export default function PostTaskScreen() {
   const { actionLoading, createTask, currentUser, error } = useApp();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("Delivery assistance");
+  const [category, setCategory] = useState("");
   const [location, setLocation] = useState("");
   const [locationAddress, setLocationAddress] = useState("");
-  const [addressDetails, setAddressDetails] = useState<AddressDetails>({});
+  const [addressDetails, setAddressDetails] = useState<AddressDetails>({ city: "Bacolod City" });
   const [addressSuggestion, setAddressSuggestion] = useState<ReverseGeocodeResult>();
   const [addressLookupLoading, setAddressLookupLoading] = useState(false);
   const [latitude, setLatitude] = useState("");
@@ -74,7 +75,7 @@ export default function PostTaskScreen() {
   const [locating, setLocating] = useState(false);
   const [locationMessage, setLocationMessage] = useState("");
   const [geofenceRadius, setGeofenceRadius] = useState("500");
-  const [requiredCapabilities, setRequiredCapabilities] = useState<string[]>(["Delivery assistance"]);
+  const [requiredCapabilities, setRequiredCapabilities] = useState<string[]>([]);
   const [capabilityDraft, setCapabilityDraft] = useState<string[]>([]);
   const [capabilityPickerOpen, setCapabilityPickerOpen] = useState(false);
   const [capabilityMessage, setCapabilityMessage] = useState("");
@@ -92,6 +93,10 @@ export default function PostTaskScreen() {
   const [durationOpen, setDurationOpen] = useState(false);
   const [schedulePickerOpen, setSchedulePickerOpen] = useState(false);
   const [scheduleMinimum, setScheduleMinimum] = useState(() => new Date());
+  const [formErrors, setFormErrors] = useState<Partial<Record<TaskPostingField, string>>>({});
+  const [overviewOpen, setOverviewOpen] = useState(false);
+  const [successOpen, setSuccessOpen] = useState(false);
+  const formScrollRef = useRef<ScrollViewInstance>(null);
   const mapCenter = parseCoordinate(latitude) !== undefined && parseCoordinate(longitude) !== undefined
     ? { latitude: parseCoordinate(latitude) as number, longitude: parseCoordinate(longitude) as number }
     : undefined;
@@ -107,7 +112,7 @@ export default function PostTaskScreen() {
       setLocationCapturedAt(captured.capturedAt);
       setLocationAccuracyMeters(captured.accuracyMeters);
       setLocationMessage(`Device location captured${captured.accuracyMeters ? ` (about ${Math.round(captured.accuracyMeters)} m accuracy)` : ""}.`);
-      setAddressSuggestion(undefined);
+      void populateAddressFromCoordinate(captured);
     } catch (locationError) {
       setLocationMessage(locationError instanceof Error ? locationError.message : "Unable to capture location.");
     } finally {
@@ -122,7 +127,7 @@ export default function PostTaskScreen() {
     setLocationCapturedAt(new Date().toISOString());
     setLocationAccuracyMeters(undefined);
     setLocationMessage("Task pin selected on the map.");
-    setAddressSuggestion(undefined);
+    void populateAddressFromCoordinate(coordinate);
   }
 
   async function lookUpSelectedPinAddress() {
@@ -133,7 +138,7 @@ export default function PostTaskScreen() {
     setAddressLookupLoading(true);
     setLocationMessage("");
     try {
-      setAddressSuggestion(await reverseGeocodeSelectedPin(mapCenter));
+      applyAddressSuggestionValues(await reverseGeocodeSelectedPin(mapCenter));
     } catch (lookupError) {
       setLocationMessage(lookupError instanceof Error ? lookupError.message : "Address lookup is unavailable. Enter the address manually.");
     } finally {
@@ -141,11 +146,35 @@ export default function PostTaskScreen() {
     }
   }
 
+  async function populateAddressFromCoordinate(coordinate: { latitude: number; longitude: number }) {
+    setAddressLookupLoading(true);
+    try {
+      const suggestion = await reverseGeocodeSelectedPin(coordinate);
+      const fullAddress = suggestion.formattedAddress;
+      if (!/\bbacolod(?:\s+city)?\b/i.test(fullAddress)) {
+        setLocationMessage("This pin appears outside Bacolod City. Choose a location within the service area.");
+        return;
+      }
+      applyAddressSuggestionValues(suggestion);
+      setLocationMessage("Address filled from the selected location. Review it before posting.");
+    } catch {
+      setLocationMessage("Address lookup is unavailable. Your pin was kept; enter the address manually.");
+    } finally {
+      setAddressLookupLoading(false);
+    }
+  }
+
   function applyAddressSuggestion() {
     if (!addressSuggestion) return;
-    setLocationAddress(addressSuggestion.formattedAddress);
-    setAddressDetails(addressSuggestion.details);
+    applyAddressSuggestionValues(addressSuggestion);
     setLocationMessage("Suggested address applied. Review and correct it before posting.");
+  }
+
+  function applyAddressSuggestionValues(suggestion: ReverseGeocodeResult) {
+    const details = { ...suggestion.details, city: "Bacolod City" };
+    setAddressSuggestion(suggestion);
+    setAddressDetails(details);
+    setLocationAddress(formatTaskAddressDetails(details));
   }
 
   function updateAddressDetail(field: keyof AddressDetails, value: string) {
@@ -154,7 +183,7 @@ export default function PostTaskScreen() {
 
   function selectCategory(nextCategory: string) {
     setCategory(nextCategory);
-    setRequiredCapabilities((current) => current.length <= 1 ? [getDefaultCapabilityForCategory(nextCategory)] : current);
+    setFormErrors((current) => ({ ...current, category: undefined }));
     setCategoryOpen(false);
   }
 
@@ -182,6 +211,7 @@ export default function PostTaskScreen() {
       return;
     }
     setRequiredCapabilities(capabilityDraft);
+    setFormErrors((current) => ({ ...current, capabilities: undefined }));
     setCapabilityPickerOpen(false);
   }
 
@@ -194,40 +224,49 @@ export default function PostTaskScreen() {
     setDurationValue(String(Math.min(365, Math.max(1, current + step))));
   }
 
+  function buildTaskInput() {
+    const durationNumber = Number(durationValue);
+    const parsedStart = scheduleMode === "fixed" ? parseLocalDateTime(scheduleStart) : undefined;
+    const scheduleEnd = parsedStart && Number.isFinite(durationNumber)
+      ? new Date(parsedStart.getTime() + durationToMilliseconds(durationNumber, durationUnit)).toISOString()
+      : undefined;
+    const exactAddress = locationAddress.trim() || formatTaskAddressDetails(addressDetails);
+    return {
+      title, description, category, location, locationAddress: exactAddress,
+      latitude: parseCoordinate(latitude), longitude: parseCoordinate(longitude),
+      geofenceRadius: Number(geofenceRadius) || 500, locationCapturedAt, locationAccuracyMeters, locationSource,
+      requiredCapability: requiredCapabilities[0], requiredCapabilities,
+      wage: pricingMode === "fixed" ? wage : "", estimatedDuration: `${durationValue} ${durationValue === "1" ? durationUnit : `${durationUnit}s`}`,
+      durationValue: durationNumber, durationUnit, scheduleMode,
+      scheduleDate: scheduleMode === "anytime" ? scheduleDate : undefined,
+      scheduleStart: parsedStart?.toISOString(), scheduleEnd, pricingMode,
+      perks: perksText.split(",").map((perk) => perk.trim()).filter(Boolean), paymentMethod
+    };
+  }
+
+  function openOverview() {
+    const errors = getTaskPostingErrors(buildTaskInput());
+    setFormErrors(errors);
+    if (Object.keys(errors).length) {
+      formScrollRef.current?.scrollTo({ y: 0, animated: true });
+      return;
+    }
+    setOverviewOpen(true);
+  }
+
   async function handlePostTask() {
     try {
-      const durationNumber = Number(durationValue);
-      const parsedStart = scheduleMode === "fixed" ? parseLocalDateTime(scheduleStart) : undefined;
-      const scheduleEnd = parsedStart && Number.isFinite(durationNumber)
-        ? new Date(parsedStart.getTime() + durationToMilliseconds(durationNumber, durationUnit)).toISOString()
-        : undefined;
-      const task = await createTask({
-        title,
-        description,
-        category,
-        location,
-        locationAddress: locationAddress.trim() || formatAddressDetails(addressDetails) || location,
-        latitude: parseCoordinate(latitude),
-        longitude: parseCoordinate(longitude),
-        geofenceRadius: Number(geofenceRadius) || 500,
-        locationCapturedAt,
-        locationAccuracyMeters,
-        locationSource,
-        requiredCapability: requiredCapabilities[0],
-        requiredCapabilities,
-        wage: pricingMode === "fixed" ? wage : "",
-        estimatedDuration: `${durationValue} ${durationValue === "1" ? durationUnit : `${durationUnit}s`}`,
-        durationValue: durationNumber,
-        durationUnit,
-        scheduleMode,
-        scheduleDate: scheduleMode === "anytime" ? scheduleDate : undefined,
-        scheduleStart: parsedStart?.toISOString(),
-        scheduleEnd,
-        pricingMode,
-        perks: perksText.split(",").map((perk) => perk.trim()).filter(Boolean),
-        paymentMethod
-      });
-      router.replace(`/task/${task.id}`);
+      const input = buildTaskInput();
+      const errors = getTaskPostingErrors(input);
+      setFormErrors(errors);
+      if (Object.keys(errors).length) {
+        setOverviewOpen(false);
+        formScrollRef.current?.scrollTo({ y: 0, animated: true });
+        return;
+      }
+      await createTask(input);
+      setOverviewOpen(false);
+      setSuccessOpen(true);
     } catch {
       // AppContext exposes the readable error message.
     }
@@ -247,45 +286,48 @@ export default function PostTaskScreen() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 202 + insets.bottom }]} showsVerticalScrollIndicator={false}>
+      <ScrollView ref={formScrollRef} contentContainerStyle={[styles.content, { paddingBottom: 202 + insets.bottom }]} showsVerticalScrollIndicator={false}>
         <View>
           <Text style={styles.heroTitle}>Need a hand?</Text>
           <Text style={styles.heroText}>Describe what you need help with and find a neighbor to help you today.</Text>
         </View>
 
         <View style={styles.formCard}>
-          <Field label="Task Category">
+          <Field label="Task Category *">
             <Pressable
               accessibilityRole="button"
               onPress={() => setCategoryOpen(true)}
-              style={({ pressed }) => [styles.selectButton, pressed && styles.pressed]}
+              style={({ pressed }) => [styles.selectButton, formErrors.category && styles.inputError, pressed && styles.pressed]}
             >
-              <Text style={styles.selectValue}>{category}</Text>
+              <Text style={[styles.selectValue, !category && styles.placeholderValue]}>{category || "Select a task category"}</Text>
               <Feather accessibilityElementsHidden color={palette.primary} name="chevron-down" size={20} />
             </Pressable>
+            {formErrors.category ? <Text accessibilityRole="alert" style={styles.fieldError}>{formErrors.category}</Text> : null}
           </Field>
 
-          <Field label="Task Title">
+          <Field label="Task Title *">
             <TextInput
-              onChangeText={setTitle}
+              onChangeText={(value) => { setTitle(value); setFormErrors((current) => ({ ...current, title: value.trim() ? undefined : current.title })); }}
               placeholder="e.g. Move furniture to 2nd floor"
               placeholderTextColor={palette.outline}
-              style={styles.input}
+              style={[styles.input, formErrors.title && styles.inputError]}
               value={title}
             />
+            {formErrors.title ? <Text accessibilityRole="alert" style={styles.fieldError}>{formErrors.title}</Text> : null}
           </Field>
 
-          <Field label="Landmark">
+          <Field label="Landmark *">
             <View style={styles.locationInputWrap}>
               <TextInput
                 accessibilityLabel="Task landmark"
-                onChangeText={setLocation}
+                onChangeText={(value) => { setLocation(value); setFormErrors((current) => ({ ...current, landmark: value.trim() ? undefined : current.landmark })); }}
                 placeholder="e.g. Near Barangay Hall"
                 placeholderTextColor={palette.outline}
-                style={styles.locationInput}
+                style={[styles.locationInput, formErrors.landmark && styles.inputError]}
                 value={location}
               />
             </View>
+            {formErrors.landmark ? <Text accessibilityRole="alert" style={styles.fieldError}>{formErrors.landmark}</Text> : null}
             <View style={styles.serviceAreaCard}>
               <View style={styles.serviceAreaHeader}>
                 <View style={styles.flex}>
@@ -316,7 +358,7 @@ export default function PostTaskScreen() {
               <View style={styles.addressCard}>
                 <View style={styles.addressCardHeader}>
                   <View style={styles.flex}>
-                    <Text style={styles.fieldLabel}>Exact address (optional)</Text>
+                    <Text style={styles.fieldLabel}>Address *</Text>
                     <Text style={styles.helperText}>Add details that help the tasker find the pin. A house number is never required.</Text>
                   </View>
                   <Pressable
@@ -333,10 +375,10 @@ export default function PostTaskScreen() {
                 <TextInput
                   accessibilityLabel="Exact task address"
                   multiline
-                  onChangeText={setLocationAddress}
-                  placeholder="Building, street, barangay, city, province, postal code"
+                  onChangeText={(value) => { setLocationAddress(value); setFormErrors((current) => ({ ...current, address: value.trim() ? undefined : current.address })); }}
+                  placeholder="Building, street, barangay, Bacolod City"
                   placeholderTextColor={palette.outline}
-                  style={[styles.input, styles.addressInput]}
+                  style={[styles.input, styles.addressInput, formErrors.address && styles.inputError]}
                   textAlignVertical="top"
                   value={locationAddress}
                 />
@@ -353,21 +395,13 @@ export default function PostTaskScreen() {
                     <TextInput onChangeText={(value) => updateAddressDetail("barangay", value)} placeholder="Barangay" placeholderTextColor={palette.outline} style={styles.input} value={addressDetails.barangay ?? ""} />
                   </Field>
                   <Field label="City / municipality" style={styles.flex}>
-                    <TextInput onChangeText={(value) => updateAddressDetail("city", value)} placeholder="City" placeholderTextColor={palette.outline} style={styles.input} value={addressDetails.city ?? ""} />
-                  </Field>
-                </View>
-                <View style={styles.twoColumn}>
-                  <Field label="Province" style={styles.flex}>
-                    <TextInput onChangeText={(value) => updateAddressDetail("province", value)} placeholder="Province" placeholderTextColor={palette.outline} style={styles.input} value={addressDetails.province ?? ""} />
-                  </Field>
-                  <Field label="Postal code" style={styles.flex}>
-                    <TextInput keyboardType="number-pad" onChangeText={(value) => updateAddressDetail("postalCode", value.replace(/\D/g, ""))} placeholder="Optional" placeholderTextColor={palette.outline} style={styles.input} value={addressDetails.postalCode ?? ""} />
+                    <TextInput editable={false} placeholderTextColor={palette.outline} style={[styles.input, styles.readOnlyInput]} value="Bacolod City" />
                   </Field>
                 </View>
                 {addressSuggestion ? <View style={styles.addressSuggestion}>
                   <Text style={styles.addressSuggestionLabel}>Map suggestion · {addressSuggestion.provider}</Text>
-                  <Text style={styles.addressSuggestionText}>{addressSuggestion.formattedAddress}</Text>
-                  <Text style={styles.helperText}>Using it replaces the fields above; you can still correct every field before posting.</Text>
+                  <Text style={styles.addressSuggestionText}>{formatTaskAddressDetails({ ...addressSuggestion.details, city: "Bacolod City" })}</Text>
+                  <Text style={styles.helperText}>The task address keeps only the building, street, barangay, and city. You can still correct every field before posting.</Text>
                   <Pressable accessibilityRole="button" onPress={applyAddressSuggestion} style={styles.addressApplyButton}>
                     <Text style={styles.addressApplyText}>Use suggested address</Text>
                   </Pressable>
@@ -375,6 +409,7 @@ export default function PostTaskScreen() {
                 <Text style={styles.addressPrivacyText}>Address lookup sends only the selected coordinates to OpenStreetMap Nominatim when you tap “Find from pin.”</Text>
               </View>
 
+              {formErrors.address ? <Text accessibilityRole="alert" style={styles.fieldError}>{formErrors.address}</Text> : null}
               <View style={styles.radiusGrid}>
                 {radiusOptions.map((option) => {
                   const selected = geofenceRadius === option.value;
@@ -401,20 +436,22 @@ export default function PostTaskScreen() {
                 </View>
                 <Text style={[styles.coordinateValue, mapCenter && styles.coordinateValueSelected]}>{mapCenter ? "Pin selected" : "Pin not set"}</Text>
               </View>
+              {formErrors.pin ? <Text accessibilityRole="alert" style={styles.fieldError}>{formErrors.pin}</Text> : null}
             </View>
           </Field>
 
-          <Field label="Required Capabilities">
+          <Field label="Required Capabilities *">
             <Pressable
               accessibilityLabel="Select required capabilities"
               accessibilityRole="button"
               onPress={openCapabilityPicker}
-              style={({ pressed }) => [styles.selectButton, pressed && styles.pressed]}
+              style={({ pressed }) => [styles.selectButton, formErrors.capabilities && styles.inputError, pressed && styles.pressed]}
             >
               <Text numberOfLines={1} style={styles.selectValue}>{requiredCapabilities.join(", ") || "Select capabilities"}</Text>
               <Feather accessibilityElementsHidden color={palette.primary} name="chevron-down" size={20} />
             </Pressable>
             <Text style={styles.helperText}>{requiredCapabilities.length}/3 selected. Taskers must have every selected capability.</Text>
+            {formErrors.capabilities ? <Text accessibilityRole="alert" style={styles.fieldError}>{formErrors.capabilities}</Text> : null}
           </Field>
 
           <Field label="Pricing">
@@ -439,16 +476,17 @@ export default function PostTaskScreen() {
               <TextInput
                 accessibilityLabel="Task budget in pesos"
                 keyboardType="decimal-pad"
-                onChangeText={(value) => setWage(sanitizeMoneyInput(value))}
-                placeholder="500"
+                onChangeText={(value) => { const next = sanitizeMoneyInput(value); setWage(next); setFormErrors((current) => ({ ...current, budget: Number(next) >= 150 ? undefined : current.budget })); }}
+                placeholder=""
                 placeholderTextColor={palette.outline}
-                style={styles.input}
+                style={[styles.input, formErrors.budget && styles.inputError]}
                 value={wage}
               />
+              {formErrors.budget ? <Text accessibilityRole="alert" style={styles.fieldError}>{formErrors.budget}</Text> : null}
             </Field> : <Text style={styles.helperText}>Taskers will submit an offer amount when they apply.</Text>}
 
           <View style={styles.twoColumn}>
-            <Field label="Duration value" style={styles.flex}>
+            <Field label="Duration value *" style={styles.flex}>
               <View style={styles.durationControl}>
                 <Pressable
                   accessibilityLabel="Decrease task duration"
@@ -481,7 +519,7 @@ export default function PostTaskScreen() {
                 </Pressable>
               </View>
             </Field>
-            <Field label="Duration unit" style={styles.flex}>
+            <Field label="Duration unit *" style={styles.flex}>
               <Pressable
                 accessibilityRole="button"
                 accessibilityState={{ expanded: durationOpen }}
@@ -513,8 +551,9 @@ export default function PostTaskScreen() {
               </View> : null}
             </Field>
           </View>
+          {formErrors.duration ? <Text accessibilityRole="alert" style={styles.fieldError}>{formErrors.duration}</Text> : null}
 
-          <Field label="When should the task start?">
+          <Field label="When should the task start? *">
             <View style={styles.scheduleModeRow}>
               {(["fixed", "anytime"] as ScheduleMode[]).map((mode) => (
                 <Pressable
@@ -550,6 +589,7 @@ export default function PostTaskScreen() {
               </View>
               <Feather accessibilityElementsHidden color={palette.primary} name="chevron-right" size={22} />
             </Pressable>
+            {formErrors.schedule ? <Text accessibilityRole="alert" style={styles.fieldError}>{formErrors.schedule}</Text> : null}
           </Field>
 
           <Field label="Perks (Optional)">
@@ -557,7 +597,7 @@ export default function PostTaskScreen() {
             <Text style={styles.helperText}>Separate multiple perks with commas. Perks do not change the monetary payment.</Text>
           </Field>
 
-          <Field label="Payment Method">
+          <Field label="Payment Method *">
             <View style={styles.paymentRow}>
               {PAYMENT_METHOD_OPTIONS.map((option) => (
                 <Pressable
@@ -574,18 +614,20 @@ export default function PostTaskScreen() {
             <Text style={styles.helperText}>
               Cash is confirmed by both participants. GCash requires a receipt for administrator review.
             </Text>
+            {formErrors.payment ? <Text accessibilityRole="alert" style={styles.fieldError}>{formErrors.payment}</Text> : null}
           </Field>
 
-          <Field label="Additional Notes (Optional)">
+          <Field label="Task Description *">
             <TextInput
               multiline
-              onChangeText={setDescription}
+              onChangeText={(value) => { setDescription(value); setFormErrors((current) => ({ ...current, description: value.trim() ? undefined : current.description })); }}
               placeholder="Provide more details for your neighbor..."
               placeholderTextColor={palette.outline}
-              style={[styles.input, styles.textArea]}
+              style={[styles.input, styles.textArea, formErrors.description && styles.inputError]}
               textAlignVertical="top"
               value={description}
             />
+            {formErrors.description ? <Text accessibilityRole="alert" style={styles.fieldError}>{formErrors.description}</Text> : null}
           </Field>
         </View>
 
@@ -604,10 +646,10 @@ export default function PostTaskScreen() {
           accessibilityRole="button"
           accessibilityState={{ disabled: actionLoading }}
           disabled={actionLoading}
-          onPress={handlePostTask}
+          onPress={openOverview}
           style={({ pressed }) => [styles.postButton, actionLoading && styles.disabled, pressed && styles.pressed]}
         >
-          <Text style={styles.postButtonText}>{actionLoading ? "Posting..." : "Post Job Now"}</Text>
+          <Text style={styles.postButtonText}>{actionLoading ? "Posting..." : "Review Task"}</Text>
         </Pressable>
       </View>
 
@@ -716,6 +758,52 @@ export default function PostTaskScreen() {
         </Pressable>
       </Modal>
 
+      <Modal animationType="slide" visible={overviewOpen} onRequestClose={() => setOverviewOpen(false)}>
+        <SafeAreaView style={styles.mapModalSafeArea} edges={["top", "left", "right"]}>
+          <View style={styles.mapModalHeader}>
+            <View>
+              <Text style={styles.mapModalTitle}>Task Overview</Text>
+              <Text style={styles.mapModalSubtitle}>Review the details before posting. Use Back to make changes.</Text>
+            </View>
+            <Pressable accessibilityLabel="Return to task form" accessibilityRole="button" onPress={() => setOverviewOpen(false)} style={styles.modalCloseButton}>
+              <Text style={styles.modalCloseText}>Back</Text>
+            </Pressable>
+          </View>
+          <ScrollView contentContainerStyle={styles.overviewContent} showsVerticalScrollIndicator={false}>
+            <OverviewRow label="Task title" value={title} />
+            <OverviewRow label="Description" value={description || "No additional notes"} />
+            <OverviewRow label="Category" value={category} />
+            <OverviewRow label="Required capabilities" value={requiredCapabilities.join(", ")} />
+            <OverviewRow label="Address" value={buildTaskInput().locationAddress || ""} />
+            <OverviewRow label="Landmark" value={location} />
+            <OverviewRow label="City / Municipality" value="Bacolod City" />
+            <OverviewRow label="Map location" value={mapCenter ? `${mapCenter.latitude.toFixed(5)}, ${mapCenter.longitude.toFixed(5)} · ${geofenceRadius} m check-in radius` : "No pin selected"} />
+            <OverviewRow label="Pricing" value={pricingMode === "fixed" ? `Fixed price · ₱${wage}` : "Open to offers"} />
+            <OverviewRow label="Duration" value={`${durationValue} ${durationValue === "1" ? durationUnit : `${durationUnit}s`}`} />
+            <OverviewRow label="Schedule" value={scheduleMode === "anytime" ? `Anytime on ${scheduleDate}` : formatFriendlyDate(parseLocalDateTime(scheduleStart) ?? new Date())} />
+            {perksText.trim() ? <OverviewRow label="Perks" value={perksText} /> : null}
+            <OverviewRow label="Payment method" value={paymentMethod} />
+            {error ? <Text accessibilityRole="alert" style={styles.fieldError}>{error}</Text> : null}
+            <Pressable accessibilityRole="button" accessibilityState={{ disabled: actionLoading }} disabled={actionLoading} onPress={handlePostTask} style={[styles.postButton, actionLoading && styles.disabled]}>
+              <Text style={styles.postButtonText}>{actionLoading ? "Posting..." : "Confirm & Post Task"}</Text>
+            </Pressable>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      <Modal animationType="fade" transparent visible={successOpen} onRequestClose={() => router.replace("/client-dashboard")}>
+        <View style={styles.successBackdrop}>
+          <View style={styles.successCard}>
+            <View style={styles.successIcon}><Feather accessibilityElementsHidden color={palette.white} name="check" size={28} /></View>
+            <Text style={styles.successTitle}>Task Posted Successfully!</Text>
+            <Text style={styles.successText}>Your task is now available for eligible workers.</Text>
+            <Pressable accessibilityRole="button" onPress={() => router.replace("/client-dashboard")} style={styles.postButton}>
+              <Text style={styles.postButtonText}>Go to Dashboard</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
       <DateTimePickerSheet
         mode={scheduleMode === "anytime" ? "date" : "datetime"}
         minimumDate={scheduleMinimum}
@@ -778,6 +866,10 @@ function PickerModal({
   );
 }
 
+function OverviewRow({ label, value }: { label: string; value: string }) {
+  return <View style={styles.overviewRow}><Text style={styles.overviewLabel}>{label}</Text><Text style={styles.overviewValue}>{value}</Text></View>;
+}
+
 function Field({ label, children, style }: { label: string; children: React.ReactNode; style?: object }) {
   return (
     <View style={[styles.field, style]}>
@@ -838,6 +930,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     paddingHorizontal: 14
   },
+  inputError: { borderColor: "#BA1A1A", borderWidth: 2 },
+  fieldError: { color: "#BA1A1A", fontSize: 12, lineHeight: 16, fontWeight: "800", marginTop: 4 },
+  placeholderValue: { color: palette.outline, fontWeight: "700" },
+  readOnlyInput: { backgroundColor: palette.surfaceContainer, color: palette.muted },
   selectButton: {
     minHeight: 48,
     borderRadius: 8,
@@ -1077,6 +1173,15 @@ const styles = StyleSheet.create({
   modalCloseButton: { minHeight: 40, borderRadius: 20, paddingHorizontal: 16, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
   modalCloseText: { color: palette.white, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   mapModalBody: { flex: 1, padding: 16, gap: 12 },
+  overviewContent: { padding: 16, gap: 10 },
+  overviewRow: { padding: 14, borderRadius: 10, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, gap: 3 },
+  overviewLabel: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "800" },
+  overviewValue: { color: palette.text, fontSize: 15, lineHeight: 21, fontWeight: "800" },
+  successBackdrop: { flex: 1, padding: 24, backgroundColor: "rgba(24,28,28,0.48)", alignItems: "center", justifyContent: "center" },
+  successCard: { width: "100%", maxWidth: 420, padding: 24, borderRadius: 20, backgroundColor: palette.surface, alignItems: "center", gap: 12 },
+  successIcon: { width: 58, height: 58, borderRadius: 29, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
+  successTitle: { color: palette.textStrong, fontSize: 21, lineHeight: 28, fontWeight: "900", textAlign: "center" },
+  successText: { color: palette.muted, fontSize: 14, lineHeight: 21, textAlign: "center", marginBottom: 4 },
   largePinMap: {
     flex: 1,
     minHeight: 300,

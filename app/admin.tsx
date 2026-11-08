@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Href, useRouter } from "expo-router";
 import {
@@ -118,6 +118,7 @@ export default function AdminScreen() {
   }
 
   const nameFor = (id?: string) => data.users.find((user) => user.id === id)?.fullName ?? id ?? "Unknown user";
+  const userFor = (id?: string) => data.users.find((user) => user.id === id);
   const taskFor = (id: string) => data.tasks.find((task) => task.id === id);
 
   return (
@@ -167,6 +168,7 @@ export default function AdminScreen() {
         <Section title="User verification queue" empty="No verification documents are waiting for review.">
           {pendingVerifications.map((item) => (
             <View key={item.id} style={styles.card}>
+              {userFor(item.userId)?.profilePhotoUrl ? <Image source={{ uri: userFor(item.userId)?.profilePhotoUrl }} style={styles.reviewAvatarImage} /> : null}
               <Text style={styles.cardTitle}>{nameFor(item.userId)}</Text>
               <Text style={styles.meta}>{item.validIdType} · submitted {formatDate(item.submittedAt)}</Text>
               <View style={styles.row}>
@@ -506,6 +508,7 @@ const styles = StyleSheet.create({
   section: { gap: 10 },
   sectionTitle: { color: colors.text, fontSize: 19, fontWeight: "900" },
   card: { backgroundColor: "#FFFFFF", borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 16, gap: 10 },
+  reviewAvatarImage: { width: 48, height: 48, borderRadius: 24 },
   cardTitle: { color: colors.text, fontSize: 15, fontWeight: "800" },
   meta: { color: colors.muted, fontSize: 12 },
   body: { color: colors.text, lineHeight: 20 },

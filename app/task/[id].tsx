@@ -1,5 +1,5 @@
 import Feather from "@expo/vector-icons/Feather";
-import { Href, useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -11,7 +11,6 @@ import { formatPaymentMethod, formatRequiredCapabilities, formatTaskDuration, fo
 import { TaskMatch } from "../../src/types";
 import { formatDistance } from "../../src/utils/location";
 import { sanitizeMoneyInput } from "../../src/utils/numericInput";
-import { canEditTaskTerms, hasPendingTaskChange } from "../../src/domain/taskTerms";
 
 const palette = {
   background: "#F7FAF8",
@@ -77,7 +76,6 @@ export default function TaskDetailsScreen() {
     ? employerScores.reduce((total, score) => total + score, 0) / employerScores.length
     : employer?.rating;
   const hasApplied = Boolean(currentUser?.id && task.applicantIds?.includes(currentUser.id));
-  const canEdit = Boolean(currentUser && currentUser.role === "client" && canEditTaskTerms(task, currentUser.id));
   const chatRecipientId = isClient
     ? task.workerId ?? (applicantIds.length === 1 ? applicantIds[0] : undefined)
     : task.clientId;
@@ -151,16 +149,6 @@ export default function TaskDetailsScreen() {
             </View>
           </View>
           <StatusBadge status={task.status} />
-          {canEdit ? (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => router.push(`/edit-task/${task.id}` as Href)}
-              style={styles.editTaskButton}
-            >
-              <Feather accessibilityElementsHidden color={palette.primary} name="edit-3" size={17} />
-              <Text style={styles.editTaskText}>{hasPendingTaskChange(task) ? "Changes awaiting tasker review" : task.workerId ? "Propose task changes" : "Edit task"}</Text>
-            </Pressable>
-          ) : null}
         </View>
 
         <View style={styles.detailsGrid}>

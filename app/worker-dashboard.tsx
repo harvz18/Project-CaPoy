@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AnimatedBottomNav } from "../src/components/AnimatedBottomNav";
 import { HelpShortcut } from "../src/components/HelpShortcut";
@@ -12,6 +12,7 @@ import { formatTaskPrice, getScheduleBasedAvailability } from "../src/domain/tas
 import { MatchResult, rankTasksForWorker } from "../src/domain/matching";
 import { Task } from "../src/types";
 import { formatDistance, getDiscoveryLocationIssue } from "../src/utils/location";
+import { formatRelativeTime } from "../src/utils/relativeTime";
 
 const palette = {
   background: "#F7FAF8",
@@ -34,7 +35,9 @@ export default function WorkerDashboardScreen() {
   const router = useRouter();
   const [selectedTab, setSelectedTab] = useState<"active" | "finished">("active");
   const [applicationsExpanded, setApplicationsExpanded] = useState(false);
+  const [mapFullscreen, setMapFullscreen] = useState(false);
   const [actionMessage, setActionMessage] = useState("");
+  const { height: viewportHeight } = useWindowDimensions();
   const { actionLoading, currentUser, notifications, tasks, ratings, acceptTask } = useApp();
   const postedTasks = tasks.filter((task) => task.status === "Finding Workers" || task.status === "Applied");
   const rankedPostedTasks = currentUser ? rankTasksForWorker(postedTasks, currentUser) : [];
@@ -50,6 +53,12 @@ export default function WorkerDashboardScreen() {
   );
   const featuredJobs = rankedPostedTasks.slice(0, 2);
   const discoveryLocationIssue = getDiscoveryLocationIssue(currentUser);
+  const workerMapCenter = currentUser?.currentLatitude !== undefined && currentUser.currentLongitude !== undefined
+    ? { latitude: currentUser.currentLatitude, longitude: currentUser.currentLongitude }
+    : undefined;
+  const workerMapMarkers = postedTasks.flatMap((task) => task.latitude !== undefined && task.longitude !== undefined
+    ? [{ id: task.id, latitude: task.latitude, longitude: task.longitude, title: task.title }]
+    : []);
 
   async function handleQuickApply(task: Task) {
     try {
@@ -165,14 +174,18 @@ export default function WorkerDashboardScreen() {
 
         <View style={styles.mapPanel}>
           <LocationMap
-            center={currentUser?.currentLatitude !== undefined && currentUser.currentLongitude !== undefined ? { latitude: currentUser.currentLatitude, longitude: currentUser.currentLongitude } : undefined}
-            markers={postedTasks.flatMap((task) => task.latitude !== undefined && task.longitude !== undefined ? [{ id: task.id, latitude: task.latitude, longitude: task.longitude, title: task.title }] : [])}
+            center={workerMapCenter}
+            interactive
+            markers={workerMapMarkers}
             showUserLocation
             height={208}
           />
           <View style={styles.locationBadge}>
             <Text style={styles.locationText}>{rankedPostedTasks.filter(({ match }) => match.eligible).length} recommended jobs near you</Text>
           </View>
+          <Pressable accessibilityLabel="Open full screen map" accessibilityRole="button" onPress={() => setMapFullscreen(true)} style={styles.expandMapButton}>
+            <Text style={styles.expandMapButtonText}>Expand map</Text>
+          </Pressable>
         </View>
 
         <View style={styles.sectionHeader}>
@@ -213,6 +226,21 @@ export default function WorkerDashboardScreen() {
         </Pressable>
 
       </ScrollView>
+      <Modal animationType="slide" onRequestClose={() => setMapFullscreen(false)} presentationStyle="fullScreen" visible={mapFullscreen}>
+        <SafeAreaView style={styles.fullscreenMap} edges={["top", "bottom", "left", "right"]}>
+          <LocationMap
+            center={workerMapCenter}
+            fitToMarkers
+            interactive
+            markers={workerMapMarkers}
+            showUserLocation
+            height={Math.max(320, viewportHeight - 24)}
+          />
+          <Pressable accessibilityLabel="Close full screen map" accessibilityRole="button" onPress={() => setMapFullscreen(false)} style={styles.closeMapButton}>
+            <Text style={styles.closeMapButtonText}>×</Text>
+          </Pressable>
+        </SafeAreaView>
+      </Modal>
       <AnimatedBottomNav active="home" role={currentUser?.role} />
     </SafeAreaView>
   );
@@ -261,6 +289,7 @@ function WorkerJobCard({
         <Text style={styles.price}>{formatTaskPrice(task)}</Text>
       </View>
       <Text style={styles.jobTitle}>{task.title}</Text>
+      <Text style={styles.jobMeta}>{formatRelativeTime(task.createdAt)}</Text>
       <Text style={styles.jobMeta}>{formatDistance(match.distanceKm)} · {task.locationAddress ?? task.location}</Text>
       <Text style={styles.jobMeta}>{match.score}% match · {match.reasons.slice(0, 2).join(" · ")}</Text>
       <View style={styles.jobInfoRow}>
@@ -428,6 +457,7 @@ const styles = StyleSheet.create({
   statValue: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "900" },
   statLabel: { color: palette.muted, fontSize: 12, lineHeight: 16, marginTop: 4 },
   mapPanel: { height: 132, borderRadius: 12, overflow: "hidden", backgroundColor: "#DDEDEA", elevation: 2 },
+  fullscreenMap: { flex: 1, backgroundColor: palette.background, padding: 12 },
   mapGrid: { flex: 1, backgroundColor: "#E7F3F0" },
   mapLineHorizontal: { position: "absolute", left: -20, right: -20, top: 58, height: 14, backgroundColor: "#C8DBD7", transform: [{ rotate: "-10deg" }] },
   mapLineVertical: { position: "absolute", top: -20, bottom: -20, left: "56%", width: 16, backgroundColor: "#D6C29E", transform: [{ rotate: "18deg" }] },
@@ -437,6 +467,10 @@ const styles = StyleSheet.create({
   locationBadge: { position: "absolute", left: 12, bottom: 12, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: "rgba(255,255,255,0.92)", paddingHorizontal: 12, paddingVertical: 8, flexDirection: "row", alignItems: "center", gap: 8 },
   locationIcon: { color: palette.primary, fontSize: 18, fontWeight: "900" },
   locationText: { color: palette.text, fontSize: 12, fontWeight: "800" },
+  expandMapButton: { position: "absolute", right: 12, top: 12, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.94)", borderWidth: 1, borderColor: palette.outlineVariant, minHeight: 34, paddingHorizontal: 10, alignItems: "center", justifyContent: "center" },
+  expandMapButtonText: { color: palette.primary, fontSize: 11, fontWeight: "900" },
+  closeMapButton: { position: "absolute", right: 22, top: 22, width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.96)", borderWidth: 1, borderColor: palette.outlineVariant },
+  closeMapButtonText: { color: palette.textStrong, fontSize: 29, lineHeight: 32, fontWeight: "500" },
   sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   sectionCopy: { flex: 1 },
   sectionTitle: { color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "900" },

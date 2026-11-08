@@ -9,8 +9,9 @@ import { useApp } from "../../src/context/AppContext";
 import { formatPaymentMethod, formatRequiredCapabilities, formatTaskDuration, formatTaskPrice, formatTaskSchedule } from "../../src/domain/taskMarketplace";
 import { useForegroundLocationWatch } from "../../src/hooks/useForegroundLocationWatch";
 import { useTasklinkBack } from "../../src/hooks/useTasklinkBack";
-import { PaymentStatus, Task, TaskStatus } from "../../src/types";
+import { PaymentStatus, Task, TaskLiveLocation, TaskStatus } from "../../src/types";
 import {
+  calculateDistanceKm,
   formatDistance,
   getGeofenceCheck,
   getLiveLocationIssue,
@@ -20,6 +21,7 @@ import {
 import { getPaymentProofDownloadUrl, pickAndUploadPaymentProof } from "../../src/services/fileUploadService";
 import { hasPendingTaskChange, summarizeTaskTermChanges } from "../../src/domain/taskTerms";
 import { getCancellationEligibility } from "../../src/domain/cancellation";
+import { clearTaskLiveLocation, publishTaskLiveLocation, subscribeToTaskLiveLocation } from "../../src/services/taskLiveLocationService";
 
 const palette = {
   background: "#F7FAF8",
@@ -59,6 +61,7 @@ export default function TaskStatusScreen() {
   const [uploadingWorkerProof, setUploadingWorkerProof] = useState(false);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [cancellationReason, setCancellationReason] = useState("");
+  const [sharedWorkerLocation, setSharedWorkerLocation] = useState<TaskLiveLocation>();
 
   // Task data is delivered by a Firestore listener, so it can arrive after this
   // screen's first render. Keep an already-uploaded local receipt, while also
@@ -77,6 +80,33 @@ export default function TaskStatusScreen() {
     task?.status
   );
   const liveTracking = useForegroundLocationWatch(liveTrackingEnabled);
+
+  const employerCanViewWorkerLocation = currentUser?.role === "client"
+    && currentUser.id === task?.clientId
+    && Boolean(task?.workerId)
+    && (task?.status === "Accepted" || task?.status === "In Progress");
+
+  useEffect(() => {
+    if (!employerCanViewWorkerLocation || !task?.id) {
+      setSharedWorkerLocation(undefined);
+      return;
+    }
+    return subscribeToTaskLiveLocation(task.id, setSharedWorkerLocation, () => setSharedWorkerLocation(undefined));
+  }, [employerCanViewWorkerLocation, task?.id]);
+
+  useEffect(() => {
+    if (!liveTrackingEnabled || !task?.id || !currentUser?.id || !liveTracking.location) return;
+    void publishTaskLiveLocation(task.id, currentUser.id, liveTracking.location).catch(() => {
+      setActionWarning("Unable to share the live location right now. Check your connection and keep TaskLink open.");
+    });
+  }, [currentUser?.id, liveTracking.location, liveTrackingEnabled, task?.id]);
+
+  useEffect(() => {
+    if (!liveTrackingEnabled || !task?.id || currentUser?.role !== "worker" || currentUser.id !== task.workerId) return;
+    return () => {
+      void clearTaskLiveLocation(task.id);
+    };
+  }, [currentUser?.id, currentUser?.role, liveTrackingEnabled, task?.id, task?.workerId]);
 
   if (!task) {
     return (
@@ -117,6 +147,12 @@ export default function TaskStatusScreen() {
     ? liveTracking.issue?.message
     : getLiveLocationIssue(liveTracking.location, liveTracking.checkedAt);
   const liveLocationHealthy = liveTracking.status === "watching" && !liveLocationIssue;
+  const visibleWorkerLocation = liveTrackingEnabled ? liveTracking.location : employerCanViewWorkerLocation ? sharedWorkerLocation : undefined;
+  const visibleWorkerLocationIssue = getLiveLocationIssue(visibleWorkerLocation);
+  const visibleWorkerLocationHealthy = Boolean(visibleWorkerLocation) && !visibleWorkerLocationIssue;
+  const visibleWorkerDistanceKm = visibleWorkerLocation
+    ? calculateDistanceKm(visibleWorkerLocation, task)
+    : undefined;
   const changeRequestPending = hasPendingTaskChange(task);
   const assignedWorkerMustReviewChange = changeRequestPending && currentUser?.role === "worker" && currentUser.id === task.workerId;
   // The foreground watcher is a preview, not the authority for check-in. It can
@@ -390,8 +426,10 @@ export default function TaskStatusScreen() {
             <View style={styles.geoPanel}>
               <View style={styles.geoHeader}>
                 <Text style={styles.sectionTitle}>Location Check</Text>
-                <Text style={[styles.geoBadge, insideGeofence ? styles.geoBadgeGood : styles.geoBadgeWarn]}>
-                  {currentUser?.role !== "worker" ? "Worker check-in" : insideGeofence ? "Inside task radius" : "Check-in needed"}
+                <Text style={[styles.geoBadge, currentUser?.role === "worker" && insideGeofence ? styles.geoBadgeGood : styles.geoBadgeWarn]}>
+                  {currentUser?.role === "worker"
+                    ? insideGeofence ? "Inside task radius" : "Check-in needed"
+                    : visibleWorkerLocationHealthy ? "Worker location live" : "Waiting for worker"}
                 </Text>
               </View>
               <View style={styles.geoMapFrame}>
@@ -401,18 +439,18 @@ export default function TaskStatusScreen() {
                     ...(task.latitude !== undefined && task.longitude !== undefined
                       ? [{ id: `${task.id}-check`, latitude: task.latitude, longitude: task.longitude, title: "Task location", color: "#005C55" }]
                       : []),
-                    ...(liveTracking.location ? [{
+                    ...(visibleWorkerLocation ? [{
                       id: "live-check-device",
-                      latitude: liveTracking.location.latitude,
-                      longitude: liveTracking.location.longitude,
-                      title: "Your live location",
+                      latitude: visibleWorkerLocation.latitude,
+                      longitude: visibleWorkerLocation.longitude,
+                      title: currentUser?.role === "worker" ? "Your live location" : "Worker live location",
                       color: "#2563EB",
-                      accuracyMeters: liveTracking.location.accuracyMeters
+                      accuracyMeters: visibleWorkerLocation.accuracyMeters
                     }] : [])
                   ]}
                   radiusMeters={task.geofenceRadius}
                   height={240}
-                  fitToMarkers={Boolean(liveTracking.location)}
+                  fitToMarkers={Boolean(visibleWorkerLocation)}
                   connectMarkers
                 />
                 <View style={styles.geoMapLegend}>
@@ -420,44 +458,50 @@ export default function TaskStatusScreen() {
                     <View style={[styles.geoLegendDot, styles.geoLegendTask]} />
                     <Text style={styles.geoLegendText}>Task pin and allowed radius</Text>
                   </View>
-                  {liveTrackingEnabled ? (
+                  {liveTrackingEnabled || employerCanViewWorkerLocation ? (
                     <View style={styles.geoLegendItem}>
                       <View style={[styles.geoLegendDot, styles.geoLegendWorker]} />
-                      <Text style={styles.geoLegendText}>Your live GPS position</Text>
+                      <Text style={styles.geoLegendText}>{currentUser?.role === "worker" ? "Your live GPS position" : "Worker live GPS position"}</Text>
                     </View>
                   ) : null}
                 </View>
               </View>
               <Text style={styles.geoText}>Task area: {task.locationAddress ?? task.location}</Text>
-              <Text style={styles.geoText}>Distance: {formatDistance(distanceKm)}</Text>
+              <Text style={styles.geoText}>Distance: {formatDistance(currentUser?.role === "worker" ? distanceKm : visibleWorkerDistanceKm)}</Text>
               <Text style={styles.geoText}>Required start radius: {task.geofenceRadius !== undefined ? `${task.geofenceRadius} meters` : "Not recorded"}</Text>
-              {liveTrackingEnabled ? (
+              {liveTrackingEnabled || employerCanViewWorkerLocation ? (
                 <View style={styles.liveLocationPanel}>
                   <View style={styles.geoHeader}>
-                    <Text style={styles.liveLocationTitle}>Foreground live location</Text>
-                    <Text style={[styles.geoBadge, liveLocationHealthy ? styles.geoBadgeGood : styles.geoBadgeWarn]}>
-                      {liveLocationStatusLabel(liveTracking.status, liveLocationHealthy)}
+                    <Text style={styles.liveLocationTitle}>{currentUser?.role === "worker" ? "Foreground live location" : "Worker live location"}</Text>
+                    <Text style={[styles.geoBadge, visibleWorkerLocationHealthy ? styles.geoBadgeGood : styles.geoBadgeWarn]}>
+                      {currentUser?.role === "worker"
+                        ? liveLocationStatusLabel(liveTracking.status, liveLocationHealthy)
+                        : visibleWorkerLocation ? visibleWorkerLocationHealthy ? "Live" : "Needs attention" : "Waiting"}
                     </Text>
                   </View>
-                  {liveTracking.location ? (
+                  {visibleWorkerLocation ? (
                     <>
-                      <Text style={styles.geoText}>Last update: {formatLocationUpdateTime(liveTracking.location.capturedAt)}</Text>
+                      <Text style={styles.geoText}>Last update: {formatLocationUpdateTime(visibleWorkerLocation.capturedAt)}</Text>
                       <Text style={styles.geoText}>
-                        Accuracy: {Number.isFinite(liveTracking.location.accuracyMeters)
-                          ? `about ${Math.round(liveTracking.location.accuracyMeters as number)} meters`
+                        Accuracy: {Number.isFinite(visibleWorkerLocation.accuracyMeters)
+                          ? `about ${Math.round(visibleWorkerLocation.accuracyMeters as number)} meters`
                           : "unavailable"}
                       </Text>
                     </>
                   ) : null}
-                  <Text style={[styles.geoHint, liveLocationIssue ? styles.liveLocationWarning : undefined]}>
-                    {liveTracking.status === "starting"
-                      ? "Requesting a high-accuracy device location..."
-                      : liveTracking.status === "paused"
-                        ? "Live updates pause while TaskLink is in the background."
-                        : liveLocationIssue ?? "Your marker is updating while this screen stays open."}
+                  <Text style={[styles.geoHint, visibleWorkerLocationIssue ? styles.liveLocationWarning : undefined]}>
+                    {currentUser?.role === "worker"
+                      ? liveTracking.status === "starting"
+                        ? "Requesting a high-accuracy device location..."
+                        : liveTracking.status === "paused"
+                          ? "Live updates pause while TaskLink is in the background."
+                          : liveLocationIssue ?? "Your marker is updating while this screen stays open."
+                      : visibleWorkerLocation
+                        ? visibleWorkerLocationIssue ?? "The worker marker is updating while they keep TaskLink open."
+                        : "The worker's live marker will appear after they open this task and allow location access."}
                   </Text>
-                  <Text style={styles.privacyText}>This moving marker stays on your device and is not continuously stored or shared with the employer.</Text>
-                  {(liveTracking.status === "error" || (liveTracking.status === "watching" && Boolean(liveLocationIssue))) ? (
+                  {currentUser?.role === "worker" ? <Text style={styles.privacyText}>This moving marker is visible only to the assigned employer while this task is accepted or in progress. Updates pause when TaskLink is in the background or closed.</Text> : null}
+                  {currentUser?.role === "worker" && (liveTracking.status === "error" || (liveTracking.status === "watching" && Boolean(liveLocationIssue))) ? (
                     <Pressable accessibilityRole="button" onPress={liveTracking.retry} style={styles.retryLocationButton}>
                       <Text style={styles.retryLocationButtonText}>Retry Live Location</Text>
                     </Pressable>

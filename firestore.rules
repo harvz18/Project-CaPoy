@@ -843,19 +843,22 @@ service cloud.firestore {
     // an accepted task can only store a review request for its assigned worker.
     function validTaskTerms(terms) {
       return terms.title is string && terms.title.size() >= 1 && terms.title.size() <= 160
-        && terms.description is string && terms.description.size() <= 5000
+        && terms.description is string && terms.description.size() >= 1 && terms.description.size() <= 5000
         && terms.category is string && terms.category.size() >= 1 && terms.category.size() <= 100
         && terms.location is string && terms.location.size() >= 1 && terms.location.size() <= 200
-        && (!('locationAddress' in terms) || (terms.locationAddress is string && terms.locationAddress.size() <= 500))
+        && ('locationAddress' in terms) && terms.locationAddress is string && terms.locationAddress.size() >= 1 && terms.locationAddress.size() <= 500
+        && terms.locationAddress.matches('.*Bacolod.*')
         && terms.latitude is number && terms.latitude >= -90 && terms.latitude <= 90
+        && terms.latitude >= 10.54 && terms.latitude <= 10.86
         && terms.longitude is number && terms.longitude >= -180 && terms.longitude <= 180
+        && terms.longitude >= 122.78 && terms.longitude <= 123.10
         && terms.geofenceRadius is number && terms.geofenceRadius >= 100 && terms.geofenceRadius <= 5000
         && terms.locationSource in ['device', 'manual', 'map']
         && terms.requiredCapabilities is list && terms.requiredCapabilities.size() >= 1 && terms.requiredCapabilities.size() <= 3
         && terms.requiredCapability is string
         && terms.wage is string
         && terms.pricingMode in ['fixed', 'bidding']
-        && (terms.pricingMode == 'bidding' || terms.wage.matches('[1-9][0-9]*([.][0-9]{1,2})?'))
+        && (terms.pricingMode == 'bidding' || terms.wage.matches('([1][5-9][0-9]|[2-9][0-9]{2}|[1-9][0-9]{3,})([.][0-9]{1,2})?'))
         && terms.estimatedDuration is string && terms.estimatedDuration.size() >= 1 && terms.estimatedDuration.size() <= 100
         && terms.durationValue is int && terms.durationValue >= 1 && terms.durationValue <= 365
         && terms.durationUnit in ['hour', 'day', 'week', 'month']
@@ -1086,6 +1089,7 @@ service cloud.firestore {
       allow create: if hasRole('client')
         && request.resource.data.clientId == request.auth.uid
         && request.resource.data.status == 'Finding Workers'
+        && validTaskTerms(request.resource.data)
         && request.resource.data.paymentMethod in ['COD', 'GCash link']
         && request.resource.data.paymentStatus == 'Pending'
         && (!('pricingMode' in request.resource.data)
@@ -1106,9 +1110,13 @@ service cloud.firestore {
         && request.resource.data.latitude is number
         && request.resource.data.latitude >= -90
         && request.resource.data.latitude <= 90
+        && request.resource.data.latitude >= 10.54
+        && request.resource.data.latitude <= 10.86
         && request.resource.data.longitude is number
         && request.resource.data.longitude >= -180
         && request.resource.data.longitude <= 180
+        && request.resource.data.longitude >= 122.78
+        && request.resource.data.longitude <= 123.10
         && request.resource.data.geofenceRadius is number
         && request.resource.data.geofenceRadius >= 100
         && request.resource.data.geofenceRadius <= 5000
@@ -1129,9 +1137,6 @@ service cloud.firestore {
           ])
           ? validAssignedWorkerPaymentProof(taskId)
           : (validClientTaskUpdate(taskId)
-          || validOpenTaskTermsUpdate()
-          || validTaskChangeProposal()
-          || validAssignedTaskChangeDecision()
           || validApplicationUpdate(taskId)
           || validApplicationRemoval(taskId)
           || validAssignedWorkerUpdate()
@@ -1162,6 +1167,35 @@ service cloud.firestore {
           && taskAfter(taskId).paymentStatusAtCancellation == request.resource.data.paymentStatusAtEvent
           && request.resource.data.createdAt == taskAfter(taskId).cancelledAt;
         allow update, delete: if false;
+      }
+
+      match /liveLocation/{locationId} {
+        allow read: if hasEnabledAccount()
+          && locationId == 'current'
+          && task(taskId).status in ['Accepted', 'In Progress']
+          && (task(taskId).clientId == request.auth.uid || task(taskId).workerId == request.auth.uid);
+        allow create, update: if hasRole('worker')
+          && locationId == 'current'
+          && task(taskId).workerId == request.auth.uid
+          && task(taskId).status in ['Accepted', 'In Progress']
+          && request.resource.data.keys().hasOnly([
+            'workerId', 'latitude', 'longitude', 'accuracyMeters', 'capturedAt', 'updatedAt'
+          ])
+          && request.resource.data.workerId == request.auth.uid
+          && request.resource.data.latitude is number
+          && request.resource.data.latitude >= -90
+          && request.resource.data.latitude <= 90
+          && request.resource.data.longitude is number
+          && request.resource.data.longitude >= -180
+          && request.resource.data.longitude <= 180
+          && request.resource.data.accuracyMeters is number
+          && request.resource.data.accuracyMeters >= 0
+          && request.resource.data.capturedAt is string
+          && request.resource.data.updatedAt == request.resource.data.capturedAt;
+        allow delete: if hasRole('worker')
+          && locationId == 'current'
+          && task(taskId).workerId == request.auth.uid
+          && resource.data.workerId == request.auth.uid;
       }
     }
 

@@ -192,7 +192,7 @@ export async function updateTaskTermsInFirestore(taskId: string, terms: TaskTerm
     if (!taskSnapshot.exists()) throw new Error("Task not found.");
     const task = { id: taskSnapshot.id, ...taskSnapshot.data() } as Task;
     if (actor.role !== "client" || !canEditTaskTerms(task, actor.id)) {
-      throw new Error("Only the employer can edit this task before it is completed.");
+      throw new Error("Posted task details cannot be edited. Cancel the task if it can no longer proceed.");
     }
     if (hasPendingTaskChange(task)) {
       throw new Error("Wait for the assigned tasker to respond to the pending change request.");

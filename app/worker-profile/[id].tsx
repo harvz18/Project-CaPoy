@@ -1,7 +1,7 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBadge } from "../../src/components/StatusBadge";
 import { useApp } from "../../src/context/AppContext";
@@ -124,7 +124,7 @@ export default function WorkerPublicProfileScreen() {
           <View style={styles.profileHeader}>
             <View style={styles.photoWrap}>
               <View style={styles.profilePhoto}>
-                <Text style={styles.profilePhotoText}>{name[0]}</Text>
+                {worker.profilePhotoUrl ? <Image source={{ uri: worker.profilePhotoUrl }} style={styles.profilePhotoImage} /> : <Text style={styles.profilePhotoText}>{name[0]}</Text>}
               </View>
               <View style={styles.verifiedPill}>
                 <Text style={styles.verifiedText}>{verificationStatus}</Text>
@@ -271,7 +271,8 @@ const styles = StyleSheet.create({
   profileCard: { padding: 24, borderRadius: 12, borderWidth: 1, borderColor: "rgba(189,201,198,0.35)", backgroundColor: palette.surface, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 2 },
   profileHeader: { alignItems: "center", gap: 20 },
   photoWrap: { position: "relative" },
-  profilePhoto: { width: 132, height: 132, borderRadius: 66, borderWidth: 4, borderColor: palette.primaryFixed, backgroundColor: palette.secondaryContainer, alignItems: "center", justifyContent: "center" },
+  profilePhoto: { width: 132, height: 132, borderRadius: 66, borderWidth: 4, borderColor: palette.primaryFixed, backgroundColor: palette.secondaryContainer, alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  profilePhotoImage: { width: "100%", height: "100%" },
   profilePhotoText: { color: "#684000", fontSize: 42, fontWeight: "900" },
   verifiedPill: { position: "absolute", right: -4, bottom: 8, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 5, backgroundColor: palette.success },
   verifiedText: { color: palette.white, fontSize: 10, fontWeight: "900" },

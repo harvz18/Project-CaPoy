@@ -1,7 +1,7 @@
 import Feather from "@expo/vector-icons/Feather";
 import { Href, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AnimatedBottomNav } from "../src/components/AnimatedBottomNav";
 import LocationMap from "../src/components/LocationMap";
@@ -139,7 +139,7 @@ export default function ProfileScreen() {
         address: detailedAddress || currentUser?.address || "",
         skills: currentUser?.role === "worker" ? skills : undefined,
         capabilities: currentUser?.role === "worker" ? skills : undefined,
-        profilePhotoUrl: currentUser?.role === "worker" ? profilePhotoUrl : undefined,
+        profilePhotoUrl,
         experienceDescription: currentUser?.role === "worker" ? experienceDescription : undefined,
         yearsOfExperience: currentUser?.role === "worker" ? yearsOfExperience : undefined,
         currentLatitude: currentUser?.role === "worker" ? parseCoordinate(currentLatitude) : undefined,
@@ -175,7 +175,8 @@ export default function ProfileScreen() {
       const uploaded = await pickAndUploadProfilePhoto(currentUser.id);
       if (uploaded) {
         setProfilePhotoUrl(uploaded.url);
-        setUploadMessage("Profile photo uploaded. Save changes to publish it.");
+        await updateProfile({ profilePhotoUrl: uploaded.url });
+        setUploadMessage("Profile photo uploaded and saved.");
       }
     } catch (uploadError) {
       setUploadMessage(uploadError instanceof Error ? uploadError.message : "Unable to upload profile photo.");
@@ -300,7 +301,7 @@ export default function ProfileScreen() {
           <View style={styles.profileHeader}>
             <View style={styles.photoWrap}>
               <View style={styles.profilePhoto}>
-                <Text style={styles.profilePhotoText}>{fullName[0] ?? "U"}</Text>
+                {profilePhotoUrl ? <Image source={{ uri: profilePhotoUrl }} style={styles.profilePhotoImage} /> : <Text style={styles.profilePhotoText}>{fullName[0] ?? "U"}</Text>}
               </View>
               <View style={styles.verifiedPill}>
                 <Text style={styles.verifiedText}>{currentUser?.verificationStatus ?? "Not Submitted"}</Text>
@@ -744,7 +745,8 @@ const styles = StyleSheet.create({
   profileCard: { padding: 24, borderRadius: 12, borderWidth: 1, borderColor: "rgba(189,201,198,0.35)", backgroundColor: palette.surface, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 2 },
   profileHeader: { alignItems: "center", gap: 20 },
   photoWrap: { position: "relative" },
-  profilePhoto: { width: 132, height: 132, borderRadius: 66, borderWidth: 4, borderColor: palette.primaryFixed, backgroundColor: palette.secondaryContainer, alignItems: "center", justifyContent: "center" },
+  profilePhoto: { width: 132, height: 132, borderRadius: 66, borderWidth: 4, borderColor: palette.primaryFixed, backgroundColor: palette.secondaryContainer, alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  profilePhotoImage: { width: "100%", height: "100%" },
   profilePhotoText: { color: "#684000", fontSize: 42, fontWeight: "900" },
   verifiedPill: { position: "absolute", right: -4, bottom: 8, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 5, backgroundColor: palette.success },
   verifiedText: { color: palette.white, fontSize: 10, fontWeight: "900" },

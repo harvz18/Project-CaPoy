@@ -21,8 +21,8 @@ test("task terms identify material edits and create a reviewable request", () =>
   assert.match(summarizeTaskTermChanges(request.changedFields), /budget/);
 });
 
-test("only owner may edit an open or accepted task", () => {
-  assert.equal(canEditTaskTerms(task, "client-1"), true);
+test("posted tasks are immutable for all employers", () => {
+  assert.equal(canEditTaskTerms(task, "client-1"), false);
   assert.equal(canEditTaskTerms(task, "other-client"), false);
   assert.equal(canEditTaskTerms({ ...task, status: "Finished" }, "client-1"), false);
 });

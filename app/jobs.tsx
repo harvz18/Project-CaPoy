@@ -12,6 +12,7 @@ import { formatRequiredCapabilities, formatTaskDuration, formatTaskPrice, format
 import { captureForegroundLocation } from "../src/services/locationService";
 import { Task } from "../src/types";
 import { formatDistance, getDiscoveryLocationIssue } from "../src/utils/location";
+import { formatRelativeTime } from "../src/utils/relativeTime";
 
 const palette = {
   background: "#F7FAF8",
@@ -249,6 +250,7 @@ function JobCard({
       </View>
       <Text style={styles.jobTitle}>{task.title}</Text>
       <Text style={styles.employerName}>Posted by {employerName}</Text>
+      <Text style={styles.jobMeta}>{formatRelativeTime(task.createdAt)}</Text>
       <Text style={styles.jobMeta}>{formatTaskSchedule(task)}</Text>
       <Text style={styles.jobMeta}>{formatDistance(match.distanceKm)} · {task.locationAddress ?? task.location}</Text>
       <Text style={styles.jobDescription} numberOfLines={2}>{task.description}</Text>

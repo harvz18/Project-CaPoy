@@ -232,7 +232,7 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
   // check-in coordinates. A location-only refresh must not create or update a
   // secondary workerProfiles document: older tasker accounts may not have one,
   // and its stricter create rules would reject the entire check-in batch.
-  if (!isPrivateLocationOnlyUpdate(sanitizedUpdates) && (
+  if (currentUser.role === "worker" && !isPrivateLocationOnlyUpdate(sanitizedUpdates) && (
     sanitizedUpdates.role === "worker" ||
     sanitizedUpdates.skills ||
     sanitizedUpdates.capabilities ||

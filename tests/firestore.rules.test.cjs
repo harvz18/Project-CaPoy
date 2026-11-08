@@ -84,11 +84,22 @@ function taskData(overrides = {}) {
     budget: 1200,
     wage: "1200",
     location: "Bacolod City",
+    locationAddress: "Barangay Villamonte, Bacolod City",
     latitude: 10.6765,
     longitude: 122.9509,
     geofenceRadius: 500,
     locationCapturedAt: "2026-01-01T00:00:00.000Z",
     locationSource: "manual",
+    requiredCapability: "Plumbing",
+    requiredCapabilities: ["Plumbing"],
+    estimatedDuration: "1 day",
+    durationValue: 1,
+    durationUnit: "day",
+    scheduleMode: "fixed",
+    scheduleStart: "2026-06-01T08:00:00.000Z",
+    scheduleEnd: "2026-06-01T09:00:00.000Z",
+    pricingMode: "fixed",
+    perks: [],
     status: "Finding Workers",
     paymentMethod: "COD",
     applicantIds: [],
@@ -752,6 +763,22 @@ test("only a client can create an open task owned by that client", async () => {
   await assertFails(
     setDoc(doc(clientDb, "tasks", "invalid-location"), taskData({ latitude: 200 }))
   );
+  const outsideBacolodId = "outside-bacolod";
+  const outsideBacolod = writeBatch(clientDb);
+  outsideBacolod.set(doc(clientDb, "tasks", outsideBacolodId), taskData({
+    latitude: 14.5995,
+    longitude: 120.9842
+  }));
+  outsideBacolod.set(doc(clientDb, "payments", outsideBacolodId), {
+    id: outsideBacolodId,
+    taskId: outsideBacolodId,
+    clientId: CLIENT_ID,
+    paymentMethod: "COD",
+    paymentStatus: "Pending",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z"
+  });
+  await assertFails(outsideBacolod.commit());
   await assertFails(updateDoc(doc(clientDb, "tasks", TASK_ID), {
     latitude: 10.7,
     longitude: 122.96,
@@ -792,6 +819,38 @@ test("workers can save valid private location metadata but invalid coordinates f
     locationSource: "manual",
     updatedAt: "2026-01-01T00:00:02.000Z"
   }));
+});
+
+test("an accepted worker can share a live marker only with the assigned employer", async () => {
+  await seedWorkflowTask({
+    status: "Accepted",
+    applicantIds: [WORKER_ID],
+    workerId: WORKER_ID,
+    selectedMatchId: `${TASK_ID}_${WORKER_ID}`
+  });
+  const workerDb = dbFor(WORKER_ID);
+  const clientDb = dbFor(CLIENT_ID);
+  const outsiderDb = dbFor(OUTSIDER_ID);
+  const liveLocation = doc(workerDb, "tasks", TASK_ID, "liveLocation", "current");
+  const payload = {
+    workerId: WORKER_ID,
+    latitude: 10.6765,
+    longitude: 122.9509,
+    accuracyMeters: 15,
+    capturedAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z"
+  };
+
+  await assertSucceeds(setDoc(liveLocation, payload));
+  await assertSucceeds(getDoc(doc(clientDb, "tasks", TASK_ID, "liveLocation", "current")));
+  await assertFails(getDoc(doc(outsiderDb, "tasks", TASK_ID, "liveLocation", "current")));
+  await assertFails(setDoc(doc(clientDb, "tasks", TASK_ID, "liveLocation", "current"), payload));
+
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), "tasks", TASK_ID), { status: "Pending Approval" });
+  });
+  await assertFails(getDoc(doc(clientDb, "tasks", TASK_ID, "liveLocation", "current")));
+  await assertSucceeds(deleteDoc(liveLocation));
 });
 
 test("clients cannot fan out a new-task notification to an unrelated worker", async () => {
