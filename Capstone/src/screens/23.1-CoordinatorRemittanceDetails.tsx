@@ -1,4 +1,5 @@
 import { Text } from '../components/AppText'
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import React from 'react'
 import {
   ActivityIndicator,
@@ -51,7 +52,7 @@ export const CoordinatorRemittanceDetailsScreen: React.FC<
         onPress={onBack}
         style={styles.backButton}
       >
-        <Text style={styles.backGlyph}>{'\u2039'}</Text>
+        <MaterialIcons color={palette.primary} name="arrow-back" size={22} />
       </Pressable>
       <Text numberOfLines={1} style={styles.headerTitle}>Remittance details</Text>
       <View style={styles.headerSpacer} />
@@ -147,8 +148,8 @@ export const CoordinatorRemittanceDetailsScreen: React.FC<
 )
 
 const palette = {
-  background: '#FAF9F9',
-  border: '#E3E2E2',
+  background: '#E9EDF0',
+  border: 'rgba(255, 255, 255, 0.76)',
   error: '#BA1A1A',
   muted: '#777879',
   primary: '#4E061A',
@@ -159,35 +160,52 @@ const palette = {
   white: '#FFFFFF',
 } as const
 
+const raised = {
+  boxShadow: '6px 6px 13px rgba(160, 171, 180, 0.48), -6px -6px 13px rgba(255, 255, 255, 0.95)',
+  elevation: 5,
+  shadowColor: '#A5AFB7',
+  shadowOffset: { width: 4, height: 4 },
+  shadowOpacity: 0.32,
+  shadowRadius: 8,
+} as const
+
+const raisedSmall = {
+  boxShadow: '4px 4px 9px rgba(161, 172, 180, 0.44), -4px -4px 9px rgba(255, 255, 255, 0.94)',
+  elevation: 3,
+  shadowColor: '#A5AFB7',
+  shadowOffset: { width: 3, height: 3 },
+  shadowOpacity: 0.28,
+  shadowRadius: 6,
+} as const
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.background },
   header: {
     minHeight: 64,
     flexDirection: 'row',
     alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: palette.border,
+    backgroundColor: palette.background,
     paddingHorizontal: 16,
+    ...raisedSmall,
   },
-  backButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
-  backGlyph: { color: palette.primary, fontSize: 34, lineHeight: 36 },
+  backButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 22, backgroundColor: palette.background, ...raisedSmall },
   headerTitle: { flex: 1, color: palette.primary, fontSize: 19, lineHeight: 25, fontWeight: '700', textAlign: 'center' },
   headerSpacer: { width: 42 },
-  content: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: 20, paddingBottom: 48 },
+  content: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: 20, paddingBottom: 72 },
   error: { color: palette.error, borderRadius: 8, backgroundColor: '#FCEDEB', padding: 12, marginBottom: 14 },
   loading: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
   intro: { marginBottom: 18 },
   eyebrow: { color: palette.primaryContainer, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 1.1 },
   title: { color: palette.text, fontSize: 23, lineHeight: 30, fontWeight: '700', marginTop: 3 },
   subtitle: { color: palette.muted, fontSize: 12, lineHeight: 18, marginTop: 3 },
-  totalCard: { borderRadius: 14, backgroundColor: palette.primary, padding: 20, marginBottom: 22 },
+  totalCard: { borderRadius: 18, backgroundColor: palette.primary, padding: 18, marginBottom: 22 },
   totalLabel: { color: '#E4C9D0', fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 0.8 },
   totalValue: { color: palette.white, fontSize: 32, lineHeight: 40, fontWeight: '700', marginTop: 4 },
   totalMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 22, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,.16)', paddingTop: 14, marginTop: 15 },
   metaLabel: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 0.5 },
   metaValue: { color: palette.white, fontSize: 12, lineHeight: 16, fontWeight: '600', marginTop: 2, textTransform: 'capitalize' },
   sectionTitle: { color: palette.text, fontSize: 16, lineHeight: 22, fontWeight: '700', marginBottom: 10 },
-  itemCard: { borderWidth: 1, borderColor: palette.border, borderRadius: 11, backgroundColor: palette.white, padding: 15, marginBottom: 10 },
+  itemCard: { borderWidth: 1, borderColor: palette.border, borderRadius: 16, backgroundColor: palette.background, padding: 15, marginBottom: 14, ...raisedSmall },
   itemHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   itemCopy: { minWidth: 0, flex: 1 },
   itemTitle: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '700' },
@@ -195,8 +213,8 @@ const styles = StyleSheet.create({
   itemGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 12, marginTop: 12 },
   itemMetaValue: { color: palette.text, fontSize: 12, lineHeight: 16, fontWeight: '600', marginTop: 2, textTransform: 'capitalize' },
   muted: { color: palette.muted, fontSize: 12, lineHeight: 16, marginTop: 2 },
-  emptyCard: { alignItems: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 11, backgroundColor: palette.white, padding: 24 },
+  emptyCard: { alignItems: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 16, backgroundColor: palette.background, padding: 22, ...raised },
   emptyTitle: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '700' },
-  notice: { borderRadius: 9, backgroundColor: palette.primarySoft, padding: 13, marginTop: 6 },
+  notice: { borderRadius: 14, backgroundColor: palette.primarySoft, padding: 13, marginTop: 8 },
   noticeText: { color: palette.primaryContainer, fontSize: 12, lineHeight: 16 },
 })

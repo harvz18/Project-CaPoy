@@ -369,7 +369,7 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({
 
   return (
     <View style={styles.screen}>
-      {!embedded ? <View style={styles.topAppBar}>
+      {!embedded ? <View style={[styles.topAppBar, isCoordinator && styles.coordinatorTopAppBar]}>
         <View style={[styles.topAppBarContent, isWide && styles.wideHorizontalPadding]}>
           <Pressable
             accessibilityLabel={
@@ -382,7 +382,7 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({
             accessibilityRole="button"
             hitSlop={8}
             onPress={onBack}
-            style={({ pressed }) => [styles.backButton, pressed && styles.pressedSurface]}
+            style={({ pressed }) => [styles.backButton, isCoordinator && styles.coordinatorBackButton, pressed && styles.pressedSurface]}
           >
             <BackIcon />
           </Pressable>
@@ -683,6 +683,7 @@ const styles = StyleSheet.create({
     borderBottomColor: palette.border,
     backgroundColor: palette.background,
   },
+  coordinatorTopAppBar: { boxShadow: '4px 4px 9px rgba(161, 172, 180, 0.42), -4px -4px 9px rgba(255, 255, 255, 0.94)', elevation: 4 },
   topAppBarContent: {
     width: '100%',
     maxWidth: 940,
@@ -694,6 +695,7 @@ const styles = StyleSheet.create({
   },
   wideHorizontalPadding: { paddingHorizontal: 32 },
   backButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },
+  coordinatorBackButton: { borderWidth: 1, borderColor: palette.border, backgroundColor: palette.background, boxShadow: '4px 4px 9px rgba(161, 172, 180, 0.44), -4px -4px 9px rgba(255, 255, 255, 0.94)', elevation: 3 },
   pressedSurface: { backgroundColor: palette.surfaceContainerLow, opacity: 0.74 },
   backIcon: { width: 24, height: 24, justifyContent: 'center' },
   backIconHead: { position: 'absolute', left: 4, width: 10, height: 10, borderBottomWidth: 1.8, borderLeftWidth: 1.8, borderColor: palette.primary, transform: [{ rotate: '45deg' }] },

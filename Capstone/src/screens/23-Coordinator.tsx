@@ -4,9 +4,10 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
-  Image,
+  KeyboardAvoidingView,
   Linking,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -212,12 +213,14 @@ const CoordinatorFinancialSummary: React.FC<{
   </View>
 )
 
-const CoordinatorWalletSummary: React.FC<{ wallet: CoordinatorWallet }> = ({ wallet }) => (
-  <View style={styles.walletCard}>
+const CoordinatorWalletSummary: React.FC<{ wallet: CoordinatorWallet }> = ({ wallet }) => {
+  const [transactionsExpanded, setTransactionsExpanded] = React.useState(false)
+
+  return <View style={styles.walletCard}>
     <View style={styles.walletHeader}>
       <View>
-        <Text style={styles.walletEyebrow}>COORDINATOR WALLET</Text>
-        <Text style={styles.walletTitle}>Receivables and payouts</Text>
+        <Text style={styles.walletTitle}>Coordinator Wallet</Text>
+        <Text style={styles.walletSubtitle}>Receivables &amp; Payouts</Text>
       </View>
       <MaterialIcons color={palette.primaryContainer} name="account-balance-wallet" size={22} />
     </View>
@@ -239,13 +242,20 @@ const CoordinatorWalletSummary: React.FC<{ wallet: CoordinatorWallet }> = ({ wal
         <Text style={styles.walletValue}>{pesoLabel(wallet.totalPaidOut)}</Text>
       </View>
     </View>
-    <Text style={styles.walletExplanation}>
-      Held allocations are managed by MULTIVENT and are expected to become eligible 14 days before
-      the event, provided the booking remains valid. This workspace does not submit payout requests.
-    </Text>
+    <Text style={styles.walletExplanation}>Held funds remain unavailable until 14 days before a valid event. This workspace does not submit payout requests.</Text>
     {wallet.rows.length ? (
       <View style={styles.walletReceivableList}>
-        {wallet.rows.map((row, index) => (
+        <Pressable
+          accessibilityLabel={transactionsExpanded ? 'Hide transaction history' : 'View transaction history'}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: transactionsExpanded }}
+          onPress={() => setTransactionsExpanded((current) => !current)}
+          style={({ pressed }) => [styles.walletTransactionsToggle, pressed && styles.pressed]}
+        >
+          <Text style={styles.walletTransactionsTitle}>Transaction history</Text>
+          <MaterialIcons color={palette.primaryContainer} name={transactionsExpanded ? 'expand-less' : 'expand-more'} size={22} />
+        </Pressable>
+        {transactionsExpanded ? wallet.rows.map((row, index) => (
           <View
             key={row.id}
             style={[styles.walletReceivableRow, index < wallet.rows.length - 1 && styles.walletReceivableRowBorder]}
@@ -253,11 +263,11 @@ const CoordinatorWalletSummary: React.FC<{ wallet: CoordinatorWallet }> = ({ wal
             <View style={styles.walletReceivableCopy}>
               <Text numberOfLines={1} style={styles.walletReceivableEvent}>{row.eventName}</Text>
               <Text numberOfLines={1} style={styles.walletReceivableService}>{row.serviceName}</Text>
-              <Text style={styles.walletReceivableMeta}>Event: {dateLabel(row.eventDate)}</Text>
+              <Text style={styles.walletReceivableMeta}>{dateLabel(row.eventDate)}</Text>
               <Text style={styles.walletReceivableMeta}>
                 {row.isReconciliationRequired
-                  ? 'Eligibility requires a review.'
-                  : `Expected eligibility: ${dateLabel(row.payoutEligibleOn, 'To be determined')}`}
+                  ? 'Eligibility: Review required'
+                  : `Eligibility: ${dateLabel(row.payoutEligibleOn, 'To be determined')}`}
               </Text>
             </View>
             <View style={styles.walletReceivableAmountColumn}>
@@ -267,11 +277,11 @@ const CoordinatorWalletSummary: React.FC<{ wallet: CoordinatorWallet }> = ({ wal
               </Text>
             </View>
           </View>
-        ))}
+        )) : null}
       </View>
     ) : null}
   </View>
-)
+}
 
 const taskIsOverdue = (task: CoordinatorTask) => {
   if (!task.dueAt || task.status === 'completed') return false
@@ -287,14 +297,6 @@ const eventProgress = (event: CoordinatorEvent) => {
   if (!event.taskCount) return 0
   return Math.min(100, Math.round((event.completedTaskCount / event.taskCount) * 100))
 }
-
-const initialsFrom = (name: string) =>
-  name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('') || 'EC'
 
 const todayHeading = () =>
   new Date().toLocaleDateString('en-PH', {
@@ -349,7 +351,6 @@ const EventCard: React.FC<{
 
   return (
     <View style={styles.eventCard}>
-      <View style={styles.eventAccent} />
       <View style={styles.eventCardBody}>
         <Pressable
           accessibilityLabel={expanded ? `${event.name} event overview` : `View details for ${event.name}`}
@@ -367,15 +368,21 @@ const EventCard: React.FC<{
             ) : null}
           </View>
           <View style={styles.eventHeaderAside}>
-            <View style={styles.statusPill}>
-              <Text style={styles.statusPillText}>{statusLabel(event.status)}</Text>
-            </View>
-            {!expanded ? <MaterialIcons color={palette.primaryContainer} name="chevron-right" size={23} /> : null}
+            {expanded ? (
+              <View style={styles.statusPill}>
+                <Text style={styles.statusPillText}>{statusLabel(event.status)}</Text>
+              </View>
+            ) : (
+              <View style={styles.eventCountdownBadge}>
+                <MaterialIcons color={palette.primaryContainer} name="hourglass-bottom" size={14} />
+                <Text numberOfLines={1} style={styles.eventCountdownText}>{daysRemainingLabel(event.date)}</Text>
+              </View>
+            )}
           </View>
         </Pressable>
 
         {expanded ? <Text style={styles.detailSectionLabel}>EVENT OVERVIEW</Text> : null}
-        <View style={styles.eventMetaGrid}>
+        {expanded ? <View style={styles.eventMetaGrid}>
           <View style={styles.eventMetaItem}>
             <MaterialIcons color={palette.primaryContainer} name="event" size={17} />
             <View style={styles.metaCopy}>
@@ -396,12 +403,43 @@ const EventCard: React.FC<{
               </Pressable>
             ) : null}
           </View>
-        </View>
+        </View> : (
+          <>
+            <View style={styles.eventScheduleRow}>
+              <View style={styles.eventScheduleItem}>
+                <MaterialIcons color={palette.primaryContainer} name="event" size={17} />
+                <View style={styles.metaCopy}>
+                  <Text style={styles.metaLabel}>DATE</Text>
+                  <Text numberOfLines={2} style={styles.metaValue}>{dateLabel(event.date)}</Text>
+                </View>
+              </View>
+              <View style={styles.eventScheduleItem}>
+                <MaterialIcons color={palette.primaryContainer} name="schedule" size={17} />
+                <View style={styles.metaCopy}>
+                  <Text style={styles.metaLabel}>TIME</Text>
+                  <Text style={styles.metaValue}>{timeLabel(event.time)}</Text>
+                </View>
+              </View>
+            </View>
+            <View style={styles.eventVenueCard}>
+              <MaterialIcons color={palette.primaryContainer} name="location-on" size={17} />
+              <View style={styles.metaCopy}>
+                <Text style={styles.metaLabel}>VENUE</Text>
+                <Text numberOfLines={2} style={styles.metaValue}>{venue}</Text>
+              </View>
+              {canOpenEventLocation({ address: event.location || event.venue }) ? (
+                <Pressable accessibilityLabel="Open event venue on map" accessibilityRole="link" hitSlop={8} onPress={() => { void openCoordinatorEventLocation(event.id, event.location || event.venue) }} style={styles.eventMapButton}>
+                  <MaterialIcons color={palette.primaryContainer} name="map" size={19} />
+                </Pressable>
+              ) : null}
+            </View>
+          </>
+        )}
 
-        <View style={styles.eventCountdownRow}>
+        {expanded ? <View style={styles.eventCountdownRow}>
           <MaterialIcons color={palette.primaryContainer} name="hourglass-bottom" size={15} />
           <Text style={styles.eventCountdownText}>{daysRemainingLabel(event.date)}</Text>
-        </View>
+        </View> : null}
 
         {!expanded ? (
           <Pressable
@@ -410,8 +448,8 @@ const EventCard: React.FC<{
             onPress={() => onOpen?.(event)}
             style={({ pressed }) => [styles.disclosureHint, pressed && styles.pressed]}
           >
-            <Text style={styles.disclosureHintText}>View Event</Text>
-            <MaterialIcons color={palette.primaryContainer} name="arrow-forward" size={18} />
+            <Text style={styles.disclosureHintText}>View</Text>
+            <MaterialIcons color={palette.primaryContainer} name="chevron-right" size={22} />
           </Pressable>
         ) : null}
 
@@ -1432,7 +1470,6 @@ const dueAtFrom = (
 
 export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
   activeView: controlledActiveView,
-  avatarUrl,
   busyInvitationId,
   busyTaskId,
   dashboard = emptyDashboard,
@@ -1454,7 +1491,6 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
   onOpenServiceProfile,
   onRefresh,
   onRespondInvitation,
-  onSignOut,
   onToggleTask,
   onViewChange,
   onScrollPositionChange,
@@ -1464,6 +1500,7 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
 }) => {
   const { width } = useWindowDimensions()
   const isWide = width >= 768
+  const isNarrow = width < 430
   const [activeView, setActiveView] = React.useState<CoordinatorView>(controlledActiveView ?? 'overview')
   const [taskFilter, setTaskFilter] = React.useState<TaskFilter>('open')
   const [showComposer, setShowComposer] = React.useState(false)
@@ -1497,6 +1534,15 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
       return new Date(left.dueAt).getTime() - new Date(right.dueAt).getTime()
     })
     .slice(0, 4)
+  const nextCalendarEvent = [...activeEvents]
+    .sort((left, right) => {
+      const leftTime = parseLocalDate(left.date)?.getTime() ?? Number.MAX_SAFE_INTEGER
+      const rightTime = parseLocalDate(right.date)?.getTime() ?? Number.MAX_SAFE_INTEGER
+      return leftTime - rightTime
+    })
+    .find((event) => (parseLocalDate(event.date)?.getTime() ?? Number.MAX_SAFE_INTEGER) >= startOfDay(new Date()).getTime())
+    ?? activeEvents[0]
+    ?? dashboard.events[0]
   const selectableEvents = activeEvents.length ? activeEvents : dashboard.events
   const selectedEvent = selectableEvents.find((event) => event.id === selectedEventId)
 
@@ -1564,46 +1610,31 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
   ]
 
   return (
-    <View style={styles.screen}>
+    <KeyboardAvoidingView
+      behavior={Platform.select({ android: 'height', ios: 'padding' })}
+      style={styles.screen}
+    >
       <View style={styles.topBar}>
         <View style={[styles.topBarContent, isWide && styles.wideHorizontalPadding]}>
           <View style={styles.brandRow}>
-            <View>
-              <BrandIdentity markSize={34} />
-              <Text style={styles.roleLabel}>COORDINATOR WORKSPACE</Text>
-            </View>
+            <BrandIdentity markSize={isNarrow ? 27 : 30} showName={false} variant="metallicWordmark" />
           </View>
           <View style={styles.headerActions}>
-            <Pressable
-              accessibilityLabel="Open messages"
-              accessibilityRole="button"
-              onPress={onOpenMessages}
-              style={({ pressed }) => [styles.iconButton, pressed && styles.pressedSurface]}
-            >
-              <MaterialIcons color={palette.primary} name="chat-bubble-outline" size={21} />
-              {unreadMessageCount > 0 ? (
-                <View style={styles.notificationBadge}>
-                  <Text style={styles.notificationBadgeText}>
-                    {Math.min(unreadMessageCount, 9)}
-                  </Text>
-                </View>
-              ) : null}
-            </Pressable>
             <Pressable
               accessibilityLabel="Open coordinator service profile"
               accessibilityRole="button"
               onPress={onOpenServiceProfile}
-              style={({ pressed }) => [styles.iconButton, pressed && styles.pressedSurface]}
+              style={({ pressed }) => [styles.iconButton, pressed && styles.headerButtonPressed]}
             >
-              <MaterialIcons color={palette.primary} name="storefront" size={22} />
+              <MaterialIcons color="#FFFFFF" name="storefront" size={22} />
             </Pressable>
             <Pressable
               accessibilityLabel="Open notifications"
               accessibilityRole="button"
               onPress={onOpenNotifications}
-              style={({ pressed }) => [styles.iconButton, pressed && styles.pressedSurface]}
+              style={({ pressed }) => [styles.iconButton, pressed && styles.headerButtonPressed]}
             >
-              <MaterialIcons color={palette.primary} name="notifications-none" size={22} />
+              <MaterialIcons color="#FFFFFF" name="notifications-none" size={22} />
               {unreadNotificationCount > 0 ? (
                 <View style={styles.notificationBadge}>
                   <Text style={styles.notificationBadgeText}>
@@ -1611,26 +1642,6 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
                   </Text>
                 </View>
               ) : null}
-            </Pressable>
-            <View style={styles.avatarButton}>
-              {avatarUrl ? (
-                <Image
-                  accessibilityLabel={`${userName} profile photo`}
-                  resizeMode="cover"
-                  source={{ uri: avatarUrl }}
-                  style={styles.avatarImage}
-                />
-              ) : (
-                <Text style={styles.avatarText}>{initialsFrom(userName)}</Text>
-              )}
-            </View>
-            <Pressable
-              accessibilityLabel="Sign out"
-              accessibilityRole="button"
-              onPress={onSignOut}
-              style={({ pressed }) => [styles.iconButton, pressed && styles.pressedSurface]}
-            >
-              <MaterialIcons color={palette.primary} name="logout" size={21} />
             </Pressable>
           </View>
         </View>
@@ -1658,6 +1669,7 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
           />
         }
         contentOffset={{ x: 0, y: initialScrollOffset }}
+        keyboardShouldPersistTaps="handled"
         onScroll={(event) => onScrollPositionChange?.(event.nativeEvent.contentOffset.y)}
         scrollEventThrottle={100}
         showsVerticalScrollIndicator={false}
@@ -1869,18 +1881,21 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
         ) : activeView === 'overview' ? (
           <>
             <View style={styles.statsGrid}>
-              <View style={styles.statCard}>
-                <Text style={styles.statLabel}>Active events</Text>
-                <Text style={styles.statValue}>{activeEvents.length}</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statLabel}>Need attention</Text>
-                <Text style={[styles.statValue, attentionTasks.length > 0 && styles.statValueAttention]}>{attentionTasks.length}</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statLabel}>Tasks completed</Text>
-                <Text style={styles.statValue}>{completedTasks}</Text>
-              </View>
+              {[
+                { label: 'Active events', tone: 'blue', value: activeEvents.length },
+                { label: 'Need attention', tone: 'red', value: attentionTasks.length, attention: attentionTasks.length > 0 },
+                { label: 'Completed', tone: 'green', value: completedTasks },
+              ].map((stat) => (
+                <View key={stat.label} style={[
+                  styles.statCard,
+                  stat.tone === 'blue' && styles.statCardBlue,
+                  stat.tone === 'red' && styles.statCardRed,
+                  stat.tone === 'green' && styles.statCardGreen,
+                ]}>
+                  <Text numberOfLines={2} style={styles.statLabel}>{stat.label}</Text>
+                  <Text style={[styles.statValue, stat.attention && styles.statValueAttention]}>{stat.value}</Text>
+                </View>
+              ))}
             </View>
 
             <CoordinatorWalletSummary wallet={dashboard.wallet} />
@@ -1897,7 +1912,7 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
                   ) : null}
                 </View>
                 <EventCard
-                  event={activeEvents[0] ?? dashboard.events[0]}
+                  event={nextCalendarEvent}
                   onConfirmChurchArrangement={onConfirmChurchArrangement}
                   onMessageClient={onMessageClient}
                   onMessageProvider={onMessageProvider}
@@ -1926,7 +1941,7 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
                     <View style={styles.compactEmpty}>
                       <MaterialIcons color={palette.success} name="done-all" size={24} />
                       <Text style={styles.compactEmptyTitle}>All caught up</Text>
-                      <Text style={styles.compactEmptyText}>There are no open tasks for your assigned events.</Text>
+                      <Text style={styles.compactEmptyText}>No urgent tasks for your assigned events.</Text>
                     </View>
                   )}
                 </View>
@@ -2000,12 +2015,6 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
           </View>
         )}
 
-        <View style={styles.securityNote}>
-          <MaterialIcons color={palette.secondary} name="verified-user" size={17} />
-          <Text style={styles.securityText}>
-            This workspace only shows events assigned to your coordinator account.
-          </Text>
-        </View>
       </Animated.ScrollView>
 
       {!isWide ? (
@@ -2027,13 +2036,13 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
           }}
         />
       ) : null}
-    </View>
+    </KeyboardAvoidingView>
   )
 }
 
 const palette = {
-  background: '#FFFFFF',
-  border: '#DFE0E0',
+  background: '#E9EDF0',
+  border: 'rgba(255, 255, 255, 0.72)',
   danger: '#A12C40',
   dangerSoft: '#FBECEF',
   muted: '#9B9290',
@@ -2043,9 +2052,27 @@ const palette = {
   secondary: '#5D5F5F',
   success: '#1D6B4A',
   successSoft: '#EAF5EF',
-  surface: '#FFFFFF',
-  surfaceLow: '#F5F3F3',
+  surface: '#E9EDF0',
+  surfaceLow: '#E3E8EC',
   text: '#1B1C1C',
+} as const
+
+const neoRaised = {
+  boxShadow: '7px 7px 15px rgba(160, 171, 180, 0.48), -7px -7px 15px rgba(255, 255, 255, 0.95)',
+  elevation: 5,
+  shadowColor: '#A6B0B8',
+  shadowOffset: { width: 5, height: 5 },
+  shadowOpacity: 0.34,
+  shadowRadius: 9,
+} as const
+
+const neoRaisedSmall = {
+  boxShadow: '4px 4px 9px rgba(161, 172, 180, 0.44), -4px -4px 9px rgba(255, 255, 255, 0.94)',
+  elevation: 3,
+  shadowColor: '#A6B0B8',
+  shadowOffset: { width: 3, height: 3 },
+  shadowOpacity: 0.28,
+  shadowRadius: 6,
 } as const
 
 const styles = StyleSheet.create({
@@ -2054,9 +2081,13 @@ const styles = StyleSheet.create({
     zIndex: 20,
     minHeight: 64,
     justifyContent: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: palette.border,
-    backgroundColor: palette.surface,
+    backgroundColor: palette.primaryContainer,
+    boxShadow: '0 5px 12px rgba(55, 4, 18, 0.34)',
+    elevation: 6,
+    shadowColor: '#350410',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.32,
+    shadowRadius: 8,
   },
   topBarContent: {
     width: '100%',
@@ -2069,9 +2100,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
   },
-  detailTopBar: { minHeight: 64, justifyContent: 'center', borderBottomWidth: 1, borderBottomColor: palette.border, backgroundColor: palette.surface },
+  detailTopBar: { minHeight: 64, justifyContent: 'center', backgroundColor: palette.surface, ...neoRaisedSmall },
   detailTopBarContent: { width: '100%', maxWidth: 900, minHeight: 64, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, paddingVertical: 10 },
-  detailBackButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 21 },
+  detailBackButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 22, backgroundColor: palette.surface, ...neoRaisedSmall },
   detailHeadingCopy: { minWidth: 0, flex: 1 },
   detailEyebrow: { color: palette.primaryContainer, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 1 },
   detailTitle: { color: palette.text, fontSize: 18, lineHeight: 24, fontWeight: '700', marginTop: 1 },
@@ -2084,53 +2115,69 @@ const styles = StyleSheet.create({
   detailSectionLabel: { color: palette.primaryContainer, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 0.8, marginBottom: 8 },
   detailManagementLabel: { marginBottom: 6, marginTop: 14 },
   wideHorizontalPadding: { paddingHorizontal: 32 },
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  brandRow: { minWidth: 0, flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
   roleLabel: { color: palette.secondary, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 1.1, marginLeft: 44 },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  iconButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },
-  notificationBadge: {
-    position: 'absolute', top: 2, right: 1, minWidth: 16, height: 16, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: palette.surface, borderRadius: 8, backgroundColor: palette.primaryContainer,
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  iconButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.14)',
+    borderRadius: 20,
+    backgroundColor: palette.primaryContainer,
+    boxShadow: '3px 3px 7px rgba(46, 3, 15, 0.58), -3px -3px 7px rgba(151, 49, 74, 0.40)',
+    elevation: 4,
+    shadowColor: '#31030E',
+    shadowOffset: { width: 3, height: 3 },
+    shadowOpacity: 0.42,
+    shadowRadius: 5,
   },
-  notificationBadgeText: { color: '#FFFFFF', fontSize: 12, lineHeight: 16, fontWeight: '700' },
-  avatarButton: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18, backgroundColor: palette.primary },
-  avatarImage: { width: '100%', height: '100%', borderRadius: 18 },
-  avatarText: { color: '#FFFFFF', fontSize: 12, lineHeight: 16, fontWeight: '700' },
+  headerButtonPressed: {
+    boxShadow: 'inset 3px 3px 6px rgba(42, 2, 13, 0.58), inset -3px -3px 6px rgba(151, 49, 74, 0.30)',
+    opacity: 0.9,
+  },
+  notificationBadge: {
+    position: 'absolute', top: -5, right: -5, zIndex: 5, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: palette.primaryContainer, borderRadius: 10, backgroundColor: '#FFFFFF', paddingHorizontal: 3,
+  },
+  notificationBadgeText: { color: palette.primaryContainer, fontSize: 10, lineHeight: 14, fontWeight: '800', textAlign: 'center' },
   content: { width: '100%', maxWidth: 768, alignSelf: 'center' },
-  contentMobile: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 112 },
+  contentMobile: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 124 },
   contentWide: { paddingHorizontal: 32, paddingTop: 32, paddingBottom: 48 },
-  welcomeRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, marginBottom: 22 },
+  welcomeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 18 },
   welcomeCopy: { minWidth: 0, flex: 1 },
   eyebrow: { color: palette.primaryContainer, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 1.1, marginBottom: 5 },
   greeting: { color: palette.text, fontSize: 22, lineHeight: 28, fontWeight: '700' },
-  greetingSubtitle: { color: palette.secondary, fontSize: 14, lineHeight: 20, marginTop: 4 },
-  addButton: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 10, backgroundColor: palette.primaryContainer, paddingHorizontal: 14 },
+  greetingSubtitle: { color: palette.secondary, fontSize: 13, lineHeight: 18, marginTop: 2 },
+  addButton: { minHeight: 44, flexShrink: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 14, backgroundColor: palette.primaryContainer, paddingHorizontal: 14 },
   addButtonPressed: { opacity: 0.82, transform: [{ scale: 0.98 }] },
   addButtonText: { color: '#FFFFFF', fontSize: 12, lineHeight: 16, fontWeight: '700' },
-  tabBar: { flexDirection: 'row', gap: 4, borderWidth: 1, borderColor: palette.border, borderRadius: 12, backgroundColor: palette.surface, padding: 4, marginBottom: 22 },
+  tabBar: { flexDirection: 'row', gap: 5, borderWidth: 1, borderColor: palette.border, borderRadius: 16, backgroundColor: palette.surface, padding: 5, marginBottom: 22, ...neoRaisedSmall },
   tab: { minHeight: 40, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 8 },
-  tabSelected: { backgroundColor: palette.primarySoft },
+  tabSelected: { backgroundColor: '#E2E7EA', boxShadow: 'inset 3px 3px 6px rgba(166, 175, 183, 0.5), inset -3px -3px 6px rgba(255, 255, 255, 0.92)' },
   tabText: { color: palette.secondary, fontSize: 12, lineHeight: 16, fontWeight: '600' },
   tabTextSelected: { color: palette.primaryContainer, fontWeight: '700' },
-  composerCard: { borderWidth: 1, borderColor: '#D9C4C8', borderRadius: 14, backgroundColor: palette.surface, padding: 16, marginBottom: 22 },
-  composerHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 18 },
+  composerCard: { borderWidth: 1, borderColor: palette.border, borderRadius: 18, backgroundColor: palette.surface, marginBottom: 20, padding: 16, ...neoRaised },
+  composerHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 8 },
   composerTitle: { color: palette.text, fontSize: 17, lineHeight: 23, fontWeight: '700' },
   composerSubtitle: { color: palette.secondary, fontSize: 12, lineHeight: 16, marginTop: 3 },
   inputLabel: { color: palette.secondary, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 0.8, marginBottom: 7, marginTop: 12 },
   choiceRow: { gap: 8, paddingRight: 4 },
-  choiceChip: { maxWidth: 240, minHeight: 36, justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 18, paddingHorizontal: 12 },
-  choiceChipSelected: { borderColor: palette.primaryContainer, backgroundColor: palette.primarySoft },
+  choiceChip: { maxWidth: 240, minHeight: 38, justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 19, backgroundColor: palette.surface, paddingHorizontal: 12, ...neoRaisedSmall },
+  choiceChipSelected: { borderColor: palette.primaryContainer, backgroundColor: palette.primaryContainer, elevation: 2, shadowOpacity: 0.18 },
   choiceChipText: { color: palette.secondary, fontSize: 12, lineHeight: 16, fontWeight: '600' },
-  choiceChipTextSelected: { color: palette.primaryContainer, fontWeight: '700' },
-  textInput: { minHeight: 44, borderWidth: 1, borderColor: palette.border, borderRadius: 9, backgroundColor: '#FCFBFB', color: palette.text, fontFamily: 'Inter_400Regular', fontSize: 13, paddingHorizontal: 12, paddingVertical: 10 },
+  choiceChipTextSelected: { color: '#FFFFFF', fontWeight: '700' },
+  textInput: { minHeight: 44, borderWidth: 1, borderColor: 'rgba(174, 184, 192, 0.26)', borderRadius: 12, backgroundColor: '#E4E9ED', color: palette.text, fontFamily: 'Inter_400Regular', fontSize: 13, paddingHorizontal: 12, paddingVertical: 10 },
   notesInput: { minHeight: 76 },
   dueChoices: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
-  dueChip: { minHeight: 34, justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 17, paddingHorizontal: 11 },
+  dueChip: { minHeight: 36, justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 18, backgroundColor: palette.surface, paddingHorizontal: 11, ...neoRaisedSmall },
   dueChipSelected: { borderColor: palette.primaryContainer, backgroundColor: palette.primaryContainer },
   dueChipText: { color: palette.secondary, fontSize: 12, lineHeight: 16, fontWeight: '600' },
   dueChipTextSelected: { color: '#FFFFFF' },
   formError: { color: palette.danger, fontSize: 12, lineHeight: 16, marginTop: 12 },
-  createButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 9, backgroundColor: palette.primaryContainer, marginTop: 16 },
+  createButton: { minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, backgroundColor: palette.primaryContainer, marginTop: 16 },
   createButtonText: { color: '#FFFFFF', fontSize: 12, lineHeight: 16, fontWeight: '700' },
   errorCard: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: '#ECC7CF', borderRadius: 10, backgroundColor: palette.dangerSoft, padding: 12, marginBottom: 20 },
   errorCopy: { minWidth: 0, flex: 1 },
@@ -2140,50 +2187,79 @@ const styles = StyleSheet.create({
   loadingState: { alignItems: 'center', justifyContent: 'center', minHeight: 330, padding: 28 },
   loadingTitle: { color: palette.text, fontSize: 16, lineHeight: 22, fontWeight: '700', marginTop: 16 },
   loadingText: { color: palette.secondary, fontSize: 12, lineHeight: 17, textAlign: 'center', marginTop: 4 },
-  emptyState: { alignItems: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 16, backgroundColor: palette.surface, paddingHorizontal: 28, paddingVertical: 44 },
+  emptyState: { alignItems: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 18, backgroundColor: palette.surface, paddingHorizontal: 24, paddingVertical: 30, ...neoRaised },
   emptyIcon: { width: 64, height: 64, alignItems: 'center', justifyContent: 'center', borderRadius: 32, backgroundColor: palette.primarySoft, marginBottom: 16 },
   emptyTitle: { color: palette.text, fontSize: 18, lineHeight: 24, fontWeight: '700' },
   emptyText: { maxWidth: 480, color: palette.secondary, fontSize: 12, lineHeight: 19, textAlign: 'center', marginTop: 7 },
   refreshButton: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#D8C5C8', borderRadius: 9, paddingHorizontal: 14, marginTop: 20 },
   refreshButtonText: { color: palette.primaryContainer, fontSize: 12, lineHeight: 16, fontWeight: '700' },
-  statsGrid: { flexDirection: 'row', gap: 16, marginBottom: 32 },
-  statCard: { minWidth: 0, minHeight: 88, flex: 1, justifyContent: 'space-between', borderWidth: 1, borderColor: '#E3E2E2', borderRadius: 8, backgroundColor: palette.surface, padding: 16 },
+  statsGrid: { flexDirection: 'row', gap: 10, marginBottom: 22 },
+  statCard: { minWidth: 0, minHeight: 92, flex: 1, justifyContent: 'space-between', borderWidth: 1, borderColor: palette.border, borderRadius: 16, backgroundColor: palette.surface, padding: 12, ...neoRaisedSmall },
+  statCardBlue: {
+    boxShadow: '5px 5px 12px rgba(37, 99, 235, 0.26), -4px -4px 10px rgba(255, 255, 255, 0.94)',
+    shadowColor: '#2563EB',
+  },
+  statCardRed: {
+    boxShadow: '5px 5px 12px rgba(220, 38, 38, 0.25), -4px -4px 10px rgba(255, 255, 255, 0.94)',
+    shadowColor: '#DC2626',
+  },
+  statCardGreen: {
+    boxShadow: '5px 5px 12px rgba(22, 163, 74, 0.26), -4px -4px 10px rgba(255, 255, 255, 0.94)',
+    shadowColor: '#16A34A',
+  },
   statIcon: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: palette.primarySoft, marginBottom: 12 },
   statIconAttention: { backgroundColor: palette.dangerSoft },
-  statValue: { color: palette.text, fontSize: 18, lineHeight: 24, fontWeight: '600' },
+  statValue: { color: palette.text, fontSize: 22, lineHeight: 27, fontWeight: '700' },
   statValueAttention: { color: palette.danger },
-  statLabel: { minHeight: 32, color: palette.secondary, fontSize: 12, lineHeight: 16, marginBottom: 8 },
-  walletCard: { gap: 12, borderWidth: 1, borderColor: '#D9C4C8', borderRadius: 12, backgroundColor: palette.surface, marginBottom: 26, padding: 14 },
+  statLabel: { minHeight: 30, color: palette.secondary, fontSize: 11, lineHeight: 15, fontWeight: '600', marginBottom: 7 },
+  walletCard: { gap: 12, borderWidth: 1, borderColor: palette.border, borderRadius: 18, backgroundColor: palette.surface, marginBottom: 22, padding: 16, ...neoRaised },
   walletHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
   walletEyebrow: { color: palette.primaryContainer, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 0.8 },
-  walletTitle: { color: palette.text, fontSize: 16, lineHeight: 22, fontWeight: '700', marginTop: 2 },
+  walletTitle: { color: palette.text, fontSize: 17, lineHeight: 22, fontWeight: '700' },
+  walletSubtitle: { color: palette.secondary, fontSize: 12, lineHeight: 16, fontWeight: '600', marginTop: 2 },
   walletGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  walletItem: { minWidth: '47%', flexGrow: 1, borderRadius: 8, backgroundColor: palette.surfaceLow, padding: 9 },
+  walletItem: {
+    minWidth: '47%',
+    flexGrow: 1,
+    borderWidth: 1,
+    borderColor: 'rgba(174, 184, 192, 0.36)',
+    borderRadius: 12,
+    backgroundColor: palette.surface,
+    padding: 10,
+    boxShadow: '4px 4px 10px rgba(107, 30, 46, 0.30), -4px -4px 10px rgba(255, 255, 255, 0.94)',
+    elevation: 3,
+    shadowColor: palette.primaryContainer,
+    shadowOffset: { width: 3, height: 3 },
+    shadowOpacity: 0.28,
+    shadowRadius: 6,
+  },
   walletLabel: { color: palette.secondary, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 0.35 },
   walletValue: { color: palette.primaryContainer, fontSize: 13, lineHeight: 18, fontWeight: '700', marginTop: 3 },
   walletExplanation: { color: palette.secondary, fontSize: 12, lineHeight: 17 },
-  walletReceivableList: { borderTopWidth: 1, borderTopColor: palette.border },
-  walletReceivableRow: { minHeight: 84, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 },
-  walletReceivableRowBorder: { borderBottomWidth: 1, borderBottomColor: palette.border },
+  walletReceivableList: { gap: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(174, 184, 192, 0.42)', paddingTop: 10 },
+  walletTransactionsToggle: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  walletTransactionsTitle: { color: palette.primaryContainer, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 0.7, textTransform: 'uppercase' },
+  walletReceivableRow: { minHeight: 70, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, backgroundColor: '#E4E9ED', paddingHorizontal: 10, paddingVertical: 9 },
+  walletReceivableRowBorder: {},
   walletReceivableCopy: { minWidth: 0, flex: 1 },
-  walletReceivableEvent: { color: palette.text, fontSize: 12, lineHeight: 16, fontWeight: '700' },
+  walletReceivableEvent: { color: palette.text, fontSize: 15, lineHeight: 20, fontWeight: '800' },
   walletReceivableService: { color: palette.secondary, fontSize: 12, lineHeight: 16, marginTop: 1 },
   walletReceivableMeta: { color: palette.muted, fontSize: 12, lineHeight: 16, marginTop: 2 },
   walletReceivableAmountColumn: { maxWidth: '42%', alignItems: 'flex-end' },
   walletReceivableAmount: { color: palette.text, fontSize: 12, lineHeight: 16, fontWeight: '700' },
   walletReceivableStatus: { maxWidth: 126, color: palette.primaryContainer, fontSize: 12, lineHeight: 16, fontWeight: '700', marginTop: 3, textAlign: 'right' },
-  overviewGrid: { gap: 26 },
+  overviewGrid: { gap: 20 },
   overviewGridWide: { alignItems: 'stretch' },
   overviewColumn: { minWidth: 0, width: '100%' },
   sectionBlock: { marginBottom: 18 },
-  sectionHeader: { minHeight: 42, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, borderBottomWidth: 1, borderBottomColor: palette.border, paddingBottom: 9, marginBottom: 12 },
+  sectionHeader: { minHeight: 42, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, paddingBottom: 6, marginBottom: 10 },
   sectionEyebrow: { color: palette.primaryContainer, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 0.9 },
   sectionTitle: { color: palette.text, fontSize: 17, lineHeight: 23, fontWeight: '700', marginTop: 2 },
   sectionLink: { color: palette.primaryContainer, fontSize: 12, lineHeight: 16, fontWeight: '700' },
   sectionCount: { color: palette.secondary, fontSize: 12, lineHeight: 16, fontWeight: '600' },
   invitationsBlock: { marginBottom: 24 },
   invitationList: { gap: 10 },
-  invitationCard: { borderWidth: 1, borderColor: '#D9C4C8', borderRadius: 13, backgroundColor: palette.surface, padding: 14 },
+  invitationCard: { borderWidth: 1, borderColor: palette.border, borderRadius: 16, backgroundColor: palette.surface, padding: 14, ...neoRaisedSmall },
   invitationHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   invitationIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19, backgroundColor: palette.primarySoft },
   invitationCopy: { minWidth: 0, flex: 1 },
@@ -2268,18 +2344,44 @@ const styles = StyleSheet.create({
   eventList: { gap: 12 },
   eventListWide: { flexDirection: 'row', flexWrap: 'wrap' },
   eventCardWide: { width: '49%' },
-  eventCard: { overflow: 'hidden', flexDirection: 'row', borderWidth: 1, borderColor: palette.border, borderRadius: 12, backgroundColor: palette.surface },
-  eventAccent: { width: 4, backgroundColor: palette.primaryContainer },
+  eventCard: { flexDirection: 'row', borderWidth: 1, borderColor: palette.border, borderRadius: 16, backgroundColor: palette.surface, ...neoRaisedSmall },
   eventCardBody: { minWidth: 0, flex: 1, padding: 14 },
-  eventCardHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 14 },
+  eventCardHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 10 },
   eventHeadingCopy: { minWidth: 0, flex: 1 },
-  eventHeaderAside: { alignItems: 'flex-end', gap: 5 },
+  eventHeaderAside: { flexShrink: 0, alignItems: 'flex-end', gap: 5 },
   eventType: { color: palette.primaryContainer, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
-  eventName: { color: palette.text, fontSize: 16, lineHeight: 21, fontWeight: '700', marginTop: 2 },
+  eventName: { color: palette.text, fontSize: 19, lineHeight: 25, fontWeight: '800', marginTop: 2 },
   clientName: { color: palette.secondary, fontSize: 12, lineHeight: 16, marginTop: 2 },
   statusPill: { borderRadius: 10, backgroundColor: palette.primarySoft, paddingHorizontal: 8, paddingVertical: 4 },
   statusPillText: { color: palette.primaryContainer, fontSize: 12, lineHeight: 16, fontWeight: '700' },
-  eventMetaGrid: { flexDirection: 'row', gap: 10, marginBottom: 16 },
+  eventMetaGrid: { gap: 9, marginBottom: 12 },
+  eventScheduleRow: { flexDirection: 'row', alignItems: 'stretch', gap: 9, marginBottom: 10 },
+  eventScheduleItem: {
+    minWidth: 0,
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 7,
+    borderWidth: 1,
+    borderColor: 'rgba(174, 184, 192, 0.34)',
+    borderRadius: 12,
+    backgroundColor: palette.surface,
+    padding: 10,
+    ...neoRaisedSmall,
+  },
+  eventVenueCard: {
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 7,
+    borderWidth: 1,
+    borderColor: 'rgba(174, 184, 192, 0.34)',
+    borderRadius: 12,
+    backgroundColor: palette.surface,
+    padding: 10,
+    marginBottom: 9,
+    ...neoRaisedSmall,
+  },
   eventMetaItem: { minWidth: 0, flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
   eventMapButton: { marginLeft: 'auto', padding: 2 },
   metaCopy: { minWidth: 0, flex: 1 },
@@ -2287,8 +2389,21 @@ const styles = StyleSheet.create({
   metaValue: { color: palette.text, fontSize: 12, lineHeight: 16, fontWeight: '600', marginTop: 2 },
   metaSubvalue: { color: palette.secondary, fontSize: 12, lineHeight: 16 },
   eventCountdownRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 9 },
-  eventCountdownText: { color: palette.primaryContainer, fontSize: 12, lineHeight: 16, fontWeight: '700' },
-  disclosureHint: { minHeight: 34, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 9 },
+  eventCountdownBadge: {
+    minHeight: 32,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(174, 184, 192, 0.34)',
+    borderRadius: 16,
+    backgroundColor: palette.surface,
+    paddingHorizontal: 9,
+    ...neoRaisedSmall,
+  },
+  eventCountdownText: { flexShrink: 0, color: palette.primaryContainer, fontSize: 12, lineHeight: 16, fontWeight: '700' },
+  disclosureHint: { minHeight: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 3, paddingTop: 4 },
   disclosureHintText: { color: palette.primaryContainer, fontSize: 12, lineHeight: 16, fontWeight: '700' },
   eventExpandedContent: { borderTopWidth: 1, borderTopColor: palette.border, marginTop: 4, paddingTop: 12 },
   progressHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
@@ -2340,8 +2455,8 @@ const styles = StyleSheet.create({
   providerAction: { minHeight: 32, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderWidth: 1, borderColor: '#D8C5C8', borderRadius: 8, backgroundColor: palette.surface, paddingHorizontal: 10 },
   providerActionText: { color: palette.primaryContainer, fontSize: 12, lineHeight: 16, fontWeight: '700' },
   noServicesText: { color: palette.muted, fontSize: 12, lineHeight: 16, fontStyle: 'italic' },
-  taskListCard: { overflow: 'hidden', borderWidth: 1, borderColor: palette.border, borderRadius: 12, backgroundColor: palette.surface },
-  taskRow: { minHeight: 76, flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border, padding: 12 },
+  taskListCard: { borderWidth: 1, borderColor: palette.border, borderRadius: 16, backgroundColor: palette.surface, ...neoRaisedSmall },
+  taskRow: { minHeight: 70, flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(174, 184, 192, 0.35)', padding: 12 },
   taskRowCompleted: { backgroundColor: '#FBFAFA' },
   taskCheckbox: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#B9AFAD', borderRadius: 7, marginTop: 1 },
   taskCheckboxComplete: { borderColor: palette.success, backgroundColor: palette.success },
@@ -2355,16 +2470,14 @@ const styles = StyleSheet.create({
   taskDueDanger: { color: palette.danger },
   taskDueToday: { color: palette.primaryContainer },
   taskStatus: { color: palette.muted, fontSize: 12, lineHeight: 16, marginTop: 4 },
-  compactEmpty: { alignItems: 'center', paddingHorizontal: 24, paddingVertical: 30 },
+  compactEmpty: { alignItems: 'center', paddingHorizontal: 20, paddingVertical: 20 },
   compactEmptyTitle: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '700', marginTop: 8 },
   compactEmptyText: { color: palette.secondary, fontSize: 12, lineHeight: 16, textAlign: 'center', marginTop: 3 },
   filterRow: { flexDirection: 'row', gap: 7, marginBottom: 12 },
-  filterChip: { minHeight: 34, justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 17, backgroundColor: palette.surface, paddingHorizontal: 12 },
-  filterChipSelected: { borderColor: palette.primaryContainer, backgroundColor: palette.primarySoft },
+  filterChip: { minHeight: 38, justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 19, backgroundColor: palette.surface, paddingHorizontal: 13, ...neoRaisedSmall },
+  filterChipSelected: { borderColor: palette.primaryContainer, backgroundColor: palette.primaryContainer, boxShadow: '3px 3px 7px rgba(78, 6, 26, 0.32), -3px -3px 7px rgba(255, 255, 255, 0.72)' },
   filterText: { color: palette.secondary, fontSize: 12, lineHeight: 16, fontWeight: '600' },
-  filterTextSelected: { color: palette.primaryContainer, fontWeight: '700' },
-  securityNote: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 30, paddingVertical: 12 },
-  securityText: { color: palette.secondary, fontSize: 12, lineHeight: 16, textAlign: 'center' },
+  filterTextSelected: { color: '#FFFFFF', fontWeight: '700' },
   bottomNavigation: {
     position: 'absolute',
     right: 20,

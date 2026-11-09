@@ -453,6 +453,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
         <View style={[
           styles.topAppBar,
           usesEventGroups && styles.clientTopAppBar,
+          navigationVariant === 'coordinator' && styles.coordinatorTopAppBar,
         ]}>
           <View style={[styles.topAppBarContent, isWide && styles.horizontalPaddingWide]}>
             {usesEventGroups ? (
@@ -466,13 +467,14 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                   style={({ pressed }) => [
                     styles.clientHeaderButton,
                     styles.clientBackButtonNeumorphic,
+                    navigationVariant === 'coordinator' && styles.coordinatorBackButton,
                     pressed && styles.clientBackButtonPressed,
                   ]}
                 >
-                  <MaterialCommunityIcons color="#FFFFFF" name="chevron-left" size={28} />
+                  <MaterialCommunityIcons color={navigationVariant === 'coordinator' ? palette.primaryContainer : '#FFFFFF'} name="chevron-left" size={28} />
                 </Pressable>
               ) : <View style={styles.clientHeaderButton} />}
-              <Text style={[styles.clientHeaderTitle, isClientInbox && styles.clientHeaderTitleCentered]}>
+              <Text style={[styles.clientHeaderTitle, navigationVariant === 'coordinator' && styles.coordinatorHeaderTitle, isClientInbox && styles.clientHeaderTitleCentered]}>
                 {isInboxSelectionMode ? `${activeSelectedCount} selected` : (
                   <>{navigationVariant === 'client' ? 'INBOX' : 'MESSAGES'}</>
                 )}
@@ -486,9 +488,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                     accessibilityRole="checkbox"
                     accessibilityState={{ checked: activeAllSelected ? true : activeSomeSelected ? 'mixed' : false }}
                     onPress={toggleAllInboxItems}
-                    style={({ pressed }) => [styles.clientHeaderButton, pressed && styles.surfacePressed]}
-                  ><InboxSelectionBox color="#FFFFFF" state={activeAllSelected ? 'checked' : activeSomeSelected ? 'mixed' : 'unchecked'} /></Pressable>
-                  <InboxTrashButton accessibilityLabel="Move selected Inbox items to Trash" color="#FFFFFF" onPress={moveSelectedInboxItemsToTrash} />
+                    style={({ pressed }) => [styles.clientHeaderButton, navigationVariant === 'coordinator' && styles.coordinatorHeaderAction, pressed && styles.surfacePressed]}
+                  ><InboxSelectionBox color={navigationVariant === 'coordinator' ? palette.primaryContainer : '#FFFFFF'} state={activeAllSelected ? 'checked' : activeSomeSelected ? 'mixed' : 'unchecked'} /></Pressable>
+                  <InboxTrashButton accessibilityLabel="Move selected Inbox items to Trash" color={navigationVariant === 'coordinator' ? palette.primaryContainer : '#FFFFFF'} onPress={moveSelectedInboxItemsToTrash} />
                 </View>
               ) : navigationVariant === 'coordinator' ? (
                 <Pressable
@@ -496,7 +498,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                   accessibilityRole="button"
                   hitSlop={8}
                   onPress={onOpenNotifications}
-                  style={({ pressed }) => [styles.clientHeaderButton, pressed && styles.surfacePressed]}
+                  style={({ pressed }) => [styles.clientHeaderButton, styles.coordinatorHeaderAction, pressed && styles.surfacePressed]}
                 >
                   <BellIcon />
                   {hasUnreadNotifications ? <View style={styles.notificationDot} /> : null}
@@ -1005,6 +1007,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.background },
   topAppBar: { zIndex: 30, minHeight: 64, justifyContent: 'center', borderBottomWidth: 1, borderBottomColor: palette.border, backgroundColor: palette.background },
   clientTopAppBar: { borderBottomColor: palette.primary, backgroundColor: palette.primaryContainer },
+  coordinatorTopAppBar: { borderBottomColor: palette.border, backgroundColor: palette.background, boxShadow: '4px 4px 9px rgba(161, 172, 180, 0.42), -4px -4px 9px rgba(255, 255, 255, 0.94)' },
   merchantSelectionHeader: { minHeight: 64, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: palette.border, backgroundColor: palette.white, paddingHorizontal: 14 },
   merchantSelectionTitle: { minWidth: 0, flex: 1, color: palette.text, fontSize: 15, lineHeight: 20, fontWeight: '800' },
   topAppBarContent: { position: 'relative', width: '100%', maxWidth: 1200, minHeight: 64, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 8 },
@@ -1021,8 +1024,11 @@ const styles = StyleSheet.create({
   inboxTabIndicator: { display: 'none' },
   clientHeaderButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },
   clientBackButtonNeumorphic: { borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.16)', backgroundColor: palette.primaryContainer, boxShadow: '3px 3px 7px rgba(44, 3, 15, 0.58), -3px -3px 7px rgba(143, 48, 72, 0.46)' },
+  coordinatorBackButton: { borderColor: palette.border, backgroundColor: palette.background, boxShadow: '4px 4px 9px rgba(161, 172, 180, 0.44), -4px -4px 9px rgba(255, 255, 255, 0.94)' },
   clientBackButtonPressed: { boxShadow: 'inset 3px 3px 7px rgba(44, 3, 15, 0.66), inset -3px -3px 7px rgba(143, 48, 72, 0.46)', transform: [{ scale: 0.96 }] },
   clientHeaderTitle: { color: palette.white, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 1.2, textAlign: 'center' },
+  coordinatorHeaderTitle: { color: palette.primaryContainer, fontSize: 16, lineHeight: 22, letterSpacing: 0.4 },
+  coordinatorHeaderAction: { borderWidth: 1, borderColor: palette.border, backgroundColor: palette.background, boxShadow: '3px 3px 7px rgba(161, 172, 180, 0.42), -3px -3px 7px rgba(255, 255, 255, 0.92)' },
   clientHeaderTitleCentered: { position: 'absolute', right: 72, left: 72 },
   coordinatorBackIcon: { color: palette.white, fontSize: 32, lineHeight: 34, fontWeight: '300' },
   userAvatar: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19, backgroundColor: palette.primaryContainer },

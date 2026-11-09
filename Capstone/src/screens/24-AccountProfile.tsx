@@ -75,6 +75,8 @@ export const AccountProfileScreen: React.FC<AccountProfileScreenProps> = ({
 
   const isProvider = value.role === 'service_provider'
   const isClient = value.role === 'client'
+  const isCoordinator = value.role === 'event_coordinator'
+  const isNeumorphicProfile = isClient || isCoordinator
   const initials = (isProvider ? value.businessName : value.fullName)
     .split(/\s+/)
     .filter(Boolean)
@@ -101,23 +103,23 @@ export const AccountProfileScreen: React.FC<AccountProfileScreenProps> = ({
       onPress={() => void choosePhoto()}
       style={({ pressed }) => [
         styles.avatarButton,
-        isClient && styles.avatarButtonCompact,
+        isNeumorphicProfile && styles.avatarButtonCompact,
         pressed && styles.avatarButtonPressed,
       ]}
     >
-      <View style={[styles.avatar, isClient && styles.avatarCompact]}>
+      <View style={[styles.avatar, isNeumorphicProfile && styles.avatarCompact]}>
         {value.avatarUrl ? (
           <Image
             accessibilityLabel="Your profile photo"
             resizeMode="cover"
             source={{ uri: value.avatarUrl }}
-            style={[styles.avatarImage, isClient && styles.avatarImageCompact]}
+            style={[styles.avatarImage, isNeumorphicProfile && styles.avatarImageCompact]}
           />
         ) : (
-          <Text style={[styles.avatarText, isClient && styles.avatarTextCompact]}>{initials}</Text>
+          <Text style={[styles.avatarText, isNeumorphicProfile && styles.avatarTextCompact]}>{initials}</Text>
         )}
       </View>
-      <View style={[styles.cameraBadge, isClient && styles.cameraBadgeCompact]}>
+      <View style={[styles.cameraBadge, isNeumorphicProfile && styles.cameraBadgeCompact]}>
         {isUploadingPhoto ? (
           <ActivityIndicator color={colors.textInverse} size="small" />
         ) : (
@@ -132,9 +134,9 @@ export const AccountProfileScreen: React.FC<AccountProfileScreenProps> = ({
       accessibilityLabel="Contact MULTIVENT Support"
       accessibilityRole="button"
       onPress={onOpenSupport}
-      style={({ pressed }) => [styles.supportButton, isClient && styles.clientSupportButton, pressed && styles.secondaryButtonPressed]}
+      style={({ pressed }) => [styles.supportButton, isNeumorphicProfile && styles.clientSupportButton, pressed && styles.secondaryButtonPressed]}
     >
-      {isClient ? <MaterialIcons color={colors.primaryDark} name="support-agent" size={20} /> : null}
+      {isNeumorphicProfile ? <MaterialIcons color={colors.primaryDark} name="support-agent" size={20} /> : null}
       <Text style={styles.supportText}>Contact MULTIVENT Support</Text>
     </Pressable>
   ) : null
@@ -148,7 +150,7 @@ export const AccountProfileScreen: React.FC<AccountProfileScreenProps> = ({
       onPress={onSignOut}
       style={({ pressed }) => [
         styles.logoutButton,
-        isClient && styles.clientLogoutButton,
+        isNeumorphicProfile && styles.clientLogoutButton,
         pressed && styles.logoutButtonPressed,
         isSigningOut && styles.logoutButtonDisabled,
       ]}
@@ -167,7 +169,7 @@ export const AccountProfileScreen: React.FC<AccountProfileScreenProps> = ({
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={[styles.screen, isClient && styles.clientScreen]}
+      style={[styles.screen, isNeumorphicProfile && styles.clientScreen]}
     >
       <View style={styles.header}>
         <Pressable
@@ -177,7 +179,7 @@ export const AccountProfileScreen: React.FC<AccountProfileScreenProps> = ({
           onPress={onBack}
           style={({ pressed }) => [
             styles.backButton,
-            isClient && styles.clientBackButton,
+            isNeumorphicProfile && styles.clientBackButton,
             pressed && styles.backButtonPressed,
           ]}
         >
@@ -193,7 +195,7 @@ export const AccountProfileScreen: React.FC<AccountProfileScreenProps> = ({
         automaticallyAdjustKeyboardInsets
         contentContainerStyle={[
           styles.content,
-          isClient && styles.clientContent,
+          isNeumorphicProfile && styles.clientContent,
           { paddingBottom: 132 + safeAreaInsets.bottom },
         ]}
         keyboardDismissMode="interactive"
@@ -207,7 +209,7 @@ export const AccountProfileScreen: React.FC<AccountProfileScreenProps> = ({
         }}
         scrollEventThrottle={16}
       >
-        {!isClient ? (
+        {!isNeumorphicProfile ? (
           <>
             {avatarControl}
             <Text style={styles.photoActionText}>
@@ -235,21 +237,21 @@ export const AccountProfileScreen: React.FC<AccountProfileScreenProps> = ({
           <View style={styles.loading}><ActivityIndicator color={colors.primary} /><Text style={styles.loadingText}>Loading profile...</Text></View>
         ) : (
           <>
-          <View style={[styles.card, isClient && styles.clientCard]}>
+          <View style={[styles.card, isNeumorphicProfile && styles.clientCard]}>
             {value.hasStructuredName ? (
-              <View style={[styles.nameRow, isClient && styles.clientNameRow]}>
+              <View style={[styles.nameRow, isNeumorphicProfile && styles.clientNameRow]}>
                 <View style={styles.nameInput}>
-                  <Field autoCapitalize="words" autoComplete="name-given" label="First name" neumorphic={isClient} onChangeText={(text) => update('firstName', text)} value={value.firstName} />
+                  <Field autoCapitalize="words" autoComplete="name-given" label="First name" neumorphic={isNeumorphicProfile} onChangeText={(text) => update('firstName', text)} value={value.firstName} />
                 </View>
                 <View style={styles.nameInput}>
-                  <Field autoCapitalize="words" autoComplete="name-family" label="Last name" neumorphic={isClient} onChangeText={(text) => update('lastName', text)} value={value.lastName} />
+                  <Field autoCapitalize="words" autoComplete="name-family" label="Last name" neumorphic={isNeumorphicProfile} onChangeText={(text) => update('lastName', text)} value={value.lastName} />
                 </View>
               </View>
             ) : (
-              <Field autoCapitalize="words" autoComplete="name" label="Full name" neumorphic={isClient} onChangeText={(text) => update('fullName', text)} value={value.fullName} />
+              <Field autoCapitalize="words" autoComplete="name" label="Full name" neumorphic={isNeumorphicProfile} onChangeText={(text) => update('fullName', text)} value={value.fullName} />
             )}
-            <Field label="Email" editable={false} helper="Email changes require account verification." neumorphic={isClient} value={value.email} />
-            <Field keyboardType="phone-pad" label="Phone number" neumorphic={isClient} onChangeText={(text) => update('phone', text)} placeholder="e.g. +63 917 123 4567" value={value.phone} />
+            <Field label="Email" editable={false} helper="Email changes require account verification." neumorphic={isNeumorphicProfile} value={value.email} />
+            <Field keyboardType="phone-pad" label="Phone number" neumorphic={isNeumorphicProfile} onChangeText={(text) => update('phone', text)} placeholder="e.g. +63 917 123 4567" value={value.phone} />
 
             {isProvider ? (
               <>
@@ -269,14 +271,14 @@ export const AccountProfileScreen: React.FC<AccountProfileScreenProps> = ({
               accessibilityRole="button"
               disabled={isSaving || isLoading}
               onPress={() => onSave(value)}
-              style={({ pressed }) => [styles.saveButton, isClient && styles.clientSaveButton, pressed && styles.saveButtonPressed, (isSaving || isLoading) && styles.saveButtonDisabled]}
+              style={({ pressed }) => [styles.saveButton, isNeumorphicProfile && styles.clientSaveButton, pressed && styles.saveButtonPressed, (isSaving || isLoading) && styles.saveButtonDisabled]}
             >
               {isSaving ? <ActivityIndicator color={colors.textInverse} /> : <Text style={styles.saveText}>Save changes</Text>}
             </Pressable>
-            {!isClient ? supportAction : null}
-            {!isClient ? logoutAction : null}
+            {!isNeumorphicProfile ? supportAction : null}
+            {!isNeumorphicProfile ? logoutAction : null}
           </View>
-          {isClient ? (
+          {isNeumorphicProfile ? (
             <View style={styles.clientAccountActions}>
               {supportAction}
               {logoutAction}

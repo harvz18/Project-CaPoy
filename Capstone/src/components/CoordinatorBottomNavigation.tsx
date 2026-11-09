@@ -110,7 +110,8 @@ export const CoordinatorBottomNavigation: React.FC<CoordinatorBottomNavigationPr
 
 const palette = {
   primary: '#4E061A',
-  secondary: '#5E5E5E',
+  secondary: '#68747C',
+  surface: '#E9EDF0',
   white: '#FFFFFF',
 } as const
 
@@ -123,12 +124,11 @@ const styles = StyleSheet.create({
     height: 60,
     justifyContent: 'center',
     borderRadius: 28,
-    backgroundColor: palette.white,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.28,
-    shadowRadius: 14,
-    elevation: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.76)',
+    backgroundColor: palette.surface,
+    boxShadow: '7px 7px 15px rgba(160, 171, 180, 0.5), -7px -7px 15px rgba(255, 255, 255, 0.95)',
+    elevation: 8,
   },
   bottomNavigationContent: {
     width: '100%',
@@ -145,7 +145,8 @@ const styles = StyleSheet.create({
     left: 0,
     width: 64,
     borderRadius: 28,
-    backgroundColor: 'rgba(226, 226, 226, 0.6)',
+    backgroundColor: '#E1E6E9',
+    boxShadow: 'inset 3px 3px 7px rgba(163, 174, 182, 0.5), inset -3px -3px 7px rgba(255, 255, 255, 0.92)',
   },
   navItem: {
     minWidth: 0,
@@ -154,7 +155,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  navItemPressed: { opacity: 0.58 },
+  navItemPressed: { opacity: 0.72, transform: [{ scale: 0.98 }] },
   navIconContainer: {
     position: 'relative',
     width: 40,
@@ -171,7 +172,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderWidth: 1.5,
-    borderColor: palette.white,
+    borderColor: palette.surface,
     borderRadius: 4,
     backgroundColor: '#C93643',
   },
