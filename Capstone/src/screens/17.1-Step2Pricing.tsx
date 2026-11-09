@@ -296,7 +296,7 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
                       >
                         {option.label}
                       </Text>
-                      <Text style={styles.pricingModelDescription}>{option.description}</Text>
+                      <Text style={[styles.pricingModelDescription, selected && styles.pricingModelDescriptionSelected]}>{option.description}</Text>
                     </View>
                   </Pressable>
                 )
@@ -458,17 +458,17 @@ export const Step2PricingScreen: React.FC<Step2PricingScreenProps> = ({
 }
 
 const palette = {
-  background: '#FAF9F9',
-  border: '#EFEDED',
+  background: '#E9EDF0',
+  border: 'rgba(255,255,255,0.72)',
   error: '#BA1A1A',
-  inputBackground: '#FFFFFF',
+  inputBackground: '#E9EDF0',
   onPrimary: '#FFFFFF',
   placeholder: '#A8A8A9',
   primary: '#4E061A',
   primaryContainer: '#6B1E2E',
   primaryPill: '#F5EDEF',
   secondary: '#5D5F5F',
-  surfaceContainerHigh: '#E9E8E8',
+  surfaceContainerHigh: '#D8DEE2',
   text: '#1B1C1C',
 } as const
 
@@ -547,12 +547,12 @@ const styles = StyleSheet.create({
   },
   headerSpacer: { width: 40 },
   content: { width: '100%', maxWidth: 768, alignSelf: 'center' },
-  contentMobile: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 32 },
-  contentWide: { paddingHorizontal: 32, paddingTop: 32, paddingBottom: 40 },
-  intro: { marginBottom: 32 },
+  contentMobile: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 36 },
+  contentWide: { paddingHorizontal: 32, paddingTop: 22, paddingBottom: 44 },
+  intro: { marginBottom: 18 },
   title: { color: palette.text, fontSize: 22, lineHeight: 28, fontWeight: '700' },
   subtitle: { color: palette.secondary, fontSize: 14, lineHeight: 20, marginTop: 6 },
-  form: { gap: 24 },
+  form: { gap: 20, borderWidth: 1, borderColor: palette.border, borderRadius: 20, backgroundColor: palette.background, padding: 16, boxShadow: '6px 6px 13px rgba(160,171,180,0.43), -6px -6px 13px rgba(255,255,255,0.9)' },
   fieldGroup: { gap: 6 },
   label: { color: palette.secondary, fontSize: 12, lineHeight: 16 },
   pricingModelList: { gap: 8 },
@@ -563,14 +563,15 @@ const styles = StyleSheet.create({
     gap: 12,
     borderWidth: 1,
     borderColor: palette.surfaceContainerHigh,
-    borderRadius: 8,
+    borderRadius: 16,
     backgroundColor: palette.inputBackground,
     paddingHorizontal: 16,
     paddingVertical: 12,
+    boxShadow: '3px 3px 7px rgba(160,171,180,0.38), -3px -3px 7px rgba(255,255,255,0.88)',
   },
   pricingModelCardSelected: {
     borderColor: palette.primaryContainer,
-    backgroundColor: palette.primaryPill,
+    backgroundColor: palette.primaryContainer,
   },
   pricingModelCardPressed: { opacity: 0.78, transform: [{ scale: 0.995 }] },
   radio: {
@@ -582,8 +583,8 @@ const styles = StyleSheet.create({
     borderColor: '#877274',
     borderRadius: 10,
   },
-  radioSelected: { borderColor: palette.primaryContainer },
-  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: palette.primaryContainer },
+  radioSelected: { borderColor: palette.onPrimary },
+  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: palette.onPrimary },
   pricingModelCopy: { minWidth: 0, flex: 1 },
   pricingModelLabel: {
     color: palette.text,
@@ -591,16 +592,18 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontWeight: '600',
   },
-  pricingModelLabelSelected: { color: palette.primaryContainer },
+  pricingModelLabelSelected: { color: palette.onPrimary },
   pricingModelDescription: { color: palette.secondary, fontSize: 12, lineHeight: 17, marginTop: 2 },
+  pricingModelDescriptionSelected: { color: 'rgba(255,255,255,0.82)' },
   amountField: {
     minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: palette.surfaceContainerHigh,
-    borderRadius: 8,
+    borderRadius: 14,
     backgroundColor: palette.inputBackground,
+    boxShadow: 'inset 3px 3px 6px rgba(160,171,180,0.42), inset -3px -3px 6px rgba(255,255,255,0.9)',
   },
   currencyPrefix: {
     alignSelf: 'stretch',
@@ -639,16 +642,17 @@ const styles = StyleSheet.create({
     backgroundColor: palette.inputBackground,
     paddingHorizontal: 16,
     paddingVertical: 8,
+    boxShadow: '3px 3px 7px rgba(160,171,180,0.36), -3px -3px 7px rgba(255,255,255,0.86)',
   },
-  unitChipSelected: { borderColor: palette.primaryContainer, backgroundColor: palette.primaryPill },
+  unitChipSelected: { borderColor: palette.primaryContainer, backgroundColor: palette.primaryContainer },
   unitChipPressed: { opacity: 0.72 },
   unitText: { color: palette.secondary, fontSize: 14, lineHeight: 20 },
-  unitTextSelected: { color: palette.primaryContainer, fontWeight: '600' },
+  unitTextSelected: { color: palette.onPrimary, fontWeight: '600' },
   quoteNotice: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
-    borderRadius: 8,
+    borderRadius: 14,
     backgroundColor: palette.primaryPill,
     padding: 16,
   },
@@ -672,13 +676,14 @@ const styles = StyleSheet.create({
   input: {
     borderWidth: 1,
     borderColor: palette.surfaceContainerHigh,
-    borderRadius: 8,
+    borderRadius: 14,
     backgroundColor: palette.inputBackground,
     color: palette.text,
     fontSize: 14,
     lineHeight: 20,
     paddingHorizontal: 16,
     paddingVertical: 10,
+    boxShadow: 'inset 3px 3px 6px rgba(160,171,180,0.42), inset -3px -3px 6px rgba(255,255,255,0.9)',
   },
   textArea: { minHeight: 104 },
   characterCount: { alignSelf: 'flex-end', color: palette.placeholder, fontSize: 12, lineHeight: 16 },

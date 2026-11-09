@@ -281,6 +281,7 @@ const CustomCateringMenuBuilder = ({ details, set }: {
   const sections = Array.isArray(details.customMenuSections)
     ? details.customMenuSections.map(asRecord)
     : []
+  const [expandedSectionIds, setExpandedSectionIds] = React.useState<Set<string>>(() => new Set())
   const foodTastingEnabled = asRecord(details.tastingSettings).enabled === true
   const updateSection = (index: number, patch: JsonRecord) => set(
     'customMenuSections',
@@ -294,6 +295,12 @@ const CustomCateringMenuBuilder = ({ details, set }: {
       items: items.map((item, index) => index === itemIndex ? { ...item, ...patch } : item),
     })
   }
+  const toggleSection = (sectionId: string) => setExpandedSectionIds((current) => {
+    const next = new Set(current)
+    if (next.has(sectionId)) next.delete(sectionId)
+    else next.add(sectionId)
+    return next
+  })
 
   return (
     <Section
@@ -306,8 +313,25 @@ const CustomCateringMenuBuilder = ({ details, set }: {
       </View>
       {sections.map((section, sectionIndex) => {
         const items = Array.isArray(section.items) ? section.items.map(asRecord) : []
+        const sectionId = textValue(section.id) || `custom-menu-${sectionIndex}`
+        const expanded = expandedSectionIds.has(sectionId)
+        const minimumSelections = numberValue(section.minimumSelections) || '0'
+        const maximumSelections = numberValue(section.maximumSelections) || 'any'
         return (
-          <View key={textValue(section.id) || sectionIndex} style={styles.repeatCard}>
+          <View key={sectionId} style={styles.repeatCard}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ expanded }}
+              onPress={() => toggleSection(sectionId)}
+              style={({ pressed }) => [styles.repeatCardHeader, pressed && styles.pressed]}
+            >
+              <View style={styles.repeatCardTitleBlock}>
+                <Text style={styles.repeatCardTitle}>{textValue(section.name) || `Menu section ${sectionIndex + 1}`}</Text>
+                <Text style={styles.repeatCardMeta}>{minimumSelections}–{maximumSelections} selections · {items.length} {items.length === 1 ? 'item' : 'items'}</Text>
+              </View>
+              <Text style={styles.expandIndicator}>{expanded ? '⌃' : '⌄'}</Text>
+            </Pressable>
+            {expanded ? <View style={styles.optionDetails}>
             <TextField label="Menu section" onChange={(name) => updateSection(sectionIndex, { name })} placeholder="e.g., Main course" value={section.name} />
             <View style={styles.twoColumns}>
               <NumberField label="Minimum selections" min={0} onChange={(minimumSelections) => updateSection(sectionIndex, { minimumSelections })} value={section.minimumSelections} />
@@ -341,10 +365,15 @@ const CustomCateringMenuBuilder = ({ details, set }: {
             <Pressable onPress={() => set('customMenuSections', sections.filter((_, index) => index !== sectionIndex))} style={styles.removeButton}>
               <Text style={styles.removeText}>Remove menu section</Text>
             </Pressable>
+            </View> : null}
           </View>
         )
       })}
-      <Pressable onPress={() => set('customMenuSections', [...sections, { id: newId('custom-menu'), name: '', minimumSelections: 0, maximumSelections: undefined, items: [] }])} style={styles.addButton}>
+      <Pressable onPress={() => {
+        const id = newId('custom-menu')
+        setExpandedSectionIds((current) => new Set(current).add(id))
+        set('customMenuSections', [...sections, { id, name: '', minimumSelections: 0, maximumSelections: undefined, items: [] }])
+      }} style={styles.addButton}>
         <Text style={styles.addButtonText}>+ Add menu section</Text>
       </Pressable>
     </Section>
@@ -424,10 +453,17 @@ const CateringOptionsBuilder = ({ details, set }: {
     : []
   const legacyMenus = Array.isArray(details.menuSections) ? details.menuSections.map(asRecord) : []
   const options = configured.length > 0 ? configured : []
+  const [expandedOptionIds, setExpandedOptionIds] = React.useState<Set<string>>(() => new Set())
   const update = (index: number, patch: JsonRecord) => set(
     'pricingOptions',
     options.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item)
   )
+  const toggleOption = (optionId: string) => setExpandedOptionIds((current) => {
+    const next = new Set(current)
+    if (next.has(optionId)) next.delete(optionId)
+    else next.add(optionId)
+    return next
+  })
 
   return (
     <>
@@ -437,8 +473,24 @@ const CateringOptionsBuilder = ({ details, set }: {
       title="Fixed menu options"
       description="Configure preset packages alongside an item-priced custom menu. If both are configured, clients choose their preferred offering."
     >
-      {options.map((option, index) => (
-        <View key={textValue(option.id) || index} style={styles.repeatCard}>
+      {options.map((option, index) => {
+        const optionId = textValue(option.id) || `catering-option-${index}`
+        const expanded = expandedOptionIds.has(optionId)
+        const menuSections = Array.isArray(option.menuSections) ? option.menuSections.length : 0
+        return <View key={optionId} style={styles.repeatCard}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded }}
+            onPress={() => toggleOption(optionId)}
+            style={({ pressed }) => [styles.repeatCardHeader, pressed && styles.pressed]}
+          >
+            <View style={styles.repeatCardTitleBlock}>
+              <Text style={styles.repeatCardTitle}>{textValue(option.name) || `Fixed menu option ${index + 1}`}</Text>
+              <Text style={styles.repeatCardMeta}>{menuSections} {menuSections === 1 ? 'menu section' : 'menu sections'} · {numberValue(option.pricePerHead) ? `PHP ${numberValue(option.pricePerHead)} / guest` : 'Price not set'}</Text>
+            </View>
+            <Text style={styles.expandIndicator}>{expanded ? '⌃' : '⌄'}</Text>
+          </Pressable>
+          {expanded ? <View style={styles.optionDetails}>
           <TextField
             label="Option name"
             onChange={(name) => update(index, { name })}
@@ -463,22 +515,27 @@ const CateringOptionsBuilder = ({ details, set }: {
           >
             <Text style={styles.removeText}>Remove catering option</Text>
           </Pressable>
+          </View> : null}
         </View>
-      ))}
+      })}
       {options.length === 0 && legacyMenus.length > 0 ? (
         <Text style={styles.integrationNote}>
           This legacy listing has one shared menu. Add an option below to assign its per-head price and guest range.
         </Text>
       ) : null}
       <Pressable
-        onPress={() => set('pricingOptions', [...options, {
-          id: newId('catering-option'),
+        onPress={() => {
+          const id = newId('catering-option')
+          setExpandedOptionIds((current) => new Set(current).add(id))
+          set('pricingOptions', [...options, {
+          id,
           maximumGuests: details.maximumGuests,
           menuSections: options.length === 0 ? legacyMenus : [],
           minimumGuests: details.minimumGuests,
           name: '',
           pricePerHead: undefined,
-        }])}
+          }])
+        }}
         style={styles.addButton}
       >
         <Text style={styles.addButtonText}>+ Add catering option</Text>
@@ -861,74 +918,94 @@ export const CategorySpecificServiceDetails: React.FC<Props> = ({ categoryName, 
 }
 
 const palette = {
-  border: '#E6E1E2',
+  background: '#E9EDF0',
+  border: 'rgba(255,255,255,0.72)',
   error: '#BA1A1A',
   errorBackground: '#FFF1F2',
-  input: '#FFFFFF',
+  input: '#E9EDF0',
   placeholder: '#929091',
   primary: '#6B1E2E',
-  primarySoft: '#F8ECEF',
+  primarySoft: 'rgba(107,30,46,0.10)',
   secondary: '#666263',
   text: '#211F20',
 } as const
 
 const styles = StyleSheet.create({
-  container: { gap: 18, borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 24 },
+  container: { gap: 16 },
   titleBlock: { gap: 5 },
   title: { color: palette.text, fontSize: 20, lineHeight: 26, fontWeight: '700' },
   subtitle: { color: palette.secondary, fontSize: 13, lineHeight: 19 },
-  section: { gap: 16, borderWidth: 1, borderColor: palette.border, borderRadius: 12, backgroundColor: '#FCFBFB', padding: 16 },
+  section: {
+    gap: 14,
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 18,
+    backgroundColor: palette.background,
+    padding: 15,
+    boxShadow: '6px 6px 13px rgba(160,171,180,0.43), -6px -6px 13px rgba(255,255,255,0.9)',
+  },
   sectionHeading: { gap: 4 },
   sectionTitle: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: '800', letterSpacing: 1 },
   sectionDescription: { color: palette.secondary, fontSize: 12, lineHeight: 18 },
   field: { width: '100%', minWidth: 0, flexShrink: 0, gap: 7 },
   label: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '600' },
   helper: { color: palette.secondary, fontSize: 11, lineHeight: 16 },
-  input: { minHeight: 46, borderWidth: 1, borderColor: palette.border, borderRadius: 8, backgroundColor: palette.input, color: palette.text, fontSize: 14, paddingHorizontal: 13, paddingVertical: 10 },
+  input: {
+    minHeight: 46,
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 14,
+    backgroundColor: palette.input,
+    color: palette.text,
+    fontSize: 14,
+    paddingHorizontal: 13,
+    paddingVertical: 10,
+    boxShadow: 'inset 3px 3px 6px rgba(160,171,180,0.42), inset -3px -3px 6px rgba(255,255,255,0.9)',
+  },
   textArea: { minHeight: 84 },
   flexInput: { minWidth: 0, flex: 1 },
   inlineInput: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   suffix: { color: palette.secondary, fontSize: 13 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { minHeight: 36, justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 18, backgroundColor: '#FFFFFF', paddingHorizontal: 12, paddingVertical: 7 },
-  chipActive: { borderColor: palette.primary, backgroundColor: palette.primarySoft },
+  chip: { minHeight: 36, justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 18, backgroundColor: palette.background, paddingHorizontal: 12, paddingVertical: 7, boxShadow: '3px 3px 7px rgba(160,171,180,0.38), -3px -3px 7px rgba(255,255,255,0.88)' },
+  chipActive: { borderColor: palette.primary, backgroundColor: palette.primary },
   chipText: { color: palette.secondary, fontSize: 12, lineHeight: 17 },
-  chipTextActive: { color: palette.primary, fontWeight: '700' },
+  chipTextActive: { color: '#FFFFFF', fontWeight: '700' },
   pressed: { opacity: 0.72 },
   toggleRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 },
   toggleLabel: { minWidth: 0, flex: 1, color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: '500' },
   durationRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   durationAmount: { width: 90 },
   durationUnits: { minWidth: 0, flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  unitButton: { minHeight: 42, justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 8, backgroundColor: '#FFFFFF', paddingHorizontal: 12 },
-  unitButtonActive: { borderColor: palette.primary, backgroundColor: palette.primarySoft },
+  unitButton: { minHeight: 42, justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 14, backgroundColor: palette.background, paddingHorizontal: 12, boxShadow: '3px 3px 7px rgba(160,171,180,0.38), -3px -3px 7px rgba(255,255,255,0.88)' },
+  unitButtonActive: { borderColor: palette.primary, backgroundColor: palette.primary },
   unitText: { color: palette.secondary, fontSize: 12 },
-  unitTextActive: { color: palette.primary, fontWeight: '700' },
+  unitTextActive: { color: '#FFFFFF', fontWeight: '700' },
   tagInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   smallButton: { minHeight: 46, justifyContent: 'center', borderRadius: 8, backgroundColor: palette.primary, paddingHorizontal: 16 },
   smallButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
   selectedTags: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
-  selectedTag: { borderRadius: 15, backgroundColor: palette.primarySoft, paddingHorizontal: 10, paddingVertical: 6 },
-  selectedTagText: { color: palette.primary, fontSize: 11, fontWeight: '600' },
-  repeatCard: { gap: 14, borderWidth: 1, borderColor: '#D8D1D3', borderRadius: 10, backgroundColor: '#FFFFFF', padding: 14 },
+  selectedTag: { borderRadius: 15, backgroundColor: palette.primary, paddingHorizontal: 10, paddingVertical: 6 },
+  selectedTagText: { color: '#FFFFFF', fontSize: 11, fontWeight: '600' },
+  repeatCard: { gap: 12, borderWidth: 1, borderColor: palette.border, borderRadius: 16, backgroundColor: palette.background, padding: 14, boxShadow: '4px 4px 9px rgba(160,171,180,0.4), -4px -4px 9px rgba(255,255,255,0.88)' },
   repeatCardHeader: { minHeight: 34, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   repeatCardTitleBlock: { minWidth: 0, flex: 1, gap: 3 },
   repeatCardTitle: { color: palette.text, fontSize: 15, lineHeight: 20, fontWeight: '700' },
   repeatCardMeta: { color: palette.secondary, fontSize: 11, lineHeight: 16 },
   expandIndicator: { color: palette.primary, fontSize: 12, fontWeight: '700' },
-  optionDetails: { gap: 14, borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 14 },
-  optionToggles: { gap: 4, borderRadius: 8, backgroundColor: '#FCFBFB', paddingHorizontal: 10 },
-  menuItemCard: { gap: 12, borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 14 },
-  addButton: { minHeight: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.primary, borderRadius: 8, paddingHorizontal: 14 },
+  optionDetails: { gap: 14, borderTopWidth: 1, borderTopColor: '#D7DDE1', paddingTop: 14 },
+  optionToggles: { gap: 4, borderRadius: 14, backgroundColor: palette.background, paddingHorizontal: 10, boxShadow: 'inset 3px 3px 6px rgba(160,171,180,0.36), inset -3px -3px 6px rgba(255,255,255,0.86)' },
+  menuItemCard: { gap: 12, borderRadius: 14, backgroundColor: palette.background, padding: 12, boxShadow: 'inset 3px 3px 7px rgba(160,171,180,0.4), inset -3px -3px 7px rgba(255,255,255,0.88)' },
+  addButton: { minHeight: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 14, backgroundColor: palette.background, paddingHorizontal: 14, boxShadow: '3px 3px 7px rgba(160,171,180,0.38), -3px -3px 7px rgba(255,255,255,0.88)' },
   addButtonText: { color: palette.primary, fontSize: 13, fontWeight: '700' },
   removeButton: { alignSelf: 'flex-start', paddingVertical: 5 },
   removeText: { color: palette.error, fontSize: 12, fontWeight: '700' },
   twoColumns: { width: '100%', gap: 12 },
   disabled: { opacity: 0.45 },
-  integrationNote: { color: palette.secondary, fontSize: 12, lineHeight: 18, borderRadius: 8, backgroundColor: palette.primarySoft, padding: 12 },
+  integrationNote: { color: palette.secondary, fontSize: 12, lineHeight: 18, borderRadius: 12, backgroundColor: palette.primarySoft, padding: 11 },
   errorCard: { gap: 4, borderWidth: 1, borderColor: '#F2B8BE', borderRadius: 10, backgroundColor: palette.errorBackground, padding: 12 },
   errorText: { color: palette.error, fontSize: 12, lineHeight: 18 },
-  availabilityNote: { gap: 4, borderRadius: 10, backgroundColor: '#F1F0F0', padding: 14 },
+  availabilityNote: { gap: 4, borderRadius: 14, backgroundColor: palette.background, padding: 14, boxShadow: 'inset 3px 3px 6px rgba(160,171,180,0.36), inset -3px -3px 6px rgba(255,255,255,0.86)' },
   availabilityTitle: { color: palette.text, fontSize: 13, fontWeight: '700' },
   availabilityCopy: { color: palette.secondary, fontSize: 12, lineHeight: 18 },
 })

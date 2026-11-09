@@ -6,7 +6,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  
   useWindowDimensions,
   View,
 } from 'react-native'
@@ -282,19 +281,15 @@ export const MerchantHomeScreen: React.FC<MerchantHomeScreenProps> = ({
                     pressed && styles.scheduleItemPressed,
                   ]}
                 >
-                  <View
-                    style={[
-                      styles.scheduleAccent,
-                      item.urgent ? styles.scheduleAccentUrgent : styles.scheduleAccentMuted,
-                    ]}
-                  />
                   <View style={styles.scheduleCopy}>
                     <Text numberOfLines={2} style={styles.scheduleTitle}>
                       {item.title}
                     </Text>
-                    <Text style={styles.scheduleMeta}>
-                      {item.time} {'\u2022'} {item.location}
-                    </Text>
+                    <View style={styles.scheduleMetaRow}>
+                      <Text numberOfLines={1} style={styles.scheduleMeta}>{item.time}</Text>
+                      <Text numberOfLines={1} style={[styles.scheduleMeta, styles.scheduleLocation]}>{item.location}</Text>
+                      {item.urgent ? <Text style={styles.scheduleStatus}>Priority</Text> : null}
+                    </View>
                   </View>
                   <MaterialIcons color={palette.outline} name="chevron-right" size={24} />
                 </Pressable>
@@ -342,11 +337,11 @@ export const MerchantHomeScreen: React.FC<MerchantHomeScreenProps> = ({
 }
 
 const palette = {
-  background: '#FFFFFF',
-  surface: '#FAF9F9',
-  surfaceContainerLow: '#F5F3F3',
-  surfaceContainerHigh: '#E9E8E8',
-  surfaceContainerHighest: '#E3E2E2',
+  background: '#E9EDF0',
+  surface: '#E9EDF0',
+  surfaceContainerLow: '#E4E9ED',
+  surfaceContainerHigh: '#DDE3E7',
+  surfaceContainerHighest: '#D5DDE2',
   primary: '#4E061A',
   primaryContainer: '#6B1E2E',
   onPrimary: '#FFFFFF',
@@ -354,7 +349,7 @@ const palette = {
   secondary: '#5D5F5F',
   text: '#1B1C1C',
   outline: '#877274',
-  border: '#DFE0E0',
+  border: 'rgba(255, 255, 255, 0.68)',
 } as const
 
 const styles = StyleSheet.create({
@@ -412,7 +407,7 @@ const styles = StyleSheet.create({
   },
   contentMobile: {
     paddingHorizontal: 20,
-    paddingTop: 24,
+    paddingTop: 18,
     paddingBottom: 112,
   },
   contentWide: {
@@ -421,7 +416,7 @@ const styles = StyleSheet.create({
     paddingBottom: 48,
   },
   greetingSection: {
-    marginBottom: 32,
+    marginBottom: 20,
   },
   greeting: {
     color: palette.text,
@@ -437,45 +432,49 @@ const styles = StyleSheet.create({
   },
   statsGrid: {
     flexDirection: 'row',
-    gap: 16,
-    marginBottom: 32,
+    gap: 10,
+    marginBottom: 24,
   },
   statCard: {
     minWidth: 0,
-    minHeight: 88,
+    minHeight: 82,
     flex: 1,
     justifyContent: 'space-between',
     borderWidth: 1,
     borderColor: palette.border,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16,
+    backgroundColor: palette.surface,
+    paddingHorizontal: 11,
+    paddingVertical: 12,
+    boxShadow: '5px 5px 11px rgba(160, 171, 180, 0.48), -5px -5px 11px rgba(255, 255, 255, 0.94)',
   },
   statLabel: {
-    minHeight: 32,
     color: palette.secondary,
-    fontSize: 12,
-    lineHeight: 16,
-    marginBottom: 8,
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: '600',
+    marginBottom: 5,
   },
   statValue: {
     color: palette.text,
-    fontSize: 18,
-    lineHeight: 24,
-    fontWeight: '600',
+    fontSize: 22,
+    lineHeight: 27,
+    fontWeight: '800',
   },
   statValueUrgent: {
     color: palette.primaryContainer,
   },
   section: {
-    marginBottom: 32,
+    marginBottom: 24,
   },
   earningsCard: {
-    minHeight: 178,
+    minHeight: 164,
     borderWidth: 1,
     borderColor: palette.border,
-    borderRadius: 12,
-    backgroundColor: '#FFFDFD',
+    borderRadius: 18,
+    backgroundColor: palette.surface,
     padding: 16,
+    boxShadow: '7px 7px 15px rgba(160, 171, 180, 0.48), -7px -7px 15px rgba(255, 255, 255, 0.94)',
   },
   earningsSummary: {
     flexDirection: 'row',
@@ -503,7 +502,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 18,
-    backgroundColor: '#F8EFF1',
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: palette.surface,
+    boxShadow: '3px 3px 7px rgba(160, 171, 180, 0.48), -3px -3px 7px rgba(255, 255, 255, 0.94)',
   },
   earningsChart: {
     height: 78,
@@ -524,7 +526,8 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     overflow: 'hidden',
     borderRadius: 5,
-    backgroundColor: '#F1E6E8',
+    backgroundColor: palette.surface,
+    boxShadow: 'inset 2px 2px 4px rgba(160, 171, 180, 0.48), inset -2px -2px 4px rgba(255, 255, 255, 0.92)',
   },
   earningsBar: {
     width: '100%',
@@ -557,8 +560,6 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     justifyContent: 'space-between',
     gap: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: palette.surfaceContainerHighest,
     paddingBottom: 8,
     marginBottom: 12,
   },
@@ -575,31 +576,23 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   scheduleList: {
-    gap: 4,
+    gap: 10,
   },
   scheduleItem: {
-    minHeight: 64,
+    minHeight: 72,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    marginHorizontal: -8,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 16,
+    backgroundColor: palette.surface,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    boxShadow: '5px 5px 11px rgba(160, 171, 180, 0.44), -5px -5px 11px rgba(255, 255, 255, 0.92)',
   },
   scheduleItemPressed: {
-    backgroundColor: palette.surfaceContainerLow,
-  },
-  scheduleAccent: {
-    width: 4,
-    height: 42,
-    borderRadius: 2,
-  },
-  scheduleAccentUrgent: {
-    backgroundColor: palette.primaryContainer,
-  },
-  scheduleAccentMuted: {
-    backgroundColor: palette.surfaceContainerHigh,
+    boxShadow: 'inset 3px 3px 7px rgba(160, 171, 180, 0.50), inset -3px -3px 7px rgba(255, 255, 255, 0.92)',
   },
   scheduleCopy: {
     minWidth: 0,
@@ -615,8 +608,10 @@ const styles = StyleSheet.create({
     color: palette.secondary,
     fontSize: 12,
     lineHeight: 16,
-    marginTop: 4,
   },
+  scheduleMetaRow: { minWidth: 0, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 5 },
+  scheduleLocation: { minWidth: 0, flexShrink: 1 },
+  scheduleStatus: { color: palette.primaryContainer, fontSize: 11, lineHeight: 15, fontWeight: '800' },
   emptySchedule: {
     alignItems: 'center',
     borderWidth: 1,
@@ -639,25 +634,26 @@ const styles = StyleSheet.create({
   quickActionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 16,
+    gap: 12,
   },
   quickAction: {
-    minWidth: 130,
-    minHeight: 58,
-    flexBasis: '45%',
+    minWidth: 126,
+    minHeight: 64,
+    flexBasis: '46%',
     flexGrow: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     borderWidth: 1,
-    borderColor: palette.surfaceContainerHighest,
-    borderRadius: 8,
-    paddingHorizontal: 16,
+    borderColor: palette.border,
+    borderRadius: 16,
+    backgroundColor: palette.surface,
+    paddingHorizontal: 14,
     paddingVertical: 12,
+    boxShadow: '5px 5px 11px rgba(160, 171, 180, 0.46), -5px -5px 11px rgba(255, 255, 255, 0.92)',
   },
   quickActionPressed: {
-    borderColor: palette.primaryContainer,
-    backgroundColor: palette.surfaceContainerLow,
+    boxShadow: 'inset 3px 3px 7px rgba(160, 171, 180, 0.50), inset -3px -3px 7px rgba(255, 255, 255, 0.92)',
     transform: [{ scale: 0.99 }],
   },
   quickActionLabel: {

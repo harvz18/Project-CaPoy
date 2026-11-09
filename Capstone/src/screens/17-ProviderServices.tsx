@@ -264,28 +264,25 @@ export const ProviderServicesScreen: React.FC<ProviderServicesScreenProps> = ({
                 key={service.id}
                 style={styles.serviceCard}
               >
-                {service.coverImageUrl ? (
-                  <Image
-                    accessibilityLabel={`${service.name} cover photo`}
-                    resizeMode="cover"
-                    source={{ uri: service.coverImageUrl }}
-                    style={styles.serviceImage}
-                  />
-                ) : (
-                  <View style={styles.imagePlaceholder}>
-                    <Text style={styles.imagePlaceholderText}>
-                      {service.name.slice(0, 1).toUpperCase()}
-                    </Text>
-                  </View>
-                )}
-
-                <View style={styles.serviceBody}>
-                  <View style={styles.serviceTitleRow}>
-                    <Text numberOfLines={1} style={styles.serviceName}>
-                      {service.name}
-                    </Text>
-                  </View>
-                  <View style={styles.statusRow}>
+                <View style={styles.serviceIdentityRow}>
+                  {service.coverImageUrl ? (
+                    <Image
+                      accessibilityLabel={`${service.name} cover photo`}
+                      resizeMode="cover"
+                      source={{ uri: service.coverImageUrl }}
+                      style={styles.serviceImage}
+                    />
+                  ) : (
+                    <View style={styles.imagePlaceholder}>
+                      <Text style={styles.imagePlaceholderText}>
+                        {service.name.slice(0, 1).toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
+                  <View style={styles.serviceHeading}>
+                    <Text style={styles.serviceName}>{service.name}</Text>
+                    <Text style={styles.serviceCategory}>{service.categoryName}</Text>
+                    <View style={styles.statusRow}>
                     <View
                       style={[
                         styles.statusPill,
@@ -322,20 +319,26 @@ export const ProviderServicesScreen: React.FC<ProviderServicesScreenProps> = ({
                         {service.status === 'active' && service.isAvailable ? 'Live' : 'Not available'}
                       </Text>
                     </View>
+                    </View>
                   </View>
-                  <Text numberOfLines={2} style={styles.serviceDescription}>
+                </View>
+
+                <View style={styles.serviceBody}>
+                  <Text numberOfLines={3} style={styles.serviceDescription}>
                     {service.description || service.categoryName}
                   </Text>
-                  <View style={styles.metaRow}>
-                    <Text style={styles.metaText}>{service.categoryName}</Text>
-                    <Text style={styles.metaDot}>|</Text>
-                    <Text style={styles.metaText}>{formatPrice(service.basePrice)}</Text>
-                    <Text style={styles.metaDot}>|</Text>
-                    <Text style={styles.metaText}>
+                  <View style={styles.servicePricingRow}>
+                    <View style={styles.servicePriceBlock}>
+                      <Text style={styles.servicePrice}>{formatPrice(service.basePrice)}</Text>
+                      <Text style={styles.servicePriceUnit}> / {packageUnitLabel(service.pricingUnit)}</Text>
+                    </View>
+                    <Text style={styles.packageCount}>
                       {service.packageCount} {service.packageCount === 1 ? 'package' : 'packages'}
                     </Text>
                   </View>
-                  <View style={styles.cardActions}>
+                </View>
+
+                <View style={styles.cardActions}>
                     {service.status === 'active' ? (
                       <Pressable
                         accessibilityLabel={`${service.isAvailable ? 'Mark' : 'Make'} ${service.name} ${service.isAvailable ? 'not available' : 'live'}`}
@@ -363,35 +366,36 @@ export const ProviderServicesScreen: React.FC<ProviderServicesScreenProps> = ({
                         </Text>
                       </Pressable>
                     ) : null}
-                    <Pressable
-                      accessibilityLabel={`Edit ${service.name}`}
-                      accessibilityRole="button"
-                      onPress={() => onEditService?.(service)}
-                      style={({ pressed }) => [styles.editButton, pressed && styles.serviceCardPressed]}
-                    >
-                      <Text style={styles.editButtonText}>Edit</Text>
-                    </Pressable>
-                    <Pressable
-                      accessibilityLabel={`Delete ${service.name}`}
-                      accessibilityRole="button"
-                      disabled={deletingServiceId === service.id}
-                      onPress={() => setDeleteTarget(service)}
-                      style={({ pressed }) => [styles.deleteButton, pressed && styles.serviceCardPressed]}
-                    >
-                      <Text style={styles.deleteButtonText}>
-                        {deletingServiceId === service.id ? 'Deleting...' : 'Delete'}
-                      </Text>
-                    </Pressable>
-                    <Pressable
-                      accessibilityLabel={`Open ${service.name}`}
-                      accessibilityRole="button"
-                      onPress={() => onSelectService?.(service)}
-                      style={({ pressed }) => [styles.viewButton, pressed && styles.serviceCardPressed]}
-                    >
-                      <Text style={styles.viewButtonText}>Details</Text>
-                    </Pressable>
+                    <View style={styles.secondaryActions}>
+                      <Pressable
+                        accessibilityLabel={`Edit ${service.name}`}
+                        accessibilityRole="button"
+                        onPress={() => onEditService?.(service)}
+                        style={({ pressed }) => [styles.editButton, pressed && styles.serviceCardPressed]}
+                      >
+                        <Text style={styles.editButtonText}>Edit</Text>
+                      </Pressable>
+                      <Pressable
+                        accessibilityLabel={`Delete ${service.name}`}
+                        accessibilityRole="button"
+                        disabled={deletingServiceId === service.id}
+                        onPress={() => setDeleteTarget(service)}
+                        style={({ pressed }) => [styles.deleteButton, pressed && styles.serviceCardPressed]}
+                      >
+                        <Text style={styles.deleteButtonText}>
+                          {deletingServiceId === service.id ? 'Deleting...' : 'Delete'}
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        accessibilityLabel={`Open ${service.name}`}
+                        accessibilityRole="button"
+                        onPress={() => onSelectService?.(service)}
+                        style={({ pressed }) => [styles.viewButton, pressed && styles.serviceCardPressed]}
+                      >
+                        <Text style={styles.viewButtonText}>Details</Text>
+                      </Pressable>
+                    </View>
                   </View>
-                </View>
               </View>
             ))}
           </View>
@@ -408,7 +412,7 @@ export const ProviderServicesScreen: React.FC<ProviderServicesScreenProps> = ({
               const isLive = item.isActive && service.status === 'active' && service.isAvailable
               const hasDiscount = item.subtotal > item.price && item.discountAmount > 0
               const includedServices = item.serviceNames.length > 0
-                ? item.serviceNames.join(' · ')
+                ? Array.from(new Set(item.serviceNames)).join(' · ')
                 : service.name
 
               return (
@@ -718,13 +722,13 @@ export const ProviderServicesScreen: React.FC<ProviderServicesScreenProps> = ({
 }
 
 const palette = {
-  background: '#FAF9F9',
-  border: '#E3E2E2',
-  muted: '#5D5F5F',
+  background: '#E9EDF0',
+  border: 'rgba(255, 255, 255, 0.68)',
+  muted: '#66727B',
   primary: '#6B1E2E',
-  surface: '#FFFFFF',
-  surfaceLow: '#F5F3F3',
-  text: '#1B1C1C',
+  surface: '#E9EDF0',
+  surfaceLow: '#E4E9ED',
+  text: '#263139',
 } as const
 
 const styles = StyleSheet.create({
@@ -826,25 +830,29 @@ const styles = StyleSheet.create({
   collectionTabs: {
     minHeight: 48,
     flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: palette.border,
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 18,
+    backgroundColor: palette.surface,
+    padding: 4,
     marginBottom: 18,
+    boxShadow: '5px 5px 11px rgba(160, 171, 180, 0.45), -5px -5px 11px rgba(255, 255, 255, 0.92)',
   },
   collectionTab: {
-    minWidth: 112,
-    minHeight: 48,
+    minWidth: 0,
+    minHeight: 42,
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    borderBottomWidth: 3,
-    borderBottomColor: 'transparent',
-    paddingHorizontal: 14,
+    borderRadius: 14,
+    paddingHorizontal: 8,
   },
-  collectionTabActive: { borderBottomColor: palette.primary },
-  collectionTabPressed: { backgroundColor: palette.surfaceLow },
-  collectionTabText: { color: palette.muted, fontSize: 14, fontWeight: '700' },
-  collectionTabTextActive: { color: palette.primary },
+  collectionTabActive: { backgroundColor: palette.primary },
+  collectionTabPressed: { opacity: 0.76 },
+  collectionTabText: { color: palette.muted, fontSize: 13, fontWeight: '700' },
+  collectionTabTextActive: { color: '#FFFFFF' },
   collectionCount: {
     minWidth: 22,
     height: 22,
@@ -854,9 +862,9 @@ const styles = StyleSheet.create({
     backgroundColor: palette.surfaceLow,
     paddingHorizontal: 6,
   },
-  collectionCountActive: { backgroundColor: '#F1E1E4' },
+  collectionCountActive: { backgroundColor: 'rgba(255,255,255,0.18)' },
   collectionCountText: { color: palette.muted, fontSize: 12, fontWeight: '700' },
-  collectionCountTextActive: { color: palette.primary },
+  collectionCountTextActive: { color: '#FFFFFF' },
   draftBanner: {
     minHeight: 74,
     flexDirection: 'row',
@@ -896,9 +904,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: palette.border,
-    borderRadius: 8,
+    borderRadius: 18,
     backgroundColor: palette.surface,
     padding: 24,
+    boxShadow: '6px 6px 13px rgba(160, 171, 180, 0.46), -6px -6px 13px rgba(255, 255, 255, 0.92)',
   },
   emptyTitle: {
     color: palette.text,
@@ -917,21 +926,23 @@ const styles = StyleSheet.create({
   },
   serviceList: { gap: 12 },
   serviceCard: {
-    minHeight: 118,
-    flexDirection: 'row',
-    overflow: 'hidden',
     borderWidth: 1,
     borderColor: palette.border,
-    borderRadius: 8,
+    borderRadius: 18,
     backgroundColor: palette.surface,
+    padding: 14,
+    boxShadow: '6px 6px 13px rgba(160, 171, 180, 0.46), -6px -6px 13px rgba(255, 255, 255, 0.92)',
   },
   serviceCardPressed: { opacity: 0.84 },
-  serviceImage: { width: 104, minHeight: 118 },
+  serviceIdentityRow: { minWidth: 0, flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  serviceImage: { width: 88, height: 88, flexShrink: 0, borderRadius: 14 },
   imagePlaceholder: {
-    width: 104,
-    minHeight: 118,
+    width: 88,
+    height: 88,
+    flexShrink: 0,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 14,
     backgroundColor: palette.surfaceLow,
   },
   imagePlaceholderText: {
@@ -940,26 +951,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 34,
   },
-  serviceBody: {
-    minWidth: 0,
-    flex: 1,
-    justifyContent: 'center',
-    padding: 14,
-  },
-  serviceTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  statusRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 7 },
+  serviceHeading: { minWidth: 0, flex: 1 },
+  serviceBody: { minWidth: 0, paddingTop: 11 },
+  statusRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 8 },
   serviceName: {
-    minWidth: 0,
-    flex: 1,
     color: palette.text,
-    fontSize: 16,
-    fontWeight: '700',
-    lineHeight: 22,
+    fontSize: 17,
+    fontWeight: '800',
+    lineHeight: 23,
   },
+  serviceCategory: { color: palette.primary, fontSize: 12, lineHeight: 17, fontWeight: '700', marginTop: 3 },
   statusPill: {
     borderRadius: 8,
     backgroundColor: palette.surfaceLow,
@@ -992,43 +993,42 @@ const styles = StyleSheet.create({
     color: palette.muted,
     fontSize: 13,
     lineHeight: 19,
-    marginTop: 6,
   },
-  metaRow: {
+  servicePricingRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 10,
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginTop: 11,
   },
-  metaText: {
-    color: palette.muted,
-    fontSize: 12,
-    fontWeight: '600',
-    lineHeight: 17,
-  },
-  metaDot: {
-    color: '#B3A4A6',
-    fontSize: 12,
-    lineHeight: 17,
-  },
+  servicePriceBlock: { minWidth: 0, flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap' },
+  servicePrice: { color: palette.primary, fontSize: 17, lineHeight: 23, fontWeight: '800' },
+  servicePriceUnit: { color: palette.muted, fontSize: 12, lineHeight: 17 },
+  packageCount: { flexShrink: 0, color: palette.muted, fontSize: 12, lineHeight: 17, fontWeight: '600' },
   cardActions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'flex-end',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(102, 114, 123, 0.22)',
+    paddingTop: 11,
     marginTop: 12,
   },
+  secondaryActions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 7 },
   availabilityButton: {
-    minHeight: 34,
+    minHeight: 40,
     alignItems: 'center',
     flexDirection: 'row',
     gap: 7,
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#D8B9BE',
-    borderRadius: 8,
+    borderRadius: 14,
+    backgroundColor: palette.surface,
     paddingHorizontal: 10,
+    boxShadow: '3px 3px 7px rgba(160, 171, 180, 0.42), -3px -3px 7px rgba(255, 255, 255, 0.92)',
   },
   availabilityButtonText: { color: palette.primary, fontSize: 12, fontWeight: '700' },
   toggleTrack: {
@@ -1042,24 +1042,28 @@ const styles = StyleSheet.create({
   toggleThumb: { backgroundColor: palette.surface, borderRadius: 5, height: 10, width: 10 },
   toggleThumbOn: { transform: [{ translateX: 11 }] },
   editButton: {
-    minHeight: 34,
+    minHeight: 40,
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#D8B9BE',
-    borderRadius: 8,
+    borderRadius: 14,
+    backgroundColor: palette.surface,
     paddingHorizontal: 13,
+    boxShadow: '3px 3px 7px rgba(160, 171, 180, 0.42), -3px -3px 7px rgba(255, 255, 255, 0.92)',
   },
   editButtonText: { color: palette.primary, fontSize: 12, fontWeight: '700' },
   deleteButton: {
-    minHeight: 34,
+    minHeight: 40,
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#E7C9CD',
-    borderRadius: 8,
+    borderRadius: 14,
+    backgroundColor: palette.surface,
     paddingHorizontal: 13,
+    boxShadow: '3px 3px 7px rgba(160, 171, 180, 0.42), -3px -3px 7px rgba(255, 255, 255, 0.92)',
   },
   deleteButtonText: { color: '#A33142', fontSize: 12, fontWeight: '700' },
-  viewButton: { minHeight: 34, justifyContent: 'center', paddingHorizontal: 8 },
+  viewButton: { minHeight: 40, justifyContent: 'center', borderRadius: 14, backgroundColor: palette.surface, paddingHorizontal: 11, boxShadow: '3px 3px 7px rgba(160, 171, 180, 0.42), -3px -3px 7px rgba(255, 255, 255, 0.92)' },
   viewButtonText: { color: palette.muted, fontSize: 12, fontWeight: '700' },
   deletedSections: { gap: 24 },
   deletedSection: { gap: 10 },
@@ -1069,7 +1073,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 21,
   },
-  deletedCard: { opacity: 0.82 },
+  deletedCard: { minHeight: 112, flexDirection: 'row', alignItems: 'center', gap: 12, opacity: 0.82 },
   deletedImage: { opacity: 0.62 },
   deletedPill: {
     alignSelf: 'flex-start',
@@ -1088,6 +1092,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: palette.surface,
     padding: 16,
+    boxShadow: '6px 6px 13px rgba(160, 171, 180, 0.46), -6px -6px 13px rgba(255, 255, 255, 0.92)',
   },
   packageHeader: {
     flexDirection: 'row',
@@ -1111,6 +1116,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     marginTop: 14,
+    boxShadow: 'inset 3px 3px 6px rgba(160, 171, 180, 0.42), inset -3px -3px 6px rgba(255, 255, 255, 0.92)',
   },
   packageServicesLabel: {
     color: palette.muted,
@@ -1141,12 +1147,14 @@ const styles = StyleSheet.create({
   packageDiscountText: { color: '#176339', fontSize: 12, fontWeight: '700', lineHeight: 17 },
   packageHostText: { color: palette.muted, fontSize: 12, lineHeight: 16, marginTop: 2 },
   managePackageButton: {
-    minHeight: 38,
+    minHeight: 42,
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#D8B9BE',
-    borderRadius: 9,
+    borderRadius: 14,
+    backgroundColor: palette.surface,
     paddingHorizontal: 14,
+    boxShadow: '3px 3px 7px rgba(160, 171, 180, 0.42), -3px -3px 7px rgba(255, 255, 255, 0.92)',
   },
   managePackageText: { color: palette.primary, fontSize: 12, fontWeight: '700' },
   modalBackdrop: {

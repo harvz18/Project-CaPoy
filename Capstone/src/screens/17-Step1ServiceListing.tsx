@@ -292,10 +292,15 @@ export const Step1ServiceListingScreen: React.FC<Step1ServiceListingScreenProps>
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>Tell Us About Your Service</Text>
-
         <View style={styles.form}>
-          <View style={styles.fieldGroup}>
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeading}>
+              <Text style={styles.sectionEyebrow}>STEP 1</Text>
+              <Text style={styles.sectionTitle}>Basic Service Details</Text>
+              <Text style={styles.sectionHelper}>Add the information clients will see first.</Text>
+            </View>
+
+            <View style={styles.fieldGroup}>
             <Text style={styles.label}>Category</Text>
             <Pressable
               accessibilityLabel="Service category"
@@ -345,9 +350,9 @@ export const Step1ServiceListingScreen: React.FC<Step1ServiceListingScreenProps>
                 })}
               </View>
             ) : null}
-          </View>
+            </View>
 
-          <View style={styles.fieldGroup}>
+            <View style={styles.fieldGroup}>
             <Text style={styles.label}>Service Name</Text>
             <TextInput
               accessibilityLabel="Service name"
@@ -364,9 +369,9 @@ export const Step1ServiceListingScreen: React.FC<Step1ServiceListingScreenProps>
                 Enter a service name.
               </Text>
             ) : null}
-          </View>
+            </View>
 
-          <View style={styles.fieldGroup}>
+            <View style={styles.fieldGroup}>
             <Text style={styles.label}>Description</Text>
             <TextInput
               accessibilityLabel="Service description"
@@ -387,24 +392,34 @@ export const Step1ServiceListingScreen: React.FC<Step1ServiceListingScreenProps>
                 Add a short description of your service.
               </Text>
             ) : null}
+            </View>
           </View>
 
-          <CategorySpecificServiceDetails
-            categoryName={selectedCategory}
-            errors={categoryErrors}
-            onChange={(next) => {
-              setCategoryDetails(next)
-              if (categoryErrors.length) setCategoryErrors([])
-            }}
-            value={categoryDetails}
-          />
+          <View style={styles.configurationBlock}>
+            <View style={styles.sectionHeading}>
+              <Text style={styles.sectionEyebrow}>CATEGORY-SPECIFIC CONFIGURATION</Text>
+              <Text style={styles.sectionHelper}>Configure the offerings and requirements for {selectedCategory}.</Text>
+            </View>
+            <CategorySpecificServiceDetails
+              categoryName={selectedCategory}
+              errors={categoryErrors}
+              onChange={(next) => {
+                setCategoryDetails(next)
+                if (categoryErrors.length) setCategoryErrors([])
+              }}
+              value={categoryDetails}
+            />
+          </View>
           {serviceCategoryKind(selectedCategory) === 'florists' ? <FloristArrangementsEditor onAddPhoto={onAddPhoto} onChange={setFloristArrangements} value={floristArrangements} /> : null}
           {serviceCategoryKind(selectedCategory) === 'florists' ? <FloristPackagesEditor arrangements={floristArrangements} onChange={setFloristPackages} value={floristPackages} /> : null}
           {serviceCategoryKind(selectedCategory) === 'florists' ? <FloristFulfillmentEditor onChange={setFloristFulfillmentOptions} value={floristFulfillmentOptions} /> : null}
 
-          <View style={styles.photosSection}>
+          <View style={[styles.sectionCard, styles.photosSection]}>
             <View style={styles.photosHeader}>
-              <Text style={styles.label}>Photos</Text>
+              <View>
+                <Text style={styles.sectionEyebrow}>ADDITIONAL OPTIONS</Text>
+                <Text style={styles.sectionTitle}>Service Photos</Text>
+              </View>
               <Text style={styles.photoCount}>
                 {photos.length} / {photoLimit} added
               </Text>
@@ -511,10 +526,10 @@ const CoverBadge = () => (
 )
 
 const palette = {
-  background: '#FAF9F9',
-  border: '#EFEDED',
+  background: '#E9EDF0',
+  border: 'rgba(255,255,255,0.72)',
   error: '#BA1A1A',
-  inputBackground: '#FFFFFF',
+  inputBackground: '#E9EDF0',
   onPrimary: '#FFFFFF',
   photoPlaceholder: '#C6C6C7',
   placeholder: '#A8A8A9',
@@ -522,7 +537,7 @@ const palette = {
   primaryContainer: '#6B1E2E',
   primaryPill: '#F5EDEF',
   secondary: '#5D5F5F',
-  surfaceContainerHigh: '#E9E8E8',
+  surfaceContainerHigh: '#D8DEE2',
   text: '#1B1C1C',
 } as const
 
@@ -601,8 +616,8 @@ const styles = StyleSheet.create({
   },
   headerSpacer: { width: 40 },
   content: { width: '100%', maxWidth: 768, alignSelf: 'center' },
-  contentMobile: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 32 },
-  contentWide: { paddingHorizontal: 32, paddingTop: 32, paddingBottom: 40 },
+  contentMobile: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 40 },
+  contentWide: { paddingHorizontal: 32, paddingTop: 20, paddingBottom: 48 },
   title: {
     color: palette.text,
     fontSize: 22,
@@ -610,20 +625,35 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 32,
   },
-  form: { gap: 24 },
-  fieldGroup: { gap: 4 },
-  label: { color: palette.secondary, fontSize: 12, lineHeight: 16 },
+  form: { gap: 18 },
+  sectionCard: {
+    gap: 16,
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 20,
+    backgroundColor: palette.background,
+    padding: 16,
+    boxShadow: '6px 6px 13px rgba(160, 171, 180, 0.44), -6px -6px 13px rgba(255,255,255,0.9)',
+  },
+  configurationBlock: { gap: 10 },
+  sectionHeading: { gap: 3 },
+  sectionEyebrow: { color: palette.primaryContainer, fontSize: 11, lineHeight: 15, fontWeight: '800', letterSpacing: 0.8 },
+  sectionTitle: { color: palette.text, fontSize: 18, lineHeight: 23, fontWeight: '700' },
+  sectionHelper: { color: palette.secondary, fontSize: 12, lineHeight: 17 },
+  fieldGroup: { gap: 7 },
+  label: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '600' },
   categorySelect: {
     minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: 1,
-    borderColor: '#E7CDD2',
-    borderRadius: 8,
-    backgroundColor: palette.primaryPill,
+    borderColor: palette.border,
+    borderRadius: 14,
+    backgroundColor: palette.inputBackground,
     paddingHorizontal: 16,
     paddingVertical: 10,
+    boxShadow: 'inset 3px 3px 6px rgba(160,171,180,0.42), inset -3px -3px 6px rgba(255,255,255,0.9)',
   },
   categorySelectOpen: { borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
   categorySelectPressed: { opacity: 0.78 },
@@ -654,27 +684,28 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   categoryOptionLast: { borderBottomWidth: 0 },
-  categoryOptionSelected: { backgroundColor: palette.primaryPill },
+  categoryOptionSelected: { backgroundColor: palette.primaryContainer },
   categoryOptionPressed: { opacity: 0.7 },
   categoryOptionText: { color: palette.text, fontSize: 14, lineHeight: 20 },
-  categoryOptionTextSelected: { color: palette.primaryContainer, fontWeight: '600' },
-  categoryCheck: { color: palette.primaryContainer, fontSize: 16, fontWeight: '700' },
+  categoryOptionTextSelected: { color: palette.onPrimary, fontWeight: '600' },
+  categoryCheck: { color: palette.onPrimary, fontSize: 16, fontWeight: '700' },
   input: {
     minHeight: 44,
     borderWidth: 1,
     borderColor: palette.surfaceContainerHigh,
-    borderRadius: 8,
+    borderRadius: 14,
     backgroundColor: palette.inputBackground,
     color: palette.text,
     fontSize: 14,
     lineHeight: 20,
     paddingHorizontal: 16,
     paddingVertical: 10,
+    boxShadow: 'inset 3px 3px 6px rgba(160,171,180,0.42), inset -3px -3px 6px rgba(255,255,255,0.9)',
   },
-  descriptionInput: { minHeight: 104 },
+  descriptionInput: { minHeight: 88 },
   inputError: { borderColor: palette.error },
   errorText: { color: palette.error, fontSize: 12, lineHeight: 16 },
-  photosSection: { gap: 8 },
+  photosSection: { gap: 12 },
   photosHeader: {
     flexDirection: 'row',
     alignItems: 'flex-end',

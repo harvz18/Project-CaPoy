@@ -259,12 +259,13 @@ export const BookingRequestScreen: React.FC<BookingRequestScreenProps> = ({
             visibleRequests.map((request) => {
               const serviceCount = request.services?.length ?? 1
               const serviceNames = request.services?.map((service) => service.serviceName) ?? [request.packageName]
+              const locationLabel = request.venue || request.location || 'Location to be confirmed'
               const needsCompletion =
                 request.status === 'confirmed' && completionIsAvailable(request.eventDate)
 
               return (
                 <View key={request.id} style={styles.requestCard}>
-                  <View style={[styles.requestTopRow, isCompact && styles.requestTopRowCompact]}>
+                  <View style={styles.requestTopRow}>
                     <Pressable
                       accessibilityLabel={`View ${request.eventName || 'event'} booking details`}
                       accessibilityRole="button"
@@ -274,21 +275,27 @@ export const BookingRequestScreen: React.FC<BookingRequestScreenProps> = ({
                         pressed && styles.requestSummaryPressed,
                       ]}
                     >
-                      <View style={styles.namePriceRow}>
-                        <Text numberOfLines={1} style={styles.clientName}>
+                      <View style={[styles.namePriceRow, isCompact && styles.namePriceRowCompact]}>
+                        <Text style={styles.clientName}>
                           {request.eventName || 'Untitled event'}
                         </Text>
                         <Text style={styles.price}>{formatPrice(request)}</Text>
                       </View>
-                      <Text numberOfLines={2} style={styles.requestMeta}>
+                      <Text style={styles.requestMeta}>
                         {formatDate(request.eventDate)} {'\u2022'} {serviceCount}{' '}
                         {serviceCount === 1 ? 'service' : 'services'}
                       </Text>
-                      <Text numberOfLines={1} style={styles.serviceNames}>
-                        {serviceNames.join(' · ')}
+                      <View style={styles.locationRow}>
+                        <Text style={styles.locationIcon}>PIN</Text>
+                        <Text style={styles.locationText}>{locationLabel}</Text>
+                      </View>
+                      <Text style={styles.serviceNames}>
+                        {serviceNames.join(' \u00B7 ')}
                       </Text>
                     </Pressable>
 
+                  </View>
+                  <View style={styles.requestFooter}>
                     <View
                       style={[
                         styles.statusBadge,
@@ -310,6 +317,15 @@ export const BookingRequestScreen: React.FC<BookingRequestScreenProps> = ({
                         {needsCompletion ? 'ACTION NEEDED' : statusLabels[request.status]}
                       </Text>
                     </View>
+                    <Pressable
+                      accessibilityLabel={`View ${request.eventName || 'event'} booking details`}
+                      accessibilityRole="button"
+                      onPress={() => onSelectRequest?.(request)}
+                      style={({ pressed }) => [styles.viewDetailsButton, pressed && styles.requestSummaryPressed]}
+                    >
+                      <Text style={styles.viewDetailsText}>View details</Text>
+                      <Text style={styles.viewDetailsChevron}>{'>'}</Text>
+                    </Pressable>
                   </View>
                 </View>
               )
@@ -348,8 +364,8 @@ export const BookingRequestScreen: React.FC<BookingRequestScreenProps> = ({
 }
 
 const palette = {
-  background: '#FAF9F9',
-  border: '#DAC0C2',
+  background: '#E9EDF0',
+  border: 'rgba(255,255,255,0.72)',
   completed: '#145133',
   completedSoft: '#E7F3EB',
   error: '#93000A',
@@ -359,7 +375,7 @@ const palette = {
   primaryContainer: '#6B1E2E',
   primarySoft: '#F5EDEF',
   secondary: '#5D5F5F',
-  surfaceContainerLow: '#F5F3F3',
+  surfaceContainerLow: '#E9EDF0',
   surfaceDim: '#DBDAD9',
   text: '#1B1C1C',
 } as const
@@ -422,39 +438,51 @@ const styles = StyleSheet.create({
   },
   topBarSpacer: { width: 40, height: 40 },
   content: { width: '100%', maxWidth: 1200, alignSelf: 'center' },
-  contentMobile: { paddingHorizontal: 16, paddingTop: 24, paddingBottom: 104 },
+  contentMobile: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 124 },
   contentWide: { paddingHorizontal: 32, paddingTop: 32, paddingBottom: 48 },
-  title: { color: palette.text, fontSize: 22, lineHeight: 28, fontWeight: '700', marginBottom: 24 },
-  filterScroll: { flexGrow: 0, borderBottomWidth: 1, borderBottomColor: '#E3E2E2', marginBottom: 24 },
-  filterTabs: { gap: 24 },
+  title: { color: palette.text, fontSize: 22, lineHeight: 28, fontWeight: '700', marginBottom: 16 },
+  filterScroll: { flexGrow: 0, marginBottom: 20 },
+  filterTabs: { gap: 8, paddingHorizontal: 3, paddingVertical: 8 },
   filterTab: {
     minHeight: 40,
     justifyContent: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-    paddingBottom: 8,
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 18,
+    backgroundColor: palette.background,
+    paddingHorizontal: 14,
+    boxShadow: '3px 3px 7px rgba(160,171,180,0.38), -3px -3px 7px rgba(255,255,255,0.88)',
   },
-  filterTabSelected: { borderBottomColor: palette.primaryContainer },
+  filterTabSelected: { borderColor: palette.primaryContainer, backgroundColor: palette.primaryContainer },
   filterTabPressed: { opacity: 0.6 },
   filterLabel: { color: palette.secondary, fontSize: 16, lineHeight: 24, fontWeight: '600' },
-  filterLabelSelected: { color: palette.primaryContainer },
+  filterLabelSelected: { color: palette.onPrimary },
   requestList: { gap: 12 },
   requestCard: {
     borderWidth: 1,
     borderColor: palette.border,
-    borderRadius: 8,
+    borderRadius: 18,
     backgroundColor: palette.background,
-    padding: 12,
+    padding: 15,
+    boxShadow: '6px 6px 13px rgba(160,171,180,0.44), -6px -6px 13px rgba(255,255,255,0.9)',
   },
-  requestTopRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  requestTopRow: { width: '100%' },
   requestTopRowCompact: { flexDirection: 'column', alignItems: 'stretch', gap: 10 },
   requestSummary: { minWidth: 0, flex: 1, borderRadius: 6, paddingVertical: 2 },
   requestSummaryPressed: { opacity: 0.6 },
-  namePriceRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  clientName: { minWidth: 0, flexShrink: 1, color: palette.text, fontSize: 16, lineHeight: 22, fontWeight: '600' },
+  namePriceRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
+  namePriceRowCompact: { flexDirection: 'column', gap: 3 },
+  clientName: { minWidth: 0, flex: 1, color: palette.text, fontSize: 17, lineHeight: 23, fontWeight: '700' },
   price: { color: palette.primaryContainer, fontSize: 16, lineHeight: 22, fontWeight: '700' },
   requestMeta: { color: palette.secondary, fontSize: 12, lineHeight: 17, marginTop: 4 },
-  serviceNames: { color: palette.secondary, fontSize: 12, lineHeight: 16, marginTop: 2 },
+  locationRow: { minWidth: 0, flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: 6 },
+  locationIcon: { color: palette.primaryContainer, fontSize: 9, lineHeight: 17, fontWeight: '800', letterSpacing: 0.4 },
+  locationText: { minWidth: 0, flex: 1, color: palette.secondary, fontSize: 12, lineHeight: 17 },
+  serviceNames: { color: palette.secondary, fontSize: 12, lineHeight: 17, marginTop: 5 },
+  requestFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderTopWidth: 1, borderTopColor: '#D6DCE0', marginTop: 13, paddingTop: 11 },
+  viewDetailsButton: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderRadius: 14, backgroundColor: palette.background, paddingHorizontal: 11, boxShadow: '3px 3px 7px rgba(160,171,180,0.36), -3px -3px 7px rgba(255,255,255,0.86)' },
+  viewDetailsText: { color: palette.primaryContainer, fontSize: 12, lineHeight: 16, fontWeight: '700' },
+  viewDetailsChevron: { color: palette.primaryContainer, fontSize: 16, lineHeight: 18, fontWeight: '800' },
   requestActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   requestActionsCompact: { alignSelf: 'flex-end' },
   declineButton: {
@@ -495,9 +523,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E3E2E2',
-    borderRadius: 8,
+    borderRadius: 18,
+    backgroundColor: palette.background,
     paddingHorizontal: 24,
     paddingVertical: 40,
+    boxShadow: '6px 6px 13px rgba(160,171,180,0.4), -6px -6px 13px rgba(255,255,255,0.88)',
   },
   emptyCalendarIcon: {
     width: 38,
