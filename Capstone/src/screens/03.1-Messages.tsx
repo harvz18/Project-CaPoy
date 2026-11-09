@@ -455,7 +455,12 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
           usesEventGroups && styles.clientTopAppBar,
           navigationVariant === 'coordinator' && styles.coordinatorTopAppBar,
         ]}>
-          <View style={[styles.topAppBarContent, isWide && styles.horizontalPaddingWide]}>
+          <View style={[
+            styles.topAppBarContent,
+            isWide && styles.horizontalPaddingWide,
+            navigationVariant === 'coordinator' && styles.coordinatorTopAppBarContent,
+            navigationVariant === 'coordinator' && isWide && styles.coordinatorTopAppBarContentWide,
+          ]}>
             {usesEventGroups ? (
             <>
               {navigationVariant === 'coordinator' || navigationVariant === 'client' ? (
@@ -471,7 +476,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                     pressed && styles.clientBackButtonPressed,
                   ]}
                 >
-                  <MaterialCommunityIcons color={navigationVariant === 'coordinator' ? palette.primaryContainer : '#FFFFFF'} name="chevron-left" size={28} />
+                  <MaterialCommunityIcons color="#FFFFFF" name="chevron-left" size={28} />
                 </Pressable>
               ) : <View style={styles.clientHeaderButton} />}
               <Text style={[styles.clientHeaderTitle, navigationVariant === 'coordinator' && styles.coordinatorHeaderTitle, isClientInbox && styles.clientHeaderTitleCentered]}>
@@ -488,9 +493,18 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                     accessibilityRole="checkbox"
                     accessibilityState={{ checked: activeAllSelected ? true : activeSomeSelected ? 'mixed' : false }}
                     onPress={toggleAllInboxItems}
-                    style={({ pressed }) => [styles.clientHeaderButton, navigationVariant === 'coordinator' && styles.coordinatorHeaderAction, pressed && styles.surfacePressed]}
-                  ><InboxSelectionBox color={navigationVariant === 'coordinator' ? palette.primaryContainer : '#FFFFFF'} state={activeAllSelected ? 'checked' : activeSomeSelected ? 'mixed' : 'unchecked'} /></Pressable>
-                  <InboxTrashButton accessibilityLabel="Move selected Inbox items to Trash" color={navigationVariant === 'coordinator' ? palette.primaryContainer : '#FFFFFF'} onPress={moveSelectedInboxItemsToTrash} />
+                  style={({ pressed }) => [
+                    styles.clientHeaderButton,
+                    navigationVariant === 'coordinator' && styles.coordinatorHeaderAction,
+                    pressed && (navigationVariant === 'coordinator' ? styles.coordinatorHeaderActionPressed : styles.surfacePressed),
+                  ]}
+                  ><InboxSelectionBox color="#FFFFFF" state={activeAllSelected ? 'checked' : activeSomeSelected ? 'mixed' : 'unchecked'} /></Pressable>
+                  <InboxTrashButton
+                    accessibilityLabel="Move selected Inbox items to Trash"
+                    color="#FFFFFF"
+                    onPress={moveSelectedInboxItemsToTrash}
+                    style={navigationVariant === 'coordinator' ? styles.coordinatorHeaderAction : undefined}
+                  />
                 </View>
               ) : navigationVariant === 'coordinator' ? (
                 <Pressable
@@ -498,10 +512,10 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                   accessibilityRole="button"
                   hitSlop={8}
                   onPress={onOpenNotifications}
-                  style={({ pressed }) => [styles.clientHeaderButton, styles.coordinatorHeaderAction, pressed && styles.surfacePressed]}
+                  style={({ pressed }) => [styles.clientHeaderButton, styles.coordinatorHeaderAction, pressed && styles.coordinatorHeaderActionPressed]}
                 >
-                  <BellIcon />
-                  {hasUnreadNotifications ? <View style={styles.notificationDot} /> : null}
+                  <MaterialCommunityIcons color="#FFFFFF" name="bell-outline" size={22} />
+                  {hasUnreadNotifications ? <View style={[styles.notificationDot, styles.coordinatorNotificationDot]} /> : null}
                 </Pressable>
               ) : (
                 <InboxTrashButton accessibilityLabel="Open Inbox Trash" color="#FFFFFF" onPress={() => onOpenTrash?.(inboxTab === 'notifications' ? 'notifications' : 'messages')} />
@@ -1007,11 +1021,22 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.background },
   topAppBar: { zIndex: 30, minHeight: 64, justifyContent: 'center', borderBottomWidth: 1, borderBottomColor: palette.border, backgroundColor: palette.background },
   clientTopAppBar: { borderBottomColor: palette.primary, backgroundColor: palette.primaryContainer },
-  coordinatorTopAppBar: { borderBottomColor: palette.border, backgroundColor: palette.background, boxShadow: '4px 4px 9px rgba(161, 172, 180, 0.42), -4px -4px 9px rgba(255, 255, 255, 0.94)' },
+  coordinatorTopAppBar: {
+    borderBottomColor: palette.primaryContainer,
+    backgroundColor: palette.primaryContainer,
+    boxShadow: '0 5px 12px rgba(55, 4, 18, 0.34)',
+    elevation: 6,
+    shadowColor: '#350410',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.32,
+    shadowRadius: 8,
+  },
   merchantSelectionHeader: { minHeight: 64, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: palette.border, backgroundColor: palette.white, paddingHorizontal: 14 },
   merchantSelectionTitle: { minWidth: 0, flex: 1, color: palette.text, fontSize: 15, lineHeight: 20, fontWeight: '800' },
   topAppBarContent: { position: 'relative', width: '100%', maxWidth: 1200, minHeight: 64, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 8 },
   horizontalPaddingWide: { paddingHorizontal: 64 },
+  coordinatorTopAppBarContent: { maxWidth: 1024, paddingVertical: 12 },
+  coordinatorTopAppBarContentWide: { paddingHorizontal: 32 },
   inboxTabs: { width: '100%', flexDirection: 'row', gap: 8, borderBottomWidth: 1, borderBottomColor: palette.border, backgroundColor: palette.background, paddingHorizontal: 16, paddingVertical: 10 },
   inboxTabsWide: { paddingHorizontal: 64 },
   inboxTab: { minHeight: 46, flex: 1, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 16, backgroundColor: palette.background, boxShadow: '4px 4px 9px rgba(161, 172, 180, 0.44), -4px -4px 9px rgba(255, 255, 255, 0.94)' },
@@ -1024,11 +1049,12 @@ const styles = StyleSheet.create({
   inboxTabIndicator: { display: 'none' },
   clientHeaderButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },
   clientBackButtonNeumorphic: { borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.16)', backgroundColor: palette.primaryContainer, boxShadow: '3px 3px 7px rgba(44, 3, 15, 0.58), -3px -3px 7px rgba(143, 48, 72, 0.46)' },
-  coordinatorBackButton: { borderColor: palette.border, backgroundColor: palette.background, boxShadow: '4px 4px 9px rgba(161, 172, 180, 0.44), -4px -4px 9px rgba(255, 255, 255, 0.94)' },
+  coordinatorBackButton: { borderColor: 'rgba(255, 255, 255, 0.16)', backgroundColor: palette.primaryContainer, boxShadow: '3px 3px 7px rgba(44, 3, 15, 0.58), -3px -3px 7px rgba(143, 48, 72, 0.46)' },
   clientBackButtonPressed: { boxShadow: 'inset 3px 3px 7px rgba(44, 3, 15, 0.66), inset -3px -3px 7px rgba(143, 48, 72, 0.46)', transform: [{ scale: 0.96 }] },
   clientHeaderTitle: { color: palette.white, fontSize: 12, lineHeight: 16, fontWeight: '700', letterSpacing: 1.2, textAlign: 'center' },
-  coordinatorHeaderTitle: { color: palette.primaryContainer, fontSize: 16, lineHeight: 22, letterSpacing: 0.4 },
-  coordinatorHeaderAction: { borderWidth: 1, borderColor: palette.border, backgroundColor: palette.background, boxShadow: '3px 3px 7px rgba(161, 172, 180, 0.42), -3px -3px 7px rgba(255, 255, 255, 0.92)' },
+  coordinatorHeaderTitle: { color: palette.white, fontSize: 16, lineHeight: 22, letterSpacing: 0.4 },
+  coordinatorHeaderAction: { borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.14)', backgroundColor: palette.primaryContainer, boxShadow: '3px 3px 7px rgba(44, 3, 15, 0.58), -3px -3px 7px rgba(143, 48, 72, 0.46)' },
+  coordinatorHeaderActionPressed: { boxShadow: 'inset 3px 3px 6px rgba(42, 2, 13, 0.58), inset -3px -3px 6px rgba(151, 49, 74, 0.30)', opacity: 0.9 },
   clientHeaderTitleCentered: { position: 'absolute', right: 72, left: 72 },
   coordinatorBackIcon: { color: palette.white, fontSize: 32, lineHeight: 34, fontWeight: '300' },
   userAvatar: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19, backgroundColor: palette.primaryContainer },
@@ -1041,6 +1067,7 @@ const styles = StyleSheet.create({
   bellDome: { width: 15, height: 16, borderWidth: 1.5, borderColor: palette.primary, borderTopLeftRadius: 8, borderTopRightRadius: 8, borderBottomLeftRadius: 3, borderBottomRightRadius: 3 },
   bellClapper: { position: 'absolute', width: 6, height: 2, bottom: 1, borderRadius: 1, backgroundColor: palette.primary },
   notificationDot: { position: 'absolute', width: 9, height: 9, top: 5, right: 5, borderWidth: 2, borderColor: palette.background, borderRadius: 5, backgroundColor: palette.primaryContainer },
+  coordinatorNotificationDot: { top: 3, right: 3, borderColor: palette.primaryContainer, backgroundColor: palette.white },
   content: { width: '100%', maxWidth: 820, alignSelf: 'center' },
   contentMobile: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 108 },
   contentWide: { paddingHorizontal: 32, paddingTop: 32, paddingBottom: 112 },
@@ -1058,11 +1085,11 @@ const styles = StyleSheet.create({
   eventBackButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: palette.border, borderRadius: 15, backgroundColor: palette.background, marginBottom: 12, paddingHorizontal: 14, boxShadow: '3px 3px 7px rgba(161, 172, 180, 0.4), -3px -3px 7px rgba(255, 255, 255, 0.9)' },
   eventBackText: { color: palette.primaryContainer, fontSize: 11, lineHeight: 16, fontWeight: '700' },
   eventBackName: { minWidth: 0, flex: 1, color: palette.secondary, fontSize: 10, lineHeight: 15 },
-  searchShell: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: palette.border, borderRadius: 25, backgroundColor: palette.background, paddingHorizontal: 16, marginTop: 4, boxShadow: '5px 5px 11px rgba(161, 172, 180, 0.46), -5px -5px 11px rgba(255, 255, 255, 0.95)' },
+  searchShell: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 9, borderWidth: 1, borderColor: 'rgba(174, 184, 192, 0.28)', borderRadius: 22, backgroundColor: '#E4E9ED', paddingHorizontal: 14, marginTop: 4, boxShadow: 'inset 3px 3px 7px rgba(160, 171, 180, 0.52), inset -3px -3px 7px rgba(255, 255, 255, 0.92)' },
   searchIcon: { width: 18, height: 18 },
   searchLens: { width: 12, height: 12, borderWidth: 1.5, borderColor: palette.secondary, borderRadius: 6 },
   searchHandle: { position: 'absolute', width: 7, height: 1.5, right: 0, bottom: 3, borderRadius: 1, backgroundColor: palette.secondary, transform: [{ rotate: '45deg' }] },
-  searchInput: { minWidth: 0, minHeight: 46, flex: 1, color: palette.text, fontSize: 11, lineHeight: 17, paddingVertical: 10 },
+  searchInput: { minWidth: 0, minHeight: 40, flex: 1, color: palette.text, fontSize: 11, lineHeight: 17, paddingVertical: 8 },
   clearSearch: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', borderRadius: 14 },
   clearSearchText: { color: palette.secondary, fontSize: 20, lineHeight: 22 },
   filterBar: { flexDirection: 'row', gap: 8, marginVertical: 14 },

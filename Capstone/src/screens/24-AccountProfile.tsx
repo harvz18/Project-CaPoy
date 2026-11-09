@@ -20,6 +20,7 @@ import { colors } from '../theme/tokens'
 
 type AccountProfileScreenProps = {
   error?: string
+  hideBackButton?: boolean
   isLoading?: boolean
   isSaving?: boolean
   isSigningOut?: boolean
@@ -53,6 +54,7 @@ const fallbackProfile: EditableAccountProfile = {
 
 export const AccountProfileScreen: React.FC<AccountProfileScreenProps> = ({
   error,
+  hideBackButton = false,
   isLoading = false,
   isSaving = false,
   isSigningOut = false,
@@ -77,6 +79,7 @@ export const AccountProfileScreen: React.FC<AccountProfileScreenProps> = ({
   const isClient = value.role === 'client'
   const isCoordinator = value.role === 'event_coordinator'
   const isNeumorphicProfile = isClient || isCoordinator
+  const shouldHideBackButton = hideBackButton || isCoordinator
   const initials = (isProvider ? value.businessName : value.fullName)
     .split(/\s+/)
     .filter(Boolean)
@@ -172,19 +175,21 @@ export const AccountProfileScreen: React.FC<AccountProfileScreenProps> = ({
       style={[styles.screen, isNeumorphicProfile && styles.clientScreen]}
     >
       <View style={styles.header}>
-        <Pressable
-          accessibilityLabel="Go back"
-          accessibilityRole="button"
-          hitSlop={8}
-          onPress={onBack}
-          style={({ pressed }) => [
-            styles.backButton,
-            isNeumorphicProfile && styles.clientBackButton,
-            pressed && styles.backButtonPressed,
-          ]}
-        >
-          <MaterialIcons color={colors.textInverse} name="arrow-back" size={22} />
-        </Pressable>
+        {shouldHideBackButton ? <View style={styles.headerSpacer} /> : (
+          <Pressable
+            accessibilityLabel="Go back"
+            accessibilityRole="button"
+            hitSlop={8}
+            onPress={onBack}
+            style={({ pressed }) => [
+              styles.backButton,
+              isNeumorphicProfile && styles.clientBackButton,
+              pressed && styles.backButtonPressed,
+            ]}
+          >
+            <MaterialIcons color={colors.textInverse} name="arrow-back" size={22} />
+          </Pressable>
+        )}
         <View style={styles.headerCopy}>
           <BrandIdentity markSize={28} showName={false} variant="metallicWordmark" />
         </View>

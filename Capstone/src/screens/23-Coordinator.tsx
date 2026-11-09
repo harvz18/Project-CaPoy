@@ -60,6 +60,7 @@ interface CoordinatorScreenProps {
   isLoading?: boolean
   isRefreshing?: boolean
   initialScrollOffset?: number
+  showBottomNavigation?: boolean
   onCreateTask?: (input: CreateCoordinatorTaskInput) => Promise<CoordinatorResult>
   onConfirmChurchArrangement?: (input: ConfirmChurchWeddingArrangementInput) => Promise<CoordinatorResult>
   onMessageClient?: (event: CoordinatorEvent) => void
@@ -1479,6 +1480,7 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
   isLoading = false,
   isRefreshing = false,
   initialScrollOffset = 0,
+  showBottomNavigation = true,
   onCreateTask,
   onConfirmChurchArrangement,
   onMessageClient,
@@ -2017,7 +2019,7 @@ export const CoordinatorScreen: React.FC<CoordinatorScreenProps> = ({
 
       </Animated.ScrollView>
 
-      {!isWide ? (
+      {showBottomNavigation && !isWide ? (
         <CoordinatorBottomNavigation
           activeTab={activeView === 'overview' ? 'home' : activeView}
           hasUnreadEvents={hasUnreadEventUpdates}

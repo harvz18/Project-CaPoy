@@ -149,7 +149,7 @@ import {
 import { colors } from './theme/tokens'
 import { ClientBottomNavigation } from './components/ClientBottomNavigation'
 import { InboxTrashModal } from './components/InboxTrashModal'
-import type { CoordinatorMainTab } from './components/CoordinatorBottomNavigation'
+import { CoordinatorBottomNavigation, type CoordinatorMainTab } from './components/CoordinatorBottomNavigation'
 import { MerchantBottomNavigation } from './components/MerchantBottomNavigation'
 import { NonBlockingActivityBar, ScreenMotionFrame } from './components/MotionFeedback'
 import type { ClientHomeTab } from './screens/03-ClientHome'
@@ -6245,7 +6245,7 @@ export const App: React.FC<AppProps> = ({
       initialInboxTab={messageWorkspace === 'client' ? initialInboxTab : 'messages'}
       navigationVariant={messageWorkspace}
       notifications={messageWorkspace === 'client' ? notifications : []}
-      showBottomNavigation={messageWorkspace === 'coordinator'}
+      showBottomNavigation={false}
       onBack={messageWorkspace === 'coordinator'
         ? () => setScreen('coordinatorHome')
         : messageWorkspace === 'client'
@@ -7002,6 +7002,7 @@ export const App: React.FC<AppProps> = ({
         return (
           <AccountProfileScreen
             error={accountProfileError}
+            hideBackButton={profileReturnScreen === 'coordinatorHome'}
             isLoading={isLoadingAccountProfile}
             isSaving={isSavingAccountProfile}
             isSigningOut={isSigningOut}
@@ -7135,6 +7136,7 @@ export const App: React.FC<AppProps> = ({
             isLoading={isCoordinatorLoading}
             isRefreshing={isCoordinatorRefreshing}
             initialScrollOffset={coordinatorHomeScrollOffsetRef.current}
+            showBottomNavigation={false}
             onCreateTask={handleCreateCoordinatorTask}
             onConfirmChurchArrangement={handleConfirmChurchArrangement}
             onMessageClient={(event) => void handleCoordinatorMessageClient(event)}
@@ -8121,6 +8123,15 @@ export const App: React.FC<AppProps> = ({
               ? 'profile'
               : null
 
+  const coordinatorMainTab: CoordinatorMainTab | null =
+    screen === 'coordinatorHome'
+      ? coordinatorHomeView === 'overview' ? 'home' : coordinatorHomeView
+      : screen === 'messages' && messageWorkspace === 'coordinator'
+        ? 'messages'
+        : screen === 'accountProfile' && profileReturnScreen === 'coordinatorHome'
+          ? 'account'
+          : null
+
   const hasVisibleActivity = Boolean(
     isScreenTransitioning
       || activeGuardedActionCount > 0
@@ -8169,9 +8180,7 @@ export const App: React.FC<AppProps> = ({
   // gestures, so a horizontal interaction inside any screen cannot skip a
   // validation step or change the current plan route.
   const isPlanningNavigationContext = serviceBrowseMode === 'planning'
-  const usesFloatingBottomNavigation = Boolean(clientMainTab || providerMainTab)
-    || screen === 'coordinatorHome'
-    || (screen === 'messages' && messageWorkspace === 'coordinator')
+  const usesFloatingBottomNavigation = Boolean(clientMainTab || providerMainTab || coordinatorMainTab)
   // The floating navigation owns its own bottom inset. Keeping the root
   // bottom edge on these screens shortens every ScrollView above Android's
   // system bar, leaving the horizontal cutoff shown on three-button devices.
@@ -8236,6 +8245,15 @@ export const App: React.FC<AppProps> = ({
             hasUnreadBookings={hasUnreadBookingUpdates}
             hasUnreadMessages={hasUnreadMessageUpdates}
             onSelectTab={openMerchantTab}
+          />
+        ) : null}
+        {width < 768 && coordinatorMainTab ? (
+          <CoordinatorBottomNavigation
+            activeTab={coordinatorMainTab}
+            hasUnreadEvents={hasUnreadEventUpdates}
+            hasUnreadMessages={hasUnreadMessageUpdates}
+            hasUnreadTasks={hasUnreadTaskUpdates}
+            onSelectTab={openCoordinatorTab}
           />
         ) : null}
         <InboxTrashModal
