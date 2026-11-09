@@ -97,7 +97,7 @@ Deno.serve(async (request) => {
   const { data: authData, error: authError } = await userClient.auth.getUser()
   if (authError || !authData.user) return jsonResponse({ error: 'Invalid session.' }, 401)
 
-  let requestBody: { reviewId?: unknown }
+  let requestBody: { reviewId?: unknown; source?: unknown }
   try {
     requestBody = await request.json()
   } catch {
@@ -105,18 +105,26 @@ Deno.serve(async (request) => {
   }
 
   const reviewId = requestBody.reviewId
+  const source = requestBody.source === undefined ? 'service' : requestBody.source
   if (
     typeof reviewId !== 'string' ||
     !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(reviewId)
   ) {
     return jsonResponse({ error: 'A valid reviewId is required.' }, 400)
   }
+  if (source !== 'service' && source !== 'coordinator') {
+    return jsonResponse({ error: 'source must be either service or coordinator.' }, 400)
+  }
+
+  const reviewTable = source === 'coordinator' ? 'coordinator_reviews' : 'reviews'
+  const reviewResourceType = source === 'coordinator' ? 'coordinator_review' : 'review'
+  const analysisKind = source === 'coordinator' ? 'coordinator_review' : 'service_review'
 
   const admin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   })
   const { data: review, error: reviewError } = await admin
-    .from('reviews')
+    .from(reviewTable)
     .select('id, reviewer_id, comment, analysis_status, updated_at')
     .eq('id', reviewId)
     .maybeSingle()
@@ -129,13 +137,6 @@ Deno.serve(async (request) => {
   let actorRole: string | null = null
 
   if (!isOwner) {
-    const { data: canRetry, error: permissionError } = await userClient.rpc('has_permission', {
-      target_permission: 'reviews.analysis.retry',
-    })
-    if (permissionError || canRetry !== true) {
-      return jsonResponse({ error: 'Sentiment-analysis retry access is required.' }, 403)
-    }
-
     const { data: callerProfile, error: profileError } = await admin
       .from('profiles')
       .select('default_role')
@@ -143,6 +144,9 @@ Deno.serve(async (request) => {
       .eq('account_status', 'active')
       .maybeSingle()
     if (profileError || !callerProfile) return jsonResponse({ error: 'Active staff access is required.' }, 403)
+    if (callerProfile.default_role !== 'superadmin') {
+      return jsonResponse({ error: 'Only superadmins may retry sentiment analysis.' }, 403)
+    }
 
     isStaffRetry = true
     actorRole = callerProfile.default_role
@@ -158,14 +162,14 @@ Deno.serve(async (request) => {
     const { error: auditError } = await admin.from('audit_logs').insert({
       actor_id: authData.user.id,
       actor_role: actorRole,
-      action: 'sentiment.review.retry',
-      resource_type: 'review',
+      action: `sentiment.${reviewResourceType}.retry`,
+      resource_type: reviewResourceType,
       resource_id: reviewId,
       previous_state: { analysis_status: review.analysis_status },
       new_state: { analysis_status: resultingStatus },
       result,
       metadata: {
-        analysis_kind: 'service_review',
+        analysis_kind: analysisKind,
         outcome,
         ...(errorMessage ? { error: errorMessage } : {}),
       },
@@ -176,16 +180,16 @@ Deno.serve(async (request) => {
   if (!review.comment?.trim()) {
     if (review.analysis_status !== 'not_requested') {
       await admin
-        .from('reviews')
+        .from(reviewTable)
         .update({ analysis_status: 'not_requested', updated_at: new Date().toISOString() })
         .eq('id', reviewId)
     }
     await auditStaffRetry('success', 'no_written_comment', 'not_requested')
-    return jsonResponse({ reviewId, status: 'not_requested' })
+    return jsonResponse({ reviewId, source, status: 'not_requested' })
   }
   if (review.analysis_status === 'processed') {
     await auditStaffRetry('success', 'already_processed', 'processed')
-    return jsonResponse({ reviewId, status: 'processed' })
+    return jsonResponse({ reviewId, source, status: 'processed' })
   }
 
   const processingStartedAt = Date.parse(review.updated_at)
@@ -196,7 +200,7 @@ Deno.serve(async (request) => {
 
   if (review.analysis_status === 'processing' && !staleProcessing) {
     await auditStaffRetry('success', 'already_processing', 'processing')
-    return jsonResponse({ reviewId, status: 'processing' }, 202)
+    return jsonResponse({ reviewId, source, status: 'processing' }, 202)
   }
   if (!['pending', 'failed', 'processing'].includes(review.analysis_status)) {
     return jsonResponse({ error: 'Review is not eligible for analysis.' }, 409)
@@ -204,7 +208,7 @@ Deno.serve(async (request) => {
 
   const startedAt = new Date().toISOString()
   const { data: claimed, error: claimError } = await admin
-    .from('reviews')
+    .from(reviewTable)
     .update({
       analysis_metadata: { schema_version: 1, started_at: startedAt },
       analysis_status: 'processing',
@@ -221,7 +225,7 @@ Deno.serve(async (request) => {
   }
   if (!claimed) {
     await auditStaffRetry('success', 'claimed_by_another_request', 'processing')
-    return jsonResponse({ reviewId, status: 'processing' }, 202)
+    return jsonResponse({ reviewId, source, status: 'processing' }, 202)
   }
 
   try {
@@ -255,7 +259,7 @@ Deno.serve(async (request) => {
     }))
 
     const { error: updateError } = await admin
-      .from('reviews')
+      .from(reviewTable)
       .update({
         analysis_metadata: {
           binary_scores: analysis.scores,
@@ -277,11 +281,11 @@ Deno.serve(async (request) => {
 
     if (updateError) throw new Error('Unable to store the sentiment result.')
     await auditStaffRetry('success', 'processed', 'processed')
-    return jsonResponse({ reviewId, status: 'processed' })
+    return jsonResponse({ reviewId, source, status: 'processed' })
   } catch (error) {
     const message = getErrorMessage(error)
     await admin
-      .from('reviews')
+      .from(reviewTable)
       .update({
         analysis_metadata: {
           error: message,
@@ -294,6 +298,6 @@ Deno.serve(async (request) => {
       .eq('id', reviewId)
 
     await auditStaffRetry('failure', 'analysis_failed', 'failed', message)
-    return jsonResponse({ error: message, reviewId, status: 'failed' }, 502)
+    return jsonResponse({ error: message, reviewId, source, status: 'failed' }, 502)
   }
 })

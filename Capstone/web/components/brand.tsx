@@ -11,10 +11,14 @@ export function Brand({ compact = false }: { compact?: boolean }) {
         height={48}
         priority={compact}
       />
-      <span className="brand__copy">
-        <strong>MULTIVENT</strong>
-        {!compact && <small>Events, thoughtfully managed</small>}
-      </span>
+      <Image
+        className="brand__wordmark"
+        src="/multivent-metallic-wordmark.png"
+        alt=""
+        width={2172}
+        height={724}
+        priority={compact}
+      />
     </div>
   )
 }

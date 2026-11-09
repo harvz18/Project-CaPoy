@@ -5,15 +5,12 @@ import { useSearchParams } from 'next/navigation'
 import {
   mdiAccountGroupOutline,
   mdiAccountTieOutline,
-  mdiChevronLeft,
-  mdiChevronRight,
   mdiClose,
-  mdiEyeOutline,
   mdiMagnify,
   mdiRefresh,
 } from '@mdi/js'
 import { MdiIcon } from '@/components/icons'
-import { EmptyState, formatDate, formatMoney, InlineError, SegmentedFilter, StatusBadge, TableSkeleton } from '@/components/ui'
+import { EmptyState, formatDate, formatMoney, InlineError, SegmentedFilter, StatusBadge, TablePagination, TableSkeleton } from '@/components/ui'
 import { getSupabase } from '@/lib/supabase'
 
 type Choice = { id: string; name: string }
@@ -180,7 +177,7 @@ export function BookingsManagementScreen() {
         <label className="inline-select-wrap"><span>Sort</span><select value={sort} onChange={(event) => resetPage(() => setSort(event.target.value))}><option value="newest">Newest first</option><option value="event_date">Nearest event date</option><option value="amount">Highest amount</option></select></label>
         <div className="operations-date-range"><label>From<input type="date" aria-label="Event date from" value={dateRange.from} onChange={(event) => resetPage(() => setDateRange((current) => ({ ...current, from: event.target.value })))} /></label><label>To<input type="date" aria-label="Event date to" min={dateRange.from || undefined} value={dateRange.to} onChange={(event) => resetPage(() => setDateRange((current) => ({ ...current, to: event.target.value })))} /></label></div>
       </div>
-      {loading && !directory ? <TableSkeleton rows={6} /> : !directory?.bookings.length ? <EmptyState title="No bookings found" copy={search || categoryId !== 'all' || providerId !== 'all' || status !== 'all' ? 'Try removing a filter or using another search term.' : 'Bookings will appear here as clients make service requests.'} /> : <div className="table-scroll"><table className="data-table operations-directory-table"><thead><tr><th>Booking</th><th>Event</th><th>Client</th><th>Provider / service</th><th>Event date</th><th>Amount</th><th>Status</th><th /></tr></thead><tbody>{directory.bookings.map((row) => <tr key={row.id}>
+      {loading && !directory ? <TableSkeleton rows={6} /> : !directory?.bookings.length ? <EmptyState title="No bookings found" copy={search || categoryId !== 'all' || providerId !== 'all' || status !== 'all' ? 'Try removing a filter or using another search term.' : 'Bookings will appear here as clients make service requests.'} /> : <div className="table-scroll"><table className="data-table operations-directory-table"><thead><tr><th>Booking</th><th>Event</th><th>Client</th><th>Provider / service</th><th>Event date</th><th>Amount</th><th>Status</th></tr></thead><tbody>{directory.bookings.map((row) => <tr className="is-clickable" key={row.id} tabIndex={0} role="button" onClick={() => void openDetail(row.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); void openDetail(row.id) } }}>
         <td data-label="Booking"><strong className="record-id">MV-{row.id.slice(0, 8).toUpperCase()}</strong><small className="table-subcopy">{formatDate(row.created_at)}</small></td>
         <td data-label="Event"><strong>{row.event_name || 'Untitled event'}</strong><small className="table-subcopy">{row.event_type || 'Event'} · {row.category_name || 'Uncategorized'}</small></td>
         <td data-label="Client"><strong>{row.client_name || 'Client'}</strong><small className="table-subcopy">{row.client_email || 'No email'}</small></td>
@@ -188,7 +185,6 @@ export function BookingsManagementScreen() {
         <td data-label="Event date">{formatDate(row.event_date)}</td>
         <td data-label="Amount"><strong>{formatMoney(row.amount)}</strong><small className="table-subcopy">{row.payment_count ? `${formatMoney(row.amount_paid)} paid` : 'No payment record'}</small></td>
         <td data-label="Status"><div className="status-stack"><StatusBadge value={row.status} />{row.latest_payment_status && <small>Payment: {labelize(row.latest_payment_status)}</small>}</div></td>
-        <td className="row-actions"><button className="review-button" type="button" onClick={() => void openDetail(row.id)}><MdiIcon path={mdiEyeOutline} /> Details</button></td>
       </tr>)}</tbody></table></div>}
       <Pagination directory={directory} page={page} loading={loading} label="bookings" onPage={setPage} />
     </section>
@@ -238,14 +234,13 @@ export function ClientsManagementScreen() {
         <SegmentedFilter ariaLabel="Filter client status" options={clientStatuses} value={status} onChange={(value) => resetPage(() => setStatus(value))} />
         <label className="inline-select-wrap"><span>Sort</span><select value={sort} onChange={(event) => resetPage(() => setSort(event.target.value))}><option value="newest">Newest first</option><option value="events">Most events</option><option value="bookings">Most bookings</option></select></label>
       </div>
-      {loading && !directory ? <TableSkeleton rows={6} /> : !directory?.clients.length ? <EmptyState title="No clients found" copy={search || status !== 'all' ? 'Try another search term or remove the status filter.' : 'Client accounts will appear here after registration.'} /> : <div className="table-scroll"><table className="data-table operations-directory-table"><thead><tr><th>Client</th><th>Events</th><th>Bookings</th><th>Latest event</th><th>Status</th><th>Registered</th><th /></tr></thead><tbody>{directory.clients.map((row) => <tr key={row.id}>
+      {loading && !directory ? <TableSkeleton rows={6} /> : !directory?.clients.length ? <EmptyState title="No clients found" copy={search || status !== 'all' ? 'Try another search term or remove the status filter.' : 'Client accounts will appear here after registration.'} /> : <div className="table-scroll"><table className="data-table operations-directory-table"><thead><tr><th>Client</th><th>Events</th><th>Bookings</th><th>Latest event</th><th>Status</th><th>Registered</th></tr></thead><tbody>{directory.clients.map((row) => <tr className="is-clickable" key={row.id} tabIndex={0} role="button" onClick={() => void openDetail(row.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); void openDetail(row.id) } }}>
         <td data-label="Client"><Identity icon={mdiAccountGroupOutline} title={row.full_name || 'Unnamed client'} subtitle={row.email || 'No email'} /></td>
         <td data-label="Events"><strong>{row.event_count}</strong><small className="table-subcopy">{row.active_event_count} active</small></td>
         <td data-label="Bookings"><strong>{row.booking_count}</strong><small className="table-subcopy">{row.valid_booking_count} valid</small></td>
         <td data-label="Latest event">{formatDate(row.latest_event_date)}</td>
         <td data-label="Status"><StatusBadge value={row.account_status} /></td>
         <td data-label="Registered">{formatDate(row.registered_at)}</td>
-        <td className="row-actions"><button className="review-button" type="button" onClick={() => void openDetail(row.id)}><MdiIcon path={mdiEyeOutline} /> Details</button></td>
       </tr>)}</tbody></table></div>}
       <Pagination directory={directory} page={page} loading={loading} label="clients" onPage={setPage} />
     </section>
@@ -294,7 +289,7 @@ export function CoordinatorsManagementScreen() {
         <SegmentedFilter ariaLabel="Filter coordinator availability" options={coordinatorStatuses} value={status} onChange={(value) => resetPage(() => setStatus(value))} />
         <label className="inline-select-wrap"><span>Sort</span><select value={sort} onChange={(event) => resetPage(() => setSort(event.target.value))}><option value="upcoming">Upcoming workload</option><option value="completed">Completed events</option><option value="newest">Newest first</option></select></label>
       </div>
-      {loading && !directory ? <TableSkeleton rows={6} /> : !directory?.coordinators.length ? <EmptyState title="No coordinators found" copy={search || status !== 'all' ? 'Try another search term or remove the filter.' : 'Coordinator profiles will appear here after account setup.'} /> : <div className="table-scroll"><table className="data-table operations-directory-table"><thead><tr><th>Coordinator</th><th>Marketplace availability</th><th>Fee</th><th>Upcoming</th><th>Completed</th><th>Requests</th><th>Account</th><th /></tr></thead><tbody>{directory.coordinators.map((row) => <tr key={row.id}>
+      {loading && !directory ? <TableSkeleton rows={6} /> : !directory?.coordinators.length ? <EmptyState title="No coordinators found" copy={search || status !== 'all' ? 'Try another search term or remove the filter.' : 'Coordinator profiles will appear here after account setup.'} /> : <div className="table-scroll"><table className="data-table operations-directory-table"><thead><tr><th>Coordinator</th><th>Marketplace availability</th><th>Fee</th><th>Upcoming</th><th>Completed</th><th>Requests</th><th>Account</th></tr></thead><tbody>{directory.coordinators.map((row) => <tr className="is-clickable" key={row.id} tabIndex={0} role="button" onClick={() => void openDetail(row.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); void openDetail(row.id) } }}>
         <td data-label="Coordinator"><Identity icon={mdiAccountTieOutline} title={row.full_name || 'Unnamed coordinator'} subtitle={row.email || 'No email'} /></td>
         <td data-label="Marketplace availability"><StatusBadge value={row.is_accepting_bookings && row.account_status === 'active' ? 'active' : 'not_accepting'} /><small className="table-subcopy">{row.next_event_date ? `Next event ${formatDate(row.next_event_date)}` : 'No upcoming accepted event'}</small></td>
         <td data-label="Fee"><strong>{row.coordination_fee ? formatMoney(row.coordination_fee) : 'Not set'}</strong><small className="table-subcopy">{row.specializations.length ? row.specializations.slice(0, 2).join(', ') : 'No specializations'}</small></td>
@@ -302,7 +297,6 @@ export function CoordinatorsManagementScreen() {
         <td data-label="Completed">{row.completed_event_count}</td>
         <td data-label="Requests"><strong>{row.pending_request_count}</strong><small className="table-subcopy">{row.awaiting_payment_count} awaiting payment</small></td>
         <td data-label="Account"><StatusBadge value={row.account_status} /></td>
-        <td className="row-actions"><button className="review-button" type="button" onClick={() => void openDetail(row.id)}><MdiIcon path={mdiEyeOutline} /> Details</button></td>
       </tr>)}</tbody></table></div>}
       <Pagination directory={directory} page={page} loading={loading} label="coordinators" onPage={setPage} />
     </section>
@@ -319,9 +313,7 @@ function Pagination<T>({ directory, page, loading, label, onPage }: { directory:
   const total = directory?.total || 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
   const activePage = directory?.page || page
-  const start = total ? (activePage - 1) * pageSize + 1 : 0
-  const end = Math.min(total, activePage * pageSize)
-  return <footer className="table-footer"><span>Showing {start}-{end} of {total} {label}</span><div><button type="button" disabled={activePage <= 1 || loading} onClick={() => onPage(Math.max(1, activePage - 1))} aria-label="Previous page"><MdiIcon path={mdiChevronLeft} /></button><b>{activePage} / {totalPages}</b><button type="button" disabled={activePage >= totalPages || loading} onClick={() => onPage(activePage + 1)} aria-label="Next page"><MdiIcon path={mdiChevronRight} /></button></div></footer>
+  return <TablePagination itemLabel={label} page={activePage} totalItems={total} totalPages={totalPages} pageSize={pageSize} disabled={loading} onPageChange={onPage} />
 }
 
 function BookingDetailModal({ detail, loading, error, onClose }: { detail: BookingDetail | null; loading: boolean; error: string; onClose: () => void }) {

@@ -126,7 +126,7 @@ const governanceNavigation: NavigationItem[] = [
 // existing remittance.verify checks and database-enforced transition rules, so
 // this only gives the accountable platform owner access to review/record an
 // already-authorized external refund outcome.
-const superadminRoutes = new Set<SectionKey>(['users', 'financial', 'permissions', 'audit', 'settings'])
+const superadminRoutes = new Set<SectionKey>(['users', 'financial', 'permissions', 'audit', 'settings', 'reviews'])
 const adminRoutes = new Set<SectionKey>(['overview', 'clients', 'providers', 'categories', 'bookings', 'financial', 'reports', 'revenue', 'cashflow', 'reviews', 'insights'])
 
 export function canAccessWorkspaceRoute(role: StaffRole, route: SectionKey) {

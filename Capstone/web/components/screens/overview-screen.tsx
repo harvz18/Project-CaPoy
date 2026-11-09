@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   mdiAccountGroupOutline,
   mdiAccountTieOutline,
@@ -15,7 +15,6 @@ import {
   mdiCheckDecagramOutline,
   mdiClipboardTextOutline,
   mdiClipboardTextClockOutline,
-  mdiEyeOutline,
   mdiFlowerOutline,
   mdiFormatListBulletedType,
   mdiImageMultipleOutline,
@@ -175,10 +174,11 @@ export function OverviewScreen() {
   const [error, setError] = useState('')
   const [refreshKey, setRefreshKey] = useState(0)
   const [chartYear, setChartYear] = useState(() => new Date().getFullYear())
-  const [chartFromDate, setChartFromDate] = useState(() => startOfYear(new Date().getFullYear()))
-  const [chartToDate, setChartToDate] = useState(() => endOfAvailableYear(new Date().getFullYear()))
-  const [openChartCalendar, setOpenChartCalendar] = useState<'from' | 'to' | null>(null)
-  const [chartCalendarMonth, setChartCalendarMonth] = useState(() => `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`)
+  const [chartFromDate, setChartFromDate] = useState(() => oneMonthAgo(new Date()))
+  const [chartToDate, setChartToDate] = useState(() => toLocalIsoDate(new Date()))
+  const [isChartDateRangeOpen, setChartDateRangeOpen] = useState(false)
+  const [chartFromCalendarMonth, setChartFromCalendarMonth] = useState(() => oneMonthAgo(new Date()).slice(0, 7))
+  const [chartToCalendarMonth, setChartToCalendarMonth] = useState(() => `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`)
   const [chartAnalytics, setChartAnalytics] = useState<ChartAnalytics | null>(null)
   const [chartLoading, setChartLoading] = useState(false)
   const [chartError, setChartError] = useState('')
@@ -483,24 +483,22 @@ export function OverviewScreen() {
   const chartYearStart = startOfYear(chartYear)
   const chartYearEnd = endOfAvailableYear(chartYear)
 
-  function toggleChartCalendar(target: 'from' | 'to') {
-    if (openChartCalendar === target) {
-      setOpenChartCalendar(null)
-      return
+  function toggleChartDateRange() {
+    if (!isChartDateRangeOpen) {
+      setChartFromCalendarMonth(chartFromDate.slice(0, 7))
+      setChartToCalendarMonth(chartToDate.slice(0, 7))
     }
-    setChartCalendarMonth((target === 'from' ? chartFromDate : chartToDate).slice(0, 7))
-    setOpenChartCalendar(target)
+    setChartDateRangeOpen((open) => !open)
   }
 
-  function selectChartDate(value: string) {
-    if (!openChartCalendar || !isDateWithinYear(value, chartYear)) return
-    if (openChartCalendar === 'from') {
+  function selectChartDate(target: 'from' | 'to', value: string) {
+    if (!isDateWithinYear(value, chartYear)) return
+    if (target === 'from') {
       setChartFromDate(value)
       if (value > chartToDate) setChartToDate(value)
     } else if (value >= chartFromDate) {
       setChartToDate(value)
     }
-    setOpenChartCalendar(null)
   }
 
   function changeChartYear(nextYear: number) {
@@ -509,8 +507,9 @@ export function OverviewScreen() {
     const nextTo = endOfAvailableYear(nextYear)
     setChartFromDate(nextFrom)
     setChartToDate(nextTo)
-    setChartCalendarMonth(nextFrom.slice(0, 7))
-    setOpenChartCalendar(null)
+    setChartFromCalendarMonth(nextFrom.slice(0, 7))
+    setChartToCalendarMonth(nextTo.slice(0, 7))
+    setChartDateRangeOpen(false)
   }
 
   if (!hasWorkspaceOverview) return <SuperadminDashboardScreen />
@@ -557,9 +556,8 @@ export function OverviewScreen() {
                 <p>Bars show recognized MULTIVENT platform revenue from paid or verified ledger entries. The line shows valid booking requests on its own scale.</p>
               </div>
               <div className="phase-three-chart-controls">
-                <ChartDateControl label="From" value={chartFromDate} min={chartYearStart} max={chartYearEnd} isOpen={openChartCalendar === 'from'} month={chartCalendarMonth} onToggle={() => toggleChartCalendar('from')} onMonthChange={setChartCalendarMonth} onSelect={selectChartDate} />
-                <ChartDateControl label="To" value={chartToDate} min={chartFromDate} max={chartYearEnd} isOpen={openChartCalendar === 'to'} month={chartCalendarMonth} onToggle={() => toggleChartCalendar('to')} onMonthChange={setChartCalendarMonth} onSelect={selectChartDate} />
-                <label className="chart-year-select">Year
+                <ChartDateRangeControl from={chartFromDate} to={chartToDate} min={chartYearStart} max={chartYearEnd} isOpen={isChartDateRangeOpen} fromMonth={chartFromCalendarMonth} toMonth={chartToCalendarMonth} onToggle={toggleChartDateRange} onFromMonthChange={setChartFromCalendarMonth} onToMonthChange={setChartToCalendarMonth} onSelect={selectChartDate} />
+                <label className="chart-year-control">Year
                   <select aria-label="Revenue chart year" value={chartYear} onChange={(event) => changeChartYear(Number(event.target.value))}>
                     {chartYears.map((year) => <option key={year} value={year}>{year}</option>)}
                   </select>
@@ -682,8 +680,9 @@ function RecentReviewsPanel({ reviews }: { reviews: DashboardReview[] }) {
 function ProviderLeaderboard({ providers, canViewProfiles }: { providers: DashboardProvider[]; canViewProfiles: boolean }) {
   if (!providers.length) return <div className="chart-empty">No eligible provider performance data is available for this category.</div>
   return <div className="phase-four-leaderboard table-scroll">
-    <div className="phase-four-leaderboard__header"><span>Rank</span><span>Provider</span><span>Category</span><span>Rating</span><span>Platform revenue</span><span>Bookings</span><span>Standing</span><span>Action</span></div>
-    {providers.map((provider) => <div className="phase-four-leaderboard__row" key={provider.id}>
+    <div className="phase-four-leaderboard__header"><span>Rank</span><span>Provider</span><span>Category</span><span>Rating</span><span>Platform revenue</span><span>Bookings</span><span>Standing</span></div>
+    {providers.map((provider) => {
+      const row = <>
       <b>#{provider.rank}</b>
       <div className="phase-four-provider-identity"><ReviewImage url={provider.cover_image_url} label={provider.business_name} /><span><strong>{provider.business_name}</strong></span></div>
       <span className="phase-four-provider-category">{categoryNames(provider.categories)}</span>
@@ -691,8 +690,11 @@ function ProviderLeaderboard({ providers, canViewProfiles }: { providers: Dashbo
       <span><strong>{formatMoney(provider.platform_revenue)}</strong><small>recognized fee</small></span>
       <span><strong>{provider.confirmed_bookings.toLocaleString()}</strong><small>{provider.completed_bookings.toLocaleString()} completed</small></span>
       <span className="provider-standing"><StatusBadge value={provider.verification_status} /><i className={`performance-pill performance-pill--${provider.performance.toLowerCase()}`}>{provider.performance}</i></span>
-      <span>{canViewProfiles ? <Link className="review-button" href={`/dashboard/providers?provider=${encodeURIComponent(provider.id)}`}><MdiIcon path={mdiEyeOutline} /> View</Link> : <small className="table-muted">—</small>}</span>
-    </div>)}
+      </>
+      return canViewProfiles
+        ? <Link className="phase-four-leaderboard__row is-clickable" key={provider.id} href={`/dashboard/providers?provider=${encodeURIComponent(provider.id)}`}>{row}</Link>
+        : <div className="phase-four-leaderboard__row" key={provider.id}>{row}</div>
+    })}
   </div>
 }
 
@@ -758,14 +760,39 @@ function truncateCopy(value: string, limit: number) {
   return text.length > limit ? `${text.slice(0, limit - 1).trimEnd()}…` : text
 }
 
-function ChartDateControl({ label, value, min, max, isOpen, month, onToggle, onMonthChange, onSelect }: {
+function ChartDateRangeControl({ from, to, min, max, isOpen, fromMonth, toMonth, onToggle, onFromMonthChange, onToMonthChange, onSelect }: {
+  from: string
+  to: string
+  min: string
+  max: string
+  isOpen: boolean
+  fromMonth: string
+  toMonth: string
+  onToggle: () => void
+  onFromMonthChange: (value: string) => void
+  onToMonthChange: (value: string) => void
+  onSelect: (target: 'from' | 'to', value: string) => void
+}) {
+  return <div className="chart-date-control chart-date-control--range">
+    <button className={isOpen ? 'chart-date-control__button is-open' : 'chart-date-control__button'} type="button" onClick={onToggle} aria-expanded={isOpen} aria-haspopup="dialog">
+      <MdiIcon path={mdiCalendarCheckOutline} size={0.76} />
+      <span>Select date</span>
+      <strong>{formatChartDate(from)} – {formatChartDate(to)}</strong>
+    </button>
+    {isOpen && <section className="chart-date-range-popover" role="dialog" aria-label="Select revenue chart date range">
+      <ChartCalendar label="From" value={from} min={min} max={max} month={fromMonth} onMonthChange={onFromMonthChange} onSelect={(value) => onSelect('from', value)} />
+      <ChartCalendar label="To" value={to} min={from} max={max} month={toMonth} onMonthChange={onToMonthChange} onSelect={(value) => onSelect('to', value)} />
+      <footer><span>Select a start and end date for the chart. The end date cannot be before the start date.</span></footer>
+    </section>}
+  </div>
+}
+
+function ChartCalendar({ label, value, min, max, month, onMonthChange, onSelect }: {
   label: 'From' | 'To'
   value: string
   min: string
   max: string
-  isOpen: boolean
   month: string
-  onToggle: () => void
   onMonthChange: (value: string) => void
   onSelect: (value: string) => void
 }) {
@@ -779,28 +806,36 @@ function ChartDateControl({ label, value, min, max, isOpen, month, onToggle, onM
   const title = new Intl.DateTimeFormat('en-PH', { month: 'long', year: 'numeric' }).format(new Date(year, monthIndex - 1, 1))
   const days = Array.from({ length: firstDay + daysInMonth }, (_, index) => index < firstDay ? null : index - firstDay + 1)
 
-  return <div className="chart-date-control">
-    <button className={isOpen ? 'chart-date-control__button is-open' : 'chart-date-control__button'} type="button" onClick={onToggle} aria-expanded={isOpen} aria-haspopup="dialog">
-      <MdiIcon path={mdiCalendarCheckOutline} size={0.76} />
-      <span>{label}</span>
-      <strong>{formatChartDate(value)}</strong>
-    </button>
-    {isOpen && <section className="chart-calendar" role="dialog" aria-label={`Select ${label.toLowerCase()} date`}>
-      <header><button type="button" onClick={() => onMonthChange(previousMonth)} disabled={!canMovePrevious} aria-label="Previous month"><MdiIcon path={mdiChevronLeft} /></button><strong>{title}</strong><button type="button" onClick={() => onMonthChange(nextMonth)} disabled={!canMoveNext} aria-label="Next month"><MdiIcon path={mdiChevronRight} /></button></header>
-      <div className="chart-calendar__weekdays">{['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => <span key={`${day}:${index}`}>{day}</span>)}</div>
-      <div className="chart-calendar__days">{days.map((day, index) => {
-        if (day === null) return <span key={`empty:${index}`} aria-hidden="true" />
-        const date = `${month}-${String(day).padStart(2, '0')}`
-        const disabled = date < min || date > max
-        return <button key={date} type="button" disabled={disabled} className={date === value ? 'is-selected' : ''} onClick={() => onSelect(date)} aria-label={formatChartDate(date)} aria-pressed={date === value}>{day}</button>
-      })}</div>
-      <footer><span>{label === 'From' ? 'Selecting a later date also moves To forward.' : 'To date cannot be before From.'}</span></footer>
-    </section>}
-  </div>
+  return <section className="chart-calendar" aria-label={`Select ${label.toLowerCase()} date`}>
+    <p>{label}</p>
+    <header><button type="button" onClick={() => onMonthChange(previousMonth)} disabled={!canMovePrevious} aria-label={`Previous ${label.toLowerCase()} month`}><MdiIcon path={mdiChevronLeft} /></button><strong>{title}</strong><button type="button" onClick={() => onMonthChange(nextMonth)} disabled={!canMoveNext} aria-label={`Next ${label.toLowerCase()} month`}><MdiIcon path={mdiChevronRight} /></button></header>
+    <div className="chart-calendar__weekdays">{['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => <span key={`${day}:${index}`}>{day}</span>)}</div>
+    <div className="chart-calendar__days">{days.map((day, index) => {
+      if (day === null) return <span key={`empty:${index}`} aria-hidden="true" />
+      const date = `${month}-${String(day).padStart(2, '0')}`
+      const disabled = date < min || date > max
+      return <button key={date} type="button" disabled={disabled} className={date === value ? 'is-selected' : ''} onClick={() => onSelect(date)} aria-label={formatChartDate(date)} aria-pressed={date === value}>{day}</button>
+    })}</div>
+  </section>
 }
 
 function RevenueBookingChart({ analytics }: { analytics: ChartAnalytics | null }) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
+  const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null)
+  const chartContainerRef = useRef<HTMLDivElement>(null)
+  const [availableChartWidth, setAvailableChartWidth] = useState(620)
+
+  useEffect(() => {
+    const container = chartContainerRef.current
+    if (!container) return
+
+    const updateWidth = () => setAvailableChartWidth(Math.max(620, Math.round(container.clientWidth)))
+    updateWidth()
+    const observer = new ResizeObserver(updateWidth)
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [analytics])
+
   if (!analytics) return <div className="chart-empty">Live chart data is unavailable right now.</div>
 
   const points = analytics.series
@@ -811,7 +846,7 @@ function RevenueBookingChart({ analytics }: { analytics: ChartAnalytics | null }
   const bookingValues = points.map((point) => Number(point.bookings || 0))
   const revenueMaximum = roundedChartMaximum(Math.max(...revenueValues, 0))
   const bookingMaximum = roundedChartMaximum(Math.max(...bookingValues, 0))
-  const width = Math.max(620, points.length * (analytics.range.period === 'daily' ? 17 : 50))
+  const width = Math.max(availableChartWidth, 620, points.length * (analytics.range.period === 'daily' ? 17 : 50))
   const plot = { left: 58, right: width - 52, top: 20, bottom: 200 }
   const plotWidth = plot.right - plot.left
   const plotHeight = plot.bottom - plot.top
@@ -824,11 +859,21 @@ function RevenueBookingChart({ analytics }: { analytics: ChartAnalytics | null }
   const barWidth = Math.max(4, Math.min(24, plotWidth / Math.max(points.length, 1) * .56))
   const revenueTicks = [0, .25, .5, .75, 1]
 
+  function showChartTooltip(index: number, x: number, y: number) {
+    setActiveIndex(index)
+    setTooltipPosition({ x, y })
+  }
+
+  function hideChartTooltip() {
+    setActiveIndex(null)
+    setTooltipPosition(null)
+  }
+
   return (
     <div className="revenue-booking-chart">
       <div className="revenue-booking-chart__legend" aria-label="Chart legend"><span><i className="revenue" />Recognized platform revenue</span><span><i className="bookings" />Valid booking requests</span></div>
-      {tooltip && <div className="chart-tooltip" role="status"><strong>{tooltip.label}</strong><span>Platform revenue: {formatMoney(tooltip.platform_revenue)}</span><span>Gross payment volume: {formatMoney(tooltip.gross_transaction_volume)}</span><span>Valid bookings: {tooltip.bookings.toLocaleString()}</span></div>}
-      <div className="revenue-booking-chart__scroll">
+      {tooltip && tooltipPosition && <div className="chart-tooltip chart-tooltip--floating" role="status" style={{ left: tooltipPosition.x + 14, top: tooltipPosition.y + 16 }}><strong>{tooltip.label}</strong><span>Platform revenue: {formatMoney(tooltip.platform_revenue)}</span><span>Gross payment volume: {formatMoney(tooltip.gross_transaction_volume)}</span><span>Valid bookings: {tooltip.bookings.toLocaleString()}</span></div>}
+      <div ref={chartContainerRef} className="revenue-booking-chart__scroll">
         <svg viewBox={`0 0 ${width} 238`} style={{ minWidth: `${width}px` }} role="img" aria-label="Recognized platform revenue bars and valid booking request trend line">
           <defs><linearGradient id="revenue-bar-gradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#bd7a86" /><stop offset="100%" stopColor="#741d33" /></linearGradient></defs>
           {revenueTicks.map((tick) => {
@@ -841,7 +886,7 @@ function RevenueBookingChart({ analytics }: { analytics: ChartAnalytics | null }
             const revenue = Number(point.platform_revenue || 0)
             const bookings = Number(point.bookings || 0)
             const isActive = activeIndex === index
-            return <g key={point.key} className={isActive ? 'revenue-booking-chart__point is-active' : 'revenue-booking-chart__point'} tabIndex={0} role="button" aria-label={`${point.label}: ${formatMoney(revenue)} recognized platform revenue, ${bookings.toLocaleString()} valid bookings`} onMouseEnter={() => setActiveIndex(index)} onMouseLeave={() => setActiveIndex(null)} onFocus={() => setActiveIndex(index)} onBlur={() => setActiveIndex(null)}>
+            return <g key={point.key} className={isActive ? 'revenue-booking-chart__point is-active' : 'revenue-booking-chart__point'} tabIndex={0} role="button" aria-label={`${point.label}: ${formatMoney(revenue)} recognized platform revenue, ${bookings.toLocaleString()} valid bookings`} onMouseEnter={(event) => showChartTooltip(index, event.clientX, event.clientY)} onMouseMove={(event) => showChartTooltip(index, event.clientX, event.clientY)} onMouseLeave={hideChartTooltip} onFocus={() => setActiveIndex(index)} onBlur={hideChartTooltip}>
               <rect x={x - barWidth / 2} y={revenueY(revenue)} width={barWidth} height={Math.max(1, plot.bottom - revenueY(revenue))} rx="3" className="revenue-booking-chart__bar" />
               <circle cx={x} cy={bookingY(bookings)} r="4" className="revenue-booking-chart__line-point" />
               <rect x={x - Math.max(10, barWidth)} y={plot.top} width={Math.max(20, barWidth * 2)} height={plotHeight} className="revenue-booking-chart__hit-area" />
@@ -942,6 +987,16 @@ function endOfAvailableYear(year: number) {
 function toLocalIsoDate(value: Date) {
   const offset = value.getTimezoneOffset() * 60_000
   return new Date(value.getTime() - offset).toISOString().slice(0, 10)
+}
+
+function oneMonthAgo(value: Date) {
+  const result = new Date(value)
+  const day = result.getDate()
+  result.setDate(1)
+  result.setMonth(result.getMonth() - 1)
+  const daysInMonth = new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate()
+  result.setDate(Math.min(day, daysInMonth))
+  return toLocalIsoDate(result)
 }
 
 function isDateWithinYear(value: string, year: number) {

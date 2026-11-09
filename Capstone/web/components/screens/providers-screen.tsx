@@ -3,19 +3,15 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import {
-  mdiArrowRight,
   mdiCheck,
-  mdiChevronLeft,
-  mdiChevronRight,
   mdiClose,
-  mdiEyeOutline,
   mdiMagnify,
   mdiRefresh,
   mdiStarOutline,
   mdiStorefrontOutline,
 } from '@mdi/js'
 import { MdiIcon } from '@/components/icons'
-import { EmptyState, formatDate, formatMoney, InlineError, SegmentedFilter, StatusBadge, TableSkeleton } from '@/components/ui'
+import { EmptyState, formatDate, formatMoney, InlineError, SegmentedFilter, StatusBadge, TablePagination, TableSkeleton } from '@/components/ui'
 import { useDashboardControls, useStaff } from '@/components/dashboard-shell'
 import { getSupabase } from '@/lib/supabase'
 
@@ -180,8 +176,6 @@ export function ProvidersScreen({ readOnly = false }: { readOnly?: boolean }) {
 
   const totalPages = Math.max(1, Math.ceil((directory?.total || 0) / (directory?.page_size || 10)))
   const selectedCategory = directory?.categories.find((category) => category.id === categoryId)?.name || 'All categories'
-  const showingStart = directory?.total ? ((directory.page - 1) * directory.page_size) + 1 : 0
-  const showingEnd = directory ? Math.min(directory.total, directory.page * directory.page_size) : 0
 
   function changeFilters(change: () => void) {
     change()
@@ -247,14 +241,13 @@ export function ProvidersScreen({ readOnly = false }: { readOnly?: boolean }) {
         </div>
         {loading && !directory ? <TableSkeleton rows={4} /> : !directory?.top_providers.length ? <EmptyState title="No provider performance data yet" copy="Rankings will appear after providers have active category services or booking activity." /> : (
           <div className="provider-ranking-table">
-            <div className="provider-ranking-table__header"><span>Rank</span><span>Provider</span><span>Bookings</span><span>Rating</span><span>Performance</span><span /></div>
-            {directory.top_providers.map((provider) => <div className="provider-ranking-row" key={provider.id}>
+            <div className="provider-ranking-table__header"><span>Rank</span><span>Provider</span><span>Bookings</span><span>Rating</span><span>Performance</span></div>
+            {directory.top_providers.map((provider) => <div className="provider-ranking-row is-clickable" key={provider.id} tabIndex={0} role="button" onClick={() => void openProvider(provider.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); void openProvider(provider.id) } }}>
               <b>{provider.rank}</b>
               <div><strong>{provider.business_name}</strong><small>{categoryId === 'all' ? categoryNames(provider.categories) : selectedCategory}</small></div>
               <span><strong>{provider.confirmed_bookings}</strong><small>{provider.valid_bookings} valid</small></span>
               <span className="provider-rating">{ratingCopy(provider.average_rating, provider.review_count)}</span>
               <span className={`performance-pill performance-pill--${provider.performance.toLowerCase()}`}>{provider.performance}</span>
-              <button className="review-button" type="button" onClick={() => void openProvider(provider.id)}><MdiIcon path={mdiEyeOutline} /> View</button>
             </div>)}
           </div>
         )}
@@ -269,8 +262,8 @@ export function ProvidersScreen({ readOnly = false }: { readOnly?: boolean }) {
         {loading && !directory ? <TableSkeleton rows={6} /> : !directory?.providers.length ? <EmptyState title="No service providers found" copy={search ? 'Try a different search term or remove a filter.' : 'Provider accounts will appear here when they register.'} /> : (
           <div className="table-scroll">
             <table className="data-table provider-directory-table">
-              <thead><tr><th>Provider</th><th>Categories</th><th>Active services</th><th>Bookings</th><th>Rating</th><th>Standing</th><th>Registered</th><th><span className="sr-only">Actions</span></th></tr></thead>
-              <tbody>{directory.providers.map((provider) => <tr key={provider.id}>
+              <thead><tr><th>Provider</th><th>Categories</th><th>Active services</th><th>Bookings</th><th>Rating</th><th>Standing</th><th>Registered</th></tr></thead>
+              <tbody>{directory.providers.map((provider) => <tr className="is-clickable" key={provider.id} tabIndex={0} role="button" onClick={() => void openProvider(provider.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); void openProvider(provider.id) } }}>
                 <td data-label="Provider"><div className="provider-identity"><span><MdiIcon path={mdiStorefrontOutline} /></span><div><strong>{provider.business_name}</strong><small>{provider.full_name || 'Provider account'} · {provider.email || 'No email'}</small></div></div></td>
                 <td data-label="Categories"><div className="category-tag-list">{provider.categories.length ? provider.categories.slice(0, 2).map((category) => <span key={category.id}>{category.name}</span>) : <small>None active</small>}{provider.categories.length > 2 && <b>+{provider.categories.length - 2}</b>}</div></td>
                 <td data-label="Active services"><strong>{provider.active_services}</strong><small className="table-subcopy">{provider.services} total</small></td>
@@ -278,12 +271,11 @@ export function ProvidersScreen({ readOnly = false }: { readOnly?: boolean }) {
                 <td data-label="Rating"><span className="provider-rating">{ratingCopy(provider.average_rating, provider.review_count)}</span></td>
                 <td data-label="Standing"><div className="provider-standing"><StatusBadge value={provider.verification_status} /><span className={`performance-pill performance-pill--${provider.performance.toLowerCase()}`}>{provider.performance}</span></div></td>
                 <td data-label="Registered">{formatDate(provider.registered_at)}</td>
-                <td className="row-actions"><button className="review-button" type="button" onClick={() => void openProvider(provider.id)}><MdiIcon path={mdiArrowRight} /> Details</button></td>
               </tr>)}</tbody>
             </table>
           </div>
         )}
-        <footer className="table-footer"><span>Showing {showingStart}–{showingEnd} of {directory?.total || 0} providers</span><div><button type="button" disabled={page <= 1 || loading} onClick={() => setPage((value) => Math.max(1, value - 1))} aria-label="Previous page"><MdiIcon path={mdiChevronLeft} /></button><b>{directory?.page || page} / {totalPages}</b><button type="button" disabled={page >= totalPages || loading} onClick={() => setPage((value) => value + 1)} aria-label="Next page"><MdiIcon path={mdiChevronRight} /></button></div></footer>
+        <TablePagination itemLabel="providers" page={directory?.page || page} totalItems={directory?.total || 0} totalPages={totalPages} pageSize={directory?.page_size || 10} disabled={loading} onPageChange={setPage} />
       </section>
 
       {(detailLoading || selected || detailError) && <ProviderDetailModal

@@ -1,16 +1,20 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { mdiAlertCircleOutline, mdiChevronLeft, mdiChevronRight, mdiClose, mdiInformationOutline } from '@mdi/js'
 import { MdiIcon } from './icons'
 
-export function StatusBadge({ value }: { value: string | null | undefined }) {
+export function StatusBadge({ value, children, className = '' }: { value: string | null | undefined; children?: ReactNode; className?: string }) {
   const normalized = (value || 'unknown').toLowerCase()
   const positive = ['active', 'verified', 'paid', 'fully_paid', 'confirmed', 'completed', 'approved', 'published', 'processed'].includes(normalized)
   const caution = ['pending', 'pending_review', 'deposit_paid', 'processing', 'requested', 'payment_required', 'planning'].includes(normalized)
   const negative = ['suspended', 'disabled', 'rejected', 'failed', 'cancelled', 'expired'].includes(normalized)
+  const failed = normalized === 'failed'
   const tone = positive ? 'positive' : caution ? 'caution' : negative ? 'negative' : 'neutral'
   const label = normalized === 'deposit_paid' ? '35% downpayment' : normalized.replaceAll('_', ' ')
-  return <span className={`status-badge status-badge--${tone}`}><i />{label}</span>
+  const color = positive ? '#5d8a6d' : failed ? '#6f6c6d' : negative ? '#935263' : undefined
+  const backgroundColor = positive ? '#e8f4eb' : failed ? '#efeeee' : negative ? '#f7e8ec' : undefined
+  return <span className={`status-badge status-badge--${tone}${failed ? ' status-badge--failed' : ''} ${className}`.trim()} style={{ color, backgroundColor }}><i />{label}{children}</span>
 }
 
 export function SegmentedFilter({
@@ -87,22 +91,28 @@ export function TablePagination({
   page,
   totalItems,
   totalPages,
+  pageSize = TABLE_PAGE_SIZE,
+  disabled = false,
   onPageChange,
 }: {
   itemLabel?: string
   page: number
   totalItems: number
   totalPages: number
+  pageSize?: number
+  disabled?: boolean
   onPageChange: (page: number) => void
 }) {
-  const start = totalItems ? (page - 1) * TABLE_PAGE_SIZE + 1 : 0
-  const end = Math.min(page * TABLE_PAGE_SIZE, totalItems)
+  const safeTotalPages = Math.max(1, totalPages)
+  const activePage = Math.min(Math.max(1, page), safeTotalPages)
+  const start = totalItems ? (activePage - 1) * pageSize + 1 : 0
+  const end = Math.min(activePage * pageSize, totalItems)
   return <footer className="table-footer table-footer--pagination">
     <span>Showing {start}–{end} of {totalItems.toLocaleString()} {itemLabel}</span>
     <div>
-      <button type="button" disabled={page <= 1} onClick={() => onPageChange(page - 1)} aria-label="Previous page"><MdiIcon path={mdiChevronLeft} /></button>
-      <b>Page {page} of {totalPages}</b>
-      <button type="button" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)} aria-label="Next page"><MdiIcon path={mdiChevronRight} /></button>
+      <button type="button" disabled={disabled || activePage <= 1} onClick={() => onPageChange(activePage - 1)} aria-label="Previous page"><MdiIcon path={mdiChevronLeft} /></button>
+      <b>Page {activePage} of {safeTotalPages}</b>
+      <button type="button" disabled={disabled || activePage >= safeTotalPages} onClick={() => onPageChange(activePage + 1)} aria-label="Next page"><MdiIcon path={mdiChevronRight} /></button>
     </div>
   </footer>
 }

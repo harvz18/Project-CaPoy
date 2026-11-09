@@ -31,6 +31,7 @@ type CategoryMetric = {
   description: string | null
   icon_name: string | null
   is_active: boolean
+  services?: number
   active_services: number
   providers: number
   valid_bookings: number
@@ -38,6 +39,7 @@ type CategoryMetric = {
   platform_revenue: number
   average_rating: number
   review_count: number
+  is_coordinator_category?: boolean
 }
 type CategoryPerformance = {
   range: { key: DateRange; label: string; event_type: string | null }
@@ -54,6 +56,7 @@ type CategoryProvider = {
   platform_revenue: number
   average_rating: number
   review_count: number
+  is_coordinator?: boolean
 }
 type CategoryService = {
   id: string
@@ -67,6 +70,7 @@ type CategoryService = {
   platform_revenue: number
   average_rating: number
   review_count: number
+  is_coordinator?: boolean
 }
 type CategoryDetail = {
   range: { key: DateRange; label: string; event_type: string | null }
@@ -110,14 +114,17 @@ export function CategoryPerformanceScreen() {
 
       setLoading(true)
       setError('')
-      const { data, error: requestError } = await supabase.rpc('get_admin_category_performance', {
-        p_range: range,
-        p_event_type: eventType === 'all' ? null : eventType,
-      })
+      const parameters = { p_range: range, p_event_type: eventType === 'all' ? null : eventType }
+      const [{ data, error: requestError }, { data: organizerData, error: organizerError }] = await Promise.all([
+        supabase.rpc('get_admin_category_performance', parameters),
+        supabase.rpc('get_admin_event_organizer_category_performance', parameters),
+      ])
       if (!active) return
       if (requestError) setError(requestError.message)
       else if (!isCategoryPerformance(data)) setError('Category performance returned an unexpected response. Refresh after the Phase 5 migration is available.')
-      else setPerformance(data)
+      else if (organizerError) setError(organizerError.message)
+      else if (!isEventOrganizerAnalytics(organizerData)) setError('Event Organizer analytics returned an unexpected response.')
+      else setPerformance({ ...data, categories: data.categories.map((category) => category.id === organizerData.category.id ? organizerData.category : category) })
       setLoading(false)
     }
 
@@ -150,15 +157,23 @@ export function CategoryPerformanceScreen() {
       setDetailLoading(true)
       setDetailError('')
       setDetail(null)
-      const { data, error: requestError } = await supabase.rpc('get_admin_category_performance_detail', {
+      const parameters = {
         p_category_id: categoryId,
         p_range: range,
         p_event_type: eventType === 'all' ? null : eventType,
-      })
+      }
+      const { data, error: requestError } = await supabase.rpc('get_admin_category_performance_detail', parameters)
       if (!active) return
       if (requestError) setDetailError(requestError.message)
       else if (!isCategoryDetail(data)) setDetailError('Category details returned an unexpected response.')
-      else setDetail(data)
+      else if (data.category.name.trim().toLowerCase() !== 'event organizer') setDetail(data)
+      else {
+        const { data: organizerData, error: organizerError } = await supabase.rpc('get_admin_event_organizer_category_performance', { p_range: range, p_event_type: eventType === 'all' ? null : eventType })
+        if (!active) return
+        if (organizerError) setDetailError(organizerError.message)
+        else if (!isEventOrganizerAnalytics(organizerData)) setDetailError('Event Organizer analytics returned an unexpected response.')
+        else setDetail(organizerData)
+      }
       setDetailLoading(false)
     }
 
@@ -189,7 +204,7 @@ export function CategoryPerformanceScreen() {
           <span className="category-performance-card__icon"><MdiIcon path={categoryIcon(category.icon_name, category.name)} /></span>
           <span className="category-performance-card__heading"><strong>{category.name}</strong>{!category.is_active && <small>Inactive</small>}</span>
           <span className="category-performance-card__metrics"><span><small>Valid bookings</small><b>{category.valid_bookings.toLocaleString()}</b></span><span><small>Platform revenue</small><b>{formatMoney(category.platform_revenue)}</b></span></span>
-          <span className="category-performance-card__footer"><span>{category.active_services.toLocaleString()} active services · {category.providers.toLocaleString()} providers</span><span>View details</span></span>
+          <span className="category-performance-card__footer"><span>{category.is_coordinator_category ? `${category.active_services.toLocaleString()} accepting coordinators · ${(category.services ?? 0).toLocaleString()} profiles` : `${category.active_services.toLocaleString()} active services · ${category.providers.toLocaleString()} providers`}</span><span>View details</span></span>
         </Link>)}</div>}
       </section>
 
@@ -206,6 +221,7 @@ function CategoryDetailPanel({ detail, loading, error, range }: { detail: Catego
   if (!detail) return null
 
   const category = detail.category
+  const isCoordinatorCategory = Boolean(category.is_coordinator_category)
   const providerPagination = paginateItems(detail.providers, providerPage)
   const servicePagination = paginateItems(detail.services, servicePage)
   return <section className="panel category-detail-panel">
@@ -214,17 +230,17 @@ function CategoryDetailPanel({ detail, loading, error, range }: { detail: Catego
     <div className="category-detail-metrics">
       <MetricCard label="Valid bookings" value={category.valid_bookings.toLocaleString()} copy={`${category.completed_bookings.toLocaleString()} completed`} />
       <MetricCard label="Platform revenue" value={formatMoney(category.platform_revenue)} copy="Paid or verified commission" />
-      <MetricCard label="Active services" value={category.active_services.toLocaleString()} copy={`${category.services.toLocaleString()} total listings`} />
-      <MetricCard label="Providers" value={category.providers.toLocaleString()} copy="With active category services" />
+      <MetricCard label={isCoordinatorCategory ? 'Accepting coordinators' : 'Active services'} value={category.active_services.toLocaleString()} copy={isCoordinatorCategory ? `${category.services.toLocaleString()} active coordinator profiles` : `${category.services.toLocaleString()} total listings`} />
+      <MetricCard label={isCoordinatorCategory ? 'Coordinator profiles' : 'Providers'} value={isCoordinatorCategory ? category.services.toLocaleString() : category.providers.toLocaleString()} copy={isCoordinatorCategory ? 'Active staff coordinator accounts' : 'With active category services'} />
       <MetricCard label="Average rating" value={category.review_count ? category.average_rating.toFixed(1) : '—'} copy={category.review_count ? `${category.review_count.toLocaleString()} completed-booking reviews` : 'No eligible reviews'} />
     </div>
 
     <div className="category-booking-activity"><div><span className="eyebrow">BOOKING ACTIVITY</span><p>All recorded statuses for this category in the selected scope.</p></div><div>{detail.booking_activity.length ? detail.booking_activity.map((item) => <span key={item.status}><StatusBadge value={item.status} /><b>{item.count.toLocaleString()}</b></span>) : <small>No booking activity in this scope.</small>}</div></div>
 
     <div className="category-detail-grid">
-      <section><header><div><span className="eyebrow">PROVIDERS</span><h3>Category providers</h3></div><small>Top {detail.providers.length} by valid bookings</small></header>{detail.providers.length ? <><div className="table-scroll"><table className="data-table category-detail-table"><thead><tr><th>Provider</th><th>Services</th><th>Bookings</th><th>Platform revenue</th><th>Rating</th></tr></thead><tbody>{providerPagination.rows.map((provider) => <tr key={provider.id}><td data-label="Provider"><Link className="table-link" href={`/dashboard/providers?provider=${encodeURIComponent(provider.id)}`}><strong>{provider.business_name}</strong><small>{provider.verification_status}</small></Link></td><td data-label="Services">{provider.active_services.toLocaleString()} active <small className="table-subcopy">{provider.services.toLocaleString()} total</small></td><td data-label="Bookings">{provider.valid_bookings.toLocaleString()} valid <small className="table-subcopy">{provider.completed_bookings.toLocaleString()} completed</small></td><td data-label="Platform revenue">{formatMoney(provider.platform_revenue)}</td><td data-label="Rating">{provider.review_count ? <span className="provider-rating"><MdiIcon path={mdiStarOutline} /> {provider.average_rating.toFixed(1)} <small>({provider.review_count})</small></span> : <small className="table-muted">No reviews</small>}</td></tr>)}</tbody></table></div><TablePagination itemLabel="providers" page={providerPagination.page} totalItems={detail.providers.length} totalPages={providerPagination.totalPages} onPageChange={setProviderPage} /></> : <EmptyState title="No providers in this scope" copy="Providers with services in this category will appear here." />}</section>
+      <section><header><div><span className="eyebrow">{isCoordinatorCategory ? 'COORDINATORS' : 'PROVIDERS'}</span><h3>{isCoordinatorCategory ? 'Event coordinators' : 'Category providers'}</h3></div><small>Top {detail.providers.length} by valid bookings</small></header>{detail.providers.length ? <><div className="table-scroll"><table className="data-table category-detail-table"><thead><tr><th>{isCoordinatorCategory ? 'Coordinator' : 'Provider'}</th><th>{isCoordinatorCategory ? 'Availability' : 'Services'}</th><th>Bookings</th><th>Platform revenue</th><th>Rating</th></tr></thead><tbody>{providerPagination.rows.map((provider) => <tr key={provider.id}><td data-label={isCoordinatorCategory ? 'Coordinator' : 'Provider'}>{isCoordinatorCategory ? <span className="table-link"><strong>{provider.business_name}</strong><small>{provider.verification_status}</small></span> : <Link className="table-link" href={`/dashboard/providers?provider=${encodeURIComponent(provider.id)}`}><strong>{provider.business_name}</strong><small>{provider.verification_status}</small></Link>}</td><td data-label={isCoordinatorCategory ? 'Availability' : 'Services'}>{isCoordinatorCategory ? provider.verification_status : <>{provider.active_services.toLocaleString()} active <small className="table-subcopy">{provider.services.toLocaleString()} total</small></>}</td><td data-label="Bookings">{provider.valid_bookings.toLocaleString()} valid <small className="table-subcopy">{provider.completed_bookings.toLocaleString()} completed</small></td><td data-label="Platform revenue">{formatMoney(provider.platform_revenue)}</td><td data-label="Rating">{provider.review_count ? <span className="provider-rating"><MdiIcon path={mdiStarOutline} /> {provider.average_rating.toFixed(1)} <small>({provider.review_count})</small></span> : <small className="table-muted">No reviews</small>}</td></tr>)}</tbody></table></div><TablePagination itemLabel={isCoordinatorCategory ? 'coordinators' : 'providers'} page={providerPagination.page} totalItems={detail.providers.length} totalPages={providerPagination.totalPages} onPageChange={setProviderPage} /></> : <EmptyState title={isCoordinatorCategory ? 'No active coordinator profiles' : 'No providers in this scope'} copy={isCoordinatorCategory ? 'Active Event Organizer coordinators will appear here.' : 'Providers with services in this category will appear here.'} />}</section>
 
-      <section><header><div><span className="eyebrow">SERVICES</span><h3>Category services</h3></div><small>Top {detail.services.length} by valid bookings</small></header>{detail.services.length ? <><div className="table-scroll"><table className="data-table category-detail-table"><thead><tr><th>Service</th><th>Provider</th><th>Status</th><th>Bookings</th><th>Platform revenue</th></tr></thead><tbody>{servicePagination.rows.map((service) => <tr key={service.id}><td data-label="Service"><strong>{service.name}</strong>{service.base_price != null && <small className="table-subcopy">From {formatMoney(service.base_price)}</small>}</td><td data-label="Provider"><Link className="table-link" href={`/dashboard/providers?provider=${encodeURIComponent(service.provider_id)}`}>{service.provider_name}</Link></td><td data-label="Status"><StatusBadge value={service.status} /></td><td data-label="Bookings">{service.valid_bookings.toLocaleString()} valid <small className="table-subcopy">{service.completed_bookings.toLocaleString()} completed</small></td><td data-label="Platform revenue">{formatMoney(service.platform_revenue)}</td></tr>)}</tbody></table></div><TablePagination itemLabel="services" page={servicePagination.page} totalItems={detail.services.length} totalPages={servicePagination.totalPages} onPageChange={setServicePage} /></> : <EmptyState title="No services in this category" copy="Service listings for this configured category will appear here." />}</section>
+      <section><header><div><span className="eyebrow">{isCoordinatorCategory ? 'COORDINATOR PROFILES' : 'SERVICES'}</span><h3>{isCoordinatorCategory ? 'Event Organizer availability' : 'Category services'}</h3></div><small>Top {detail.services.length} by valid bookings</small></header>{detail.services.length ? <><div className="table-scroll"><table className="data-table category-detail-table"><thead><tr><th>{isCoordinatorCategory ? 'Coordination' : 'Service'}</th><th>{isCoordinatorCategory ? 'Coordinator' : 'Provider'}</th><th>Status</th><th>Bookings</th><th>Platform revenue</th></tr></thead><tbody>{servicePagination.rows.map((service) => <tr key={service.id}><td data-label={isCoordinatorCategory ? 'Coordination' : 'Service'}><strong>{service.name}</strong>{service.base_price != null && <small className="table-subcopy">From {formatMoney(service.base_price)}</small>}</td><td data-label={isCoordinatorCategory ? 'Coordinator' : 'Provider'}>{isCoordinatorCategory ? <span className="table-link">{service.provider_name}</span> : <Link className="table-link" href={`/dashboard/providers?provider=${encodeURIComponent(service.provider_id)}`}>{service.provider_name}</Link>}</td><td data-label="Status"><StatusBadge value={service.status} /></td><td data-label="Bookings">{service.valid_bookings.toLocaleString()} valid <small className="table-subcopy">{service.completed_bookings.toLocaleString()} completed</small></td><td data-label="Platform revenue">{formatMoney(service.platform_revenue)}</td></tr>)}</tbody></table></div><TablePagination itemLabel={isCoordinatorCategory ? 'coordinator profiles' : 'services'} page={servicePagination.page} totalItems={detail.services.length} totalPages={servicePagination.totalPages} onPageChange={setServicePage} /></> : <EmptyState title={isCoordinatorCategory ? 'No coordinator profiles in this scope' : 'No services in this category'} copy={isCoordinatorCategory ? 'Active Event Organizer coordinators will appear here.' : 'Service listings for this configured category will appear here.'} />}</section>
     </div>
   </section>
 }
@@ -261,4 +277,8 @@ function isCategoryDetail(value: unknown): value is CategoryDetail {
   if (!value || typeof value !== 'object') return false
   const row = value as Partial<CategoryDetail>
   return Boolean(row.range && row.category && Array.isArray(row.booking_activity) && Array.isArray(row.providers) && Array.isArray(row.services))
+}
+
+function isEventOrganizerAnalytics(value: unknown): value is CategoryDetail {
+  return isCategoryDetail(value)
 }
