@@ -304,7 +304,6 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
   const [isHeroPlanCtaInteractive, setIsHeroPlanCtaInteractive] = React.useState(true)
   const [isHeaderPlanCtaInteractive, setIsHeaderPlanCtaInteractive] = React.useState(false)
   const deferredRecommendations = React.useDeferredValue(recommendations)
-  const deferredCoordinators = React.useDeferredValue(coordinators)
   // Retain the existing three-event preview window as the source for the
   // expanded viewport, while the collapsed visual deliberately exposes two.
   const bookingProgressPreviewWindow = bookingProgressEvents.slice(0, 3)
@@ -338,10 +337,10 @@ export const ClientHomeScreen: React.FC<ClientHomeScreenProps> = ({
     }).slice(0, 6)
   }, [deferredRecommendations])
   const featuredCoordinators = React.useMemo(
-    () => deferredCoordinators.filter((coordinator) => (
+    () => coordinators.filter((coordinator) => (
       coordinator.kind === 'coordinator' && coordinator.isMock !== true
     )).slice(0, 8),
-    [deferredCoordinators]
+    [coordinators]
   )
   const hasAdditionalBookingProgress = bookingProgressEvents.length > 2
   React.useEffect(() => {

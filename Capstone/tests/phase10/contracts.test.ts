@@ -5010,6 +5010,13 @@ test('MapTiler venue picking keeps one origin-restricted key across web and nati
   mustContain(eventCreation, [
     'if (hasMapTilerVenueMap)',
     '<MapTilerVenueMap',
+    'Identifying location…',
+    'hasManualVenueNameRef',
+    'onLocationResolutionFailed',
+    'Pinned Location',
+    'confirmPinnedVenue',
+    'locationResolutionDebounceMs',
+    'resolvedLocationCacheRef',
   ], 'native and web Event Creation map entry point')
   mustContain(nativeMap, [
     "'https://mobile.multivent.org/multivent-venue-map.html'",
@@ -5017,12 +5024,19 @@ test('MapTiler venue picking keeps one origin-restricted key across web and nati
     'window.multiventSetPin',
     'onMessage={onMessage}',
     'injectJavaScript',
+    'location-unresolved',
+    'onLocationResolutionFailed',
     'EXPO_PUBLIC_MAPTILER_API_KEY',
   ], 'native hosted-map bridge')
   mustContain(hostedMap, [
     'window.ReactNativeWebView.postMessage',
     "source: 'multivent-maptiler'",
     'window.multiventSetPin',
+    'location-resolved',
+    'locationLookupRequest',
+    'types=poi',
+    'locationResolutionDebounceMs',
+    'locationCache',
     'api.maptiler.com/maps/streets-v2',
     'OpenStreetMap',
     'MapTiler',

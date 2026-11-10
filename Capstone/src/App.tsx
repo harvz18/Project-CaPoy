@@ -1026,6 +1026,10 @@ export const App: React.FC<AppProps> = ({
   // Keep the resolved role outside the render cycle so the first refresh
   // immediately after sign-in can skip provider-only workspace reads.
   const activeAccountRoleRef = React.useRef<AccountRole | ''>('')
+  // The state copy is deliberately limited to client-only bootstrap effects.
+  // It prevents provider, coordinator, and staff sessions from loading the
+  // client marketplace merely because a user ID has become available.
+  const [activeAccountRole, setActiveAccountRole] = React.useState<AccountRole | ''>('')
 
   const transitionToScreen = React.useCallback((nextScreen: AppScreen) => {
     const currentScreen = screenRef.current
@@ -1192,6 +1196,8 @@ export const App: React.FC<AppProps> = ({
   const [conversations, setConversations] = React.useState<ClientConversation[]>([])
   const [conversationMessages, setConversationMessages] = React.useState<ChatMessage[]>([])
   const [notifications, setNotifications] = React.useState<MerchantNotification[]>([])
+  const [isInboxContentLoading, setIsInboxContentLoading] = React.useState(false)
+  const inboxContentRequestRef = React.useRef<Promise<void> | undefined>(undefined)
   const [inboxTrashItems, setInboxTrashItems] = React.useState<InboxTrashItem[]>([])
   const [inboxTrashScope, setInboxTrashScope] = React.useState<InboxTrashScope>('all')
   const [isInboxTrashVisible, setIsInboxTrashVisible] = React.useState(false)
@@ -2149,6 +2155,30 @@ export const App: React.FC<AppProps> = ({
     setToastMessage(target === 'logo' ? 'Business logo updated.' : 'Business cover photo updated.')
   }
 
+  const refreshInboxContent = React.useCallback((): Promise<void> => {
+    const inFlight = inboxContentRequestRef.current
+    if (inFlight) return inFlight
+
+    // Inbox navigation must never wait for a network request. Reuse this
+    // single background refresh for Messages and Notifications so either tab
+    // can render immediately from the latest in-memory data.
+    setIsInboxContentLoading(true)
+    const request = Promise.all([fetchConversations(), fetchNotifications()])
+      .then(([conversationRows, notificationRows]) => {
+        setConversations(conversationRows)
+        setNotifications(notificationRows)
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (inboxContentRequestRef.current === request) {
+          inboxContentRequestRef.current = undefined
+          setIsInboxContentLoading(false)
+        }
+      })
+    inboxContentRequestRef.current = request
+    return request
+  }, [])
+
   const openClientTab = (tab: ClientHomeTab) => {
     setHomeReturnScreen('clientHome')
     if (tab === 'home') setScreen('clientHome')
@@ -2161,6 +2191,7 @@ export const App: React.FC<AppProps> = ({
     if (tab === 'messages') {
       setMessageWorkspace('client')
       setScreen('messages')
+      void refreshInboxContent()
     }
     if (tab === 'profile') openAccountProfile('clientHome')
   }
@@ -2189,7 +2220,7 @@ export const App: React.FC<AppProps> = ({
     if (tab === 'messages') {
       setMessageWorkspace('coordinator')
       setScreen('messages')
-      void fetchConversations().then(setConversations)
+      void refreshInboxContent()
       return
     }
     openAccountProfile('coordinatorHome')
@@ -2557,7 +2588,7 @@ export const App: React.FC<AppProps> = ({
   }, [])
 
   React.useEffect(() => {
-    if (!authenticatedUserId) return undefined
+    if (!authenticatedUserId || activeAccountRole !== 'client') return undefined
 
     const unsubscribe = subscribeToCatalogEnrichment((enrichedServices) => {
       setCatalogServices((current) => {
@@ -2589,10 +2620,10 @@ export const App: React.FC<AppProps> = ({
     return () => {
       unsubscribe()
     }
-  }, [authenticatedUserId])
+  }, [activeAccountRole, authenticatedUserId])
 
   React.useEffect(() => {
-    if (!authenticatedUserId) return undefined
+    if (!authenticatedUserId || activeAccountRole !== 'client') return undefined
 
     let isMounted = true
     let hasAppliedLiveCatalog = false
@@ -2647,7 +2678,7 @@ export const App: React.FC<AppProps> = ({
     return () => {
       isMounted = false
     }
-  }, [authenticatedUserId])
+  }, [activeAccountRole, authenticatedUserId])
 
   React.useEffect(() => {
     catalogServicesRef.current = catalogServices
@@ -2711,7 +2742,8 @@ export const App: React.FC<AppProps> = ({
     if (inFlightRefresh) return inFlightRefresh
 
     const refresh = (async (): Promise<ClientPlanningState> => {
-    const isClientSession = activeAccountRoleRef.current === 'client'
+    const activeRole = activeAccountRoleRef.current
+    const isClientSession = activeRole === 'client'
     const favoriteStateRevisionAtStart = favoriteStateRevisionRef.current
     if (isClientSession) {
       // A client cannot act on provider drafts, provider service listings, or
@@ -2744,15 +2776,12 @@ export const App: React.FC<AppProps> = ({
       hydrateClientPlanningState(planningState, resolvedServices)
       setClientEventDrafts(eventDrafts)
 
+      void refreshInboxContent()
       void Promise.all([
-        fetchConversations(),
-        fetchNotifications(),
         fetchClientSavedPlans(),
         fetchFavoriteServiceIds(),
         fetchMyReviewedServices(),
-      ]).then(([conversationRows, notificationRows, savedPlans, favorites, myReviewedServices]) => {
-        setConversations(conversationRows)
-        setNotifications(notificationRows)
+      ]).then(([savedPlans, favorites, myReviewedServices]) => {
         setReviewedServices(myReviewedServices)
         if (favorites.ok && favoriteStateRevisionAtStart === favoriteStateRevisionRef.current) {
           setFavoriteServiceIds(favorites.ids)
@@ -2763,76 +2792,49 @@ export const App: React.FC<AppProps> = ({
       return planningState
     }
 
-    const [
-      services,
-      bookings,
-      requests,
-      merchantServiceRows,
-      draft,
-      conversationRows,
-      notificationRows,
-      planningState,
-      categories,
-      eventDrafts,
-      savedPlans,
-      favorites,
-      myReviewedServices,
-    ] = await Promise.all([
-      loadClientCatalogServices(),
-      loadClientBookings(),
-      fetchMerchantBookingRequests(),
-      fetchMerchantServices(),
-      loadMerchantServiceDraft(),
+    if (activeRole === 'service_provider') {
+      // Providers only need their own requests, listings, draft, inbox, and
+      // categories. Loading the client catalog, client event state, saved
+      // plans, and favorites here made provider startup needlessly expensive.
+      const [requests, merchantServiceRows, draft, conversationRows, notificationRows, categories] = await Promise.all([
+        fetchMerchantBookingRequests(),
+        fetchMerchantServices(),
+        loadMerchantServiceDraft(),
+        fetchConversations(),
+        fetchNotifications(),
+        fetchServiceCategories(),
+      ])
+
+      setMerchantRequests(requests)
+      setSelectedMerchantRequest((current) => {
+        if (!current) return current
+        return requests.find((item) =>
+          item.id === current.id || Boolean(item.eventId && current.eventId && item.eventId === current.eventId)
+        ) ?? current
+      })
+      setMerchantServices((current) =>
+        merchantServiceRows.length > 0 ? merchantServiceRows : current
+      )
+      setConversations(conversationRows)
+      setNotifications(notificationRows)
+      setServiceCategories(categories)
+      setHasMerchantDraft(Boolean(draft))
+      if (draft?.information) setMerchantServiceInfo(draft.information)
+      if (draft?.pricing) setMerchantServicePricing(draft.pricing)
+      setMerchantPackages([])
+      return { selectedServices: [] }
+    }
+
+    // Coordinator and staff workspaces load their dedicated data in their
+    // own route effects. Keep the shared inbox current without issuing client
+    // or provider-only queries on every authenticated screen transition.
+    const [conversationRows, notificationRows] = await Promise.all([
       fetchConversations(),
       fetchNotifications(),
-      fetchClientPlanningState(),
-      fetchServiceCategories(),
-      fetchClientEventDrafts(),
-      fetchClientSavedPlans(),
-      fetchFavoriteServiceIds(),
-      fetchMyReviewedServices(),
     ])
-
-    const resolvedServices = services.length ? services : catalogServicesRef.current
-    if (services.length) {
-      catalogServicesRef.current = services
-      setCatalogServices(services)
-      void saveClientCatalogCache(services, categories)
-    }
-    setReviewedServices(myReviewedServices)
-    clientBookingsRef.current = bookings
-    setClientBookings(bookings)
-    setSelectedBooking((current) => {
-      if (!current) return current
-      return bookings.find((item) =>
-        item.id === current.id || Boolean(item.eventId && current.eventId && item.eventId === current.eventId)
-      ) ?? current
-    })
-    setMerchantRequests(requests)
-    setSelectedMerchantRequest((current) => {
-      if (!current) return current
-      return requests.find((item) =>
-        item.id === current.id || Boolean(item.eventId && current.eventId && item.eventId === current.eventId)
-      ) ?? current
-    })
-    setMerchantServices((current) =>
-      merchantServiceRows.length > 0 ? merchantServiceRows : current
-    )
     setConversations(conversationRows)
     setNotifications(notificationRows)
-    setServiceCategories(categories)
-    if (favorites.ok && favoriteStateRevisionAtStart === favoriteStateRevisionRef.current) {
-      setFavoriteServiceIds(favorites.ids)
-    }
-    hydrateClientPlanningState(planningState, resolvedServices)
-    setClientEventDrafts(eventDrafts)
-    setClientSavedPlans(savedPlans)
-
-    setHasMerchantDraft(Boolean(draft))
-    if (draft?.information) setMerchantServiceInfo(draft.information)
-    if (draft?.pricing) setMerchantServicePricing(draft.pricing)
-    setMerchantPackages([])
-    return planningState
+    return { selectedServices: [] }
     })()
 
     refreshLiveDataInFlightRef.current = refresh
@@ -2845,7 +2847,7 @@ export const App: React.FC<AppProps> = ({
       }
     )
     return refresh
-  }, [hydrateClientPlanningState, loadClientBookings])
+  }, [hydrateClientPlanningState, loadClientBookings, refreshInboxContent])
 
   const handleToggleFavorite = React.useCallback(async (serviceId: string) => {
     if (favoriteTogglesInFlightRef.current.has(serviceId)) return
@@ -3641,7 +3643,7 @@ export const App: React.FC<AppProps> = ({
       })
       const metadataName = getMetadataName(metadata)
       const resolvedRole = data?.default_role ?? String(metadata.default_role ?? '')
-      activeAccountRoleRef.current = (
+      const nextAccountRole: AccountRole | '' = (
         resolvedRole === 'client'
         || resolvedRole === 'service_provider'
         || resolvedRole === 'event_coordinator'
@@ -3649,7 +3651,9 @@ export const App: React.FC<AppProps> = ({
         || resolvedRole === 'customer_service'
         || resolvedRole === 'admin'
         || resolvedRole === 'superadmin'
-      ) ? resolvedRole : ''
+      ) ? resolvedRole as AccountRole : ''
+      activeAccountRoleRef.current = nextAccountRole
+      setActiveAccountRole(nextAccountRole)
 
       if (profileName || metadataName) {
         setUserName(profileName || metadataName)
@@ -3683,6 +3687,7 @@ export const App: React.FC<AppProps> = ({
         if (!isMounted) return
         if (error || !data.session?.user) {
           activeAccountRoleRef.current = ''
+          setActiveAccountRole('')
           setAuthenticatedUserId('')
           return
         }
@@ -3720,6 +3725,7 @@ export const App: React.FC<AppProps> = ({
       if (!session?.user) {
         if (event === 'SIGNED_OUT') {
           activeAccountRoleRef.current = ''
+          setActiveAccountRole('')
           setAuthenticatedUserId('')
           setIsAuthRestoring(false)
           setUserName('Planner')
@@ -6243,6 +6249,7 @@ export const App: React.FC<AppProps> = ({
         ? unreadInboxNotifications.length > 0
         : notifications.some((notification) => !notification.isRead)}
       initialInboxTab={messageWorkspace === 'client' ? initialInboxTab : 'messages'}
+      isInboxContentLoading={messageWorkspace === 'client' && isInboxContentLoading}
       navigationVariant={messageWorkspace}
       notifications={messageWorkspace === 'client' ? notifications : []}
       showBottomNavigation={false}

@@ -12,7 +12,10 @@ import {
   View,
 } from 'react-native'
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
+import { BlurTargetView } from 'expo-blur'
 import { PlanningScreenHeader } from '../components/PlanningScreenHeader'
+import { PolicyDocumentOverlay } from '../components/PolicyDocumentOverlay'
+import { bookingPaymentCancellationPolicy, clientTermsAndConditions } from '../content/clientLegalDocuments'
 import { formatPeso } from '../lib/catalog'
 import { calculatePaymentBreakdown } from '../lib/pricing'
 import type { PaymentBreakdown } from '../lib/pricing'
@@ -46,6 +49,33 @@ export interface PaymentValue {
   method: PaymentMethod
   paymentType: PaymentType
   termsAccepted: boolean
+}
+
+type PaymentLegalDocument = 'paymentAndCancellation' | 'terms'
+
+const PaymentLegalDocumentOverlay = ({
+  blurTarget,
+  document,
+  onClose,
+}: {
+  blurTarget: React.RefObject<React.ComponentRef<typeof View> | null>
+  document: PaymentLegalDocument | null
+  onClose: () => void
+}) => {
+  if (!document) return null
+
+  return (
+    <PolicyDocumentOverlay
+      blurTarget={blurTarget}
+      content={document === 'paymentAndCancellation'
+        ? bookingPaymentCancellationPolicy
+        : clientTermsAndConditions}
+      onClose={onClose}
+      title={document === 'paymentAndCancellation'
+        ? 'Payment and Cancellation Policy'
+        : 'Terms of Service'}
+    />
+  )
 }
 
 interface PaymentScreenProps {
@@ -145,6 +175,8 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
   const [termsAccepted, setTermsAccepted] = React.useState(false)
   const [showTermsError, setShowTermsError] = React.useState(false)
   const [isSavePlanConfirmationVisible, setIsSavePlanConfirmationVisible] = React.useState(false)
+  const policyBlurTargetRef = React.useRef<React.ComponentRef<typeof View> | null>(null)
+  const [legalDocument, setLegalDocument] = React.useState<PaymentLegalDocument | null>(null)
   React.useEffect(() => {
     if (!paymentSettlementContext) return
     if (paymentMethod === 'eWallet' && !paymentSettlementContext.eWalletCheckout.enabled
@@ -206,8 +238,25 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
     onSavePlan?.()
   }
 
+  const openCancellationPolicy = () => {
+    if (onOpenCancellationPolicy) {
+      onOpenCancellationPolicy()
+      return
+    }
+    setLegalDocument('paymentAndCancellation')
+  }
+
+  const openTerms = () => {
+    if (onOpenTerms) {
+      onOpenTerms()
+      return
+    }
+    setLegalDocument('terms')
+  }
+
   return (
     <View style={styles.screen}>
+      <BlurTargetView ref={policyBlurTargetRef} style={styles.screen}>
       <PlanningScreenHeader
         currentStep={5}
         label="Payment"
@@ -415,6 +464,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
 
         <View style={styles.termsSection}>
           <Pressable
+            accessibilityLabel="Accept the Payment and Cancellation Policy and Terms of Service"
             accessibilityRole="checkbox"
             accessibilityState={{ checked: termsAccepted }}
             hitSlop={6}
@@ -431,20 +481,20 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
             {termsAccepted && <Text style={styles.checkboxMark}>{'\u2713'}</Text>}
           </Pressable>
           <Text style={styles.termsText}>
-            I agree to the{' '}
-            <Text onPress={onOpenCancellationPolicy} style={styles.termsLink}>
-              Cancellation Policy
+            I have read and agree to the{' '}
+            <Text accessibilityRole="link" onPress={openCancellationPolicy} style={styles.termsLink}>
+              Payment and Cancellation Policy
             </Text>{' '}
             and{' '}
-            <Text onPress={onOpenTerms} style={styles.termsLink}>
+            <Text accessibilityRole="link" onPress={openTerms} style={styles.termsLink}>
               Terms of Service
             </Text>
-            . I understand that funds are reserved only after payment is successfully verified.
+            .
           </Text>
         </View>
         {showTermsError && (
           <Text accessibilityRole="alert" style={styles.termsError}>
-            Please accept the policies and terms before continuing.
+            Please accept the Payment and Cancellation Policy and Terms of Service before continuing.
           </Text>
         )}
       </ScrollView>
@@ -539,6 +589,12 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
           </View>
         </View>
       </Modal>
+      </BlurTargetView>
+      <PaymentLegalDocumentOverlay
+        blurTarget={policyBlurTargetRef}
+        document={legalDocument}
+        onClose={() => setLegalDocument(null)}
+      />
     </View>
   )
 }
@@ -548,6 +604,8 @@ interface BookingPaymentSheetProps {
   isLoading?: boolean
   isProcessing?: boolean
   onClose: () => void
+  onOpenCancellationPolicy?: () => void
+  onOpenTerms?: () => void
   onPay: (value: PaymentValue) => void
   paymentBreakdown?: Pick<
     PaymentBreakdown,
@@ -563,6 +621,8 @@ export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
   isLoading = false,
   isProcessing = false,
   onClose,
+  onOpenCancellationPolicy,
+  onOpenTerms,
   onPay,
   paymentBreakdown,
   paymentSettlementContext,
@@ -575,6 +635,8 @@ export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
   const [showTermsError, setShowTermsError] = React.useState(false)
   const [summaryExpanded, setSummaryExpanded] = React.useState(false)
   const [receiptHeight, setReceiptHeight] = React.useState(0)
+  const policyBlurTargetRef = React.useRef<React.ComponentRef<typeof View> | null>(null)
+  const [legalDocument, setLegalDocument] = React.useState<PaymentLegalDocument | null>(null)
   const bookingSheetScrollRef = React.useRef<React.ElementRef<typeof ScrollView>>(null)
   const bookingSheetScrollOffsetRef = React.useRef(0)
   const bookingOptionRefs = React.useRef<Record<string, React.ElementRef<typeof Pressable> | null>>({})
@@ -640,7 +702,10 @@ export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
   }), [dismiss, sheetTranslateY])
 
   React.useEffect(() => {
-    if (!visible) return
+    if (!visible) {
+      setLegalDocument(null)
+      return
+    }
     setShowTermsError(false)
     sheetTranslateY.setValue(480)
     Animated.timing(sheetTranslateY, {
@@ -674,6 +739,22 @@ export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
 
   const toggleSummary = () => setSummaryExpanded((current) => !current)
 
+  const openCancellationPolicy = () => {
+    if (onOpenCancellationPolicy) {
+      onOpenCancellationPolicy()
+      return
+    }
+    setLegalDocument('paymentAndCancellation')
+  }
+
+  const openTerms = () => {
+    if (onOpenTerms) {
+      onOpenTerms()
+      return
+    }
+    setLegalDocument('terms')
+  }
+
   React.useEffect(() => {
     if (!receiptHeight) return
     Animated.timing(receiptProgress, {
@@ -695,7 +776,8 @@ export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
 
   return (
     <Modal animationType="fade" onRequestClose={dismiss} transparent visible={visible}>
-      <View style={styles.bookingSheetBackdrop}>
+      <View style={styles.bookingSheetModalRoot}>
+      <BlurTargetView ref={policyBlurTargetRef} style={styles.bookingSheetBackdrop}>
         <Pressable accessibilityLabel="Close payment details" onPress={dismiss} style={styles.bookingSheetDismissArea} />
         <Animated.View accessibilityViewIsModal style={[styles.bookingSheet, { transform: [{ translateY: sheetTranslateY }] }]}>
           <View accessibilityLabel="Drag down to close payment details" accessibilityRole="adjustable" {...sheetPanResponder.panHandlers} style={styles.bookingSheetHandleTouchArea}>
@@ -812,21 +894,35 @@ export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
             </>}
           </ScrollView>
           <View style={styles.bookingSheetFooter}>
+            <View style={styles.bookingSheetTerms}>
             <Pressable
+              accessibilityLabel="Accept the Payment and Cancellation Policy and Terms of Service"
               accessibilityRole="checkbox"
               accessibilityState={{ checked: termsAccepted }}
+              hitSlop={6}
               onPress={() => {
                 setTermsAccepted((current) => !current)
                 setShowTermsError(false)
               }}
-              style={styles.bookingSheetTerms}
+              style={({ pressed }) => [
+                styles.checkbox,
+                termsAccepted && styles.checkboxChecked,
+                pressed && styles.pressed,
+              ]}
             >
-              <View style={[styles.checkbox, termsAccepted && styles.checkboxChecked]}>
-                {termsAccepted ? <Text style={styles.checkboxMark}>{'\u2713'}</Text> : null}
-              </View>
-              <Text style={styles.bookingSheetTermsText}>I agree to the cancellation policy and terms of service.</Text>
+              {termsAccepted ? <Text style={styles.checkboxMark}>{'\u2713'}</Text> : null}
             </Pressable>
-            {showTermsError ? <Text accessibilityRole="alert" style={styles.termsError}>Please accept the policies and terms before continuing.</Text> : null}
+              <Text style={styles.bookingSheetTermsText}>
+                I have read and agree to the{' '}
+                <Text accessibilityRole="link" onPress={openCancellationPolicy} style={styles.termsLink}>
+                  Payment and Cancellation Policy
+                </Text>{' '}and{' '}
+                <Text accessibilityRole="link" onPress={openTerms} style={styles.termsLink}>
+                  Terms of Service
+                </Text>.
+              </Text>
+            </View>
+            {showTermsError ? <Text accessibilityRole="alert" style={styles.termsError}>Please accept the Payment and Cancellation Policy and Terms of Service before continuing.</Text> : null}
             <Pressable
               accessibilityRole="button"
               accessibilityState={{ disabled: isProcessing || isLoading || !selectedMethodEnabled }}
@@ -846,6 +942,12 @@ export const BookingPaymentSheet: React.FC<BookingPaymentSheetProps> = ({
             </Pressable>
           </View>
         </Animated.View>
+      </BlurTargetView>
+      <PaymentLegalDocumentOverlay
+        blurTarget={policyBlurTargetRef}
+        document={legalDocument}
+        onClose={() => setLegalDocument(null)}
+      />
       </View>
     </Modal>
   )
@@ -1215,6 +1317,7 @@ const styles = StyleSheet.create({
   payButtonText: { color: palette.surface, fontSize: 18, lineHeight: 28, fontWeight: '700', textAlign: 'center' },
   payButtonDisabled: { opacity: 0.6 },
   payButtonPressed: { backgroundColor: '#7B2B3A', transform: [{ scale: 0.98 }] },
+  bookingSheetModalRoot: { flex: 1 },
   bookingSheetBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(26, 28, 28, 0.28)' },
   bookingSheetDismissArea: { flex: 1 },
   bookingSheet: {

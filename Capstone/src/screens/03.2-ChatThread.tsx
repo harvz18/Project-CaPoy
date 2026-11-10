@@ -2,6 +2,7 @@ import { Text } from '../components/AppText'
 import { InboxSelectionBox, InboxTrashButton } from '../components/InboxControls'
 import type { InboxTrashScope } from '../lib/inbox-trash'
 import React from 'react'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
   ActivityIndicator,
   Image,
@@ -231,6 +232,7 @@ export const ChatThreadScreen: React.FC<ChatThreadScreenProps> = ({
   pendingAttachments = [],
 }) => {
   const { width } = useWindowDimensions()
+  const safeAreaInsets = useSafeAreaInsets()
   const isWide = width >= 760
   const scrollViewRef = React.useRef<ScrollViewInstance>(null)
   const [internalDraft, setInternalDraft] = React.useState('')
@@ -269,7 +271,11 @@ export const ChatThreadScreen: React.FC<ChatThreadScreenProps> = ({
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      // The app-level SafeAreaView owns the top inset. Keyboard coordinates
+      // are screen-relative, so the avoider needs that same offset to place
+      // the normal-flow composer precisely at the keyboard boundary.
+      keyboardVerticalOffset={safeAreaInsets.top}
       style={styles.screen}
     >
       <View style={styles.topAppBar}>
@@ -383,6 +389,7 @@ export const ChatThreadScreen: React.FC<ChatThreadScreenProps> = ({
           isWide && styles.messageContentWide,
           !messages.length && styles.messageContentEmpty,
         ]}
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         keyboardShouldPersistTaps="handled"
         onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
         ref={scrollViewRef}

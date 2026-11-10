@@ -51,11 +51,106 @@
         iconSize: [28, 28],
       })
       let marker = L.marker([latitude, longitude], { draggable: true, icon: markerIcon }).addTo(map)
-      const reportPin = (latlng) => postToHost({
-        source: 'multivent-maptiler',
+      let locationLookupRequest = 0
+      let locationLookupTimer
+      const locationResolutionDebounceMs = 240
+      const locationCache = new Map()
+      const roundedCoordinates = (latlng) => ({
         latitude: Number(latlng.lat.toFixed(6)),
         longitude: Number(latlng.lng.toFixed(6)),
       })
+      const distanceInKilometres = (first, second) => {
+        const radians = (value) => (value * Math.PI) / 180
+        const latitudeDelta = radians(second.latitude - first.latitude)
+        const longitudeDelta = radians(second.longitude - first.longitude)
+        const firstLatitude = radians(first.latitude)
+        const secondLatitude = radians(second.latitude)
+        const haversine = Math.sin(latitudeDelta / 2) ** 2
+          + Math.cos(firstLatitude) * Math.cos(secondLatitude) * Math.sin(longitudeDelta / 2) ** 2
+        return 6371 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine))
+      }
+      const textFromFeature = (feature, field) => (
+        typeof feature?.[field] === 'string' && feature[field].trim() ? feature[field].trim() : ''
+      )
+      const resolveLocation = async (coordinates, requestId) => {
+        const cacheKey = `${coordinates.latitude.toFixed(6)},${coordinates.longitude.toFixed(6)}`
+        const cachedLocation = locationCache.get(cacheKey)
+        if (cachedLocation) {
+          if (locationLookupRequest === requestId) {
+            postToHost({ source: 'multivent-maptiler', type: 'location-resolved', ...coordinates, ...cachedLocation })
+          }
+          return
+        }
+        if (!mapTilerKey) {
+          postToHost({ source: 'multivent-maptiler', type: 'location-unresolved', ...coordinates })
+          return
+        }
+
+        try {
+          let name = ''
+          let address = ''
+          const poiResponse = await fetch(
+            `https://api.maptiler.com/geocoding/${coordinates.longitude.toFixed(6)},${coordinates.latitude.toFixed(6)}.json?key=${encodeURIComponent(mapTilerKey)}&language=en&types=poi&limit=1`
+          )
+          if (poiResponse.ok) {
+            const poiPayload = await poiResponse.json()
+            const poi = Array.isArray(poiPayload.features) ? poiPayload.features[0] : undefined
+            const center = Array.isArray(poi?.center) ? poi.center : []
+            const poiLongitude = typeof center[0] === 'number' ? center[0] : NaN
+            const poiLatitude = typeof center[1] === 'number' ? center[1] : NaN
+            const poiIsAtPin = Number.isFinite(poiLatitude)
+              && Number.isFinite(poiLongitude)
+              && distanceInKilometres(coordinates, { latitude: poiLatitude, longitude: poiLongitude }) <= 0.05
+            if (poiIsAtPin) {
+              name = textFromFeature(poi, 'text')
+              address = textFromFeature(poi, 'place_name')
+            }
+          }
+
+          if (!name || !address) {
+            const reverseResponse = await fetch(
+              `https://api.maptiler.com/geocoding/${coordinates.longitude.toFixed(6)},${coordinates.latitude.toFixed(6)}.json?key=${encodeURIComponent(mapTilerKey)}&language=en&limit=1`
+            )
+            if (reverseResponse.ok) {
+              const reversePayload = await reverseResponse.json()
+              const result = Array.isArray(reversePayload.features) ? reversePayload.features[0] : undefined
+              name = name || textFromFeature(result, 'text')
+              address = address || textFromFeature(result, 'place_name')
+            }
+          }
+
+          if (locationLookupRequest !== requestId) return
+          if (!name && !address) {
+            postToHost({ source: 'multivent-maptiler', type: 'location-unresolved', ...coordinates })
+            return
+          }
+          const resolvedLocation = { name: name || address, address: address || name }
+          locationCache.set(cacheKey, resolvedLocation)
+          postToHost({
+            source: 'multivent-maptiler',
+            type: 'location-resolved',
+            ...coordinates,
+            ...resolvedLocation,
+          })
+        } catch {
+          if (locationLookupRequest === requestId) {
+            postToHost({ source: 'multivent-maptiler', type: 'location-unresolved', ...coordinates })
+          }
+        }
+      }
+      const scheduleLocationResolution = (coordinates) => {
+        locationLookupRequest += 1
+        const requestId = locationLookupRequest
+        if (locationLookupTimer) clearTimeout(locationLookupTimer)
+        locationLookupTimer = setTimeout(() => {
+          void resolveLocation(coordinates, requestId)
+        }, locationResolutionDebounceMs)
+      }
+      const reportPin = (latlng) => {
+        const coordinates = roundedCoordinates(latlng)
+        postToHost({ source: 'multivent-maptiler', type: 'pin', ...coordinates })
+        scheduleLocationResolution(coordinates)
+      }
       marker.on('dragend', () => reportPin(marker.getLatLng()))
       map.on('click', (event) => {
         marker.setLatLng(event.latlng)
@@ -65,6 +160,8 @@
         if (!command || command.source !== 'multivent-maptiler-command' || command.action !== 'set-pin'
           || typeof command.latitude !== 'number' || typeof command.longitude !== 'number') return
         const nextLocation = L.latLng(command.latitude, command.longitude)
+        locationLookupRequest += 1
+        if (locationLookupTimer) clearTimeout(locationLookupTimer)
         marker.setLatLng(nextLocation)
         if (command.recenter === true) map.panTo(nextLocation)
       }

@@ -7,10 +7,16 @@ export interface MapCoordinates {
   longitude: number
 }
 
+export interface MapLocationPin extends MapCoordinates {
+  address?: string
+  name?: string
+}
+
 interface MapTilerVenueMapProps {
   coordinates: MapCoordinates
   fullscreen?: boolean
-  onPin: (coordinates: MapCoordinates) => void
+  onLocationResolutionFailed?: (coordinates: MapCoordinates) => void
+  onPin: (coordinates: MapLocationPin) => void
   onUnavailable?: () => void
 }
 
@@ -18,11 +24,14 @@ const mapTilerKey = process.env.EXPO_PUBLIC_MAPTILER_API_KEY?.trim() ?? ''
 const hostedMapPageUrl = process.env.EXPO_PUBLIC_VENUE_MAP_PAGE_URL?.trim()
   || 'https://mobile.multivent.org/multivent-venue-map.html'
 
-type MapMessage = {
+type MapMessage = MapLocationPin & {
   source: 'multivent-maptiler'
-  latitude: number
-  longitude: number
+  type?: string
 }
+
+const optionalText = (value: unknown) => (
+  typeof value === 'string' && value.trim() ? value.trim() : undefined
+)
 
 const parseMapMessage = (value: string): MapMessage | undefined => {
   try {
@@ -32,7 +41,14 @@ const parseMapMessage = (value: string): MapMessage | undefined => {
       || !Number.isFinite(message.latitude)
       || typeof message.longitude !== 'number'
       || !Number.isFinite(message.longitude)) return undefined
-    return { source: 'multivent-maptiler', latitude: message.latitude, longitude: message.longitude }
+    return {
+      address: optionalText(message.address),
+      latitude: message.latitude,
+      longitude: message.longitude,
+      name: optionalText(message.name),
+      source: 'multivent-maptiler',
+      type: optionalText(message.type),
+    }
   } catch {
     return undefined
   }
@@ -65,6 +81,7 @@ export const hasMapTilerVenueMap = Boolean(mapTilerKey && /^https:\/\//i.test(ho
 export const MapTilerVenueMap: React.FC<MapTilerVenueMapProps> = ({
   coordinates,
   fullscreen = false,
+  onLocationResolutionFailed,
   onPin,
   onUnavailable,
 }) => {
@@ -108,9 +125,18 @@ export const MapTilerVenueMap: React.FC<MapTilerVenueMapProps> = ({
     const message = parseMapMessage(event.nativeEvent.data)
     if (!message) return
     const nextCoordinates = { latitude: message.latitude, longitude: message.longitude }
+    if (message.type === 'location-unresolved') {
+      onLocationResolutionFailed?.(nextCoordinates)
+      return
+    }
     lastPinnedCoordinatesRef.current = nextCoordinates
-    onPin(nextCoordinates)
-  }, [onPin, onUnavailable])
+    onPin({
+      address: message.address,
+      latitude: message.latitude,
+      longitude: message.longitude,
+      name: message.name,
+    })
+  }, [onLocationResolutionFailed, onPin, onUnavailable])
 
   const handleLoadFailure = React.useCallback(() => {
     if (hasReportedUnavailableRef.current) return
@@ -141,7 +167,10 @@ export const MapTilerVenueMap: React.FC<MapTilerVenueMapProps> = ({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, height: 250, overflow: 'hidden' },
-  containerFullscreen: { height: undefined },
+  // The preview lives inside the event form's vertically unbounded ScrollView.
+  // A fixed preview height is required there; `flex: 1` is reserved for the
+  // full-screen parent, which has a measured height.
+  container: { height: 250, overflow: 'hidden' },
+  containerFullscreen: { flex: 1, height: undefined },
   webView: { backgroundColor: '#F7F3F2', flex: 1 },
 })

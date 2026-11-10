@@ -848,7 +848,9 @@ export const fetchAvailableCoordinators = async (): Promise<CatalogService[]> =>
   })
 }
 
-export const fetchServiceCategories = async (): Promise<ServiceCategoryOption[]> => {
+let serviceCategoriesRequest: Promise<ServiceCategoryOption[]> | undefined
+
+const fetchServiceCategoriesUncached = async (): Promise<ServiceCategoryOption[]> => {
   if (!supabase || !supabaseConfig.isConfigured) {
     return fallbackServiceCategories
   }
@@ -875,6 +877,25 @@ export const fetchServiceCategories = async (): Promise<ServiceCategoryOption[]>
   }
 
   return categories.sort((left, right) => left.name.localeCompare(right.name))
+}
+
+// Client bootstrap and the first workspace refresh can ask for categories in
+// the same render cycle. Share that read so a cold backend receives one query,
+// while subsequent explicit refreshes still perform a fresh request.
+export const fetchServiceCategories = (): Promise<ServiceCategoryOption[]> => {
+  if (serviceCategoriesRequest) return serviceCategoriesRequest
+
+  const request = fetchServiceCategoriesUncached()
+  serviceCategoriesRequest = request
+  void request.then(
+    () => {
+      if (serviceCategoriesRequest === request) serviceCategoriesRequest = undefined
+    },
+    () => {
+      if (serviceCategoriesRequest === request) serviceCategoriesRequest = undefined
+    }
+  )
+  return request
 }
 
 export const fetchBudgetAwareRecommendations = async (): Promise<
@@ -970,44 +991,79 @@ const enrichCatalogInBackground = () => {
   catalogEnrichmentRequest = request
 }
 
-const enrichClientCatalogInBackground = (primaryServices: CatalogService[]) => {
+const mergeClientCatalogServices = (
+  primaryServices: CatalogService[],
+  coordinators: CatalogService[],
+  recommendations: Map<string, BudgetRecommendation>,
+  decisionSignals: Map<string, ServiceDecisionSignal>,
+) => {
+  // Prefer the detailed service snapshot when it has already arrived, but
+  // never delay the initial marketplace cards while waiting for it.
+  const catalogServices = lastSuccessfulCatalogServices ?? primaryServices
+  const coordinatorUserIds = new Set(
+    coordinators.flatMap((coordinator) => (
+      coordinator.coordinatorUserId ? [coordinator.coordinatorUserId] : []
+    ))
+  )
+  const marketplaceServices = catalogServices.filter((service) => !(
+    service.categoryId === 'eventOrganizers'
+    && service.providerUserId
+    && coordinatorUserIds.has(service.providerUserId)
+  ))
+
+  return [...marketplaceServices, ...coordinators].map((service) => {
+    const decisionSignal = decisionSignals.get(service.bookingServiceId ?? service.id)
+    return {
+      ...service,
+      bookingCount: decisionSignal?.bookingCount ?? 0,
+      budgetRecommendation: recommendations.get(service.bookingServiceId ?? service.id),
+      isMostBooked: decisionSignal?.isMostBooked ?? false,
+      popularityRank: decisionSignal?.popularityRank ?? service.popularityRank,
+      rating: decisionSignal && decisionSignal.reviewCount > 0
+        ? decisionSignal.averageRating.toFixed(1)
+        : service.rating,
+      reviewCount: decisionSignal?.reviewCount ?? service.reviewCount,
+    }
+  })
+}
+
+const publishClientCatalogEnrichment = (services: CatalogService[]) => {
+  lastSuccessfulClientCatalogServices = services
+  catalogEnrichmentListeners.forEach((listener) => listener(services))
+}
+
+const enrichClientCatalogInBackground = (
+  primaryServices: CatalogService[],
+  coordinatorRequest: Promise<CatalogService[]> = fetchAvailableCoordinators(),
+) => {
   if (clientCatalogEnrichmentRequest) return
 
+  // Coordinators power the Client Home's "Plan with experts" section. Publish
+  // them as soon as that one request returns instead of making that section
+  // wait for independent recommendation and analytics RPCs.
+  void coordinatorRequest.then((coordinators) => {
+    if (!coordinators.length) return
+    publishClientCatalogEnrichment(mergeClientCatalogServices(
+      primaryServices,
+      coordinators,
+      new Map(),
+      new Map(),
+    ))
+  }).catch((error) => {
+    if (__DEV__) console.info('[catalog] coordinator enrichment unavailable', error)
+  })
+
   const request = Promise.all([
-    fetchAvailableCoordinators(),
+    coordinatorRequest,
     fetchBudgetAwareRecommendations(),
     fetchServiceDecisionSignals(),
   ]).then(([coordinators, recommendations, decisionSignals]) => {
-    // Prefer the detailed service snapshot when it has already arrived, but
-    // never delay the initial marketplace cards while waiting for it.
-    const catalogServices = lastSuccessfulCatalogServices ?? primaryServices
-    const coordinatorUserIds = new Set(
-      coordinators.flatMap((coordinator) => (
-        coordinator.coordinatorUserId ? [coordinator.coordinatorUserId] : []
-      ))
-    )
-    const marketplaceServices = catalogServices.filter((service) => !(
-      service.categoryId === 'eventOrganizers'
-      && service.providerUserId
-      && coordinatorUserIds.has(service.providerUserId)
+    publishClientCatalogEnrichment(mergeClientCatalogServices(
+      primaryServices,
+      coordinators,
+      recommendations,
+      decisionSignals,
     ))
-    const clientCatalogServices = [...marketplaceServices, ...coordinators].map((service) => {
-      const decisionSignal = decisionSignals.get(service.bookingServiceId ?? service.id)
-      return {
-        ...service,
-        bookingCount: decisionSignal?.bookingCount ?? 0,
-        budgetRecommendation: recommendations.get(service.bookingServiceId ?? service.id),
-        isMostBooked: decisionSignal?.isMostBooked ?? false,
-        popularityRank: decisionSignal?.popularityRank ?? service.popularityRank,
-        rating: decisionSignal && decisionSignal.reviewCount > 0
-          ? decisionSignal.averageRating.toFixed(1)
-          : service.rating,
-        reviewCount: decisionSignal?.reviewCount ?? service.reviewCount,
-      }
-    })
-
-    lastSuccessfulClientCatalogServices = clientCatalogServices
-    catalogEnrichmentListeners.forEach((listener) => listener(clientCatalogServices))
   }).catch((error) => {
     // The primary cards are already usable. Optional client signals and
     // coordinators can safely retry on the next catalog refresh.
@@ -1037,6 +1093,15 @@ export const fetchCatalogServices = (): Promise<CatalogService[]> => {
 }
 
 const loadClientCatalogServicesUncached = async (): Promise<CatalogService[]> => {
+  // Begin the coordinator lookup alongside the primary marketplace query. It
+  // is intentionally not awaited here: core service cards still render as
+  // soon as they can, while the coordinator section can use the parallel
+  // result immediately after that initial response.
+  const coordinatorRequest = fetchAvailableCoordinators().catch((error) => {
+    if (__DEV__) console.info('[catalog] coordinator lookup unavailable', error)
+    return [] as CatalogService[]
+  })
+
   try {
     // The primary service list is enough for cards, browsing, and the next
     // planning screen. Coordinator profiles, recommendation RPCs, and review
@@ -1047,7 +1112,7 @@ const loadClientCatalogServicesUncached = async (): Promise<CatalogService[]> =>
     ) ?? []
     const primaryClientServices = [...services, ...existingCoordinators]
     lastSuccessfulClientCatalogServices = primaryClientServices
-    enrichClientCatalogInBackground(services)
+    enrichClientCatalogInBackground(services, coordinatorRequest)
     return primaryClientServices
   } catch (error) {
     console.warn(

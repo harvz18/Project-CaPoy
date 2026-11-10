@@ -6,10 +6,16 @@ export interface MapCoordinates {
   longitude: number
 }
 
+export interface MapLocationPin extends MapCoordinates {
+  address?: string
+  name?: string
+}
+
 interface MapTilerVenueMapProps {
   coordinates: MapCoordinates
   fullscreen?: boolean
-  onPin: (coordinates: MapCoordinates) => void
+  onLocationResolutionFailed?: (coordinates: MapCoordinates) => void
+  onPin: (coordinates: MapLocationPin) => void
   onUnavailable?: () => void
 }
 

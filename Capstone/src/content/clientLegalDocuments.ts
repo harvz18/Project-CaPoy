@@ -98,6 +98,42 @@ Current support route: in-app Help and Support. Official support and privacy con
 31. Client Acknowledgment
 By creating an account, you acknowledge that you have read and agree to the MULTIVENT Client Terms & Conditions and acknowledge the MULTIVENT Privacy Policy. Optional marketing consent, if implemented, must be separate.`
 
+export const bookingPaymentCancellationPolicy = `MULTIVENT — Booking, Payment, and Cancellation Policy
+
+1. Booking, Acceptance, and Confirmation
+
+When a Client selects multiple Service Providers for one event, every required Service Provider must accept their respective booking request before payment can proceed. A booking request or an individual provider's acceptance does not constitute a Confirmed booking. A booking is considered Confirmed only after all required Service Providers have accepted and the required payment or downpayment has been successfully recorded.
+
+2. Payment Deadline
+
+Once all required Service Providers have accepted the booking requests, the Client is given fourteen (14) calendar days to complete the required payment. A shorter payment deadline may apply when the event date is approaching. Failure to complete payment within the applicable deadline may result in the expiration of the booking request and the release of reserved availability.
+
+3. Client-Facing Pricing and Five Percent (5%) Markup
+
+MULTIVENT applies a five percent (5%) markup to the applicable Service Provider's base price. This markup is ordinarily included in the displayed Client-facing service price. Before proceeding with payment, the Client must be presented with the accurate total payable amount, including any additional applicable charges.
+
+4. Payment and Downpayment Options
+
+MULTIVENT may offer full-payment or percentage-based downpayment options after all required Service Providers have accepted the booking requests. The applicable payment percentage, amount due, and remaining balance must be clearly displayed in the transaction summary. A booking becomes Confirmed only after the required payment has been successfully recorded.
+
+5. Capstone Payment Simulation
+
+MULTIVENT currently integrates PayMongo in test mode for simulated payment transactions as part of its capstone implementation. These simulated transactions demonstrate payment status tracking, booking confirmation, and transaction ledger functionality. They do not represent actual monetary collection, escrow, disbursement, or financial settlement.
+
+6. Remaining Balance After the Event
+
+For bookings made through a downpayment option, the remaining agreed service balance shall be settled directly by the Client with each relevant Service Provider after the event. The Service Provider must acknowledge receipt of the payment and issue appropriate documentation when required.
+
+7. Cancellations, Refunds, and Rescheduling
+
+The MULTIVENT Cancellation, Rescheduling, No-Show, and Refund Policy governs ordinary voluntary Client cancellations according to the following conditions:
+
+- 30 or more days before the event: 100% refund of the eligible booking amount.
+- 15–29 days before the event: 50% refund of the eligible booking amount.
+- Fewer than 15 days before the event: Non-refundable.
+
+Clients are permitted one (1) rescheduling request without an additional rescheduling fee, subject to the availability and acceptance of the relevant Service Providers.`
+
 export const privacyPolicy = `MULTIVENT
 PRIVACY POLICY
 

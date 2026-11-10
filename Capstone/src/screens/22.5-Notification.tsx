@@ -3,6 +3,7 @@ import { InboxSelectionBox, InboxTrashButton } from '../components/InboxControls
 import type { InboxTrashScope } from '../lib/inbox-trash'
 import React from 'react'
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -53,6 +54,7 @@ interface NotificationScreenProps {
   embedded?: boolean
   initialFilter?: MerchantNotificationFilter
   initialPreferences?: Partial<MerchantNotificationPreferences>
+  isLoading?: boolean
   notifications?: MerchantNotification[]
   onBack?: () => void
   onEmbeddedSelectionChange?: (toolbar?: InboxSelectionToolbar) => void
@@ -236,6 +238,7 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({
   embedded = false,
   initialFilter = 'all',
   initialPreferences,
+  isLoading = false,
   notifications = defaultNotifications,
   onBack,
   onEmbeddedSelectionChange,
@@ -308,6 +311,7 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({
       else groups.push({ items: [notification], label })
       return groups
     }, []), [visibleNotifications])
+  const isInitialContentLoading = isLoading && feedNotifications.length === 0
   const selectionMode = selectedIds.size > 0
   const allSelected = visibleNotifications.length > 0
     && visibleNotifications.every((notification) => selectedIds.has(notification.id))
@@ -508,6 +512,11 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({
                     </View>
                   </View>
                 ))}
+              </View>
+            ) : isInitialContentLoading ? (
+              <View accessibilityLabel="Loading notifications…" accessibilityRole="progressbar" style={styles.emptyState}>
+                <ActivityIndicator color={palette.primaryContainer} />
+                <Text style={styles.emptyTitle}>Loading notifications…</Text>
               </View>
             ) : (
               <View style={styles.emptyState}>

@@ -9,6 +9,7 @@ import { MerchantBottomNavigation } from '../components/MerchantBottomNavigation
 import { MerchantWorkspaceHeader } from '../components/MerchantWorkspaceHeader'
 import React from 'react'
 import {
+  ActivityIndicator,
   Image,
   Pressable,
   ScrollView,
@@ -66,6 +67,7 @@ interface MessagesScreenProps {
   hasUnreadNotifications?: boolean
   initialInboxTab?: ClientInboxTab
   initialFilter?: ClientConversationFilter
+  isInboxContentLoading?: boolean
   notifications?: MerchantNotification[]
   showBottomNavigation?: boolean
   onMarkAllNotificationsRead?: (notificationIds: string[]) => void
@@ -170,6 +172,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
   hasUnreadNotifications = false,
   initialInboxTab = 'messages',
   initialFilter = 'all',
+  isInboxContentLoading = false,
   navigationVariant = 'client',
   notifications = [],
   showBottomNavigation = true,
@@ -402,6 +405,12 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
       )
     return matchesFilter && matchesSearch
   })
+  const isInitialMessageContentLoading = isInboxContentLoading
+    && !selectedEvent
+    && eventGroups.length === 0
+  const selectInboxTab = React.useCallback((tab: ClientInboxTab) => {
+    setInboxTab((current) => current === tab ? current : tab)
+  }, [])
   const selectableConversationIds = (selectedEvent
     ? visibleConversations
     : visibleEventGroups.flatMap((group) => group.conversations)
@@ -573,7 +582,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                   key={tab}
                   accessibilityRole="tab"
                   accessibilityState={{ selected }}
-                  onPress={() => setInboxTab(tab)}
+                  onPress={() => selectInboxTab(tab)}
                   style={({ pressed }) => [
                     styles.inboxTab,
                     selected && styles.inboxTabSelected,
@@ -643,6 +652,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
       {isClientInbox && inboxTab === 'notifications' ? (
         <NotificationScreen
           embedded
+          isLoading={isInboxContentLoading}
           notifications={notifications}
           onMoveToTrash={onMoveNotificationsToTrash}
           showTrashShortcut={false}
@@ -651,7 +661,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
           onMarkRead={onMarkNotificationRead}
           onScrollDirectionChange={onScrollDirectionChange}
           onSelectNotification={(notification) => {
-            if (notification.category === 'message') setInboxTab('messages')
+            if (notification.category === 'message') selectInboxTab('messages')
             onSelectNotification?.(notification)
           }}
           variant="client"
@@ -782,7 +792,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
           })}
         </View>
 
-        {usesEventGroups && !selectedEvent ? (
+        {isInitialMessageContentLoading ? (
+          <InboxContentLoading label="Loading messages…" />
+        ) : usesEventGroups && !selectedEvent ? (
           visibleEventGroups.length ? (
             <View style={styles.eventCardList}>
               {visibleEventGroups.map((group) => {
@@ -908,6 +920,13 @@ const MessageEmptyState = ({
         <Text style={styles.emptyButtonText}>View services</Text>
       </Pressable>
     ) : null}
+  </View>
+)
+
+const InboxContentLoading = ({ label }: { label: string }) => (
+  <View accessibilityLabel={label} accessibilityRole="progressbar" style={styles.loadingState}>
+    <ActivityIndicator color={palette.primaryContainer} />
+    <Text style={styles.loadingText}>{label}</Text>
   </View>
 )
 
@@ -1145,6 +1164,8 @@ const styles = StyleSheet.create({
   messageCountBadge: { minWidth: 19, height: 19, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: palette.primaryContainer, paddingHorizontal: 5 },
   messageCountText: { color: palette.onPrimary, fontSize: 8, lineHeight: 11, fontWeight: '700' },
   emptyState: { minHeight: 330, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, borderRadius: 18, backgroundColor: palette.background, padding: 28, boxShadow: '5px 5px 11px rgba(161, 172, 180, 0.4), -5px -5px 11px rgba(255, 255, 255, 0.92)' },
+  loadingState: { minHeight: 330, alignItems: 'center', justifyContent: 'center', gap: 12, borderWidth: 1, borderColor: palette.border, borderRadius: 18, backgroundColor: palette.background, padding: 28, boxShadow: '5px 5px 11px rgba(161, 172, 180, 0.4), -5px -5px 11px rgba(255, 255, 255, 0.92)' },
+  loadingText: { color: palette.secondary, fontSize: 12, lineHeight: 17, fontWeight: '600' },
   emptyMessageIcon: { width: 54, height: 54, alignItems: 'center', justifyContent: 'center', borderRadius: 27, backgroundColor: palette.primarySoft, marginBottom: 14 },
   emptyMessageBody: { width: 24, height: 18, borderWidth: 1.5, borderColor: palette.primaryContainer, borderRadius: 5 },
   emptyMessageTail: { position: 'absolute', width: 7, height: 7, bottom: 16, left: 17, borderBottomWidth: 1.5, borderLeftWidth: 1.5, borderColor: palette.primaryContainer, transform: [{ rotate: '-24deg' }] },

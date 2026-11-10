@@ -57,10 +57,25 @@ export interface EventCreationValue {
 
 interface VenueMapValue {
   address: string
+  confirmed?: boolean
   latitude: number
   longitude: number
   name: string
 }
+
+interface VenueMapPin {
+  address?: string
+  latitude: number
+  longitude: number
+  name?: string
+}
+
+type VenueResolutionStatus = 'idle' | 'resolving' | 'unresolved'
+
+const locationResolutionDebounceMs = 240
+
+const formatPinnedCoordinates = ({ latitude, longitude }: Pick<VenueMapValue, 'latitude' | 'longitude'>) =>
+  `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
 
 interface EventCreationScreenProps {
   initialValue?: Partial<EventCreationValue>
@@ -141,16 +156,6 @@ const distanceInKilometres = (
   const haversine = Math.sin(latitudeDelta / 2) ** 2
     + Math.cos(firstLatitude) * Math.cos(secondLatitude) * Math.sin(longitudeDelta / 2) ** 2
   return 6371 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine))
-}
-
-const verifiedVenueAtPin = (latitude: number, longitude: number) => {
-  const pin = { latitude, longitude }
-  const nearestVenue = bacolodVenueSuggestions.reduce((nearest, venue) => (
-    distanceInKilometres(venue, pin) < distanceInKilometres(nearest, pin) ? venue : nearest
-  ))
-  // Only use a local landmark label when the pin is actually at that landmark.
-  // This prevents a nearby hotel from replacing a park or street selection.
-  return distanceInKilometres(nearestVenue, pin) <= 0.15 ? nearestVenue : null
 }
 
 const tipImage =
@@ -425,6 +430,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
   const isSecuredVenueExpanded = hasVenueStatusSelection && venueStatus === 'secured'
   const [venueMap, setVenueMap] = React.useState<VenueMapValue>({
     address: initialValue?.venueAddress ?? '',
+    confirmed: Boolean(initialValue?.externalVenueConfirmed),
     latitude: initialValue?.venueLatitude ?? 10.6765,
     longitude: initialValue?.venueLongitude ?? 122.9511,
     name: initialValue?.venueName ?? '',
@@ -705,7 +711,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
       dateTime: !date || !time || !isEventDateBookable(date) || isPastDateTime(date, time),
       eventName: !eventName.trim(),
       guestCount: guestCount <= 0,
-      venue: isSecuredVenueExpanded && !venueMap.name.trim(),
+      venue: isSecuredVenueExpanded && !venueMap.confirmed,
       venueStatus: !hasVenueStatusSelection,
     }[requiredSection]
 
@@ -727,7 +733,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
     requiredSection,
     shouldAskChurchQuestion,
     time,
-    venueMap.name,
+    venueMap.confirmed,
     wantsCoordinator,
   ])
 
@@ -800,9 +806,9 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
       return
     }
 
-    if (isSecuredVenueExpanded && !venueMap.name.trim()) {
-      setVenueError('Choose a location for your secured venue.')
-      revealRequiredSection('venue', 'Choose the location of your secured venue.')
+    if (isSecuredVenueExpanded && !venueMap.confirmed) {
+      setVenueError('Confirm the pinned location for your secured venue.')
+      revealRequiredSection('venue', 'Tap the selected location card to confirm it.')
       return
     }
 
@@ -831,7 +837,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
     venueLongitude: venueMap.longitude,
     venueName: venueMap.name,
     venueSource: isSecuredVenueExpanded && venueMap.name.trim() ? 'external' : undefined,
-    externalVenueConfirmed: isSecuredVenueExpanded && Boolean(venueMap.name.trim()),
+    externalVenueConfirmed: isSecuredVenueExpanded && Boolean(venueMap.confirmed),
     guestCount,
     isChurchWedding,
     wantsCoordinator,
@@ -845,6 +851,7 @@ export const EventCreationScreen: React.FC<EventCreationScreenProps> = ({
     selectedWeddingThemes,
     time,
     venueMap.address,
+    venueMap.confirmed,
     venueMap.latitude,
     venueMap.longitude,
     venueMap.name,
@@ -1521,7 +1528,18 @@ const VenueLocationPicker: React.FC<VenueLocationPickerProps> = ({
   const [isFullscreen, setIsFullscreen] = React.useState(false)
   const [remoteResults, setRemoteResults] = React.useState<VenueMapValue[] | null>(null)
   const [, setIsSearching] = React.useState(false)
+  const [resolutionStatus, setResolutionStatus] = React.useState<VenueResolutionStatus>('idle')
   const pinLookupRequestRef = React.useRef(0)
+  const hasManualVenueNameRef = React.useRef(false)
+  const currentVenueRef = React.useRef(value)
+  const resolutionTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const resolvedLocationCacheRef = React.useRef(new Map<string, Pick<VenueMapValue, 'address' | 'name'>>())
+  React.useEffect(() => {
+    currentVenueRef.current = value
+  }, [value])
+  React.useEffect(() => () => {
+    if (resolutionTimerRef.current) clearTimeout(resolutionTimerRef.current)
+  }, [])
   const normalizedQuery = query.trim().toLowerCase()
   const suggestedResults = normalizedQuery
     ? bacolodVenueSuggestions
@@ -1536,9 +1554,12 @@ const VenueLocationPicker: React.FC<VenueLocationPickerProps> = ({
 
   const chooseVenue = (venue: VenueMapValue) => {
     pinLookupRequestRef.current += 1
+    if (resolutionTimerRef.current) clearTimeout(resolutionTimerRef.current)
+    hasManualVenueNameRef.current = true
+    setResolutionStatus('idle')
     setQuery(venue.name)
     setRemoteResults(null)
-    onChange(venue)
+    onChange({ ...venue, confirmed: false })
   }
 
   const searchVenue = async () => {
@@ -1580,77 +1601,141 @@ const VenueLocationPicker: React.FC<VenueLocationPickerProps> = ({
     }
   }
 
-  const pinVenue = (latitude: number, longitude: number) => {
+  const pinVenue = ({ address: resolvedAddress, latitude, longitude, name: resolvedName }: VenueMapPin) => {
+    const isResolvedMapReply = Boolean(resolvedName?.trim() || resolvedAddress?.trim())
+    if (isResolvedMapReply && hasManualVenueNameRef.current) return
+    if (!isResolvedMapReply) hasManualVenueNameRef.current = false
+
     const requestId = pinLookupRequestRef.current + 1
     pinLookupRequestRef.current = requestId
-    const verifiedVenue = verifiedVenueAtPin(latitude, longitude)
-    const pinnedVenue: VenueMapValue = verifiedVenue
-      ? { ...verifiedVenue, latitude, longitude }
-      : {
-          address: 'Pinned location in Bacolod City, Negros Occidental',
-          latitude,
-          longitude,
-          name: 'Pinned location',
-        }
+    if (resolutionTimerRef.current) clearTimeout(resolutionTimerRef.current)
 
-    // Move and retain the marker immediately. The reverse lookup below only
-    // improves the location name; it never re-creates the map.
-    setQuery(pinnedVenue.name)
+    const currentVenue = currentVenueRef.current
+    const isCurrentPin = Math.abs(currentVenue.latitude - latitude) < 0.000001
+      && Math.abs(currentVenue.longitude - longitude) < 0.000001
+    const name = resolvedName?.trim() || resolvedAddress?.trim() || 'Pinned Location'
+    const address = resolvedAddress?.trim() || `Coordinates: ${formatPinnedCoordinates({ latitude, longitude })}`
+    const pinnedVenue: VenueMapValue = {
+      address,
+      confirmed: isResolvedMapReply && isCurrentPin ? currentVenue.confirmed : false,
+      latitude,
+      longitude,
+      name,
+    }
+
+    // Pin selection is always immediate. Resolution only enriches this saved
+    // local value later, so the confirmation card never waits for the network.
+    setQuery(isResolvedMapReply ? name : '')
     setRemoteResults(null)
     onChange(pinnedVenue)
 
-    if (verifiedVenue || !mapTilerKey || Platform.OS !== 'web') return
+    if (isResolvedMapReply) {
+      setResolutionStatus('idle')
+      return
+    }
 
-    void (async () => {
-      try {
-        let name = ''
-        let address = ''
-        const poiResponse = await fetch(
-          `https://api.maptiler.com/geocoding/${longitude.toFixed(6)},${latitude.toFixed(6)}.json?key=${encodeURIComponent(mapTilerKey)}&language=en&types=poi&limit=1`
-        )
-        if (poiResponse.ok) {
-          const poiPayload = await poiResponse.json() as {
-            features?: Array<{ center?: unknown; place_name?: unknown; text?: unknown }>
-          }
-          const poi = poiPayload.features?.[0]
-          const center = Array.isArray(poi?.center) ? poi.center : []
-          const poiLongitude = typeof center[0] === 'number' ? center[0] : NaN
-          const poiLatitude = typeof center[1] === 'number' ? center[1] : NaN
-          const poiIsAtPin = Number.isFinite(poiLatitude)
-            && Number.isFinite(poiLongitude)
-            && distanceInKilometres({ latitude, longitude }, { latitude: poiLatitude, longitude: poiLongitude }) <= 0.12
-          if (poiIsAtPin) {
-            name = typeof poi?.text === 'string' ? poi.text.trim() : ''
-            address = typeof poi?.place_name === 'string' ? poi.place_name.trim() : ''
-          }
-        }
+    setResolutionStatus('resolving')
+    if (!mapTilerKey) {
+      setResolutionStatus('unresolved')
+      return
+    }
 
-        // If no named place contains the pin, use the actual nearby street or
-        // address details rather than assigning a different venue name.
-        if (!name || !address) {
-          const response = await fetch(
-            `https://api.maptiler.com/geocoding/${longitude.toFixed(6)},${latitude.toFixed(6)}.json?key=${encodeURIComponent(mapTilerKey)}&language=en`
+    // Native pin lookups are performed by the hosted map page so the existing
+    // MapTiler key remains restricted to the MULTIVENT web origin.
+    if (Platform.OS !== 'web') return
+
+    const cacheKey = formatPinnedCoordinates({ latitude, longitude })
+    const cachedLocation = resolvedLocationCacheRef.current.get(cacheKey)
+    if (cachedLocation) {
+      setQuery(cachedLocation.name)
+      setResolutionStatus('idle')
+      onChange({ ...pinnedVenue, ...cachedLocation })
+      return
+    }
+
+    resolutionTimerRef.current = setTimeout(() => {
+      void (async () => {
+        try {
+          let resolvedName = ''
+          let resolvedAddress = ''
+          const poiResponse = await fetch(
+            `https://api.maptiler.com/geocoding/${longitude.toFixed(6)},${latitude.toFixed(6)}.json?key=${encodeURIComponent(mapTilerKey)}&language=en&types=poi&limit=1`
           )
-          if (response.ok) {
-            const payload = await response.json() as {
-              features?: Array<{ place_name?: unknown; text?: unknown }>
+          if (poiResponse.ok) {
+            const poiPayload = await poiResponse.json() as {
+              features?: Array<{ center?: unknown; place_name?: unknown; text?: unknown }>
             }
-            const result = payload.features?.[0]
-            name = name || (typeof result?.text === 'string' ? result.text.trim() : '')
-            address = address || (typeof result?.place_name === 'string' ? result.place_name.trim() : '')
+            const poi = poiPayload.features?.[0]
+            const center = Array.isArray(poi?.center) ? poi.center : []
+            const poiLongitude = typeof center[0] === 'number' ? center[0] : NaN
+            const poiLatitude = typeof center[1] === 'number' ? center[1] : NaN
+            const poiIsAtPin = Number.isFinite(poiLatitude)
+              && Number.isFinite(poiLongitude)
+              && distanceInKilometres({ latitude, longitude }, { latitude: poiLatitude, longitude: poiLongitude }) <= 0.05
+            if (poiIsAtPin) {
+              resolvedName = typeof poi?.text === 'string' ? poi.text.trim() : ''
+              resolvedAddress = typeof poi?.place_name === 'string' ? poi.place_name.trim() : ''
+            }
           }
+
+          if (!resolvedName || !resolvedAddress) {
+            const response = await fetch(
+              `https://api.maptiler.com/geocoding/${longitude.toFixed(6)},${latitude.toFixed(6)}.json?key=${encodeURIComponent(mapTilerKey)}&language=en`
+            )
+            if (response.ok) {
+              const payload = await response.json() as {
+                features?: Array<{ place_name?: unknown; text?: unknown }>
+              }
+              const result = payload.features?.[0]
+              resolvedName = resolvedName || (typeof result?.text === 'string' ? result.text.trim() : '')
+              resolvedAddress = resolvedAddress || (typeof result?.place_name === 'string' ? result.place_name.trim() : '')
+            }
+          }
+          if (pinLookupRequestRef.current !== requestId) return
+          const nextName = resolvedName || resolvedAddress
+          const nextAddress = resolvedAddress || resolvedName
+          if (!nextName && !nextAddress) {
+            setResolutionStatus('unresolved')
+            return
+          }
+          const resolvedLocation = { address: nextAddress, name: nextName }
+          resolvedLocationCacheRef.current.set(cacheKey, resolvedLocation)
+          const activeVenue = currentVenueRef.current
+          const keepConfirmation = Math.abs(activeVenue.latitude - latitude) < 0.000001
+            && Math.abs(activeVenue.longitude - longitude) < 0.000001
+            && Boolean(activeVenue.confirmed)
+          setQuery(nextName)
+          setResolutionStatus('idle')
+          onChange({ ...pinnedVenue, ...resolvedLocation, confirmed: keepConfirmation })
+        } catch {
+          if (pinLookupRequestRef.current === requestId) setResolutionStatus('unresolved')
         }
-        if (pinLookupRequestRef.current !== requestId) return
-        const resolvedName = name || pinnedVenue.name
-        const resolvedAddress = address || pinnedVenue.address
-        setQuery(resolvedName)
-        onChange({ address: resolvedAddress, latitude, longitude, name: resolvedName })
-      } catch {
-        // The selected coordinates remain valid even if a readable place name
-        // is unavailable from the optional reverse-geocoding service.
-      }
-    })()
+      })()
+    }, locationResolutionDebounceMs)
   }
+
+  const useTypedVenueName = () => {
+    const name = query.trim()
+    if (!name) return
+    pinLookupRequestRef.current += 1
+    if (resolutionTimerRef.current) clearTimeout(resolutionTimerRef.current)
+    hasManualVenueNameRef.current = true
+    setRemoteResults(null)
+    setResolutionStatus('idle')
+    onChange({ ...value, confirmed: false, name })
+  }
+
+  const confirmPinnedVenue = () => {
+    if (!value.name.trim()) return
+    onChange({ ...value, confirmed: true })
+    setResolutionStatus((current) => current === 'unresolved' ? 'idle' : current)
+  }
+
+  const markNativeLookupUnresolved = React.useCallback((coordinates: VenueMapPin) => {
+    const isCurrentPin = Math.abs(value.latitude - coordinates.latitude) < 0.000001
+      && Math.abs(value.longitude - coordinates.longitude) < 0.000001
+    if (isCurrentPin) setResolutionStatus('unresolved')
+  }, [value.latitude, value.longitude])
 
   const searchBox = (fullscreen = false) => (
     <View style={[styles.venueSearchArea, fullscreen && styles.venueSearchAreaFullscreen]}>
@@ -1715,7 +1800,11 @@ const VenueLocationPicker: React.FC<VenueLocationPickerProps> = ({
       {searchBox()}
 
       <View style={styles.mapPreviewShell}>
-        <VenueMapSurface onPin={pinVenue} value={value} />
+        <VenueMapSurface
+          onLocationResolutionFailed={markNativeLookupUnresolved}
+          onPin={pinVenue}
+          value={value}
+        />
         <Pressable
           accessibilityLabel="Open venue map in full screen"
           accessibilityRole="button"
@@ -1731,15 +1820,50 @@ const VenueLocationPicker: React.FC<VenueLocationPickerProps> = ({
       </View>
 
       {value.name || value.address ? (
-        <View style={styles.selectedVenueBanner}>
+        <Pressable
+          accessibilityHint={value.confirmed ? 'Current selected venue is confirmed.' : 'Confirms this pinned venue immediately.'}
+          accessibilityLabel={value.confirmed ? 'Selected venue confirmed' : 'Confirm selected venue'}
+          accessibilityRole="button"
+          accessibilityState={{ selected: Boolean(value.confirmed) }}
+          onPress={confirmPinnedVenue}
+          style={({ pressed }) => [styles.selectedVenueBanner, pressed && styles.selectedVenueBannerPressed]}
+        >
           <View style={styles.selectedVenueIcon}>
             <MaterialIcons color={palette.surface} name="location-on" size={20} />
           </View>
           <View style={styles.selectedVenueCopy}>
-            <Text style={styles.selectedVenueName}>{value.name || 'Pinned venue'}</Text>
+            <Text style={styles.selectedVenueName}>{value.name || 'Pinned Location'}</Text>
             <Text style={styles.selectedVenueAddress}>{value.address}</Text>
           </View>
-          <MaterialIcons color={palette.burgundy} name="check-circle" size={23} />
+          <MaterialIcons color={palette.burgundy} name={value.confirmed ? 'check-circle' : 'check-circle-outline'} size={23} />
+        </Pressable>
+      ) : null}
+
+      {resolutionStatus === 'resolving' ? (
+        <View accessibilityLiveRegion="polite" style={styles.venueResolutionNotice}>
+          <ActivityIndicator color={palette.burgundy} size="small" />
+          <Text style={styles.venueResolutionText}>Identifying location…</Text>
+        </View>
+      ) : null}
+
+      {resolutionStatus === 'unresolved' ? (
+        <View accessibilityLiveRegion="polite" style={styles.venueResolutionNotice}>
+          <MaterialIcons color={palette.muted} name="location-off" size={18} />
+          <View style={styles.venueResolutionCopy}>
+            <Text style={styles.venueResolutionText}>Location pin saved. We could not identify a verified place name.</Text>
+            <Text style={styles.venueResolutionHint}>Type the confirmed venue name above, then save it below.</Text>
+            {query.trim() ? (
+              <Pressable
+                accessibilityLabel={`Use ${query.trim()} as the venue name`}
+                accessibilityRole="button"
+                onPress={useTypedVenueName}
+                style={({ pressed }) => [styles.useTypedVenueButton, pressed && styles.useTypedVenueButtonPressed]}
+              >
+                <MaterialIcons color={palette.burgundy} name="edit" size={16} />
+                <Text style={styles.useTypedVenueButtonText}>Use “{query.trim()}” as venue name</Text>
+              </Pressable>
+            ) : null}
+          </View>
         </View>
       ) : null}
 
@@ -1778,7 +1902,12 @@ const VenueLocationPicker: React.FC<VenueLocationPickerProps> = ({
           </View>
           {searchBox(true)}
           <View style={styles.fullscreenMapBody}>
-            <VenueMapSurface fullscreen onPin={pinVenue} value={value} />
+            <VenueMapSurface
+              fullscreen
+              onLocationResolutionFailed={markNativeLookupUnresolved}
+              onPin={pinVenue}
+              value={value}
+            />
           </View>
           <View style={styles.fullscreenMapFooter}>
             <MaterialIcons color={palette.burgundy} name="touch-app" size={20} />
@@ -1794,12 +1923,14 @@ const VenueLocationPicker: React.FC<VenueLocationPickerProps> = ({
 
 interface VenueMapSurfaceProps {
   fullscreen?: boolean
-  onPin: (latitude: number, longitude: number) => void
+  onLocationResolutionFailed?: (coordinates: VenueMapPin) => void
+  onPin: (coordinates: VenueMapPin) => void
   value: VenueMapValue
 }
 
 const VenueMapSurface: React.FC<VenueMapSurfaceProps> = ({
   fullscreen = false,
+  onLocationResolutionFailed,
   onPin,
   value,
 }) => {
@@ -1814,7 +1945,8 @@ const VenueMapSurface: React.FC<VenueMapSurfaceProps> = ({
           key={mapRetryKey}
           coordinates={{ latitude: value.latitude, longitude: value.longitude }}
           fullscreen={fullscreen}
-          onPin={({ latitude, longitude }) => onPin(latitude, longitude)}
+          onLocationResolutionFailed={onLocationResolutionFailed}
+          onPin={onPin}
           onUnavailable={() => setIsHostedMapUnavailable(true)}
         />
       )
@@ -1837,7 +1969,10 @@ const VenueMapSurface: React.FC<VenueMapSurfaceProps> = ({
       onPress={(event) => {
         const xRatio = Math.max(0, Math.min(1, event.nativeEvent.locationX / size.width))
         const yRatio = Math.max(0, Math.min(1, event.nativeEvent.locationY / size.height))
-        onPin(north - yRatio * (north - south), west + xRatio * (east - west))
+        onPin({
+          latitude: north - yRatio * (north - south),
+          longitude: west + xRatio * (east - west),
+        })
       }}
       style={[styles.mapSurface, fullscreen && styles.mapSurfaceFullscreen]}
     >
@@ -3010,7 +3145,10 @@ const styles = StyleSheet.create({
   venueResultName: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '700' },
   venueResultAddress: { color: palette.muted, fontSize: 12, lineHeight: 18, marginTop: 1 },
   venueNoResults: { color: palette.muted, fontSize: 12, lineHeight: 18, padding: 12 },
-  mapPreviewShell: { position: 'relative', overflow: 'hidden', borderRadius: 14 },
+  // The native WebView is rendered inside this scrollable form. Owning the
+  // preview height here gives it a measurable Android layout without changing
+  // the web map's existing 250px presentation.
+  mapPreviewShell: { position: 'relative', height: 250, overflow: 'hidden', borderRadius: 14 },
   mapFallbackSurface: { position: 'relative', height: 250, overflow: 'hidden' },
   mapSurface: {
     position: 'relative',
@@ -3047,7 +3185,15 @@ const styles = StyleSheet.create({
   mapFullscreenButton: { position: 'absolute', top: 10, right: 10, zIndex: 7, flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 8, backgroundColor: palette.burgundy, paddingHorizontal: 10, paddingVertical: 8 },
   mapFullscreenButtonPressed: { backgroundColor: palette.burgundyDark, transform: [{ scale: 0.97 }] },
   mapFullscreenText: { color: palette.surface, fontSize: 12, lineHeight: 16, fontWeight: '800', letterSpacing: 0.7 },
+  venueResolutionNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderRadius: 10, backgroundColor: '#F8F4F4', marginTop: 10, paddingHorizontal: 11, paddingVertical: 9 },
+  venueResolutionCopy: { minWidth: 0, flex: 1 },
+  venueResolutionText: { minWidth: 0, flex: 1, color: palette.muted, fontSize: 12, lineHeight: 17, fontWeight: '600' },
+  venueResolutionHint: { color: palette.muted, fontSize: 11, lineHeight: 16, marginTop: 2 },
+  useTypedVenueButton: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 7, backgroundColor: '#F2E6E8', marginTop: 7, paddingHorizontal: 8, paddingVertical: 6 },
+  useTypedVenueButtonPressed: { opacity: 0.65 },
+  useTypedVenueButtonText: { color: palette.burgundy, fontSize: 11, lineHeight: 15, fontWeight: '800' },
   selectedVenueBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, backgroundColor: '#F8EDEF', padding: 12, marginTop: 12 },
+  selectedVenueBannerPressed: { opacity: 0.72 },
   selectedVenueIcon: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 17, backgroundColor: palette.burgundy },
   selectedVenueCopy: { minWidth: 0, flex: 1 },
   selectedVenueName: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: '700' },
