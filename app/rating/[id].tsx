@@ -1,12 +1,16 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
+import { MotionModal as Modal } from "../../src/components/MotionModal";
+import { MotionPressable as Pressable } from "../../src/components/MotionPressable";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { EmptyState } from "../../src/components/EmptyState";
 import { useApp } from "../../src/context/AppContext";
 import { useTasklinkBack } from "../../src/hooks/useTasklinkBack";
 import { screenPalette } from "../../src/theme";
+import { typography } from "../../src/typography";
+import { AppText as Text, AppTextInput as TextInput } from "../../src/components/AppText";
 
 const palette = screenPalette;
 
@@ -87,7 +91,7 @@ export default function RatingScreen() {
                 return (
                   <Pressable
                     accessibilityLabel={`${value} out of 5`}
-                    accessibilityRole="button"
+                    accessibilityRole="radio"
                     accessibilityState={{ selected }}
                     key={value}
                     onPress={() => setScore(value)}
@@ -107,6 +111,8 @@ export default function RatingScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Feedback</Text>
             <TextInput
+              accessibilityLabel="Rating feedback"
+              accessibilityHint="Optional. Add details about the experience."
               multiline
               onChangeText={setFeedback}
               placeholder="Add details about punctuality, work quality, or payment reliability."
@@ -118,7 +124,9 @@ export default function RatingScreen() {
           </View>
 
           <Pressable
+            accessibilityLabel="Submit rating"
             accessibilityRole="button"
+            accessibilityState={{ busy: actionLoading, disabled: actionLoading }}
             disabled={actionLoading}
             onPress={handleSubmit}
             style={({ pressed }) => [styles.primaryButton, actionLoading && styles.disabled, pressed && styles.pressed]}
@@ -203,8 +211,8 @@ const styles = StyleSheet.create({
   },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
   backButton: { minWidth: 48, minHeight: 44, alignItems: "center", justifyContent: "center" },
-  backText: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "900" },
-  brand: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "900" },
+  backText: { ...typography.button, color: palette.primary },
+  brand: { ...typography.screenTitle, color: palette.primary },
   smallAvatar: {
     width: 32,
     height: 32,
@@ -213,7 +221,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: palette.surfaceHigh
   },
-  avatarText: { color: palette.secondary, fontWeight: "900" },
+  avatarText: { ...typography.bodyMedium, color: palette.secondary },
   content: { padding: 16, paddingTop: 24, gap: 16 },
   heroPanel: {
     minHeight: 164,
@@ -227,14 +235,11 @@ const styles = StyleSheet.create({
   },
   heroCopy: { flex: 1, gap: 6 },
   heroKicker: {
+    ...typography.overline,
     color: palette.primaryFixed,
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: "900",
-    textTransform: "uppercase"
   },
-  heroTitle: { color: palette.white, fontSize: 24, lineHeight: 32, fontWeight: "900" },
-  heroText: { color: palette.primaryFixed, fontSize: 14, lineHeight: 20 },
+  heroTitle: { ...typography.screenTitle, color: palette.white },
+  heroText: { ...typography.body, color: palette.primaryFixed },
   scoreBadge: {
     width: 82,
     height: 82,
@@ -245,8 +250,8 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: "rgba(55,126,151,0.30)"
   },
-  scoreBadgeValue: { color: "#F4C95D", fontSize: 24, lineHeight: 30, fontWeight: "900" },
-  scoreBadgeLabel: { color: "#F4C95D", fontSize: 11, lineHeight: 14, fontWeight: "900" },
+  scoreBadgeValue: { ...typography.badge, color: "#F4C95D" },
+  scoreBadgeLabel: { ...typography.badge, color: "#F4C95D" },
   formCard: {
     padding: 16,
     borderRadius: 12,
@@ -261,8 +266,8 @@ const styles = StyleSheet.create({
     elevation: 2
   },
   section: { gap: 10 },
-  sectionTitle: { color: palette.textStrong, fontSize: 16, lineHeight: 24, fontWeight: "900" },
-  sectionHint: { color: palette.muted, fontSize: 12, lineHeight: 16 },
+  sectionTitle: { ...typography.sectionTitleSmall, color: palette.textStrong },
+  sectionHint: { ...typography.metadata, color: palette.muted },
   scoreRow: { flexDirection: "row", gap: 8 },
   scoreButton: {
     flex: 1,
@@ -278,17 +283,16 @@ const styles = StyleSheet.create({
     borderColor: palette.primary,
     backgroundColor: palette.primary
   },
-  scoreButtonText: { color: palette.muted, fontSize: 18, lineHeight: 26, fontWeight: "900" },
+  scoreButtonText: { ...typography.button, color: palette.muted },
   scoreButtonTextSelected: { color: palette.white },
   textArea: {
+    ...typography.inputText,
     minHeight: 116,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: palette.outlineVariant,
     backgroundColor: palette.surfaceLow,
     color: palette.text,
-    fontSize: 16,
-    lineHeight: 24,
     paddingHorizontal: 14,
     paddingTop: 12
   },
@@ -301,20 +305,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8
   },
-  primaryButtonText: { color: palette.white, fontSize: 14, lineHeight: 20, fontWeight: "900" },
+  primaryButtonText: { ...typography.button, color: palette.white },
   successBackdrop: { flex: 1, padding: 24, backgroundColor: "rgba(1,15,25,0.72)", alignItems: "center", justifyContent: "center" },
   successCard: { width: "100%", maxWidth: 420, padding: 24, borderRadius: 20, backgroundColor: palette.surface, alignItems: "center", gap: 12 },
-  successTitle: { color: palette.textStrong, fontSize: 21, lineHeight: 28, fontWeight: "900", textAlign: "center" },
-  successText: { color: palette.muted, fontSize: 14, lineHeight: 21, textAlign: "center", marginBottom: 4 },
-  submitError: { color: "#FF7D8C", fontSize: 13, lineHeight: 18, fontWeight: "700", textAlign: "center" },
+  successTitle: { ...typography.sectionTitle, color: palette.textStrong, textAlign: "center" },
+  successText: { ...typography.body, color: palette.muted, textAlign: "center", marginBottom: 4 },
+  submitError: { ...typography.button, color: "#FF7D8C", textAlign: "center" },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12
   },
-  listTitle: { color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "900" },
-  listSubtitle: { color: palette.muted, fontSize: 12, lineHeight: 16 },
+  listTitle: { ...typography.sectionTitle, color: palette.textStrong },
+  listSubtitle: { ...typography.metadata, color: palette.muted },
   countPill: {
     minWidth: 38,
     height: 38,
@@ -323,7 +327,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: palette.surfaceContainer
   },
-  countText: { color: palette.primary, fontSize: 14, lineHeight: 20, fontWeight: "900" },
+  countText: { ...typography.heroNumber, color: palette.primary },
   reviewList: { gap: 12 },
   reviewCard: {
     padding: 16,
@@ -343,18 +347,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: palette.secondaryContainer
   },
-  reviewAvatarText: { color: "#F4C95D", fontWeight: "900" },
-  reviewName: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "900" },
-  reviewDate: { color: palette.muted, fontSize: 12, lineHeight: 16 },
+  reviewAvatarText: { ...typography.bodyMedium, color: "#F4C95D" },
+  reviewName: { ...typography.bodyMedium, color: palette.text },
+  reviewDate: { ...typography.metadata, color: palette.muted },
   reviewScore: {
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 6,
     backgroundColor: palette.primaryFixed
   },
-  reviewScoreText: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
-  reviewStars: { color: palette.secondary, fontSize: 18, lineHeight: 22, fontWeight: "900" },
-  reviewText: { color: palette.muted, fontSize: 16, lineHeight: 24 },
+  reviewScoreText: { ...typography.badge, color: palette.primary },
+  reviewStars: { ...typography.sectionTitleSmall, color: palette.secondary },
+  reviewText: { ...typography.cardTitle, color: palette.muted },
   disabled: { opacity: 0.5 },
-  pressed: { opacity: 0.78, transform: [{ scale: 0.99 }] }
+  pressed: { opacity: 0.78 }
 });

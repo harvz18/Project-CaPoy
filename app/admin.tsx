@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Image, Linking, ScrollView, StyleSheet, View } from "react-native";
+import { MotionPressable as Pressable } from "../src/components/MotionPressable";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Href, useRouter } from "expo-router";
 import {
@@ -26,6 +27,8 @@ import {
   VerificationRequest
 } from "../src/types";
 import { colors } from "../src/theme";
+import { typography } from "../src/typography";
+import { AppText as Text, AppTextInput as TextInput } from "../src/components/AppText";
 
 type AdminData = {
   verifications: VerificationRequest[];
@@ -156,13 +159,15 @@ export default function AdminScreen() {
           <Text style={styles.cardTitle}>Review note</Text>
           <Text style={styles.help}>Required for rejections and resubmission requests.</Text>
           <TextInput
+            accessibilityLabel="Review note"
+            accessibilityHint="Required for rejections and resubmission requests."
             value={reason}
             onChangeText={setReason}
             placeholder="Write a clear reason"
             multiline
             style={styles.input}
           />
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+          {error ? <Text accessibilityLiveRegion="assertive" style={styles.error}>{error}</Text> : null}
         </View>
 
         <Section title="User verification queue" empty="No verification documents are waiting for review.">
@@ -468,64 +473,64 @@ function Action({ label, tone, disabled, onPress }: { label: string; tone: Tone;
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
   header: { padding: 20, flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "rgba(91, 169, 188, 0.18)", borderBottomWidth: 1, borderBottomColor: colors.border },
-  eyebrow: { color: colors.primary, fontSize: 11, fontWeight: "900", letterSpacing: 1.2 },
-  title: { color: colors.text, fontSize: 24, fontWeight: "900", marginTop: 3 },
+  eyebrow: { ...typography.overline, color: colors.primary, letterSpacing: 1.2 },
+  title: { ...typography.screenTitle, color: colors.text, marginTop: 3 },
   subtitle: { color: colors.muted, marginTop: 2 },
   logout: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: colors.border },
-  logoutText: { color: colors.danger, fontWeight: "800" },
+  logoutText: { ...typography.button, color: colors.danger },
   headerActions: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end", gap: 8 },
   controlLink: { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.primary },
-  controlLinkText: { color: "#FFFFFF", fontWeight: "800", fontSize: 12 },
+  controlLinkText: { ...typography.button, color: "#FFFFFF" },
   content: { padding: 18, paddingBottom: 48, gap: 18 },
   analyticsSection: { gap: 12 },
   analyticsHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
   analyticsHeaderCopy: { flex: 1, gap: 4 },
   refreshButton: { minHeight: 40, borderRadius: 9, paddingHorizontal: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.primary },
-  refreshButtonText: { color: colors.white, fontSize: 12, fontWeight: "900" },
+  refreshButtonText: { ...typography.button, color: colors.white },
   filterRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   filterButton: { minHeight: 38, borderRadius: 999, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.card },
   filterButtonActive: { borderColor: colors.primary, backgroundColor: colors.primary },
-  filterButtonText: { color: colors.text, fontSize: 12, fontWeight: "800" },
+  filterButtonText: { ...typography.button, color: colors.text },
   filterButtonTextActive: { color: colors.white },
   customRangeRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   dateInput: { minHeight: 52, minWidth: 150, flexGrow: 1, borderRadius: 9, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: colors.card, justifyContent: "center" },
-  dateInputLabel: { color: colors.muted, fontSize: 10, lineHeight: 13, fontWeight: "800", textTransform: "uppercase" },
-  dateInputValue: { color: colors.text, fontSize: 13, lineHeight: 18, fontWeight: "900" },
+  dateInputLabel: { ...typography.inputText, color: colors.muted },
+  dateInputValue: { ...typography.inputText, color: colors.text },
   applyRangeButton: { minHeight: 42, borderRadius: 9, paddingHorizontal: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.primary },
-  applyRangeButtonText: { color: colors.white, fontSize: 12, fontWeight: "900" },
+  applyRangeButtonText: { ...typography.button, color: colors.white },
   analyticsUnavailable: { padding: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.warning, backgroundColor: colors.warningLight, gap: 4 },
-  analyticsUnavailableTitle: { color: colors.text, fontSize: 14, fontWeight: "900" },
-  analyticsStamp: { color: colors.muted, fontSize: 11, lineHeight: 16 },
+  analyticsUnavailableTitle: { ...typography.badge, color: colors.text },
+  analyticsStamp: { ...typography.metadata, color: colors.muted },
   analyticsLoading: { color: colors.muted, padding: 16, textAlign: "center" },
   metricGroup: { padding: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, gap: 8 },
   analyticsCard: { padding: 16, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, gap: 8 },
   stats: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   stat: { flexGrow: 1, minWidth: 130, padding: 14, backgroundColor: colors.mutedLight, borderRadius: 12, borderWidth: 1, borderColor: colors.border },
-  statValue: { color: colors.primary, fontSize: 24, fontWeight: "900" },
+  statValue: { ...typography.heroNumber, color: colors.primary },
   breakdownRow: { minHeight: 30, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
-  breakdownValue: { color: colors.primary, fontWeight: "900" },
-  emptyInline: { color: colors.muted, fontSize: 12, paddingVertical: 8 },
+  breakdownValue: { ...typography.bodyMedium, color: colors.primary },
+  emptyInline: { ...typography.metadata, color: colors.muted, paddingVertical: 8 },
   trendRow: { paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border, gap: 3 },
-  trendDate: { color: colors.text, fontSize: 12, fontWeight: "900" },
-  trendValue: { color: colors.muted, fontSize: 11, lineHeight: 16 },
+  trendDate: { ...typography.metadata, color: colors.text },
+  trendValue: { ...typography.metadata, color: colors.muted },
   reasonCard: { backgroundColor: colors.infoLight, borderRadius: 14, padding: 16, gap: 8 },
   input: { minHeight: 76, backgroundColor: "rgba(91, 169, 188, 0.18)", borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 12, textAlignVertical: "top" },
-  help: { color: colors.muted, fontSize: 13 },
-  error: { color: colors.danger, fontWeight: "700" },
+  help: { ...typography.body, color: colors.muted },
+  error: { ...typography.metadata, color: colors.danger },
   section: { gap: 10 },
-  sectionTitle: { color: colors.text, fontSize: 19, fontWeight: "900" },
+  sectionTitle: { ...typography.sectionTitle, color: colors.text },
   card: { backgroundColor: "rgba(91, 169, 188, 0.18)", borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 16, gap: 10 },
   reviewAvatarImage: { width: 48, height: 48, borderRadius: 24 },
-  cardTitle: { color: colors.text, fontSize: 15, fontWeight: "800" },
-  meta: { color: colors.muted, fontSize: 12 },
-  body: { color: colors.text, lineHeight: 20 },
+  cardTitle: { ...typography.cardTitleStrong, color: colors.text },
+  meta: { ...typography.metadata, color: colors.muted },
+  body: { ...typography.body, color: colors.text },
   row: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   action: { minHeight: 38, justifyContent: "center", alignItems: "center", borderRadius: 9, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: colors.mutedLight },
   action_neutral: { borderWidth: 1, borderColor: colors.border },
   action_positive: { backgroundColor: colors.success },
   action_warning: { backgroundColor: colors.warning },
   action_danger: { backgroundColor: colors.danger },
-  actionText: { color: colors.text, fontSize: 12, fontWeight: "800" },
+  actionText: { ...typography.button, color: colors.text },
   actionTextLight: { color: "#FFFFFF" },
   disabled: { opacity: 0.5 },
   empty: { color: colors.muted, padding: 16, backgroundColor: "rgba(91, 169, 188, 0.18)", borderRadius: 12 },

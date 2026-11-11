@@ -1,9 +1,13 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useMemo, useState } from "react";
-import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Linking, ScrollView, StyleSheet, View } from "react-native";
+import { MotionPressable as Pressable } from "../src/components/MotionPressable";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { hasSupportEmail, supportContactLabel, supportEmail } from "../src/config/support";
 import { useTasklinkBack } from "../src/hooks/useTasklinkBack";
+import { useMotionLayout } from "../src/hooks/useMotionLayout";
+import { typography } from "../src/typography";
+import { AppText as Text, AppTextInput as TextInput } from "../src/components/AppText";
 
 const faqs = [
   ["What is TaskLink?", "TaskLink helps employers post local tasks and lets taskers find, apply for, and complete them through an agreed workflow."],
@@ -22,6 +26,7 @@ const faqs = [
 
 export default function HelpScreen() {
   const goBack = useTasklinkBack();
+  const prepareLayout = useMotionLayout();
   const [search, setSearch] = useState("");
   const [openQuestion, setOpenQuestion] = useState<string | null>(faqs[0][0]);
   const visibleFaqs = useMemo(() => {
@@ -43,7 +48,7 @@ export default function HelpScreen() {
       <View style={styles.faqList}>{visibleFaqs.map(([question, answer]) => {
         const expanded = openQuestion === question;
         return <View key={question} style={styles.card}>
-          <Pressable accessibilityRole="button" accessibilityState={{ expanded }} onPress={() => setOpenQuestion(expanded ? null : question)} style={styles.question}>
+          <Pressable accessibilityRole="button" accessibilityState={{ expanded }} onPress={() => { prepareLayout(); setOpenQuestion(expanded ? null : question); }} style={styles.question}>
             <Text style={styles.questionText}>{question}</Text><Feather accessibilityElementsHidden color="#00C9B3" name={expanded ? "chevron-up" : "chevron-down"} size={22} />
           </Pressable>
           {expanded ? <Text style={styles.answer}>{answer}</Text> : null}
@@ -59,5 +64,5 @@ export default function HelpScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: "#042D40" }, header: { minHeight: 56, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: "rgba(207, 249, 255, 0.24)", backgroundColor: "rgba(91, 169, 188, 0.18)" }, backButton: { minWidth: 48, minHeight: 44, alignItems: "center", justifyContent: "center" }, backText: { color: "#00C9B3", fontSize: 13, lineHeight: 18, fontWeight: "900" }, brand: { color: "#00C9B3", fontSize: 20, lineHeight: 28, fontWeight: "900" }, headerSpacer: { width: 48 }, content: { width: "100%", maxWidth: 760, alignSelf: "center", padding: 16, paddingBottom: 40, gap: 12 }, eyebrow: { color: "#00C9B3", fontSize: 12, lineHeight: 16, fontWeight: "900" }, title: { color: "#F5FCFF", fontSize: 28, lineHeight: 36, fontWeight: "900" }, intro: { color: "#BBD5DE", fontSize: 15, lineHeight: 22 }, search: { minHeight: 48, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1, borderColor: "rgba(207, 249, 255, 0.28)", backgroundColor: "rgba(91, 169, 188, 0.18)", color: "#F5FCFF", fontSize: 15 }, faqList: { gap: 10 }, card: { borderRadius: 12, borderWidth: 1, borderColor: "rgba(207, 249, 255, 0.28)", backgroundColor: "rgba(91, 169, 188, 0.18)", overflow: "hidden" }, question: { minHeight: 56, paddingHorizontal: 16, paddingVertical: 12, flexDirection: "row", alignItems: "center", gap: 12 }, questionText: { flex: 1, color: "#F5FCFF", fontSize: 16, lineHeight: 22, fontWeight: "800" }, chevron: { color: "#00C9B3", fontSize: 24, lineHeight: 26, fontWeight: "700" }, answer: { color: "#BBD5DE", fontSize: 14, lineHeight: 21, paddingHorizontal: 16, paddingBottom: 16 }, empty: { color: "#BBD5DE", textAlign: "center", paddingVertical: 18 }, supportCard: { padding: 18, borderRadius: 12, borderWidth: 1, borderColor: "#5DF7F2", backgroundColor: "rgba(38, 229, 178, 0.16)", gap: 8 }, cardTitle: { color: "#F5FCFF", fontSize: 17, lineHeight: 24, fontWeight: "900" }, contact: { color: "#00C9B3", fontSize: 15, lineHeight: 22, fontWeight: "900" }, contactButton: { minHeight: 48, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "#00C9B3", paddingHorizontal: 14, marginTop: 4 }, contactButtonText: { color: "#FFFFFF", fontSize: 14, lineHeight: 20, fontWeight: "900", textAlign: "center" }
+  safeArea: { flex: 1, backgroundColor: "#042D40" }, header: { minHeight: 56, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: "rgba(207, 249, 255, 0.24)", backgroundColor: "rgba(91, 169, 188, 0.18)" }, backButton: { minWidth: 48, minHeight: 44, alignItems: "center", justifyContent: "center" }, backText: { ...typography.button, color: "#00C9B3" }, brand: { ...typography.sectionTitle, color: "#00C9B3" }, headerSpacer: { width: 48 }, content: { width: "100%", maxWidth: 760, alignSelf: "center", padding: 16, paddingBottom: 40, gap: 12 }, eyebrow: { ...typography.overline, color: "#00C9B3" }, title: { ...typography.screenTitle, color: "#F5FCFF" }, intro: { ...typography.body, color: "#BBD5DE" }, search: { ...typography.body, minHeight: 48, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1, borderColor: "rgba(207, 249, 255, 0.28)", backgroundColor: "rgba(91, 169, 188, 0.18)", color: "#F5FCFF" }, faqList: { gap: 10 }, card: { borderRadius: 12, borderWidth: 1, borderColor: "rgba(207, 249, 255, 0.28)", backgroundColor: "rgba(91, 169, 188, 0.18)", overflow: "hidden" }, question: { minHeight: 56, paddingHorizontal: 16, paddingVertical: 12, flexDirection: "row", alignItems: "center", gap: 12 }, questionText: { ...typography.cardTitleStrong, flex: 1, color: "#F5FCFF" }, chevron: { ...typography.heroNumber, color: "#00C9B3" }, answer: { ...typography.body, color: "#BBD5DE", paddingHorizontal: 16, paddingBottom: 16 }, empty: { color: "#BBD5DE", textAlign: "center", paddingVertical: 18 }, supportCard: { padding: 18, borderRadius: 12, borderWidth: 1, borderColor: "#5DF7F2", backgroundColor: "rgba(38, 229, 178, 0.16)", gap: 8 }, cardTitle: { ...typography.cardTitleStrong, color: "#F5FCFF" }, contact: { ...typography.bodyMedium, color: "#00C9B3" }, contactButton: { minHeight: 48, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "#00C9B3", paddingHorizontal: 14, marginTop: 4 }, contactButtonText: { ...typography.button, color: "#FFFFFF", textAlign: "center" }
 });

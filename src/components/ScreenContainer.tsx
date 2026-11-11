@@ -1,5 +1,5 @@
 import { PropsWithChildren } from "react";
-import { ScrollView, StyleProp, ViewStyle } from "react-native";
+import { Platform, ScrollView, StyleProp, ViewStyle } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { styles } from "../styles";
 
@@ -16,6 +16,9 @@ export function ScreenContainer({ children, scroll, centered, style }: ScreenCon
         <ScrollView
           style={styles.screen}
           contentContainerStyle={[styles.screenContent, centered && styles.centeredContent, style]}
+          automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
+          contentInsetAdjustmentBehavior="automatic"
+          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
           keyboardShouldPersistTaps="handled"
         >
           {children}

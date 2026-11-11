@@ -1,31 +1,31 @@
 import { useRouter } from "expo-router";
 import { useEffect, useRef } from "react";
-import { Animated, StyleSheet, Text, View } from "react-native";
+import { Animated, Platform, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { screenPalette } from "../src/theme";
+import { motion } from "../src/theme";
+import { useReducedMotion } from "../src/hooks/useReducedMotion";
+import { motionDuration, motionEasing } from "../src/motion";
+import { typography } from "../src/typography";
+import { AppText as Text } from "../src/components/AppText";
 
 const palette = screenPalette;
 
 export default function SplashScreen() {
   const router = useRouter();
+  const reduceMotion = useReducedMotion();
   const progress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const timer = setTimeout(() => router.replace("/login"), 1400);
-    const animation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(progress, {
-          toValue: 1,
-          duration: 1400,
-          useNativeDriver: true
-        }),
-        Animated.timing(progress, {
-          toValue: 0,
-          duration: 0,
-          useNativeDriver: true
-        })
-      ])
-    );
+    const duration = motionDuration(motion.duration.emphasis, reduceMotion);
+    const timer = setTimeout(() => router.replace("/login"), motion.duration.emphasis);
+    progress.setValue(reduceMotion ? 1 : 0);
+    const animation = Animated.timing(progress, {
+      toValue: 1,
+      duration,
+      easing: motionEasing.enter,
+      useNativeDriver: Platform.OS !== "web"
+    });
 
     animation.start();
 
@@ -33,7 +33,7 @@ export default function SplashScreen() {
       clearTimeout(timer);
       animation.stop();
     };
-  }, [progress, router]);
+  }, [progress, reduceMotion, router]);
 
   const translateX = progress.interpolate({
     inputRange: [0, 0.5, 1],
@@ -114,23 +114,20 @@ const styles = StyleSheet.create({
   linkCircleLeft: { width: 92, height: 92, borderRadius: 46, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary, zIndex: 2 },
   linkCircleRight: { width: 92, height: 92, borderRadius: 46, alignItems: "center", justifyContent: "center", backgroundColor: "#00C9B3", zIndex: 2 },
   linkBar: { width: 58, height: 22, marginHorizontal: -8, borderRadius: 11, backgroundColor: "#5DF7F2" },
-  linkCircleText: { color: "#FFFFFF", fontSize: 34, lineHeight: 42, fontWeight: "900" },
+  linkCircleText: { ...typography.heroNumber, color: "#FFFFFF" },
   brandBlock: {
     alignItems: "center",
     marginBottom: 48
   },
   brand: {
+    ...typography.screenTitle,
     color: palette.primary,
-    fontSize: 24,
-    lineHeight: 32,
-    fontWeight: "900",
     textAlign: "center"
   },
   tagline: {
+    ...typography.badge,
     maxWidth: 280,
     color: palette.muted,
-    fontSize: 18,
-    lineHeight: 26,
     textAlign: "center",
     marginTop: 16
   },
@@ -151,19 +148,14 @@ const styles = StyleSheet.create({
     backgroundColor: palette.primary
   },
   loadingText: {
+    ...typography.badge,
     color: palette.outline,
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: "700",
-    textTransform: "uppercase",
     marginTop: 16
   },
   footer: {
+    ...typography.metadata,
     width: "100%",
     color: palette.outline,
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: "600",
     textAlign: "center",
     paddingHorizontal: 16,
     paddingBottom: 20

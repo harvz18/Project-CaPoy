@@ -1,28 +1,14 @@
 import { useFocusEffect } from "expo-router";
-import { PropsWithChildren, useCallback, useEffect, useRef, useState } from "react";
-import { AccessibilityInfo, Animated, Easing, Platform, StyleSheet } from "react-native";
+import { PropsWithChildren, useCallback, useRef } from "react";
+import { Animated, Platform, StyleSheet } from "react-native";
+import { useReducedMotion } from "../hooks/useReducedMotion";
+import { motionDuration, motionEasing } from "../motion";
+import { motion } from "../theme";
 
-const WEB_TRANSITION_DURATION_MS = 180;
-const WEB_SLIDE_DISTANCE_PX = 14;
 let lastTabIndex: number | undefined;
 
 export function usePrefersReducedMotion() {
-  const [reduceMotion, setReduceMotion] = useState(true);
-
-  useEffect(() => {
-    let mounted = true;
-    void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
-      if (mounted) setReduceMotion(enabled);
-    });
-    const subscription = AccessibilityInfo.addEventListener("reduceMotionChanged", setReduceMotion);
-
-    return () => {
-      mounted = false;
-      subscription.remove();
-    };
-  }, []);
-
-  return reduceMotion;
+  return useReducedMotion();
 }
 
 export function RouteTransition({ children, reduceMotion, routeName }: PropsWithChildren<{
@@ -42,19 +28,21 @@ export function RouteTransition({ children, reduceMotion, routeName }: PropsWith
     const tabIndex = getTabIndex(routeName);
     const direction = tabIndex !== undefined && lastTabIndex !== undefined && tabIndex < lastTabIndex ? -1 : 1;
     if (tabIndex !== undefined) lastTabIndex = tabIndex;
-    opacity.setValue(0.97);
-    translateX.setValue(direction * WEB_SLIDE_DISTANCE_PX);
+    opacity.setValue(0.94);
+    // Only peer tabs have a known direction here. Other web routes crossfade
+    // rather than implying an incorrect forward/back relationship.
+    translateX.setValue(tabIndex === undefined ? 0 : direction * motion.distance.small);
     const animation = Animated.parallel([
       Animated.timing(opacity, {
         toValue: 1,
-        duration: WEB_TRANSITION_DURATION_MS,
-        easing: Easing.out(Easing.cubic),
+        duration: motionDuration(motion.duration.standard, reduceMotion),
+        easing: motionEasing.enter,
         useNativeDriver: false
       }),
       Animated.timing(translateX, {
         toValue: 0,
-        duration: WEB_TRANSITION_DURATION_MS,
-        easing: Easing.out(Easing.cubic),
+        duration: motionDuration(motion.duration.standard, reduceMotion),
+        easing: motionEasing.enter,
         useNativeDriver: false
       })
     ]);

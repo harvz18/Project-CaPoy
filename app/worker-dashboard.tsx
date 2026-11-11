@@ -1,6 +1,8 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
+import { MotionModal as Modal } from "../src/components/MotionModal";
+import { MotionPressable as Pressable } from "../src/components/MotionPressable";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AnimatedBottomNav } from "../src/components/AnimatedBottomNav";
 import { HelpShortcut } from "../src/components/HelpShortcut";
@@ -8,17 +10,21 @@ import { NotificationShortcut } from "../src/components/NotificationShortcut";
 import LocationMap from "../src/components/LocationMap";
 import { StatusBadge } from "../src/components/StatusBadge";
 import { useApp } from "../src/context/AppContext";
+import { useMotionLayout } from "../src/hooks/useMotionLayout";
 import { formatTaskPrice, getScheduleBasedAvailability } from "../src/domain/taskMarketplace";
 import { MatchResult, rankTasksForWorker } from "../src/domain/matching";
 import { Task } from "../src/types";
 import { formatDistance, getDiscoveryLocationIssue } from "../src/utils/location";
 import { formatRelativeTime } from "../src/utils/relativeTime";
 import { screenPalette } from "../src/theme";
+import { typography } from "../src/typography";
+import { AppText as Text } from "../src/components/AppText";
 
 const palette = screenPalette;
 
 export default function WorkerDashboardScreen() {
   const router = useRouter();
+  const prepareLayout = useMotionLayout();
   const [selectedTab, setSelectedTab] = useState<"active" | "finished">("active");
   const [applicationsExpanded, setApplicationsExpanded] = useState(false);
   const [mapFullscreen, setMapFullscreen] = useState(false);
@@ -105,7 +111,7 @@ export default function WorkerDashboardScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityState={{ expanded: applicationsExpanded }}
-              onPress={() => setApplicationsExpanded((expanded) => !expanded)}
+              onPress={() => { prepareLayout(); setApplicationsExpanded((expanded) => !expanded); }}
               style={({ pressed }) => [styles.applicationHeader, pressed && styles.pressed]}
             >
               <View style={styles.sectionCopy}>
@@ -286,7 +292,7 @@ function WorkerJobCard({
         <Pressable accessibilityRole="button" onPress={onOpen} style={styles.detailsButton}>
           <Text style={styles.detailsButtonText}>Details</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" disabled={applying || hasApplied} onPress={onQuickAccept} style={({ pressed }) => [styles.quickButton, (applying || hasApplied) && styles.disabled, pressed && styles.pressed]}>
+        <Pressable accessibilityRole="button" accessibilityState={{ busy: applying, disabled: applying || hasApplied }} disabled={applying || hasApplied} onPress={onQuickAccept} style={({ pressed }) => [styles.quickButton, (applying || hasApplied) && styles.disabled, pressed && styles.pressed]}>
           <Text style={styles.quickButtonText}>{hasApplied ? "Applied" : applying ? "Applying..." : task.pricingMode === "bidding" ? "Make Offer" : "Quick Apply"}</Text>
         </Pressable>
       </View>
@@ -426,22 +432,22 @@ const styles = StyleSheet.create({
   },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
   headerRight: { flexDirection: "row", alignItems: "center", gap: 12 },
-  menuText: { color: palette.primary, fontSize: 24, fontWeight: "800" },
-  brand: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "800" },
+  menuText: { ...typography.bodyMedium, color: palette.primary },
+  brand: { ...typography.screenTitle, color: palette.primary },
   avatar: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: palette.secondaryContainer, borderWidth: 1, borderColor: palette.outlineVariant },
-  avatarText: { color: "#F4C95D", fontWeight: "900" },
+  avatarText: { ...typography.bodyMedium, color: "#F4C95D" },
   content: { padding: 16, paddingBottom: 110, gap: 14 },
   heroPanel: { minHeight: 172, borderRadius: 24, padding: 22, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.outlineVariant, justifyContent: "space-between", overflow: "hidden", elevation: 5 },
   heroCopy: { gap: 6 },
-  heroKicker: { color: "#7FF6E6", fontSize: 12, lineHeight: 16, fontWeight: "900", textTransform: "uppercase" },
-  heroTitle: { color: palette.white, fontSize: 24, lineHeight: 32, fontWeight: "900" },
-  heroText: { color: palette.muted, fontSize: 14, lineHeight: 20 },
+  heroKicker: { ...typography.overline, color: "#7FF6E6" },
+  heroTitle: { ...typography.screenTitle, color: palette.white },
+  heroText: { ...typography.body, color: palette.muted },
   availabilityPill: { alignSelf: "flex-start", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: palette.primary, borderWidth: 1, borderColor: palette.primaryFixed },
-  availabilityText: { color: palette.white, fontSize: 12, fontWeight: "900" },
+  availabilityText: { ...typography.badge, color: palette.white },
   statsGrid: { flexDirection: "row", gap: 12 },
   statCard: { flex: 1, minHeight: 108, borderRadius: 20, padding: 16, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.outlineVariant, justifyContent: "center" },
-  statValue: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "900" },
-  statLabel: { color: palette.muted, fontSize: 12, lineHeight: 16, marginTop: 4 },
+  statValue: { ...typography.heroNumber, color: palette.primary },
+  statLabel: { ...typography.fieldLabel, color: palette.muted, marginTop: 4 },
   mapPanel: { height: 132, borderRadius: 12, overflow: "hidden", backgroundColor: "#07384A", elevation: 2 },
   fullscreenMap: { flex: 1, backgroundColor: palette.background, padding: 12 },
   mapGrid: { flex: 1, backgroundColor: "#07384A" },
@@ -451,27 +457,27 @@ const styles = StyleSheet.create({
   mapPinOne: { left: "24%", top: 42 },
   mapPinTwo: { left: "62%", top: 72, backgroundColor: palette.primary },
   locationBadge: { position: "absolute", left: 12, bottom: 12, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: "rgba(3,35,52,0.92)", paddingHorizontal: 12, paddingVertical: 8, flexDirection: "row", alignItems: "center", gap: 8 },
-  locationIcon: { color: palette.primary, fontSize: 18, fontWeight: "900" },
-  locationText: { color: palette.text, fontSize: 12, fontWeight: "800" },
+  locationIcon: { ...typography.sectionTitleSmall, color: palette.primary },
+  locationText: { ...typography.badge, color: palette.text },
   expandMapButton: { position: "absolute", right: 12, top: 12, borderRadius: 999, backgroundColor: "rgba(3,35,52,0.94)", borderWidth: 1, borderColor: palette.outlineVariant, minHeight: 34, paddingHorizontal: 10, alignItems: "center", justifyContent: "center" },
-  expandMapButtonText: { color: palette.primary, fontSize: 11, fontWeight: "900" },
+  expandMapButtonText: { ...typography.button, color: palette.primary },
   closeMapButton: { position: "absolute", right: 22, top: 22, width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(3,35,52,0.96)", borderWidth: 1, borderColor: palette.outlineVariant },
-  closeMapButtonText: { color: palette.textStrong, fontSize: 29, lineHeight: 32, fontWeight: "500" },
+  closeMapButtonText: { ...typography.button, color: palette.textStrong },
   sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   sectionCopy: { flex: 1 },
-  sectionTitle: { color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "900" },
-  sectionSubtitle: { color: palette.muted, fontSize: 12, lineHeight: 16 },
+  sectionTitle: { ...typography.sectionTitle, color: palette.textStrong },
+  sectionSubtitle: { ...typography.metadata, color: palette.muted },
   tabRow: { flexDirection: "row", gap: 8, padding: 4, borderRadius: 12, backgroundColor: palette.surfaceLow },
   tabButton: { flex: 1, minHeight: 42, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   tabButtonActive: { backgroundColor: palette.primary },
-  tabButtonText: { color: palette.muted, fontSize: 13, lineHeight: 18, fontWeight: "900" },
+  tabButtonText: { ...typography.button, color: palette.muted },
   tabButtonTextActive: { color: palette.white },
   viewAllButton: { minHeight: 38, borderRadius: 19, paddingHorizontal: 14, alignItems: "center", justifyContent: "center", backgroundColor: palette.surfaceContainer },
-  viewAllText: { color: palette.primary, fontSize: 12, fontWeight: "900" },
+  viewAllText: { ...typography.button, color: palette.primary },
   jobGrid: { gap: 12 },
   applicationSection: { borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, overflow: "hidden" },
   applicationHeader: { minHeight: 68, paddingHorizontal: 16, paddingVertical: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  applicationToggle: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
+  applicationToggle: { ...typography.badge, color: palette.primary },
   applicationGrid: { gap: 10, paddingHorizontal: 12, paddingBottom: 12 },
   applicationCard: {
     padding: 16,
@@ -484,9 +490,9 @@ const styles = StyleSheet.create({
   },
   applicationTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
   applicationCopy: { flex: 1, gap: 4 },
-  applicationTitle: { color: palette.textStrong, fontSize: 16, lineHeight: 22, fontWeight: "900" },
-  applicationMeta: { color: palette.muted, fontSize: 12, lineHeight: 16 },
-  applicationPrice: { color: palette.primary, fontSize: 18, lineHeight: 24, fontWeight: "900" },
+  applicationTitle: { ...typography.cardTitleStrong, color: palette.textStrong },
+  applicationMeta: { ...typography.metadata, color: palette.muted },
+  applicationPrice: { ...typography.price, color: palette.primary },
   applicationFooter: {
     paddingTop: 12,
     borderTopWidth: 1,
@@ -496,7 +502,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 12
   },
-  applicationAction: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
+  applicationAction: { ...typography.button, color: palette.primary },
   emptyApplicationCard: {
     padding: 16,
     borderRadius: 12,
@@ -505,25 +511,25 @@ const styles = StyleSheet.create({
     backgroundColor: palette.surfaceLow,
     gap: 4
   },
-  emptyApplicationTitle: { color: palette.textStrong, fontSize: 16, lineHeight: 22, fontWeight: "900" },
-  emptyApplicationText: { color: palette.muted, fontSize: 12, lineHeight: 16 },
+  emptyApplicationTitle: { ...typography.cardTitleStrong, color: palette.textStrong },
+  emptyApplicationText: { ...typography.metadata, color: palette.muted },
   jobCard: { padding: 18, borderRadius: 20, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, elevation: 2, gap: 12 },
   urgentBadge: { position: "absolute", left: 16, top: 16, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: palette.secondaryContainer },
-  urgentText: { color: "#F4C95D", fontSize: 12, lineHeight: 16, fontWeight: "900" },
+  urgentText: { ...typography.badge, color: "#F4C95D" },
   priceRow: { alignItems: "flex-end" },
-  price: { color: palette.primary, fontSize: 20, lineHeight: 28, fontWeight: "900" },
-  jobTitle: { color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "800" },
-  jobMeta: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "800" },
+  price: { ...typography.heroNumber, color: palette.primary },
+  jobTitle: { ...typography.cardTitleStrong, color: palette.textStrong },
+  jobMeta: { ...typography.metadata, color: palette.muted },
   jobInfoRow: { paddingVertical: 10, borderTopWidth: 1, borderBottomWidth: 1, borderColor: "rgba(207,249,255,0.32)", flexDirection: "row", gap: 16 },
-  jobInfo: { color: palette.outline, fontSize: 12, lineHeight: 16, fontWeight: "800" },
+  jobInfo: { ...typography.metadata, color: palette.outline },
   cardActions: { flexDirection: "row", gap: 10 },
   detailsButton: { flex: 1, minHeight: 46, borderRadius: 8, borderWidth: 1, borderColor: palette.primary, alignItems: "center", justifyContent: "center", backgroundColor: palette.surface },
-  detailsButtonText: { color: palette.primary, fontSize: 14, fontWeight: "900" },
+  detailsButtonText: { ...typography.button, color: palette.primary },
   quickButton: { flex: 1.3, minHeight: 46, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
-  quickButtonText: { color: palette.white, fontSize: 14, lineHeight: 20, fontWeight: "900" },
+  quickButtonText: { ...typography.button, color: palette.white },
   fullBoardButton: { minHeight: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary, borderWidth: 1, borderColor: palette.primaryFixed },
-  fullBoardText: { color: palette.white, fontSize: 14, fontWeight: "900" },
-  actionMessage: { color: "#FF7D8C", fontSize: 13, lineHeight: 18, fontWeight: "700" },
+  fullBoardText: { ...typography.bodyMedium, color: palette.white },
+  actionMessage: { ...typography.button, color: "#FF7D8C" },
   historyPanel: { padding: 16, borderRadius: 12, backgroundColor: palette.surfaceLow, gap: 12 },
   historyHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   historyList: { gap: 10 },
@@ -535,8 +541,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: palette.outlineVariant
   },
-  historyTitle: { color: palette.textStrong, fontSize: 18, lineHeight: 26, fontWeight: "900" },
-  historyMeta: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "800" },
+  historyTitle: { ...typography.cardTitleStrong, color: palette.textStrong },
+  historyMeta: { ...typography.metadata, color: palette.muted },
   historyRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -550,20 +556,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(38, 229, 178, 0.16)"
   },
-  historyIconText: { color: palette.success, fontSize: 10, fontWeight: "900" },
+  historyIconText: { ...typography.overline, color: palette.success },
   historyCopy: { flex: 1 },
-  historyJobTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "900" },
-  historyJobMeta: { color: palette.muted, fontSize: 12, lineHeight: 16 },
-  historyAmount: { color: palette.primary, fontSize: 14, fontWeight: "900" },
+  historyJobTitle: { ...typography.cardTitleStrong, color: palette.text },
+  historyJobMeta: { ...typography.metadata, color: palette.muted },
+  historyAmount: { ...typography.price, color: palette.primary },
   historyDivider: { height: 1, backgroundColor: "rgba(207,249,255,0.38)" },
   historyActions: { flexDirection: "row", gap: 10 },
   historyActionButton: { flex: 1, minHeight: 40, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: palette.surfaceLow, borderWidth: 1, borderColor: palette.outlineVariant },
-  historyActionButtonText: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
+  historyActionButtonText: { ...typography.button, color: palette.primary },
   historyActionButtonPrimary: { flex: 1, minHeight: 40, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
-  historyActionButtonPrimaryText: { color: palette.white, fontSize: 12, lineHeight: 16, fontWeight: "900" },
+  historyActionButtonPrimaryText: { ...typography.button, color: palette.white },
   historyActionButtonPrimaryTextDisabled: { color: palette.textStrong },
   historyActionButtonDisabled: { backgroundColor: palette.surfaceContainer, borderWidth: 1, borderColor: palette.outlineVariant },
   emptyHistoryRow: { padding: 12, borderRadius: 8, backgroundColor: palette.surface },
   disabled: { opacity: 0.5 },
-  pressed: { opacity: 0.78, transform: [{ scale: 0.99 }] }
+  pressed: { opacity: 0.78 }
 });

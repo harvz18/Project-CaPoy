@@ -2,7 +2,9 @@ import Feather from "@expo/vector-icons/Feather";
 import * as Clipboard from "expo-clipboard";
 import { Href, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Image, Linking, ScrollView, StyleSheet, View } from "react-native";
+import { MotionModal as Modal } from "../../src/components/MotionModal";
+import { MotionPressable as Pressable } from "../../src/components/MotionPressable";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import LocationMap from "../../src/components/LocationMap";
 import { StatusBadge } from "../../src/components/StatusBadge";
@@ -26,6 +28,8 @@ import { hasPendingTaskChange, summarizeTaskTermChanges } from "../../src/domain
 import { getCancellationEligibility } from "../../src/domain/cancellation";
 import { clearTaskLiveLocation, publishTaskLiveLocation, subscribeToTaskLiveLocation } from "../../src/services/taskLiveLocationService";
 import { screenPalette } from "../../src/theme";
+import { typography } from "../../src/typography";
+import { AppText as Text, AppTextInput as TextInput } from "../../src/components/AppText";
 
 const palette = screenPalette;
 
@@ -135,7 +139,7 @@ export default function TaskStatusScreen() {
         <TopBar initials={currentUser?.fullName?.[0] ?? "U"} onBack={goBack} />
         <View style={styles.notFound}>
           <Text style={styles.title}>Task not found</Text>
-          <Pressable style={styles.secondaryAction} onPress={() => router.replace("/worker-dashboard")}>
+          <Pressable accessibilityRole="button" style={styles.secondaryAction} onPress={() => router.replace("/worker-dashboard")}>
             <Text style={styles.secondaryActionText}>Back to Dashboard</Text>
           </Pressable>
         </View>
@@ -257,7 +261,7 @@ export default function TaskStatusScreen() {
         <View style={styles.notFound}>
           <Text style={styles.title}>Apply before tracking this task</Text>
           <Text style={styles.emptyText}>This status screen is only for workers who applied to the task or were accepted by the client.</Text>
-          <Pressable style={styles.secondaryAction} onPress={() => router.replace(`/task/${task.id}`)}>
+          <Pressable accessibilityRole="button" style={styles.secondaryAction} onPress={() => router.replace(`/task/${task.id}`)}>
             <Text style={styles.secondaryActionText}>Open Job Details</Text>
           </Pressable>
         </View>
@@ -416,7 +420,18 @@ export default function TaskStatusScreen() {
     }
   }
 
-  async function handleWithdrawApplication() {
+  function handleWithdrawApplication() {
+    Alert.alert(
+      "Withdraw application?",
+      "You will leave this task's applicant list. You can apply again while the task is still open.",
+      [
+        { text: "Keep Application", style: "cancel" },
+        { text: "Withdraw", style: "destructive", onPress: () => void performWithdrawApplication() }
+      ]
+    );
+  }
+
+  async function performWithdrawApplication() {
     if (!task) return;
     try {
       setActionWarning("");
@@ -669,6 +684,7 @@ export default function TaskStatusScreen() {
               ) : currentUser?.role === "client" ? (
                 <>
                   <TextInput
+                    accessibilityLabel="Optional payment reference or note"
                     editable={task.paymentStatus !== "Submitted" && task.paymentStatus !== "Verified"}
                     multiline
                     onChangeText={setProofOfPaymentText}
@@ -728,6 +744,7 @@ export default function TaskStatusScreen() {
                   {workerCanUploadPaymentEvidence ? (
                     <>
                       <TextInput
+                        accessibilityLabel="Optional tasker receipt note"
                         multiline
                         onChangeText={setWorkerProofOfPaymentText}
                         placeholder="Optional tasker receipt note"
@@ -847,11 +864,11 @@ export default function TaskStatusScreen() {
 
             {currentUser?.role !== "client" ? (
               <View style={styles.secondaryRow}>
-                <Pressable style={styles.secondaryAction} onPress={() => router.push(`/chat/${task.id}`)}>
+                <Pressable accessibilityLabel="Open task chat" accessibilityRole="button" style={styles.secondaryAction} onPress={() => router.push(`/chat/${task.id}`)}>
                   <Text style={styles.secondaryActionText}>Chat</Text>
                 </Pressable>
                 {task.status === "Finished" || task.status === "Archived" ? (
-                  <Pressable style={styles.secondaryAction} onPress={() => router.push(`/rating/${task.id}`)}>
+                  <Pressable accessibilityRole="button" style={styles.secondaryAction} onPress={() => router.push(`/rating/${task.id}`)}>
                     <Text style={styles.secondaryActionText}>Rate User</Text>
                   </Pressable>
                 ) : null}
@@ -859,7 +876,7 @@ export default function TaskStatusScreen() {
             ) : null}
 
             {currentUser?.role === "worker" && workerHasApplied && taskIsOpenForApplications ? (
-              <Pressable style={styles.dangerAction} onPress={handleWithdrawApplication}>
+              <Pressable accessibilityRole="button" accessibilityState={{ busy: actionLoading, disabled: actionLoading }} disabled={actionLoading} style={styles.dangerAction} onPress={handleWithdrawApplication}>
                 <Text style={styles.dangerActionText}>Withdraw Application</Text>
               </Pressable>
             ) : null}
@@ -880,6 +897,8 @@ export default function TaskStatusScreen() {
 
             {reportTargetId ? (
               <Pressable
+                accessibilityLabel="Report safety or conduct issue"
+                accessibilityRole="button"
                 style={styles.reportAction}
                 onPress={() => router.push({
                   pathname: "/report-user",
@@ -890,7 +909,7 @@ export default function TaskStatusScreen() {
               </Pressable>
             ) : null}
 
-            {actionWarning ? <Text style={styles.warningText}>{actionWarning}</Text> : null}
+            {actionWarning ? <Text accessibilityLiveRegion="assertive" style={styles.warningText}>{actionWarning}</Text> : null}
           </View>
         </View>
       </ScrollView>
@@ -898,7 +917,8 @@ export default function TaskStatusScreen() {
       <View style={[styles.bottomAction, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <Pressable
           accessibilityRole="button"
-          accessibilityState={{ disabled: !primaryActionEnabled }}
+          accessibilityLabel={primaryActionLabel}
+          accessibilityState={{ busy: actionLoading, disabled: !primaryActionEnabled }}
           disabled={!primaryActionEnabled}
           onPress={handlePrimaryAction}
           style={({ pressed }) => [
@@ -922,12 +942,12 @@ export default function TaskStatusScreen() {
       <Modal animationType="slide" transparent visible={gcashDetailsOpen} onRequestClose={() => setGcashDetailsOpen(false)}>
         <View accessibilityViewIsModal style={styles.dialogBackdrop}>
           <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled" style={styles.modalScrollView}>
-            <View style={styles.dialogCard}>
+            <View accessibilityLabel="Confirm GCash receiving details" style={styles.dialogCard}>
               <Text style={styles.dialogTitle}>Confirm GCash receiving details</Text>
               <Text style={styles.dialogMessage}>Enter the GCash number where you want to receive payment. These details are visible only to you, the assigned employer, and authorized administrators.</Text>
               <Text style={styles.modalFieldLabel}>GCash mobile number</Text>
               <TextInput accessibilityLabel="GCash mobile number" autoComplete="tel" keyboardType="phone-pad" onChangeText={(value) => setGcashMobileNumber(value || "0")} placeholder="09XXXXXXXXX" placeholderTextColor={palette.outline} style={styles.modalInput} value={gcashMobileNumber} />
-              <Pressable accessibilityRole="button" disabled={uploadingGcashQr || actionLoading} onPress={handleUploadGcashQr} style={styles.paymentOutlineButton}>
+              <Pressable accessibilityRole="button" accessibilityState={{ busy: uploadingGcashQr, disabled: uploadingGcashQr || actionLoading }} disabled={uploadingGcashQr || actionLoading} onPress={handleUploadGcashQr} style={styles.paymentOutlineButton}>
                 <Text style={styles.paymentOutlineButtonText}>{uploadingGcashQr ? "Uploading QR..." : gcashQrFileName || "Upload GCash QR Image (optional)"}</Text>
               </Pressable>
               {gcashQrPath && !gcashQrRemoved ? <Pressable accessibilityRole="button" disabled={actionLoading} onPress={() => { setGcashQrPath(""); setGcashQrFileName(""); setGcashQrRemoved(true); }} style={styles.paymentOutlineButton}><Text style={styles.paymentOutlineButtonText}>Remove QR Image</Text></Pressable> : null}
@@ -938,7 +958,7 @@ export default function TaskStatusScreen() {
               </Pressable>
               <View style={styles.dialogActions}>
                 <Pressable accessibilityRole="button" disabled={actionLoading} onPress={() => setGcashDetailsOpen(false)} style={styles.dialogCancel}><Text style={styles.dialogCancelText}>Cancel</Text></Pressable>
-                <Pressable accessibilityRole="button" disabled={actionLoading || !gcashDetailsConfirmed || !gcashMobileNumber.trim()} onPress={() => void handleSubmitGcashDetails()} style={[styles.dialogConfirm, (actionLoading || !gcashDetailsConfirmed || !gcashMobileNumber.trim()) && styles.primaryActionDisabled]}><Text style={styles.dialogConfirmText}>{actionLoading ? "Saving..." : "Submit for Approval"}</Text></Pressable>
+                <Pressable accessibilityRole="button" accessibilityState={{ busy: actionLoading, disabled: actionLoading || !gcashDetailsConfirmed || !gcashMobileNumber.trim() }} disabled={actionLoading || !gcashDetailsConfirmed || !gcashMobileNumber.trim()} onPress={() => void handleSubmitGcashDetails()} style={[styles.dialogConfirm, (actionLoading || !gcashDetailsConfirmed || !gcashMobileNumber.trim()) && styles.primaryActionDisabled]}><Text style={styles.dialogConfirmText}>{actionLoading ? "Saving..." : "Submit for Approval"}</Text></Pressable>
               </View>
             </View>
           </ScrollView>
@@ -947,7 +967,7 @@ export default function TaskStatusScreen() {
       <Modal animationType="slide" transparent visible={gcashPayOpen} onRequestClose={() => setGcashPayOpen(false)}>
         <View accessibilityViewIsModal style={styles.dialogBackdrop}>
           <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled" style={styles.modalScrollView}>
-            <View style={styles.dialogCard}>
+            <View accessibilityLabel="Pay worker via GCash" style={styles.dialogCard}>
               <Text style={styles.dialogTitle}>Pay worker via GCash</Text>
               <Text style={styles.dialogMessage}>Make the payment directly in your GCash app. TaskLink does not send or verify the transfer.</Text>
               <Text style={styles.modalFieldLabel}>Worker GCash number</Text>
@@ -962,7 +982,7 @@ export default function TaskStatusScreen() {
               <Text style={styles.geoHint}>After you confirm, the worker will be asked to confirm whether the payment was received. Optional evidence remains private to participants and authorized administrators.</Text>
               <View style={styles.dialogActions}>
                 <Pressable accessibilityRole="button" disabled={actionLoading} onPress={() => setGcashPayOpen(false)} style={styles.dialogCancel}><Text style={styles.dialogCancelText}>Cancel</Text></Pressable>
-                <Pressable accessibilityRole="button" disabled={actionLoading || !payment?.gcashRecipientMobile} onPress={() => void handleConfirmGcashSent()} style={[styles.dialogConfirm, (actionLoading || !payment?.gcashRecipientMobile) && styles.primaryActionDisabled]}><Text style={styles.dialogConfirmText}>{actionLoading ? "Saving..." : "I Sent Payment"}</Text></Pressable>
+                <Pressable accessibilityRole="button" accessibilityState={{ busy: actionLoading, disabled: actionLoading || !payment?.gcashRecipientMobile }} disabled={actionLoading || !payment?.gcashRecipientMobile} onPress={() => void handleConfirmGcashSent()} style={[styles.dialogConfirm, (actionLoading || !payment?.gcashRecipientMobile) && styles.primaryActionDisabled]}><Text style={styles.dialogConfirmText}>{actionLoading ? "Saving..." : "I Sent Payment"}</Text></Pressable>
               </View>
             </View>
           </ScrollView>
@@ -970,7 +990,7 @@ export default function TaskStatusScreen() {
       </Modal>
       <Modal animationType="fade" transparent visible={cancelDialogOpen} onRequestClose={() => setCancelDialogOpen(false)}>
         <View accessibilityViewIsModal style={styles.dialogBackdrop}>
-          <View style={styles.dialogCard}>
+          <View accessibilityLabel={currentUser?.role === "worker" ? "Cancel assignment" : "Cancel task"} style={styles.dialogCard}>
             <Text style={styles.dialogTitle}>{currentUser?.role === "worker" ? "Cancel assignment?" : "Cancel task?"}</Text>
             <Text style={styles.dialogMessage}>
               {cancellationEligibility.allowed && cancellationEligibility.stage === "pre-check-in"
@@ -995,6 +1015,7 @@ export default function TaskStatusScreen() {
               </Pressable>
               <Pressable
                 accessibilityRole="button"
+                accessibilityState={{ busy: actionLoading, disabled: actionLoading || cancellationReason.trim().length < 5 }}
                 disabled={actionLoading || cancellationReason.trim().length < 5}
                 onPress={() => void handleCancelTask()}
                 style={[styles.dialogConfirm, (actionLoading || cancellationReason.trim().length < 5) && styles.primaryActionDisabled]}
@@ -1162,8 +1183,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center"
   },
-  backText: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "900" },
-  brand: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "800" },
+  backText: { ...typography.button, color: palette.primary },
+  brand: { ...typography.screenTitle, color: palette.primary },
   userAvatar: {
     width: 40,
     height: 40,
@@ -1174,10 +1195,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: palette.outlineVariant
   },
-  avatarText: { color: "#F4C95D", fontWeight: "900" },
+  avatarText: { ...typography.bodyMedium, color: "#F4C95D" },
   content: { paddingBottom: 132 },
   notFound: { flex: 1, padding: 24, alignItems: "center", justifyContent: "center", gap: 16 },
-  emptyText: { color: palette.muted, fontSize: 14, lineHeight: 20, textAlign: "center" },
+  emptyText: { ...typography.body, color: palette.muted, textAlign: "center" },
   mapHero: {
     height: 260,
     backgroundColor: palette.surfaceContainer,
@@ -1231,7 +1252,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     backgroundColor: palette.urgent
   },
-  urgentBadgeText: { color: palette.white, fontSize: 14, lineHeight: 20, fontWeight: "800" },
+  urgentBadgeText: { ...typography.badge, color: palette.white },
   mapTrackingBadge: {
     position: "absolute",
     top: 16,
@@ -1244,7 +1265,7 @@ const styles = StyleSheet.create({
   },
   mapTrackingBadgeGood: { backgroundColor: "rgba(3,35,52,0.94)", borderColor: "#26E5B2" },
   mapTrackingBadgePending: { backgroundColor: "rgba(3,35,52,0.94)", borderColor: "#F4C95D" },
-  mapTrackingBadgeText: { color: "#F4C95D", fontSize: 11, lineHeight: 14, fontWeight: "900", textAlign: "center" },
+  mapTrackingBadgeText: { ...typography.badge, color: "#F4C95D", textAlign: "center" },
   mapTrackingBadgeTextGood: { color: "#26E5B2" },
   locationBadge: {
     position: "absolute",
@@ -1260,8 +1281,8 @@ const styles = StyleSheet.create({
     gap: 8,
     maxWidth: "86%"
   },
-  locationDot: { color: palette.primary, fontSize: 22, lineHeight: 22, fontWeight: "900" },
-  locationText: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "800", flex: 1 },
+  locationDot: { ...typography.heroNumber, color: palette.primary },
+  locationText: { ...typography.bodyMedium, color: palette.text, flex: 1 },
   sheetWrap: { paddingHorizontal: 16, marginTop: -24 },
   card: {
     borderRadius: 12,
@@ -1276,13 +1297,13 @@ const styles = StyleSheet.create({
   },
   jobHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
   jobTitleBlock: { flex: 1, gap: 6 },
-  title: { color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "800" },
+  title: { ...typography.sectionTitle, color: palette.textStrong },
   inlineMeta: { flexDirection: "row", alignItems: "center", gap: 6 },
-  metaIcon: { color: palette.outline, fontSize: 14 },
-  metaText: { color: palette.muted, fontSize: 12, lineHeight: 16 },
+  metaIcon: { ...typography.body, color: palette.outline },
+  metaText: { ...typography.metadata, color: palette.muted },
   priceBlock: { alignItems: "flex-end" },
-  price: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "900" },
-  rateText: { color: palette.muted, fontSize: 12, lineHeight: 16 },
+  price: { ...typography.heroNumber, color: palette.primary },
+  rateText: { ...typography.metadata, color: palette.muted },
   employerCard: {
     padding: 14,
     borderRadius: 8,
@@ -1305,13 +1326,13 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: palette.white
   },
-  employerName: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "800" },
-  rating: { color: palette.text, fontSize: 12, lineHeight: 16 },
+  employerName: { ...typography.bodyMedium, color: palette.text },
+  rating: { ...typography.metadata, color: palette.text },
   verifiedBadge: { borderRadius: 4, paddingHorizontal: 8, paddingVertical: 5, backgroundColor: "rgba(38, 229, 178, 0.16)" },
-  verifiedText: { color: palette.success, fontSize: 12, lineHeight: 16, fontWeight: "800" },
+  verifiedText: { ...typography.badge, color: palette.success },
   section: { gap: 8 },
-  sectionTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "800" },
-  description: { color: palette.muted, fontSize: 16, lineHeight: 24 },
+  sectionTitle: { ...typography.sectionTitleSmall, color: palette.text },
+  description: { ...typography.body, color: palette.muted },
   detailsGrid: { flexDirection: "row", gap: 12 },
   detailBox: {
     flex: 1,
@@ -1322,10 +1343,10 @@ const styles = StyleSheet.create({
     backgroundColor: palette.surfaceContainer,
     gap: 6
   },
-  detailLabel: { color: palette.muted, fontSize: 12, lineHeight: 16 },
+  detailLabel: { ...typography.fieldLabel, color: palette.muted },
   detailValueRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  detailIcon: { color: palette.primary, fontSize: 14, fontWeight: "900" },
-  detailValue: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "800", flex: 1 },
+  detailIcon: { ...typography.bodyMedium, color: palette.primary },
+  detailValue: { ...typography.bodyMedium, color: palette.text, flex: 1 },
   trustRow: {
     paddingTop: 10,
     borderTopWidth: 1,
@@ -1335,26 +1356,26 @@ const styles = StyleSheet.create({
     gap: 10
   },
   trustItem: { flexDirection: "row", alignItems: "center", gap: 4 },
-  trustCheck: { color: palette.success, fontSize: 12, fontWeight: "900" },
-  trustText: { color: palette.muted, fontSize: 11, lineHeight: 14, fontWeight: "600" },
+  trustCheck: { ...typography.badge, color: palette.success },
+  trustText: { ...typography.badge, color: palette.muted },
   statusPanel: { gap: 8 },
   changeRequestPanel: { padding: 14, gap: 8, borderRadius: 12, borderWidth: 1, borderColor: "#F4C95D", backgroundColor: "rgba(244, 201, 93, 0.16)" },
-  changeRequestTitle: { color: "#F4C95D", fontSize: 16, lineHeight: 22, fontWeight: "900" },
-  changeRequestText: { color: "#F4C95D", fontSize: 13, lineHeight: 19 },
-  changeRequestHint: { color: "#F4C95D", fontSize: 12, lineHeight: 17, fontWeight: "800" },
+  changeRequestTitle: { ...typography.cardTitleStrong, color: "#F4C95D" },
+  changeRequestText: { ...typography.body, color: "#F4C95D" },
+  changeRequestHint: { ...typography.metadata, color: "#F4C95D" },
   changeRequestActions: { flexDirection: "row", gap: 10, marginTop: 2 },
   changeDeclineButton: { flex: 1, minHeight: 44, alignItems: "center", justifyContent: "center", borderRadius: 10, borderWidth: 1, borderColor: "#F4C95D", backgroundColor: palette.surface },
-  changeDeclineText: { color: "#F4C95D", fontSize: 13, fontWeight: "900" },
+  changeDeclineText: { ...typography.bodyMedium, color: "#F4C95D" },
   changeAcceptButton: { flex: 1, minHeight: 44, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: palette.primary },
-  changeAcceptText: { color: palette.white, fontSize: 13, fontWeight: "900" },
+  changeAcceptText: { ...typography.bodyMedium, color: palette.white },
   cancellationFallback: { padding: 14, gap: 6, borderRadius: 12, backgroundColor: "rgba(244, 201, 93, 0.16)", borderWidth: 1, borderColor: "#F4C95D" },
-  cancellationFallbackTitle: { color: "#F4C95D", fontSize: 15, lineHeight: 21, fontWeight: "900" },
-  cancellationFallbackText: { color: "#F4C95D", fontSize: 12, lineHeight: 18 },
+  cancellationFallbackTitle: { ...typography.button, color: "#F4C95D" },
+  cancellationFallbackText: { ...typography.button, color: "#F4C95D" },
   cancellationRecord: { padding: 14, gap: 5, borderRadius: 12, backgroundColor: palette.surfaceLow, borderWidth: 1, borderColor: palette.outlineVariant },
-  cancellationRecordTitle: { color: palette.text, fontSize: 16, lineHeight: 22, fontWeight: "900" },
-  cancellationRecordText: { color: palette.muted, fontSize: 13, lineHeight: 19 },
+  cancellationRecordTitle: { ...typography.button, color: palette.text },
+  cancellationRecordText: { ...typography.button, color: palette.muted },
   cancellationReasonInput: { minHeight: 96, paddingHorizontal: 12, paddingTop: 12, borderRadius: 10, borderWidth: 1, borderColor: palette.outlineVariant, color: palette.text, backgroundColor: palette.surface },
-  cancellationReasonHint: { color: palette.muted, fontSize: 11, lineHeight: 16, textAlign: "right" },
+  cancellationReasonHint: { ...typography.button, color: palette.muted, textAlign: "right" },
   geoPanel: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow, gap: 6 },
   geoMapFrame: { marginTop: 4, gap: 8 },
   geoMapLegend: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
@@ -1362,61 +1383,61 @@ const styles = StyleSheet.create({
   geoLegendDot: { width: 10, height: 10, borderRadius: 5 },
   geoLegendTask: { backgroundColor: palette.primary },
   geoLegendWorker: { backgroundColor: "#29ACD5" },
-  geoLegendText: { color: palette.muted, fontSize: 11, lineHeight: 15, fontWeight: "700" },
+  geoLegendText: { ...typography.badge, color: palette.muted },
   geoHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
-  geoBadge: { overflow: "hidden", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, fontSize: 11, lineHeight: 14, fontWeight: "900" },
+  geoBadge: { ...typography.badge, overflow: "hidden", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
   geoBadgeGood: { backgroundColor: "rgba(38, 229, 178, 0.16)", color: "#26E5B2" },
   geoBadgeWarn: { backgroundColor: "rgba(244, 201, 93, 0.16)", color: "#F4C95D" },
-  geoText: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "700" },
-  geoHint: { color: palette.outline, fontSize: 12, lineHeight: 16 },
+  geoText: { ...typography.badge, color: palette.muted },
+  geoHint: { ...typography.metadata, color: palette.outline },
   liveLocationPanel: { marginTop: 6, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, gap: 6 },
-  liveLocationTitle: { color: palette.textStrong, fontSize: 13, lineHeight: 18, fontWeight: "900" },
-  liveLocationWarning: { color: "#F4C95D", fontWeight: "700" },
-  privacyText: { color: palette.outline, fontSize: 11, lineHeight: 15 },
+  liveLocationTitle: { ...typography.bodyMedium, color: palette.textStrong },
+  liveLocationWarning: { ...typography.metadata, color: "#F4C95D" },
+  privacyText: { ...typography.metadata, color: palette.outline },
   retryLocationButton: { minHeight: 40, borderRadius: 8, borderWidth: 1, borderColor: palette.primary, alignItems: "center", justifyContent: "center", marginTop: 2 },
-  retryLocationButtonText: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
+  retryLocationButtonText: { ...typography.button, color: palette.primary },
   paymentPanel: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "rgba(207,249,255,0.32)", backgroundColor: palette.surface, gap: 8 },
-  paymentBadge: { overflow: "hidden", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: "rgba(244, 201, 93, 0.16)", color: "#F4C95D", fontSize: 11, lineHeight: 14, fontWeight: "900" },
-  paymentInput: { minHeight: 82, borderRadius: 8, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow, color: palette.text, fontSize: 14, lineHeight: 20, padding: 12 },
+  paymentBadge: { ...typography.badge, overflow: "hidden", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: "rgba(244, 201, 93, 0.16)", color: "#F4C95D" },
+  paymentInput: { ...typography.inputText, minHeight: 82, borderRadius: 8, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow, color: palette.text, padding: 12 },
   paymentButton: { minHeight: 42, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
-  paymentButtonText: { color: palette.white, fontSize: 14, lineHeight: 20, fontWeight: "900" },
+  paymentButtonText: { ...typography.button, color: palette.white },
   paymentOutlineButton: { minHeight: 42, borderRadius: 8, borderWidth: 1, borderColor: palette.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: 12 },
-  paymentOutlineButtonText: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "900", textAlign: "center" },
-  warningText: { color: "#F4C95D", fontSize: 12, lineHeight: 16, fontWeight: "800" },
+  paymentOutlineButtonText: { ...typography.button, color: palette.primary, textAlign: "center" },
+  warningText: { ...typography.metadata, color: "#F4C95D" },
   dialogBackdrop: { flex: 1, paddingHorizontal: 20, paddingVertical: 16, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(1,15,25,0.72)" },
   dialogCard: { width: "100%", maxWidth: 460, padding: 20, borderRadius: 16, backgroundColor: palette.surface, gap: 12, elevation: 16 },
-  dialogTitle: { color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "900" },
-  dialogMessage: { color: palette.muted, fontSize: 14, lineHeight: 21 },
+  dialogTitle: { ...typography.cardTitleStrong, color: palette.textStrong },
+  dialogMessage: { ...typography.body, color: palette.muted },
   dialogActions: { flexDirection: "row", gap: 10, marginTop: 4 },
   dialogCancel: { flex: 1, minHeight: 46, borderRadius: 10, borderWidth: 1, borderColor: palette.outlineVariant, alignItems: "center", justifyContent: "center", paddingHorizontal: 10 },
-  dialogCancelText: { color: palette.text, fontSize: 13, fontWeight: "900", textAlign: "center" },
+  dialogCancelText: { ...typography.button, color: palette.text, textAlign: "center" },
   dialogConfirm: { flex: 1, minHeight: 46, borderRadius: 10, alignItems: "center", justifyContent: "center", paddingHorizontal: 10, backgroundColor: "#FF7D8C" },
-  dialogConfirmText: { color: palette.white, fontSize: 13, fontWeight: "900", textAlign: "center" },
+  dialogConfirmText: { ...typography.button, color: palette.white, textAlign: "center" },
   modalScrollView: { alignSelf: "stretch", width: "100%" },
   modalScroll: { flexGrow: 1, width: "100%", justifyContent: "center", alignItems: "center", paddingVertical: 16 },
-  modalFieldLabel: { color: palette.textStrong, fontSize: 13, lineHeight: 18, fontWeight: "900" },
-  modalInput: { minHeight: 46, borderRadius: 8, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow, color: palette.text, fontSize: 14, paddingHorizontal: 12 },
+  modalFieldLabel: { ...typography.fieldLabel, color: palette.textStrong },
+  modalInput: { ...typography.inputText, minHeight: 46, borderRadius: 8, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow, color: palette.text, paddingHorizontal: 12 },
   checkboxRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, paddingVertical: 4 },
   checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 1, borderColor: palette.outline, alignItems: "center", justifyContent: "center" },
   checkboxChecked: { borderColor: palette.primary, backgroundColor: palette.primary },
-  checkboxText: { flex: 1, color: palette.text, fontSize: 13, lineHeight: 19, fontWeight: "700" },
+  checkboxText: { ...typography.bodyMedium, flex: 1, color: palette.text },
   gcashNumberButton: { minHeight: 56, borderRadius: 10, borderWidth: 1, borderColor: palette.primary, backgroundColor: "rgba(38, 229, 178, 0.16)", paddingHorizontal: 14, justifyContent: "center", gap: 2 },
-  gcashNumber: { color: palette.textStrong, fontSize: 18, lineHeight: 24, fontWeight: "900" },
-  gcashCopyText: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
+  gcashNumber: { ...typography.sectionTitleSmall, color: palette.textStrong },
+  gcashCopyText: { ...typography.badge, color: palette.primary },
   gcashQrPreview: { width: "100%", height: 220, borderRadius: 10, backgroundColor: palette.surfaceLow },
   clientRatingPanel: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, gap: 12, elevation: 2 },
   clientRatingCopy: { gap: 4 },
-  clientRatingTitle: { color: palette.textStrong, fontSize: 16, lineHeight: 22, fontWeight: "900" },
-  clientRatingText: { color: palette.muted, fontSize: 12, lineHeight: 16 },
+  clientRatingTitle: { ...typography.cardTitleStrong, color: palette.textStrong },
+  clientRatingText: { ...typography.metadata, color: palette.muted },
   clientRatingButton: { minHeight: 46, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
   clientRatingButtonDisabled: { backgroundColor: palette.surfaceContainer, borderWidth: 1, borderColor: palette.outlineVariant },
-  clientRatingButtonText: { color: palette.white, fontSize: 14, lineHeight: 20, fontWeight: "900" },
+  clientRatingButtonText: { ...typography.button, color: palette.white },
   clientRatingButtonTextDisabled: { color: palette.textStrong },
   secondaryRow: { flexDirection: "row", gap: 12 },
   dangerAction: { minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: "#FF7D8C", alignItems: "center", justifyContent: "center", backgroundColor: palette.surface },
-  dangerActionText: { color: "#FF7D8C", fontSize: 13, lineHeight: 18, fontWeight: "900" },
+  dangerActionText: { ...typography.button, color: "#FF7D8C" },
   reportAction: { minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: palette.outlineVariant, alignItems: "center", justifyContent: "center", backgroundColor: palette.surfaceLow },
-  reportActionText: { color: palette.muted, fontSize: 13, lineHeight: 18, fontWeight: "800" },
+  reportActionText: { ...typography.button, color: palette.muted },
   secondaryAction: {
     flex: 1,
     minHeight: 44,
@@ -1427,7 +1448,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: palette.surface
   },
-  secondaryActionText: { color: palette.primary, fontSize: 14, lineHeight: 20, fontWeight: "800" },
+  secondaryActionText: { ...typography.button, color: palette.primary },
   bottomAction: {
     position: "absolute",
     left: 0,
@@ -1452,14 +1473,13 @@ const styles = StyleSheet.create({
     gap: 8
   },
   primaryActionDisabled: { backgroundColor: palette.surfaceHigh },
-  primaryActionText: { color: palette.white, fontSize: 18, lineHeight: 22, fontWeight: "800", textAlign: "center" },
+  primaryActionText: { ...typography.button, color: palette.white, textAlign: "center" },
   primaryActionTextDisabled: { color: palette.muted },
   guidelineText: {
+    ...typography.metadata,
     color: palette.muted,
-    fontSize: 12,
-    lineHeight: 16,
     textAlign: "center",
     marginTop: 10
   },
-  pressed: { opacity: 0.78, transform: [{ scale: 0.99 }] }
+  pressed: { opacity: 0.78 }
 });

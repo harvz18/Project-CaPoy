@@ -1,7 +1,9 @@
 import Feather from "@expo/vector-icons/Feather";
 import { Href, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Image, ScrollView, StyleSheet, View } from "react-native";
+import { MotionModal as Modal } from "../src/components/MotionModal";
+import { MotionPressable as Pressable } from "../src/components/MotionPressable";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AnimatedBottomNav } from "../src/components/AnimatedBottomNav";
 import LocationMap from "../src/components/LocationMap";
@@ -19,6 +21,8 @@ import { parseCoordinate } from "../src/utils/location";
 import { AddressDetails, formatAddressDetails } from "../src/utils/address";
 import type { MapCoordinate } from "../src/components/LocationMap.types";
 import { screenPalette } from "../src/theme";
+import { typography } from "../src/typography";
+import { AppText as Text, AppTextInput as TextInput } from "../src/components/AppText";
 
 const palette = screenPalette;
 const PROFILE_CITY = "Bacolod City";
@@ -548,8 +552,8 @@ export default function ProfileScreen() {
       <AnimatedBottomNav active="profile" role={currentUser?.role} />
 
       <Modal animationType="fade" transparent visible={skillDropdownOpen} onRequestClose={() => setSkillDropdownOpen(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setSkillDropdownOpen(false)}>
-          <View style={styles.dropdownMenu}>
+        <Pressable accessibilityLabel="Close worker capabilities" accessibilityRole="button" motionDisabled style={styles.modalBackdrop} onPress={() => setSkillDropdownOpen(false)}>
+          <View accessibilityViewIsModal style={styles.dropdownMenu}>
             <Text style={styles.dropdownTitle}>Worker Capabilities</Text>
             {skillOptions.map((skill) => {
               const selected = skillDraft.includes(skill);
@@ -668,6 +672,8 @@ function Field({
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
+        accessibilityLabel={label}
+        accessibilityHint={helper}
         editable={editable}
         keyboardType={keyboardType}
         multiline={multiline}
@@ -747,34 +753,34 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.background },
   header: { minHeight: 56, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: palette.surface, borderBottomWidth: 1, borderBottomColor: "rgba(207, 249, 255, 0.20)" },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
-  brand: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "900" },
+  brand: { ...typography.screenTitle, color: palette.primary },
   smallAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: palette.surfaceHigh, alignItems: "center", justifyContent: "center" },
-  avatarText: { color: palette.secondary, fontWeight: "900" },
+  avatarText: { ...typography.bodyMedium, color: palette.secondary },
   content: { padding: 16, paddingTop: 24, gap: 16 },
   profileCard: { padding: 24, borderRadius: 24, borderWidth: 1, borderColor: palette.primaryFixed, backgroundColor: palette.surface, shadowColor: palette.primary, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 24, elevation: 6 },
   profileHeader: { alignItems: "center", gap: 20 },
   photoWrap: { position: "relative" },
   profilePhoto: { width: 132, height: 132, borderRadius: 66, borderWidth: 4, borderColor: palette.primaryFixed, backgroundColor: palette.secondaryContainer, alignItems: "center", justifyContent: "center", overflow: "hidden" },
   profilePhotoImage: { width: "100%", height: "100%" },
-  profilePhotoText: { color: "#F4C95D", fontSize: 42, fontWeight: "900" },
+  profilePhotoText: { ...typography.heroNumber, color: "#F4C95D" },
   verifiedPill: { position: "absolute", right: -4, bottom: 8, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 5, backgroundColor: palette.success },
-  verifiedText: { color: palette.white, fontSize: 10, fontWeight: "900" },
+  verifiedText: { ...typography.badge, color: palette.white },
   profileCopy: { width: "100%", alignItems: "center", gap: 8 },
-  profileName: { color: palette.textStrong, fontSize: 24, lineHeight: 32, fontWeight: "900", textAlign: "center" },
+  profileName: { ...typography.screenTitle, color: palette.textStrong, textAlign: "center" },
   ratingRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 },
-  star: { color: palette.secondary, fontSize: 18, fontWeight: "900" },
-  ratingValue: { color: palette.secondary, fontSize: 20, lineHeight: 28, fontWeight: "900" },
-  reviewCount: { color: palette.muted, fontSize: 12, lineHeight: 16 },
-  bio: { color: palette.muted, fontSize: 16, lineHeight: 24, textAlign: "center" },
+  star: { ...typography.sectionTitleSmall, color: palette.secondary },
+  ratingValue: { ...typography.sectionTitle, color: palette.secondary },
+  reviewCount: { ...typography.heroNumber, color: palette.muted },
+  bio: { ...typography.cardTitle, color: palette.muted, textAlign: "center" },
   statsGrid: { flexDirection: "row", gap: 8, width: "100%", paddingTop: 8 },
   statBox: { alignItems: "center", backgroundColor: palette.surfaceContainer, borderRadius: 16, borderWidth: 1, borderColor: palette.outlineVariant, flex: 1, justifyContent: "center", minHeight: 92, paddingHorizontal: 8, paddingVertical: 10 },
-  statLabel: { color: palette.muted, fontSize: 12, lineHeight: 16, textAlign: "center" },
-  statValue: { color: palette.primary, fontSize: 20, lineHeight: 28, fontWeight: "900", textAlign: "center" },
+  statLabel: { ...typography.fieldLabel, color: palette.muted, textAlign: "center" },
+  statValue: { ...typography.heroNumber, color: palette.primary, textAlign: "center" },
   settingsCard: { padding: 18, borderRadius: 20, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.outlineVariant, gap: 12 },
-  settingsTitle: { color: palette.textStrong, fontSize: 18, lineHeight: 26, fontWeight: "900" },
+  settingsTitle: { ...typography.sectionTitleSmall, color: palette.textStrong },
   field: { gap: 6 },
-  fieldLabel: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "800" },
-  input: { minHeight: 50, borderRadius: 14, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceHigh, color: palette.text, fontSize: 16, paddingHorizontal: 14 },
+  fieldLabel: { ...typography.fieldLabel, color: palette.text },
+  input: { ...typography.inputText, minHeight: 50, borderRadius: 14, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceHigh, color: palette.text, paddingHorizontal: 14 },
   inputDisabled: { color: palette.outline, backgroundColor: palette.surfaceContainer },
   textArea: { minHeight: 96, paddingTop: 12 },
   uploadInput: {
@@ -792,9 +798,9 @@ const styles = StyleSheet.create({
   },
   uploadDisabled: { opacity: 0.6 },
   uploadCopy: { flex: 1, gap: 2 },
-  uploadText: { color: palette.text, fontSize: 15, lineHeight: 20, fontWeight: "800" },
-  uploadPlaceholder: { color: palette.outline, fontWeight: "500" },
-  uploadMeta: { color: palette.success, fontSize: 11, lineHeight: 14, fontWeight: "800" },
+  uploadText: { ...typography.bodyMedium, color: palette.text },
+  uploadPlaceholder: { ...typography.body, color: palette.outline },
+  uploadMeta: { ...typography.metadata, color: palette.success },
   uploadButton: {
     minHeight: 38,
     borderRadius: 8,
@@ -803,36 +809,36 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: palette.primary
   },
-  uploadButtonText: { color: palette.white, fontSize: 12, lineHeight: 16, fontWeight: "900" },
+  uploadButtonText: { ...typography.button, color: palette.white },
   flex: { flex: 1 },
   twoColumn: { flexDirection: "row", gap: 10 },
-  helperText: { color: palette.muted, fontSize: 12, lineHeight: 16 },
+  helperText: { ...typography.metadata, color: palette.muted },
   section: { gap: 12 },
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  sectionTitle: { color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "800" },
-  viewAll: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
+  sectionTitle: { ...typography.sectionTitle, color: palette.textStrong },
+  viewAll: { ...typography.button, color: palette.primary },
   viewAllComingSoon: { alignItems: "flex-end" },
-  viewAllHint: { color: palette.muted, fontSize: 10, lineHeight: 14, fontWeight: "700" },
+  viewAllHint: { ...typography.button, color: palette.muted },
   skillRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   skillChip: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9, backgroundColor: palette.primaryContainer, borderWidth: 1, borderColor: "rgba(0,201,179,0.24)", flexDirection: "row", alignItems: "center", gap: 6 },
-  skillText: { color: "#7FF6E6", fontSize: 14, lineHeight: 20, fontWeight: "900" },
+  skillText: { ...typography.bodyMedium, color: "#7FF6E6" },
   dropdownButton: { minHeight: 48, borderRadius: 8, borderWidth: 1, borderColor: palette.primary, backgroundColor: palette.surface, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14 },
-  dropdownText: { color: palette.primary, fontSize: 14, fontWeight: "900" },
-  dropdownIcon: { color: palette.primary, fontSize: 14, fontWeight: "900" },
-  settingTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "900" },
+  dropdownText: { ...typography.bodyMedium, color: palette.primary },
+  dropdownIcon: { ...typography.bodyMedium, color: palette.primary },
+  settingTitle: { ...typography.bodyMedium, color: palette.text },
   verificationStatusRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   verificationBadge: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: "rgba(38, 229, 178, 0.16)" },
-  verificationBadgeText: { color: palette.success, fontSize: 12, lineHeight: 16, fontWeight: "900" },
+  verificationBadgeText: { ...typography.badge, color: palette.success },
   serviceHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
   availabilityChip: { minHeight: 38, borderRadius: 19, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, paddingHorizontal: 12, alignItems: "center", justifyContent: "center" },
   availabilityChipSelected: { backgroundColor: palette.primary, borderColor: palette.primary },
-  availabilityText: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "800" },
+  availabilityText: { ...typography.badge, color: palette.muted },
   availabilityTextSelected: { color: palette.white },
   locationButton: { minHeight: 44, borderRadius: 8, backgroundColor: palette.primary, alignItems: "center", justifyContent: "center" },
-  locationButtonText: { color: palette.white, fontSize: 13, fontWeight: "900" },
+  locationButtonText: { ...typography.button, color: palette.white },
   selectMapButton: { alignItems: "center", alignSelf: "flex-start", borderColor: palette.primary, borderRadius: 8, borderWidth: 1, flexDirection: "row", gap: 8, minHeight: 42, paddingHorizontal: 14 },
-  selectMapButtonText: { color: palette.primary, fontSize: 13, fontWeight: "900" },
-  locationMessage: { color: palette.primary, fontSize: 12, lineHeight: 17, fontWeight: "700" },
+  selectMapButtonText: { ...typography.button, color: palette.primary },
+  locationMessage: { ...typography.metadata, color: palette.primary },
   workerMapCard: { height: 150, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: "rgba(20, 217, 226, 0.12)", overflow: "hidden", alignItems: "center", justifyContent: "center" },
   workerRadiusRing: {
     position: "absolute",
@@ -844,73 +850,73 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,201,179,0.10)"
   },
   workerPin: { width: 52, height: 52, borderRadius: 26, borderWidth: 4, borderColor: palette.white, backgroundColor: palette.primary, alignItems: "center", justifyContent: "center", elevation: 5 },
-  workerPinText: { color: palette.white, fontSize: 11, lineHeight: 14, fontWeight: "900" },
+  workerPinText: { ...typography.badge, color: palette.white },
   workerMapBadge: { position: "absolute", left: 12, bottom: 12, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: "rgba(3,35,52,0.94)", borderWidth: 1, borderColor: "rgba(207,249,255,0.42)" },
-  workerMapBadgeLabel: { color: palette.muted, fontSize: 10, lineHeight: 14, fontWeight: "800", textTransform: "uppercase" },
-  workerMapBadgeText: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "900" },
+  workerMapBadgeLabel: { ...typography.badge, color: palette.muted },
+  workerMapBadgeText: { ...typography.badge, color: palette.text },
   areaPresetGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   areaPresetChip: { minHeight: 36, borderRadius: 18, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow, paddingHorizontal: 12, alignItems: "center", justifyContent: "center" },
   areaPresetChipSelected: { backgroundColor: palette.primary, borderColor: palette.primary },
-  areaPresetText: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "900" },
+  areaPresetText: { ...typography.badge, color: palette.muted },
   areaPresetTextSelected: { color: palette.white },
   radiusGrid: { gap: 8 },
   radiusCard: { minHeight: 64, borderRadius: 10, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow, padding: 12 },
   radiusCardSelected: { borderColor: palette.primary, backgroundColor: "rgba(20, 217, 226, 0.12)" },
-  radiusTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "900" },
+  radiusTitle: { ...typography.bodyMedium, color: palette.text },
   radiusTitleSelected: { color: palette.primary },
-  radiusValue: { color: palette.secondary, fontSize: 12, lineHeight: 16, fontWeight: "900", marginTop: 2 },
+  radiusValue: { ...typography.badge, color: palette.secondary, marginTop: 2 },
   radiusValueSelected: { color: palette.primary },
-  radiusHelper: { color: palette.muted, fontSize: 12, lineHeight: 16, marginTop: 2 },
+  radiusHelper: { ...typography.metadata, color: palette.muted, marginTop: 2 },
   radiusHelperSelected: { color: palette.text },
   reviewCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "rgba(207,249,255,0.28)", backgroundColor: palette.surface, gap: 10 },
   reviewEmptyCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow },
-  reviewEmptyText: { color: palette.muted, fontSize: 14, lineHeight: 20, fontWeight: "700" },
+  reviewEmptyText: { ...typography.bodyMedium, color: palette.muted },
   reviewTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 8 },
   reviewPerson: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
   reviewAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: palette.secondaryFixed, alignItems: "center", justifyContent: "center" },
-  reviewAvatarText: { color: "#F5FCFF", fontWeight: "900" },
-  reviewName: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "900" },
-  reviewDate: { color: palette.muted, fontSize: 12, lineHeight: 16 },
-  reviewStars: { color: palette.secondary, fontSize: 19, lineHeight: 24, fontWeight: "900" },
-  reviewText: { color: palette.muted, fontSize: 16, lineHeight: 24 },
+  reviewAvatarText: { ...typography.bodyMedium, color: "#F5FCFF" },
+  reviewName: { ...typography.bodyMedium, color: palette.text },
+  reviewDate: { ...typography.metadata, color: palette.muted },
+  reviewStars: { ...typography.sectionTitleSmall, color: palette.secondary },
+  reviewText: { ...typography.cardTitle, color: palette.muted },
   coverageCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "rgba(207,249,255,0.28)", backgroundColor: palette.surfaceLow, gap: 12 },
   coverageHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
-  coverageIcon: { color: palette.primary, fontSize: 24, fontWeight: "900" },
-  coverageTitle: { color: palette.textStrong, fontSize: 14, lineHeight: 20, fontWeight: "900", textTransform: "uppercase" },
+  coverageIcon: { ...typography.heroNumber, color: palette.primary },
+  coverageTitle: { ...typography.bodyMedium, color: palette.textStrong },
   coverageMap: { height: 128, borderRadius: 8, backgroundColor: "rgba(20, 217, 226, 0.12)", overflow: "hidden", alignItems: "center", justifyContent: "center" },
   mapRoadOne: { position: "absolute", left: -18, right: -18, top: 58, height: 14, backgroundColor: "#17607A", transform: [{ rotate: "-12deg" }] },
   mapRoadTwo: { position: "absolute", top: -12, bottom: -12, left: "58%", width: 16, backgroundColor: "#14556D", transform: [{ rotate: "18deg" }] },
   coverageBadge: { borderRadius: 999, paddingHorizontal: 16, paddingVertical: 9, backgroundColor: palette.surface },
-  coverageBadgeText: { color: palette.primary, fontSize: 14, fontWeight: "900" },
+  coverageBadgeText: { ...typography.badge, color: palette.primary },
   saveButton: { minHeight: 48, borderRadius: 10, backgroundColor: palette.primary, alignItems: "center", justifyContent: "center" },
-  saveButtonText: { color: palette.white, fontSize: 14, fontWeight: "900" },
+  saveButtonText: { ...typography.button, color: palette.white },
   supportButton: { minHeight: 48, borderRadius: 10, borderWidth: 1, borderColor: palette.outlineVariant, alignItems: "center", justifyContent: "center", paddingHorizontal: 14, backgroundColor: palette.surface },
-  supportButtonText: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "900", textAlign: "center" },
+  supportButtonText: { ...typography.button, color: palette.primary, textAlign: "center" },
   logoutButton: { minHeight: 48, borderRadius: 10, borderWidth: 1, borderColor: "rgba(255, 125, 140, 0.16)", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255, 125, 140, 0.14)" },
-  logoutText: { color: palette.danger, fontSize: 14, fontWeight: "900" },
-  errorText: { color: palette.danger, fontSize: 12, lineHeight: 16, fontWeight: "700" },
-  fieldHelper: { color: palette.muted, fontSize: 12, lineHeight: 16 },
+  logoutText: { ...typography.button, color: palette.danger },
+  errorText: { ...typography.metadata, color: palette.danger },
+  fieldHelper: { ...typography.metadata, color: palette.muted },
   modalBackdrop: { flex: 1, padding: 24, backgroundColor: "rgba(1,15,25,0.56)", alignItems: "center", justifyContent: "center" },
   dropdownMenu: { width: "100%", maxWidth: 420, borderRadius: 12, padding: 12, backgroundColor: palette.surface },
-  dropdownTitle: { color: palette.text, fontSize: 16, lineHeight: 24, fontWeight: "900", paddingHorizontal: 8, paddingVertical: 8 },
+  dropdownTitle: { ...typography.cardTitleStrong, color: palette.text, paddingHorizontal: 8, paddingVertical: 8 },
   dropdownOption: { minHeight: 48, borderRadius: 8, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12 },
-  dropdownOptionText: { color: palette.muted, fontSize: 16, lineHeight: 24, fontWeight: "700" },
+  dropdownOptionText: { ...typography.bodyMedium, color: palette.muted },
   addressMapModal: { backgroundColor: palette.surface, borderRadius: 16, gap: 12, maxHeight: "92%", maxWidth: 560, padding: 16, width: "100%" },
   addressMapHeader: { alignItems: "flex-start", flexDirection: "row", gap: 12 },
   addressMapClose: { alignItems: "center", height: 40, justifyContent: "center", width: 40 },
   addressSearchRow: { alignItems: "center", flexDirection: "row", gap: 8 },
   addressSearchInput: { flex: 1 },
   addressSearchButton: { alignItems: "center", backgroundColor: palette.primary, borderRadius: 8, justifyContent: "center", minHeight: 48, minWidth: 72, paddingHorizontal: 10 },
-  addressSearchButtonText: { color: palette.white, fontSize: 13, fontWeight: "900" },
+  addressSearchButtonText: { ...typography.button, color: palette.white },
   addressSearchResults: { borderColor: palette.outlineVariant, borderRadius: 8, borderWidth: 1, maxHeight: 132 },
   addressSearchResult: { borderBottomColor: palette.outlineVariant, borderBottomWidth: 1, minHeight: 48, justifyContent: "center", paddingHorizontal: 12, paddingVertical: 8 },
-  addressSearchResultText: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: "700" },
-  dropdownOptionSelected: { color: palette.primary, fontWeight: "900" },
+  addressSearchResultText: { ...typography.bodyMedium, color: palette.text },
+  dropdownOptionSelected: { ...typography.bodyMedium, color: palette.primary },
   dropdownOptionActive: { backgroundColor: "rgba(20, 217, 226, 0.12)" },
   capabilityActions: { flexDirection: "row", justifyContent: "flex-end", gap: 10, marginTop: 8 },
   capabilityCancelButton: { minHeight: 42, justifyContent: "center", paddingHorizontal: 14, borderRadius: 8, borderWidth: 1, borderColor: palette.primary },
-  capabilityCancelText: { color: palette.primary, fontSize: 13, fontWeight: "900" },
+  capabilityCancelText: { ...typography.button, color: palette.primary },
   capabilitySaveButton: { minHeight: 42, justifyContent: "center", paddingHorizontal: 14, borderRadius: 8, backgroundColor: palette.primary },
-  capabilitySaveText: { color: palette.white, fontSize: 13, fontWeight: "900" },
-  reviewScore: { color: palette.muted, fontSize: 12, fontWeight: "800" }
+  capabilitySaveText: { ...typography.button, color: palette.white },
+  reviewScore: { ...typography.badge, color: palette.muted }
 });

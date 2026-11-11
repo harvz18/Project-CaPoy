@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Image, ScrollView, StyleSheet, View } from "react-native";
+import { MotionPressable as Pressable } from "../src/components/MotionPressable";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Href, useRouter } from "expo-router";
 import { useApp } from "../src/context/AppContext";
@@ -11,6 +12,8 @@ import {
 } from "../src/services/adminService";
 import { ModerationUser } from "../src/types";
 import { colors } from "../src/theme";
+import { typography } from "../src/typography";
+import { AppText as Text, AppTextInput as TextInput } from "../src/components/AppText";
 
 const emptyOverview: SuperadminOverview = { users: [], reports: [], auditLogs: [] };
 
@@ -100,6 +103,8 @@ export default function SuperadminScreen() {
             Give a clear reason. Restricting an account also requires an evidence reference or a linked violation report.
           </Text>
           <TextInput
+            accessibilityLabel="Decision reason"
+            accessibilityHint="Required. Enter at least 10 characters."
             value={reason}
             onChangeText={setReason}
             placeholder="Decision reason (at least 10 characters)"
@@ -107,12 +112,13 @@ export default function SuperadminScreen() {
             style={[styles.input, styles.multiline]}
           />
           <TextInput
+            accessibilityLabel="Evidence reference"
             value={evidenceReference}
             onChangeText={setEvidenceReference}
             placeholder="Evidence URL, file path, or external reference"
             style={styles.input}
           />
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+          {error ? <Text accessibilityLiveRegion="assertive" style={styles.error}>{error}</Text> : null}
         </View>
 
         <Section title="Open violation reports" empty="No open violation reports.">
@@ -179,7 +185,7 @@ export default function SuperadminScreen() {
           <View style={styles.notice}>
             <Text style={styles.sectionTitle}>Correct locked name</Text>
             <Text style={styles.help}>Selected: {correctionTarget.fullName}. Only approved identities can use this action.</Text>
-            <TextInput value={correctedName} onChangeText={setCorrectedName} style={styles.input} />
+            <TextInput accessibilityLabel="Corrected full name" value={correctedName} onChangeText={setCorrectedName} style={styles.input} />
             <View style={styles.row}>
               <Action
                 label="Save correction"
@@ -242,36 +248,36 @@ function Action({ label, tone, disabled, onPress }: { label: string; tone: Tone;
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
   header: { padding: 20, flexDirection: "row", gap: 12, justifyContent: "space-between", alignItems: "center", backgroundColor: "rgba(91, 169, 188, 0.18)", borderBottomWidth: 1, borderBottomColor: colors.border },
-  eyebrow: { color: colors.primary, fontSize: 11, fontWeight: "900", letterSpacing: 1.2 },
-  title: { color: colors.text, fontSize: 24, fontWeight: "900", marginTop: 3 },
+  eyebrow: { ...typography.overline, color: colors.primary, letterSpacing: 1.2 },
+  title: { ...typography.screenTitle, color: colors.text, marginTop: 3 },
   subtitle: { color: colors.muted, marginTop: 2 },
   headerActions: { flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", gap: 8 },
   reviewLink: { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.primary },
-  reviewLinkText: { color: "#FFFFFF", fontWeight: "800", fontSize: 12 },
+  reviewLinkText: { ...typography.button, color: "#FFFFFF" },
   logout: { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: colors.border },
-  logoutText: { color: colors.danger, fontWeight: "800", fontSize: 12 },
+  logoutText: { ...typography.button, color: colors.danger },
   content: { padding: 18, paddingBottom: 48, gap: 18 },
   stats: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   stat: { flexGrow: 1, minWidth: 130, padding: 16, backgroundColor: "rgba(91, 169, 188, 0.18)", borderRadius: 14, borderWidth: 1, borderColor: colors.border },
-  statValue: { color: colors.primary, fontSize: 26, fontWeight: "900" },
+  statValue: { ...typography.heroNumber, color: colors.primary },
   notice: { backgroundColor: colors.infoLight, borderRadius: 14, padding: 16, gap: 10 },
   input: { minHeight: 44, backgroundColor: "rgba(91, 169, 188, 0.18)", borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 12 },
   multiline: { minHeight: 76, textAlignVertical: "top" },
-  help: { color: colors.muted, fontSize: 13, lineHeight: 18 },
-  error: { color: colors.danger, fontWeight: "700" },
+  help: { ...typography.body, color: colors.muted },
+  error: { ...typography.metadata, color: colors.danger },
   section: { gap: 10 },
-  sectionTitle: { color: colors.text, fontSize: 19, fontWeight: "900" },
+  sectionTitle: { ...typography.sectionTitle, color: colors.text },
   card: { backgroundColor: "rgba(91, 169, 188, 0.18)", borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 16, gap: 10 },
-  cardTitle: { color: colors.text, fontSize: 15, fontWeight: "800" },
-  meta: { color: colors.muted, fontSize: 12 },
-  body: { color: colors.text, lineHeight: 20 },
+  cardTitle: { ...typography.cardTitleStrong, color: colors.text },
+  meta: { ...typography.metadata, color: colors.muted },
+  body: { ...typography.body, color: colors.text },
   row: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   action: { minHeight: 38, justifyContent: "center", alignItems: "center", borderRadius: 9, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: colors.mutedLight },
   action_neutral: { borderWidth: 1, borderColor: colors.border },
   action_positive: { backgroundColor: colors.success },
   action_warning: { backgroundColor: colors.warning },
   action_danger: { backgroundColor: colors.danger },
-  actionText: { color: colors.text, fontSize: 12, fontWeight: "800" },
+  actionText: { ...typography.button, color: colors.text },
   actionTextLight: { color: "#FFFFFF" },
   disabled: { opacity: 0.5 },
   empty: { color: colors.muted, padding: 16, backgroundColor: "rgba(91, 169, 188, 0.18)", borderRadius: 12 },

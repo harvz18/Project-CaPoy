@@ -1,5 +1,6 @@
 import Feather from "@expo/vector-icons/Feather";
-import { Pressable, StyleSheet } from "react-native";
+import { StyleSheet } from "react-native";
+import { MotionPressable as Pressable } from "./MotionPressable";
 import { colors, glass, shadows } from "../theme";
 
 export function HelpShortcut({ onPress }: { onPress: () => void }) {
@@ -27,5 +28,5 @@ const styles = StyleSheet.create({
     borderColor: colors.borderHighlight,
     ...shadows.resting
   },
-  pressed: { opacity: 0.82, transform: [{ scale: 0.97 }] }
+  pressed: { opacity: 0.82 }
 });

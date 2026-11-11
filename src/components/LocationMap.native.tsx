@@ -1,10 +1,12 @@
 import Constants from "expo-constants";
 import type { Feature, LineString, Polygon } from "geojson";
 import { useEffect, useMemo, useRef } from "react";
-import { NativeModules, StyleSheet, Text, View } from "react-native";
+import { NativeModules, StyleSheet, View } from "react-native";
 import { WebView } from "react-native-webview";
 import type { CameraRef, StyleSpecification } from "@maplibre/maplibre-react-native";
 import { LocationMapProps, LocationMarker, MapCoordinate } from "./LocationMap.types";
+import { typography } from "../typography";
+import { AppText as Text } from "./AppText";
 
 const bacolodCenter: MapCoordinate = { latitude: 10.6765, longitude: 122.9509 };
 const osmAttribution = "© OpenStreetMap contributors";
@@ -318,7 +320,7 @@ const styles = StyleSheet.create({
   container: { borderColor: "rgba(207, 249, 255, 0.28)", borderRadius: 12, borderWidth: 1, overflow: "hidden", position: "relative", width: "100%" },
   map: { flex: 1 },
   pin: { borderColor: "#FFFFFF", borderRadius: 14, borderWidth: 3, elevation: 4, height: 28, shadowColor: "#001722", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 3, width: 28 },
-  attribution: { backgroundColor: "rgba(91,169,188,0.18)", bottom: 0, color: "#BBD5DE", fontSize: 9, lineHeight: 13, paddingHorizontal: 4, position: "absolute", right: 0 },
+  attribution: { ...typography.overline, backgroundColor: "rgba(91,169,188,0.18)", bottom: 0, color: "#BBD5DE", paddingHorizontal: 4, position: "absolute", right: 0 },
   selectionHint: { backgroundColor: "rgba(3,35,52,0.94)", borderColor: "rgba(207, 249, 255, 0.28)", borderRadius: 999, borderWidth: 1, left: 16, paddingHorizontal: 12, paddingVertical: 8, position: "absolute", right: 16, top: 12 },
-  selectionHintText: { color: "#00C9B3", fontSize: 13, fontWeight: "700", textAlign: "center" }
+  selectionHintText: { ...typography.metadata, color: "#00C9B3", textAlign: "center" }
 });

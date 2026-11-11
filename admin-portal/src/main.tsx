@@ -213,8 +213,8 @@ function Login() {
               required
             />
           </label>
-          {error ? <p className="inline-error">{error}</p> : null}
-          <button className="button primary full" disabled={busy}>
+          {error ? <p aria-live="assertive" className="inline-error" role="alert">{error}</p> : null}
+          <button aria-busy={busy} className="button primary full" disabled={busy}>
             {busy ? (
               <>
                 <LoaderCircle className="spin" size={17} /> Signing in
@@ -230,7 +230,7 @@ function Login() {
 }
 function LoadingScreen() {
   return (
-    <main className="auth-page">
+    <main aria-busy="true" aria-live="polite" className="auth-page">
       <LoaderCircle className="spin brand-icon" size={32} />
       <p>Restoring secure session…</p>
     </main>
@@ -653,7 +653,7 @@ function UsersPage({
             <tr key={user.id}>
               <td>
                 <div className="profile-cell">
-                  {user.profilePhotoUrl ? <img alt="" src={user.profilePhotoUrl} style={{ width: 34, height: 34, borderRadius: "50%", objectFit: "cover" }} /> : <span aria-hidden="true" style={{ alignItems: "center", background: "rgba(20,217,226,.14)", border: "1px solid rgba(181,255,249,.48)", borderRadius: "50%", color: "#7ff6e6", display: "inline-flex", fontSize: 12, fontWeight: 900, height: 34, justifyContent: "center", width: 34 }}>{(user.fullName || "U").charAt(0).toUpperCase()}</span>}
+                  {user.profilePhotoUrl ? <img alt="" src={user.profilePhotoUrl} style={{ width: 34, height: 34, borderRadius: "50%", objectFit: "cover" }} /> : <span aria-hidden="true" className="user-avatar-initial">{(user.fullName || "U").charAt(0).toUpperCase()}</span>}
                   <strong>{user.fullName || "Unnamed account"}</strong>
                 </div>
                 {user.businessName ? <small>{user.businessName}</small> : null}
@@ -1678,6 +1678,7 @@ function ModalActions({
         Cancel
       </button>
       <button
+        aria-busy={busy}
         className={`button ${danger ? "danger" : "primary"}`}
         disabled={busy}
       >
@@ -1816,7 +1817,7 @@ function Badge({ value }: { value: string }) {
 }
 function EmptyState({ title }: { title: string }) {
   return (
-    <div className="empty">
+    <div aria-live="polite" className="empty">
       <Bell size={22} />
       <p>{title}</p>
     </div>
@@ -1830,7 +1831,7 @@ function ErrorState({
   retry?: () => void;
 }) {
   return (
-    <div className="error-state">
+    <div aria-live="assertive" className="error-state" role="alert">
       <ShieldAlert size={20} />
       <div>
         <strong>Data unavailable</strong>
@@ -1846,14 +1847,14 @@ function ErrorState({
 }
 function TableLoading() {
   return (
-    <div className="table-loading">
+    <div aria-busy="true" aria-live="polite" className="table-loading">
       <LoaderCircle className="spin" size={20} /> Loading live data…
     </div>
   );
 }
 function SkeletonCards() {
   return (
-    <section className="metric-grid">
+    <section aria-busy="true" aria-label="Loading dashboard metrics" className="metric-grid">
       {[1, 2, 3, 4].map((key) => (
         <div className="skeleton metric" key={key} />
       ))}
@@ -1868,7 +1869,7 @@ function NoticeBanner({
   onClose: () => void;
 }) {
   return (
-    <div className={`notice ${notice.tone}`}>
+    <div aria-live={notice.tone === "error" ? "assertive" : "polite"} className={`notice ${notice.tone}`} role={notice.tone === "error" ? "alert" : "status"}>
       <span>
         {notice.tone === "success" ? (
           <CheckCircle2 size={18} />

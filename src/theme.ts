@@ -81,15 +81,6 @@ export const radii = {
   pill: 999
 };
 
-export const typography = {
-  title: 30,
-  heading: 22,
-  subheading: 17,
-  body: 16,
-  small: 14,
-  tiny: 12
-};
-
 export const shadows = {
   resting: {
     shadowColor: "#001722",
@@ -115,8 +106,45 @@ export const shadows = {
 } as const;
 
 export const motion = {
+  duration: {
+    instant: 0,
+    feedback: 120,
+    quick: 160,
+    standard: 220,
+    navigation: 280,
+    overlay: 280,
+    overlayExit: 180,
+    emphasis: 340
+  },
+  distance: {
+    small: 8,
+    medium: 16,
+    overlay: 24
+  },
+  scale: {
+    pressed: 0.98,
+    subtlePressed: 0.99,
+    modalEnter: 0.985
+  },
+  stagger: {
+    step: 30,
+    maxTotal: 150
+  },
+  easing: {
+    standard: [0.2, 0, 0, 1] as const,
+    enter: [0, 0, 0.2, 1] as const,
+    exit: [0.4, 0, 1, 1] as const
+  },
+  spring: {
+    damping: 20,
+    stiffness: 260,
+    mass: 0.8
+  },
+  // Backward-compatible aliases for existing components during migration.
   fast: 140,
   standard: 220,
   deliberate: 320,
-  pressedScale: 0.985
+  pressedScale: 0.98
 } as const;
+
+export { interFonts, typography } from "./typography";
