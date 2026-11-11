@@ -1,9 +1,12 @@
 import { Href, useRouter } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
+import { MotionPressable as Pressable } from "../src/components/MotionPressable";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useApp } from "../src/context/AppContext";
 import { screenPalette } from "../src/theme";
 import { PublicRole } from "../src/types";
+import { typography } from "../src/typography";
+import { AppText as Text } from "../src/components/AppText";
 
 const palette = screenPalette;
 
@@ -138,15 +141,12 @@ const styles = StyleSheet.create({
     justifyContent: "center"
   },
   iconButtonText: {
-    color: palette.primary,
-    fontSize: 24,
-    fontWeight: "800"
+    ...typography.button,
+    color: palette.primary
   },
   brand: {
-    color: palette.primary,
-    fontSize: 24,
-    lineHeight: 32,
-    fontWeight: "800"
+    ...typography.screenTitle,
+    color: palette.primary
   },
   avatar: {
     width: 40,
@@ -159,8 +159,8 @@ const styles = StyleSheet.create({
     borderColor: palette.outlineVariant
   },
   avatarText: {
-    color: palette.muted,
-    fontWeight: "900"
+    ...typography.bodyMedium,
+    color: palette.muted
   },
   content: {
     flexGrow: 1,
@@ -176,24 +176,19 @@ const styles = StyleSheet.create({
     marginBottom: 36
   },
   title: {
+    ...typography.sectionTitle,
     color: palette.textStrong,
-    fontSize: 20,
-    lineHeight: 28,
-    fontWeight: "700",
     textAlign: "center"
   },
   subtitle: {
+    ...typography.cardTitle,
     color: "#BBD5DE",
-    fontSize: 16,
-    lineHeight: 24,
     textAlign: "center",
     marginTop: 8
   },
   errorText: {
+    ...typography.metadata,
     color: "#FF7D8C",
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: "700",
     textAlign: "center",
     marginTop: 12
   },
@@ -232,25 +227,19 @@ const styles = StyleSheet.create({
     marginBottom: 16
   },
   roleIconText: {
-    fontSize: 24,
-    fontWeight: "900"
+    ...typography.heroNumber
   },
   roleTitle: {
-    fontSize: 20,
-    lineHeight: 28,
-    fontWeight: "700",
+    ...typography.sectionTitle,
     marginBottom: 4
   },
   roleDescription: {
-    color: palette.muted,
-    fontSize: 16,
-    lineHeight: 24
+    ...typography.body,
+    color: palette.muted
   },
   cardAction: {
-    color: palette.outline,
-    fontSize: 12,
-    lineHeight: 18,
-    fontWeight: "900"
+    ...typography.button,
+    color: palette.outline
   },
   roleButton: {
     minHeight: 48,
@@ -260,19 +249,16 @@ const styles = StyleSheet.create({
     marginTop: 24
   },
   roleButtonText: {
-    color: palette.white,
-    fontSize: 14,
-    lineHeight: 20,
-    fontWeight: "800"
+    ...typography.button,
+    color: palette.white
   },
   termsBlock: {
     marginTop: 44,
     alignItems: "center"
   },
   termsText: {
+    ...typography.metadata,
     color: palette.outline,
-    fontSize: 12,
-    lineHeight: 16,
     marginBottom: 16,
     textAlign: "center"
   },
@@ -283,14 +269,11 @@ const styles = StyleSheet.create({
     gap: 24
   },
   linkText: {
+    ...typography.button,
     color: palette.primary,
-    fontSize: 14,
-    lineHeight: 20,
-    fontWeight: "800",
     textDecorationLine: "underline"
   },
   pressed: {
-    opacity: 0.78,
-    transform: [{ scale: 0.99 }]
+    opacity: 0.78
   }
 });

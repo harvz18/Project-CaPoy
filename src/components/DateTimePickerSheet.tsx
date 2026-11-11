@@ -1,7 +1,11 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useEffect, useMemo, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
+import { MotionModal as Modal } from "./MotionModal";
+import { MotionPressable as Pressable } from "./MotionPressable";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { typography } from "../typography";
+import { AppText as Text } from "./AppText";
 
 type PickerMode = "date" | "datetime";
 
@@ -79,7 +83,7 @@ export function DateTimePickerSheet({
 
   return (
     <Modal animationType="slide" transparent visible={visible} onRequestClose={onClose}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Close date picker" style={styles.backdrop} onPress={onClose}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Close date picker" motionDisabled style={styles.backdrop} onPress={onClose}>
         <Pressable accessibilityRole="none" onPress={() => undefined} style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <View style={styles.handle} />
           <View style={styles.header}>
@@ -320,46 +324,46 @@ const styles = StyleSheet.create({
   handle: { width: 42, height: 4, borderRadius: 2, alignSelf: "center", backgroundColor: "rgba(207, 249, 255, 0.32)", marginBottom: 10 },
   header: { minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   headerCopy: { flex: 1 },
-  eyebrow: { color: "#F4C95D", fontSize: 10, lineHeight: 14, fontWeight: "900", letterSpacing: 1.1 },
-  title: { color: "#F5FCFF", fontSize: 21, lineHeight: 28, fontWeight: "900" },
+  eyebrow: { ...typography.overline, color: "#F4C95D", letterSpacing: 1.1 },
+  title: { ...typography.sectionTitle, color: "#F5FCFF" },
   closeButton: { minHeight: 40, paddingHorizontal: 12, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  closeText: { color: "#00C9B3", fontSize: 13, fontWeight: "900" },
+  closeText: { ...typography.bodyMedium, color: "#00C9B3" },
   content: { gap: 12, paddingVertical: 12 },
   summaryCard: { borderRadius: 14, padding: 14, backgroundColor: "#00C9B3" },
-  summaryLabel: { color: "#A8EDFF", fontSize: 11, lineHeight: 15, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.7 },
-  summaryValue: { color: "#FFFFFF", fontSize: 18, lineHeight: 25, fontWeight: "900", marginTop: 3 },
+  summaryLabel: { ...typography.fieldLabel, color: "#A8EDFF", letterSpacing: 0.7 },
+  summaryValue: { ...typography.sectionTitleSmall, color: "#FFFFFF", marginTop: 3 },
   calendarCard: { padding: 10, borderRadius: 16, borderWidth: 1, borderColor: "rgba(207, 249, 255, 0.28)", backgroundColor: "rgba(91, 169, 188, 0.18)" },
   monthHeader: { minHeight: 42, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   monthButton: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(20, 217, 226, 0.12)" },
-  monthButtonText: { color: "#00C9B3", fontSize: 28, lineHeight: 30, fontWeight: "700" },
-  monthTitle: { color: "#F5FCFF", fontSize: 16, lineHeight: 22, fontWeight: "900" },
+  monthButtonText: { ...typography.button, color: "#00C9B3" },
+  monthTitle: { ...typography.cardTitleStrong, color: "#F5FCFF" },
   calendarGrid: { flexDirection: "row", flexWrap: "wrap", paddingTop: 5 },
-  dayName: { width: "14.2857%", paddingVertical: 7, color: "#92B2C0", fontSize: 11, lineHeight: 14, fontWeight: "900", textAlign: "center" },
+  dayName: { ...typography.badge, width: "14.2857%", paddingVertical: 7, color: "#92B2C0", textAlign: "center" },
   dayCell: { width: "14.2857%", aspectRatio: 1, padding: 2 },
   dayButton: { flex: 1, borderRadius: 999, alignItems: "center", justifyContent: "center" },
   todayButton: { borderWidth: 1, borderColor: "#00C9B3" },
   selectedDay: { borderColor: "#00C9B3", backgroundColor: "#00C9B3" },
-  dayText: { color: "#F5FCFF", fontSize: 13, fontWeight: "800" },
-  selectedDayText: { color: "#F5FCFF", fontWeight: "900" },
+  dayText: { ...typography.bodyMedium, color: "#F5FCFF" },
+  selectedDayText: { ...typography.bodyMedium, color: "#F5FCFF" },
   timeCard: { padding: 14, borderRadius: 16, borderWidth: 1, borderColor: "rgba(207, 249, 255, 0.28)", backgroundColor: "rgba(91, 169, 188, 0.18)", gap: 12 },
-  sectionTitle: { color: "#F5FCFF", fontSize: 15, lineHeight: 21, fontWeight: "900" },
-  sectionHelper: { color: "#BBD5DE", fontSize: 12, lineHeight: 16, marginTop: 2 },
+  sectionTitle: { ...typography.sectionTitleSmall, color: "#F5FCFF" },
+  sectionHelper: { ...typography.metadata, color: "#BBD5DE", marginTop: 2 },
   timeControls: { flexDirection: "row", alignItems: "flex-end", justifyContent: "center", gap: 7 },
   timeGroup: { flex: 1, gap: 5 },
-  timeLabel: { color: "#92B2C0", fontSize: 10, lineHeight: 14, fontWeight: "900", textAlign: "center", textTransform: "uppercase" },
+  timeLabel: { ...typography.fieldLabel, color: "#92B2C0", textAlign: "center" },
   stepper: { minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 10, borderWidth: 1, borderColor: "rgba(207, 249, 255, 0.28)", overflow: "hidden" },
   stepButton: { width: 34, alignSelf: "stretch", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(20, 217, 226, 0.12)" },
-  stepButtonText: { color: "#00C9B3", fontSize: 20, lineHeight: 24, fontWeight: "900" },
-  timeValue: { minWidth: 34, color: "#F5FCFF", fontSize: 17, fontWeight: "900", textAlign: "center" },
-  timeColon: { color: "#F5FCFF", fontSize: 22, lineHeight: 44, fontWeight: "900" },
+  stepButtonText: { ...typography.button, color: "#00C9B3" },
+  timeValue: { ...typography.cardTitleStrong, minWidth: 34, color: "#F5FCFF", textAlign: "center" },
+  timeColon: { ...typography.screenTitle, color: "#F5FCFF" },
   periodGroup: { width: 70, gap: 5 },
   periodButton: { minHeight: 46, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "#00C9B3" },
-  periodText: { color: "#FFFFFF", fontSize: 15, fontWeight: "900" },
-  validationText: { color: "#FF7D8C", fontSize: 12, lineHeight: 16, fontWeight: "800" },
+  periodText: { ...typography.bodyMedium, color: "#FFFFFF" },
+  validationText: { ...typography.badge, color: "#FF7D8C" },
   actions: { flexDirection: "row", gap: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: "rgba(207, 249, 255, 0.28)" },
   cancelButton: { minHeight: 48, paddingHorizontal: 18, borderRadius: 12, borderWidth: 1, borderColor: "#00C9B3", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(91, 169, 188, 0.18)" },
-  cancelText: { color: "#00C9B3", fontSize: 14, fontWeight: "900" },
+  cancelText: { ...typography.button, color: "#00C9B3" },
   confirmButton: { minHeight: 48, flex: 1, paddingHorizontal: 16, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "#00C9B3" },
-  confirmText: { color: "#FFFFFF", fontSize: 14, fontWeight: "900" },
+  confirmText: { ...typography.button, color: "#FFFFFF" },
   disabled: { opacity: 0.38 }
 });

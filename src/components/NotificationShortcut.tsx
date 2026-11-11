@@ -1,5 +1,8 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { MotionPressable as Pressable } from "./MotionPressable";
 import { colors, glass, shadows } from "../theme";
+import { typography } from "../typography";
+import { AppText as Text } from "./AppText";
 
 export function NotificationShortcut({ onPress, unreadCount }: { onPress: () => void; unreadCount: number }) {
   const label = unreadCount ? `Notifications, ${unreadCount} unread` : "Notifications";
@@ -73,6 +76,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#FFFFFF"
   },
-  badgeText: { color: "#FFFFFF", fontSize: 10, fontWeight: "900" },
-  pressed: { opacity: 0.82, transform: [{ scale: 0.97 }] }
+  badgeText: { ...typography.badge, color: "#FFFFFF" },
+  pressed: { opacity: 0.82 }
 });

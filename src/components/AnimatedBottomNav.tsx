@@ -1,10 +1,14 @@
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Animated, Easing, LayoutChangeEvent, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, LayoutChangeEvent, Platform, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomNavIcon } from "./BottomNavIcon";
 import { usePrefersReducedMotion } from "./RouteTransition";
+import { motionDuration, motionEasing } from "../motion";
 import { colors, glass, motion, shadows } from "../theme";
+import { typography } from "../typography";
+import { AppText as Text } from "./AppText";
+import { MotionPressable } from "./MotionPressable";
 
 export type BottomNavKey = "home" | "jobs" | "chat" | "profile";
 
@@ -13,7 +17,7 @@ const INACTIVE_COLOR = colors.text;
 const TAB_COUNT = 4;
 const NAV_HORIZONTAL_PADDING = 8;
 const MARKER_MARGIN = 6;
-const NAV_TRANSITION_DURATION_MS = motion.standard;
+const NAV_TRANSITION_DURATION_MS = motion.duration.quick;
 let lastActiveIndex: number | undefined;
 
 export function AnimatedBottomNav({ active, role }: { active: BottomNavKey; role?: string }) {
@@ -28,9 +32,9 @@ export function AnimatedBottomNav({ active, role }: { active: BottomNavKey; role
   useEffect(() => {
     const animation = Animated.timing(markerPosition, {
       toValue: activeIndex,
-      duration: reduceMotion ? 0 : NAV_TRANSITION_DURATION_MS,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false
+      duration: motionDuration(NAV_TRANSITION_DURATION_MS, reduceMotion),
+      easing: motionEasing.standard,
+      useNativeDriver: Platform.OS !== "web"
     });
     animation.start();
     lastActiveIndex = activeIndex;
@@ -72,19 +76,21 @@ export function AnimatedBottomNav({ active, role }: { active: BottomNavKey; role
             ? role === "client" ? "/post-task" : "/jobs"
             : item.route;
         return (
-          <Pressable
+          <MotionPressable
             accessibilityLabel={item.label}
-            accessibilityRole="button"
+            accessibilityHint={selected ? `${item.label} tab, currently selected` : `Open ${item.label}`}
+            accessibilityRole="tab"
             accessibilityState={{ selected }}
             key={item.key}
             onPress={() => {
               if (!selected) router.push(route as never);
             }}
+            motionScale={motion.scale.subtlePressed}
             style={({ pressed }) => [styles.navItem, pressed && styles.pressed]}
           >
             <BottomNavIcon name={item.key} color={selected ? ACTIVE_COLOR : INACTIVE_COLOR} />
             <Text style={[styles.navLabel, selected && styles.navLabelActive]}>{item.label}</Text>
-          </Pressable>
+          </MotionPressable>
         );
       })}
     </View>
@@ -138,7 +144,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 4
   },
-  navLabel: { color: INACTIVE_COLOR, fontSize: 12, lineHeight: 16, fontWeight: "600" },
-  navLabelActive: { color: ACTIVE_COLOR, fontWeight: "900" },
-  pressed: { opacity: 0.82, transform: [{ scale: 0.985 }] }
+  navLabel: { ...typography.bottomNav, color: INACTIVE_COLOR },
+  navLabelActive: { ...typography.bottomNav, color: ACTIVE_COLOR },
+  pressed: { opacity: 0.82 }
 });

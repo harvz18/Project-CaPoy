@@ -1,5 +1,7 @@
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { LocationMapProps } from "./LocationMap.types";
+import { typography } from "../typography";
+import { AppText as Text } from "./AppText";
 
 export type { LocationMapProps, LocationMarker, MapCoordinate } from "./LocationMap.types";
 
@@ -16,7 +18,7 @@ export default function LocationMap({ center, markers = [], radiusMeters, height
 
 const styles = StyleSheet.create({
   container: { alignItems: "center", backgroundColor: "rgba(86, 159, 178, 0.16)", borderRadius: 18, justifyContent: "center", padding: 20 },
-  title: { color: "#00C9B3", fontSize: 15, fontWeight: "800", textAlign: "center" },
-  copy: { color: "#BBD5DE", fontSize: 13, marginTop: 6, textAlign: "center" },
-  meta: { color: "#BBD5DE", fontSize: 12, marginTop: 4 }
+  title: { ...typography.bodyMedium, color: "#00C9B3", textAlign: "center" },
+  copy: { ...typography.body, color: "#BBD5DE", marginTop: 6, textAlign: "center" },
+  meta: { ...typography.metadata, color: "#BBD5DE", marginTop: 4 }
 });

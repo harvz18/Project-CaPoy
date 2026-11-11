@@ -2,6 +2,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useEffect, useMemo, useRef } from "react";
 import { LocationMapProps, MapCoordinate } from "./LocationMap.types";
+import { typography } from "../typography";
 
 export type { LocationMapProps, LocationMarker, MapCoordinate } from "./LocationMap.types";
 
@@ -193,13 +194,11 @@ export default function LocationMap({
       {interactive && !center ? (
         <div
           style={{
+            ...typography.bodyMedium,
             background: "rgba(3,35,52,.94)",
             border: "1px solid rgba(207, 249, 255, 0.32)",
             borderRadius: 999,
             color: "#00C9B3",
-            fontFamily: "system-ui, sans-serif",
-            fontSize: 13,
-            fontWeight: 700,
             left: "50%",
             padding: "8px 12px",
             pointerEvents: "none",

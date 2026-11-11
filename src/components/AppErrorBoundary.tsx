@@ -1,7 +1,10 @@
 import React, { ErrorInfo, PropsWithChildren } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { MotionPressable as Pressable } from "./MotionPressable";
 import { supportContactLabel } from "../config/support";
 import { colors, glass, shadows } from "../theme";
+import { typography } from "../typography";
+import { AppText as Text } from "./AppText";
 
 type State = { failed: boolean };
 
@@ -34,9 +37,9 @@ export class AppErrorBoundary extends React.Component<PropsWithChildren, State> 
 
 const styles = StyleSheet.create({
   screen: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 12, backgroundColor: glass.solid, ...shadows.floating },
-  title: { color: colors.text, fontSize: 22, lineHeight: 30, fontWeight: "900", textAlign: "center" },
-  message: { maxWidth: 460, color: colors.muted, fontSize: 15, lineHeight: 22, textAlign: "center" },
-  support: { color: colors.primary, fontSize: 14, lineHeight: 20, fontWeight: "800", textAlign: "center" },
+  title: { ...typography.screenTitle, color: colors.text, textAlign: "center" },
+  message: { ...typography.body, maxWidth: 460, color: colors.muted, textAlign: "center" },
+  support: { ...typography.body, color: colors.primary, textAlign: "center" },
   button: { minHeight: 48, borderRadius: 14, paddingHorizontal: 24, alignItems: "center", justifyContent: "center", backgroundColor: colors.primary, ...shadows.raised },
-  buttonText: { color: "#FFFFFF", fontSize: 14, lineHeight: 20, fontWeight: "900" }
+  buttonText: { ...typography.button, color: "#FFFFFF" }
 });

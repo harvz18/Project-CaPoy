@@ -1,5 +1,6 @@
 import { StyleSheet } from "react-native";
-import { colors, glass, radii, shadows, spacing, typography } from "./theme";
+import { colors, glass, radii, shadows, spacing } from "./theme";
+import { typography } from "./typography";
 
 export const styles = StyleSheet.create({
   screen: {
@@ -24,32 +25,25 @@ export const styles = StyleSheet.create({
     padding: spacing.lg
   },
   title: {
-    fontSize: typography.title,
-    lineHeight: 36,
-    fontWeight: "800",
+    ...typography.bodyMedium,
     color: colors.text,
     marginBottom: spacing.sm
   },
   heading: {
-    fontSize: typography.heading,
-    lineHeight: 28,
-    fontWeight: "800",
+    ...typography.sectionTitle,
     color: colors.text,
     marginBottom: spacing.md
   },
   heroTitle: {
-    fontSize: 36,
-    lineHeight: 42,
-    fontWeight: "900",
+    ...typography.screenTitle,
     color: colors.text,
     textAlign: "center",
     marginBottom: spacing.sm
   },
   heroSubtitle: {
-    fontSize: typography.body,
+    ...typography.body,
     color: colors.muted,
-    textAlign: "center",
-    lineHeight: 23
+    textAlign: "center"
   },
   sectionHeader: {
     flexDirection: "row",
@@ -59,36 +53,30 @@ export const styles = StyleSheet.create({
     marginBottom: spacing.md
   },
   subheading: {
-    fontSize: typography.subheading,
-    fontWeight: "700",
+    ...typography.sectionTitle,
     color: colors.text
   },
   text: {
-    fontSize: typography.body,
-    lineHeight: 23,
+    ...typography.body,
     color: colors.text,
     marginBottom: spacing.sm
   },
   muted: {
-    fontSize: typography.small,
-    lineHeight: 20,
+    ...typography.metadata,
     color: colors.muted,
     marginBottom: spacing.sm
   },
   errorText: {
-    fontSize: typography.small,
-    lineHeight: 20,
+    ...typography.metadata,
     color: colors.danger,
-    marginBottom: spacing.sm,
-    fontWeight: "700"
+    marginBottom: spacing.sm
   },
   statNumber: {
-    fontSize: 24,
-    fontWeight: "800",
+    ...typography.heroNumber,
     color: colors.primary
   },
   statLabel: {
-    fontSize: typography.tiny,
+    ...typography.fieldLabel,
     color: colors.muted,
     marginTop: spacing.xs
   },
@@ -96,18 +84,17 @@ export const styles = StyleSheet.create({
     marginBottom: spacing.md
   },
   inputLabel: {
-    fontSize: typography.small,
-    fontWeight: "700",
+    ...typography.inputText,
     color: colors.text,
     marginBottom: spacing.xs
   },
   input: {
+    ...typography.inputText,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radii.md,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
-    fontSize: typography.body,
     color: colors.text,
     backgroundColor: "rgba(3, 35, 52, 0.62)",
     ...shadows.resting
@@ -117,6 +104,23 @@ export const styles = StyleSheet.create({
     borderWidth: 2,
     shadowColor: colors.focus,
     shadowOpacity: 0.10
+  },
+  inputError: {
+    borderColor: colors.danger
+  },
+  inputErrorText: {
+    ...typography.metadata,
+    color: colors.danger,
+    marginTop: spacing.xs
+  },
+  inputHelperText: {
+    ...typography.metadata,
+    color: colors.muted,
+    marginTop: spacing.xs
+  },
+  requiredMark: {
+    ...typography.inputText,
+    color: colors.danger
   },
   inputMultiline: {
     minHeight: 94,
@@ -183,9 +187,7 @@ export const styles = StyleSheet.create({
     backgroundColor: glass.standard
   },
   linkText: {
-    fontSize: typography.body,
-    lineHeight: 22,
-    fontWeight: "800",
+    ...typography.button,
     color: colors.text
   },
   appButton: {
@@ -225,10 +227,15 @@ export const styles = StyleSheet.create({
     opacity: 0.55
   },
   appButtonText: {
+    ...typography.button,
     color: colors.white,
-    fontSize: typography.body,
-    fontWeight: "800",
     textAlign: "center"
+  },
+  appButtonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm
   },
   appButtonOutlineText: {
     color: colors.text
@@ -237,8 +244,10 @@ export const styles = StyleSheet.create({
     color: colors.text
   },
   pressed: {
-    opacity: 0.88,
-    transform: [{ scale: 0.985 }]
+    opacity: 0.88
+  },
+  pressedOpacity: {
+    opacity: 0.88
   },
   badge: {
     alignSelf: "flex-start",
@@ -267,8 +276,7 @@ export const styles = StyleSheet.create({
     backgroundColor: colors.mutedLight
   },
   badgeText: {
-    fontSize: typography.tiny,
-    fontWeight: "800",
+    ...typography.badge,
     color: colors.text
   },
   emptyState: {
@@ -282,17 +290,28 @@ export const styles = StyleSheet.create({
     ...shadows.resting
   },
   emptyTitle: {
-    fontSize: typography.body,
-    fontWeight: "800",
+    ...typography.cardTitleStrong,
     color: colors.text,
     marginBottom: spacing.xs,
     textAlign: "center"
   },
   emptyMessage: {
-    fontSize: typography.small,
+    ...typography.metadata,
     color: colors.muted,
-    textAlign: "center",
-    lineHeight: 20
+    textAlign: "center"
+  },
+  emptyAction: {
+    minHeight: 48,
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radii.md,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primary
+  },
+  emptyActionText: {
+    ...typography.button,
+    color: colors.white
   },
   pill: {
     borderRadius: radii.pill,
@@ -302,9 +321,8 @@ export const styles = StyleSheet.create({
     alignSelf: "flex-start"
   },
   pillText: {
-    fontSize: typography.tiny,
-    color: colors.muted,
-    fontWeight: "700"
+    ...typography.badge,
+    color: colors.muted
   },
   messageMine: {
     alignSelf: "flex-end",
@@ -327,17 +345,15 @@ export const styles = StyleSheet.create({
     marginBottom: spacing.sm
   },
   messageText: {
-    fontSize: typography.body,
-    color: colors.text,
-    lineHeight: 22
+    ...typography.metadata,
+    color: colors.text
   },
   listContent: {
     paddingBottom: spacing.xl
   },
   footerNote: {
+    ...typography.metadata,
     marginTop: spacing.md,
-    color: colors.muted,
-    fontSize: typography.small,
-    lineHeight: 20
+    color: colors.muted
   }
 });
