@@ -5,6 +5,7 @@ services:
     name: tasklink-admin-api
     runtime: node
     plan: free
+    branch: tasklink
     rootDir: admin-api
     buildCommand: npm ci
     startCommand: npm start
