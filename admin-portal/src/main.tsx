@@ -9,6 +9,7 @@ import {
   Routes,
   useNavigate,
   useParams,
+  useSearchParams,
 } from "react-router-dom";
 import {
   BarChart3,
@@ -65,11 +66,21 @@ const PAGE_SIZE = 20;
 const DATE_FORMATTER = new Intl.DateTimeFormat("en-PH", {
   dateStyle: "medium",
   timeStyle: "short",
+  timeZone: "Asia/Manila",
 });
-function date(value?: string) {
-  if (!value) return "—";
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? "—" : DATE_FORMATTER.format(parsed);
+function date(value?: unknown) {
+  if (!value) return "Date unavailable";
+  const timestamp = value as { toDate?: () => Date; seconds?: number; nanoseconds?: number };
+  const parsed = value instanceof Date
+    ? value
+    : typeof value === "string" || typeof value === "number"
+      ? new Date(value)
+      : typeof timestamp.toDate === "function"
+        ? timestamp.toDate()
+        : typeof timestamp.seconds === "number"
+          ? new Date(timestamp.seconds * 1000 + Math.floor((timestamp.nanoseconds ?? 0) / 1_000_000))
+          : new Date(NaN);
+  return Number.isNaN(parsed.getTime()) ? "Date unavailable" : DATE_FORMATTER.format(parsed);
 }
 function errorText(error: unknown) {
   return error instanceof Error
@@ -259,7 +270,7 @@ const adminNavigation = [
   ["help", "Help", CircleHelp],
 ] as const;
 const superNavigation = [
-  ...adminNavigation,
+  ...adminNavigation.filter(([id]) => id !== "analytics"),
   ["reports", "Reports", Flag],
   ["audit", "Audit log", ShieldCheck],
 ] as const;
@@ -358,7 +369,7 @@ function Page({
   scope: Scope;
   notify: (notice: Notice) => void;
 }) {
-  if (section === "dashboard") return <Dashboard />;
+  if (section === "dashboard") return <Dashboard scope={scope} />;
   if (section === "users") return <UsersPage scope={scope} notify={notify} />;
   if (section === "tasks") return <TasksPage />;
   if (section === "applications") return <ApplicationsPage />;
@@ -372,7 +383,8 @@ function Page({
   return <Navigate to={`/${scope}/dashboard`} replace />;
 }
 
-function Dashboard() {
+function Dashboard({ scope }: { scope: Scope }) {
+  const navigate = useNavigate();
   const [counts, setCounts] = useState<BasicDashboardCounts | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -412,27 +424,31 @@ function Dashboard() {
       {counts ? (
         <>
           <section className="metric-grid">
-            <Metric label="Total users" value={counts.users} icon={<Users />} />
+            <Metric label="Total users" value={counts.users} icon={<Users />} onClick={() => navigate(`/${scope}/users`)} />
             <Metric
               label="Employers"
               value={counts.employers}
               icon={<Users />}
+              onClick={() => navigate(`/${scope}/users?role=client`)}
             />
-            <Metric label="Taskers" value={counts.taskers} icon={<Users />} />
+            <Metric label="Taskers" value={counts.taskers} icon={<Users />} onClick={() => navigate(`/${scope}/users?role=worker`)} />
             <Metric
               label="Total tasks"
               value={counts.tasks}
               icon={<ListChecks />}
+              onClick={() => navigate(`/${scope}/tasks`)}
             />
             <Metric
               label="Active tasks"
               value={counts.activeTasks}
               icon={<ListChecks />}
+              onClick={() => navigate(`/${scope}/tasks?status=Finding%20Workers`)}
             />
             <Metric
               label="Completed tasks"
               value={counts.completedTasks}
               icon={<CheckCircle2 />}
+              onClick={() => navigate(`/${scope}/tasks?status=Finished`)}
             />
             <Metric
               label="Payment records"
@@ -448,6 +464,7 @@ function Dashboard() {
               label="Pending verification"
               value={counts.pendingVerifications}
               icon={<ClipboardCheck />}
+              onClick={() => navigate(`/${scope}/verifications`)}
             />
           </section>
           <section className="dashboard-grid">
@@ -579,8 +596,9 @@ function UsersPage({
   notify: (notice: Notice) => void;
 }) {
   const page = usePaged<Profile>("publicProfiles", "fullName");
+  const [searchParams] = useSearchParams();
   const [search, setSearch] = useState("");
-  const [role, setRole] = useState("all");
+  const [role, setRole] = useState(() => searchParams.get("role") === "client" || searchParams.get("role") === "worker" ? searchParams.get("role") as string : "all");
   const [modal, setModal] = useState<{
     user: Profile;
     action: "suspend" | "active" | "name";
@@ -592,6 +610,10 @@ function UsersPage({
         .toLowerCase()
         .includes(search.toLowerCase()),
   );
+  useEffect(() => {
+    const requestedRole = searchParams.get("role");
+    setRole(requestedRole === "client" || requestedRole === "worker" ? requestedRole : "all");
+  }, [searchParams]);
   return (
     <div className="page-stack">
       <div className="page-heading">
@@ -634,7 +656,7 @@ function UsersPage({
                   {user.profilePhotoUrl ? <img alt="" src={user.profilePhotoUrl} style={{ width: 34, height: 34, borderRadius: "50%", objectFit: "cover" }} /> : <span aria-hidden="true" style={{ alignItems: "center", background: "#e5f4f0", borderRadius: "50%", color: "#005d56", display: "inline-flex", fontSize: 12, fontWeight: 900, height: 34, justifyContent: "center", width: 34 }}>{(user.fullName || "U").charAt(0).toUpperCase()}</span>}
                   <strong>{user.fullName || "Unnamed account"}</strong>
                 </div>
-                <small>{user.businessName || user.id}</small>
+                {user.businessName ? <small>{user.businessName}</small> : null}
               </td>
               <td>
                 <Badge value={roleLabel(user.role)} />
@@ -697,8 +719,9 @@ function UsersPage({
 
 function TasksPage() {
   const page = usePaged<Task>("tasks", "createdAt");
+  const [searchParams] = useSearchParams();
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("all");
+  const [status, setStatus] = useState(() => searchParams.get("status") ?? "all");
   const employers = useRecordLookup<Profile>(
     page.items.map((task) => task.clientId || ""),
     loadProfilesById,
@@ -710,6 +733,9 @@ function TasksPage() {
         .toLowerCase()
         .includes(search.toLowerCase()),
   );
+  useEffect(() => {
+    setStatus(searchParams.get("status") ?? "all");
+  }, [searchParams]);
   return (
     <div className="page-stack">
       <div className="page-heading">
@@ -1144,6 +1170,14 @@ function FeedbackPage() {
   const filtered = page.items.filter(
     (rating) => score === "all" || String(rating.score) === score,
   );
+  const profiles = useRecordLookup<Profile>(
+    filtered.map((rating) => rating.targetUserId || ""),
+    loadProfilesById,
+  );
+  const tasks = useRecordLookup<Task>(
+    filtered.map((rating) => rating.taskId || ""),
+    loadTasksById,
+  );
   return (
     <div className="page-stack">
       <div className="page-heading">
@@ -1164,7 +1198,7 @@ function FeedbackPage() {
         </select>
       </div>
       <Panel title="Feedback">
-        <Table headers={["Rating", "Feedback", "Target", "Task", "Date"]}>
+        <Table headers={["Rating", "Feedback", "Target user", "Task title", "Date"]}>
           {filtered.map((rating) => (
             <tr key={rating.id}>
               <td>
@@ -1174,8 +1208,8 @@ function FeedbackPage() {
                 </span>
               </td>
               <td>{rating.feedback || "No written feedback"}</td>
-              <td>{rating.targetUserId || "—"}</td>
-              <td>{rating.taskId || "—"}</td>
+              <td>{rating.targetUserId ? profiles[rating.targetUserId]?.fullName || "User unavailable" : "User unavailable"}</td>
+              <td>{rating.taskId ? tasks[rating.taskId]?.title || "Task unavailable" : "Task unavailable"}</td>
               <td>{date(rating.createdAt)}</td>
             </tr>
           ))}
@@ -1193,7 +1227,7 @@ function FeedbackPage() {
 }
 
 function AnalyticsPage() {
-  return <Dashboard />;
+  return <Dashboard scope="admin" />;
 }
 
 function ReportsPage({ notify }: { notify: (notice: Notice) => void }) {
@@ -1683,18 +1717,21 @@ function Metric({
   label,
   value,
   icon,
+  onClick,
 }: {
   label: string;
   value: number;
   icon: ReactNode;
+  onClick?: () => void;
 }) {
-  return (
-    <article className="metric">
+  const contents = <>
       <span className="metric-icon">{icon}</span>
       <p>{label}</p>
       <strong>{value.toLocaleString()}</strong>
-    </article>
-  );
+    </>;
+  return onClick ? (
+    <button className="metric metric-link" onClick={onClick}>{contents}</button>
+  ) : <article className="metric">{contents}</article>;
 }
 function Table({
   headers,

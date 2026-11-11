@@ -27,12 +27,15 @@ export function sanitizeWholeNumberInput(value: string) {
 }
 
 export function sanitizeDurationInput(value: string, minimum = 1, maximum = 365) {
+  if (value.includes("-")) return "";
   const wholeNumber = sanitizeWholeNumberInput(value);
   if (!wholeNumber) return "";
 
   const parsed = Number(wholeNumber);
   if (!Number.isFinite(parsed)) return "";
-  return String(Math.min(maximum, Math.max(minimum, parsed)));
+  // Preserve a typed zero until final validation. This avoids resetting the
+  // field while someone replaces its value; task validation still rejects it.
+  return String(Math.min(maximum, parsed));
 }
 
 /**

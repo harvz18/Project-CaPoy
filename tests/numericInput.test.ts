@@ -8,10 +8,10 @@ import {
   sanitizeWholeNumberInput
 } from "../src/utils/numericInput";
 
-test("whole-number and duration inputs reject invalid characters and enforce duration limits", () => {
+test("whole-number and duration inputs reject invalid characters and retain an in-progress zero for final validation", () => {
   assert.equal(sanitizeWholeNumberInput("1a-2.3"), "123");
-  assert.equal(sanitizeDurationInput("-4"), "4");
-  assert.equal(sanitizeDurationInput("0"), "1");
+  assert.equal(sanitizeDurationInput("-4"), "");
+  assert.equal(sanitizeDurationInput("0"), "0");
   assert.equal(sanitizeDurationInput("999"), "365");
   assert.equal(sanitizeDurationInput(""), "");
 });

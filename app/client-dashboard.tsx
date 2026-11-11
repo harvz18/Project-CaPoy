@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AnimatedBottomNav } from "../src/components/AnimatedBottomNav";
 import { HelpShortcut } from "../src/components/HelpShortcut";
@@ -49,6 +49,8 @@ export default function ClientDashboardScreen() {
         initials={currentUser?.fullName?.[0] ?? "U"}
         onHelp={() => router.push("/help")}
         onNotifications={() => router.push("/notifications")}
+        onProfile={() => router.push("/profile")}
+        profilePhotoUrl={currentUser?.profilePhotoUrl}
         onPostTask={() => router.push("/post-task")}
         unreadCount={notifications.filter((notification) => notification.userId === currentUser?.id && !notification.readStatus).length}
       />
@@ -172,11 +174,13 @@ function getVerifiedWorkTotal(tasks: Task[]) {
     .toLocaleString("en-PH");
 }
 
-function DashboardHeader({ onPostTask, onHelp, onNotifications, initials, unreadCount }: {
+function DashboardHeader({ onPostTask, onHelp, onNotifications, onProfile, initials, profilePhotoUrl, unreadCount }: {
   onPostTask: () => void;
   onHelp: () => void;
   onNotifications: () => void;
+  onProfile: () => void;
   initials: string;
+  profilePhotoUrl?: string;
   unreadCount: number;
 }) {
   return (
@@ -190,9 +194,9 @@ function DashboardHeader({ onPostTask, onHelp, onNotifications, initials, unread
         </Pressable>
         <HelpShortcut onPress={onHelp} />
         <NotificationShortcut onPress={onNotifications} unreadCount={unreadCount} />
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{initials}</Text>
-        </View>
+        <Pressable accessibilityLabel="Open employer profile" accessibilityRole="button" onPress={onProfile} style={({ pressed }) => [styles.avatar, pressed && styles.pressed]}>
+          {profilePhotoUrl ? <Image source={{ uri: profilePhotoUrl }} style={styles.avatarImage} /> : <Text style={styles.avatarText}>{initials}</Text>}
+        </Pressable>
       </View>
     </View>
   );
@@ -313,9 +317,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: palette.secondaryContainer,
+    overflow: "hidden",
     borderWidth: 1,
     borderColor: palette.outlineVariant
   },
+  avatarImage: { width: "100%", height: "100%" },
   avatarText: { color: "#684000", fontWeight: "900" },
   content: { padding: 16, paddingBottom: 112, gap: 12 },
   heroGrid: { gap: 12 },

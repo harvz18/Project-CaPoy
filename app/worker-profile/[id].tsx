@@ -238,6 +238,7 @@ function StatBox({ label, value }: { label: string; value: string }) {
 }
 
 function ReviewCard({ initials, name, date, stars, text }: { initials: string; name: string; date: string; stars: number; text: string }) {
+  const score = Number.isFinite(stars) ? Math.min(5, Math.max(0, Math.round(stars))) : 0;
   return (
     <View style={styles.reviewCard}>
       <View style={styles.reviewTop}>
@@ -250,7 +251,7 @@ function ReviewCard({ initials, name, date, stars, text }: { initials: string; n
             <Text style={styles.reviewDate}>{date}</Text>
           </View>
         </View>
-        <Text style={styles.reviewStars}>{"*".repeat(stars)}</Text>
+        <Text accessibilityLabel={`${score} out of 5 stars`} style={styles.reviewStars}>{"★".repeat(score)}{"☆".repeat(5 - score)} <Text style={styles.reviewScore}>{score}/5</Text></Text>
       </View>
       <Text style={styles.reviewText}>{text}</Text>
     </View>
@@ -317,7 +318,8 @@ const styles = StyleSheet.create({
   reviewAvatarText: { color: "#2A1700", fontWeight: "900" },
   reviewName: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   reviewDate: { color: palette.muted, fontSize: 12, lineHeight: 16 },
-  reviewStars: { color: palette.secondary, fontSize: 14, fontWeight: "900" },
+  reviewStars: { color: palette.secondary, fontSize: 19, lineHeight: 24, fontWeight: "900" },
+  reviewScore: { color: palette.muted, fontSize: 12, fontWeight: "800" },
   reviewText: { color: palette.muted, fontSize: 16, lineHeight: 24 },
   coverageCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "rgba(189,201,198,0.35)", backgroundColor: palette.surfaceLow, gap: 12 },
   actionError: { color: "#BA1A1A", fontSize: 13, lineHeight: 18, fontWeight: "700", textAlign: "center" },

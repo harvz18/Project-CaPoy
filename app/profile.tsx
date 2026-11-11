@@ -91,6 +91,7 @@ export default function ProfileScreen() {
   const [locationMessage, setLocationMessage] = useState("");
   const [preferredRadiusKm, setPreferredRadiusKm] = useState(String(currentUser?.preferredRadiusKm ?? 5));
   const [skillDropdownOpen, setSkillDropdownOpen] = useState(false);
+  const [skillDraft, setSkillDraft] = useState<string[]>([]);
   const fullNameLocked = isIdentityLocked(currentUser);
   const profileRatings = ratings
     .filter((rating) => rating.targetUserId === currentUser?.id)
@@ -205,8 +206,25 @@ export default function ProfileScreen() {
     }
   }
 
+  function openSkillSelector() {
+    setSkillDraft(skills);
+    setSkillDropdownOpen(true);
+  }
+
   function toggleSkill(skill: string) {
-    setSkills((items) => (items.includes(skill) ? items.filter((item) => item !== skill) : [...items, skill]));
+    setSkillDraft((items) => (items.includes(skill) ? items.filter((item) => item !== skill) : [...items, skill]));
+  }
+
+  async function saveSkills() {
+    if (!currentUser) return;
+    try {
+      await updateProfile({ skills: skillDraft, capabilities: skillDraft });
+      setSkills(skillDraft);
+      setSkillDropdownOpen(false);
+      setUploadMessage("Capabilities saved.");
+    } catch (saveError) {
+      setUploadMessage(saveError instanceof Error ? saveError.message : "Unable to save capabilities.");
+    }
   }
 
   async function useDeviceLocation() {
@@ -381,13 +399,12 @@ export default function ProfileScreen() {
             <Text style={styles.sectionTitle}>Capabilities</Text>
             <View style={styles.skillRow}>
               {skills.map((skill) => (
-                <Pressable accessibilityLabel={`Remove ${skill}`} accessibilityRole="button" key={skill} onPress={() => toggleSkill(skill)} style={styles.skillChip}>
+                  <View key={skill} style={styles.skillChip}>
                   <Text style={styles.skillText}>{skill}</Text>
-                  <Feather accessibilityElementsHidden color={palette.primary} name="x" size={16} />
-                </Pressable>
+                  </View>
               ))}
             </View>
-            <Pressable accessibilityRole="button" onPress={() => setSkillDropdownOpen(true)} style={styles.dropdownButton}>
+            <Pressable accessibilityRole="button" onPress={openSkillSelector} style={styles.dropdownButton}>
               <Text style={styles.dropdownText}>Add or remove capabilities</Text>
               <Feather accessibilityElementsHidden color={palette.primary} name="chevron-down" size={20} />
             </Pressable>
@@ -403,25 +420,26 @@ export default function ProfileScreen() {
                   <Text style={styles.verificationBadgeText}>{currentUser?.verificationStatus ?? "Not Submitted"}</Text>
                 </View>
               </View>
-              <Field label="Years of Experience" value={yearsOfExperience} onChangeText={setYearsOfExperience} placeholder="e.g. 2 years" />
-              <Field
-                label="Experience Description"
-                value={experienceDescription}
-                onChangeText={setExperienceDescription}
-                placeholder="Describe your work experience"
-                multiline
-              />
+              {currentUser.role === "worker" ? <>
+                <Field label="Years of Experience" value={yearsOfExperience} onChangeText={setYearsOfExperience} placeholder="e.g. 2 years" />
+                <Field
+                  label="Experience Description"
+                  value={experienceDescription}
+                  onChangeText={setExperienceDescription}
+                  placeholder="Describe your work experience"
+                  multiline
+                />
+              </> : null}
               {FREE_WEB_DEMO ? (
-                <Text style={styles.helperText}>Document and profile-photo uploads are paused in the free web demo because Firebase Storage is not enabled. Verification is optional and does not block posting, applying, hiring, or completing a task.</Text>
-              ) : (
-                <>
-                  <UploadField
-                    disabled={uploadingField === "profile-photo"}
-                    label="Profile Photo"
-                    value={profilePhotoUrl}
-                    placeholder="Tap to upload profile photo"
-                    onSelect={uploadProfilePhoto}
-                  />
+                <Text style={styles.helperText}>Profile-photo and verification-document uploads are unavailable in this no-billing web deployment because Firebase Storage is not active. Existing saved photos remain visible; account and task features continue to work.</Text>
+              ) : <>
+                <UploadField
+                  disabled={uploadingField === "profile-photo"}
+                  label="Profile Photo"
+                  value={profilePhotoUrl}
+                  placeholder="Tap to upload profile photo"
+                  onSelect={uploadProfilePhoto}
+                />
                   <Field editable={!fullNameLocked} label="Valid ID Type" value={validIdType} onChangeText={(value) => {
                     setValidIdType(value);
                     setDocumentsChanged(true);
@@ -450,8 +468,7 @@ export default function ProfileScreen() {
                   <Text style={styles.helperText}>{fullNameLocked
                     ? "Your approved identity details are locked. Contact support if a correction is needed."
                     : "Submit a valid ID, medical certificate, and police clearance. Documents are private and available only to you and authorized administrators."}</Text>
-                </>
-              )}
+              </>}
               {uploadMessage ? <Text style={styles.locationMessage}>{uploadMessage}</Text> : null}
             </SettingsCard>
 
@@ -553,15 +570,24 @@ export default function ProfileScreen() {
           <View style={styles.dropdownMenu}>
             <Text style={styles.dropdownTitle}>Worker Capabilities</Text>
             {skillOptions.map((skill) => {
-              const selected = skills.includes(skill);
+              const selected = skillDraft.includes(skill);
               return (
-                <Pressable accessibilityRole="button" accessibilityState={{ selected }} key={skill} onPress={() => toggleSkill(skill)} style={styles.dropdownOption}>
+                <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: selected }} key={skill} onPress={() => toggleSkill(skill)} style={[styles.dropdownOption, selected && styles.dropdownOptionActive]}>
+                  <Feather accessibilityElementsHidden color={selected ? palette.primary : palette.outline} name={selected ? "check-square" : "square"} size={20} />
                   <Text style={[styles.dropdownOptionText, selected && styles.dropdownOptionSelected]}>
-                    {selected ? "Selected: " : ""}{skill}
+                    {skill}
                   </Text>
                 </Pressable>
               );
             })}
+            <View style={styles.capabilityActions}>
+              <Pressable accessibilityRole="button" onPress={() => setSkillDropdownOpen(false)} style={styles.capabilityCancelButton}>
+                <Text style={styles.capabilityCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" onPress={() => void saveSkills()} style={styles.capabilitySaveButton}>
+                <Text style={styles.capabilitySaveText}>Save capabilities</Text>
+              </Pressable>
+            </View>
           </View>
         </Pressable>
       </Modal>
@@ -715,6 +741,7 @@ function getUploadedFileName(value: string) {
 }
 
 function ReviewCard({ initials, name, date, stars, text }: { initials: string; name: string; date: string; stars: number; text: string }) {
+  const score = Number.isFinite(stars) ? Math.min(5, Math.max(0, Math.round(stars))) : 0;
   return (
     <View style={styles.reviewCard}>
       <View style={styles.reviewTop}>
@@ -727,7 +754,7 @@ function ReviewCard({ initials, name, date, stars, text }: { initials: string; n
             <Text style={styles.reviewDate}>{date}</Text>
           </View>
         </View>
-        <Text style={styles.reviewStars}>{"*".repeat(stars)}</Text>
+        <Text accessibilityLabel={`${score} out of 5 stars`} style={styles.reviewStars}>{"★".repeat(score)}{"☆".repeat(5 - score)} <Text style={styles.reviewScore}>{score}/5</Text></Text>
       </View>
       <Text style={styles.reviewText}>{text}</Text>
     </View>
@@ -862,7 +889,7 @@ const styles = StyleSheet.create({
   reviewAvatarText: { color: "#2A1700", fontWeight: "900" },
   reviewName: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   reviewDate: { color: palette.muted, fontSize: 12, lineHeight: 16 },
-  reviewStars: { color: palette.secondary, fontSize: 14, fontWeight: "900" },
+  reviewStars: { color: palette.secondary, fontSize: 19, lineHeight: 24, fontWeight: "900" },
   reviewText: { color: palette.muted, fontSize: 16, lineHeight: 24 },
   coverageCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "rgba(189,201,198,0.35)", backgroundColor: palette.surfaceLow, gap: 12 },
   coverageHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
@@ -884,7 +911,7 @@ const styles = StyleSheet.create({
   modalBackdrop: { flex: 1, padding: 24, backgroundColor: "rgba(24,28,28,0.32)", alignItems: "center", justifyContent: "center" },
   dropdownMenu: { width: "100%", maxWidth: 420, borderRadius: 12, padding: 12, backgroundColor: palette.surface },
   dropdownTitle: { color: palette.text, fontSize: 16, lineHeight: 24, fontWeight: "900", paddingHorizontal: 8, paddingVertical: 8 },
-  dropdownOption: { minHeight: 48, borderRadius: 8, justifyContent: "center", paddingHorizontal: 12 },
+  dropdownOption: { minHeight: 48, borderRadius: 8, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12 },
   dropdownOptionText: { color: palette.muted, fontSize: 16, lineHeight: 24, fontWeight: "700" },
   addressMapModal: { backgroundColor: palette.surface, borderRadius: 16, gap: 12, maxHeight: "92%", maxWidth: 560, padding: 16, width: "100%" },
   addressMapHeader: { alignItems: "flex-start", flexDirection: "row", gap: 12 },
@@ -896,5 +923,12 @@ const styles = StyleSheet.create({
   addressSearchResults: { borderColor: palette.outlineVariant, borderRadius: 8, borderWidth: 1, maxHeight: 132 },
   addressSearchResult: { borderBottomColor: palette.outlineVariant, borderBottomWidth: 1, minHeight: 48, justifyContent: "center", paddingHorizontal: 12, paddingVertical: 8 },
   addressSearchResultText: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: "700" },
-  dropdownOptionSelected: { color: palette.primary, fontWeight: "900" }
+  dropdownOptionSelected: { color: palette.primary, fontWeight: "900" },
+  dropdownOptionActive: { backgroundColor: "#E5F1EE" },
+  capabilityActions: { flexDirection: "row", justifyContent: "flex-end", gap: 10, marginTop: 8 },
+  capabilityCancelButton: { minHeight: 42, justifyContent: "center", paddingHorizontal: 14, borderRadius: 8, borderWidth: 1, borderColor: palette.primary },
+  capabilityCancelText: { color: palette.primary, fontSize: 13, fontWeight: "900" },
+  capabilitySaveButton: { minHeight: 42, justifyContent: "center", paddingHorizontal: 14, borderRadius: 8, backgroundColor: palette.primary },
+  capabilitySaveText: { color: palette.white, fontSize: 13, fontWeight: "900" },
+  reviewScore: { color: palette.muted, fontSize: 12, fontWeight: "800" }
 });

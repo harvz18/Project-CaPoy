@@ -394,7 +394,7 @@ export default function PostTaskScreen() {
                   <Field label="Barangay" style={styles.flex}>
                     <TextInput onChangeText={(value) => updateAddressDetail("barangay", value)} placeholder="Barangay" placeholderTextColor={palette.outline} style={styles.input} value={addressDetails.barangay ?? ""} />
                   </Field>
-                  <Field label="City / municipality" style={styles.flex}>
+                  <Field label="City" style={styles.flex}>
                     <TextInput editable={false} placeholderTextColor={palette.outline} style={[styles.input, styles.readOnlyInput]} value="Bacolod City" />
                   </Field>
                 </View>
@@ -776,7 +776,7 @@ export default function PostTaskScreen() {
             <OverviewRow label="Required capabilities" value={requiredCapabilities.join(", ")} />
             <OverviewRow label="Address" value={buildTaskInput().locationAddress || ""} />
             <OverviewRow label="Landmark" value={location} />
-            <OverviewRow label="City / Municipality" value="Bacolod City" />
+            <OverviewRow label="City" value="Bacolod City" />
             <OverviewRow label="Map location" value={mapCenter ? `${mapCenter.latitude.toFixed(5)}, ${mapCenter.longitude.toFixed(5)} · ${geofenceRadius} m check-in radius` : "No pin selected"} />
             <OverviewRow label="Pricing" value={pricingMode === "fixed" ? `Fixed price · ₱${wage}` : "Open to offers"} />
             <OverviewRow label="Duration" value={`${durationValue} ${durationValue === "1" ? durationUnit : `${durationUnit}s`}`} />

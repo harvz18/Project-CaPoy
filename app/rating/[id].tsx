@@ -176,7 +176,8 @@ export default function RatingScreen() {
                   </View>
                 </View>
                 <View style={styles.reviewScore}>
-                  <Text style={styles.reviewScoreText}>{rating.score}/5</Text>
+                  <Text accessibilityLabel={`${normalizedRating(rating.score)} out of 5 stars`} style={styles.reviewStars}>{"★".repeat(normalizedRating(rating.score))}{"☆".repeat(5 - normalizedRating(rating.score))}</Text>
+                  <Text style={styles.reviewScoreText}>{normalizedRating(rating.score)}/5</Text>
                 </View>
               </View>
               <Text style={styles.reviewText}>{rating.feedback}</Text>
@@ -197,6 +198,11 @@ export default function RatingScreen() {
       </Modal>
     </SafeAreaView>
   );
+}
+
+function normalizedRating(value: unknown) {
+  const score = Number(value);
+  return Number.isFinite(score) ? Math.min(5, Math.max(0, Math.round(score))) : 0;
 }
 
 const styles = StyleSheet.create({
@@ -363,6 +369,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.primaryFixed
   },
   reviewScoreText: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
+  reviewStars: { color: palette.secondary, fontSize: 18, lineHeight: 22, fontWeight: "900" },
   reviewText: { color: palette.muted, fontSize: 16, lineHeight: 24 },
   disabled: { opacity: 0.5 },
   pressed: { opacity: 0.78, transform: [{ scale: 0.99 }] }
