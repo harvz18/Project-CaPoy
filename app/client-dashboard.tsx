@@ -2,7 +2,7 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Image, ScrollView, StyleSheet, View } from "react-native";
 import { MotionPressable as Pressable } from "../src/components/MotionPressable";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AnimatedBottomNav } from "../src/components/AnimatedBottomNav";
 import { HelpShortcut } from "../src/components/HelpShortcut";
 import { NotificationShortcut } from "../src/components/NotificationShortcut";
@@ -19,6 +19,7 @@ const palette = screenPalette;
 
 export default function ClientDashboardScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const prepareLayout = useMotionLayout();
   const { currentUser, notifications, tasks, users } = useApp();
   const [showAllOngoing, setShowAllOngoing] = useState(false);
@@ -41,7 +42,7 @@ export default function ClientDashboardScreen() {
         onPostTask={() => router.push("/post-task")}
         unreadCount={notifications.filter((notification) => notification.userId === currentUser?.id && !notification.readStatus).length}
       />
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 112 + insets.bottom }]} showsVerticalScrollIndicator={false}>
         <View style={styles.heroGrid}>
           <View style={styles.heroPanel}>
             <View style={styles.heroCopy}>
@@ -145,7 +146,7 @@ export default function ClientDashboardScreen() {
         accessibilityLabel="Post a task"
         accessibilityRole="button"
         onPress={() => router.push("/post-task")}
-        style={({ pressed }) => [styles.fab, pressed && styles.pressed]}
+        style={({ pressed }) => [styles.fab, { bottom: 80 + Math.max(insets.bottom, 10) }, pressed && styles.pressed]}
       >
         <Text style={styles.fabText}>Post</Text>
       </Pressable>
@@ -309,7 +310,7 @@ const styles = StyleSheet.create({
   },
   avatarImage: { width: "100%", height: "100%" },
   avatarText: { ...typography.bodyMedium, color: "#F4C95D" },
-  content: { padding: 16, paddingBottom: 112, gap: 12 },
+  content: { padding: 16, gap: 12 },
   heroGrid: { gap: 12 },
   heroPanel: {
     minHeight: 178,
@@ -388,7 +389,7 @@ const styles = StyleSheet.create({
   tipCard: { padding: 16, borderRadius: 12, backgroundColor: "rgba(244, 201, 93, 0.16)", borderWidth: 1, borderColor: palette.warning, flexDirection: "row", alignItems: "center", gap: 12 },
   tipIcon: { ...typography.sectionTitleSmall, color: palette.secondary },
   tipText: { ...typography.metadata, color: "#F4C95D", flex: 1 },
-  fab: { position: "absolute", right: 20, bottom: 88, minWidth: 64, height: 56, paddingHorizontal: 12, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary, borderWidth: 1, borderColor: palette.primaryFixed, elevation: 12 },
+  fab: { position: "absolute", right: 20, minWidth: 64, height: 56, paddingHorizontal: 12, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary, borderWidth: 1, borderColor: palette.primaryFixed, elevation: 12 },
   fabText: { ...typography.button, color: palette.white },
   pressed: { opacity: 0.78 }
 });

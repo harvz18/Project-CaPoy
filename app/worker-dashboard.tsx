@@ -3,7 +3,7 @@ import { useState } from "react";
 import { ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
 import { MotionModal as Modal } from "../src/components/MotionModal";
 import { MotionPressable as Pressable } from "../src/components/MotionPressable";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AnimatedBottomNav } from "../src/components/AnimatedBottomNav";
 import { HelpShortcut } from "../src/components/HelpShortcut";
 import { NotificationShortcut } from "../src/components/NotificationShortcut";
@@ -24,6 +24,7 @@ const palette = screenPalette;
 
 export default function WorkerDashboardScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const prepareLayout = useMotionLayout();
   const [selectedTab, setSelectedTab] = useState<"active" | "finished">("active");
   const [applicationsExpanded, setApplicationsExpanded] = useState(false);
@@ -70,7 +71,7 @@ export default function WorkerDashboardScreen() {
         onNotifications={() => router.push("/notifications")}
         unreadCount={notifications.filter((notification) => notification.userId === currentUser?.id && !notification.readStatus).length}
       />
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 110 + insets.bottom }]} showsVerticalScrollIndicator={false}>
         <View style={styles.heroPanel}>
           <View style={styles.heroCopy}>
             <Text style={styles.heroKicker}>Worker Home</Text>
@@ -436,7 +437,7 @@ const styles = StyleSheet.create({
   brand: { ...typography.screenTitle, color: palette.primary },
   avatar: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: palette.secondaryContainer, borderWidth: 1, borderColor: palette.outlineVariant },
   avatarText: { ...typography.bodyMedium, color: "#F4C95D" },
-  content: { padding: 16, paddingBottom: 110, gap: 14 },
+  content: { padding: 16, gap: 14 },
   heroPanel: { minHeight: 172, borderRadius: 24, padding: 22, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.outlineVariant, justifyContent: "space-between", overflow: "hidden", elevation: 5 },
   heroCopy: { gap: 6 },
   heroKicker: { ...typography.overline, color: "#7FF6E6" },

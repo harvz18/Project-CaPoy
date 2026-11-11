@@ -24,10 +24,13 @@ export function AnimatedBottomNav({ active, role }: { active: BottomNavKey; role
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const reduceMotion = usePrefersReducedMotion();
+  const navItems = getNavItems(role);
   const activeIndex = navItems.findIndex((item) => item.key === active);
   const markerPosition = useRef(new Animated.Value(lastActiveIndex ?? activeIndex)).current;
   const [navWidth, setNavWidth] = useState(0);
+  const [focusedKey, setFocusedKey] = useState<BottomNavKey>();
   const slotWidth = Math.max(0, (navWidth - NAV_HORIZONTAL_PADDING * 2) / TAB_COUNT);
+  const bottomPadding = Math.max(insets.bottom, 10);
 
   useEffect(() => {
     const animation = Animated.timing(markerPosition, {
@@ -46,71 +49,88 @@ export function AnimatedBottomNav({ active, role }: { active: BottomNavKey; role
   }
 
   return (
-    <View
-      onLayout={handleLayout}
-      style={[styles.bottomNav, { paddingBottom: Math.max(insets.bottom, 10) }]}
-    >
-      {slotWidth > 0 ? (
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.activeMarker,
-            {
-              left: NAV_HORIZONTAL_PADDING + MARKER_MARGIN,
-              width: Math.max(0, slotWidth - MARKER_MARGIN * 2),
-              transform: [{
-                translateX: markerPosition.interpolate({
-                  inputRange: [0, TAB_COUNT - 1],
-                  outputRange: [0, slotWidth * (TAB_COUNT - 1)]
-                })
-              }]
-            }
-          ]}
-        />
-      ) : null}
-      {navItems.map((item) => {
-        const selected = item.key === active;
-        const route = item.key === "home"
-          ? role === "client" ? "/client-dashboard" : "/worker-dashboard"
-          : item.key === "jobs"
-            ? role === "client" ? "/post-task" : "/jobs"
-            : item.route;
-        return (
-          <MotionPressable
-            accessibilityLabel={item.label}
-            accessibilityHint={selected ? `${item.label} tab, currently selected` : `Open ${item.label}`}
-            accessibilityRole="tab"
-            accessibilityState={{ selected }}
-            key={item.key}
-            onPress={() => {
-              if (!selected) router.push(route as never);
-            }}
-            motionScale={motion.scale.subtlePressed}
-            style={({ pressed }) => [styles.navItem, pressed && styles.pressed]}
-          >
-            <BottomNavIcon name={item.key} color={selected ? ACTIVE_COLOR : INACTIVE_COLOR} />
-            <Text style={[styles.navLabel, selected && styles.navLabelActive]}>{item.label}</Text>
-          </MotionPressable>
-        );
-      })}
+    <View pointerEvents="box-none" style={styles.bottomNavFrame}>
+      <View
+        accessibilityRole="tablist"
+        onLayout={handleLayout}
+        style={[styles.bottomNav, { paddingBottom: bottomPadding }]}
+      >
+        {slotWidth > 0 ? (
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.activeMarker,
+              {
+                left: NAV_HORIZONTAL_PADDING + MARKER_MARGIN,
+                bottom: Math.max(bottomPadding - 2, 8),
+                width: Math.max(0, slotWidth - MARKER_MARGIN * 2),
+                transform: [{
+                  translateX: markerPosition.interpolate({
+                    inputRange: [0, TAB_COUNT - 1],
+                    outputRange: [0, slotWidth * (TAB_COUNT - 1)]
+                  })
+                }]
+              }
+            ]}
+          />
+        ) : null}
+        {navItems.map((item) => {
+          const selected = item.key === active;
+          return (
+            <MotionPressable
+              accessibilityLabel={item.accessibilityLabel}
+              accessibilityHint={selected ? `${item.accessibilityLabel} tab, currently selected` : `Open ${item.accessibilityLabel}`}
+              accessibilityRole="tab"
+              accessibilityState={{ selected }}
+              key={item.key}
+              onFocus={() => setFocusedKey(item.key)}
+              onBlur={() => setFocusedKey((key) => key === item.key ? undefined : key)}
+              onPress={() => {
+                if (!selected) router.push(item.route as never);
+              }}
+              motionScale={motion.scale.subtlePressed}
+              style={({ hovered, pressed }) => [
+                styles.navItem,
+                (focusedKey === item.key || hovered) && styles.navItemInteractive,
+                focusedKey === item.key && styles.navItemFocused,
+                pressed && styles.pressed
+              ]}
+            >
+              <BottomNavIcon name={item.key} color={selected ? ACTIVE_COLOR : INACTIVE_COLOR} />
+              <Text style={[styles.navLabel, selected && styles.navLabelActive]}>{item.label}</Text>
+            </MotionPressable>
+          );
+        })}
+      </View>
     </View>
   );
 }
 
-const navItems: Array<{ key: BottomNavKey; label: string; route: string }> = [
-  { key: "home", label: "Home", route: "/worker-dashboard" },
-  { key: "jobs", label: "Jobs", route: "/jobs" },
-  { key: "chat", label: "Chat", route: "/chat" },
-  { key: "profile", label: "Profile", route: "/profile" }
-];
+function getNavItems(role?: string): Array<{ key: BottomNavKey; label: string; accessibilityLabel: string; route: string }> {
+  const isClient = role === "client";
+
+  return [
+    { key: "home", label: "Home", accessibilityLabel: "Home", route: isClient ? "/client-dashboard" : "/worker-dashboard" },
+    { key: "jobs", label: isClient ? "Post" : "Jobs", accessibilityLabel: isClient ? "Post task" : "Jobs", route: isClient ? "/post-task" : "/jobs" },
+    { key: "chat", label: "Chat", accessibilityLabel: "Chat", route: "/chat" },
+    { key: "profile", label: "Profile", accessibilityLabel: "Profile", route: "/profile" }
+  ];
+}
 
 const styles = StyleSheet.create({
-  bottomNav: {
+  bottomNavFrame: {
     position: "absolute",
-    left: 12,
-    right: 12,
-    bottom: 8,
-    minHeight: 72,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center",
+    paddingHorizontal: 12
+  },
+  bottomNav: {
+    width: "100%",
+    maxWidth: 680,
+    minHeight: 70,
+    marginBottom: 8,
     paddingHorizontal: NAV_HORIZONTAL_PADDING,
     paddingTop: 8,
     borderRadius: 24,
@@ -126,8 +146,7 @@ const styles = StyleSheet.create({
   },
   activeMarker: {
     position: "absolute",
-    top: 8,
-    height: 48,
+    top: 6,
     borderRadius: 24,
     borderWidth: 1,
     borderColor: "rgba(181, 255, 249, 0.70)",
@@ -139,14 +158,21 @@ const styles = StyleSheet.create({
     elevation: 8
   },
   navItem: {
-    flex: 1,
-    minHeight: 48,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
+    minWidth: 0,
+    minHeight: 52,
     zIndex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 4
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    borderRadius: 22
   },
-  navLabel: { ...typography.bottomNav, color: INACTIVE_COLOR },
+  navItemInteractive: { backgroundColor: colors.infoLight },
+  navItemFocused: { borderWidth: 1, borderColor: colors.focus },
+  navLabel: { ...typography.bottomNav, minWidth: 0, color: INACTIVE_COLOR, textAlign: "center" },
   navLabelActive: { ...typography.bottomNav, color: ACTIVE_COLOR },
   pressed: { opacity: 0.82 }
 });
