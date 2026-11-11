@@ -206,6 +206,30 @@ async function correctName({ request, claims, db }) {
   return { ok: true, fullName: fullName.trim().replace(/\s+/g, " ") };
 }
 
+async function lookupProfiles({ request, db }) {
+  const ids = request.body?.ids;
+  if (!Array.isArray(ids)) throw new ApiError(400, "ids must be an array.");
+  const uniqueIds = [...new Set(ids.filter((id) => typeof id === "string").map((id) => id.trim()).filter(Boolean))];
+  if (uniqueIds.length > 100) throw new ApiError(400, "At most 100 profiles can be requested at once.");
+
+  const profiles = {};
+  await Promise.all(uniqueIds.map(async (id) => {
+    const [publicProfile, user] = await Promise.all([
+      db.collection("publicProfiles").doc(id).get(),
+      db.collection("users").doc(id).get()
+    ]);
+    const publicData = publicProfile.exists ? publicProfile.data() : {};
+    const userData = user.exists ? user.data() : {};
+    const fullName = typeof publicData.fullName === "string" && publicData.fullName.trim()
+      ? publicData.fullName.trim()
+      : typeof userData.fullName === "string" && userData.fullName.trim()
+        ? userData.fullName.trim()
+        : "";
+    if (fullName) profiles[id] = { id, fullName, role: publicData.role || userData.role };
+  }));
+  return { profiles };
+}
+
 function createServer() {
   const app = express();
   app.disable("x-powered-by");
@@ -251,6 +275,7 @@ function createServer() {
   }));
   app.post("/api/admin/verifications/review", route("admin", reviewVerification));
   app.post("/api/admin/payments/review", route("admin", reviewPayment));
+  app.post("/api/admin/profiles/lookup", route("admin", lookupProfiles));
   app.post("/api/admin/accounts/status", route("superadmin", changeAccountStatus));
   app.post("/api/admin/accounts/name", route("superadmin", correctName));
   app.use((error, _request, response, _next) => {

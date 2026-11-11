@@ -93,6 +93,9 @@ function roleLabel(role?: string) {
 function taskTitle(task?: Task) {
   return task?.title || "Untitled task";
 }
+function profileName(profile?: Profile) {
+  return profile?.fullName || "Name unavailable";
+}
 type Notice = { tone: "success" | "error"; message: string } | null;
 
 function App() {
@@ -855,17 +858,12 @@ function ApplicationsPage() {
             <tr key={match.id}>
               <td>
                 <strong>{taskTitle(tasks[match.taskId || ""])}</strong>
-                <small>{match.taskId || "—"}</small>
               </td>
               <td>
-                {profiles[match.workerId || ""]?.fullName ||
-                  match.workerId ||
-                  "—"}
+                {profileName(profiles[match.workerId || ""])}
               </td>
               <td>
-                {profiles[match.clientId || ""]?.fullName ||
-                  match.clientId ||
-                  "—"}
+                {profileName(profiles[match.clientId || ""])}
               </td>
               <td>{match.proposedAmount || "—"}</td>
               <td>

@@ -22,5 +22,9 @@ test("health endpoint is public and protected routes reject missing credentials"
     const protectedRoute = await fetch(`${baseUrl}/api/admin/analytics`, { method: "POST" });
     assert.equal(protectedRoute.status, 401);
     assert.equal((await protectedRoute.json()).error, "Sign in to continue.");
+
+    const profileLookup = await fetch(`${baseUrl}/api/admin/profiles/lookup`, { method: "POST" });
+    assert.equal(profileLookup.status, 401);
+    assert.equal((await profileLookup.json()).error, "Sign in to continue.");
   });
 });

@@ -26,8 +26,8 @@ async function loadRecordsById<T>(name: string, ids: string[]) {
 }
 
 export async function loadProfilesById(ids: string[]) {
-  const profiles = await loadRecordsById<Profile>("publicProfiles", ids);
-  return Object.fromEntries(profiles.map((profile) => [profile.id, profile]));
+  const response = await postAdminApi<{ profiles: Record<string, Profile> }>("/api/admin/profiles/lookup", { ids });
+  return response.profiles;
 }
 
 export async function loadTasksById(ids: string[]) {
