@@ -38,6 +38,25 @@ npm run test:rules:emulator
 npm run start
 ```
 
+## Expo Go handoff for a designer
+
+Expo Go can test the Firebase Email/Password flow without a native build. The person
+running Expo needs a local `.env` file because it is deliberately excluded from Git.
+
+1. Give the designer the current project source and, through a private channel, the
+   six `EXPO_PUBLIC_FIREBASE_*` values from the project owner's `.env`. These are
+   Firebase's public web-client settings; never share a service-account key.
+2. The designer creates `Project-CaPoy/.env` from `.env.example`, adds those six
+   values, then runs `npm ci` from `Project-CaPoy`.
+3. They run `npm run start:designer`. This clears Expo's cache and creates a tunnel,
+   so their Expo Go device does not need to be on the same local network.
+4. In Expo Go, scan the terminal QR code. On the login screen, verify the footer says
+   `Data mode: Firebase backend` before registering an account.
+
+If it says `Firebase not configured`, stop Expo, check that all six values are in
+`.env`, and start it again with `npm run start:designer`. A `.env` change is compiled
+into the JavaScript bundle, so Fast Refresh alone is not enough.
+
 ## Authentication
 
 The current secure baseline uses Firebase Email/Password Authentication. A normalized Philippine mobile number is mapped internally to an address such as:

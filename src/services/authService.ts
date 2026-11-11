@@ -113,7 +113,7 @@ function validatePassword(password?: string) {
   }
 }
 
-function getAuthErrorMessage(error: unknown) {
+export function getAuthErrorMessage(error: unknown) {
   const code = (error as AuthError | undefined)?.code;
 
   switch (code) {
@@ -126,6 +126,13 @@ function getAuthErrorMessage(error: unknown) {
       return "Mobile number or password is incorrect.";
     case "auth/weak-password":
       return "Password should be at least 6 characters.";
+    case "auth/operation-not-allowed":
+      return "Email/Password sign-in is not enabled for this Firebase project.";
+    case "auth/configuration-not-found":
+      return "Firebase Authentication is not fully configured for this app.";
+    case "auth/invalid-api-key":
+    case "auth/app-not-authorized":
+      return "This Expo session has an invalid Firebase configuration. Restart the development server after checking its .env file.";
     case "auth/network-request-failed":
       return "Network unavailable. Check your connection and try again.";
     case "auth/too-many-requests":
