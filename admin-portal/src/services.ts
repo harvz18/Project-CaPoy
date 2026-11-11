@@ -1,10 +1,10 @@
 import { collection, documentId, DocumentData, getCountFromServer, getDocs, limit, onSnapshot, orderBy, query, QueryConstraint, QueryDocumentSnapshot, startAfter, where } from "firebase/firestore";
-import { httpsCallable } from "firebase/functions";
 import { getDownloadURL, ref } from "firebase/storage";
-import { db, functions, storage } from "./firebase";
+import { db, storage } from "./firebase";
 import { Analytics, AuditLog, BasicDashboardCounts, Payment, Profile, Rating, SuperadminOverview, Task, TaskMatch, VerificationRequest } from "./types";
+import { getAdminApi, postAdminApi } from "./adminApi";
 
-function requireServices() { if (!db || !functions) throw new Error("Firebase is not configured."); return { db, functions }; }
+function requireServices() { if (!db) throw new Error("Firebase is not configured."); return { db }; }
 function records<T>(snapshot: { docs: QueryDocumentSnapshot<DocumentData>[] }) { return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as T); }
 
 export type Page<T> = { items: T[]; cursor: QueryDocumentSnapshot<DocumentData> | null; hasMore: boolean };
@@ -61,24 +61,22 @@ export function subscribePendingVerifications(setData: (items: VerificationReque
   return onSnapshot(query(collection(store, "verificationRequests"), where("status", "==", "Pending Verification"), limit(100)), (snapshot) => setData(records<VerificationRequest>(snapshot)), setError);
 }
 export async function getAnalytics(preset: "today" | "7d" | "30d") {
-  const response = await httpsCallable<{ preset: string }, Analytics>(requireServices().functions, "getAdminAnalytics")({ preset });
-  return response.data;
+  return postAdminApi<Analytics>("/api/admin/analytics", { preset });
 }
 export async function getSuperadminOverview() {
-  const response = await httpsCallable<Record<string, never>, SuperadminOverview>(requireServices().functions, "getSuperadminOverview")({});
-  return response.data;
+  return getAdminApi<SuperadminOverview>("/api/admin/superadmin/overview");
 }
 export async function reviewVerification(userId: string, decision: "Verified" | "Rejected" | "Needs Resubmission", reason: string) {
-  await httpsCallable(requireServices().functions, "reviewWorkerVerification")({ userId, decision, reason });
+  await postAdminApi("/api/admin/verifications/review", { userId, decision, reason });
 }
 export async function reviewPayment(taskId: string, decision: "Verified" | "Rejected", reason: string) {
-  await httpsCallable(requireServices().functions, "reviewPaymentEvidence")({ taskId, decision, reason });
+  await postAdminApi("/api/admin/payments/review", { taskId, decision, reason });
 }
 export async function changeAccountStatus(userId: string, accountStatus: "active" | "suspended", reason: string, violationReportId = "") {
-  await httpsCallable(requireServices().functions, "setUserAccountStatus")({ userId, accountStatus, reason, violationReportId });
+  await postAdminApi("/api/admin/accounts/status", { userId, accountStatus, reason, violationReportId });
 }
 export async function correctName(userId: string, fullName: string, reason: string) {
-  await httpsCallable(requireServices().functions, "correctLockedFullName")({ userId, fullName, reason });
+  await postAdminApi("/api/admin/accounts/name", { userId, fullName, reason });
 }
 export async function getVerificationDocumentUrl(path: string) {
   if (!storage) throw new Error("Firebase Storage is not configured.");

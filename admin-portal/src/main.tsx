@@ -1255,7 +1255,7 @@ function ReportsPage({ notify }: { notify: (notice: Notice) => void }) {
       <div className="page-heading">
         <div>
           <h2>Violation reports</h2>
-          <p>Superadmin-only report data from the trusted overview Function.</p>
+          <p>Superadmin-only report data from the trusted administrator API.</p>
         </div>
         <button
           className="button secondary"

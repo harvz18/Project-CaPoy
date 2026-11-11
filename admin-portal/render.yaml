@@ -18,3 +18,5 @@ services:
         sync: false
       - key: VITE_FIREBASE_APP_ID
         sync: false
+      - key: VITE_ADMIN_API_BASE_URL
+        sync: false
