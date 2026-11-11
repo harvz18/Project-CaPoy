@@ -344,19 +344,12 @@ export default function ProfileScreen() {
             <View style={styles.flex}><Field label="House / Building" value={addressDetails.houseNumber ?? ""} onChangeText={(value) => updateAddressDetail("houseNumber", value)} placeholder="Optional" /></View>
             <View style={styles.flex}><Field label="Street" value={addressDetails.street ?? ""} onChangeText={(value) => updateAddressDetail("street", value)} placeholder="Optional" /></View>
           </View>
-          <View style={styles.twoColumn}>
-            <View style={styles.flex}><Field label="Barangay" value={addressDetails.barangay ?? ""} onChangeText={(value) => updateAddressDetail("barangay", value)} placeholder="Barangay" /></View>
-            <View style={styles.flex}><Field label="City / Municipality" value={addressDetails.city ?? ""} onChangeText={(value) => updateAddressDetail("city", value)} placeholder="City" /></View>
-          </View>
-          <View style={styles.twoColumn}>
-            <View style={styles.flex}><Field label="Province" value={addressDetails.province ?? ""} onChangeText={(value) => updateAddressDetail("province", value)} placeholder="Province" /></View>
-            <View style={styles.flex}><Field label="Postal Code" value={addressDetails.postalCode ?? ""} onChangeText={(value) => updateAddressDetail("postalCode", value.replace(/\D/g, ""))} placeholder="Optional" /></View>
-          </View>
+          <Field label="Barangay" value={addressDetails.barangay ?? ""} onChangeText={(value) => updateAddressDetail("barangay", value)} placeholder="Barangay" />
           <Pressable accessibilityRole="button" onPress={() => setAddressMapOpen(true)} style={styles.selectMapButton}>
             <Feather accessibilityElementsHidden color={palette.primary} name="map-pin" size={18} />
             <Text style={styles.selectMapButtonText}>Select on map</Text>
           </Pressable>
-          <Text style={styles.helperText}>Choose a map pin or search an address to fill these fields. House/building and postal code are optional.</Text>
+          <Text style={styles.helperText}>Choose a map pin or search an address to fill these fields. House/building is optional.</Text>
           {addressLookupMessage ? <Text style={styles.locationMessage}>{addressLookupMessage}</Text> : null}
           <Field label={currentUser?.role === "client" ? "Business Bio" : "Worker Bio"} value={bio} onChangeText={setBio} placeholder="Tell people about yourself" multiline />
         </SettingsCard>
