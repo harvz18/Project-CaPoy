@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Image, ScrollView, StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 import { MotionPressable as Pressable } from "../src/components/MotionPressable";
+import { StoredImage } from "../src/components/StoredImage";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Href, useRouter } from "expo-router";
 import { useApp } from "../src/context/AppContext";
@@ -152,7 +153,7 @@ export default function SuperadminScreen() {
             return (
               <View key={user.id} style={styles.userRow}>
                 <View style={styles.grow}>
-                  {user.profilePhotoUrl ? <Image source={{ uri: user.profilePhotoUrl }} style={styles.moderationAvatarImage} /> : null}
+                  <StoredImage accessibilityLabel={`${user.fullName} profile photo`} sourceUri={user.profilePhotoUrl} style={styles.moderationAvatarImage} />
                   <Text style={styles.cardTitle}>{user.fullName}</Text>
                   <Text style={styles.meta}>{user.role} · {user.accountStatus ?? "active"} · identity {user.identityStatus ?? "legacy"}</Text>
                   {user.restrictionReason ? <Text style={styles.body}>Restriction: {user.restrictionReason}</Text> : null}

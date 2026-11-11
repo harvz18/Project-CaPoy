@@ -1570,12 +1570,16 @@ function VerificationDocumentModal({
   close: () => void;
 }) {
   const [url, setUrl] = useState("");
+  const [mimeType, setMimeType] = useState("");
   const [error, setError] = useState("");
   useEffect(() => {
     let active = true;
     void getVerificationDocumentUrl(document.path)
       .then((next) => {
-        if (active) setUrl(next);
+        if (active) {
+          setUrl(next.url);
+          setMimeType(next.mimeType);
+        }
       })
       .catch((failure) => {
         if (active) setError(errorText(failure));
@@ -1584,7 +1588,7 @@ function VerificationDocumentModal({
       active = false;
     };
   }, [document.path]);
-  const isPdf = document.path.toLowerCase().endsWith(".pdf");
+  const isPdf = mimeType === "application/pdf" || document.path.toLowerCase().endsWith(".pdf");
   return (
     <Modal title={document.label} close={close}>
       {error ? <ErrorState message={error} /> : null}

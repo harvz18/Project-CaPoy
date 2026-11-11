@@ -1,4 +1,4 @@
-import { collection, documentId, DocumentData, getCountFromServer, getDocs, limit, onSnapshot, orderBy, query, QueryConstraint, QueryDocumentSnapshot, startAfter, where } from "firebase/firestore";
+import { collection, doc, documentId, DocumentData, getCountFromServer, getDoc, getDocs, limit, onSnapshot, orderBy, query, QueryConstraint, QueryDocumentSnapshot, startAfter, where } from "firebase/firestore";
 import { getDownloadURL, ref } from "firebase/storage";
 import { db, storage } from "./firebase";
 import { Analytics, AuditLog, BasicDashboardCounts, Payment, Profile, Rating, SuperadminOverview, Task, TaskMatch, VerificationRequest } from "./types";
@@ -101,8 +101,67 @@ export async function correctName(userId: string, fullName: string, reason: stri
   await postAdminApi("/api/admin/accounts/name", { userId, fullName, reason });
 }
 export async function getVerificationDocumentUrl(path: string) {
+  const pointer = parseFirestoreVerificationPath(path);
+  if (pointer) {
+    const { db: store } = requireServices();
+    const record = doc(store, "verificationFiles", pointer.userId, "uploads", pointer.kind);
+    const snapshot = await getDoc(record);
+    if (!snapshot.exists()) throw new Error("The uploaded document is no longer available.");
+    const file = snapshot.data();
+    if (!isValidFirestoreVerificationFile(file, pointer)) throw new Error("The uploaded document record is invalid.");
+    const chunks = (await getDocs(collection(record, "chunks"))).docs
+      .map((item) => item.data())
+      .filter((item) => item.version === file.version && Number.isInteger(item.index) && typeof item.data === "string")
+      .sort((left, right) => left.index - right.index);
+    if (chunks.length !== file.chunkCount || chunks.some((item, index) => item.index !== index)) {
+      throw new Error("The uploaded document is incomplete. Ask the user to upload it again.");
+    }
+    const base64 = chunks.map((item) => item.data).join("");
+    if (base64.length !== file.encodedSize) throw new Error("The uploaded document is incomplete. Ask the user to upload it again.");
+    return { url: materializeBase64(base64, file.mimeType), mimeType: file.mimeType };
+  }
+
   if (!storage) throw new Error("Firebase Storage is not configured.");
-  return getDownloadURL(ref(storage, path));
+  return {
+    url: await getDownloadURL(ref(storage, path)),
+    mimeType: path.toLowerCase().endsWith(".pdf") ? "application/pdf" : "image/*"
+  };
+}
+
+type FirestoreVerificationPointer = { userId: string; kind: "valid-id" | "medical-certificate" | "police-clearance" };
+
+function parseFirestoreVerificationPath(path: string): FirestoreVerificationPointer | null {
+  const parts = path.split("/");
+  if (parts.length !== 3 || parts[0] !== "firestoreVerificationFiles" || !parts[1]) return null;
+  if (parts[2] !== "valid-id" && parts[2] !== "medical-certificate" && parts[2] !== "police-clearance") return null;
+  return { userId: parts[1], kind: parts[2] };
+}
+
+function isValidFirestoreVerificationFile(file: DocumentData, pointer: FirestoreVerificationPointer) {
+  return file.userId === pointer.userId
+    && file.kind === pointer.kind
+    && typeof file.fileName === "string"
+    && typeof file.mimeType === "string"
+    && (file.mimeType.startsWith("image/") || file.mimeType === "application/pdf")
+    && typeof file.byteSize === "number"
+    && Number.isInteger(file.byteSize)
+    && file.byteSize > 0
+    && file.byteSize <= 5 * 1024 * 1024
+    && typeof file.encodedSize === "number"
+    && Number.isInteger(file.encodedSize)
+    && file.encodedSize > 0
+    && typeof file.chunkCount === "number"
+    && Number.isInteger(file.chunkCount)
+    && file.chunkCount > 0
+    && typeof file.version === "string"
+    && file.status === "ready";
+}
+
+function materializeBase64(base64: string, mimeType: string) {
+  const binary = globalThis.atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return URL.createObjectURL(new Blob([bytes], { type: mimeType }));
 }
 
 export type PortalData = { profiles: Profile[]; tasks: Task[]; matches: TaskMatch[]; ratings: Rating[]; audit: AuditLog[] };

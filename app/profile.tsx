@@ -1,13 +1,14 @@
 import Feather from "@expo/vector-icons/Feather";
 import { Href, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Image, ScrollView, StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 import { MotionModal as Modal } from "../src/components/MotionModal";
 import { MotionPressable as Pressable } from "../src/components/MotionPressable";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AnimatedBottomNav } from "../src/components/AnimatedBottomNav";
 import LocationMap from "../src/components/LocationMap";
 import { StatusBadge } from "../src/components/StatusBadge";
+import { StoredImage } from "../src/components/StoredImage";
 import { workerCapabilities } from "../src/constants/capabilities";
 import { useApp } from "../src/context/AppContext";
 import { getScheduleBasedAvailability, getUserTaskHistory } from "../src/domain/taskMarketplace";
@@ -166,8 +167,8 @@ export default function ProfileScreen() {
     try {
       const uploaded = await pickAndUploadProfilePhoto(currentUser.id);
       if (uploaded) {
-        setProfilePhotoUrl(uploaded.url);
-        await updateProfile({ profilePhotoUrl: uploaded.url });
+        setProfilePhotoUrl(uploaded.path);
+        await updateProfile({ profilePhotoUrl: uploaded.path });
         setUploadMessage("Profile photo uploaded and saved.");
       }
     } catch (uploadError) {
@@ -318,7 +319,7 @@ export default function ProfileScreen() {
           <View style={styles.profileHeader}>
             <View style={styles.photoWrap}>
               <View style={styles.profilePhoto}>
-                {profilePhotoUrl ? <Image source={{ uri: profilePhotoUrl }} style={styles.profilePhotoImage} /> : <Text style={styles.profilePhotoText}>{fullName[0] ?? "U"}</Text>}
+                <StoredImage accessibilityLabel="Profile photo" sourceUri={profilePhotoUrl} style={styles.profilePhotoImage} fallback={<Text style={styles.profilePhotoText}>{fullName[0] ?? "U"}</Text>} />
               </View>
               <View style={styles.verifiedPill}>
                 <Text style={styles.verifiedText}>{currentUser?.verificationStatus ?? "Not Submitted"}</Text>
@@ -759,7 +760,8 @@ function UploadField({
 
 function getUploadedFileName(value: string) {
   if (!value) return "";
-  if (value.startsWith("http")) return "Profile photo uploaded";
+  if (value.startsWith("http") || value.startsWith("firestoreProfilePhotos/")) return "Profile photo uploaded";
+  if (value.startsWith("firestoreVerificationFiles/")) return "Document uploaded";
   return value.split("/").pop()?.replace(/^\d+_/, "") ?? value;
 }
 

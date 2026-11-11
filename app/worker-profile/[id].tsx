@@ -1,10 +1,11 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
-import { Image, ScrollView, StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 import { MotionPressable as Pressable } from "../../src/components/MotionPressable";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBadge } from "../../src/components/StatusBadge";
+import { StoredImage } from "../../src/components/StoredImage";
 import { useApp } from "../../src/context/AppContext";
 import { useTasklinkBack } from "../../src/hooks/useTasklinkBack";
 import { screenPalette } from "../../src/theme";
@@ -112,7 +113,7 @@ export default function WorkerPublicProfileScreen() {
           <View style={styles.profileHeader}>
             <View style={styles.photoWrap}>
               <View style={styles.profilePhoto}>
-                {worker.profilePhotoUrl ? <Image source={{ uri: worker.profilePhotoUrl }} style={styles.profilePhotoImage} /> : <Text style={styles.profilePhotoText}>{name[0]}</Text>}
+                <StoredImage accessibilityLabel={`${name} profile photo`} sourceUri={worker.profilePhotoUrl} style={styles.profilePhotoImage} fallback={<Text style={styles.profilePhotoText}>{name[0]}</Text>} />
               </View>
               <View style={styles.verifiedPill}>
                 <Text style={styles.verifiedText}>{verificationStatus}</Text>

@@ -1,12 +1,13 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Image, ScrollView, StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 import { MotionPressable as Pressable } from "../src/components/MotionPressable";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AnimatedBottomNav } from "../src/components/AnimatedBottomNav";
 import { HelpShortcut } from "../src/components/HelpShortcut";
 import { NotificationShortcut } from "../src/components/NotificationShortcut";
 import { StatusBadge } from "../src/components/StatusBadge";
+import { StoredImage } from "../src/components/StoredImage";
 import { useApp } from "../src/context/AppContext";
 import { useMotionLayout } from "../src/hooks/useMotionLayout";
 import { formatTaskPrice, getScheduleBasedAvailability } from "../src/domain/taskMarketplace";
@@ -182,7 +183,7 @@ function DashboardHeader({ onPostTask, onHelp, onNotifications, onProfile, initi
         <HelpShortcut onPress={onHelp} />
         <NotificationShortcut onPress={onNotifications} unreadCount={unreadCount} />
         <Pressable accessibilityLabel="Open employer profile" accessibilityRole="button" onPress={onProfile} style={({ pressed }) => [styles.avatar, pressed && styles.pressed]}>
-          {profilePhotoUrl ? <Image source={{ uri: profilePhotoUrl }} style={styles.avatarImage} /> : <Text style={styles.avatarText}>{initials}</Text>}
+          <StoredImage accessibilityLabel="Employer profile photo" sourceUri={profilePhotoUrl} style={styles.avatarImage} fallback={<Text style={styles.avatarText}>{initials}</Text>} />
         </Pressable>
       </View>
     </View>

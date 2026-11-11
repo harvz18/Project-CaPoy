@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Image, Linking, ScrollView, StyleSheet, View } from "react-native";
+import { Linking, ScrollView, StyleSheet, View } from "react-native";
 import { MotionPressable as Pressable } from "../src/components/MotionPressable";
+import { StoredImage } from "../src/components/StoredImage";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Href, useRouter } from "expo-router";
 import {
@@ -173,7 +174,7 @@ export default function AdminScreen() {
         <Section title="User verification queue" empty="No verification documents are waiting for review.">
           {pendingVerifications.map((item) => (
             <View key={item.id} style={styles.card}>
-              {userFor(item.userId)?.profilePhotoUrl ? <Image source={{ uri: userFor(item.userId)?.profilePhotoUrl }} style={styles.reviewAvatarImage} /> : null}
+              <StoredImage accessibilityLabel={`${nameFor(item.userId)} profile photo`} sourceUri={userFor(item.userId)?.profilePhotoUrl} style={styles.reviewAvatarImage} />
               <Text style={styles.cardTitle}>{nameFor(item.userId)}</Text>
               <Text style={styles.meta}>{item.validIdType} · submitted {formatDate(item.submittedAt)}</Text>
               <View style={styles.row}>

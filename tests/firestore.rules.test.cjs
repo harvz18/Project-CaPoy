@@ -438,12 +438,27 @@ test("unapproved names update atomically while approved and legacy verified name
 test("workers can submit private verification metadata atomically but cannot approve themselves", async () => {
   const workerDb = dbFor(WORKER_ID);
   const now = "2026-01-01T00:10:00.000Z";
+  for (const kind of ["valid-id", "medical-certificate", "police-clearance"]) {
+    await assertSucceeds(setDoc(doc(workerDb, "verificationFiles", WORKER_ID, "uploads", kind), {
+      userId: WORKER_ID,
+      uploaderId: WORKER_ID,
+      kind,
+      fileName: `${kind}.jpg`,
+      mimeType: "image/jpeg",
+      byteSize: 6,
+      encodedSize: 8,
+      chunkCount: 1,
+      version: `${kind}-v1`,
+      status: "ready",
+      createdAt: now
+    }));
+  }
   const verification = {
     userId: WORKER_ID,
     validIdType: "PhilSys ID",
-    validIdPath: `verification/${WORKER_ID}/valid-id.pdf`,
-    medicalCertificatePath: `verification/${WORKER_ID}/medical.pdf`,
-    policeClearancePath: `verification/${WORKER_ID}/police.pdf`,
+    validIdPath: `firestoreVerificationFiles/${WORKER_ID}/valid-id`,
+    medicalCertificatePath: `firestoreVerificationFiles/${WORKER_ID}/medical-certificate`,
+    policeClearancePath: `firestoreVerificationFiles/${WORKER_ID}/police-clearance`,
     status: "Pending Verification",
     submittedAt: now,
     updatedAt: now
@@ -1144,6 +1159,79 @@ test("assigned participants can store private receipt chunks in Firestore withou
     status: "ready",
     createdAt
   }));
+});
+
+test("Firestore-only profile photos and verification files keep owner and reviewer access scoped", async () => {
+  const createdAt = "2026-01-01T01:30:00.000Z";
+  const clientDb = dbFor(CLIENT_ID);
+  const workerDb = dbFor(WORKER_ID);
+  const adminDb = dbFor(ADMIN_ID, { admin: true });
+  const outsiderDb = dbFor(OUTSIDER_ID);
+
+  const profileRef = doc(clientDb, "profilePhotoFiles", CLIENT_ID);
+  await assertSucceeds(setDoc(profileRef, {
+    userId: CLIENT_ID,
+    uploaderId: CLIENT_ID,
+    fileName: "profile.jpg",
+    mimeType: "image/jpeg",
+    byteSize: 6,
+    encodedSize: 8,
+    chunkCount: 1,
+    version: "profile-v1",
+    status: "ready",
+    createdAt
+  }));
+  await assertSucceeds(setDoc(doc(profileRef, "chunks", "000"), {
+    id: "000",
+    userId: CLIENT_ID,
+    uploaderId: CLIENT_ID,
+    index: 0,
+    version: "profile-v1",
+    data: "YWJjZGVm",
+    createdAt
+  }));
+  await assertSucceeds(getDoc(doc(outsiderDb, "profilePhotoFiles", CLIENT_ID)));
+  await assertFails(setDoc(doc(outsiderDb, "profilePhotoFiles", CLIENT_ID), {
+    userId: CLIENT_ID,
+    uploaderId: OUTSIDER_ID,
+    fileName: "forged.jpg",
+    mimeType: "image/jpeg",
+    byteSize: 3,
+    encodedSize: 4,
+    chunkCount: 1,
+    version: "forged-v1",
+    status: "ready",
+    createdAt
+  }));
+
+  const verificationRef = doc(workerDb, "verificationFiles", WORKER_ID, "uploads", "valid-id");
+  await assertSucceeds(setDoc(verificationRef, {
+    userId: WORKER_ID,
+    uploaderId: WORKER_ID,
+    kind: "valid-id",
+    fileName: "id.jpg",
+    mimeType: "image/jpeg",
+    byteSize: 6,
+    encodedSize: 8,
+    chunkCount: 1,
+    version: "id-v1",
+    status: "ready",
+    createdAt
+  }));
+  await assertSucceeds(setDoc(doc(verificationRef, "chunks", "000"), {
+    id: "000",
+    userId: WORKER_ID,
+    uploaderId: WORKER_ID,
+    kind: "valid-id",
+    index: 0,
+    version: "id-v1",
+    data: "YWJjZGVm",
+    createdAt
+  }));
+  await assertSucceeds(getDoc(doc(workerDb, "verificationFiles", WORKER_ID, "uploads", "valid-id")));
+  await assertSucceeds(getDocs(collection(adminDb, "verificationFiles", WORKER_ID, "uploads", "valid-id", "chunks")));
+  await assertFails(getDoc(doc(clientDb, "verificationFiles", WORKER_ID, "uploads", "valid-id")));
+  await assertFails(getDoc(doc(outsiderDb, "verificationFiles", WORKER_ID, "uploads", "valid-id")));
 });
 
 test("client and worker accounts can complete the full canonical task lifecycle", async () => {
