@@ -21,6 +21,7 @@ import type { MapCoordinate } from "../src/components/LocationMap.types";
 import { screenPalette } from "../src/theme";
 
 const palette = screenPalette;
+const PROFILE_CITY = "Bacolod City";
 
 const skillOptions = workerCapabilities;
 const workerRadiusOptions = [
@@ -38,7 +39,8 @@ export default function ProfileScreen() {
   const [addressDetails, setAddressDetails] = useState<AddressDetails>(() => ({
     // Registration currently collects one Barangay value. Keep that value in the
     // single Barangay field instead of showing a duplicate generic address box.
-    barangay: currentUser?.address ?? ""
+    barangay: currentUser?.address ?? "",
+    city: PROFILE_CITY
   }));
   const [addressMapOpen, setAddressMapOpen] = useState(false);
   const [addressMapCoordinate, setAddressMapCoordinate] = useState<MapCoordinate>();
@@ -236,12 +238,15 @@ export default function ProfileScreen() {
   }
 
   function updateAddressDetail(field: keyof AddressDetails, value: string) {
-    setAddressDetails((current) => ({ ...current, [field]: value }));
+    setAddressDetails((current) => ({ ...current, [field]: field === "city" ? PROFILE_CITY : value }));
   }
 
   function applyAddressDetails(details: AddressDetails, message: string) {
     setAddressDetails((current) => ({
       ...details,
+      // TaskLink currently operates in Bacolod City. Map data may use a nearby
+      // locality label, but the profile's required service city is fixed.
+      city: PROFILE_CITY,
       // A building/house number is optional and commonly absent from map data;
       // never erase a value the user already entered manually.
       houseNumber: current.houseNumber?.trim() || details.houseNumber
@@ -344,7 +349,10 @@ export default function ProfileScreen() {
             <View style={styles.flex}><Field label="House / Building" value={addressDetails.houseNumber ?? ""} onChangeText={(value) => updateAddressDetail("houseNumber", value)} placeholder="Optional" /></View>
             <View style={styles.flex}><Field label="Street" value={addressDetails.street ?? ""} onChangeText={(value) => updateAddressDetail("street", value)} placeholder="Optional" /></View>
           </View>
-          <Field label="Barangay" value={addressDetails.barangay ?? ""} onChangeText={(value) => updateAddressDetail("barangay", value)} placeholder="Barangay" />
+          <View style={styles.twoColumn}>
+            <View style={styles.flex}><Field label="Barangay" value={addressDetails.barangay ?? ""} onChangeText={(value) => updateAddressDetail("barangay", value)} placeholder="Barangay" /></View>
+            <View style={styles.flex}><Field editable={false} helper="Required service city" label="City" value={PROFILE_CITY} onChangeText={() => undefined} placeholder="Bacolod City" /></View>
+          </View>
           <Pressable accessibilityRole="button" onPress={() => setAddressMapOpen(true)} style={styles.selectMapButton}>
             <Feather accessibilityElementsHidden color={palette.primary} name="map-pin" size={18} />
             <Text style={styles.selectMapButtonText}>Select on map</Text>
