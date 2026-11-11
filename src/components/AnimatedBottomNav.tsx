@@ -117,7 +117,9 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderWidth: 1,
     borderColor: colors.borderHighlight,
-    backgroundColor: glass.elevated,
+    // A near-opaque elevated material keeps scrolling content from competing
+    // with the tab labels on small Android screens.
+    backgroundColor: glass.solid,
     flexDirection: "row",
     overflow: "hidden",
     ...shadows.floating

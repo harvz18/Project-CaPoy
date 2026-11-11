@@ -5,7 +5,7 @@ import { MotionModal as Modal } from "./MotionModal";
 import { MotionPressable as Pressable } from "./MotionPressable";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { typography } from "../typography";
-import { AppText as Text } from "./AppText";
+import { AppText as Text, AppTextInput as TextInput } from "./AppText";
 
 type PickerMode = "date" | "datetime";
 
@@ -36,12 +36,16 @@ export function DateTimePickerSheet({
   const selectedTime = value?.getTime();
   const [draft, setDraft] = useState(() => initialDate(value, mode, minimumDate));
   const [visibleMonth, setVisibleMonth] = useState(() => monthStart(draft));
+  const [hourInput, setHourInput] = useState(() => String((draft.getHours() % 12) || 12));
+  const [minuteInput, setMinuteInput] = useState(() => twoDigits(draft.getMinutes()));
 
   useEffect(() => {
     if (!visible) return;
     const next = initialDate(value, mode, minimumDate);
     setDraft(next);
     setVisibleMonth(monthStart(next));
+    setHourInput(String((next.getHours() % 12) || 12));
+    setMinuteInput(twoDigits(next.getMinutes()));
   }, [minimumTime, mode, selectedTime, visible]);
 
   const calendarDays = useMemo(() => getCalendarDays(visibleMonth), [visibleMonth]);
@@ -65,10 +69,14 @@ export function DateTimePickerSheet({
     setDraft(next);
   }
 
-  function updateTime(hour: number, minute: number) {
+  function updateTime(hour: number, minute: number, syncInputs = true) {
     const next = new Date(draft);
     next.setHours(hour, minute, 0, 0);
     setDraft(next);
+    if (syncInputs) {
+      setHourInput(String((next.getHours() % 12) || 12));
+      setMinuteInput(twoDigits(next.getMinutes()));
+    }
   }
 
   function adjustMinutes(amount: number) {
@@ -80,6 +88,35 @@ export function DateTimePickerSheet({
 
   const hour12 = draft.getHours() % 12 || 12;
   const period = draft.getHours() >= 12 ? "PM" : "AM";
+  const enteredHour = Number(hourInput);
+  const enteredMinute = Number(minuteInput);
+  const timeInputError = mode !== "datetime" ? "" : !hourInput
+    ? "Enter an hour from 1 to 12."
+    : !Number.isInteger(enteredHour) || enteredHour < 1 || enteredHour > 12
+      ? "Hour must be from 1 to 12."
+      : !minuteInput
+        ? "Enter minutes from 00 to 59."
+        : !Number.isInteger(enteredMinute) || enteredMinute < 0 || enteredMinute > 59
+          ? "Minutes must be from 00 to 59."
+          : "";
+
+  function updateHourInput(value: string) {
+    const next = value.replace(/\D/g, "").slice(0, 2);
+    setHourInput(next);
+    const hour = Number(next);
+    if (next && Number.isInteger(hour) && hour >= 1 && hour <= 12) {
+      updateTime((hour % 12) + (period === "PM" ? 12 : 0), draft.getMinutes(), false);
+    }
+  }
+
+  function updateMinuteInput(value: string) {
+    const next = value.replace(/\D/g, "").slice(0, 2);
+    setMinuteInput(next);
+    const minute = Number(next);
+    if (next && Number.isInteger(minute) && minute >= 0 && minute <= 59) {
+      updateTime(draft.getHours(), minute, false);
+    }
+  }
 
   return (
     <Modal animationType="slide" transparent visible={visible} onRequestClose={onClose}>
@@ -156,19 +193,27 @@ export function DateTimePickerSheet({
               <View style={styles.timeCard}>
                 <View>
                   <Text style={styles.sectionTitle}>Start time</Text>
-                  <Text style={styles.sectionHelper}>Use the controls to choose an exact time.</Text>
+                  <Text style={styles.sectionHelper}>Type an exact time or use the controls. Hours use 1–12; minutes use 00–59.</Text>
                 </View>
                 <View style={styles.timeControls}>
                   <TimeStepper
                     label="Hour"
-                    value={String(hour12).padStart(2, "0")}
+                    value={hourInput || String(hour12)}
+                    onChangeText={updateHourInput}
+                    onBlur={() => {
+                      if (hourInput && enteredHour >= 1 && enteredHour <= 12) setHourInput(twoDigits(enteredHour));
+                    }}
                     onDecrease={() => updateTime((draft.getHours() + 23) % 24, draft.getMinutes())}
                     onIncrease={() => updateTime((draft.getHours() + 1) % 24, draft.getMinutes())}
                   />
                   <Text style={styles.timeColon}>:</Text>
                   <TimeStepper
                     label="Minute"
-                    value={String(draft.getMinutes()).padStart(2, "0")}
+                    value={minuteInput}
+                    onChangeText={updateMinuteInput}
+                    onBlur={() => {
+                      if (minuteInput && enteredMinute >= 0 && enteredMinute <= 59) setMinuteInput(twoDigits(enteredMinute));
+                    }}
                     onDecrease={() => adjustMinutes(-MINUTE_STEP)}
                     onIncrease={() => adjustMinutes(MINUTE_STEP)}
                   />
@@ -184,7 +229,8 @@ export function DateTimePickerSheet({
                     </Pressable>
                   </View>
                 </View>
-                {beforeMinimum ? <Text accessibilityRole="alert" style={styles.validationText}>Choose a time that has not already passed.</Text> : null}
+                {timeInputError ? <Text accessibilityRole="alert" style={styles.validationText}>{timeInputError}</Text> : null}
+                {!timeInputError && beforeMinimum ? <Text accessibilityRole="alert" style={styles.validationText}>Choose a time that has not already passed.</Text> : null}
               </View>
             ) : null}
           </ScrollView>
@@ -195,8 +241,8 @@ export function DateTimePickerSheet({
             </Pressable>
             <Pressable
               accessibilityRole="button"
-              accessibilityState={{ disabled: beforeMinimum }}
-              disabled={beforeMinimum}
+              accessibilityState={{ disabled: beforeMinimum || Boolean(timeInputError) }}
+              disabled={beforeMinimum || Boolean(timeInputError)}
               onPress={() => {
                 onConfirm(draft);
                 onClose();
@@ -212,8 +258,10 @@ export function DateTimePickerSheet({
   );
 }
 
-function TimeStepper({ label, onDecrease, onIncrease, value }: {
+function TimeStepper({ label, onBlur, onChangeText, onDecrease, onIncrease, value }: {
   label: string;
+  onBlur: () => void;
+  onChangeText: (value: string) => void;
   onDecrease: () => void;
   onIncrease: () => void;
   value: string;
@@ -225,7 +273,16 @@ function TimeStepper({ label, onDecrease, onIncrease, value }: {
         <Pressable accessibilityLabel={`Decrease ${label.toLowerCase()}`} accessibilityRole="button" onPress={onDecrease} style={styles.stepButton}>
           <Feather accessibilityElementsHidden color="#00C9B3" name="minus" size={18} />
         </Pressable>
-        <Text accessibilityLabel={`${label} ${value}`} style={styles.timeValue}>{value}</Text>
+        <TextInput
+          accessibilityLabel={`${label} input`}
+          keyboardType="number-pad"
+          maxLength={2}
+          onBlur={onBlur}
+          onChangeText={onChangeText}
+          selectTextOnFocus
+          style={styles.timeValue}
+          value={value}
+        />
         <Pressable accessibilityLabel={`Increase ${label.toLowerCase()}`} accessibilityRole="button" onPress={onIncrease} style={styles.stepButton}>
           <Feather accessibilityElementsHidden color="#00C9B3" name="plus" size={18} />
         </Pressable>
@@ -354,7 +411,7 @@ const styles = StyleSheet.create({
   stepper: { minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 10, borderWidth: 1, borderColor: "rgba(207, 249, 255, 0.28)", overflow: "hidden" },
   stepButton: { width: 34, alignSelf: "stretch", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(20, 217, 226, 0.12)" },
   stepButtonText: { ...typography.button, color: "#00C9B3" },
-  timeValue: { ...typography.cardTitleStrong, minWidth: 34, color: "#F5FCFF", textAlign: "center" },
+  timeValue: { ...typography.cardTitleStrong, minWidth: 34, color: "#F5FCFF", paddingHorizontal: 2, textAlign: "center" },
   timeColon: { ...typography.screenTitle, color: "#F5FCFF" },
   periodGroup: { width: 70, gap: 5 },
   periodButton: { minHeight: 46, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "#00C9B3" },

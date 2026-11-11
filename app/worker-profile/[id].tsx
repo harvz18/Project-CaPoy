@@ -51,7 +51,9 @@ export default function WorkerPublicProfileScreen() {
     .filter((rating) => rating.targetUserId === id)
     .map((rating) => ({
       ...rating,
-      reviewerName: users.find((user) => user.id === rating.reviewerId)?.fullName ?? "TaskLink User"
+      reviewerName: users.find((user) => user.id === rating.reviewerId)?.fullName ?? "TaskLink User",
+      taskTitle: tasks.find((task) => task.id === rating.taskId)?.title,
+      reviewDate: formatReviewDate(rating.createdAt)
     }));
   const averageRating = workerRatings.length
     ? (workerRatings.reduce((total, rating) => total + rating.score, 0) / workerRatings.length).toFixed(1)
@@ -166,7 +168,8 @@ export default function WorkerPublicProfileScreen() {
                 key={rating.id}
                 initials={rating.reviewerName[0] ?? "U"}
                 name={rating.reviewerName}
-                date="Task review"
+                context={rating.taskTitle}
+                date={rating.reviewDate}
                 stars={rating.score}
                 text={rating.feedback}
               />
@@ -225,7 +228,7 @@ function StatBox({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ReviewCard({ initials, name, date, stars, text }: { initials: string; name: string; date: string; stars: number; text: string }) {
+function ReviewCard({ context, initials, name, date, stars, text }: { context?: string; initials: string; name: string; date: string; stars: number; text: string }) {
   const score = Number.isFinite(stars) ? Math.min(5, Math.max(0, Math.round(stars))) : 0;
   return (
     <View style={styles.reviewCard}>
@@ -241,9 +244,17 @@ function ReviewCard({ initials, name, date, stars, text }: { initials: string; n
         </View>
         <Text accessibilityLabel={`${score} out of 5 stars`} style={styles.reviewStars}>{"★".repeat(score)}{"☆".repeat(5 - score)} <Text style={styles.reviewScore}>{score}/5</Text></Text>
       </View>
-      <Text style={styles.reviewText}>{text}</Text>
+      {context ? <Text style={styles.reviewContext} numberOfLines={1}>{context}</Text> : null}
+      {text.trim() ? <Text style={styles.reviewText}>{text}</Text> : null}
     </View>
   );
+}
+
+function formatReviewDate(value?: string) {
+  const parsed = value ? new Date(value) : undefined;
+  return parsed && Number.isFinite(parsed.getTime())
+    ? new Intl.DateTimeFormat("en-PH", { month: "short", day: "numeric", year: "numeric" }).format(parsed)
+    : "Task review";
 }
 
 const styles = StyleSheet.create({
@@ -297,18 +308,19 @@ const styles = StyleSheet.create({
   documentText: { ...typography.badge, color: palette.text, flex: 1 },
   documentStatus: { ...typography.badge, color: palette.muted },
   documentStatusComplete: { color: palette.success },
-  reviewCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "rgba(207,249,255,0.28)", backgroundColor: palette.surface, gap: 10 },
+  reviewCard: { padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "rgba(207,249,255,0.28)", backgroundColor: palette.surface, gap: 6 },
   reviewEmptyCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow },
   reviewEmptyText: { ...typography.bodyMedium, color: palette.muted },
   reviewTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 8 },
   reviewPerson: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
-  reviewAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: palette.secondaryFixed, alignItems: "center", justifyContent: "center" },
+  reviewAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: palette.secondaryFixed, alignItems: "center", justifyContent: "center" },
   reviewAvatarText: { ...typography.bodyMedium, color: "#F5FCFF" },
   reviewName: { ...typography.bodyMedium, color: palette.text },
   reviewDate: { ...typography.metadata, color: palette.muted },
-  reviewStars: { ...typography.sectionTitleSmall, color: palette.secondary },
+  reviewStars: { ...typography.bodyMedium, color: palette.secondary },
   reviewScore: { ...typography.badge, color: palette.muted },
-  reviewText: { ...typography.cardTitle, color: palette.muted },
+  reviewContext: { ...typography.metadata, color: palette.text },
+  reviewText: { ...typography.body, color: palette.muted },
   coverageCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "rgba(207,249,255,0.28)", backgroundColor: palette.surfaceLow, gap: 12 },
   actionError: { ...typography.button, color: "#FF7D8C", textAlign: "center" },
   applicationHint: { ...typography.metadata, color: "#F4C95D", textAlign: "center" },

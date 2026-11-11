@@ -29,6 +29,10 @@ export async function loadProfilesById(ids: string[]) {
   const response = await postAdminApi<{ profiles: Record<string, Profile> }>("/api/admin/profiles/lookup", { ids });
   return response.profiles;
 }
+export async function loadModerationProfilesById(ids: string[]) {
+  const response = await postAdminApi<{ profiles: Record<string, Profile> }>("/api/admin/profiles/moderation-lookup", { ids });
+  return response.profiles;
+}
 
 export async function loadTasksById(ids: string[]) {
   const tasks = await loadRecordsById<Task>("tasks", ids);
@@ -55,6 +59,24 @@ export async function getBasicDashboardCounts(): Promise<BasicDashboardCounts> {
     getCountFromServer(query(collection(store, "verificationRequests"), where("status", "==", "Pending Verification")))
   ]);
   return { users: users.data().count, employers: employers.data().count, taskers: taskers.data().count, tasks: tasks.data().count, activeTasks: activeTasks.data().count, completedTasks: completedTasks.data().count, paymentRecords: paymentRecords.data().count, submittedPayments: submittedPayments.data().count, pendingVerifications: pendingVerifications.data().count };
+}
+export async function getRatingCount(score?: number) {
+  const { db: store } = requireServices();
+  const ratings = score === undefined
+    ? collection(store, "ratings")
+    : query(collection(store, "ratings"), where("score", "==", score));
+  const snapshot = await getCountFromServer(ratings);
+  return snapshot.data().count;
+}
+export async function loadRatingsPage(score: string, size = 20, cursor: QueryDocumentSnapshot<DocumentData> | null = null): Promise<Page<Rating>> {
+  const { db: store } = requireServices();
+  const clauses: QueryConstraint[] = [];
+  if (score !== "all") clauses.push(where("score", "==", Number(score)));
+  clauses.push(orderBy("createdAt"), limit(size + 1));
+  if (cursor) clauses.splice(clauses.length - 1, 0, startAfter(cursor));
+  const snapshot = await getDocs(query(collection(store, "ratings"), ...clauses));
+  const docs = snapshot.docs.slice(0, size);
+  return { items: records<Rating>({ docs }), cursor: docs.at(-1) ?? null, hasMore: snapshot.docs.length > size };
 }
 export function subscribePendingVerifications(setData: (items: VerificationRequest[]) => void, setError: (error: Error) => void) {
   const { db: store } = requireServices();

@@ -39,10 +39,13 @@ import {
   changeAccountStatus,
   correctName,
   getBasicDashboardCounts,
+  getRatingCount,
   getSuperadminOverview,
   getVerificationDocumentUrl,
   loadPage,
+  loadModerationProfilesById,
   loadProfilesById,
+  loadRatingsPage,
   loadSubmittedPayments,
   loadTasksById,
   reviewPayment,
@@ -95,6 +98,23 @@ function taskTitle(task?: Task) {
 }
 function profileName(profile?: Profile) {
   return profile?.fullName || "Name unavailable";
+}
+function isProfilePhotoUrl(value?: string) {
+  try {
+    const url = new URL(value ?? "");
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+function ProfileAvatar({ fullName, url }: { fullName?: string; url?: string }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [url]);
+  const initial = (fullName || "U").trim().charAt(0).toUpperCase() || "U";
+  if (url && isProfilePhotoUrl(url) && !failed) {
+    return <img alt={`${fullName || "User"} profile photo`} className="profile-avatar-image" onError={() => setFailed(true)} src={url} />;
+  }
+  return <span aria-hidden="true" className="user-avatar-initial">{initial}</span>;
 }
 type Notice = { tone: "success" | "error"; message: string } | null;
 
@@ -470,48 +490,6 @@ function Dashboard({ scope }: { scope: Scope }) {
               onClick={() => navigate(`/${scope}/verifications`)}
             />
           </section>
-          <section className="dashboard-grid">
-            <Panel title="Account totals">
-              <dl className="key-values">
-                <div>
-                  <dt>All users</dt>
-                  <dd>{counts.users}</dd>
-                </div>
-                <div>
-                  <dt>Employers</dt>
-                  <dd>{counts.employers}</dd>
-                </div>
-                <div>
-                  <dt>Taskers</dt>
-                  <dd>{counts.taskers}</dd>
-                </div>
-                <div>
-                  <dt>Pending verification</dt>
-                  <dd>{counts.pendingVerifications}</dd>
-                </div>
-              </dl>
-            </Panel>
-            <Panel title="Task and payment totals">
-              <dl className="key-values">
-                <div>
-                  <dt>All tasks</dt>
-                  <dd>{counts.tasks}</dd>
-                </div>
-                <div>
-                  <dt>Active tasks</dt>
-                  <dd>{counts.activeTasks}</dd>
-                </div>
-                <div>
-                  <dt>Completed tasks</dt>
-                  <dd>{counts.completedTasks}</dd>
-                </div>
-                <div>
-                  <dt>Payment records</dt>
-                  <dd>{counts.paymentRecords}</dd>
-                </div>
-              </dl>
-            </Panel>
-          </section>
         </>
       ) : null}
     </div>
@@ -559,6 +537,53 @@ function usePaged<T>(name: string, field: string) {
       void load(back.at(-1) ?? null);
     },
     canGoBack: history.length > 0,
+    pageNumber: history.length + 1,
+    refresh: () => void load(history.at(-1) ?? null),
+  };
+}
+
+function useRatingsPaged(score: string) {
+  const [items, setItems] = useState<Rating[]>([]);
+  const [cursor, setCursor] = useState<any>(null);
+  const [history, setHistory] = useState<any[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const load = useCallback(async (nextCursor: any = null, addHistory = false) => {
+    setLoading(true);
+    setError("");
+    try {
+      const page = await loadRatingsPage(score, PAGE_SIZE, nextCursor);
+      setItems(page.items);
+      setCursor(page.cursor);
+      setHasMore(page.hasMore);
+      if (addHistory) setHistory((current) => [...current, nextCursor]);
+    } catch (failure) {
+      setError(errorText(failure));
+    } finally {
+      setLoading(false);
+    }
+  }, [score]);
+  useEffect(() => {
+    setItems([]);
+    setCursor(null);
+    setHasMore(false);
+    setHistory([]);
+    void load();
+  }, [load]);
+  return {
+    items,
+    loading,
+    error,
+    hasMore,
+    next: () => void load(cursor, true),
+    previous: () => {
+      const back = history.slice(0, -1);
+      setHistory(back);
+      void load(back.at(-1) ?? null);
+    },
+    canGoBack: history.length > 0,
+    pageNumber: history.length + 1,
     refresh: () => void load(history.at(-1) ?? null),
   };
 }
@@ -566,6 +591,7 @@ function usePaged<T>(name: string, field: string) {
 function useRecordLookup<T>(
   ids: string[],
   loader: (ids: string[]) => Promise<Record<string, T>>,
+  refreshKey = 0,
 ) {
   const key = [...new Set(ids.filter(Boolean))].sort().join("|");
   const [data, setData] = useState<Record<string, T>>({});
@@ -587,7 +613,7 @@ function useRecordLookup<T>(
     return () => {
       active = false;
     };
-  }, [key, loader]);
+  }, [key, loader, refreshKey]);
   return data;
 }
 
@@ -602,6 +628,7 @@ function UsersPage({
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [role, setRole] = useState(() => searchParams.get("role") === "client" || searchParams.get("role") === "worker" ? searchParams.get("role") as string : "all");
+  const [moderationVersion, setModerationVersion] = useState(0);
   const [modal, setModal] = useState<{
     user: Profile;
     action: "suspend" | "active" | "name";
@@ -617,6 +644,11 @@ function UsersPage({
     const requestedRole = searchParams.get("role");
     setRole(requestedRole === "client" || requestedRole === "worker" ? requestedRole : "all");
   }, [searchParams]);
+  const moderationProfiles = useRecordLookup<Profile>(
+    scope === "superadmin" ? page.items.map((user) => user.id) : [],
+    loadModerationProfilesById,
+    moderationVersion,
+  );
   return (
     <div className="page-stack">
       <div className="page-heading">
@@ -652,53 +684,46 @@ function UsersPage({
             ...(scope === "superadmin" ? ["Actions"] : []),
           ]}
         >
-          {filtered.map((user) => (
-            <tr key={user.id}>
+          {filtered.map((user) => {
+            const moderationProfile = scope === "superadmin" ? moderationProfiles[user.id] : undefined;
+            const displayUser = { ...user, ...moderationProfile };
+            const restricted = displayUser.accountStatus === "suspended";
+            return <tr key={user.id}>
               <td>
                 <div className="profile-cell">
-                  {user.profilePhotoUrl ? <img alt="" src={user.profilePhotoUrl} style={{ width: 34, height: 34, borderRadius: "50%", objectFit: "cover" }} /> : <span aria-hidden="true" className="user-avatar-initial">{(user.fullName || "U").charAt(0).toUpperCase()}</span>}
-                  <strong>{user.fullName || "Unnamed account"}</strong>
+                  <ProfileAvatar fullName={displayUser.fullName} url={displayUser.profilePhotoUrl} />
+                  <strong>{displayUser.fullName || "Unnamed account"}</strong>
                 </div>
-                {user.businessName ? <small>{user.businessName}</small> : null}
+                {displayUser.businessName ? <small>{displayUser.businessName}</small> : null}
               </td>
               <td>
-                <Badge value={roleLabel(user.role)} />
+                <Badge value={roleLabel(displayUser.role)} />
               </td>
               <td>
-                {user.verificationStatus ||
-                  user.identityStatus ||
+                {displayUser.verificationStatus ||
+                  displayUser.identityStatus ||
                   "Not submitted"}
               </td>
               <td>
-                {user.rating ?? 0}
-                {user.ratingCount ? ` (${user.ratingCount})` : ""}
+                {displayUser.rating ?? 0}
+                {displayUser.ratingCount ? ` (${displayUser.ratingCount})` : ""}
               </td>
               {scope === "superadmin" ? (
                 <td>
                   <div className="row-actions">
-                    <button
-                      className="text-button danger-text"
-                      onClick={() => setModal({ user, action: "suspend" })}
-                    >
-                      Restrict
-                    </button>
+                    {!restricted ? <button className="text-button danger-text" onClick={() => setModal({ user: displayUser, action: "suspend" })}>Restrict</button> : null}
+                    {restricted ? <button className="text-button success-text" onClick={() => setModal({ user: displayUser, action: "active" })}>Reactivate</button> : null}
                     <button
                       className="text-button"
-                      onClick={() => setModal({ user, action: "active" })}
-                    >
-                      Reactivate
-                    </button>
-                    <button
-                      className="text-button"
-                      onClick={() => setModal({ user, action: "name" })}
+                      onClick={() => setModal({ user: displayUser, action: "name" })}
                     >
                       Correct name
                     </button>
                   </div>
                 </td>
               ) : null}
-            </tr>
-          ))}
+            </tr>;
+          })}
         </Table>
         {!page.loading && !filtered.length ? (
           <EmptyState title="No accounts in this result" />
@@ -713,7 +738,10 @@ function UsersPage({
           modal={modal}
           close={() => setModal(null)}
           notify={notify}
-          refreshed={page.refresh}
+          refreshed={() => {
+            page.refresh();
+            setModerationVersion((value) => value + 1);
+          }}
         />
       ) : null}
     </div>
@@ -837,8 +865,7 @@ function ApplicationsPage() {
         <div>
           <h2>Applications monitoring</h2>
           <p>
-            Application records are read-only here; employer selection remains
-            unchanged.
+            Applications are read-only in this portal. Only the employer who posted the task can accept or decline worker applications. Administrators may monitor application records but cannot make hiring decisions on behalf of employers.
           </p>
         </div>
         <SearchBox value={search} onChange={setSearch} />
@@ -1163,17 +1190,33 @@ function HelpPage() {
 }
 
 function FeedbackPage() {
-  const page = usePaged<Rating>("ratings", "createdAt");
   const [score, setScore] = useState("all");
-  const filtered = page.items.filter(
-    (rating) => score === "all" || String(rating.score) === score,
-  );
+  const page = useRatingsPaged(score);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
+  const [filteredCount, setFilteredCount] = useState<number | null>(null);
+  useEffect(() => {
+    let active = true;
+    void Promise.all([getRatingCount(), score === "all" ? Promise.resolve<number | null>(null) : getRatingCount(Number(score))])
+      .then(([total, filtered]) => {
+        if (!active) return;
+        setTotalCount(total);
+        setFilteredCount(filtered);
+      })
+      .catch(() => {
+        if (!active) return;
+        setTotalCount(null);
+        setFilteredCount(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [score]);
   const profiles = useRecordLookup<Profile>(
-    filtered.map((rating) => rating.targetUserId || ""),
+    page.items.map((rating) => rating.targetUserId || ""),
     loadProfilesById,
   );
   const tasks = useRecordLookup<Task>(
-    filtered.map((rating) => rating.taskId || ""),
+    page.items.map((rating) => rating.taskId || ""),
     loadTasksById,
   );
   return (
@@ -1195,9 +1238,9 @@ function FeedbackPage() {
           ))}
         </select>
       </div>
-      <Panel title="Feedback">
-        <Table headers={["Rating", "Feedback", "Target user", "Task title", "Date"]}>
-          {filtered.map((rating) => (
+      <Panel title={totalCount === null ? "Feedback" : score === "all" ? `Feedback — ${totalCount} total records` : `Feedback — showing ${filteredCount ?? 0} of ${totalCount} records`}>
+        <Table className="feedback-table" headers={["Rating", "Feedback", "Target user", "Task title", "Date"]}>
+          {page.items.map((rating) => (
             <tr key={rating.id}>
               <td>
                 <span className="rating">
@@ -1212,7 +1255,7 @@ function FeedbackPage() {
             </tr>
           ))}
         </Table>
-        {!page.loading && !filtered.length ? (
+        {!page.loading && !page.items.length ? (
           <EmptyState title="No feedback in this result" />
         ) : null}
         {page.error ? (
@@ -1733,15 +1776,17 @@ function Metric({
   ) : <article className="metric">{contents}</article>;
 }
 function Table({
+  className,
   headers,
   children,
 }: {
+  className?: string;
   headers: string[];
   children: ReactNode;
 }) {
   return (
     <div className="table-wrap">
-      <table>
+      <table className={className}>
         <thead>
           <tr>
             {headers.map((header) => (
@@ -1760,16 +1805,18 @@ function Pager({
   next,
   previous,
   canGoBack,
+  pageNumber,
 }: {
   loading: boolean;
   hasMore: boolean;
   next: () => void;
   previous: () => void;
   canGoBack: boolean;
+  pageNumber: number;
 }) {
   return (
     <div className="pager">
-      <span>{loading ? "Loading…" : ""}</span>
+      <span>{loading ? "Loading…" : `Page ${pageNumber}`}</span>
       <div>
         <button
           className="icon-button"

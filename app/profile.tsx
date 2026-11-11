@@ -9,7 +9,6 @@ import { AnimatedBottomNav } from "../src/components/AnimatedBottomNav";
 import LocationMap from "../src/components/LocationMap";
 import { StatusBadge } from "../src/components/StatusBadge";
 import { workerCapabilities } from "../src/constants/capabilities";
-import { FREE_WEB_DEMO } from "../src/config/release";
 import { useApp } from "../src/context/AppContext";
 import { getScheduleBasedAvailability, getUserTaskHistory } from "../src/domain/taskMarketplace";
 import { isIdentityLocked } from "../src/domain/profileIdentity";
@@ -68,7 +67,9 @@ export default function ProfileScreen() {
   const [policeClearanceUrl, setPoliceClearanceUrl] = useState(currentUser?.policeClearanceUrl ?? "");
   const [documentsChanged, setDocumentsChanged] = useState(false);
   const [uploadingField, setUploadingField] = useState<string>();
+  const [uploadErrors, setUploadErrors] = useState<Partial<Record<UploadFieldKey, string>>>({});
   const [uploadMessage, setUploadMessage] = useState("");
+  const [editProfileExpanded, setEditProfileExpanded] = useState(false);
   const [currentLatitude, setCurrentLatitude] = useState(String(currentUser?.currentLatitude ?? ""));
   const [currentLongitude, setCurrentLongitude] = useState(String(currentUser?.currentLongitude ?? ""));
   const [locationSource, setLocationSource] = useState(currentUser?.locationSource);
@@ -84,7 +85,9 @@ export default function ProfileScreen() {
     .filter((rating) => rating.targetUserId === currentUser?.id)
     .map((rating) => ({
       ...rating,
-      reviewerName: users.find((user) => user.id === rating.reviewerId)?.fullName ?? "TaskLink User"
+      reviewerName: users.find((user) => user.id === rating.reviewerId)?.fullName ?? "TaskLink User",
+      taskTitle: tasks.find((task) => task.id === rating.taskId)?.title,
+      reviewDate: formatReviewDate(rating.createdAt)
     }));
   const averageRating = profileRatings.length
     ? (profileRatings.reduce((total, rating) => total + rating.score, 0) / profileRatings.length).toFixed(1)
@@ -158,6 +161,7 @@ export default function ProfileScreen() {
   async function uploadProfilePhoto() {
     if (!currentUser) return;
     setUploadingField("profile-photo");
+    setUploadErrors((current) => ({ ...current, "profile-photo": undefined }));
     setUploadMessage("");
     try {
       const uploaded = await pickAndUploadProfilePhoto(currentUser.id);
@@ -167,7 +171,9 @@ export default function ProfileScreen() {
         setUploadMessage("Profile photo uploaded and saved.");
       }
     } catch (uploadError) {
-      setUploadMessage(uploadError instanceof Error ? uploadError.message : "Unable to upload profile photo.");
+      const message = uploadError instanceof Error ? uploadError.message : "Unable to upload profile photo.";
+      setUploadErrors((current) => ({ ...current, "profile-photo": message }));
+      setUploadMessage(message);
     } finally {
       setUploadingField(undefined);
     }
@@ -176,6 +182,7 @@ export default function ProfileScreen() {
   async function uploadVerificationDocument(kind: "valid-id" | "medical-certificate" | "police-clearance") {
     if (!currentUser) return;
     setUploadingField(kind);
+    setUploadErrors((current) => ({ ...current, [kind]: undefined }));
     setUploadMessage("");
     try {
       const uploaded = await pickAndUploadPrivateDocument(currentUser.id, kind);
@@ -187,7 +194,9 @@ export default function ProfileScreen() {
         setUploadMessage(`${uploaded.name} uploaded privately. Save changes to submit it for review.`);
       }
     } catch (uploadError) {
-      setUploadMessage(uploadError instanceof Error ? uploadError.message : "Unable to upload this document.");
+      const message = uploadError instanceof Error ? uploadError.message : "Unable to upload this document.";
+      setUploadErrors((current) => ({ ...current, [kind]: message }));
+      setUploadMessage(message);
     } finally {
       setUploadingField(undefined);
     }
@@ -332,8 +341,22 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        <SettingsCard title="Edit Profile">
-          <Field
+        <View style={styles.settingsCard}>
+          <Pressable
+            accessibilityHint="Shows or hides your editable profile details without discarding changes."
+            accessibilityRole="button"
+            accessibilityState={{ expanded: editProfileExpanded }}
+            onPress={() => setEditProfileExpanded((value) => !value)}
+            style={styles.collapsibleHeader}
+          >
+            <View style={styles.flex}>
+              <Text style={styles.settingsTitle}>Edit Profile</Text>
+              <Text style={styles.collapsibleSummary}>{fullName || "Profile details"} · {PROFILE_CITY}</Text>
+            </View>
+            <Feather accessibilityElementsHidden color={palette.primary} name={editProfileExpanded ? "chevron-up" : "chevron-down"} size={22} />
+          </Pressable>
+          {editProfileExpanded ? <>
+            <Field
             editable={!fullNameLocked}
             helper={fullNameLocked ? "Locked after identity approval. Contact support to request a correction." : "This name will lock after identity approval."}
             label="Full Name"
@@ -341,7 +364,7 @@ export default function ProfileScreen() {
             onChangeText={setFullName}
             placeholder="Full name"
           />
-          <Field
+            <Field
             editable={false}
             label="Mobile Number (verified identity)"
             value={mobileNumber}
@@ -349,22 +372,23 @@ export default function ProfileScreen() {
             keyboardType="phone-pad"
             placeholder="Mobile number"
           />
-          <View style={styles.twoColumn}>
+            <View style={styles.twoColumn}>
             <View style={styles.flex}><Field label="House / Building" value={addressDetails.houseNumber ?? ""} onChangeText={(value) => updateAddressDetail("houseNumber", value)} placeholder="Optional" /></View>
             <View style={styles.flex}><Field label="Street" value={addressDetails.street ?? ""} onChangeText={(value) => updateAddressDetail("street", value)} placeholder="Optional" /></View>
           </View>
-          <View style={styles.twoColumn}>
+            <View style={styles.twoColumn}>
             <View style={styles.flex}><Field label="Barangay" value={addressDetails.barangay ?? ""} onChangeText={(value) => updateAddressDetail("barangay", value)} placeholder="Barangay" /></View>
             <View style={styles.flex}><Field editable={false} helper="Required service city" label="City" value={PROFILE_CITY} onChangeText={() => undefined} placeholder="Bacolod City" /></View>
           </View>
-          <Pressable accessibilityRole="button" onPress={() => setAddressMapOpen(true)} style={styles.selectMapButton}>
+            <Pressable accessibilityRole="button" onPress={() => setAddressMapOpen(true)} style={styles.selectMapButton}>
             <Feather accessibilityElementsHidden color={palette.primary} name="map-pin" size={18} />
             <Text style={styles.selectMapButtonText}>Select on map</Text>
           </Pressable>
-          <Text style={styles.helperText}>Choose a map pin or search an address to fill these fields. House/building is optional.</Text>
-          {addressLookupMessage ? <Text style={styles.locationMessage}>{addressLookupMessage}</Text> : null}
-          <Field label={currentUser?.role === "client" ? "Business Bio" : "Worker Bio"} value={bio} onChangeText={setBio} placeholder="Tell people about yourself" multiline />
-        </SettingsCard>
+            <Text style={styles.helperText}>Choose a map pin or search an address to fill these fields. House/building is optional.</Text>
+            {addressLookupMessage ? <Text style={styles.locationMessage}>{addressLookupMessage}</Text> : null}
+            <Field label={currentUser?.role === "client" ? "Business Bio" : "Worker Bio"} value={bio} onChangeText={setBio} placeholder="Tell people about yourself" multiline />
+          </> : null}
+        </View>
 
         <SettingsCard title="Account Mode">
           <Text style={styles.helperText}>You are currently using TaskLink as {currentUser?.role === "client" ? "an employer" : "a tasker"}.</Text>
@@ -416,12 +440,10 @@ export default function ProfileScreen() {
                   multiline
                 />
               </> : null}
-              {FREE_WEB_DEMO ? (
-                <Text style={styles.helperText}>Profile-photo and verification-document uploads are unavailable in this no-billing web deployment because Firebase Storage is not active. Existing saved photos remain visible; account and task features continue to work.</Text>
-              ) : <>
                 <UploadField
-                  disabled={uploadingField === "profile-photo"}
+                  error={uploadErrors["profile-photo"]}
                   label="Profile Photo"
+                  loading={uploadingField === "profile-photo"}
                   value={profilePhotoUrl}
                   placeholder="Tap to upload profile photo"
                   onSelect={uploadProfilePhoto}
@@ -431,22 +453,28 @@ export default function ProfileScreen() {
                     setDocumentsChanged(true);
                   }} placeholder="e.g. National ID, Driver's License" />
                   <UploadField
-                    disabled={fullNameLocked || uploadingField === "valid-id"}
+                    disabled={fullNameLocked}
+                    error={uploadErrors["valid-id"]}
                     label="Valid ID"
+                    loading={uploadingField === "valid-id"}
                     value={validIdUrl}
                     placeholder="Tap to upload valid ID"
                     onSelect={() => uploadVerificationDocument("valid-id")}
                   />
                   <UploadField
-                    disabled={fullNameLocked || uploadingField === "medical-certificate"}
+                    disabled={fullNameLocked}
+                    error={uploadErrors["medical-certificate"]}
                     label="Medical Certificate"
+                    loading={uploadingField === "medical-certificate"}
                     value={medicalCertificateUrl}
                     placeholder="Tap to upload medical certificate"
                     onSelect={() => uploadVerificationDocument("medical-certificate")}
                   />
                   <UploadField
-                    disabled={fullNameLocked || uploadingField === "police-clearance"}
+                    disabled={fullNameLocked}
+                    error={uploadErrors["police-clearance"]}
                     label="Police Clearance"
+                    loading={uploadingField === "police-clearance"}
                     value={policeClearanceUrl}
                     placeholder="Tap to upload police clearance"
                     onSelect={() => uploadVerificationDocument("police-clearance")}
@@ -454,7 +482,6 @@ export default function ProfileScreen() {
                   <Text style={styles.helperText}>{fullNameLocked
                     ? "Your approved identity details are locked. Contact support if a correction is needed."
                     : "Submit a valid ID, medical certificate, and police clearance. Documents are private and available only to you and authorized administrators."}</Text>
-              </>}
               {uploadMessage ? <Text style={styles.locationMessage}>{uploadMessage}</Text> : null}
             </SettingsCard>
 
@@ -518,7 +545,8 @@ export default function ProfileScreen() {
                 key={rating.id}
                 initials={rating.reviewerName[0] ?? "U"}
                 name={rating.reviewerName}
-                date="Task review"
+                context={rating.taskTitle}
+                date={rating.reviewDate}
                 stars={rating.score}
                 text={rating.feedback}
               />
@@ -689,15 +717,21 @@ function Field({
   );
 }
 
+type UploadFieldKey = "profile-photo" | "valid-id" | "medical-certificate" | "police-clearance";
+
 function UploadField({
   disabled,
+  error,
   label,
+  loading = false,
   value,
   placeholder,
   onSelect
 }: {
   disabled?: boolean;
+  error?: string;
   label: string;
+  loading?: boolean;
   value: string;
   placeholder: string;
   onSelect: () => void | Promise<void>;
@@ -707,17 +741,18 @@ function UploadField({
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
-      <Pressable accessibilityRole="button" disabled={disabled} onPress={() => void onSelect()} style={[styles.uploadInput, disabled && styles.uploadDisabled]}>
+      <Pressable accessibilityRole="button" accessibilityState={{ busy: loading, disabled: disabled || loading }} disabled={disabled || loading} onPress={() => void onSelect()} style={[styles.uploadInput, (disabled || loading) && styles.uploadDisabled]}>
         <View style={styles.uploadCopy}>
           <Text style={[styles.uploadText, !selectedFile && styles.uploadPlaceholder]}>
             {selectedFile || placeholder}
           </Text>
-          {selectedFile ? <Text style={styles.uploadMeta}>Ready for review</Text> : null}
+          {selectedFile ? <Text style={styles.uploadMeta}>Saved privately · submit with Save Changes</Text> : null}
         </View>
         <View style={styles.uploadButton}>
-          <Text style={styles.uploadButtonText}>{disabled ? "Uploading..." : selectedFile ? "Change" : "Upload"}</Text>
+          <Text style={styles.uploadButtonText}>{loading ? "Uploading..." : error ? "Retry" : selectedFile ? "Change" : "Upload"}</Text>
         </View>
       </Pressable>
+      {error ? <Text accessibilityRole="alert" style={styles.uploadError}>{error}</Text> : null}
     </View>
   );
 }
@@ -728,7 +763,14 @@ function getUploadedFileName(value: string) {
   return value.split("/").pop()?.replace(/^\d+_/, "") ?? value;
 }
 
-function ReviewCard({ initials, name, date, stars, text }: { initials: string; name: string; date: string; stars: number; text: string }) {
+function formatReviewDate(value?: string) {
+  const parsed = value ? new Date(value) : undefined;
+  return parsed && Number.isFinite(parsed.getTime())
+    ? new Intl.DateTimeFormat("en-PH", { month: "short", day: "numeric", year: "numeric" }).format(parsed)
+    : "Task review";
+}
+
+function ReviewCard({ context, initials, name, date, stars, text }: { context?: string; initials: string; name: string; date: string; stars: number; text: string }) {
   const score = Number.isFinite(stars) ? Math.min(5, Math.max(0, Math.round(stars))) : 0;
   return (
     <View style={styles.reviewCard}>
@@ -744,7 +786,8 @@ function ReviewCard({ initials, name, date, stars, text }: { initials: string; n
         </View>
         <Text accessibilityLabel={`${score} out of 5 stars`} style={styles.reviewStars}>{"★".repeat(score)}{"☆".repeat(5 - score)} <Text style={styles.reviewScore}>{score}/5</Text></Text>
       </View>
-      <Text style={styles.reviewText}>{text}</Text>
+      {context ? <Text style={styles.reviewContext} numberOfLines={1}>{context}</Text> : null}
+      {text.trim() ? <Text style={styles.reviewText}>{text}</Text> : null}
     </View>
   );
 }
@@ -778,6 +821,8 @@ const styles = StyleSheet.create({
   statValue: { ...typography.heroNumber, color: palette.primary, textAlign: "center" },
   settingsCard: { padding: 18, borderRadius: 20, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.outlineVariant, gap: 12 },
   settingsTitle: { ...typography.sectionTitleSmall, color: palette.textStrong },
+  collapsibleHeader: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 12 },
+  collapsibleSummary: { ...typography.metadata, color: palette.muted, marginTop: 2 },
   field: { gap: 6 },
   fieldLabel: { ...typography.fieldLabel, color: palette.text },
   input: { ...typography.inputText, minHeight: 50, borderRadius: 14, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceHigh, color: palette.text, paddingHorizontal: 14 },
@@ -801,6 +846,7 @@ const styles = StyleSheet.create({
   uploadText: { ...typography.bodyMedium, color: palette.text },
   uploadPlaceholder: { ...typography.body, color: palette.outline },
   uploadMeta: { ...typography.metadata, color: palette.success },
+  uploadError: { ...typography.metadata, color: palette.danger },
   uploadButton: {
     minHeight: 38,
     borderRadius: 8,
@@ -868,17 +914,18 @@ const styles = StyleSheet.create({
   radiusValueSelected: { color: palette.primary },
   radiusHelper: { ...typography.metadata, color: palette.muted, marginTop: 2 },
   radiusHelperSelected: { color: palette.text },
-  reviewCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "rgba(207,249,255,0.28)", backgroundColor: palette.surface, gap: 10 },
+  reviewCard: { padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "rgba(207,249,255,0.28)", backgroundColor: palette.surface, gap: 6 },
   reviewEmptyCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow },
   reviewEmptyText: { ...typography.bodyMedium, color: palette.muted },
   reviewTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 8 },
   reviewPerson: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
-  reviewAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: palette.secondaryFixed, alignItems: "center", justifyContent: "center" },
+  reviewAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: palette.secondaryFixed, alignItems: "center", justifyContent: "center" },
   reviewAvatarText: { ...typography.bodyMedium, color: "#F5FCFF" },
   reviewName: { ...typography.bodyMedium, color: palette.text },
   reviewDate: { ...typography.metadata, color: palette.muted },
-  reviewStars: { ...typography.sectionTitleSmall, color: palette.secondary },
-  reviewText: { ...typography.cardTitle, color: palette.muted },
+  reviewStars: { ...typography.bodyMedium, color: palette.secondary },
+  reviewContext: { ...typography.metadata, color: palette.text },
+  reviewText: { ...typography.body, color: palette.muted },
   coverageCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "rgba(207,249,255,0.28)", backgroundColor: palette.surfaceLow, gap: 12 },
   coverageHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
   coverageIcon: { ...typography.heroNumber, color: palette.primary },

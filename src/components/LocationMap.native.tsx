@@ -1,10 +1,12 @@
 import Constants from "expo-constants";
+import Feather from "@expo/vector-icons/Feather";
 import type { Feature, LineString, Polygon } from "geojson";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { NativeModules, StyleSheet, View } from "react-native";
 import { WebView } from "react-native-webview";
 import type { CameraRef, StyleSpecification } from "@maplibre/maplibre-react-native";
 import { LocationMapProps, LocationMarker, MapCoordinate } from "./LocationMap.types";
+import { MotionPressable as Pressable } from "./MotionPressable";
 import { typography } from "../typography";
 import { AppText as Text } from "./AppText";
 
@@ -112,7 +114,7 @@ function leafletHtml({ center, markers, radiusMeters, interactive, fitToMarkers,
   <head>
     <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <style>html, body, #map { height: 100%; margin: 0; width: 100%; } .leaflet-control-attribution { font-size: 9px; }</style>
+    <style>html, body, #map { height: 100%; margin: 0; width: 100%; } .leaflet-control-attribution { font-size: 9px; } .leaflet-control-zoom a { width: 38px; height: 38px; line-height: 38px; font-size: 22px; }</style>
   </head>
   <body>
     <div id="map"></div>
@@ -214,6 +216,7 @@ export default function LocationMap({
   const { Camera, GeoJSONSource, Layer, Map, UserLocation, ViewAnnotation } = mapLibre;
   const cameraRef = useRef<CameraRef | null>(null);
   const focus = center ?? markers[0] ?? bacolodCenter;
+  const [currentZoom, setCurrentZoom] = useState(center || markers.length ? 15 : 13);
   const mapTilerApiKey = Constants.expoConfig?.extra?.mapTilerApiKey?.trim();
   const mapStyle = mapTilerApiKey
     ? `https://api.maptiler.com/maps/streets-v4/style.json?key=${encodeURIComponent(mapTilerApiKey)}`
@@ -283,6 +286,7 @@ export default function LocationMap({
           latitude: event.nativeEvent.lngLat[1],
           longitude: event.nativeEvent.lngLat[0]
         }) : undefined}
+        onRegionDidChange={(event) => setCurrentZoom(event.nativeEvent.zoom)}
         scaleBar
         scaleBarPosition={{ top: 8, left: 8 }}
         style={styles.map}
@@ -311,6 +315,32 @@ export default function LocationMap({
       <Text accessibilityElementsHidden pointerEvents="none" style={styles.attribution}>
         {mapTilerApiKey ? mapTilerAttribution : osmAttribution}
       </Text>
+      {interactive ? <View pointerEvents="box-none" style={styles.zoomControls}>
+        <Pressable
+          accessibilityLabel="Zoom in"
+          accessibilityRole="button"
+          onPress={() => {
+            const next = Math.min(19, currentZoom + 1);
+            setCurrentZoom(next);
+            cameraRef.current?.zoomTo(next, { duration: 120 });
+          }}
+          style={styles.zoomButton}
+        >
+          <Feather accessibilityElementsHidden color="#F5FCFF" name="plus" size={20} />
+        </Pressable>
+        <Pressable
+          accessibilityLabel="Zoom out"
+          accessibilityRole="button"
+          onPress={() => {
+            const next = Math.max(3, currentZoom - 1);
+            setCurrentZoom(next);
+            cameraRef.current?.zoomTo(next, { duration: 120 });
+          }}
+          style={styles.zoomButton}
+        >
+          <Feather accessibilityElementsHidden color="#F5FCFF" name="minus" size={20} />
+        </Pressable>
+      </View> : null}
       {interactive && !center ? <View pointerEvents="none" style={styles.selectionHint}><Text style={styles.selectionHintText}>Tap the map to place the task pin</Text></View> : null}
     </View>
   );
@@ -321,6 +351,8 @@ const styles = StyleSheet.create({
   map: { flex: 1 },
   pin: { borderColor: "#FFFFFF", borderRadius: 14, borderWidth: 3, elevation: 4, height: 28, shadowColor: "#001722", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 3, width: 28 },
   attribution: { ...typography.overline, backgroundColor: "rgba(91,169,188,0.18)", bottom: 0, color: "#BBD5DE", paddingHorizontal: 4, position: "absolute", right: 0 },
+  zoomControls: { position: "absolute", right: 12, top: 12, gap: 8 },
+  zoomButton: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(3,35,52,0.94)", borderWidth: 1, borderColor: "rgba(207,249,255,0.48)", elevation: 5 },
   selectionHint: { backgroundColor: "rgba(3,35,52,0.94)", borderColor: "rgba(207, 249, 255, 0.28)", borderRadius: 999, borderWidth: 1, left: 16, paddingHorizontal: 12, paddingVertical: 8, position: "absolute", right: 16, top: 12 },
   selectionHintText: { ...typography.metadata, color: "#00C9B3", textAlign: "center" }
 });

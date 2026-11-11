@@ -22,6 +22,17 @@ type SelectedFile = {
   size?: number;
 };
 
+function inferredMimeType(name: string, mimeType?: string | null) {
+  if (mimeType && (mimeType.startsWith("image/") || mimeType === "application/pdf")) return mimeType;
+  const extension = name.split(".").pop()?.toLowerCase();
+  if (extension === "pdf") return "application/pdf";
+  if (extension === "png") return "image/png";
+  if (extension === "webp") return "image/webp";
+  if (extension === "heic" || extension === "heif") return "image/heic";
+  if (extension === "jpg" || extension === "jpeg") return "image/jpeg";
+  return mimeType || "application/octet-stream";
+}
+
 function requireStorage() {
   if (!storage) throw new Error("Firebase Storage is not configured.");
   return storage;
@@ -50,7 +61,16 @@ async function uploadSelectedFile(file: SelectedFile, path: string) {
   const blob = await response.blob();
   if (blob.size > maxUploadBytes) throw new Error("Files must be smaller than 10 MB.");
   const uploadRef = ref(requireStorage(), path);
-  await uploadBytes(uploadRef, blob, { contentType: file.mimeType });
+  try {
+    await uploadBytes(uploadRef, blob, { contentType: file.mimeType });
+  } catch (error) {
+    const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
+    if (code === "storage/bucket-not-found" || code === "storage/project-not-found" || code === "storage/no-default-bucket") {
+      throw new Error("Secure file storage is unavailable for this project. The file was not saved; retry after Firebase Storage is configured.");
+    }
+    if (code === "storage/unknown") throw new Error("The file upload did not finish. Check the connection or secure storage configuration, then retry.");
+    throw error;
+  }
   return uploadRef;
 }
 
@@ -66,7 +86,7 @@ export async function pickAndUploadProfilePhoto(userId: string) {
   const file: SelectedFile = {
     uri: asset.uri,
     name: asset.fileName ?? "profile-photo.jpg",
-    mimeType: asset.mimeType ?? "image/jpeg",
+    mimeType: inferredMimeType(asset.fileName ?? "profile-photo.jpg", asset.mimeType),
     size: asset.fileSize
   };
   validateFile(file, false);
@@ -91,7 +111,7 @@ export async function pickAndUploadPrivateDocument(
   const file: SelectedFile = {
     uri: asset.uri,
     name: asset.name,
-    mimeType: asset.mimeType ?? "application/octet-stream",
+    mimeType: inferredMimeType(asset.name, asset.mimeType),
     size: asset.size
   };
   validateFile(file, true);
@@ -116,7 +136,7 @@ async function pickAndUploadPrivatePaymentFile(
   const file: SelectedFile = {
     uri: asset.uri,
     name: asset.name,
-    mimeType: asset.mimeType ?? "application/octet-stream",
+    mimeType: inferredMimeType(asset.name, asset.mimeType),
     size: asset.size
   };
   validateFile(file, allowPdf);

@@ -634,7 +634,7 @@ export default function PostTaskScreen() {
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
       </ScrollView>
 
-      <View style={[styles.bottomAction, { bottom: 58 + Math.max(insets.bottom, 10), paddingBottom: 16 }]}>
+      <View style={[styles.bottomAction, { bottom: 96 + Math.max(insets.bottom, 10), paddingBottom: 16 }]}>
         <Pressable
           accessibilityRole="button"
           accessibilityState={{ disabled: actionLoading }}
@@ -1141,11 +1141,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 16,
     backgroundColor: palette.surface,
+    borderTopWidth: 1,
+    borderTopColor: palette.outlineVariant,
     shadowColor: "#001722",
     shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    elevation: 12
+    shadowOpacity: 0.24,
+    shadowRadius: 16,
+    elevation: 16
   },
   postButton: { minHeight: 48, borderRadius: 8, backgroundColor: palette.primary, flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "center" },
   postButtonText: { ...typography.button, color: palette.white },
