@@ -4,15 +4,16 @@ import { Animated, Easing, LayoutChangeEvent, Pressable, StyleSheet, Text, View 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomNavIcon } from "./BottomNavIcon";
 import { usePrefersReducedMotion } from "./RouteTransition";
+import { colors, glass, motion, shadows } from "../theme";
 
 export type BottomNavKey = "home" | "jobs" | "chat" | "profile";
 
-const ACTIVE_COLOR = "#684000";
-const INACTIVE_COLOR = "#3E4947";
+const ACTIVE_COLOR = colors.white;
+const INACTIVE_COLOR = colors.text;
 const TAB_COUNT = 4;
 const NAV_HORIZONTAL_PADDING = 8;
 const MARKER_MARGIN = 6;
-const NAV_TRANSITION_DURATION_MS = 220;
+const NAV_TRANSITION_DURATION_MS = motion.standard;
 let lastActiveIndex: number | undefined;
 
 export function AnimatedBottomNav({ active, role }: { active: BottomNavKey; role?: string }) {
@@ -100,30 +101,34 @@ const navItems: Array<{ key: BottomNavKey; label: string; route: string }> = [
 const styles = StyleSheet.create({
   bottomNav: {
     position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
+    left: 12,
+    right: 12,
+    bottom: 8,
     minHeight: 72,
     paddingHorizontal: NAV_HORIZONTAL_PADDING,
     paddingTop: 8,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
+    borderRadius: 24,
     borderTopWidth: 1,
-    borderColor: "#BDC9C6",
-    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: colors.borderHighlight,
+    backgroundColor: glass.elevated,
     flexDirection: "row",
-    elevation: 10,
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8
+    overflow: "hidden",
+    ...shadows.floating
   },
   activeMarker: {
     position: "absolute",
     top: 8,
     height: 48,
     borderRadius: 24,
-    backgroundColor: "#FEA619"
+    borderWidth: 1,
+    borderColor: "rgba(181, 255, 249, 0.70)",
+    backgroundColor: colors.primary,
+    shadowColor: colors.accent,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.38,
+    shadowRadius: 16,
+    elevation: 8
   },
   navItem: {
     flex: 1,
@@ -134,6 +139,6 @@ const styles = StyleSheet.create({
     paddingVertical: 4
   },
   navLabel: { color: INACTIVE_COLOR, fontSize: 12, lineHeight: 16, fontWeight: "600" },
-  navLabelActive: { color: ACTIVE_COLOR, fontWeight: "800" },
-  pressed: { opacity: 0.72 }
+  navLabelActive: { color: ACTIVE_COLOR, fontWeight: "900" },
+  pressed: { opacity: 0.82, transform: [{ scale: 0.985 }] }
 });

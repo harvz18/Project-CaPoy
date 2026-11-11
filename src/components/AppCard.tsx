@@ -10,11 +10,17 @@ type AppCardProps = PropsWithChildren<{
 export function AppCard({ children, onPress, style }: AppCardProps) {
   if (onPress) {
     return (
-      <Pressable style={({ pressed }) => [styles.card, pressed && styles.pressed, style]} onPress={onPress}>
+      <Pressable accessibilityRole="button" style={({ pressed }) => [styles.card, pressed && styles.pressed, style]} onPress={onPress}>
+        <View pointerEvents="none" style={styles.glassHighlight} />
         {children}
       </Pressable>
     );
   }
 
-  return <View style={[styles.card, style]}>{children}</View>;
+  return (
+    <View style={[styles.card, style]}>
+      <View pointerEvents="none" style={styles.glassHighlight} />
+      {children}
+    </View>
+  );
 }

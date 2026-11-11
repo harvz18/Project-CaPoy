@@ -241,7 +241,7 @@ function Action({ label, tone, disabled, onPress }: { label: string; tone: Tone;
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
-  header: { padding: 20, flexDirection: "row", gap: 12, justifyContent: "space-between", alignItems: "center", backgroundColor: "#FFFFFF", borderBottomWidth: 1, borderBottomColor: colors.border },
+  header: { padding: 20, flexDirection: "row", gap: 12, justifyContent: "space-between", alignItems: "center", backgroundColor: "rgba(91, 169, 188, 0.18)", borderBottomWidth: 1, borderBottomColor: colors.border },
   eyebrow: { color: colors.primary, fontSize: 11, fontWeight: "900", letterSpacing: 1.2 },
   title: { color: colors.text, fontSize: 24, fontWeight: "900", marginTop: 3 },
   subtitle: { color: colors.muted, marginTop: 2 },
@@ -252,16 +252,16 @@ const styles = StyleSheet.create({
   logoutText: { color: colors.danger, fontWeight: "800", fontSize: 12 },
   content: { padding: 18, paddingBottom: 48, gap: 18 },
   stats: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  stat: { flexGrow: 1, minWidth: 130, padding: 16, backgroundColor: "#FFFFFF", borderRadius: 14, borderWidth: 1, borderColor: colors.border },
+  stat: { flexGrow: 1, minWidth: 130, padding: 16, backgroundColor: "rgba(91, 169, 188, 0.18)", borderRadius: 14, borderWidth: 1, borderColor: colors.border },
   statValue: { color: colors.primary, fontSize: 26, fontWeight: "900" },
   notice: { backgroundColor: colors.infoLight, borderRadius: 14, padding: 16, gap: 10 },
-  input: { minHeight: 44, backgroundColor: "#FFFFFF", borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 12 },
+  input: { minHeight: 44, backgroundColor: "rgba(91, 169, 188, 0.18)", borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 12 },
   multiline: { minHeight: 76, textAlignVertical: "top" },
   help: { color: colors.muted, fontSize: 13, lineHeight: 18 },
   error: { color: colors.danger, fontWeight: "700" },
   section: { gap: 10 },
   sectionTitle: { color: colors.text, fontSize: 19, fontWeight: "900" },
-  card: { backgroundColor: "#FFFFFF", borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 16, gap: 10 },
+  card: { backgroundColor: "rgba(91, 169, 188, 0.18)", borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 16, gap: 10 },
   cardTitle: { color: colors.text, fontSize: 15, fontWeight: "800" },
   meta: { color: colors.muted, fontSize: 12 },
   body: { color: colors.text, lineHeight: 20 },
@@ -274,9 +274,9 @@ const styles = StyleSheet.create({
   actionText: { color: colors.text, fontSize: 12, fontWeight: "800" },
   actionTextLight: { color: "#FFFFFF" },
   disabled: { opacity: 0.5 },
-  empty: { color: colors.muted, padding: 16, backgroundColor: "#FFFFFF", borderRadius: 12 },
-  userRow: { gap: 10, backgroundColor: "#FFFFFF", padding: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.border },
+  empty: { color: colors.muted, padding: 16, backgroundColor: "rgba(91, 169, 188, 0.18)", borderRadius: 12 },
+  userRow: { gap: 10, backgroundColor: "rgba(91, 169, 188, 0.18)", padding: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.border },
   moderationAvatarImage: { width: 44, height: 44, borderRadius: 22, marginBottom: 8 },
   grow: { flex: 1 },
-  auditRow: { backgroundColor: "#FFFFFF", borderLeftWidth: 3, borderLeftColor: colors.primary, padding: 13, gap: 4 }
+  auditRow: { backgroundColor: "rgba(91, 169, 188, 0.18)", borderLeftWidth: 3, borderLeftColor: colors.primary, padding: 13, gap: 4 }
 });

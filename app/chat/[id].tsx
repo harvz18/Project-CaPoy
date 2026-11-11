@@ -6,24 +6,10 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { AnimatedBottomNav } from "../../src/components/AnimatedBottomNav";
 import { useApp } from "../../src/context/AppContext";
 import { useTasklinkBack } from "../../src/hooks/useTasklinkBack";
+import { screenPalette } from "../../src/theme";
 import { ChatMessage } from "../../src/types";
 
-const palette = {
-  background: "#F7FAF8",
-  surface: "#FFFFFF",
-  surfaceLow: "#F1F4F3",
-  surfaceContainer: "#EBEFED",
-  surfaceHigh: "#E0E3E1",
-  primary: "#005C55",
-  secondaryContainer: "#FEA619",
-  text: "#181C1C",
-  textStrong: "#111827",
-  muted: "#3E4947",
-  outline: "#6E7977",
-  outlineVariant: "#BDC9C6",
-  success: "#10B981",
-  white: "#FFFFFF"
-};
+const palette = screenPalette;
 
 const quickReplies = ["I'm on my way", "I've arrived", "Stuck in traffic"];
 
@@ -191,7 +177,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     backgroundColor: palette.surface,
     borderBottomWidth: 1,
-    borderBottomColor: "#EDF1EF"
+    borderBottomColor: "rgba(207, 249, 255, 0.20)"
   },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
   headerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
@@ -201,8 +187,8 @@ const styles = StyleSheet.create({
   callButton: { paddingHorizontal: 10, minHeight: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   callText: { color: palette.muted, fontWeight: "800" },
   smallAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: palette.secondaryContainer, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: palette.outlineVariant },
-  avatarText: { color: "#684000", fontWeight: "900" },
-  contextBar: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "rgba(189,201,198,0.35)", backgroundColor: palette.surfaceLow, flexDirection: "row", alignItems: "center", gap: 12 },
+  avatarText: { color: "#F4C95D", fontWeight: "900" },
+  contextBar: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "rgba(207,249,255,0.28)", backgroundColor: palette.surfaceLow, flexDirection: "row", alignItems: "center", gap: 12 },
   contactAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: palette.surfaceHigh, alignItems: "center", justifyContent: "center" },
   onlineDot: { position: "absolute", right: 0, bottom: 0, width: 12, height: 12, borderRadius: 6, backgroundColor: palette.success, borderWidth: 2, borderColor: palette.surfaceLow },
   contextCopy: { flex: 1 },
@@ -216,7 +202,7 @@ const styles = StyleSheet.create({
   messageRow: { marginBottom: 12, flexDirection: "row", alignItems: "flex-end", gap: 8, maxWidth: "86%" },
   messageRowMine: { alignSelf: "flex-end" },
   messageRowOther: { alignSelf: "flex-start" },
-  messageBubble: { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
+  messageBubble: { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10, shadowColor: "#001722", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
   messageMine: { backgroundColor: palette.primary, borderBottomRightRadius: 4 },
   messageOther: { backgroundColor: palette.surfaceHigh, borderBottomLeftRadius: 4 },
   messageText: { color: palette.text, fontSize: 16, lineHeight: 24 },
@@ -234,7 +220,7 @@ const styles = StyleSheet.create({
   sendButton: { width: 52, height: 44, borderRadius: 22, backgroundColor: palette.primary, alignItems: "center", justifyContent: "center" },
   sendButtonDisabled: { backgroundColor: palette.outline },
   sendButtonText: { color: palette.white, fontSize: 12, fontWeight: "900" },
-  sendError: { color: "#BA1A1A", fontSize: 12, lineHeight: 16, fontWeight: "700", paddingHorizontal: 16, paddingBottom: 8 },
+  sendError: { color: "#FF7D8C", fontSize: 12, lineHeight: 16, fontWeight: "700", paddingHorizontal: 16, paddingBottom: 8 },
   pressed: { opacity: 0.78, transform: [{ scale: 0.99 }] },
   disabled: { opacity: 0.5 }
 });

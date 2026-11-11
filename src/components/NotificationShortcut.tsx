@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { colors, glass, shadows } from "../theme";
 
 export function NotificationShortcut({ onPress, unreadCount }: { onPress: () => void; unreadCount: number }) {
   const label = unreadCount ? `Notifications, ${unreadCount} unread` : "Notifications";
@@ -25,9 +26,10 @@ const styles = StyleSheet.create({
     borderRadius: 21,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#E7F3F0",
+    backgroundColor: glass.standard,
     borderWidth: 1,
-    borderColor: "#BDC9C6"
+    borderColor: colors.borderHighlight,
+    ...shadows.resting
   },
   bell: { width: 24, height: 24, alignItems: "center", justifyContent: "flex-start" },
   bellDome: {
@@ -36,7 +38,7 @@ const styles = StyleSheet.create({
     width: 15,
     height: 15,
     borderWidth: 2,
-    borderColor: "#005C55",
+    borderColor: colors.primary,
     borderTopLeftRadius: 8,
     borderTopRightRadius: 8,
     borderBottomWidth: 0
@@ -47,7 +49,7 @@ const styles = StyleSheet.create({
     width: 20,
     height: 2,
     borderRadius: 1,
-    backgroundColor: "#005C55"
+    backgroundColor: colors.primary
   },
   bellClapper: {
     position: "absolute",
@@ -55,7 +57,7 @@ const styles = StyleSheet.create({
     width: 5,
     height: 3,
     borderRadius: 3,
-    backgroundColor: "#005C55"
+    backgroundColor: colors.primary
   },
   badge: {
     position: "absolute",
@@ -67,10 +69,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#BA1A1A",
+    backgroundColor: colors.danger,
     borderWidth: 1,
     borderColor: "#FFFFFF"
   },
   badgeText: { color: "#FFFFFF", fontSize: 10, fontWeight: "900" },
-  pressed: { opacity: 0.72 }
+  pressed: { opacity: 0.82, transform: [{ scale: 0.97 }] }
 });

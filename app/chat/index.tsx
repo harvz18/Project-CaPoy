@@ -4,25 +4,10 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AnimatedBottomNav } from "../../src/components/AnimatedBottomNav";
 import { useApp } from "../../src/context/AppContext";
+import { screenPalette } from "../../src/theme";
 import { ChatMessage, Task } from "../../src/types";
 
-const palette = {
-  background: "#F7FAF8",
-  surface: "#FFFFFF",
-  surfaceLow: "#F1F4F3",
-  surfaceContainer: "#EBEFED",
-  surfaceHigh: "#E0E3E1",
-  primary: "#005C55",
-  primaryFixed: "#9CF2E8",
-  secondaryContainer: "#FEA619",
-  text: "#181C1C",
-  textStrong: "#111827",
-  muted: "#3E4947",
-  outline: "#6E7977",
-  outlineVariant: "#BDC9C6",
-  success: "#10B981",
-  white: "#FFFFFF"
-};
+const palette = screenPalette;
 
 type Conversation = {
   id: string;
@@ -223,7 +208,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     backgroundColor: palette.surface,
     borderBottomWidth: 1,
-    borderBottomColor: "#EDF1EF"
+    borderBottomColor: "rgba(207, 249, 255, 0.20)"
   },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
   menuText: { color: palette.primary, fontSize: 24, fontWeight: "800" },
@@ -238,12 +223,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: palette.outlineVariant
   },
-  avatarText: { color: "#684000", fontWeight: "900" },
+  avatarText: { color: "#F4C95D", fontWeight: "900" },
   content: { padding: 16, gap: 14 },
   heroPanel: { borderRadius: 12, padding: 20, backgroundColor: palette.primary, gap: 6 },
   heroKicker: { color: palette.primaryFixed, fontSize: 12, lineHeight: 16, fontWeight: "900", textTransform: "uppercase" },
   heroTitle: { color: palette.white, fontSize: 24, lineHeight: 32, fontWeight: "900" },
-  heroText: { color: "#DDF8F4", fontSize: 14, lineHeight: 20 },
+  heroText: { color: palette.primaryFixed, fontSize: 14, lineHeight: 20 },
   searchWrap: {
     minHeight: 50,
     borderRadius: 12,
@@ -263,7 +248,7 @@ const styles = StyleSheet.create({
   conversationList: {
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(189,201,198,0.35)",
+    borderColor: "rgba(207,249,255,0.28)",
     backgroundColor: palette.surface,
     overflow: "hidden"
   },
@@ -272,7 +257,7 @@ const styles = StyleSheet.create({
     minHeight: 86,
     padding: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(189,201,198,0.35)",
+    borderBottomColor: "rgba(207,249,255,0.28)",
     flexDirection: "row",
     alignItems: "center",
     gap: 12

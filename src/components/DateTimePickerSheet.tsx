@@ -107,7 +107,7 @@ export function DateTimePickerSheet({
                   onPress={() => setVisibleMonth((current) => addMonths(current, -1))}
                   style={[styles.monthButton, previousMonthDisabled && styles.disabled]}
                 >
-                  <Feather accessibilityElementsHidden color="#005C55" name="chevron-left" size={24} />
+                  <Feather accessibilityElementsHidden color="#00C9B3" name="chevron-left" size={24} />
                 </Pressable>
                 <Text accessibilityRole="header" style={styles.monthTitle}>
                   {visibleMonth.toLocaleDateString(undefined, { month: "long", year: "numeric" })}
@@ -118,7 +118,7 @@ export function DateTimePickerSheet({
                   onPress={() => setVisibleMonth((current) => addMonths(current, 1))}
                   style={styles.monthButton}
                 >
-                  <Feather accessibilityElementsHidden color="#005C55" name="chevron-right" size={24} />
+                  <Feather accessibilityElementsHidden color="#00C9B3" name="chevron-right" size={24} />
                 </Pressable>
               </View>
 
@@ -219,11 +219,11 @@ function TimeStepper({ label, onDecrease, onIncrease, value }: {
       <Text style={styles.timeLabel}>{label}</Text>
       <View style={styles.stepper}>
         <Pressable accessibilityLabel={`Decrease ${label.toLowerCase()}`} accessibilityRole="button" onPress={onDecrease} style={styles.stepButton}>
-          <Feather accessibilityElementsHidden color="#005C55" name="minus" size={18} />
+          <Feather accessibilityElementsHidden color="#00C9B3" name="minus" size={18} />
         </Pressable>
         <Text accessibilityLabel={`${label} ${value}`} style={styles.timeValue}>{value}</Text>
         <Pressable accessibilityLabel={`Increase ${label.toLowerCase()}`} accessibilityRole="button" onPress={onIncrease} style={styles.stepButton}>
-          <Feather accessibilityElementsHidden color="#005C55" name="plus" size={18} />
+          <Feather accessibilityElementsHidden color="#00C9B3" name="plus" size={18} />
         </Pressable>
       </View>
     </View>
@@ -315,51 +315,51 @@ function twoDigits(value: number) {
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(24,28,28,0.42)" },
-  sheet: { width: "100%", maxHeight: "94%", borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingTop: 8, backgroundColor: "#F7FAF8", shadowColor: "#000000", shadowOffset: { width: 0, height: -6 }, shadowOpacity: 0.14, shadowRadius: 18, elevation: 24 },
-  handle: { width: 42, height: 4, borderRadius: 2, alignSelf: "center", backgroundColor: "#BDC9C6", marginBottom: 10 },
+  backdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(1,15,25,0.68)" },
+  sheet: { width: "100%", maxHeight: "94%", borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingTop: 8, backgroundColor: "rgba(4, 45, 64, 0.76)", shadowColor: "#001722", shadowOffset: { width: 0, height: -6 }, shadowOpacity: 0.14, shadowRadius: 18, elevation: 24 },
+  handle: { width: 42, height: 4, borderRadius: 2, alignSelf: "center", backgroundColor: "rgba(207, 249, 255, 0.32)", marginBottom: 10 },
   header: { minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   headerCopy: { flex: 1 },
-  eyebrow: { color: "#855300", fontSize: 10, lineHeight: 14, fontWeight: "900", letterSpacing: 1.1 },
-  title: { color: "#111827", fontSize: 21, lineHeight: 28, fontWeight: "900" },
+  eyebrow: { color: "#F4C95D", fontSize: 10, lineHeight: 14, fontWeight: "900", letterSpacing: 1.1 },
+  title: { color: "#F5FCFF", fontSize: 21, lineHeight: 28, fontWeight: "900" },
   closeButton: { minHeight: 40, paddingHorizontal: 12, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  closeText: { color: "#005C55", fontSize: 13, fontWeight: "900" },
+  closeText: { color: "#00C9B3", fontSize: 13, fontWeight: "900" },
   content: { gap: 12, paddingVertical: 12 },
-  summaryCard: { borderRadius: 14, padding: 14, backgroundColor: "#005C55" },
-  summaryLabel: { color: "#BDEBE5", fontSize: 11, lineHeight: 15, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.7 },
+  summaryCard: { borderRadius: 14, padding: 14, backgroundColor: "#00C9B3" },
+  summaryLabel: { color: "#A8EDFF", fontSize: 11, lineHeight: 15, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.7 },
   summaryValue: { color: "#FFFFFF", fontSize: 18, lineHeight: 25, fontWeight: "900", marginTop: 3 },
-  calendarCard: { padding: 10, borderRadius: 16, borderWidth: 1, borderColor: "#D8E1DF", backgroundColor: "#FFFFFF" },
+  calendarCard: { padding: 10, borderRadius: 16, borderWidth: 1, borderColor: "rgba(207, 249, 255, 0.28)", backgroundColor: "rgba(91, 169, 188, 0.18)" },
   monthHeader: { minHeight: 42, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  monthButton: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: "#E5F1EE" },
-  monthButtonText: { color: "#005C55", fontSize: 28, lineHeight: 30, fontWeight: "700" },
-  monthTitle: { color: "#181C1C", fontSize: 16, lineHeight: 22, fontWeight: "900" },
+  monthButton: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(20, 217, 226, 0.12)" },
+  monthButtonText: { color: "#00C9B3", fontSize: 28, lineHeight: 30, fontWeight: "700" },
+  monthTitle: { color: "#F5FCFF", fontSize: 16, lineHeight: 22, fontWeight: "900" },
   calendarGrid: { flexDirection: "row", flexWrap: "wrap", paddingTop: 5 },
-  dayName: { width: "14.2857%", paddingVertical: 7, color: "#6E7977", fontSize: 11, lineHeight: 14, fontWeight: "900", textAlign: "center" },
+  dayName: { width: "14.2857%", paddingVertical: 7, color: "#92B2C0", fontSize: 11, lineHeight: 14, fontWeight: "900", textAlign: "center" },
   dayCell: { width: "14.2857%", aspectRatio: 1, padding: 2 },
   dayButton: { flex: 1, borderRadius: 999, alignItems: "center", justifyContent: "center" },
-  todayButton: { borderWidth: 1, borderColor: "#005C55" },
-  selectedDay: { borderColor: "#FEA619", backgroundColor: "#FEA619" },
-  dayText: { color: "#181C1C", fontSize: 13, fontWeight: "800" },
-  selectedDayText: { color: "#2A1700", fontWeight: "900" },
-  timeCard: { padding: 14, borderRadius: 16, borderWidth: 1, borderColor: "#D8E1DF", backgroundColor: "#FFFFFF", gap: 12 },
-  sectionTitle: { color: "#181C1C", fontSize: 15, lineHeight: 21, fontWeight: "900" },
-  sectionHelper: { color: "#3E4947", fontSize: 12, lineHeight: 16, marginTop: 2 },
+  todayButton: { borderWidth: 1, borderColor: "#00C9B3" },
+  selectedDay: { borderColor: "#00C9B3", backgroundColor: "#00C9B3" },
+  dayText: { color: "#F5FCFF", fontSize: 13, fontWeight: "800" },
+  selectedDayText: { color: "#F5FCFF", fontWeight: "900" },
+  timeCard: { padding: 14, borderRadius: 16, borderWidth: 1, borderColor: "rgba(207, 249, 255, 0.28)", backgroundColor: "rgba(91, 169, 188, 0.18)", gap: 12 },
+  sectionTitle: { color: "#F5FCFF", fontSize: 15, lineHeight: 21, fontWeight: "900" },
+  sectionHelper: { color: "#BBD5DE", fontSize: 12, lineHeight: 16, marginTop: 2 },
   timeControls: { flexDirection: "row", alignItems: "flex-end", justifyContent: "center", gap: 7 },
   timeGroup: { flex: 1, gap: 5 },
-  timeLabel: { color: "#6E7977", fontSize: 10, lineHeight: 14, fontWeight: "900", textAlign: "center", textTransform: "uppercase" },
-  stepper: { minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 10, borderWidth: 1, borderColor: "#BDC9C6", overflow: "hidden" },
-  stepButton: { width: 34, alignSelf: "stretch", alignItems: "center", justifyContent: "center", backgroundColor: "#E5F1EE" },
-  stepButtonText: { color: "#005C55", fontSize: 20, lineHeight: 24, fontWeight: "900" },
-  timeValue: { minWidth: 34, color: "#181C1C", fontSize: 17, fontWeight: "900", textAlign: "center" },
-  timeColon: { color: "#181C1C", fontSize: 22, lineHeight: 44, fontWeight: "900" },
+  timeLabel: { color: "#92B2C0", fontSize: 10, lineHeight: 14, fontWeight: "900", textAlign: "center", textTransform: "uppercase" },
+  stepper: { minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 10, borderWidth: 1, borderColor: "rgba(207, 249, 255, 0.28)", overflow: "hidden" },
+  stepButton: { width: 34, alignSelf: "stretch", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(20, 217, 226, 0.12)" },
+  stepButtonText: { color: "#00C9B3", fontSize: 20, lineHeight: 24, fontWeight: "900" },
+  timeValue: { minWidth: 34, color: "#F5FCFF", fontSize: 17, fontWeight: "900", textAlign: "center" },
+  timeColon: { color: "#F5FCFF", fontSize: 22, lineHeight: 44, fontWeight: "900" },
   periodGroup: { width: 70, gap: 5 },
-  periodButton: { minHeight: 46, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "#005C55" },
+  periodButton: { minHeight: 46, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "#00C9B3" },
   periodText: { color: "#FFFFFF", fontSize: 15, fontWeight: "900" },
-  validationText: { color: "#BA1A1A", fontSize: 12, lineHeight: 16, fontWeight: "800" },
-  actions: { flexDirection: "row", gap: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#D8E1DF" },
-  cancelButton: { minHeight: 48, paddingHorizontal: 18, borderRadius: 12, borderWidth: 1, borderColor: "#005C55", alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF" },
-  cancelText: { color: "#005C55", fontSize: 14, fontWeight: "900" },
-  confirmButton: { minHeight: 48, flex: 1, paddingHorizontal: 16, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "#005C55" },
+  validationText: { color: "#FF7D8C", fontSize: 12, lineHeight: 16, fontWeight: "800" },
+  actions: { flexDirection: "row", gap: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: "rgba(207, 249, 255, 0.28)" },
+  cancelButton: { minHeight: 48, paddingHorizontal: 18, borderRadius: 12, borderWidth: 1, borderColor: "#00C9B3", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(91, 169, 188, 0.18)" },
+  cancelText: { color: "#00C9B3", fontSize: 14, fontWeight: "900" },
+  confirmButton: { minHeight: 48, flex: 1, paddingHorizontal: 16, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "#00C9B3" },
   confirmText: { color: "#FFFFFF", fontSize: 14, fontWeight: "900" },
   disabled: { opacity: 0.38 }
 });

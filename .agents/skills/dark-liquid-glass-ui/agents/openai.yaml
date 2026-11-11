@@ -1,0 +1,8 @@
+interface:
+  display_name: "Dark Liquid Glass UI"
+  short_description: "Migrate entire apps to dark cyan glass UI"
+  brand_color: "#14D9E2"
+  default_prompt: "Apply the $dark-liquid-glass-ui skill to my ENTIRE existing application. First, scan every route, screen, and shared component. Create a complete screen inventory, then implement the updated design system throughout the project. The two attached screenshots are the primary visual references. Match their dark navy background, cyan/teal lighting, frosted glass cards, transparent glass inputs, rounded components, and glowing active navigation states as closely as practical. Do not stop after updating the Home and Profile screens. Apply the same styling to all other screens, including nested pages, forms, modals, lists, authentication, settings, and empty/loading/error states. Preserve every existing function, API integration, route, and data model. Use reusable components and centralized design tokens so the interface stays consistent when new screens are added. After implementation, inspect each screen for visual inconsistencies, identify any remaining old UI styles, fix them, and provide a report listing all updated screens and any unresolved issues."
+
+policy:
+  allow_implicit_invocation: true

@@ -11,34 +11,20 @@ import {
   Text,
   TextInput,
   UIManager,
+  useWindowDimensions,
   View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { workerCapabilities } from "../src/constants/capabilities";
 import { useApp } from "../src/context/AppContext";
+import { screenPalette } from "../src/theme";
 import { PublicRole, Role } from "../src/types";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-const palette = {
-  background: "#F7FAF8",
-  surface: "#FFFFFF",
-  surfaceLow: "#F1F4F3",
-  surfaceContainer: "#EBEFED",
-  surfaceHigh: "#E0E3E1",
-  primary: "#005C55",
-  secondary: "#855300",
-  secondaryContainer: "#FEA619",
-  text: "#181C1C",
-  textStrong: "#111827",
-  muted: "#3E4947",
-  outline: "#6E7977",
-  outlineVariant: "#BDC9C6",
-  success: "#10B981",
-  white: "#FFFFFF"
-};
+const palette = screenPalette;
 
 const barangays = ["Barangay Alijis", "Barangay Taculing", "Barangay Mandalagan", "Barangay 10"];
 
@@ -59,6 +45,11 @@ function getRoleRoute(role?: Role): Href {
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { width: viewportWidth } = useWindowDimensions();
+  const formWidth = Math.max(0, Math.min(viewportWidth - 32, 448));
+  const formWidthStyle = {
+    width: (Platform.OS === "web" ? "calc(100vw - 32px)" : formWidth) as number
+  };
   const { actionLoading, error, login, register, usingFirebase } = useApp();
   const [mobileNumber, setMobileNumber] = useState("");
   const [password, setPassword] = useState("");
@@ -138,13 +129,14 @@ export default function LoginScreen() {
         contentContainerStyle={screenStyles.content}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        style={screenStyles.scroll}
       >
-        <View style={screenStyles.intro}>
+        <View style={[screenStyles.intro, formWidthStyle]}>
           <Text style={screenStyles.welcome}>Welcome Neighbor</Text>
           <Text style={screenStyles.subtitle}>Quickly connect with local help in your community.</Text>
         </View>
 
-        <View style={screenStyles.card}>
+        <View style={[screenStyles.card, formWidthStyle]}>
           <Text style={screenStyles.authTitle}>Password Login</Text>
           <Text style={screenStyles.authNotice}>
             SMS OTP is not enabled yet. Use the password created with your account.
@@ -292,14 +284,14 @@ export default function LoginScreen() {
           ) : null}
         </View>
 
-        <View style={screenStyles.termsBlock}>
+        <View style={[screenStyles.termsBlock, formWidthStyle]}>
           <Text style={screenStyles.terms}>By signing in, you agree to the beta terms and privacy notice.</Text>
           <Pressable accessibilityRole="link" onPress={() => router.push("/help" as Href)}>
             <Text style={screenStyles.link}>Read terms, privacy, limitations, and support</Text>
           </Pressable>
         </View>
 
-        <View style={screenStyles.footer}>
+        <View style={[screenStyles.footer, formWidthStyle]}>
           <Text style={screenStyles.modeText}>TaskLink records payment evidence but does not process or escrow funds.</Text>
           <Text style={screenStyles.modeText}>
             Data mode: {usingFirebase ? "Firebase backend" : "Firebase not configured"}
@@ -378,7 +370,7 @@ const screenStyles = StyleSheet.create({
   backgroundLink: { position: "absolute", right: -22, top: "39%", flexDirection: "row", alignItems: "center", transform: [{ rotate: "-16deg" }] },
   backgroundLinkCircle: { width: 120, height: 120, borderRadius: 60, backgroundColor: palette.primary },
   backgroundLinkCircleGold: { backgroundColor: palette.secondaryContainer },
-  backgroundLinkBar: { width: 80, height: 28, marginHorizontal: -10, borderRadius: 14, backgroundColor: "#9CF2E8" },
+  backgroundLinkBar: { width: 80, height: 28, marginHorizontal: -10, borderRadius: 14, backgroundColor: "#5DF7F2" },
   header: {
     minHeight: 56,
     paddingHorizontal: 16,
@@ -386,7 +378,7 @@ const screenStyles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     backgroundColor: palette.surface,
-    borderBottomColor: "#EDF1EF",
+    borderBottomColor: "rgba(207, 249, 255, 0.20)",
     borderBottomWidth: 1
   },
   brand: {
@@ -411,10 +403,16 @@ const screenStyles = StyleSheet.create({
   },
   content: {
     flexGrow: 1,
+    width: "100%",
+    maxWidth: "100%",
     paddingHorizontal: 16,
     paddingTop: 48,
     paddingBottom: 28,
     alignItems: "center"
+  },
+  scroll: {
+    flex: 1,
+    width: "100%"
   },
   intro: {
     width: "100%",
@@ -440,13 +438,15 @@ const screenStyles = StyleSheet.create({
     width: "100%",
     maxWidth: 448,
     padding: 24,
-    borderRadius: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(55, 126, 151, 0.34)",
     backgroundColor: palette.surface,
-    shadowColor: "#000000",
+    shadowColor: "#001722",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 3,
+    shadowOpacity: 0.11,
+    shadowRadius: 20,
+    elevation: 5,
     gap: 20
   },
   authTitle: { color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "900" },
@@ -661,7 +661,7 @@ const screenStyles = StyleSheet.create({
   secondaryButton: {
     minHeight: 48,
     borderRadius: 8,
-    backgroundColor: palette.secondary,
+    backgroundColor: palette.primary,
     alignItems: "center",
     justifyContent: "center"
   },
@@ -750,7 +750,7 @@ const screenStyles = StyleSheet.create({
     fontWeight: "800"
   },
   errorText: {
-    color: "#BA1A1A",
+    color: "#FF7D8C",
     fontSize: 12,
     lineHeight: 16,
     fontWeight: "700"
@@ -792,7 +792,7 @@ const screenStyles = StyleSheet.create({
   modalBackdrop: {
     flex: 1,
     padding: 24,
-    backgroundColor: "rgba(24, 28, 28, 0.32)",
+    backgroundColor: "rgba(1, 15, 25, 0.56)",
     alignItems: "center",
     justifyContent: "center"
   },
@@ -802,7 +802,7 @@ const screenStyles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     backgroundColor: palette.surface,
-    shadowColor: "#000000",
+    shadowColor: "#001722",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.16,
     shadowRadius: 20,

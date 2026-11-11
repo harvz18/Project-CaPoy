@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "tasklink",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "platforms": [
       "android",
       "web"
@@ -27,7 +27,7 @@
       [
         "expo-notifications",
         {
-          "color": "#005C55",
+          "color": "#00C9B3",
           "defaultChannel": "tasklink-updates"
         }
       ],

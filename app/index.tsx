@@ -2,15 +2,9 @@ import { useRouter } from "expo-router";
 import { useEffect, useRef } from "react";
 import { Animated, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { screenPalette } from "../src/theme";
 
-const palette = {
-  background: "#F7FAF8",
-  primary: "#005C55",
-  surfaceContainer: "#EBEFED",
-  text: "#181C1C",
-  muted: "#3E4947",
-  outline: "#6E7977"
-};
+const palette = screenPalette;
 
 export default function SplashScreen() {
   const router = useRouter();
@@ -107,7 +101,7 @@ const styles = StyleSheet.create({
     width: "82%",
     height: "82%",
     borderRadius: 999,
-    backgroundColor: "rgba(0, 92, 85, 0.06)",
+    backgroundColor: "rgba(0, 201, 179, 0.10)",
     transform: [{ scale: 0.92 }]
   },
   illustration: {
@@ -118,8 +112,8 @@ const styles = StyleSheet.create({
     flexDirection: "row"
   },
   linkCircleLeft: { width: 92, height: 92, borderRadius: 46, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary, zIndex: 2 },
-  linkCircleRight: { width: 92, height: 92, borderRadius: 46, alignItems: "center", justifyContent: "center", backgroundColor: "#FEA619", zIndex: 2 },
-  linkBar: { width: 58, height: 22, marginHorizontal: -8, borderRadius: 11, backgroundColor: "#9CF2E8" },
+  linkCircleRight: { width: 92, height: 92, borderRadius: 46, alignItems: "center", justifyContent: "center", backgroundColor: "#00C9B3", zIndex: 2 },
+  linkBar: { width: 58, height: 22, marginHorizontal: -8, borderRadius: 11, backgroundColor: "#5DF7F2" },
   linkCircleText: { color: "#FFFFFF", fontSize: 34, lineHeight: 42, fontWeight: "900" },
   brandBlock: {
     alignItems: "center",

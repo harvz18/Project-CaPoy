@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
   eyebrow: { color: colors.primary, fontSize: 11, fontWeight: "900", letterSpacing: 1.2 },
   title: { color: colors.text, fontSize: 26, fontWeight: "900" },
   subtitle: { color: colors.muted, lineHeight: 20 },
-  card: { marginTop: 18, padding: 18, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: "#FFFFFF", gap: 12 },
+  card: { marginTop: 18, padding: 18, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: "rgba(91, 169, 188, 0.18)", gap: 12 },
   label: { color: colors.text, fontWeight: "800" },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: colors.border },

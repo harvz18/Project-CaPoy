@@ -2,25 +2,10 @@ import { Href, useRouter } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useApp } from "../src/context/AppContext";
+import { screenPalette } from "../src/theme";
 import { PublicRole } from "../src/types";
 
-const palette = {
-  background: "#F7FAF8",
-  surface: "#FFFFFF",
-  surfaceLow: "#F1F4F3",
-  surfaceHigh: "#E0E3E1",
-  primary: "#005C55",
-  primaryFixed: "#9CF2E8",
-  secondary: "#855300",
-  secondaryFixed: "#FFDDB8",
-  secondaryContainer: "#FEA619",
-  text: "#181C1C",
-  textStrong: "#111827",
-  muted: "#3E4947",
-  outline: "#6E7977",
-  outlineVariant: "#BDC9C6",
-  white: "#FFFFFF"
-};
+const palette = screenPalette;
 
 export default function RoleSelectionScreen() {
   const router = useRouter();
@@ -138,7 +123,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     backgroundColor: palette.surface,
     borderBottomWidth: 1,
-    borderBottomColor: "#EDF1EF"
+    borderBottomColor: "rgba(207, 249, 255, 0.20)"
   },
   headerLeft: {
     flexDirection: "row",
@@ -198,14 +183,14 @@ const styles = StyleSheet.create({
     textAlign: "center"
   },
   subtitle: {
-    color: "#4B5563",
+    color: "#BBD5DE",
     fontSize: 16,
     lineHeight: 24,
     textAlign: "center",
     marginTop: 8
   },
   errorText: {
-    color: "#BA1A1A",
+    color: "#FF7D8C",
     fontSize: 12,
     lineHeight: 16,
     fontWeight: "700",
@@ -223,7 +208,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.surface,
     borderWidth: 1,
     borderColor: palette.outlineVariant,
-    shadowColor: "#000000",
+    shadowColor: "#001722",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
     shadowRadius: 12,

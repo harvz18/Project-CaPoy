@@ -10,7 +10,7 @@ const tileUrl = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 const attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
 function markerIcon(color?: string) {
-  const safeColor = color && /^#[0-9a-f]{3,8}$/i.test(color) ? color : "#005C55";
+  const safeColor = color && /^#[0-9a-f]{3,8}$/i.test(color) ? color : "#00C9B3";
   return L.divIcon({
     className: "tasklink-map-pin",
     html: `<span style="display:block;width:24px;height:24px;border-radius:50% 50% 50% 0;background:${safeColor};border:3px solid #fff;box-shadow:0 2px 7px rgba(0,0,0,.32);transform:rotate(-45deg)"></span>`,
@@ -125,9 +125,9 @@ export default function LocationMap({
       pin.addTo(layer);
       if (Number.isFinite(marker.accuracyMeters) && (marker.accuracyMeters as number) > 0) {
         L.circle([marker.latitude, marker.longitude], {
-          color: marker.color ?? "#2563EB",
+          color: marker.color ?? "#29ACD5",
           dashArray: "4 5",
-          fillColor: marker.color ?? "#2563EB",
+          fillColor: marker.color ?? "#29ACD5",
           fillOpacity: 0.08,
           radius: marker.accuracyMeters as number,
           weight: 1
@@ -136,7 +136,7 @@ export default function LocationMap({
     }
     if (connectMarkers && markers.length > 1) {
       L.polyline(markers.map((marker) => [marker.latitude, marker.longitude]), {
-        color: "#2563EB",
+        color: "#29ACD5",
         dashArray: "7 7",
         opacity: 0.78,
         weight: 3
@@ -150,8 +150,8 @@ export default function LocationMap({
     if (!mapRef.current || !center || !radiusMeters) return;
 
     radiusLayerRef.current = L.circle([center.latitude, center.longitude], {
-      color: "#005C55",
-      fillColor: "#005C55",
+      color: "#00C9B3",
+      fillColor: "#00C9B3",
       fillOpacity: 0.12,
       radius: radiusMeters,
       weight: 2
@@ -181,7 +181,7 @@ export default function LocationMap({
       aria-label={interactive ? "Interactive task location map" : "Task location map"}
       role="region"
       style={{
-        border: "1px solid #BDC9C6",
+        border: "1px solid rgba(207, 249, 255, 0.32)",
         borderRadius: 12,
         height,
         overflow: "hidden",
@@ -193,10 +193,10 @@ export default function LocationMap({
       {interactive && !center ? (
         <div
           style={{
-            background: "rgba(255,255,255,.94)",
-            border: "1px solid #BDC9C6",
+            background: "rgba(3,35,52,.94)",
+            border: "1px solid rgba(207, 249, 255, 0.32)",
             borderRadius: 999,
-            color: "#005C55",
+            color: "#00C9B3",
             fontFamily: "system-ui, sans-serif",
             fontSize: 13,
             fontWeight: 700,

@@ -11,25 +11,9 @@ import { formatPaymentMethod, formatRequiredCapabilities, formatTaskDuration, fo
 import { TaskMatch } from "../../src/types";
 import { formatDistance } from "../../src/utils/location";
 import { sanitizeMoneyInput } from "../../src/utils/numericInput";
+import { screenPalette } from "../../src/theme";
 
-const palette = {
-  background: "#F7FAF8",
-  surface: "#FFFFFF",
-  surfaceLow: "#F1F4F3",
-  surfaceContainer: "#EBEFED",
-  surfaceHigh: "#E0E3E1",
-  primary: "#005C55",
-  primaryContainer: "#0F766E",
-  secondary: "#855300",
-  secondaryContainer: "#FEA619",
-  text: "#181C1C",
-  textStrong: "#111827",
-  muted: "#3E4947",
-  outline: "#6E7977",
-  outlineVariant: "#BDC9C6",
-  success: "#10B981",
-  white: "#FFFFFF"
-};
+const palette = screenPalette;
 
 export default function TaskDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -392,7 +376,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     backgroundColor: palette.surface,
     borderBottomWidth: 1,
-    borderBottomColor: "#EDF1EF",
+    borderBottomColor: "rgba(207, 249, 255, 0.20)",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between"
@@ -404,7 +388,7 @@ const styles = StyleSheet.create({
   brand: { color: palette.primary, fontSize: 16, lineHeight: 22, fontWeight: "900" },
   content: { padding: 16, gap: 14 },
   notFound: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
-  heroCard: { padding: 20, borderRadius: 12, backgroundColor: palette.surface, borderWidth: 1, borderColor: "rgba(189,201,198,0.35)", gap: 16, elevation: 2 },
+  heroCard: { padding: 20, borderRadius: 12, backgroundColor: palette.surface, borderWidth: 1, borderColor: "rgba(207,249,255,0.28)", gap: 16, elevation: 2 },
   heroTop: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
   flex: { flex: 1 },
   eyebrow: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900", textTransform: "uppercase" },
@@ -424,7 +408,7 @@ const styles = StyleSheet.create({
   workerCard: { padding: 16, borderRadius: 12, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.outlineVariant, gap: 14, elevation: 2 },
   workerIdentity: { flexDirection: "row", alignItems: "center", gap: 12 },
   workerAvatar: { width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center", backgroundColor: palette.secondaryContainer },
-  workerAvatarText: { color: "#684000", fontSize: 22, fontWeight: "900" },
+  workerAvatarText: { color: "#F4C95D", fontSize: 22, fontWeight: "900" },
   workerName: { color: palette.text, fontSize: 16, lineHeight: 22, fontWeight: "900" },
   workerMeta: { color: palette.secondary, fontSize: 12, lineHeight: 16, fontWeight: "800" },
   workerNote: { color: palette.muted, fontSize: 12, lineHeight: 16, marginTop: 2 },
@@ -440,15 +424,15 @@ const styles = StyleSheet.create({
   primaryButton: { flex: 1, minHeight: 46, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
   primaryButtonLarge: { minHeight: 52, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
   primaryButtonText: { color: palette.white, fontSize: 14, lineHeight: 20, fontWeight: "900" },
-  editTaskButton: { minHeight: 44, borderRadius: 10, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#E5F3F0", borderWidth: 1, borderColor: "#9CCBC4" },
+  editTaskButton: { minHeight: 44, borderRadius: 10, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "rgba(20, 217, 226, 0.14)", borderWidth: 1, borderColor: "#5DF7F2" },
   editTaskText: { color: palette.primary, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   secondaryButton: { flex: 1, minHeight: 46, borderRadius: 10, borderWidth: 1, borderColor: palette.primary, alignItems: "center", justifyContent: "center", backgroundColor: palette.surface },
   secondaryButtonText: { color: palette.primary, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   disabledButton: { backgroundColor: palette.surfaceHigh },
-  rejectButton: { minHeight: 42, borderRadius: 10, borderWidth: 1, borderColor: "#B91C1C", alignItems: "center", justifyContent: "center", backgroundColor: palette.surface },
-  rejectButtonText: { color: "#B91C1C", fontSize: 13, lineHeight: 18, fontWeight: "900" },
+  rejectButton: { minHeight: 42, borderRadius: 10, borderWidth: 1, borderColor: "#FF7D8C", alignItems: "center", justifyContent: "center", backgroundColor: palette.surface },
+  rejectButtonText: { color: "#FF7D8C", fontSize: 13, lineHeight: 18, fontWeight: "900" },
   applyBox: { gap: 10 },
   bidInput: { minHeight: 48, borderWidth: 1, borderColor: palette.outlineVariant, borderRadius: 10, paddingHorizontal: 14, backgroundColor: palette.surface, color: palette.text },
-  bidChip: { overflow: "hidden", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: "#FFF2DB", color: palette.secondary, fontSize: 13, fontWeight: "900" },
-  errorText: { color: "#B91C1C", fontSize: 13, lineHeight: 18, fontWeight: "700" },
+  bidChip: { overflow: "hidden", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: "rgba(244, 201, 93, 0.14)", color: palette.secondary, fontSize: 13, fontWeight: "900" },
+  errorText: { color: "#FF7D8C", fontSize: 13, lineHeight: 18, fontWeight: "700" },
 });

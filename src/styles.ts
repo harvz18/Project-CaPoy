@@ -1,10 +1,10 @@
 import { StyleSheet } from "react-native";
-import { colors, radii, spacing, typography } from "./theme";
+import { colors, glass, radii, shadows, spacing, typography } from "./theme";
 
 export const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.background
+    backgroundColor: "transparent"
   },
   screenContent: {
     padding: spacing.lg,
@@ -15,7 +15,7 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: spacing.lg,
-    backgroundColor: colors.background
+    backgroundColor: "transparent"
   },
   centeredContent: {
     flexGrow: 1,
@@ -41,7 +41,7 @@ export const styles = StyleSheet.create({
     fontSize: 36,
     lineHeight: 42,
     fontWeight: "900",
-    color: colors.primary,
+    color: colors.text,
     textAlign: "center",
     marginBottom: spacing.sm
   },
@@ -109,7 +109,14 @@ export const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     fontSize: typography.body,
     color: colors.text,
-    backgroundColor: colors.white
+    backgroundColor: "rgba(3, 35, 52, 0.62)",
+    ...shadows.resting
+  },
+  inputFocused: {
+    borderColor: colors.focus,
+    borderWidth: 2,
+    shadowColor: colors.focus,
+    shadowOpacity: 0.10
   },
   inputMultiline: {
     minHeight: 94,
@@ -142,15 +149,25 @@ export const styles = StyleSheet.create({
   },
   card: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderHighlight,
     borderRadius: radii.lg,
     padding: spacing.lg,
     marginBottom: spacing.md,
-    backgroundColor: colors.card
+    backgroundColor: colors.card,
+    overflow: "hidden",
+    ...shadows.raised
+  },
+  glassHighlight: {
+    position: "absolute",
+    top: 0,
+    left: 18,
+    right: 18,
+    height: 1,
+    backgroundColor: glass.highlight
   },
   heroCard: {
-    borderColor: colors.infoLight,
-    backgroundColor: colors.white
+    borderColor: colors.borderHighlight,
+    backgroundColor: "rgba(55, 126, 151, 0.34)"
   },
   statCard: {
     flex: 1,
@@ -163,7 +180,7 @@ export const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radii.md,
     marginBottom: spacing.sm,
-    backgroundColor: colors.white
+    backgroundColor: glass.standard
   },
   linkText: {
     fontSize: typography.body,
@@ -178,7 +195,11 @@ export const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.primary
+    backgroundColor: colors.primary,
+    borderWidth: 1,
+    borderColor: "rgba(181, 255, 249, 0.54)",
+    overflow: "hidden",
+    ...shadows.raised
   },
   appButtonCompact: {
     minHeight: 40,
@@ -186,18 +207,19 @@ export const styles = StyleSheet.create({
     paddingHorizontal: spacing.md
   },
   appButtonSecondary: {
-    backgroundColor: colors.secondary
+    backgroundColor: "rgba(41, 172, 213, 0.72)"
   },
   appButtonDanger: {
     backgroundColor: colors.danger
   },
   appButtonOutline: {
-    backgroundColor: colors.white,
+    backgroundColor: "rgba(3, 35, 52, 0.42)",
     borderWidth: 1,
     borderColor: colors.primary
   },
   appButtonGhost: {
-    backgroundColor: colors.mutedLight
+    backgroundColor: glass.subtle,
+    borderColor: colors.border
   },
   appButtonDisabled: {
     opacity: 0.55
@@ -209,13 +231,14 @@ export const styles = StyleSheet.create({
     textAlign: "center"
   },
   appButtonOutlineText: {
-    color: colors.primary
+    color: colors.text
   },
   appButtonGhostText: {
     color: colors.text
   },
   pressed: {
-    opacity: 0.78
+    opacity: 0.88,
+    transform: [{ scale: 0.985 }]
   },
   badge: {
     alignSelf: "flex-start",
@@ -254,8 +277,9 @@ export const styles = StyleSheet.create({
     borderRadius: radii.lg,
     padding: spacing.lg,
     alignItems: "center",
-    backgroundColor: colors.white,
-    marginVertical: spacing.md
+    backgroundColor: glass.standard,
+    marginVertical: spacing.md,
+    ...shadows.resting
   },
   emptyTitle: {
     fontSize: typography.body,
@@ -287,7 +311,9 @@ export const styles = StyleSheet.create({
     maxWidth: "85%",
     padding: spacing.md,
     borderRadius: radii.lg,
-    backgroundColor: colors.infoLight,
+    backgroundColor: "rgba(0, 201, 179, 0.26)",
+    borderWidth: 1,
+    borderColor: colors.borderHighlight,
     marginBottom: spacing.sm
   },
   messageOther: {
@@ -295,7 +321,7 @@ export const styles = StyleSheet.create({
     maxWidth: "85%",
     padding: spacing.md,
     borderRadius: radii.lg,
-    backgroundColor: colors.white,
+    backgroundColor: glass.elevated,
     borderWidth: 1,
     borderColor: colors.border,
     marginBottom: spacing.sm

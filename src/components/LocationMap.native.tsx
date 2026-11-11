@@ -75,7 +75,7 @@ function markerPin(
       <View
         accessibilityLabel={marker.title ?? "Map pin"}
         accessibilityRole="image"
-        style={[styles.pin, { backgroundColor: marker.color ?? "#005C55" }]}
+        style={[styles.pin, { backgroundColor: marker.color ?? "#00C9B3" }]}
       />
     </ViewAnnotation>
   );
@@ -128,12 +128,12 @@ function leafletHtml({ center, markers, radiusMeters, interactive, fitToMarkers,
       const markerPoints = [];
       data.markers.forEach((marker) => {
         const pin = L.circleMarker([marker.latitude, marker.longitude], {
-          color: '#FFFFFF', fillColor: marker.color || '#005C55', fillOpacity: 1, radius: 10, weight: 3
+          color: '#FFFFFF', fillColor: marker.color || '#00C9B3', fillOpacity: 1, radius: 10, weight: 3
         }).addTo(map);
         if (marker.title) pin.bindTooltip(String(marker.title), { direction: 'top' });
         markerPoints.push([marker.latitude, marker.longitude]);
         if (Number.isFinite(marker.accuracyMeters) && marker.accuracyMeters > 0) {
-          L.circle([marker.latitude, marker.longitude], { color: marker.color || '#2563EB', fillOpacity: 0.08, radius: marker.accuracyMeters, weight: 1 }).addTo(map);
+          L.circle([marker.latitude, marker.longitude], { color: marker.color || '#29ACD5', fillOpacity: 0.08, radius: marker.accuracyMeters, weight: 1 }).addTo(map);
         }
         if (data.interactive && marker.id === 'selected') {
           const dragPin = L.marker([marker.latitude, marker.longitude], { draggable: true }).addTo(map);
@@ -141,9 +141,9 @@ function leafletHtml({ center, markers, radiusMeters, interactive, fitToMarkers,
         }
       });
       if (data.center && data.radiusMeters > 0) {
-        L.circle([data.center.latitude, data.center.longitude], { color: '#005C55', fillColor: '#005C55', fillOpacity: 0.12, radius: data.radiusMeters, weight: 2 }).addTo(map);
+        L.circle([data.center.latitude, data.center.longitude], { color: '#00C9B3', fillColor: '#00C9B3', fillOpacity: 0.12, radius: data.radiusMeters, weight: 2 }).addTo(map);
       }
-      if (data.connectMarkers && markerPoints.length > 1) L.polyline(markerPoints, { color: '#2563EB', dashArray: '6 6', weight: 3 }).addTo(map);
+      if (data.connectMarkers && markerPoints.length > 1) L.polyline(markerPoints, { color: '#29ACD5', dashArray: '6 6', weight: 3 }).addTo(map);
       if (data.fitToMarkers && markerPoints.length > 1) map.fitBounds(markerPoints, { padding: [32, 32] });
       if (data.interactive) map.on('click', event => sendCoordinate(event.latlng));
       function sendCoordinate(point) {
@@ -289,19 +289,19 @@ export default function LocationMap({
         {showUserLocation ? <UserLocation accuracy animated /> : null}
         {accuracyFeatures.map(({ marker, feature }, index) => (
           <GeoJSONSource data={feature} id={`accuracy-${index}`} key={`accuracy-${marker.id}`}>
-            <Layer paint={{ "fill-color": marker.color ?? "#2563EB", "fill-opacity": 0.08 }} type="fill" />
-            <Layer paint={{ "line-color": marker.color ?? "#2563EB", "line-dasharray": [2, 2], "line-width": 1 }} type="line" />
+            <Layer paint={{ "fill-color": marker.color ?? "#29ACD5", "fill-opacity": 0.08 }} type="fill" />
+            <Layer paint={{ "line-color": marker.color ?? "#29ACD5", "line-dasharray": [2, 2], "line-width": 1 }} type="line" />
           </GeoJSONSource>
         ))}
         {geofenceFeature ? (
           <GeoJSONSource data={geofenceFeature} id="geofence">
-            <Layer paint={{ "fill-color": "#005C55", "fill-opacity": 0.12 }} type="fill" />
-            <Layer paint={{ "line-color": "#005C55", "line-width": 2 }} type="line" />
+            <Layer paint={{ "fill-color": "#00C9B3", "fill-opacity": 0.12 }} type="fill" />
+            <Layer paint={{ "line-color": "#00C9B3", "line-width": 2 }} type="line" />
           </GeoJSONSource>
         ) : null}
         {routeFeature ? (
           <GeoJSONSource data={routeFeature} id="route">
-            <Layer paint={{ "line-color": "#2563EB", "line-dasharray": [2, 2], "line-width": 3 }} type="line" />
+            <Layer paint={{ "line-color": "#29ACD5", "line-dasharray": [2, 2], "line-width": 3 }} type="line" />
           </GeoJSONSource>
         ) : null}
         {markers.map((marker) => markerPin(ViewAnnotation, marker, interactive, onSelectCoordinate))}
@@ -315,10 +315,10 @@ export default function LocationMap({
 }
 
 const styles = StyleSheet.create({
-  container: { borderColor: "#BDC9C6", borderRadius: 12, borderWidth: 1, overflow: "hidden", position: "relative", width: "100%" },
+  container: { borderColor: "rgba(207, 249, 255, 0.28)", borderRadius: 12, borderWidth: 1, overflow: "hidden", position: "relative", width: "100%" },
   map: { flex: 1 },
-  pin: { borderColor: "#FFFFFF", borderRadius: 14, borderWidth: 3, elevation: 4, height: 28, shadowColor: "#000000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 3, width: 28 },
-  attribution: { backgroundColor: "rgba(255,255,255,0.84)", bottom: 0, color: "#33403D", fontSize: 9, lineHeight: 13, paddingHorizontal: 4, position: "absolute", right: 0 },
-  selectionHint: { backgroundColor: "rgba(255,255,255,0.94)", borderColor: "#BDC9C6", borderRadius: 999, borderWidth: 1, left: 16, paddingHorizontal: 12, paddingVertical: 8, position: "absolute", right: 16, top: 12 },
-  selectionHintText: { color: "#005C55", fontSize: 13, fontWeight: "700", textAlign: "center" }
+  pin: { borderColor: "#FFFFFF", borderRadius: 14, borderWidth: 3, elevation: 4, height: 28, shadowColor: "#001722", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 3, width: 28 },
+  attribution: { backgroundColor: "rgba(91,169,188,0.18)", bottom: 0, color: "#BBD5DE", fontSize: 9, lineHeight: 13, paddingHorizontal: 4, position: "absolute", right: 0 },
+  selectionHint: { backgroundColor: "rgba(3,35,52,0.94)", borderColor: "rgba(207, 249, 255, 0.28)", borderRadius: 999, borderWidth: 1, left: 16, paddingHorizontal: 12, paddingVertical: 8, position: "absolute", right: 16, top: 12 },
+  selectionHintText: { color: "#00C9B3", fontSize: 13, fontWeight: "700", textAlign: "center" }
 });

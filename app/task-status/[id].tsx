@@ -25,25 +25,9 @@ import { subscribeToPayment } from "../../src/services/taskRepository";
 import { hasPendingTaskChange, summarizeTaskTermChanges } from "../../src/domain/taskTerms";
 import { getCancellationEligibility } from "../../src/domain/cancellation";
 import { clearTaskLiveLocation, publishTaskLiveLocation, subscribeToTaskLiveLocation } from "../../src/services/taskLiveLocationService";
+import { screenPalette } from "../../src/theme";
 
-const palette = {
-  background: "#F7FAF8",
-  surface: "#FFFFFF",
-  surfaceLow: "#F1F4F3",
-  surfaceContainer: "#EBEFED",
-  surfaceHigh: "#E0E3E1",
-  primary: "#005C55",
-  secondary: "#855300",
-  secondaryContainer: "#FEA619",
-  text: "#181C1C",
-  textStrong: "#111827",
-  muted: "#3E4947",
-  outline: "#6E7977",
-  outlineVariant: "#BDC9C6",
-  success: "#10B981",
-  urgent: "#EF4444",
-  white: "#FFFFFF"
-};
+const palette = screenPalette;
 
 export default function TaskStatusScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -483,7 +467,7 @@ export default function TaskStatusScreen() {
                 description: Number.isFinite(liveTracking.location.accuracyMeters)
                   ? `Accuracy about ${Math.round(liveTracking.location.accuracyMeters as number)} meters`
                   : "Accuracy unavailable",
-                color: "#2563EB",
+                color: "#29ACD5",
                 accuracyMeters: liveTracking.location.accuracyMeters
               }] : [])
             ]}
@@ -566,14 +550,14 @@ export default function TaskStatusScreen() {
                   center={task.latitude !== undefined && task.longitude !== undefined ? { latitude: task.latitude, longitude: task.longitude } : undefined}
                   markers={[
                     ...(task.latitude !== undefined && task.longitude !== undefined
-                      ? [{ id: `${task.id}-check`, latitude: task.latitude, longitude: task.longitude, title: "Task location", color: "#005C55" }]
+                      ? [{ id: `${task.id}-check`, latitude: task.latitude, longitude: task.longitude, title: "Task location", color: "#00C9B3" }]
                       : []),
                     ...(visibleWorkerLocation ? [{
                       id: "live-check-device",
                       latitude: visibleWorkerLocation.latitude,
                       longitude: visibleWorkerLocation.longitude,
                       title: currentUser?.role === "worker" ? "Your live location" : "Worker live location",
-                      color: "#2563EB",
+                      color: "#29ACD5",
                       accuracyMeters: visibleWorkerLocation.accuracyMeters
                     }] : [])
                   ]}
@@ -1168,7 +1152,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     backgroundColor: palette.surface,
-    borderBottomColor: "#EDF1EF",
+    borderBottomColor: "rgba(207, 249, 255, 0.20)",
     borderBottomWidth: 1
   },
   backButton: {
@@ -1190,7 +1174,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: palette.outlineVariant
   },
-  avatarText: { color: "#684000", fontWeight: "900" },
+  avatarText: { color: "#F4C95D", fontWeight: "900" },
   content: { paddingBottom: 132 },
   notFound: { flex: 1, padding: 24, alignItems: "center", justifyContent: "center", gap: 16 },
   emptyText: { color: palette.muted, fontSize: 14, lineHeight: 20, textAlign: "center" },
@@ -1199,14 +1183,14 @@ const styles = StyleSheet.create({
     backgroundColor: palette.surfaceContainer,
     overflow: "hidden"
   },
-  mapGrid: { flex: 1, backgroundColor: "#E5F1EE" },
+  mapGrid: { flex: 1, backgroundColor: "rgba(20, 217, 226, 0.12)" },
   mapRoadOne: {
     position: "absolute",
     left: -28,
     right: -28,
     top: 86,
     height: 18,
-    backgroundColor: "#C9DAD6",
+    backgroundColor: "#17607A",
     transform: [{ rotate: "-12deg" }]
   },
   mapRoadTwo: {
@@ -1215,7 +1199,7 @@ const styles = StyleSheet.create({
     bottom: -20,
     left: "54%",
     width: 20,
-    backgroundColor: "#D9C39A",
+    backgroundColor: "#14556D",
     transform: [{ rotate: "18deg" }]
   },
   mapPark: {
@@ -1225,7 +1209,7 @@ const styles = StyleSheet.create({
     width: 76,
     height: 54,
     borderRadius: 18,
-    backgroundColor: "#CDE7CE"
+    backgroundColor: "#0D5962"
   },
   mapPin: {
     position: "absolute",
@@ -1258,10 +1242,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 7
   },
-  mapTrackingBadgeGood: { backgroundColor: "rgba(232,248,240,0.96)", borderColor: "#75B798" },
-  mapTrackingBadgePending: { backgroundColor: "rgba(255,248,235,0.96)", borderColor: "#E7BC72" },
-  mapTrackingBadgeText: { color: "#684000", fontSize: 11, lineHeight: 14, fontWeight: "900", textAlign: "center" },
-  mapTrackingBadgeTextGood: { color: "#075E42" },
+  mapTrackingBadgeGood: { backgroundColor: "rgba(3,35,52,0.94)", borderColor: "#26E5B2" },
+  mapTrackingBadgePending: { backgroundColor: "rgba(3,35,52,0.94)", borderColor: "#F4C95D" },
+  mapTrackingBadgeText: { color: "#F4C95D", fontSize: 11, lineHeight: 14, fontWeight: "900", textAlign: "center" },
+  mapTrackingBadgeTextGood: { color: "#26E5B2" },
   locationBadge: {
     position: "absolute",
     left: 16,
@@ -1269,7 +1253,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: palette.outlineVariant,
-    backgroundColor: "rgba(255,255,255,0.92)",
+    backgroundColor: "rgba(3,35,52,0.92)",
     padding: 12,
     flexDirection: "row",
     alignItems: "center",
@@ -1283,7 +1267,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 20,
     backgroundColor: palette.surface,
-    shadowColor: "#000000",
+    shadowColor: "#001722",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
     shadowRadius: 12,
@@ -1303,7 +1287,7 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "rgba(189,201,198,0.35)",
+    borderColor: "rgba(207,249,255,0.28)",
     backgroundColor: palette.surfaceLow,
     flexDirection: "row",
     alignItems: "center",
@@ -1323,7 +1307,7 @@ const styles = StyleSheet.create({
   },
   employerName: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "800" },
   rating: { color: palette.text, fontSize: 12, lineHeight: 16 },
-  verifiedBadge: { borderRadius: 4, paddingHorizontal: 8, paddingVertical: 5, backgroundColor: "#EAF8F1" },
+  verifiedBadge: { borderRadius: 4, paddingHorizontal: 8, paddingVertical: 5, backgroundColor: "rgba(38, 229, 178, 0.16)" },
   verifiedText: { color: palette.success, fontSize: 12, lineHeight: 16, fontWeight: "800" },
   section: { gap: 8 },
   sectionTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "800" },
@@ -1334,7 +1318,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "rgba(189,201,198,0.35)",
+    borderColor: "rgba(207,249,255,0.28)",
     backgroundColor: palette.surfaceContainer,
     gap: 6
   },
@@ -1345,7 +1329,7 @@ const styles = StyleSheet.create({
   trustRow: {
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: "rgba(189,201,198,0.45)",
+    borderTopColor: "rgba(207,249,255,0.32)",
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10
@@ -1354,18 +1338,18 @@ const styles = StyleSheet.create({
   trustCheck: { color: palette.success, fontSize: 12, fontWeight: "900" },
   trustText: { color: palette.muted, fontSize: 11, lineHeight: 14, fontWeight: "600" },
   statusPanel: { gap: 8 },
-  changeRequestPanel: { padding: 14, gap: 8, borderRadius: 12, borderWidth: 1, borderColor: "#F7C66A", backgroundColor: "#FFF8E7" },
-  changeRequestTitle: { color: "#684000", fontSize: 16, lineHeight: 22, fontWeight: "900" },
-  changeRequestText: { color: "#684000", fontSize: 13, lineHeight: 19 },
-  changeRequestHint: { color: "#855300", fontSize: 12, lineHeight: 17, fontWeight: "800" },
+  changeRequestPanel: { padding: 14, gap: 8, borderRadius: 12, borderWidth: 1, borderColor: "#F4C95D", backgroundColor: "rgba(244, 201, 93, 0.16)" },
+  changeRequestTitle: { color: "#F4C95D", fontSize: 16, lineHeight: 22, fontWeight: "900" },
+  changeRequestText: { color: "#F4C95D", fontSize: 13, lineHeight: 19 },
+  changeRequestHint: { color: "#F4C95D", fontSize: 12, lineHeight: 17, fontWeight: "800" },
   changeRequestActions: { flexDirection: "row", gap: 10, marginTop: 2 },
-  changeDeclineButton: { flex: 1, minHeight: 44, alignItems: "center", justifyContent: "center", borderRadius: 10, borderWidth: 1, borderColor: "#B45309", backgroundColor: palette.surface },
-  changeDeclineText: { color: "#92400E", fontSize: 13, fontWeight: "900" },
+  changeDeclineButton: { flex: 1, minHeight: 44, alignItems: "center", justifyContent: "center", borderRadius: 10, borderWidth: 1, borderColor: "#F4C95D", backgroundColor: palette.surface },
+  changeDeclineText: { color: "#F4C95D", fontSize: 13, fontWeight: "900" },
   changeAcceptButton: { flex: 1, minHeight: 44, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: palette.primary },
   changeAcceptText: { color: palette.white, fontSize: 13, fontWeight: "900" },
-  cancellationFallback: { padding: 14, gap: 6, borderRadius: 12, backgroundColor: "#FFF8E7", borderWidth: 1, borderColor: "#F7C66A" },
-  cancellationFallbackTitle: { color: "#684000", fontSize: 15, lineHeight: 21, fontWeight: "900" },
-  cancellationFallbackText: { color: "#684000", fontSize: 12, lineHeight: 18 },
+  cancellationFallback: { padding: 14, gap: 6, borderRadius: 12, backgroundColor: "rgba(244, 201, 93, 0.16)", borderWidth: 1, borderColor: "#F4C95D" },
+  cancellationFallbackTitle: { color: "#F4C95D", fontSize: 15, lineHeight: 21, fontWeight: "900" },
+  cancellationFallbackText: { color: "#F4C95D", fontSize: 12, lineHeight: 18 },
   cancellationRecord: { padding: 14, gap: 5, borderRadius: 12, backgroundColor: palette.surfaceLow, borderWidth: 1, borderColor: palette.outlineVariant },
   cancellationRecordTitle: { color: palette.text, fontSize: 16, lineHeight: 22, fontWeight: "900" },
   cancellationRecordText: { color: palette.muted, fontSize: 13, lineHeight: 19 },
@@ -1377,36 +1361,36 @@ const styles = StyleSheet.create({
   geoLegendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
   geoLegendDot: { width: 10, height: 10, borderRadius: 5 },
   geoLegendTask: { backgroundColor: palette.primary },
-  geoLegendWorker: { backgroundColor: "#2563EB" },
+  geoLegendWorker: { backgroundColor: "#29ACD5" },
   geoLegendText: { color: palette.muted, fontSize: 11, lineHeight: 15, fontWeight: "700" },
   geoHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
   geoBadge: { overflow: "hidden", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, fontSize: 11, lineHeight: 14, fontWeight: "900" },
-  geoBadgeGood: { backgroundColor: "#EAF8F1", color: "#0B7A52" },
-  geoBadgeWarn: { backgroundColor: "#FFF8EE", color: "#684000" },
+  geoBadgeGood: { backgroundColor: "rgba(38, 229, 178, 0.16)", color: "#26E5B2" },
+  geoBadgeWarn: { backgroundColor: "rgba(244, 201, 93, 0.16)", color: "#F4C95D" },
   geoText: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "700" },
   geoHint: { color: palette.outline, fontSize: 12, lineHeight: 16 },
   liveLocationPanel: { marginTop: 6, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, gap: 6 },
   liveLocationTitle: { color: palette.textStrong, fontSize: 13, lineHeight: 18, fontWeight: "900" },
-  liveLocationWarning: { color: "#92400E", fontWeight: "700" },
+  liveLocationWarning: { color: "#F4C95D", fontWeight: "700" },
   privacyText: { color: palette.outline, fontSize: 11, lineHeight: 15 },
   retryLocationButton: { minHeight: 40, borderRadius: 8, borderWidth: 1, borderColor: palette.primary, alignItems: "center", justifyContent: "center", marginTop: 2 },
   retryLocationButtonText: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
-  paymentPanel: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "rgba(189,201,198,0.45)", backgroundColor: palette.surface, gap: 8 },
-  paymentBadge: { overflow: "hidden", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: "#FFF8EE", color: "#684000", fontSize: 11, lineHeight: 14, fontWeight: "900" },
+  paymentPanel: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "rgba(207,249,255,0.32)", backgroundColor: palette.surface, gap: 8 },
+  paymentBadge: { overflow: "hidden", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: "rgba(244, 201, 93, 0.16)", color: "#F4C95D", fontSize: 11, lineHeight: 14, fontWeight: "900" },
   paymentInput: { minHeight: 82, borderRadius: 8, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow, color: palette.text, fontSize: 14, lineHeight: 20, padding: 12 },
   paymentButton: { minHeight: 42, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
   paymentButtonText: { color: palette.white, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   paymentOutlineButton: { minHeight: 42, borderRadius: 8, borderWidth: 1, borderColor: palette.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: 12 },
   paymentOutlineButtonText: { color: palette.primary, fontSize: 13, lineHeight: 18, fontWeight: "900", textAlign: "center" },
-  warningText: { color: "#684000", fontSize: 12, lineHeight: 16, fontWeight: "800" },
-  dialogBackdrop: { flex: 1, paddingHorizontal: 20, paddingVertical: 16, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(17,24,39,0.55)" },
+  warningText: { color: "#F4C95D", fontSize: 12, lineHeight: 16, fontWeight: "800" },
+  dialogBackdrop: { flex: 1, paddingHorizontal: 20, paddingVertical: 16, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(1,15,25,0.72)" },
   dialogCard: { width: "100%", maxWidth: 460, padding: 20, borderRadius: 16, backgroundColor: palette.surface, gap: 12, elevation: 16 },
   dialogTitle: { color: palette.textStrong, fontSize: 20, lineHeight: 28, fontWeight: "900" },
   dialogMessage: { color: palette.muted, fontSize: 14, lineHeight: 21 },
   dialogActions: { flexDirection: "row", gap: 10, marginTop: 4 },
   dialogCancel: { flex: 1, minHeight: 46, borderRadius: 10, borderWidth: 1, borderColor: palette.outlineVariant, alignItems: "center", justifyContent: "center", paddingHorizontal: 10 },
   dialogCancelText: { color: palette.text, fontSize: 13, fontWeight: "900", textAlign: "center" },
-  dialogConfirm: { flex: 1, minHeight: 46, borderRadius: 10, alignItems: "center", justifyContent: "center", paddingHorizontal: 10, backgroundColor: "#B91C1C" },
+  dialogConfirm: { flex: 1, minHeight: 46, borderRadius: 10, alignItems: "center", justifyContent: "center", paddingHorizontal: 10, backgroundColor: "#FF7D8C" },
   dialogConfirmText: { color: palette.white, fontSize: 13, fontWeight: "900", textAlign: "center" },
   modalScrollView: { alignSelf: "stretch", width: "100%" },
   modalScroll: { flexGrow: 1, width: "100%", justifyContent: "center", alignItems: "center", paddingVertical: 16 },
@@ -1416,7 +1400,7 @@ const styles = StyleSheet.create({
   checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 1, borderColor: palette.outline, alignItems: "center", justifyContent: "center" },
   checkboxChecked: { borderColor: palette.primary, backgroundColor: palette.primary },
   checkboxText: { flex: 1, color: palette.text, fontSize: 13, lineHeight: 19, fontWeight: "700" },
-  gcashNumberButton: { minHeight: 56, borderRadius: 10, borderWidth: 1, borderColor: palette.primary, backgroundColor: "#EAF8F1", paddingHorizontal: 14, justifyContent: "center", gap: 2 },
+  gcashNumberButton: { minHeight: 56, borderRadius: 10, borderWidth: 1, borderColor: palette.primary, backgroundColor: "rgba(38, 229, 178, 0.16)", paddingHorizontal: 14, justifyContent: "center", gap: 2 },
   gcashNumber: { color: palette.textStrong, fontSize: 18, lineHeight: 24, fontWeight: "900" },
   gcashCopyText: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
   gcashQrPreview: { width: "100%", height: 220, borderRadius: 10, backgroundColor: palette.surfaceLow },
@@ -1429,8 +1413,8 @@ const styles = StyleSheet.create({
   clientRatingButtonText: { color: palette.white, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   clientRatingButtonTextDisabled: { color: palette.textStrong },
   secondaryRow: { flexDirection: "row", gap: 12 },
-  dangerAction: { minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: "#B91C1C", alignItems: "center", justifyContent: "center", backgroundColor: palette.surface },
-  dangerActionText: { color: "#B91C1C", fontSize: 13, lineHeight: 18, fontWeight: "900" },
+  dangerAction: { minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: "#FF7D8C", alignItems: "center", justifyContent: "center", backgroundColor: palette.surface },
+  dangerActionText: { color: "#FF7D8C", fontSize: 13, lineHeight: 18, fontWeight: "900" },
   reportAction: { minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: palette.outlineVariant, alignItems: "center", justifyContent: "center", backgroundColor: palette.surfaceLow },
   reportActionText: { color: palette.muted, fontSize: 13, lineHeight: 18, fontWeight: "800" },
   secondaryAction: {
@@ -1452,7 +1436,7 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingHorizontal: 16,
     backgroundColor: palette.surface,
-    shadowColor: "#000000",
+    shadowColor: "#001722",
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.08,
     shadowRadius: 12,

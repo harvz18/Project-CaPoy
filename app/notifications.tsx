@@ -56,7 +56,7 @@ export default function NotificationsScreen() {
   return (
     <ScreenContainer style={localStyles.screen}>
       <Pressable accessibilityLabel="Back" accessibilityRole="button" onPress={goBack} style={({ pressed }) => [localStyles.backButton, pressed && localStyles.pressed]}>
-        <Feather accessibilityElementsHidden color="#005C55" name="arrow-left" size={22} />
+        <Feather accessibilityElementsHidden color="#00C9B3" name="arrow-left" size={22} />
       </Pressable>
       <View style={localStyles.headingRow}>
         <View>
@@ -132,21 +132,21 @@ function formatTimestamp(timestamp: string) {
 const localStyles = StyleSheet.create({
   screen: { padding: 16 },
   backButton: { alignSelf: "flex-start", minHeight: 42, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, marginLeft: -8, marginBottom: 4, borderRadius: 8 },
-  backArrow: { color: "#005C55", fontSize: 28, lineHeight: 28, fontWeight: "400" },
-  backText: { color: "#005C55", fontSize: 14, fontWeight: "900" },
+  backArrow: { color: "#00C9B3", fontSize: 28, lineHeight: 28, fontWeight: "400" },
+  backText: { color: "#00C9B3", fontSize: 14, fontWeight: "900" },
   headingRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  heading: { fontSize: 28, lineHeight: 34, fontWeight: "900", color: "#181C1C" },
-  meta: { color: "#596562", marginTop: 2 },
-  link: { color: "#005C55", fontWeight: "900" },
-  sectionTitle: { color: "#181C1C", fontSize: 17, fontWeight: "900", marginBottom: 6 },
+  heading: { fontSize: 28, lineHeight: 34, fontWeight: "900", color: "#F5FCFF" },
+  meta: { color: "#BBD5DE", marginTop: 2 },
+  link: { color: "#00C9B3", fontWeight: "900" },
+  sectionTitle: { color: "#F5FCFF", fontSize: 17, fontWeight: "900", marginBottom: 6 },
   preferenceRow: { minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  preferenceLabel: { flex: 1, color: "#181C1C", fontSize: 15 },
+  preferenceLabel: { flex: 1, color: "#F5FCFF", fontSize: 15 },
   listContent: { gap: 12, paddingBottom: 32 },
   list: { flex: 1 },
   rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
-  type: { flex: 1, color: "#005C55", fontSize: 15, fontWeight: "900" },
-  message: { color: "#181C1C", fontSize: 15, lineHeight: 21, marginTop: 8 },
-  time: { color: "#6E7977", fontSize: 11, marginTop: 8 },
-  error: { color: "#BA1A1A", marginTop: 8, fontWeight: "700" },
+  type: { flex: 1, color: "#00C9B3", fontSize: 15, fontWeight: "900" },
+  message: { color: "#F5FCFF", fontSize: 15, lineHeight: 21, marginTop: 8 },
+  time: { color: "#92B2C0", fontSize: 11, marginTop: 8 },
+  error: { color: "#FF7D8C", marginTop: 8, fontWeight: "700" },
   pressed: { opacity: 0.72 }
 });

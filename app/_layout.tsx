@@ -7,6 +7,7 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppProvider, useApp } from "../src/context/AppContext";
 import { AppErrorBoundary } from "../src/components/AppErrorBoundary";
+import { LiquidGlassBackdrop } from "../src/components/LiquidGlassBackdrop";
 import { RouteTransition, usePrefersReducedMotion } from "../src/components/RouteTransition";
 import { colors } from "../src/theme";
 import { configureNotificationChannel } from "../src/services/pushNotificationService";
@@ -26,8 +27,11 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <AppErrorBoundary>
         <AppProvider>
-          <StatusBar style="dark" />
-          <ProtectedNavigator />
+          <StatusBar style="light" />
+          <View style={styles.appRoot}>
+            <LiquidGlassBackdrop />
+            <ProtectedNavigator />
+          </View>
         </AppProvider>
       </AppErrorBoundary>
     </SafeAreaProvider>
@@ -166,7 +170,7 @@ function ProtectedNavigator() {
           headerShadowVisible: false,
           headerTintColor: colors.text,
           headerTitleStyle: { fontWeight: "800" },
-          contentStyle: { backgroundColor: colors.background }
+          contentStyle: { backgroundColor: "transparent" }
         }}
       >
         <Stack.Screen name="index" options={{ headerShown: false }} />
@@ -211,25 +215,26 @@ function ProtectedNavigator() {
 }
 
 const styles = StyleSheet.create({
-  navigator: { flex: 1, overflow: "hidden" },
+  appRoot: { flex: 1, backgroundColor: colors.canvas },
+  navigator: { flex: 1, overflow: "hidden", backgroundColor: "transparent" },
   loadingScreen: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.background
+    backgroundColor: "transparent"
   },
-  dialogBackdrop: { flex: 1, padding: 24, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(17,24,39,0.55)" },
-  dialogCard: { width: "100%", maxWidth: 420, padding: 20, borderRadius: 16, backgroundColor: "#FFFFFF", gap: 12, elevation: 16 },
+  dialogBackdrop: { flex: 1, padding: 24, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(1,15,25,0.72)" },
+  dialogCard: { width: "100%", maxWidth: 420, padding: 20, borderRadius: 24, borderWidth: 1, borderColor: colors.borderHighlight, backgroundColor: colors.cardSolid, gap: 12, elevation: 16 },
   dialogTitle: { color: colors.text, fontSize: 20, lineHeight: 28, fontWeight: "900" },
-  dialogMessage: { color: "#3E4947", fontSize: 15, lineHeight: 22 },
+  dialogMessage: { color: colors.muted, fontSize: 15, lineHeight: 22 },
   dialogButton: { minHeight: 46, marginTop: 4, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.primary },
   dialogButtonText: { color: "#FFFFFF", fontSize: 14, fontWeight: "900" },
-  syncBanner: { minHeight: 54, paddingHorizontal: 12, paddingVertical: 8, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF7ED", borderBottomWidth: 1, borderBottomColor: "#FDBA74" },
-  offlineBanner: { minHeight: 42, paddingHorizontal: 14, paddingVertical: 10, alignItems: "center", justifyContent: "center", backgroundColor: "#7C2D12" },
+  syncBanner: { minHeight: 54, paddingHorizontal: 12, paddingVertical: 8, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(244,201,93,0.16)", borderBottomWidth: 1, borderBottomColor: "rgba(244,201,93,0.52)" },
+  offlineBanner: { minHeight: 42, paddingHorizontal: 14, paddingVertical: 10, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(124,45,18,0.92)" },
   offlineMessage: { color: "#FFFFFF", fontSize: 12, lineHeight: 17, fontWeight: "800", textAlign: "center" },
-  syncMessage: { flex: 1, color: "#9A3412", fontSize: 12, lineHeight: 16, fontWeight: "700" },
-  syncButton: { minHeight: 38, borderRadius: 8, paddingHorizontal: 10, alignItems: "center", justifyContent: "center", backgroundColor: "#9A3412" },
+  syncMessage: { flex: 1, color: colors.warning, fontSize: 12, lineHeight: 16, fontWeight: "700" },
+  syncButton: { minHeight: 38, borderRadius: 8, paddingHorizontal: 10, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(244,201,93,0.28)" },
   syncButtonText: { color: "#FFFFFF", fontSize: 12, fontWeight: "900" },
   dismissButton: { minHeight: 38, paddingHorizontal: 6, alignItems: "center", justifyContent: "center" },
-  dismissText: { color: "#9A3412", fontSize: 12, fontWeight: "900" }
+  dismissText: { color: colors.warning, fontSize: 12, fontWeight: "900" }
 });

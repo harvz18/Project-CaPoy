@@ -24,22 +24,9 @@ import { sanitizeDurationInput, sanitizeMoneyInput } from "../src/utils/numericI
 import { AddressDetails, formatTaskAddressDetails } from "../src/utils/address";
 import { ReverseGeocodeResult, reverseGeocodeSelectedPin } from "../src/services/reverseGeocoding";
 import { getTaskPostingErrors, TaskPostingField } from "../src/domain/taskPosting";
+import { screenPalette } from "../src/theme";
 
-const palette = {
-  background: "#F7FAF8",
-  surface: "#FFFFFF",
-  surfaceLow: "#F1F4F3",
-  surfaceContainer: "#EBEFED",
-  primary: "#005C55",
-  secondary: "#855300",
-  secondaryFixed: "#FFDDB8",
-  text: "#181C1C",
-  textStrong: "#111827",
-  muted: "#3E4947",
-  outline: "#6E7977",
-  outlineVariant: "#BDC9C6",
-  white: "#FFFFFF"
-};
+const palette = screenPalette;
 
 const categories = [...taskCategories];
 const durationUnits: Array<{ label: string; value: DurationUnit }> = [
@@ -889,7 +876,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     backgroundColor: palette.surface,
     borderBottomWidth: 1,
-    borderBottomColor: "#EDF1EF"
+    borderBottomColor: "rgba(207, 249, 255, 0.20)"
   },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
   closeButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
@@ -914,7 +901,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(189,201,198,0.35)",
+    borderColor: "rgba(207,249,255,0.28)",
     backgroundColor: palette.surfaceLow,
     gap: 12
   },
@@ -930,8 +917,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     paddingHorizontal: 14
   },
-  inputError: { borderColor: "#BA1A1A", borderWidth: 2 },
-  fieldError: { color: "#BA1A1A", fontSize: 12, lineHeight: 16, fontWeight: "800", marginTop: 4 },
+  inputError: { borderColor: "#FF7D8C", borderWidth: 2 },
+  fieldError: { color: "#FF7D8C", fontSize: 12, lineHeight: 16, fontWeight: "800", marginTop: 4 },
   placeholderValue: { color: palette.outline, fontWeight: "700" },
   readOnlyInput: { backgroundColor: palette.surfaceContainer, color: palette.muted },
   selectButton: {
@@ -963,12 +950,12 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: palette.outlineVariant,
-    backgroundColor: "#E5F1EE",
+    backgroundColor: "rgba(20, 217, 226, 0.12)",
     overflow: "hidden",
     marginTop: 8
   },
-  mapRoadOne: { position: "absolute", left: -18, right: -18, top: 58, height: 14, backgroundColor: "#C8DBD7", transform: [{ rotate: "-12deg" }] },
-  mapRoadTwo: { position: "absolute", top: -12, bottom: -12, left: "58%", width: 16, backgroundColor: "#D6C29E", transform: [{ rotate: "18deg" }] },
+  mapRoadOne: { position: "absolute", left: -18, right: -18, top: 58, height: 14, backgroundColor: "#17607A", transform: [{ rotate: "-12deg" }] },
+  mapRoadTwo: { position: "absolute", top: -12, bottom: -12, left: "58%", width: 16, backgroundColor: "#14556D", transform: [{ rotate: "18deg" }] },
   mapPin: { position: "absolute", left: "48%", top: 50, width: 20, height: 20, borderRadius: 10, backgroundColor: palette.primary, borderWidth: 4, borderColor: palette.white },
   twoColumn: { flexDirection: "row", gap: 8 },
   flex: { flex: 1 },
@@ -978,7 +965,7 @@ const styles = StyleSheet.create({
   durationStepButtonDisabled: { opacity: 0.45 },
   durationDropdown: { borderWidth: 1, borderColor: palette.outlineVariant, borderRadius: 8, backgroundColor: palette.surface, overflow: "hidden", marginTop: 2 },
   durationDropdownOption: { minHeight: 42, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  durationDropdownOptionSelected: { backgroundColor: "#E5F1EE" },
+  durationDropdownOptionSelected: { backgroundColor: "rgba(20, 217, 226, 0.12)" },
   durationDropdownText: { color: palette.text, fontSize: 15, lineHeight: 20, fontWeight: "700" },
   durationDropdownTextSelected: { color: palette.primary, fontWeight: "900" },
   paymentRow: { flexDirection: "row", gap: 8 },
@@ -999,13 +986,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: palette.outlineVariant,
-    backgroundColor: "#E5F1EE",
+    backgroundColor: "rgba(20, 217, 226, 0.12)",
     overflow: "hidden"
   },
-  pinMapRoadOne: { position: "absolute", left: -28, right: -28, top: 84, height: 18, backgroundColor: "#C8DBD7", transform: [{ rotate: "-12deg" }] },
-  pinMapRoadTwo: { position: "absolute", top: -24, bottom: -24, left: "58%", width: 18, backgroundColor: "#D6C29E", transform: [{ rotate: "18deg" }] },
-  pinMapRoadThree: { position: "absolute", left: "18%", top: -20, bottom: -20, width: 12, backgroundColor: "#D9E5E2", transform: [{ rotate: "-28deg" }] },
-  pinMapPark: { position: "absolute", right: 18, top: 18, width: 82, height: 54, borderRadius: 18, backgroundColor: "#CDE7CE" },
+  pinMapRoadOne: { position: "absolute", left: -28, right: -28, top: 84, height: 18, backgroundColor: "#17607A", transform: [{ rotate: "-12deg" }] },
+  pinMapRoadTwo: { position: "absolute", top: -24, bottom: -24, left: "58%", width: 18, backgroundColor: "#14556D", transform: [{ rotate: "18deg" }] },
+  pinMapRoadThree: { position: "absolute", left: "18%", top: -20, bottom: -20, width: 12, backgroundColor: "#1A6478", transform: [{ rotate: "-28deg" }] },
+  pinMapPark: { position: "absolute", right: 18, top: 18, width: 82, height: 54, borderRadius: 18, backgroundColor: "#0D5962" },
   radiusRing: {
     position: "absolute",
     left: "50%",
@@ -1016,8 +1003,8 @@ const styles = StyleSheet.create({
     marginTop: -60,
     borderRadius: 60,
     borderWidth: 2,
-    borderColor: "rgba(0,92,85,0.22)",
-    backgroundColor: "rgba(0,92,85,0.06)"
+    borderColor: "rgba(0,201,179,0.28)",
+    backgroundColor: "rgba(0,201,179,0.10)"
   },
   centerPin: {
     position: "absolute",
@@ -1077,8 +1064,8 @@ const styles = StyleSheet.create({
     maxWidth: "72%",
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "rgba(189,201,198,0.75)",
-    backgroundColor: "rgba(255,255,255,0.94)",
+    borderColor: "rgba(207,249,255,0.42)",
+    backgroundColor: "rgba(3,35,52,0.94)",
     paddingHorizontal: 12,
     paddingVertical: 9
   },
@@ -1096,7 +1083,7 @@ const styles = StyleSheet.create({
   addressLookupButton: { minHeight: 38, borderRadius: 8, borderWidth: 1, borderColor: palette.primary, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, backgroundColor: palette.surface },
   addressLookupText: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
   addressInput: { minHeight: 70, paddingTop: 10 },
-  addressSuggestion: { padding: 10, borderRadius: 8, backgroundColor: "#E5F1EE", gap: 4 },
+  addressSuggestion: { padding: 10, borderRadius: 8, backgroundColor: "rgba(20, 217, 226, 0.12)", gap: 4 },
   addressSuggestionLabel: { color: palette.primary, fontSize: 11, lineHeight: 15, fontWeight: "900" },
   addressSuggestionText: { color: palette.text, fontSize: 13, lineHeight: 18, fontWeight: "800" },
   addressApplyButton: { alignSelf: "flex-start", minHeight: 34, borderRadius: 7, paddingHorizontal: 10, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary, marginTop: 2 },
@@ -1108,7 +1095,7 @@ const styles = StyleSheet.create({
   areaPresetTextSelected: { color: palette.white },
   radiusGrid: { gap: 8 },
   radiusCard: { minHeight: 68, borderRadius: 10, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow, padding: 12 },
-  radiusCardSelected: { borderColor: palette.primary, backgroundColor: "#E5F1EE" },
+  radiusCardSelected: { borderColor: palette.primary, backgroundColor: "rgba(20, 217, 226, 0.12)" },
   radiusTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   radiusTitleSelected: { color: palette.primary },
   radiusValue: { color: palette.secondary, fontSize: 12, lineHeight: 16, fontWeight: "900", marginTop: 2 },
@@ -1125,7 +1112,7 @@ const styles = StyleSheet.create({
   paymentText: { color: palette.muted, fontSize: 14, fontWeight: "800" },
   paymentTextSelected: { color: palette.white },
   dateButton: { minHeight: 70, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, padding: 10, flexDirection: "row", alignItems: "center", gap: 11 },
-  dateIcon: { width: 44, height: 44, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "#E5F1EE" },
+  dateIcon: { width: 44, height: 44, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(20, 217, 226, 0.12)" },
   dateIconText: { color: palette.primary, fontSize: 9, lineHeight: 12, fontWeight: "900", letterSpacing: 0.6 },
   dateCopy: { flex: 1 },
   dateValue: { color: palette.text, fontSize: 15, lineHeight: 21, fontWeight: "900" },
@@ -1134,11 +1121,11 @@ const styles = StyleSheet.create({
   dateChevron: { color: palette.primary, fontSize: 24, lineHeight: 28, fontWeight: "900" },
   textArea: { minHeight: 96, paddingTop: 12 },
   helperText: { color: palette.muted, fontSize: 12, lineHeight: 16 },
-  tipCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.secondaryFixed, backgroundColor: "#FFF8EE", flexDirection: "row", gap: 8 },
+  tipCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.secondaryFixed, backgroundColor: "rgba(244, 201, 93, 0.16)", flexDirection: "row", gap: 8 },
   tipIcon: { color: palette.secondary, fontSize: 18, fontWeight: "900" },
-  tipTitle: { color: "#2A1700", fontSize: 14, fontWeight: "900" },
-  tipText: { color: "#653E00", fontSize: 12, lineHeight: 16 },
-  errorText: { color: "#BA1A1A", fontSize: 12, lineHeight: 16, fontWeight: "700" },
+  tipTitle: { color: "#F5FCFF", fontSize: 14, fontWeight: "900" },
+  tipText: { color: "#F4C95D", fontSize: 12, lineHeight: 16 },
+  errorText: { color: "#FF7D8C", fontSize: 12, lineHeight: 16, fontWeight: "700" },
   bottomAction: {
     position: "absolute",
     left: 0,
@@ -1147,7 +1134,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 16,
     backgroundColor: palette.surface,
-    shadowColor: "#000000",
+    shadowColor: "#001722",
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.05,
     shadowRadius: 12,
@@ -1161,7 +1148,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#EDF1EF",
+    borderBottomColor: "rgba(207, 249, 255, 0.20)",
     backgroundColor: palette.surface,
     flexDirection: "row",
     alignItems: "center",
@@ -1177,7 +1164,7 @@ const styles = StyleSheet.create({
   overviewRow: { padding: 14, borderRadius: 10, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, gap: 3 },
   overviewLabel: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "800" },
   overviewValue: { color: palette.text, fontSize: 15, lineHeight: 21, fontWeight: "800" },
-  successBackdrop: { flex: 1, padding: 24, backgroundColor: "rgba(24,28,28,0.48)", alignItems: "center", justifyContent: "center" },
+  successBackdrop: { flex: 1, padding: 24, backgroundColor: "rgba(1,15,25,0.72)", alignItems: "center", justifyContent: "center" },
   successCard: { width: "100%", maxWidth: 420, padding: 24, borderRadius: 20, backgroundColor: palette.surface, alignItems: "center", gap: 12 },
   successIcon: { width: 58, height: 58, borderRadius: 29, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
   successTitle: { color: palette.textStrong, fontSize: 21, lineHeight: 28, fontWeight: "900", textAlign: "center" },
@@ -1188,13 +1175,13 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: palette.outlineVariant,
-    backgroundColor: "#E5F1EE",
+    backgroundColor: "rgba(20, 217, 226, 0.12)",
     overflow: "hidden"
   },
-  largeRoadOne: { position: "absolute", left: -40, right: -40, top: "48%", height: 24, backgroundColor: "#C8DBD7", transform: [{ rotate: "-12deg" }] },
-  largeRoadTwo: { position: "absolute", top: -40, bottom: -40, left: "58%", width: 24, backgroundColor: "#D6C29E", transform: [{ rotate: "18deg" }] },
-  largeRoadThree: { position: "absolute", top: -24, bottom: -24, left: "22%", width: 16, backgroundColor: "#D9E5E2", transform: [{ rotate: "-28deg" }] },
-  largePark: { position: "absolute", right: 24, top: 24, width: 108, height: 76, borderRadius: 24, backgroundColor: "#CDE7CE" },
+  largeRoadOne: { position: "absolute", left: -40, right: -40, top: "48%", height: 24, backgroundColor: "#17607A", transform: [{ rotate: "-12deg" }] },
+  largeRoadTwo: { position: "absolute", top: -40, bottom: -40, left: "58%", width: 24, backgroundColor: "#14556D", transform: [{ rotate: "18deg" }] },
+  largeRoadThree: { position: "absolute", top: -24, bottom: -24, left: "22%", width: 16, backgroundColor: "#1A6478", transform: [{ rotate: "-28deg" }] },
+  largePark: { position: "absolute", right: 24, top: 24, width: 108, height: 76, borderRadius: 24, backgroundColor: "#0D5962" },
   largeRadiusRing: {
     position: "absolute",
     left: "50%",
@@ -1205,8 +1192,8 @@ const styles = StyleSheet.create({
     marginTop: -110,
     borderRadius: 110,
     borderWidth: 3,
-    borderColor: "rgba(0,92,85,0.25)",
-    backgroundColor: "rgba(0,92,85,0.08)"
+    borderColor: "rgba(0,201,179,0.30)",
+    backgroundColor: "rgba(0,201,179,0.12)"
   },
   largeCenterPin: {
     position: "absolute",
@@ -1232,14 +1219,14 @@ const styles = StyleSheet.create({
     maxWidth: "76%",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(189,201,198,0.75)",
-    backgroundColor: "rgba(255,255,255,0.94)",
+    borderColor: "rgba(207,249,255,0.42)",
+    backgroundColor: "rgba(3,35,52,0.94)",
     paddingHorizontal: 14,
     paddingVertical: 10
   },
   largeMapMeta: { color: palette.secondary, fontSize: 12, lineHeight: 16, fontWeight: "900", marginTop: 2 },
   modalPanel: { padding: 14, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, gap: 10 },
-  pickerBackdrop: { flex: 1, paddingHorizontal: 16, paddingTop: 24, backgroundColor: "rgba(24,28,28,0.42)", alignItems: "center", justifyContent: "flex-end" },
+  pickerBackdrop: { flex: 1, paddingHorizontal: 16, paddingTop: 24, backgroundColor: "rgba(1,15,25,0.68)", alignItems: "center", justifyContent: "flex-end" },
   pickerSheet: { width: "100%", maxWidth: 520, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 12, paddingBottom: 20, backgroundColor: palette.surface, gap: 4 },
   pickerHandle: { width: 42, height: 4, borderRadius: 2, alignSelf: "center", backgroundColor: palette.outlineVariant, marginBottom: 8 },
   pickerHeader: { minHeight: 48, paddingHorizontal: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
@@ -1247,7 +1234,7 @@ const styles = StyleSheet.create({
   pickerCloseButton: { minHeight: 40, paddingHorizontal: 10, alignItems: "center", justifyContent: "center" },
   pickerCloseText: { color: palette.primary, fontSize: 13, fontWeight: "900" },
   pickerOption: { minHeight: 48, borderRadius: 8, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  pickerOptionSelected: { backgroundColor: "#E5F1EE" },
+  pickerOptionSelected: { backgroundColor: "rgba(20, 217, 226, 0.12)" },
   pickerOptionText: { color: palette.text, fontSize: 16, lineHeight: 24, fontWeight: "700", flex: 1 },
   pickerOptionTextSelected: { color: palette.primary, fontWeight: "900" },
   pickerCheck: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
@@ -1255,12 +1242,12 @@ const styles = StyleSheet.create({
   capabilityCount: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "800", marginTop: 2 },
   capabilityList: { gap: 6, paddingHorizontal: 4, paddingVertical: 4 },
   capabilityOption: { minHeight: 48, borderRadius: 8, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surfaceLow },
-  capabilityOptionSelected: { borderColor: palette.primary, backgroundColor: "#E5F1EE" },
+  capabilityOptionSelected: { borderColor: palette.primary, backgroundColor: "rgba(20, 217, 226, 0.12)" },
   checkbox: { width: 22, height: 22, borderRadius: 5, borderWidth: 2, borderColor: palette.outline, alignItems: "center", justifyContent: "center" },
   checkboxSelected: { borderColor: palette.primary, backgroundColor: palette.primary },
   capabilityOptionText: { color: palette.text, fontSize: 15, lineHeight: 21, fontWeight: "700", flex: 1 },
   capabilityOptionTextSelected: { color: palette.primary, fontWeight: "900" },
-  capabilityValidation: { color: "#BA1A1A", fontSize: 12, lineHeight: 16, fontWeight: "800", paddingHorizontal: 8 },
+  capabilityValidation: { color: "#FF7D8C", fontSize: 12, lineHeight: 16, fontWeight: "800", paddingHorizontal: 8 },
   capabilityActions: { flexDirection: "row", justifyContent: "flex-end", gap: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: palette.outlineVariant },
   capabilityCancelButton: { minHeight: 44, paddingHorizontal: 16, borderRadius: 8, borderWidth: 1, borderColor: palette.primary, alignItems: "center", justifyContent: "center" },
   capabilityCancelText: { color: palette.primary, fontSize: 14, lineHeight: 20, fontWeight: "900" },

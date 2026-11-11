@@ -1,4 +1,4 @@
-import { Pressable, StyleProp, Text, ViewStyle } from "react-native";
+import { Pressable, StyleProp, Text, View, ViewStyle } from "react-native";
 import { styles } from "../styles";
 
 type AppButtonVariant = "primary" | "secondary" | "outline" | "danger" | "ghost";
@@ -45,6 +45,7 @@ export function AppButton({
       onPress={onPress}
       style={({ pressed }) => [buttonStyle, pressed && !disabled && styles.pressed]}
     >
+      {variant === "primary" ? <View pointerEvents="none" style={styles.glassHighlight} /> : null}
       <Text style={textStyle}>{title}</Text>
     </Pressable>
   );

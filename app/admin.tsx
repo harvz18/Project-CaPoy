@@ -467,7 +467,7 @@ function Action({ label, tone, disabled, onPress }: { label: string; tone: Tone;
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
-  header: { padding: 20, flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "#FFFFFF", borderBottomWidth: 1, borderBottomColor: colors.border },
+  header: { padding: 20, flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "rgba(91, 169, 188, 0.18)", borderBottomWidth: 1, borderBottomColor: colors.border },
   eyebrow: { color: colors.primary, fontSize: 11, fontWeight: "900", letterSpacing: 1.2 },
   title: { color: colors.text, fontSize: 24, fontWeight: "900", marginTop: 3 },
   subtitle: { color: colors.muted, marginTop: 2 },
@@ -509,12 +509,12 @@ const styles = StyleSheet.create({
   trendDate: { color: colors.text, fontSize: 12, fontWeight: "900" },
   trendValue: { color: colors.muted, fontSize: 11, lineHeight: 16 },
   reasonCard: { backgroundColor: colors.infoLight, borderRadius: 14, padding: 16, gap: 8 },
-  input: { minHeight: 76, backgroundColor: "#FFFFFF", borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 12, textAlignVertical: "top" },
+  input: { minHeight: 76, backgroundColor: "rgba(91, 169, 188, 0.18)", borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 12, textAlignVertical: "top" },
   help: { color: colors.muted, fontSize: 13 },
   error: { color: colors.danger, fontWeight: "700" },
   section: { gap: 10 },
   sectionTitle: { color: colors.text, fontSize: 19, fontWeight: "900" },
-  card: { backgroundColor: "#FFFFFF", borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 16, gap: 10 },
+  card: { backgroundColor: "rgba(91, 169, 188, 0.18)", borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 16, gap: 10 },
   reviewAvatarImage: { width: 48, height: 48, borderRadius: 24 },
   cardTitle: { color: colors.text, fontSize: 15, fontWeight: "800" },
   meta: { color: colors.muted, fontSize: 12 },
@@ -528,6 +528,6 @@ const styles = StyleSheet.create({
   actionText: { color: colors.text, fontSize: 12, fontWeight: "800" },
   actionTextLight: { color: "#FFFFFF" },
   disabled: { opacity: 0.5 },
-  empty: { color: colors.muted, padding: 16, backgroundColor: "#FFFFFF", borderRadius: 12 },
-  auditRow: { backgroundColor: "#FFFFFF", borderLeftWidth: 3, borderLeftColor: colors.primary, padding: 13, gap: 4 }
+  empty: { color: colors.muted, padding: 16, backgroundColor: "rgba(91, 169, 188, 0.18)", borderRadius: 12 },
+  auditRow: { backgroundColor: "rgba(91, 169, 188, 0.18)", borderLeftWidth: 3, borderLeftColor: colors.primary, padding: 13, gap: 4 }
 });

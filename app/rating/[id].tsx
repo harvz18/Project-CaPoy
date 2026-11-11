@@ -6,25 +6,9 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { EmptyState } from "../../src/components/EmptyState";
 import { useApp } from "../../src/context/AppContext";
 import { useTasklinkBack } from "../../src/hooks/useTasklinkBack";
+import { screenPalette } from "../../src/theme";
 
-const palette = {
-  background: "#F7FAF8",
-  surface: "#FFFFFF",
-  surfaceLow: "#F1F4F3",
-  surfaceContainer: "#EBEFED",
-  surfaceHigh: "#E0E3E1",
-  primary: "#005C55",
-  primaryFixed: "#9CF2E8",
-  secondary: "#855300",
-  secondaryContainer: "#FEA619",
-  text: "#181C1C",
-  textStrong: "#111827",
-  muted: "#3E4947",
-  outline: "#6E7977",
-  outlineVariant: "#BDC9C6",
-  success: "#10B981",
-  white: "#FFFFFF"
-};
+const palette = screenPalette;
 
 export default function RatingScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -215,7 +199,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     backgroundColor: palette.surface,
     borderBottomWidth: 1,
-    borderBottomColor: "#EDF1EF"
+    borderBottomColor: "rgba(207, 249, 255, 0.20)"
   },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
   backButton: { minWidth: 48, minHeight: 44, alignItems: "center", justifyContent: "center" },
@@ -250,7 +234,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase"
   },
   heroTitle: { color: palette.white, fontSize: 24, lineHeight: 32, fontWeight: "900" },
-  heroText: { color: "#DDF8F4", fontSize: 14, lineHeight: 20 },
+  heroText: { color: palette.primaryFixed, fontSize: 14, lineHeight: 20 },
   scoreBadge: {
     width: 82,
     height: 82,
@@ -259,18 +243,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: palette.secondaryContainer,
     borderWidth: 3,
-    borderColor: "rgba(255,255,255,0.72)"
+    borderColor: "rgba(55,126,151,0.30)"
   },
-  scoreBadgeValue: { color: "#684000", fontSize: 24, lineHeight: 30, fontWeight: "900" },
-  scoreBadgeLabel: { color: "#684000", fontSize: 11, lineHeight: 14, fontWeight: "900" },
+  scoreBadgeValue: { color: "#F4C95D", fontSize: 24, lineHeight: 30, fontWeight: "900" },
+  scoreBadgeLabel: { color: "#F4C95D", fontSize: 11, lineHeight: 14, fontWeight: "900" },
   formCard: {
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(189,201,198,0.35)",
+    borderColor: "rgba(207,249,255,0.28)",
     backgroundColor: palette.surface,
     gap: 18,
-    shadowColor: "#000000",
+    shadowColor: "#001722",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
     shadowRadius: 12,
@@ -318,11 +302,11 @@ const styles = StyleSheet.create({
     gap: 8
   },
   primaryButtonText: { color: palette.white, fontSize: 14, lineHeight: 20, fontWeight: "900" },
-  successBackdrop: { flex: 1, padding: 24, backgroundColor: "rgba(24,28,28,0.48)", alignItems: "center", justifyContent: "center" },
+  successBackdrop: { flex: 1, padding: 24, backgroundColor: "rgba(1,15,25,0.72)", alignItems: "center", justifyContent: "center" },
   successCard: { width: "100%", maxWidth: 420, padding: 24, borderRadius: 20, backgroundColor: palette.surface, alignItems: "center", gap: 12 },
   successTitle: { color: palette.textStrong, fontSize: 21, lineHeight: 28, fontWeight: "900", textAlign: "center" },
   successText: { color: palette.muted, fontSize: 14, lineHeight: 21, textAlign: "center", marginBottom: 4 },
-  submitError: { color: "#BA1A1A", fontSize: 13, lineHeight: 18, fontWeight: "700", textAlign: "center" },
+  submitError: { color: "#FF7D8C", fontSize: 13, lineHeight: 18, fontWeight: "700", textAlign: "center" },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -345,7 +329,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(189,201,198,0.35)",
+    borderColor: "rgba(207,249,255,0.28)",
     backgroundColor: palette.surface,
     gap: 10
   },
@@ -359,7 +343,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: palette.secondaryContainer
   },
-  reviewAvatarText: { color: "#684000", fontWeight: "900" },
+  reviewAvatarText: { color: "#F4C95D", fontWeight: "900" },
   reviewName: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "900" },
   reviewDate: { color: palette.muted, fontSize: 12, lineHeight: 16 },
   reviewScore: {

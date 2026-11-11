@@ -15,8 +15,8 @@ export default function LocationMap({ center, markers = [], radiusMeters, height
 }
 
 const styles = StyleSheet.create({
-  container: { alignItems: "center", backgroundColor: "#E4EFEC", borderRadius: 18, justifyContent: "center", padding: 20 },
-  title: { color: "#005C55", fontSize: 15, fontWeight: "800", textAlign: "center" },
-  copy: { color: "#3E4947", fontSize: 13, marginTop: 6, textAlign: "center" },
-  meta: { color: "#3E4947", fontSize: 12, marginTop: 4 }
+  container: { alignItems: "center", backgroundColor: "rgba(86, 159, 178, 0.16)", borderRadius: 18, justifyContent: "center", padding: 20 },
+  title: { color: "#00C9B3", fontSize: 15, fontWeight: "800", textAlign: "center" },
+  copy: { color: "#BBD5DE", fontSize: 13, marginTop: 6, textAlign: "center" },
+  meta: { color: "#BBD5DE", fontSize: 12, marginTop: 4 }
 });
