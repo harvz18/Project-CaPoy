@@ -66,6 +66,7 @@ import "./styles.css";
 import "./v5.css";
 
 const PAGE_SIZE = 10;
+type SortDirection = "asc" | "desc";
 const DATE_FORMATTER = new Intl.DateTimeFormat("en-PH", {
   dateStyle: "medium",
   timeStyle: "short",
@@ -84,6 +85,23 @@ function date(value?: unknown) {
           ? new Date(timestamp.seconds * 1000 + Math.floor((timestamp.nanoseconds ?? 0) / 1_000_000))
           : new Date(NaN);
   return Number.isNaN(parsed.getTime()) ? "Date unavailable" : DATE_FORMATTER.format(parsed);
+}
+function timestamp(value?: unknown) {
+  if (!value) return 0;
+  const candidate = value as { toDate?: () => Date; seconds?: number; nanoseconds?: number };
+  const parsed = value instanceof Date
+    ? value
+    : typeof value === "string" || typeof value === "number"
+      ? new Date(value)
+      : typeof candidate.toDate === "function"
+        ? candidate.toDate()
+        : typeof candidate.seconds === "number"
+          ? new Date(candidate.seconds * 1000 + Math.floor((candidate.nanoseconds ?? 0) / 1_000_000))
+          : new Date(NaN);
+  return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+}
+function sortByDate<T>(items: T[], getValue: (item: T) => unknown, direction: SortDirection) {
+  return [...items].sort((left, right) => (timestamp(getValue(left)) - timestamp(getValue(right))) * (direction === "asc" ? 1 : -1));
 }
 function errorText(error: unknown) {
   return error instanceof Error
@@ -480,7 +498,7 @@ function usePaged<T>(
   name: string,
   field: string,
   filter?: { field: string; value: string | number },
-  sortDirection: "asc" | "desc" = "asc",
+  sortDirection: SortDirection = "asc",
 ) {
   const [items, setItems] = useState<T[]>([]);
   const [cursor, setCursor] = useState<any>(null);
@@ -589,7 +607,8 @@ function UsersPage({
   scope: Scope;
   notify: (notice: Notice) => void;
 }) {
-  const page = usePaged<Profile>("publicProfiles", "fullName");
+  const [nameOrder, setNameOrder] = useState<SortDirection>("asc");
+  const page = usePaged<Profile>("publicProfiles", "fullName", undefined, nameOrder);
   const moderation = useModerationStatuses();
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState("");
@@ -622,6 +641,12 @@ function UsersPage({
         </div>
         <div className="toolbar">
           <SearchBox value={search} onChange={setSearch} />
+          <SortButton
+            direction={nameOrder}
+            ascendingLabel="Name A–Z"
+            descendingLabel="Name Z–A"
+            onToggle={() => setNameOrder((current) => current === "asc" ? "desc" : "asc")}
+          />
           <select
             value={role}
             onChange={(event) => setRole(event.target.value)}
@@ -708,7 +733,7 @@ function UsersPage({
 }
 
 function TasksPage() {
-  const [dateOrder, setDateOrder] = useState<"asc" | "desc">("desc");
+  const [dateOrder, setDateOrder] = useState<SortDirection>("desc");
   const page = usePaged<Task>("tasks", "createdAt", undefined, dateOrder);
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState("");
@@ -736,15 +761,7 @@ function TasksPage() {
         </div>
         <div className="toolbar">
           <SearchBox value={search} onChange={setSearch} />
-          <button
-            type="button"
-            className="button secondary"
-            onClick={() => setDateOrder((current) => current === "desc" ? "asc" : "desc")}
-            title="Change the created-date order"
-            aria-label={`Sort by created date: ${dateOrder === "desc" ? "newest first" : "oldest first"}. Activate to reverse.`}
-          >
-            {dateOrder === "desc" ? "Newest first" : "Oldest first"}
-          </button>
+          <SortButton direction={dateOrder} onToggle={() => setDateOrder((current) => current === "desc" ? "asc" : "desc")} />
           <select
             value={status}
             onChange={(event) => setStatus(event.target.value)}
@@ -812,7 +829,8 @@ function TasksPage() {
 }
 
 function ApplicationsPage() {
-  const page = usePaged<TaskMatch>("taskMatches", "createdAt");
+  const [dateOrder, setDateOrder] = useState<SortDirection>("desc");
+  const page = usePaged<TaskMatch>("taskMatches", "createdAt", undefined, dateOrder);
   const [search, setSearch] = useState("");
   const tasks = useRecordLookup<Task>(
     page.items.map((match) => match.taskId || ""),
@@ -836,7 +854,10 @@ function ApplicationsPage() {
             Applications are read-only in this portal. Only the employer who posted the task can accept or decline worker applications. Administrators may monitor application records but cannot make hiring decisions on behalf of employers.
           </p>
         </div>
-        <SearchBox value={search} onChange={setSearch} />
+        <div className="toolbar">
+          <SearchBox value={search} onChange={setSearch} />
+          <SortButton direction={dateOrder} onToggle={() => setDateOrder((current) => current === "desc" ? "asc" : "desc")} />
+        </div>
       </div>
       <Panel title="Task applications">
         <Table
@@ -900,6 +921,8 @@ function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
     path: string;
     label: string;
   } | null>(null);
+  const [requestOrder, setRequestOrder] = useState<SortDirection>("desc");
+  const [paymentOrder, setPaymentOrder] = useState<SortDirection>("desc");
   const profiles = useRecordLookup<Profile>(
     requests.map((item) => item.userId),
     loadProfilesById,
@@ -929,6 +952,8 @@ function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
     const interval = window.setInterval(() => void refreshReviewData(), 30_000);
     return () => window.clearInterval(interval);
   }, [refreshReviewData]);
+  const sortedRequests = sortByDate(requests, (item) => item.submittedAt, requestOrder);
+  const sortedPayments = sortByDate(payments, (item) => item.updatedAt || item.createdAt, paymentOrder);
   return (
     <div className="page-stack">
       <div className="page-heading">
@@ -954,6 +979,7 @@ function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
         <Panel
           title={`Identity review (${requests.length})`}
           description="Pending Tasker and Employer requests"
+          action={<SortButton direction={requestOrder} onToggle={() => setRequestOrder((current) => current === "desc" ? "asc" : "desc")} />}
         >
           <Table
             headers={[
@@ -963,7 +989,7 @@ function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
               "Decision",
             ]}
           >
-          {requests.map((item) => {
+          {sortedRequests.map((item) => {
             const requirementsComplete = Boolean(
               item.validIdPath &&
                 item.medicalCertificatePath &&
@@ -1083,9 +1109,10 @@ function VerificationPage({ notify }: { notify: (notice: Notice) => void }) {
         <Panel
           title={`Payment review (${payments.length})`}
           description="Submitted GCash evidence only"
+          action={<SortButton direction={paymentOrder} onToggle={() => setPaymentOrder((current) => current === "desc" ? "asc" : "desc")} />}
         >
           <Table headers={["Task", "Amount", "Submitted", "Decision"]}>
-            {payments.map((item) => (
+            {sortedPayments.map((item) => (
               <tr key={item.id}>
                 <td>{taskTitle(paymentTasks[item.taskId || item.id])}</td>
                 <td>{item.agreedAmount || "—"}</td>
@@ -1164,7 +1191,8 @@ function HelpPage() {
 function FeedbackPage() {
   const [score, setScore] = useState("all");
   const selectedScore = score === "all" ? undefined : Number(score);
-  const page = usePaged<Rating>("ratings", "createdAt", selectedScore === undefined ? undefined : { field: "score", value: selectedScore });
+  const [dateOrder, setDateOrder] = useState<SortDirection>("desc");
+  const page = usePaged<Rating>("ratings", "createdAt", selectedScore === undefined ? undefined : { field: "score", value: selectedScore }, dateOrder);
   const [total, setTotal] = useState<number>();
   const [countError, setCountError] = useState("");
   useEffect(() => {
@@ -1191,17 +1219,13 @@ function FeedbackPage() {
           <h2>Reviews and feedback</h2>
           <p>Live feedback records from employers and taskers.</p>
         </div>
-        <select
-          value={score}
-          onChange={(event) => setScore(event.target.value)}
-        >
-          <option value="all">All ratings</option>
-          {[5, 4, 3, 2, 1].map((value) => (
-            <option key={value} value={value}>
-              {value} stars
-            </option>
-          ))}
-        </select>
+        <div className="toolbar">
+          <SortButton direction={dateOrder} onToggle={() => setDateOrder((current) => current === "desc" ? "asc" : "desc")} />
+          <select value={score} onChange={(event) => setScore(event.target.value)}>
+            <option value="all">All ratings</option>
+            {[5, 4, 3, 2, 1].map((value) => <option key={value} value={value}>{value} stars</option>)}
+          </select>
+        </div>
       </div>
       <Panel
         title={total === undefined ? "Feedback" : `Feedback — ${total} total records`}
@@ -1244,6 +1268,7 @@ function ReportsPage({ notify }: { notify: (notice: Notice) => void }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [modal, setModal] = useState<ViolationReport | null>(null);
+  const [dateOrder, setDateOrder] = useState<SortDirection>("desc");
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -1263,6 +1288,7 @@ function ReportsPage({ notify }: { notify: (notice: Notice) => void }) {
     data.map((report) => report.targetUserId || ""),
     loadProfilesById,
   );
+  const sortedReports = sortByDate(data, (report) => report.createdAt, dateOrder);
   return (
     <div className="page-stack">
       <div className="page-heading">
@@ -1278,7 +1304,7 @@ function ReportsPage({ notify }: { notify: (notice: Notice) => void }) {
           Refresh
         </button>
       </div>
-      <Panel title="Reports">
+      <Panel title="Reports" action={<SortButton direction={dateOrder} onToggle={() => setDateOrder((current) => current === "desc" ? "asc" : "desc")} />}>
         <Table
           headers={[
             "Category",
@@ -1289,7 +1315,7 @@ function ReportsPage({ notify }: { notify: (notice: Notice) => void }) {
             "Action",
           ]}
         >
-          {data.map((report) => (
+          {sortedReports.map((report) => (
             <tr key={report.id}>
               <td>
                 <Badge value={report.category || "Other"} />
@@ -1336,6 +1362,7 @@ function AuditPage() {
   const [items, setItems] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [dateOrder, setDateOrder] = useState<SortDirection>("desc");
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -1358,6 +1385,7 @@ function AuditPage() {
     ]),
     loadProfilesById,
   );
+  const sortedItems = sortByDate(items, (item) => item.createdAt, dateOrder);
   return (
     <div className="page-stack">
       <div className="page-heading">
@@ -1367,9 +1395,9 @@ function AuditPage() {
         </div>
         <button className="button secondary" onClick={() => void load()} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button>
       </div>
-      <Panel title="Recent actions">
+      <Panel title="Recent actions" action={<SortButton direction={dateOrder} onToggle={() => setDateOrder((current) => current === "desc" ? "asc" : "desc")} />}>
         <Table headers={["Action", "Target", "Reason", "Actor", "Date"]}>
-          {items.map((item) => (
+          {sortedItems.map((item) => (
             <tr key={item.id}>
               <td>{item.action || "—"}</td>
               <td>
@@ -1715,10 +1743,12 @@ function ModalActions({
 function Panel({
   title,
   description,
+  action,
   children,
 }: {
   title: string;
   description?: string;
+  action?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -1728,6 +1758,7 @@ function Panel({
           <h3>{title}</h3>
           {description ? <p>{description}</p> : null}
         </div>
+        {action}
       </div>
       {children}
     </section>
@@ -1831,6 +1862,30 @@ function SearchBox({
         aria-label="Search current page"
       />
     </label>
+  );
+}
+function SortButton({
+  direction,
+  onToggle,
+  ascendingLabel = "Oldest first",
+  descendingLabel = "Newest first",
+}: {
+  direction: SortDirection;
+  onToggle: () => void;
+  ascendingLabel?: string;
+  descendingLabel?: string;
+}) {
+  const label = direction === "asc" ? ascendingLabel : descendingLabel;
+  return (
+    <button
+      type="button"
+      className="button secondary"
+      onClick={onToggle}
+      title="Change the list order"
+      aria-label={`Sort: ${label}. Activate to reverse.`}
+    >
+      {label}
+    </button>
   );
 }
 function Badge({ value }: { value: string }) {
