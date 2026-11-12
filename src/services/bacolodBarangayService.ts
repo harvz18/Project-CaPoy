@@ -1,16 +1,18 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+const bacolodPsgcEndpoint = "https://psgc.billyjamesramos.com/api/v1/cities-municipalities/1830200000/barangays?limit=1000";
 const overpassEndpoints = [
   "https://overpass-api.de/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter"
 ];
-const cacheKey = "tasklink:bacolod-barangays:v1";
+const cacheKey = "tasklink:bacolod-barangays:v2";
 const cacheMaxAgeMs = 7 * 24 * 60 * 60 * 1000;
 const endpointTimeoutMs = 3_500;
 let refreshInFlight: Promise<string[]> | undefined;
 let memoryCache: BarangayCache | undefined;
 
 type OverpassElement = { tags?: { name?: unknown; "name:en"?: unknown } };
+type PsgcBarangay = { name?: unknown };
 type BarangayCache = { barangays: string[]; fetchedAt: number };
 
 const bacolodBarangayQuery = `
@@ -34,6 +36,17 @@ export function parseBacolodBarangays(payload: unknown) {
   return [...new Set(elements
     .map((element) => typeof element.tags?.name === "string" ? element.tags.name : element.tags?.["name:en"])
     .filter((name): name is string => typeof name === "string")
+    .map(normalizeBacolodBarangayName)
+    .filter(Boolean))]
+    .sort((left, right) => left.localeCompare(right, "en", { numeric: true }));
+}
+
+export function parsePsgcBacolodBarangays(payload: unknown) {
+  const entries = Array.isArray((payload as { data?: unknown })?.data)
+    ? (payload as { data: PsgcBarangay[] }).data
+    : [];
+  return [...new Set(entries
+    .map((entry) => typeof entry.name === "string" ? entry.name : "")
     .map(normalizeBacolodBarangayName)
     .filter(Boolean))]
     .sort((left, right) => left.localeCompare(right, "en", { numeric: true }));
@@ -72,6 +85,20 @@ async function saveCachedBacolodBarangays(barangays: string[]) {
 
 /** Fetches the currently mapped Bacolod barangay boundaries; no hardcoded list is bundled. */
 export async function fetchBacolodBarangays(fetcher: typeof fetch = fetch) {
+  const primaryController = new AbortController();
+  const primaryTimeout = setTimeout(() => primaryController.abort(), endpointTimeoutMs);
+  try {
+    const response = await fetcher(bacolodPsgcEndpoint, { signal: primaryController.signal });
+    if (response.ok) {
+      const barangays = parsePsgcBacolodBarangays(await response.json());
+      if (barangays.length) return barangays;
+    }
+  } catch {
+    // Keep the map-boundary services as a fallback for temporary PSGC outages.
+  } finally {
+    clearTimeout(primaryTimeout);
+  }
+
   for (const endpoint of overpassEndpoints) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), endpointTimeoutMs);

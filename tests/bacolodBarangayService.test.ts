@@ -1,11 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { fetchBacolodBarangays, normalizeBacolodBarangayName, parseBacolodBarangays } from "../src/services/bacolodBarangayService";
+import { fetchBacolodBarangays, normalizeBacolodBarangayName, parseBacolodBarangays, parsePsgcBacolodBarangays } from "../src/services/bacolodBarangayService";
 
 test("Bacolod barangay data is normalized from a live boundary response without a bundled fallback list", () => {
   assert.equal(normalizeBacolodBarangayName("Alijis"), "Barangay Alijis");
   assert.equal(normalizeBacolodBarangayName("Barangay 10"), "Barangay 10");
   assert.deepEqual(parseBacolodBarangays({ elements: [{ tags: { name: "Alijis" } }, { tags: { name: "Barangay 10" } }, { tags: { name: "Alijis" } }] }), ["Barangay 10", "Barangay Alijis"]);
+});
+
+test("PSGC responses provide the official Bacolod dropdown names", () => {
+  assert.deepEqual(
+    parsePsgcBacolodBarangays({ data: [{ name: "Alijis" }, { name: "Barangay 10" }, { name: "Alijis" }] }),
+    ["Barangay 10", "Barangay Alijis"]
+  );
 });
 
 test("Bacolod barangays use a second live-map endpoint when the first endpoint is unavailable", async () => {
