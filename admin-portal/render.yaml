@@ -5,6 +5,12 @@ services:
     rootDir: admin-portal
     buildCommand: npm ci && npm run build
     staticPublishPath: dist
+    # Serve the React app for direct visits and browser refreshes on its
+    # client-side routes, such as /admin/dashboard.
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
     envVars:
       - key: VITE_FIREBASE_API_KEY
         sync: false
