@@ -27,14 +27,5 @@ export type AuditLog = { id: string; actorId?: string; action?: string; targetTy
 export type ViolationReport = { id: string; reporterId?: string; targetUserId?: string; category?: string; reason?: string; status?: string; createdAt?: string };
 export type ModerationUser = Profile & { accountStatus?: AccountStatus; restrictionReason?: string; restrictionEvidenceReference?: string; restrictedAt?: string };
 
-export type Analytics = {
-  range: { label: string; preset: string }; accounts: { employers: number; taskers: number; active: number; restricted: number };
-  verification: { pending: number; approved: number; rejected: number; resubmission: number };
-  taskInventory: { total: number; byStatus: Record<string, number> };
-  activity: { posted: number; applications: number; accepted: number; completed: number; cancelled: number; disputed: number; byCategory: Array<{ category: string; count: number }> };
-  payments: { Pending: number; Submitted: number; Verified: number; Rejected: number; unresolvedReviews: number };
-  daily: Array<{ date: string; posted: number; applications: number; accepted: number; completed: number }>;
-};
-
 export type SuperadminOverview = { users: ModerationUser[]; reports: ViolationReport[]; auditLogs: AuditLog[] };
 export type BasicDashboardCounts = { users: number; employers: number; taskers: number; tasks: number; activeTasks: number; completedTasks: number; paymentRecords: number; submittedPayments: number; pendingVerifications: number };

@@ -3,7 +3,7 @@ import { httpsCallable } from "firebase/functions";
 import { getDownloadURL, ref } from "firebase/storage";
 import { db, functions, storage } from "./firebase";
 import { getAdminApi, postAdminApi } from "./adminApi";
-import { Analytics, AuditLog, BasicDashboardCounts, ModerationUser, Payment, Profile, Rating, SuperadminOverview, Task, TaskMatch, VerificationRequest } from "./types";
+import { AuditLog, BasicDashboardCounts, ModerationUser, Payment, Profile, Rating, SuperadminOverview, Task, TaskMatch, VerificationRequest } from "./types";
 
 function requireServices() { if (!db || !functions) throw new Error("Firebase is not configured."); return { db, functions }; }
 function records<T>(snapshot: { docs: QueryDocumentSnapshot<DocumentData>[] }) { return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as T); }
@@ -67,10 +67,6 @@ export async function getBasicDashboardCounts(): Promise<BasicDashboardCounts> {
 export async function loadPendingVerifications() {
   const response = await getAdminApi<{ requests: VerificationRequest[] }>("/api/admin/verifications/pending");
   return response.requests;
-}
-export async function getAnalytics(preset: "today" | "7d" | "30d") {
-  const response = await httpsCallable<{ preset: string }, Analytics>(requireServices().functions, "getAdminAnalytics")({ preset });
-  return response.data;
 }
 export async function getSuperadminOverview() {
   return getAdminApi<SuperadminOverview>("/api/admin/superadmin/overview");

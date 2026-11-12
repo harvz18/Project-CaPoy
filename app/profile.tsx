@@ -429,13 +429,6 @@ export default function ProfileScreen() {
           <Field label={currentUser?.role === "client" ? "Business Bio" : "Worker Bio"} value={bio} onChangeText={setBio} placeholder="Tell people about yourself" multiline />
         </CollapsibleSettingsCard>
 
-        <SettingsCard title="Account security">
-          <Text style={styles.helperText}>Email verification is available only for accounts that use a real email address. Mobile-password accounts remain unverified until real SMS verification is configured.</Text>
-          <Pressable accessibilityRole="button" onPress={() => router.push("/verify-email")} style={styles.locationButton}>
-            <Text style={styles.locationButtonText}>Check email verification</Text>
-          </Pressable>
-        </SettingsCard>
-
         <SettingsCard title="Account Mode">
           <Text style={styles.helperText}>You are currently using TaskLink as {currentUser?.role === "client" ? "an employer" : "a tasker"}.</Text>
           <Pressable

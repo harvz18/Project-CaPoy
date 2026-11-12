@@ -12,7 +12,6 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import {
-  BarChart3,
   Bell,
   CheckCircle2,
   CircleHelp,
@@ -287,11 +286,10 @@ const adminNavigation = [
   ["applications", "Applications", FileText],
   ["verifications", "Verifications", ClipboardCheck],
   ["feedback", "Feedback", Star],
-  ["analytics", "Analytics", BarChart3],
   ["help", "Help", CircleHelp],
 ] as const;
 const superNavigation = [
-  ...adminNavigation.filter(([id]) => id !== "analytics"),
+  ...adminNavigation,
   ["reports", "Reports", Flag],
   ["audit", "Audit log", ShieldCheck],
 ] as const;
@@ -396,7 +394,6 @@ function Page({
   if (section === "applications") return <ApplicationsPage />;
   if (section === "verifications") return <VerificationPage notify={notify} />;
   if (section === "feedback") return <FeedbackPage />;
-  if (section === "analytics") return <AnalyticsPage />;
   if (section === "help") return <HelpPage />;
   if (scope === "superadmin" && section === "reports")
     return <ReportsPage notify={notify} />;
@@ -1257,10 +1254,6 @@ function FeedbackPage() {
       </Panel>
     </div>
   );
-}
-
-function AnalyticsPage() {
-  return <Dashboard scope="admin" />;
 }
 
 function ReportsPage({ notify }: { notify: (notice: Notice) => void }) {
