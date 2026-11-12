@@ -437,16 +437,16 @@ export default function ProfileScreen() {
                   multiline
                 />
               </> : null}
+              <UploadField
+                disabled={uploadingField === "profile-photo"}
+                label="Profile Photo"
+                value={profilePhotoUrl}
+                placeholder="Tap to upload profile photo"
+                onSelect={uploadProfilePhoto}
+              />
               {FREE_WEB_DEMO ? (
-                <Text style={styles.helperText}>Profile-photo and verification-document uploads are unavailable in this no-billing web deployment because Firebase Storage is not active. Existing saved photos remain visible; account and task features continue to work.</Text>
+                <Text style={styles.helperText}>Profile photos work in this web deployment. Verification-document uploads require Firebase Storage and are unavailable here.</Text>
               ) : <>
-                <UploadField
-                  disabled={uploadingField === "profile-photo"}
-                  label="Profile Photo"
-                  value={profilePhotoUrl}
-                  placeholder="Tap to upload profile photo"
-                  onSelect={uploadProfilePhoto}
-                />
                   <Field editable={!fullNameLocked} label="Valid ID Type" value={validIdType} onChangeText={(value) => {
                     setValidIdType(value);
                     setDocumentsChanged(true);
@@ -742,7 +742,7 @@ function UploadField({
 
 function getUploadedFileName(value: string) {
   if (!value) return "";
-  if (value.startsWith("http")) return "Profile photo uploaded";
+  if (value.startsWith("http") || value.startsWith("data:image/")) return "Profile photo uploaded";
   return value.split("/").pop()?.replace(/^\d+_/, "") ?? value;
 }
 

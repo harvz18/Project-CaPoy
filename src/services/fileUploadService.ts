@@ -14,12 +14,17 @@ import {
 import { auth, db, storage } from "./firebase";
 
 const maxUploadBytes = 10 * 1024 * 1024;
+// A profile picture is kept as a compact data URL in Firestore so it works on
+// the project's no-Blaze deployment. This stays well under Firestore's 1 MiB
+// document limit even after the URL prefix and the rest of the profile fields.
+const maxProfilePhotoBase64Length = 700_000;
 
-type SelectedFile = {
+export type SelectedFile = {
   uri: string;
   name: string;
   mimeType: string;
   size?: number;
+  base64?: string;
 };
 
 function requireStorage() {
@@ -54,27 +59,50 @@ async function uploadSelectedFile(file: SelectedFile, path: string) {
   return uploadRef;
 }
 
-export async function pickAndUploadProfilePhoto(userId: string) {
-  const result = await ImagePicker.launchImageLibraryAsync({
+export async function pickProfilePhoto(source: "camera" | "library" = "library") {
+  if (Platform.OS !== "web") {
+    const permission = source === "camera"
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      throw new Error(source === "camera" ? "Camera access is needed to take a profile photo." : "Photo-library access is needed to choose a profile photo.");
+    }
+  }
+  const options: ImagePicker.ImagePickerOptions = {
     mediaTypes: ["images"],
     allowsEditing: true,
     aspect: [1, 1],
-    quality: 0.8
-  });
+    base64: true,
+    quality: 0.3
+  };
+  const result = source === "camera"
+    ? await ImagePicker.launchCameraAsync(options)
+    : await ImagePicker.launchImageLibraryAsync(options);
   if (result.canceled) return null;
   const asset = result.assets[0];
   const file: SelectedFile = {
     uri: asset.uri,
     name: asset.fileName ?? "profile-photo.jpg",
     mimeType: asset.mimeType ?? "image/jpeg",
-    size: asset.fileSize
+    size: asset.fileSize,
+    base64: asset.base64 ?? undefined
   };
   validateFile(file, false);
-  const uploadRef = await uploadSelectedFile(
-    file,
-    `profilePhotos/${userId}/${Date.now()}_${safeFileName(file.name)}`
-  );
-  return { name: file.name, url: await getDownloadURL(uploadRef) };
+  return file;
+}
+
+export async function uploadProfilePhoto(userId: string, file: SelectedFile) {
+  if (!userId) throw new Error("Sign in again before uploading a profile photo.");
+  const base64 = file.base64 ?? await readFileAsBase64(file.uri);
+  if (!base64 || base64.length > maxProfilePhotoBase64Length) {
+    throw new Error("Choose a smaller profile photo (up to about 500 KB after compression).");
+  }
+  return { name: file.name, url: `data:${file.mimeType};base64,${base64}` };
+}
+
+export async function pickAndUploadProfilePhoto(userId: string) {
+  const file = await pickProfilePhoto("library");
+  return file ? uploadProfilePhoto(userId, file) : null;
 }
 
 export async function pickAndUploadPrivateDocument(
@@ -224,6 +252,12 @@ function blobToBase64(blob: Blob) {
     };
     reader.readAsDataURL(blob);
   });
+}
+
+async function readFileAsBase64(uri: string) {
+  const response = await fetch(uri);
+  if (!response.ok) throw new Error("Unable to read the selected profile photo.");
+  return blobToBase64(await response.blob());
 }
 
 async function materializePaymentProof(base64: string, mimeType: string, fileName: string) {

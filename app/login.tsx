@@ -2,6 +2,7 @@ import Feather from "@expo/vector-icons/Feather";
 import { Href, useRouter } from "expo-router";
 import { useState } from "react";
 import {
+  Image,
   LayoutAnimation,
   Modal,
   Platform,
@@ -13,8 +14,11 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AppText as Text, AppTextInput as TextInput } from "../src/components/AppText";
+import { BacolodBarangayPicker } from "../src/components/BacolodBarangayPicker";
 import { workerCapabilities } from "../src/constants/capabilities";
 import { useApp } from "../src/context/AppContext";
+import { pickProfilePhoto, SelectedFile, uploadProfilePhoto } from "../src/services/fileUploadService";
+import { updateUserProfile } from "../src/services/userService";
 import { PublicRole, Role } from "../src/types";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -38,8 +42,6 @@ const palette = {
   success: "#10B981",
   white: "#FFFFFF"
 };
-
-const barangays = ["Barangay Alijis", "Barangay Taculing", "Barangay Mandalagan", "Barangay 10"];
 
 function getRoleRoute(role?: Role): Href {
   if (role === "admin") {
@@ -65,10 +67,14 @@ export default function LoginScreen() {
   const [fullName, setFullName] = useState("");
   const [registerMobileNumber, setRegisterMobileNumber] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [registerRole, setRegisterRole] = useState<PublicRole>("client");
   const [registerCapabilities, setRegisterCapabilities] = useState(["Cleaning"]);
-  const [selectedBarangay, setSelectedBarangay] = useState(barangays[0]);
-  const [barangayOpen, setBarangayOpen] = useState(false);
+  const [selectedBarangay, setSelectedBarangay] = useState("");
+  const [registerPhoto, setRegisterPhoto] = useState<SelectedFile>();
+  const [photoPickerOpen, setPhotoPickerOpen] = useState(false);
+  const [capabilityPickerOpen, setCapabilityPickerOpen] = useState(false);
+  const [registerError, setRegisterError] = useState("");
 
   function animateNext() {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -87,8 +93,13 @@ export default function LoginScreen() {
   }
 
   async function handleRegister() {
+    if (registerPassword !== confirmPassword) {
+      setRegisterError("Passwords do not match.");
+      return;
+    }
+    setRegisterError("");
     try {
-      await register({
+      const user = await register({
         role: registerRole,
         fullName,
         mobileNumber: registerMobileNumber,
@@ -98,6 +109,14 @@ export default function LoginScreen() {
         capabilities: registerRole === "worker" ? registerCapabilities : [],
         businessName: registerRole === "client" ? fullName : undefined
       });
+      if (registerPhoto) {
+        try {
+          const uploaded = await uploadProfilePhoto(user.id, registerPhoto);
+          await updateUserProfile(user.id, { profilePhotoUrl: uploaded.url });
+        } catch (photoError) {
+          setRegisterError(photoError instanceof Error ? photoError.message : "Your account was created, but the profile photo could not be uploaded.");
+        }
+      }
       router.replace(getRoleRoute(registerRole));
     } catch {
       // AppContext exposes the readable error message.
@@ -113,6 +132,16 @@ export default function LoginScreen() {
     setRegisterCapabilities((items) =>
       items.includes(capability) ? items.filter((item) => item !== capability) : [...items, capability]
     );
+  }
+
+  async function chooseProfilePhoto(source: "camera" | "library") {
+    setPhotoPickerOpen(false);
+    try {
+      const photo = await pickProfilePhoto(source);
+      if (photo) setRegisterPhoto(photo);
+    } catch (photoError) {
+      setRegisterError(photoError instanceof Error ? photoError.message : "Unable to select a profile photo.");
+    }
   }
 
   return (
@@ -144,10 +173,7 @@ export default function LoginScreen() {
         </View>
 
         <View style={screenStyles.card}>
-          <Text style={screenStyles.authTitle}>Password Login</Text>
-          <Text style={screenStyles.authNotice}>
-            SMS OTP is not enabled. Use the password created with your account; TaskLink never displays a simulated verification code.
-          </Text>
+          <Text style={screenStyles.authTitle}>Login</Text>
           <Text style={screenStyles.authNotice}>Employers and taskers use this same login. Your saved account type opens the correct dashboard.</Text>
 
           <View style={screenStyles.section}>
@@ -197,9 +223,9 @@ export default function LoginScreen() {
           {registerVisible ? (
             <View style={screenStyles.registerPanel}>
               <View style={screenStyles.profileRow}>
-                <View accessibilityLabel="Registration profile initial" style={screenStyles.avatarButton}>
-                  <Text style={screenStyles.avatarIcon}>{fullName.trim()[0]?.toUpperCase() ?? "U"}</Text>
-                </View>
+                <Pressable accessibilityLabel="Choose profile photo" accessibilityRole="button" onPress={() => setPhotoPickerOpen(true)} style={screenStyles.avatarButton}>
+                  {registerPhoto ? <Image source={{ uri: registerPhoto.uri }} style={screenStyles.avatarImage} /> : <Text style={screenStyles.avatarIcon}>{fullName.trim()[0]?.toUpperCase() ?? "U"}</Text>}
+                </Pressable>
                 <View style={screenStyles.nameField}>
                   <Text style={screenStyles.label}>Full Name</Text>
                   <TextInput
@@ -236,49 +262,19 @@ export default function LoginScreen() {
               <Text style={screenStyles.label}>Mobile Number</Text>
               <PhoneInput mobileNumber={registerMobileNumber} onChange={setRegisterMobileNumber} />
 
-              <Text style={screenStyles.label}>Select Barangay</Text>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => setBarangayOpen(true)}
-                style={screenStyles.dropdownButton}
-              >
-                <Text style={screenStyles.dropdownText}>{selectedBarangay}</Text>
-                <Feather accessibilityElementsHidden color={palette.primary} name="chevron-down" size={20} />
-              </Pressable>
+              <BacolodBarangayPicker label="Barangay" value={selectedBarangay} onChange={setSelectedBarangay} />
 
-              <Text style={screenStyles.label}>Password</Text>
-              <TextInput
-                onChangeText={setRegisterPassword}
-                placeholder="Create password"
-                placeholderTextColor={palette.outline}
-                secureTextEntry
-                style={screenStyles.textInput}
-                value={registerPassword}
-              />
+              <PasswordField label="Create Password" onChangeText={setRegisterPassword} placeholder="Create password" value={registerPassword} />
+              <PasswordField label="Confirm Password" onChangeText={setConfirmPassword} placeholder="Re-enter password" value={confirmPassword} />
 
               {registerRole === "worker" ? (
                 <>
-                  <Text style={screenStyles.label}>Worker Capabilities</Text>
-                  <View style={screenStyles.capabilityGrid}>
-                    {workerCapabilities.map((capability) => {
-                      const selected = registerCapabilities.includes(capability);
-                      return (
-                        <Pressable
-                          accessibilityRole="button"
-                          accessibilityState={{ selected }}
-                          key={capability}
-                          onPress={() => toggleCapability(capability)}
-                          style={[screenStyles.capabilityChip, selected && screenStyles.capabilityChipSelected]}
-                        >
-                          <Text style={[screenStyles.capabilityText, selected && screenStyles.capabilityTextSelected]}>
-                            {capability}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
+                  <Text style={screenStyles.label}>Capabilities</Text>
+                  <Pressable accessibilityRole="button" onPress={() => setCapabilityPickerOpen(true)} style={screenStyles.dropdownButton}><Text style={screenStyles.dropdownText}>{registerCapabilities.length ? `${registerCapabilities.length} selected` : "Choose capabilities"}</Text><Feather accessibilityElementsHidden color={palette.primary} name="chevron-right" size={20} /></Pressable>
                 </>
               ) : null}
+
+              {registerError ? <Text accessibilityRole="alert" style={screenStyles.errorText}>{registerError}</Text> : null}
 
               <Pressable
                 accessibilityRole="button"
@@ -310,33 +306,8 @@ export default function LoginScreen() {
         </View>
       </ScrollView>
 
-      <Modal animationType="fade" transparent visible={barangayOpen} onRequestClose={() => setBarangayOpen(false)}>
-        <Pressable style={screenStyles.modalBackdrop} onPress={() => setBarangayOpen(false)}>
-          <View style={screenStyles.dropdownMenu}>
-            <Text style={screenStyles.dropdownTitle}>Select Barangay</Text>
-            {barangays.map((barangay) => (
-              <Pressable
-                accessibilityRole="button"
-                key={barangay}
-                onPress={() => {
-                  setSelectedBarangay(barangay);
-                  setBarangayOpen(false);
-                }}
-                style={screenStyles.dropdownOption}
-              >
-                <Text
-                  style={[
-                    screenStyles.dropdownOptionText,
-                    selectedBarangay === barangay && screenStyles.dropdownOptionSelected
-                  ]}
-                >
-                  {barangay}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </Pressable>
-      </Modal>
+      <Modal animationType="slide" transparent visible={photoPickerOpen} onRequestClose={() => setPhotoPickerOpen(false)}><Pressable style={screenStyles.modalBackdrop} onPress={() => setPhotoPickerOpen(false)}><View style={screenStyles.actionSheet}><Text style={screenStyles.dropdownTitle}>Profile Photo</Text><Pressable accessibilityRole="button" onPress={() => void chooseProfilePhoto("camera")} style={screenStyles.dropdownOption}><Text style={screenStyles.dropdownOptionText}>Take a photo</Text></Pressable><Pressable accessibilityRole="button" onPress={() => void chooseProfilePhoto("library")} style={screenStyles.dropdownOption}><Text style={screenStyles.dropdownOptionText}>Choose from gallery</Text></Pressable></View></Pressable></Modal>
+      <Modal animationType="slide" transparent visible={capabilityPickerOpen} onRequestClose={() => setCapabilityPickerOpen(false)}><View style={screenStyles.modalBackdrop}><View style={screenStyles.capabilitySheet}><View style={screenStyles.codeHeader}><Text style={screenStyles.dropdownTitle}>Capabilities</Text><Pressable accessibilityRole="button" onPress={() => setCapabilityPickerOpen(false)} style={screenStyles.resendButton}><Text style={screenStyles.resendText}>Done</Text></Pressable></View>{workerCapabilities.map((capability) => { const selected = registerCapabilities.includes(capability); return <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: selected }} key={capability} onPress={() => toggleCapability(capability)} style={screenStyles.capabilityOption}><View style={[screenStyles.checkbox, selected && screenStyles.checkboxSelected]}>{selected ? <Text style={screenStyles.checkboxMark}>✓</Text> : null}</View><Text style={screenStyles.capabilityOptionText}>{capability}</Text></Pressable>; })}</View></View></Modal>
     </SafeAreaView>
   );
 }
@@ -363,6 +334,41 @@ function PhoneInput({ mobileNumber, onChange }: PhoneInputProps) {
         style={screenStyles.phoneInput}
         value={mobileNumber}
       />
+    </View>
+  );
+}
+
+type PasswordFieldProps = {
+  label: string;
+  value: string;
+  onChangeText: (value: string) => void;
+  placeholder: string;
+};
+
+function PasswordField({ label, value, onChangeText, placeholder }: PasswordFieldProps) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <View style={screenStyles.passwordField}>
+      <Text style={screenStyles.label}>{label}</Text>
+      <View style={screenStyles.passwordInputWrap}>
+        <TextInput
+          accessibilityLabel={label}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={palette.outline}
+          secureTextEntry={!visible}
+          style={screenStyles.passwordInput}
+          value={value}
+        />
+        <Pressable
+          accessibilityLabel={visible ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
+          accessibilityRole="button"
+          onPress={() => setVisible((current) => !current)}
+          style={screenStyles.passwordVisibilityButton}
+        >
+          <Feather accessibilityElementsHidden color={palette.muted} name={visible ? "eye-off" : "eye"} size={20} />
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -621,6 +627,11 @@ const screenStyles = StyleSheet.create({
     borderColor: palette.outlineVariant,
     backgroundColor: palette.surfaceHigh
   },
+  avatarImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 30
+  },
   avatarIcon: {
     color: palette.outline,
     fontSize: 28,
@@ -638,6 +649,30 @@ const screenStyles = StyleSheet.create({
     backgroundColor: palette.surfaceLow,
     color: palette.text,
     fontSize: 16
+  },
+  passwordField: {
+    gap: 6
+  },
+  passwordInputWrap: {
+    minHeight: 48,
+    borderRadius: 8,
+    backgroundColor: palette.surfaceLow,
+    flexDirection: "row",
+    alignItems: "center"
+  },
+  passwordInput: {
+    flex: 1,
+    minHeight: 48,
+    paddingLeft: 16,
+    paddingRight: 4,
+    color: palette.text,
+    fontSize: 16
+  },
+  passwordVisibilityButton: {
+    width: 48,
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center"
   },
   dropdownButton: {
     minHeight: 52,
@@ -797,6 +832,52 @@ const screenStyles = StyleSheet.create({
     backgroundColor: "rgba(24, 28, 28, 0.32)",
     alignItems: "center",
     justifyContent: "center"
+  },
+  actionSheet: {
+    width: "100%",
+    maxWidth: 448,
+    borderRadius: 12,
+    padding: 12,
+    backgroundColor: palette.surface
+  },
+  capabilitySheet: {
+    width: "100%",
+    maxWidth: 448,
+    maxHeight: "80%",
+    borderRadius: 12,
+    padding: 12,
+    gap: 4,
+    backgroundColor: palette.surface
+  },
+  capabilityOption: {
+    minHeight: 48,
+    paddingHorizontal: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12
+  },
+  capabilityOptionText: {
+    color: palette.text,
+    fontSize: 16,
+    fontWeight: "700"
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 5,
+    borderWidth: 2,
+    borderColor: palette.outline,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  checkboxSelected: {
+    backgroundColor: palette.primary,
+    borderColor: palette.primary
+  },
+  checkboxMark: {
+    color: palette.white,
+    fontSize: 15,
+    fontWeight: "900"
   },
   dropdownMenu: {
     width: "100%",

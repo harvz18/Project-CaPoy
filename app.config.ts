@@ -20,13 +20,6 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           locationWhenInUsePermission: "TASKLINK uses your location to rank nearby jobs and verify task check-in."
         }
       ],
-      [
-        "expo-image-picker",
-        {
-          photosPermission: "TASKLINK lets you select a profile photo from your library.",
-          microphonePermission: false
-        }
-      ]
     ]
   };
 };

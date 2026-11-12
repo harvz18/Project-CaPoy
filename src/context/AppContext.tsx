@@ -140,7 +140,7 @@ type AppContextValue = {
   error: string | null;
   actionErrorDialog: string | null;
   login: (input: LoginInput) => Promise<UserProfile>;
-  register: (input: RegisterInput) => Promise<void>;
+  register: (input: RegisterInput) => Promise<UserProfile>;
   setRole: (role: PublicRole) => Promise<void>;
   logout: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
@@ -391,6 +391,7 @@ export function AppProvider({ children }: PropsWithChildren) {
   }
 
   async function register(input: RegisterInput) {
+    let createdUser: UserProfile | undefined;
     await runAction(async () => {
       validateRegistration(input);
       const authSession = await registerWithMobileNumber(input.mobileNumber, input.password);
@@ -407,11 +408,14 @@ export function AppProvider({ children }: PropsWithChildren) {
         });
 
         setCurrentUser(user);
+        createdUser = user;
       } catch (profileError) {
         await deleteCurrentAuthUser().catch(() => undefined);
         throw profileError;
       }
     });
+    if (!createdUser) throw new Error("Unable to create this account.");
+    return createdUser;
   }
 
   async function setRole(role: PublicRole) {
