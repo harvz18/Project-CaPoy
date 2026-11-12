@@ -104,7 +104,7 @@ export async function pickProfilePhoto(source: UploadSource = "library") {
 
 export async function uploadProfilePhoto(userId: string, file: SelectedFile) {
   if (!userId) throw new Error("Sign in again before uploading a profile photo.");
-  const base64 = file.base64 ?? await readFileAsBase64(file.uri);
+  const base64 = file.base64 ?? await readFileAsBase64(file.uri, "profile photo");
   if (!base64 || base64.length > maxProfilePhotoBase64Length) {
     throw new Error("Choose a smaller profile photo (up to about 500 KB after compression).");
   }
@@ -151,14 +151,12 @@ export async function pickAndUploadPrivateDocument(
   const file = await pickPrivateFile(source, true, `${kind}.jpg`);
   if (!file) return null;
   const { firestore, user } = requireFirestoreVerificationServices(ownerId);
-  const response = await fetch(file.uri);
-  if (!response.ok) throw new Error("Unable to read the selected verification document.");
-  const blob = await response.blob();
-  if (blob.size === 0) throw new Error("The selected verification document is empty.");
-  if (blob.size > maxFirestoreVerificationDocumentBytes) {
+  const base64 = await readFileAsBase64(file.uri, "verification document");
+  const byteSize = base64ByteLength(base64);
+  if (byteSize === 0) throw new Error("The selected verification document is empty.");
+  if (byteSize > maxFirestoreVerificationDocumentBytes) {
     throw new Error("Verification files must be smaller than 5 MB.");
   }
-  const base64 = await blobToBase64(blob);
   const chunks = splitVerificationDocumentBase64(base64);
   const version = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
   const createdAt = new Date().toISOString();
@@ -169,7 +167,7 @@ export async function pickAndUploadPrivateDocument(
     uploaderId: user.uid,
     fileName: safeFileName(file.name),
     mimeType: file.mimeType,
-    byteSize: blob.size,
+    byteSize,
     encodedSize: base64.length,
     chunkCount: chunks.length,
     version,
@@ -204,14 +202,12 @@ async function pickAndUploadPrivatePaymentFile(
   const file = await pickPrivateFile(source, allowPdf, `${party}-${label.replace(/\s+/g, "-")}.jpg`);
   if (!file) return null;
   const { firestore, user } = requireFirestoreReceiptServices();
-  const response = await fetch(file.uri);
-  if (!response.ok) throw new Error(`Unable to read the selected ${label}.`);
-  const blob = await response.blob();
-  if (blob.size === 0) throw new Error(`The selected ${label} is empty.`);
-  if (blob.size > maxFirestorePaymentProofBytes) {
+  const base64 = await readFileAsBase64(file.uri, label);
+  const byteSize = base64ByteLength(base64);
+  if (byteSize === 0) throw new Error(`The selected ${label} is empty.`);
+  if (byteSize > maxFirestorePaymentProofBytes) {
     throw new Error(`${allowPdf ? "Files" : "Images"} must be smaller than 5 MB.`);
   }
-  const base64 = await blobToBase64(blob);
   const chunks = splitPaymentProofBase64(base64);
   const version = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
   const createdAt = new Date().toISOString();
@@ -222,7 +218,7 @@ async function pickAndUploadPrivatePaymentFile(
     uploaderId: user.uid,
     fileName: safeFileName(file.name),
     mimeType: file.mimeType,
-    byteSize: blob.size,
+    byteSize,
     encodedSize: base64.length,
     chunkCount: chunks.length,
     version,
@@ -309,9 +305,26 @@ function blobToBase64(blob: Blob) {
   });
 }
 
-async function readFileAsBase64(uri: string) {
+function base64ByteLength(base64: string) {
+  const padding = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0;
+  return Math.floor(base64.length * 3 / 4) - padding;
+}
+
+async function readFileAsBase64(uri: string, label: string) {
+  if (Platform.OS !== "web") {
+    try {
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64
+      });
+      if (base64) return base64;
+    } catch {
+      // The web fallback below is intentionally limited to web. On Android,
+      // FileSystem handles the cached URI returned by Expo DocumentPicker.
+    }
+    throw new Error(`Unable to read the selected ${label}. Choose the file again and retry.`);
+  }
   const response = await fetch(uri);
-  if (!response.ok) throw new Error("Unable to read the selected profile photo.");
+  if (!response.ok) throw new Error(`Unable to read the selected ${label}.`);
   return blobToBase64(await response.blob());
 }
 
