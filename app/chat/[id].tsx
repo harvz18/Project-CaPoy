@@ -1,9 +1,9 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { FlatList, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { AppText as Text, AppTextInput as TextInput } from "../../src/components/AppText";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { AnimatedBottomNav } from "../../src/components/AnimatedBottomNav";
 import { useApp } from "../../src/context/AppContext";
 import { useTasklinkBack } from "../../src/hooks/useTasklinkBack";
 import { ChatMessage } from "../../src/types";
@@ -159,7 +159,6 @@ export default function ChatScreen() {
           </Pressable>
         </View>
       </View>
-      <AnimatedBottomNav active="chat" role={currentUser?.role} />
     </SafeAreaView>
   );
 }

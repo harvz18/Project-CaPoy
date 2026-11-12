@@ -1,8 +1,14 @@
+import { Inter_400Regular } from "@expo-google-fonts/inter/400Regular";
+import { Inter_500Medium } from "@expo-google-fonts/inter/500Medium";
+import { Inter_600SemiBold } from "@expo-google-fonts/inter/600SemiBold";
+import { Inter_700Bold } from "@expo-google-fonts/inter/700Bold";
+import { Inter_800ExtraBold } from "@expo-google-fonts/inter/800ExtraBold";
+import { useFonts } from "expo-font";
 import { Href, Stack, useRouter, useSegments } from "expo-router";
 import * as Network from "expo-network";
 import * as Notifications from "expo-notifications";
 import { useEffect } from "react";
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Modal, Pressable, StyleSheet, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppProvider, useApp } from "../src/context/AppContext";
@@ -11,6 +17,8 @@ import { RouteTransition, usePrefersReducedMotion } from "../src/components/Rout
 import { colors } from "../src/theme";
 import { configureNotificationChannel } from "../src/services/pushNotificationService";
 import { markNotificationOpened } from "../src/services/notificationService";
+import { AppText as Text } from "../src/components/AppText";
+import { AnimatedBottomNav, BottomNavKey } from "../src/components/AnimatedBottomNav";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -22,6 +30,23 @@ Notifications.setNotificationHandler({
 });
 
 export default function RootLayout() {
+  const [fontsLoaded, fontError] = useFonts({
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+    Inter_800ExtraBold
+  });
+
+  if (!fontsLoaded && !fontError) {
+    return (
+      <View accessibilityLabel="Loading TaskLink" accessibilityRole="progressbar" style={styles.fontLoadingScreen}>
+        <StatusBar style="dark" />
+        <ActivityIndicator color={colors.primary} size="large" />
+      </View>
+    );
+  }
+
   return (
     <SafeAreaProvider>
       <AppErrorBoundary>
@@ -40,6 +65,7 @@ function ProtectedNavigator() {
   const networkState = Network.useNetworkState();
   const { actionErrorDialog, appLoading, authority, clearActionErrorDialog, clearError, currentUser, error, retryDataSync } = useApp();
   const route = segments[0] as string | undefined;
+  const activeBottomTab = getActiveBottomTab(route);
   const authRoutes = ["index", "login", "register"];
   const publicRoutes = [...authRoutes, "help"];
   const clientOnlyRoutes = ["client-dashboard", "post-task"];
@@ -190,6 +216,9 @@ function ProtectedNavigator() {
         <Stack.Screen name="admin" options={{ title: "Administrator" }} />
         <Stack.Screen name="superadmin" options={{ title: "Superadministrator" }} />
       </Stack>
+      {activeBottomTab && currentUser && (currentUser.role === "client" || currentUser.role === "worker") ? (
+        <AnimatedBottomNav active={activeBottomTab} role={currentUser.role} />
+      ) : null}
       <Modal
         animationType="fade"
         onRequestClose={clearActionErrorDialog}
@@ -210,7 +239,16 @@ function ProtectedNavigator() {
   );
 }
 
+function getActiveBottomTab(route?: string): BottomNavKey | undefined {
+  if (route === "client-dashboard" || route === "worker-dashboard") return "home";
+  if (route === "post-task" || route === "jobs") return "jobs";
+  if (route === "chat") return "chat";
+  if (route === "profile") return "profile";
+  return undefined;
+}
+
 const styles = StyleSheet.create({
+  fontLoadingScreen: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background },
   navigator: { flex: 1, overflow: "hidden" },
   loadingScreen: {
     flex: 1,

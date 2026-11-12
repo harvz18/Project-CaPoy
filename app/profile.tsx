@@ -1,9 +1,9 @@
 import Feather from "@expo/vector-icons/Feather";
 import { Href, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Image, Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { AppText as Text, AppTextInput as TextInput } from "../src/components/AppText";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { AnimatedBottomNav } from "../src/components/AnimatedBottomNav";
 import LocationMap from "../src/components/LocationMap";
 import { StatusBadge } from "../src/components/StatusBadge";
 import { workerCapabilities } from "../src/constants/capabilities";
@@ -563,7 +563,6 @@ export default function ProfileScreen() {
         </Pressable>
       </ScrollView>
 
-      <AnimatedBottomNav active="profile" role={currentUser?.role} />
 
       <Modal animationType="fade" transparent visible={skillDropdownOpen} onRequestClose={() => setSkillDropdownOpen(false)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setSkillDropdownOpen(false)}>

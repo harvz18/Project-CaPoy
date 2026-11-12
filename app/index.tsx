@@ -1,6 +1,7 @@
 import { useRouter } from "expo-router";
 import { useEffect, useRef } from "react";
-import { Animated, StyleSheet, Text, View } from "react-native";
+import { Animated, StyleSheet, View } from "react-native";
+import { AppText as Text } from "../src/components/AppText";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const palette = {

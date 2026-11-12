@@ -1,16 +1,17 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { AppText as Text } from "./AppText";
 
-export function NotificationShortcut({ onPress, unreadCount }: { onPress: () => void; unreadCount: number }) {
+export function NotificationShortcut({ compact = false, onPress, unreadCount }: { compact?: boolean; onPress: () => void; unreadCount: number }) {
   const label = unreadCount ? `Notifications, ${unreadCount} unread` : "Notifications";
   return (
     <Pressable accessibilityLabel={label} accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.button, pressed && styles.pressed]}>
-      <View pointerEvents="none" style={styles.bell}>
+      <View pointerEvents="none" style={[styles.bell, compact && styles.bellCompact]}>
         <View style={styles.bellDome} />
         <View style={styles.bellRim} />
         <View style={styles.bellClapper} />
       </View>
       {unreadCount ? (
-        <View accessibilityLabel={`${unreadCount} unread notifications`} style={styles.badge}>
+        <View accessibilityLabel={`${unreadCount} unread notifications`} style={[styles.badge, compact && styles.badgeCompact]}>
           <Text style={styles.badgeText}>{unreadCount > 99 ? "99+" : unreadCount}</Text>
         </View>
       ) : null}
@@ -30,6 +31,7 @@ const styles = StyleSheet.create({
     borderColor: "#BDC9C6"
   },
   bell: { width: 24, height: 24, alignItems: "center", justifyContent: "flex-start" },
+  bellCompact: { transform: [{ scale: 0.76 }] },
   bellDome: {
     position: "absolute",
     top: 3,
@@ -72,5 +74,6 @@ const styles = StyleSheet.create({
     borderColor: "#FFFFFF"
   },
   badgeText: { color: "#FFFFFF", fontSize: 10, fontWeight: "900" },
+  badgeCompact: { top: -3, right: -3, minWidth: 17, height: 17, borderRadius: 9 },
   pressed: { opacity: 0.72 }
 });

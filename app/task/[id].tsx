@@ -1,7 +1,8 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { AppText as Text, AppTextInput as TextInput } from "../../src/components/AppText";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBadge } from "../../src/components/StatusBadge";
 import { useApp } from "../../src/context/AppContext";

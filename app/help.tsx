@@ -1,6 +1,7 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useMemo, useState } from "react";
-import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { AppText as Text, AppTextInput as TextInput } from "../src/components/AppText";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { hasSupportEmail, supportContactLabel, supportEmail } from "../src/config/support";
 import { useTasklinkBack } from "../src/hooks/useTasklinkBack";

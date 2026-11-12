@@ -1,7 +1,8 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { AppText as Text, AppTextInput as TextInput } from "../../src/components/AppText";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { DateTimePickerSheet, formatFriendlyDate, formatLocalDate, formatLocalDateTime, parseLocalDate, parseLocalDateTime } from "../../src/components/DateTimePickerSheet";
 import LocationMap from "../../src/components/LocationMap";

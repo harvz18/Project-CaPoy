@@ -1,7 +1,8 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { FlatList, Pressable, StyleSheet, Switch, Text, View } from "react-native";
+import { FlatList, Pressable, StyleSheet, Switch, View } from "react-native";
+import { AppText as Text } from "../src/components/AppText";
 import { AppCard } from "../src/components/AppCard";
 import { EmptyState } from "../src/components/EmptyState";
 import { ScreenContainer } from "../src/components/ScreenContainer";

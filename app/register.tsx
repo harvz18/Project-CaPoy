@@ -1,6 +1,7 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import { AppText as Text } from "../src/components/AppText";
 import { AppButton } from "../src/components/AppButton";
 import { AppCard } from "../src/components/AppCard";
 import { AppInput } from "../src/components/AppInput";

@@ -1,8 +1,9 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { AppText as Text } from "../src/components/AppText";
+import { interactiveCardShadow } from "../src/styles";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { AnimatedBottomNav } from "../src/components/AnimatedBottomNav";
 import { HelpShortcut } from "../src/components/HelpShortcut";
 import { NotificationShortcut } from "../src/components/NotificationShortcut";
 import { StatusBadge } from "../src/components/StatusBadge";
@@ -154,7 +155,6 @@ export default function ClientDashboardScreen() {
           )}
         </View>
       </ScrollView>
-      <AnimatedBottomNav active="home" role={currentUser?.role} />
       <Pressable
         accessibilityLabel="Post a task"
         accessibilityRole="button"
@@ -383,7 +383,7 @@ const styles = StyleSheet.create({
   archivedHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   archiveEmptyRow: { padding: 12, borderRadius: 8, backgroundColor: palette.surface },
   panelTitle: { color: palette.text, fontSize: 14, lineHeight: 20, fontWeight: "900" },
-  historyRow: { padding: 12, borderRadius: 8, backgroundColor: palette.surface, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  historyRow: { padding: 12, borderRadius: 8, backgroundColor: palette.surface, flexDirection: "row", justifyContent: "space-between", alignItems: "center", ...interactiveCardShadow },
   historyLeft: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1 },
   historyIcon: { width: 36, height: 36, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: palette.tertiaryContainer },
   historyIconText: { color: "#FFE5DB", fontWeight: "900" },

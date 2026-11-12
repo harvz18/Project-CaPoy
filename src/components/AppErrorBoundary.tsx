@@ -1,5 +1,6 @@
 import React, { ErrorInfo, PropsWithChildren } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { AppText as Text } from "./AppText";
 import { supportContactLabel } from "../config/support";
 
 type State = { failed: boolean };

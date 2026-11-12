@@ -1,7 +1,8 @@
 import Constants from "expo-constants";
 import type { Feature, LineString, Polygon } from "geojson";
 import { useEffect, useMemo, useRef } from "react";
-import { NativeModules, StyleSheet, Text, View } from "react-native";
+import { NativeModules, StyleSheet, View } from "react-native";
+import { AppText as Text } from "./AppText";
 import { WebView } from "react-native-webview";
 import type { CameraRef, StyleSpecification } from "@maplibre/maplibre-react-native";
 import { LocationMapProps, LocationMarker, MapCoordinate } from "./LocationMap.types";

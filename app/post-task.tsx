@@ -1,9 +1,9 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useRouter } from "expo-router";
 import { useRef, useState } from "react";
-import { Modal, Pressable, ScrollView, ScrollViewInstance, StyleSheet, Text, TextInput, View } from "react-native";
+import { Modal, Pressable, ScrollView, ScrollViewInstance, StyleSheet, View } from "react-native";
+import { AppText as Text, AppTextInput as TextInput } from "../src/components/AppText";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { AnimatedBottomNav } from "../src/components/AnimatedBottomNav";
 import {
   DateTimePickerSheet,
   formatFriendlyDate,
@@ -653,7 +653,6 @@ export default function PostTaskScreen() {
         </Pressable>
       </View>
 
-      <AnimatedBottomNav active="jobs" role={currentUser?.role} />
 
       <Modal animationType="slide" visible={mapOpen} onRequestClose={() => setMapOpen(false)}>
         <SafeAreaView style={styles.mapModalSafeArea} edges={["top", "left", "right"]}>

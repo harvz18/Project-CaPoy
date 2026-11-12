@@ -1,5 +1,7 @@
 import { Href, useRouter } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { AppText as Text } from "../src/components/AppText";
+import { interactiveCardShadow } from "../src/styles";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useApp } from "../src/context/AppContext";
 import { PublicRole } from "../src/types";
@@ -223,11 +225,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.surface,
     borderWidth: 1,
     borderColor: palette.outlineVariant,
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    elevation: 2
+    ...interactiveCardShadow
   },
   cardTopRow: {
     flexDirection: "row",

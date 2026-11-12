@@ -197,7 +197,7 @@ export default function LocationMap({
             border: "1px solid #BDC9C6",
             borderRadius: 999,
             color: "#005C55",
-            fontFamily: "system-ui, sans-serif",
+            fontFamily: "Inter, sans-serif",
             fontSize: 13,
             fontWeight: 700,
             left: "50%",

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { AppText as Text, AppTextInput as TextInput } from "./AppText";
 import { useRouter } from "expo-router";
 import { useApp } from "../context/AppContext";
 import { correctLockedFullName, loadSuperadminOverview, moderateUserAccount, reviewPayment, reviewWorkerVerification, subscribeToAdminData, SuperadminOverview } from "../services/adminService";

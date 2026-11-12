@@ -1,8 +1,9 @@
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { AppText as Text, AppTextInput as TextInput } from "../src/components/AppText";
+import { interactiveCardShadow } from "../src/styles";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { AnimatedBottomNav } from "../src/components/AnimatedBottomNav";
 import LocationMap from "../src/components/LocationMap";
 import { StatusBadge } from "../src/components/StatusBadge";
 import { useApp } from "../src/context/AppContext";
@@ -221,7 +222,6 @@ export default function JobsScreen() {
         {error ? <Text style={styles.locationMessage}>{error}</Text> : null}
       </ScrollView>
 
-      <AnimatedBottomNav active="jobs" role={currentUser?.role} />
     </SafeAreaView>
   );
 }
@@ -351,7 +351,7 @@ const styles = StyleSheet.create({
   applicationSectionMeta: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "800" },
   applicationChevron: { color: palette.primary, fontSize: 12, lineHeight: 16, fontWeight: "900" },
   applicationGrid: { padding: 10, paddingTop: 0, gap: 10 },
-  applicationCard: { padding: 16, borderRadius: 10, borderWidth: 1, borderColor: "rgba(189,201,198,0.45)", backgroundColor: palette.background, gap: 12 },
+  applicationCard: { padding: 16, borderRadius: 10, borderWidth: 1, borderColor: "rgba(189,201,198,0.45)", backgroundColor: palette.background, gap: 12, ...interactiveCardShadow },
   applicationCopy: { gap: 4 },
   applicationTitle: { color: palette.textStrong, fontSize: 16, lineHeight: 22, fontWeight: "900" },
   applicationMeta: { color: palette.muted, fontSize: 12, lineHeight: 16 },
@@ -367,7 +367,7 @@ const styles = StyleSheet.create({
   loadMoreButton: { minHeight: 46, marginHorizontal: 16, marginTop: 14, borderRadius: 10, borderWidth: 1, borderColor: palette.primary, alignItems: "center", justifyContent: "center", backgroundColor: palette.surface },
   loadMoreText: { color: palette.primary, fontSize: 14, fontWeight: "900" },
   listCount: { color: palette.muted, fontSize: 12, fontWeight: "700", textAlign: "center", paddingTop: 14 },
-  jobCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, elevation: 2, gap: 12 },
+  jobCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, gap: 12, ...interactiveCardShadow },
   urgentBadge: { position: "absolute", left: 16, top: 16, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: palette.secondaryContainer },
   urgentText: { color: "#684000", fontSize: 12, lineHeight: 16, fontWeight: "900" },
   priceRow: { alignItems: "flex-end" },

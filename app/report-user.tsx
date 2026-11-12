@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Feather from "@expo/vector-icons/Feather";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { AppText as Text, AppTextInput as TextInput } from "../src/components/AppText";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScreenContainer } from "../src/components/ScreenContainer";
 import { useApp } from "../src/context/AppContext";

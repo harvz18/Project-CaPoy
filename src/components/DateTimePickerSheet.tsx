@@ -1,6 +1,7 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useEffect, useMemo, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { AppText as Text } from "./AppText";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type PickerMode = "date" | "datetime";

@@ -1,4 +1,5 @@
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import { AppText as Text } from "./AppText";
 import { styles } from "../styles";
 import { TaskStatus } from "../types";
 

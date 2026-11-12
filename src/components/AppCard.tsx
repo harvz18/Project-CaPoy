@@ -10,7 +10,7 @@ type AppCardProps = PropsWithChildren<{
 export function AppCard({ children, onPress, style }: AppCardProps) {
   if (onPress) {
     return (
-      <Pressable style={({ pressed }) => [styles.card, pressed && styles.pressed, style]} onPress={onPress}>
+      <Pressable style={({ pressed }) => [styles.card, styles.cardInteractive, pressed && styles.pressed, style]} onPress={onPress}>
         {children}
       </Pressable>
     );

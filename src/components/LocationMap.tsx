@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { AppText as Text } from "./AppText";
 import { LocationMapProps } from "./LocationMap.types";
 
 export type { LocationMapProps, LocationMarker, MapCoordinate } from "./LocationMap.types";

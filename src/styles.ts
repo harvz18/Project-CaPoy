@@ -1,5 +1,14 @@
 import { StyleSheet } from "react-native";
-import { colors, radii, spacing, typography } from "./theme";
+import { colors, radii, spacing } from "./theme";
+import { typography } from "./typography";
+
+export const interactiveCardShadow = {
+  shadowColor: "#0F172A",
+  shadowOffset: { width: 0, height: 3 },
+  shadowOpacity: 0.22,
+  shadowRadius: 7,
+  elevation: 5
+};
 
 export const styles = StyleSheet.create({
   screen: {
@@ -24,32 +33,25 @@ export const styles = StyleSheet.create({
     padding: spacing.lg
   },
   title: {
-    fontSize: typography.title,
-    lineHeight: 36,
-    fontWeight: "800",
+    ...typography.screenTitle,
     color: colors.text,
     marginBottom: spacing.sm
   },
   heading: {
-    fontSize: typography.heading,
-    lineHeight: 28,
-    fontWeight: "800",
+    ...typography.sectionTitle,
     color: colors.text,
     marginBottom: spacing.md
   },
   heroTitle: {
-    fontSize: 36,
-    lineHeight: 42,
-    fontWeight: "900",
+    ...typography.screenTitle,
     color: colors.primary,
     textAlign: "center",
     marginBottom: spacing.sm
   },
   heroSubtitle: {
-    fontSize: typography.body,
+    ...typography.body,
     color: colors.muted,
     textAlign: "center",
-    lineHeight: 23
   },
   sectionHeader: {
     flexDirection: "row",
@@ -59,36 +61,30 @@ export const styles = StyleSheet.create({
     marginBottom: spacing.md
   },
   subheading: {
-    fontSize: typography.subheading,
-    fontWeight: "700",
+    ...typography.sectionTitleSmall,
     color: colors.text
   },
   text: {
-    fontSize: typography.body,
-    lineHeight: 23,
+    ...typography.body,
     color: colors.text,
     marginBottom: spacing.sm
   },
   muted: {
-    fontSize: typography.small,
-    lineHeight: 20,
+    ...typography.metadata,
     color: colors.muted,
     marginBottom: spacing.sm
   },
   errorText: {
-    fontSize: typography.small,
-    lineHeight: 20,
+    ...typography.bodyMedium,
     color: colors.danger,
     marginBottom: spacing.sm,
-    fontWeight: "700"
   },
   statNumber: {
-    fontSize: 24,
-    fontWeight: "800",
+    ...typography.heroNumber,
     color: colors.primary
   },
   statLabel: {
-    fontSize: typography.tiny,
+    ...typography.metadata,
     color: colors.muted,
     marginTop: spacing.xs
   },
@@ -96,8 +92,7 @@ export const styles = StyleSheet.create({
     marginBottom: spacing.md
   },
   inputLabel: {
-    fontSize: typography.small,
-    fontWeight: "700",
+    ...typography.fieldLabel,
     color: colors.text,
     marginBottom: spacing.xs
   },
@@ -107,7 +102,7 @@ export const styles = StyleSheet.create({
     borderRadius: radii.md,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
-    fontSize: typography.body,
+    ...typography.inputText,
     color: colors.text,
     backgroundColor: colors.white
   },
@@ -148,6 +143,7 @@ export const styles = StyleSheet.create({
     marginBottom: spacing.md,
     backgroundColor: colors.card
   },
+  cardInteractive: interactiveCardShadow,
   heroCard: {
     borderColor: colors.infoLight,
     backgroundColor: colors.white
@@ -166,9 +162,7 @@ export const styles = StyleSheet.create({
     backgroundColor: colors.white
   },
   linkText: {
-    fontSize: typography.body,
-    lineHeight: 22,
-    fontWeight: "800",
+    ...typography.bodyMedium,
     color: colors.text
   },
   appButton: {
@@ -204,8 +198,7 @@ export const styles = StyleSheet.create({
   },
   appButtonText: {
     color: colors.white,
-    fontSize: typography.body,
-    fontWeight: "800",
+    ...typography.button,
     textAlign: "center"
   },
   appButtonOutlineText: {
@@ -244,8 +237,7 @@ export const styles = StyleSheet.create({
     backgroundColor: colors.mutedLight
   },
   badgeText: {
-    fontSize: typography.tiny,
-    fontWeight: "800",
+    ...typography.badge,
     color: colors.text
   },
   emptyState: {
@@ -258,17 +250,15 @@ export const styles = StyleSheet.create({
     marginVertical: spacing.md
   },
   emptyTitle: {
-    fontSize: typography.body,
-    fontWeight: "800",
+    ...typography.bodyMedium,
     color: colors.text,
     marginBottom: spacing.xs,
     textAlign: "center"
   },
   emptyMessage: {
-    fontSize: typography.small,
+    ...typography.metadata,
     color: colors.muted,
     textAlign: "center",
-    lineHeight: 20
   },
   pill: {
     borderRadius: radii.pill,
@@ -278,9 +268,8 @@ export const styles = StyleSheet.create({
     alignSelf: "flex-start"
   },
   pillText: {
-    fontSize: typography.tiny,
+    ...typography.badge,
     color: colors.muted,
-    fontWeight: "700"
   },
   messageMine: {
     alignSelf: "flex-end",
@@ -301,9 +290,8 @@ export const styles = StyleSheet.create({
     marginBottom: spacing.sm
   },
   messageText: {
-    fontSize: typography.body,
+    ...typography.body,
     color: colors.text,
-    lineHeight: 22
   },
   listContent: {
     paddingBottom: spacing.xl
@@ -311,7 +299,6 @@ export const styles = StyleSheet.create({
   footerNote: {
     marginTop: spacing.md,
     color: colors.muted,
-    fontSize: typography.small,
-    lineHeight: 20
+    ...typography.metadata
   }
 });

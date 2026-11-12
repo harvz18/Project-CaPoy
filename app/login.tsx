@@ -8,12 +8,11 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   UIManager,
   View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { AppText as Text, AppTextInput as TextInput } from "../src/components/AppText";
 import { workerCapabilities } from "../src/constants/capabilities";
 import { useApp } from "../src/context/AppContext";
 import { PublicRole, Role } from "../src/types";

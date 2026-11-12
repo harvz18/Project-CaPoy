@@ -1,4 +1,5 @@
-import { Pressable, StyleProp, Text, ViewStyle } from "react-native";
+import { Pressable, StyleProp, ViewStyle } from "react-native";
+import { AppText as Text } from "./AppText";
 import { styles } from "../styles";
 
 type AppButtonVariant = "primary" | "secondary" | "outline" | "danger" | "ghost";

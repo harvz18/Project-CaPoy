@@ -1,9 +1,9 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Image, Modal, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
+import { AppText as Text } from "../src/components/AppText";
+import { interactiveCardShadow } from "../src/styles";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { AnimatedBottomNav } from "../src/components/AnimatedBottomNav";
-import { HelpShortcut } from "../src/components/HelpShortcut";
 import { NotificationShortcut } from "../src/components/NotificationShortcut";
 import LocationMap from "../src/components/LocationMap";
 import { StatusBadge } from "../src/components/StatusBadge";
@@ -11,7 +11,7 @@ import { useApp } from "../src/context/AppContext";
 import { formatTaskPrice, getScheduleBasedAvailability } from "../src/domain/taskMarketplace";
 import { MatchResult, rankTasksForWorker } from "../src/domain/matching";
 import { Task } from "../src/types";
-import { formatDistance, getDiscoveryLocationIssue } from "../src/utils/location";
+import { formatDistance } from "../src/utils/location";
 import { formatRelativeTime } from "../src/utils/relativeTime";
 
 const palette = {
@@ -52,7 +52,6 @@ export default function WorkerDashboardScreen() {
     (task) => task.workerId === currentUser?.id && (task.status === "Finished" || task.status === "Archived")
   );
   const featuredJobs = rankedPostedTasks.slice(0, 2);
-  const discoveryLocationIssue = getDiscoveryLocationIssue(currentUser);
   const workerMapCenter = currentUser?.currentLatitude !== undefined && currentUser.currentLongitude !== undefined
     ? { latitude: currentUser.currentLatitude, longitude: currentUser.currentLongitude }
     : undefined;
@@ -73,20 +72,17 @@ export default function WorkerDashboardScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <DashboardHeader
-        initials={currentUser?.fullName?.[0] ?? "J"}
-        onHelp={() => router.push("/help")}
         onNotifications={() => router.push("/notifications")}
         unreadCount={notifications.filter((notification) => notification.userId === currentUser?.id && !notification.readStatus).length}
       />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.heroPanel}>
-          <View style={styles.heroCopy}>
-            <Text style={styles.heroKicker}>Worker Home</Text>
-            <Text style={styles.heroTitle}>Welcome back, {currentUser?.fullName?.split(" ")[0] ?? "there"}.</Text>
-            <Text style={styles.heroText}>{discoveryLocationIssue ?? "Your discovery location is current. Matching jobs inside your preferred radius will appear here."}</Text>
+        <View style={styles.welcomeRow}>
+          <View style={styles.welcomeCopy}>
+            <Text numberOfLines={1} style={styles.welcomeTitle} variant="screenTitle">Welcome back, {currentUser?.fullName?.split(" ")[0] ?? "there"}.</Text>
+            <Text numberOfLines={1} style={styles.welcomeLocation} variant="metadata">{currentUser?.address || "Location not set"}</Text>
           </View>
-          <View style={styles.availabilityPill}>
-            <Text style={styles.availabilityText}>{currentUser ? getScheduleBasedAvailability(tasks, currentUser.id) : "Not set"}</Text>
+          <View accessible accessibilityLabel={`Availability: ${currentUser ? getScheduleBasedAvailability(tasks, currentUser.id) : "Not set"}`} style={styles.availabilityPill}>
+            <Text style={styles.availabilityText} variant="badge">{currentUser ? getScheduleBasedAvailability(tasks, currentUser.id) : "Not set"}</Text>
           </View>
         </View>
 
@@ -241,28 +237,21 @@ export default function WorkerDashboardScreen() {
           </Pressable>
         </SafeAreaView>
       </Modal>
-      <AnimatedBottomNav active="home" role={currentUser?.role} />
     </SafeAreaView>
   );
 }
 
-function DashboardHeader({ initials, onHelp, onNotifications, unreadCount }: {
-  initials: string;
-  onHelp: () => void;
+function DashboardHeader({ onNotifications, unreadCount }: {
   onNotifications: () => void;
   unreadCount: number;
 }) {
   return (
     <View style={styles.header}>
       <View style={styles.headerLeft}>
-        <Text style={styles.brand}>TASKLINK</Text>
+        <Image accessibilityLabel="TaskLink" resizeMode="contain" source={require("../assets/tasklink-logo.jpg")} style={styles.brandLogo} />
       </View>
       <View style={styles.headerRight}>
-        <HelpShortcut onPress={onHelp} />
-        <NotificationShortcut onPress={onNotifications} unreadCount={unreadCount} />
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{initials}</Text>
-        </View>
+        <NotificationShortcut compact onPress={onNotifications} unreadCount={unreadCount} />
       </View>
     </View>
   );
@@ -439,19 +428,16 @@ const styles = StyleSheet.create({
     borderBottomColor: "#EDF1EF"
   },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
-  headerRight: { flexDirection: "row", alignItems: "center", gap: 12 },
+  headerRight: { flexDirection: "row", alignItems: "center" },
   menuText: { color: palette.primary, fontSize: 24, fontWeight: "800" },
-  brand: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "800" },
-  avatar: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: palette.secondaryContainer, borderWidth: 1, borderColor: palette.outlineVariant },
-  avatarText: { color: "#684000", fontWeight: "900" },
+  brandLogo: { width: 44, height: 44 },
   content: { padding: 16, paddingBottom: 110, gap: 14 },
-  heroPanel: { minHeight: 172, borderRadius: 12, padding: 20, backgroundColor: palette.primary, justifyContent: "space-between", overflow: "hidden" },
-  heroCopy: { gap: 6 },
-  heroKicker: { color: "#A3FAEF", fontSize: 12, lineHeight: 16, fontWeight: "900", textTransform: "uppercase" },
-  heroTitle: { color: palette.white, fontSize: 24, lineHeight: 32, fontWeight: "900" },
-  heroText: { color: "#DDF8F4", fontSize: 14, lineHeight: 20 },
-  availabilityPill: { alignSelf: "flex-start", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: "#A3FAEF" },
-  availabilityText: { color: palette.primary, fontSize: 12, fontWeight: "900" },
+  welcomeRow: { minHeight: 58, flexDirection: "row", alignItems: "center", gap: 12 },
+  welcomeCopy: { flex: 1, minWidth: 0, gap: 3 },
+  welcomeTitle: { color: palette.textStrong },
+  welcomeLocation: { color: palette.muted },
+  availabilityPill: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: "#A3FAEF" },
+  availabilityText: { color: palette.primary },
   statsGrid: { flexDirection: "row", gap: 12 },
   statCard: { flex: 1, borderRadius: 12, padding: 16, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.outlineVariant },
   statValue: { color: palette.primary, fontSize: 24, lineHeight: 32, fontWeight: "900" },
@@ -494,7 +480,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(189,201,198,0.45)",
     backgroundColor: palette.surface,
     gap: 14,
-    elevation: 2
+    ...interactiveCardShadow
   },
   applicationTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
   applicationCopy: { flex: 1, gap: 4 },
@@ -521,7 +507,7 @@ const styles = StyleSheet.create({
   },
   emptyApplicationTitle: { color: palette.textStrong, fontSize: 16, lineHeight: 22, fontWeight: "900" },
   emptyApplicationText: { color: palette.muted, fontSize: 12, lineHeight: 16 },
-  jobCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, elevation: 2, gap: 12 },
+  jobCard: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.outlineVariant, backgroundColor: palette.surface, gap: 12, ...interactiveCardShadow },
   urgentBadge: { position: "absolute", left: 16, top: 16, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: palette.secondaryContainer },
   urgentText: { color: "#684000", fontSize: 12, lineHeight: 16, fontWeight: "900" },
   priceRow: { alignItems: "flex-end" },
@@ -547,7 +533,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: palette.surface,
     borderWidth: 1,
-    borderColor: palette.outlineVariant
+    borderColor: palette.outlineVariant,
+    ...interactiveCardShadow
   },
   historyTitle: { color: palette.textStrong, fontSize: 18, lineHeight: 26, fontWeight: "900" },
   historyMeta: { color: palette.muted, fontSize: 12, lineHeight: 16, fontWeight: "800" },
